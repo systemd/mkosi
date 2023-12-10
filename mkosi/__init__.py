@@ -1858,8 +1858,8 @@ def check_systemd_tool(*tools: PathString, version: str, reason: str, hint: Opti
 
     v = systemd_tool_version(tool)
     if v < version:
-        die(f"Found '{tool}' version {v} but version {version} or newer is required to {reason}.",
-            hint=f"Use ToolsTree=default to get a newer version of '{tool}'.")
+        die(f"Found '{tool}' with version {v} but version {version} or newer is required to {reason}.",
+            hint=f"Use ToolsTree=default to get a newer version of '{tools[0]}'.")
 
 
 def check_tools(args: MkosiArgs, config: MkosiConfig) -> None:
