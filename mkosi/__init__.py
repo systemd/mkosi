@@ -1447,9 +1447,10 @@ def build_uki(
         for p in state.config.extra_search_paths:
             cmd += ["--tools", p]
 
-    uki_config = state.pkgmngr / "etc/kernel/uki.conf"
-    if uki_config.exists():
-        cmd += ["--config", uki_config]
+    for d in ("etc/kernel", "usr/lib/kernel"):
+        uki_config = state.pkgmngr / d / "uki.conf"
+        if uki_config.exists():
+            cmd += ["--config", uki_config]
 
     if state.config.secure_boot:
         assert state.config.secure_boot_key
