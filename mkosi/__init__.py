@@ -1123,27 +1123,39 @@ def prepare_grub_bios(state: MkosiState, partitions: Sequence[Partition]) -> Non
     prefix = find_grub_prefix(state)
     assert prefix
 
-    esp = next(p for p in partitions if p.type == "esp")
-
     dst = state.root / "efi" / prefix / "i386-pc"
     dst.mkdir(parents=True, exist_ok=True)
 
-    bwrap([mkimage,
-           "--directory", directory,
-           # What we really want to do is use grub's search utility in an embedded config file to search for
-           # the ESP by its type UUID. Unfortunately, grub's search command only supports searching by
-           # filesystem UUID and filesystem label, which don't work for us. So for now, we hardcode the
-           # partition number of the ESP, but only very recent systemd-repart will output that information,
-           # so if we're using older systemd-repart, we assume the ESP is the first partition.
-           "--prefix", f"(hd0,gpt{esp.partno + 1 if esp.partno is not None else 1})/{prefix}",
-           "--output", dst / "core.img",
-           "--format", "i386-pc",
-           *(["--verbose"] if ARG_DEBUG.get() else []),
-           # Modules required to find and read from the ESP which has all the other modules.
-           "fat",
-           "part_gpt",
-           "biosdisk"],
-          options=["--bind", state.root / "usr", "/usr"])
+    with tempfile.NamedTemporaryFile("w", prefix="grub-early-config") as earlyconfig:
+        earlyconfig.write(
+            textwrap.dedent(
+                f"""\
+                search --no-floppy --set=root --file /{prefix}/grub.cfg
+                set prefix=($root)/{prefix}
+                """
+            )
+        )
+
+        earlyconfig.flush()
+
+        bwrap(
+            [
+                mkimage,
+                "--directory", directory,
+                "--config", earlyconfig.name,
+                "--prefix", f"/{prefix}",
+                "--output", dst / "core.img",
+                "--format", "i386-pc",
+                *(["--verbose"] if ARG_DEBUG.get() else []),
+                # Modules required to find and read from the XBOOTLDR partition which has all the other modules.
+                "fat",
+                "part_gpt",
+                "biosdisk",
+                "search",
+                "search_fs_file"
+            ],
+            options=["--bind", state.root / "usr", "/usr"],
+        )
 
     for p in directory.glob("*.mod"):
         shutil.copy2(p, dst)
