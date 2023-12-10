@@ -10,7 +10,7 @@ from mkosi.distributions import (
     PackageType,
     join_mirror,
 )
-from mkosi.installer.dnf import Repo, find_rpm_gpgkey, invoke_dnf, setup_dnf
+from mkosi.installer.dnf import RpmRepository, find_rpm_gpgkey, invoke_dnf, setup_dnf
 from mkosi.log import die
 from mkosi.state import MkosiState
 
@@ -49,18 +49,18 @@ class Installer(DistributionInstaller):
         repos = []
 
         if state.config.local_mirror:
-            repos += [Repo("core-release", f"baseurl={state.config.local_mirror}", gpgurls)]
+            repos += [RpmRepository("core-release", f"baseurl={state.config.local_mirror}", gpgurls)]
         elif state.config.mirror:
             url = f"baseurl={join_mirror(state.config.mirror, 'distrib/$releasever/$basearch/media/core/')}"
             repos += [
-                Repo("core-release", f"{url}/release", gpgurls),
-                Repo("core-updates", f"{url}/updates/", gpgurls)
+                RpmRepository("core-release", f"{url}/release", gpgurls),
+                RpmRepository("core-updates", f"{url}/updates/", gpgurls)
             ]
         else:
             url = "mirrorlist=https://www.mageia.org/mirrorlist/?release=$releasever&arch=$basearch&section=core"
             repos += [
-                Repo("core-release", f"{url}&repo=release", gpgurls),
-                Repo("core-updates", f"{url}&repo=updates", gpgurls)
+                RpmRepository("core-release", f"{url}&repo=release", gpgurls),
+                RpmRepository("core-updates", f"{url}&repo=updates", gpgurls)
             ]
 
         setup_dnf(state, repos)

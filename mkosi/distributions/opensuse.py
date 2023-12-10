@@ -7,7 +7,7 @@ from collections.abc import Sequence
 
 from mkosi.architecture import Architecture
 from mkosi.distributions import Distribution, DistributionInstaller, PackageType
-from mkosi.installer.dnf import Repo, invoke_dnf, setup_dnf
+from mkosi.installer.dnf import RpmRepository, invoke_dnf, setup_dnf
 from mkosi.installer.zypper import invoke_zypper, setup_zypper
 from mkosi.log import die
 from mkosi.state import MkosiState
@@ -103,12 +103,18 @@ class Installer(DistributionInstaller):
         # If we need to use a local mirror, create a temporary repository definition
         # that doesn't get in the image, as it is valid only at image build time.
         if state.config.local_mirror:
-            repos = [Repo("local-mirror", f"baseurl={state.config.local_mirror}", ())]
+            repos = [RpmRepository("local-mirror", f"baseurl={state.config.local_mirror}", ())]
         else:
-            repos = [Repo("repo-oss", f"baseurl={release_url}", fetch_gpgurls(release_url) if not zypper else ())]
+            repos = [
+                RpmRepository("repo-oss", f"baseurl={release_url}", fetch_gpgurls(release_url) if not zypper else ()),
+            ]
             if updates_url is not None:
                 repos += [
-                    Repo("repo-update", f"baseurl={updates_url}", fetch_gpgurls(updates_url) if not zypper else ())
+                    RpmRepository(
+                        "repo-update",
+                        f"baseurl={updates_url}",
+                        fetch_gpgurls(updates_url) if not zypper else (),
+                    )
                 ]
 
         if zypper:

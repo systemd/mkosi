@@ -3,14 +3,14 @@ import textwrap
 from collections.abc import Sequence
 
 from mkosi.config import yes_no
-from mkosi.installer.dnf import Repo, fixup_rpmdb_location
+from mkosi.installer.dnf import RpmRepository, fixup_rpmdb_location
 from mkosi.run import apivfs_cmd, bwrap
 from mkosi.state import MkosiState
 from mkosi.types import PathString
 from mkosi.util import sort_packages
 
 
-def setup_zypper(state: MkosiState, repos: Sequence[Repo]) -> None:
+def setup_zypper(state: MkosiState, repos: Sequence[RpmRepository]) -> None:
     config = state.pkgmngr / "etc/zypp/zypp.conf"
     if not config.exists():
         config.parent.mkdir(exist_ok=True, parents=True)

@@ -14,7 +14,7 @@ from mkosi.types import PathString
 from mkosi.util import sort_packages
 
 
-class Repo(NamedTuple):
+class RpmRepository(NamedTuple):
     id: str
     url: str
     gpgurls: tuple[str, ...]
@@ -41,7 +41,7 @@ def dnf_executable(state: MkosiState) -> str:
     return dnf or shutil.which("dnf5") or shutil.which("dnf") or "yum"
 
 
-def setup_dnf(state: MkosiState, repos: Iterable[Repo], filelists: bool = True) -> None:
+def setup_dnf(state: MkosiState, repositories: Iterable[RpmRepository], filelists: bool = True) -> None:
     (state.pkgmngr / "etc/dnf/vars").mkdir(exist_ok=True, parents=True)
     (state.pkgmngr / "etc/yum.repos.d").mkdir(exist_ok=True, parents=True)
     (state.pkgmngr / "var/lib/dnf").mkdir(exist_ok=True, parents=True)
@@ -69,7 +69,7 @@ def setup_dnf(state: MkosiState, repos: Iterable[Repo], filelists: bool = True) 
     if not repofile.exists():
         repofile.parent.mkdir(exist_ok=True, parents=True)
         with repofile.open("w") as f:
-            for repo in repos:
+            for repo in repositories:
                 f.write(
                     textwrap.dedent(
                         f"""\

@@ -10,7 +10,7 @@ from mkosi.distributions import (
     PackageType,
     join_mirror,
 )
-from mkosi.installer.dnf import Repo, find_rpm_gpgkey, invoke_dnf, setup_dnf
+from mkosi.installer.dnf import RpmRepository, find_rpm_gpgkey, invoke_dnf, setup_dnf
 from mkosi.log import die
 from mkosi.state import MkosiState
 
@@ -51,12 +51,12 @@ class Installer(DistributionInstaller):
         repos = []
 
         if state.config.local_mirror:
-            repos += [Repo("main-release", f"baseurl={state.config.local_mirror}", gpgurls)]
+            repos += [RpmRepository("main-release", f"baseurl={state.config.local_mirror}", gpgurls)]
         else:
             url = f"baseurl={join_mirror(mirror, '$releasever/repository/$basearch/main')}"
             repos += [
-                Repo("main-release", f"{url}/release", gpgurls),
-                Repo("main-updates", f"{url}/updates", gpgurls),
+                RpmRepository("main-release", f"{url}/release", gpgurls),
+                RpmRepository("main-updates", f"{url}/updates", gpgurls),
             ]
 
         setup_dnf(state, repos)

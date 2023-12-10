@@ -9,7 +9,7 @@ from mkosi.distributions import (
     PackageType,
     join_mirror,
 )
-from mkosi.installer.dnf import Repo, find_rpm_gpgkey, invoke_dnf, setup_dnf
+from mkosi.installer.dnf import RpmRepository, find_rpm_gpgkey, invoke_dnf, setup_dnf
 from mkosi.log import die
 from mkosi.state import MkosiState
 
@@ -99,65 +99,75 @@ class Installer(DistributionInstaller):
         repos = []
 
         if state.config.local_mirror:
-            repos += [Repo("fedora", f"baseurl={state.config.local_mirror}", gpgurls)]
+            repos += [RpmRepository("fedora", f"baseurl={state.config.local_mirror}", gpgurls)]
         elif state.config.release == "eln":
             mirror = state.config.mirror or "https://odcs.fedoraproject.org/composes/production/latest-Fedora-ELN/compose"
             for repo in ("Appstream", "BaseOS", "Extras", "CRB"):
                 url = f"baseurl={join_mirror(mirror, repo)}"
                 repos += [
-                    Repo(repo.lower(), f"{url}/$basearch/os", gpgurls),
-                    Repo(repo.lower(), f"{url}/$basearch/debug/tree", gpgurls, enabled=False),
-                    Repo(repo.lower(), f"{url}/source/tree", gpgurls, enabled=False),
+                    RpmRepository(repo.lower(), f"{url}/$basearch/os", gpgurls),
+                    RpmRepository(repo.lower(), f"{url}/$basearch/debug/tree", gpgurls, enabled=False),
+                    RpmRepository(repo.lower(), f"{url}/source/tree", gpgurls, enabled=False),
                 ]
         elif state.config.mirror:
             directory = "development" if state.config.release == "rawhide" else "releases"
             url = f"baseurl={join_mirror(state.config.mirror, f'{directory}/$releasever/Everything')}"
             repos += [
-                Repo("fedora", f"{url}/$basearch/os", gpgurls),
-                Repo("fedora-debuginfo", f"{url}/$basearch/debug/tree", gpgurls, enabled=False),
-                Repo("fedora-source", f"{url}/source/tree", gpgurls, enabled=False),
+                RpmRepository("fedora", f"{url}/$basearch/os", gpgurls),
+                RpmRepository("fedora-debuginfo", f"{url}/$basearch/debug/tree", gpgurls, enabled=False),
+                RpmRepository("fedora-source", f"{url}/source/tree", gpgurls, enabled=False),
             ]
 
             if state.config.release != "rawhide":
                 url = f"baseurl={join_mirror(state.config.mirror, 'updates/$releasever/Everything')}"
                 repos += [
-                    Repo("updates", f"{url}/$basearch", gpgurls),
-                    Repo("updates-debuginfo", f"{url}/$basearch/debug", gpgurls, enabled=False),
-                    Repo("updates-source", f"{url}/SRPMS", gpgurls, enabled=False),
+                    RpmRepository("updates", f"{url}/$basearch", gpgurls),
+                    RpmRepository("updates-debuginfo", f"{url}/$basearch/debug", gpgurls, enabled=False),
+                    RpmRepository("updates-source", f"{url}/SRPMS", gpgurls, enabled=False),
                 ]
 
                 url = f"baseurl={join_mirror(state.config.mirror, 'updates/testing/$releasever/Everything')}"
                 repos += [
-                    Repo("updates-testing", f"{url}/$basearch", gpgurls, enabled=False),
-                    Repo("updates-testing-debuginfo", f"{url}/$basearch/debug", gpgurls, enabled=False),
-                    Repo("updates-testing-source", f"{url}/source/tree", gpgurls, enabled=False)
+                    RpmRepository("updates-testing", f"{url}/$basearch", gpgurls, enabled=False),
+                    RpmRepository("updates-testing-debuginfo", f"{url}/$basearch/debug", gpgurls, enabled=False),
+                    RpmRepository("updates-testing-source", f"{url}/source/tree", gpgurls, enabled=False)
                 ]
         else:
             url = "metalink=https://mirrors.fedoraproject.org/metalink?arch=$basearch"
             repos += [
-                Repo("fedora", f"{url}&repo=fedora-$releasever", gpgurls),
-                Repo("fedora-debuginfo", f"{url}&repo=fedora-debug-$releasever", gpgurls, enabled=False),
-                Repo("fedora-source", f"{url}&repo=fedora-source-$releasever", gpgurls, enabled=False),
+                RpmRepository("fedora", f"{url}&repo=fedora-$releasever", gpgurls),
+                RpmRepository("fedora-debuginfo", f"{url}&repo=fedora-debug-$releasever", gpgurls, enabled=False),
+                RpmRepository("fedora-source", f"{url}&repo=fedora-source-$releasever", gpgurls, enabled=False),
             ]
 
             if state.config.release != "rawhide":
                 repos += [
-                    Repo("updates", f"{url}&repo=updates-released-f$releasever", gpgurls),
-                    Repo(
+                    RpmRepository("updates", f"{url}&repo=updates-released-f$releasever", gpgurls),
+                    RpmRepository(
                         "updates-debuginfo",
                         f"{url}&repo=updates-released-debug-f$releasever",
                         gpgurls,
                         enabled=False,
                     ),
-                    Repo("updates-source", f"{url}&repo=updates-released-source-f$releasever", gpgurls, enabled=False),
-                    Repo("updates-testing", f"{url}&repo=updates-testing-f$releasever", gpgurls, enabled=False),
-                    Repo(
+                    RpmRepository(
+                        "updates-source",
+                        f"{url}&repo=updates-released-source-f$releasever",
+                        gpgurls,
+                        enabled=False
+                    ),
+                    RpmRepository(
+                        "updates-testing",
+                        f"{url}&repo=updates-testing-f$releasever",
+                        gpgurls,
+                        enabled=False
+                    ),
+                    RpmRepository(
                         "updates-testing-debuginfo",
                         f"{url}&repo=updates-testing-debug-f$releasever",
                         gpgurls,
                         enabled=False,
                     ),
-                    Repo(
+                    RpmRepository(
                         "updates-testing-source",
                         f"{url}&repo=updates-testing-source-f$releasever",
                         gpgurls,

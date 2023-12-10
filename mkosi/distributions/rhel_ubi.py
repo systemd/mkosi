@@ -3,7 +3,7 @@
 from collections.abc import Iterable
 
 from mkosi.distributions import centos, join_mirror
-from mkosi.installer.dnf import Repo, find_rpm_gpgkey
+from mkosi.installer.dnf import RpmRepository, find_rpm_gpgkey
 from mkosi.state import MkosiState
 
 
@@ -25,25 +25,25 @@ class Installer(centos.Installer):
         )
 
     @classmethod
-    def repository_variants(cls, state: MkosiState, repo: str) -> Iterable[Repo]:
+    def repository_variants(cls, state: MkosiState, repo: str) -> Iterable[RpmRepository]:
         if state.config.local_mirror:
-            yield Repo(repo, f"baseurl={state.config.local_mirror}", cls.gpgurls(state))
+            yield RpmRepository(repo, f"baseurl={state.config.local_mirror}", cls.gpgurls(state))
         else:
             mirror = state.config.mirror or "https://cdn-ubi.redhat.com/content/public/ubi/dist/"
 
             v = state.config.release
-            yield Repo(
+            yield RpmRepository(
                 f"ubi-{v}-{repo}-rpms",
                 f"baseurl={join_mirror(mirror, f'ubi{v}/{v}/$basearch/{repo}/os')}",
                 cls.gpgurls(state),
             )
-            yield Repo(
+            yield RpmRepository(
                 f"ubi-{v}-{repo}-debug-rpms",
                 f"baseurl={join_mirror(mirror, f'ubi{v}/{v}/$basearch/{repo}/debug')}",
                 cls.gpgurls(state),
                 enabled=False,
             )
-            yield Repo(
+            yield RpmRepository(
                 f"ubi-{v}-{repo}-source",
                 f"baseurl={join_mirror(mirror, f'ubi{v}/{v}/$basearch/{repo}/source')}",
                 cls.gpgurls(state),
@@ -51,7 +51,7 @@ class Installer(centos.Installer):
             )
 
     @classmethod
-    def repositories(cls, state: MkosiState) -> Iterable[Repo]:
+    def repositories(cls, state: MkosiState) -> Iterable[RpmRepository]:
         yield from cls.repository_variants(state, "baseos")
         yield from cls.repository_variants(state, "appstream")
         yield from cls.repository_variants(state, "codeready-builder")
