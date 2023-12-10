@@ -1167,7 +1167,8 @@ def prepare_grub_bios(state: MkosiState, partitions: Sequence[Partition]) -> Non
     shutil.copy2(directory / "boot.img", dst)
 
     dst = state.root / "efi" / prefix / "fonts"
-    dst.mkdir()
+    with umask(~0o700):
+        dst.mkdir(exist_ok=True)
 
     for prefix in ("grub", "grub2"):
         unicode = state.root / "usr/share" / prefix / "unicode.pf2"
