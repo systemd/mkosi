@@ -1290,13 +1290,25 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `QemuFirmware=`, `--qemu-firmware=`
 
-: When used with the `qemu` verb, this option which firmware to use.
-  Takes one of `uefi`, `bios`, `linux`, or `auto`. Defaults to `auto`.
-  When set to `uefi`, the OVMF firmware is used. When set to `bios`, the
-  default SeaBIOS firmware is used. When set to `linux`, direct kernel
-  boot is used. See the `QemuKernel=` option for more details on which
-  kernel image is used with direct kernel boot. When set to `auto`,
-  `linux` is used if a cpio image is being booted, `uefi` otherwise.
+: When used with the `qemu` verb, this option specifies which firmware
+  to use. Takes one of `uefi`, `bios`, `linux`, or `auto`. Defaults to
+  `auto`. When set to `uefi`, the OVMF firmware is used. When set to
+  `bios`, the default SeaBIOS firmware is used. When set to `linux`,
+  direct kernel boot is used. See the `QemuKernel=` option for more
+  details on which kernel image is used with direct kernel boot. When
+  set to `auto`, `linux` is used if a cpio image is being booted, `uefi`
+  otherwise.
+
+`QemuFirmwareVariables=`, `--qemu-firmware-variables=`
+
+: When used with the `qemu` verb, this option specifies the path to the
+  the firmware variables file to use. Currently, this option is only
+  taken into account when the `uefi` firmware is used. If not specified,
+  mkosi will search for the default variables file and use that instead.
+
+: `virt-fw-vars` from the
+  [virt-firmware](https://gitlab.com/kraxel/virt-firmware) project can
+  be used to customize OVMF variable files.
 
 `QemuKernel=`, `--qemu-kernel=`
 

@@ -598,16 +598,17 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
     notifications: dict[str, str] = {}
 
     with contextlib.ExitStack() as stack:
-        if firmware == QemuFirmware.uefi and ovmf_supports_sb:
+        if firmware == QemuFirmware.uefi:
             ovmf_vars = stack.enter_context(tempfile.NamedTemporaryFile(prefix="mkosi-ovmf-vars"))
-            shutil.copy2(find_ovmf_vars(config), Path(ovmf_vars.name))
+            shutil.copy2(config.qemu_firmware_variables or find_ovmf_vars(config), Path(ovmf_vars.name))
             # Make sure qemu can access the ephemeral vars.
             os.chown(ovmf_vars.name, INVOKING_USER.uid, INVOKING_USER.gid)
-            cmdline += [
-                "-global", "ICH9-LPC.disable_s3=1",
-                "-global", "driver=cfi.pflash01,property=secure,value=on",
-                "-drive", f"file={ovmf_vars.name},if=pflash,format=raw",
-            ]
+            cmdline += ["-drive", f"file={ovmf_vars.name},if=pflash,format=raw"]
+            if ovmf_supports_sb:
+                cmdline += [
+                    "-global", "ICH9-LPC.disable_s3=1",
+                    "-global", "driver=cfi.pflash01,property=secure,value=on",
+                ]
 
         if config.qemu_cdrom and config.output_format in (OutputFormat.disk, OutputFormat.esp):
             # CD-ROM devices have sector size 2048 so we transform disk images into ones with sector size 2048.
