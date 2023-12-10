@@ -2266,25 +2266,11 @@ def make_disk(
             else:
                 bootloader = None
 
-            # If grub for BIOS is installed, let's add a BIOS boot partition onto which we can install grub.
-            bios = (state.config.bootable != ConfigFeature.disabled and want_grub_bios(state))
-
-            if bios:
-                (defaults / "05-bios.conf").write_text(
-                    textwrap.dedent(
-                        f"""\
-                        [Partition]
-                        Type={Partition.GRUB_BOOT_PARTITION_UUID}
-                        SizeMinBytes=1M
-                        SizeMaxBytes=1M
-                        """
-                    )
-                )
-
             esp = (
                 state.config.bootable == ConfigFeature.enabled or
                 (state.config.bootable == ConfigFeature.auto and bootloader and bootloader.exists())
             )
+            bios = (state.config.bootable != ConfigFeature.disabled and want_grub_bios(state))
 
             if esp or bios:
                 # Even if we're doing BIOS, let's still use the ESP to store the kernels, initrds and grub
@@ -2299,6 +2285,19 @@ def make_disk(
                         CopyFiles=/efi:/
                         SizeMinBytes={"1G" if bios else "512M"}
                         SizeMaxBytes={"1G" if bios else "512M"}
+                        """
+                    )
+                )
+
+            # If grub for BIOS is installed, let's add a BIOS boot partition onto which we can install grub.
+            if bios:
+                (defaults / "05-bios.conf").write_text(
+                    textwrap.dedent(
+                        f"""\
+                        [Partition]
+                        Type={Partition.GRUB_BOOT_PARTITION_UUID}
+                        SizeMinBytes=1M
+                        SizeMaxBytes=1M
                         """
                     )
                 )
