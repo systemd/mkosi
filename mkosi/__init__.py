@@ -1017,21 +1017,24 @@ def prepare_grub_config(state: MkosiState) -> Optional[Path]:
         with umask(~0o600), config.open("w") as f:
             f.write("set timeout=0\n")
 
-    # Signed EFI grub shipped by distributions reads its configuration from /EFI/<distribution>/grub.cfg in
-    # the ESP so let's put a shim there to redirect to the actual configuration file.
-    efi = state.root / "efi/EFI" / state.config.distribution.name / "grub.cfg"
-    with umask(~0o700):
-        efi.parent.mkdir(parents=True, exist_ok=True)
-
-    # Read the actual config file from the root of the ESP.
-    efi.write_text(f"configfile /{prefix}/grub.cfg\n")
-
     return config
 
 
 def prepare_grub_efi(state: MkosiState) -> None:
     if not want_grub_efi(state):
         return
+
+    prefix = find_grub_prefix(state)
+    assert prefix
+
+    # Signed EFI grub shipped by distributions reads its configuration from /EFI/<distribution>/grub.cfg in
+    # the ESP so let's put a shim there to redirect to the actual configuration file.
+    earlyconfig = state.root / "efi/EFI" / state.config.distribution.name / "grub.cfg"
+    with umask(~0o700):
+        earlyconfig.parent.mkdir(parents=True, exist_ok=True)
+
+    # Read the actual config file from the root of the ESP.
+    earlyconfig.write_text(f"configfile /{prefix}/grub.cfg\n")
 
     config = prepare_grub_config(state)
     assert config
