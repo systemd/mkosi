@@ -1,24 +1,21 @@
 # SPDX-License-Identifier: LGPL-2.1+
 import textwrap
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from pathlib import Path
+from typing import NamedTuple
 
-from mkosi.architecture import Architecture
 from mkosi.run import apivfs_cmd, bwrap
 from mkosi.state import MkosiState
 from mkosi.types import PathString
 from mkosi.util import sort_packages, umask
 
 
-def setup_pacman(state: MkosiState) -> None:
-    if state.config.local_mirror:
-        server = f"Server = {state.config.local_mirror}"
-    else:
-        if state.config.architecture == Architecture.arm64:
-            server = f"Server = {state.config.mirror or 'http://mirror.archlinuxarm.org'}/$arch/$repo"
-        else:
-            server = f"Server = {state.config.mirror or 'https://geo.mirror.pkgbuild.com'}/$repo/os/$arch"
+class PacmanRepository(NamedTuple):
+    id: str
+    url: str
 
+
+def setup_pacman(state: MkosiState, repositories: Iterable[PacmanRepository]) -> None:
     if state.config.repository_key_check:
         sig_level = "Required DatabaseOptional"
     else:
@@ -36,25 +33,6 @@ def setup_pacman(state: MkosiState) -> None:
 
     config.parent.mkdir(exist_ok=True, parents=True)
 
-    repos = []
-
-    # Testing repositories have to go before regular ones to to take precedence.
-    if not state.config.local_mirror:
-        for repo in (
-            "core-testing",
-            "core-testing-debug",
-            "extra-testing",
-            "extra-testing-debug",
-            "core-debug",
-            "extra-debug",
-        ):
-            if repo in state.config.repositories:
-                repos += [repo]
-
-    repos += ["core"]
-    if not state.config.local_mirror:
-        repos += ["extra"]
-
     with config.open("w") as f:
         f.write(
             textwrap.dedent(
@@ -67,13 +45,13 @@ def setup_pacman(state: MkosiState) -> None:
             )
         )
 
-        for repo in repos:
+        for repo in repositories:
             f.write(
                 textwrap.dedent(
                     f"""\
 
-                    [{repo}]
-                    {server}
+                    [{repo.id}]
+                    Server = {repo.url}
                     """
                 )
             )

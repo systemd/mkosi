@@ -3,9 +3,8 @@
 from collections.abc import Sequence
 
 from mkosi.architecture import Architecture
-from mkosi.config import ConfigFeature
 from mkosi.distributions import Distribution, DistributionInstaller, PackageType
-from mkosi.installer.pacman import invoke_pacman, setup_pacman
+from mkosi.installer.pacman import PacmanRepository, invoke_pacman, setup_pacman
 from mkosi.log import die
 from mkosi.state import MkosiState
 
@@ -75,7 +74,32 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def setup(cls, state: MkosiState) -> None:
-        setup_pacman(state)
+        if state.config.local_mirror:
+            repos = [PacmanRepository("core", state.config.local_mirror)]
+        else:
+            repos = []
+
+            if state.config.architecture == Architecture.arm64:
+                url = f"{state.config.mirror or 'http://mirror.archlinuxarm.org'}/$arch/$repo"
+            else:
+                url = f"{state.config.mirror or 'https://geo.mirror.pkgbuild.com'}/$repo/os/$arch"
+
+            # Testing repositories have to go before regular ones to to take precedence.
+            for id in (
+                "core-testing",
+                "core-testing-debug",
+                "extra-testing",
+                "extra-testing-debug",
+                "core-debug",
+                "extra-debug",
+            ):
+                if id in state.config.repositories:
+                    repos += [PacmanRepository(id, url)]
+
+            for id in ("core", "extra"):
+                repos += [PacmanRepository(id, url)]
+
+        setup_pacman(state, repos)
 
     @classmethod
     def install(cls, state: MkosiState) -> None:
@@ -83,14 +107,13 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
-        options = ["--refresh", "--needed"]
-
-        # If we're generating a bootable image, we'll do so with a prebuilt initramfs, so no need for an
-        # initramfs generator.
-        if state.config.bootable != ConfigFeature.disabled:
-            options += ["--assume-installed", "initramfs"]
-
-        invoke_pacman(state, "--sync", options, packages, apivfs=apivfs)
+        invoke_pacman(
+            state,
+            "--sync",
+            ["--refresh", "--needed", "--assume-installed", "initramfs"],
+            packages,
+            apivfs=apivfs,
+        )
 
     @classmethod
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:

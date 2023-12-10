@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from mkosi.distributions import centos, join_mirror
-from mkosi.installer.dnf import Repo, find_rpm_gpgkey
+from mkosi.installer.dnf import RpmRepository, find_rpm_gpgkey
 from mkosi.log import die
 from mkosi.state import MkosiState
 
@@ -73,9 +73,9 @@ class Installer(centos.Installer):
         return p
 
     @classmethod
-    def repository_variants(cls, state: MkosiState, repo: str) -> Iterable[Repo]:
+    def repository_variants(cls, state: MkosiState, repo: str) -> Iterable[RpmRepository]:
         if state.config.local_mirror:
-            yield Repo(repo, f"baseurl={state.config.local_mirror}", cls.gpgurls(state))
+            yield RpmRepository(repo, f"baseurl={state.config.local_mirror}", cls.gpgurls(state))
         else:
             mirror = state.config.mirror or "https://cdn.redhat.com/content/dist/"
 
@@ -88,19 +88,19 @@ class Installer(centos.Installer):
 
             v = state.config.release
             major = int(float(v))
-            yield Repo(
+            yield RpmRepository(
                 f"rhel-{v}-{repo}-rpms",
                 f"baseurl={join_mirror(mirror, f'rhel{major}/{v}/$basearch/{repo}/os')}",
                 enabled=True,
                 **common,
             )
-            yield Repo(
+            yield RpmRepository(
                 f"rhel-{v}-{repo}-debug-rpms",
                 f"baseurl={join_mirror(mirror, f'rhel{major}/{v}/$basearch/{repo}/debug')}",
                 enabled=False,
                 **common,
             )
-            yield Repo(
+            yield RpmRepository(
                 f"rhel-{v}-{repo}-source",
                 f"baseurl={join_mirror(mirror, f'rhel{major}/{v}/$basearch/{repo}/source')}",
                 enabled=False,
@@ -108,7 +108,7 @@ class Installer(centos.Installer):
             )
 
     @classmethod
-    def repositories(cls, state: MkosiState) -> Iterable[Repo]:
+    def repositories(cls, state: MkosiState) -> Iterable[RpmRepository]:
         yield from cls.repository_variants(state, "baseos")
         yield from cls.repository_variants(state, "appstream")
         yield from cls.repository_variants(state, "codeready-builder")
