@@ -464,6 +464,11 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   image and will be pulled in as dependencies of this image when
   `Images=` is used.
 
+`MinimumVersion=`, `--minimum-version=`
+
+: The minimum mkosi version required to build this configuration. If
+  specified multiple times, the highest specified version is used.
+
 ### [Distribution] Section
 
 `Distribution=`, `--distribution=`, `-d`

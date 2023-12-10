@@ -671,6 +671,18 @@ def config_parse_vsock_cid(value: Optional[str], old: Optional[int]) -> Optional
     return cid
 
 
+def config_parse_minimum_version(value: Optional[str], old: Optional[GenericVersion]) -> Optional[GenericVersion]:
+    if not value:
+        return old
+
+    new = GenericVersion(value)
+
+    if not old:
+        return new
+
+    return max(old, new)
+
+
 @dataclasses.dataclass(frozen=True)
 class MkosiConfigSetting:
     dest: str
@@ -873,6 +885,7 @@ class MkosiConfig:
     include: tuple[str, ...]
     images: tuple[str, ...]
     dependencies: tuple[str, ...]
+    minimum_version: Optional[GenericVersion]
 
     distribution: Distribution
     release: str
@@ -1244,6 +1257,12 @@ SETTINGS = (
         section="Config",
         parse=config_make_list_parser(delimiter=","),
         help="Specify other images that this image depends on",
+    ),
+    MkosiConfigSetting(
+        dest="minimum_version",
+        section="Config",
+        parse=config_parse_minimum_version,
+        help="Specify the minimum required mkosi version",
     ),
     MkosiConfigSetting(
         dest="distribution",
@@ -2952,6 +2971,7 @@ def summary(config: MkosiConfig) -> str:
                             Include: {line_join_list(config.include)}
                              Images: {line_join_list(config.images)}
                        Dependencies: {line_join_list(config.dependencies)}
+                    Minimum Version: {none_to_none(config.minimum_version)}
 
     {bold("DISTRIBUTION")}:
                        Distribution: {bold(config.distribution)}
@@ -3093,6 +3113,8 @@ class MkosiJsonEncoder(json.JSONEncoder):
     def default(self, o: Any) -> Any:
         if isinstance(o, StrEnum):
             return str(o)
+        elif isinstance(o, GenericVersion):
+            return str(o)
         elif isinstance(o, os.PathLike):
             return os.fspath(o)
         elif isinstance(o, uuid.UUID):
@@ -3172,6 +3194,12 @@ def json_type_transformer(refcls: Union[type[MkosiArgs], type[MkosiConfig]]) -> 
             )
         return ret
 
+    def generic_version_transformer(
+        version: Optional[str],
+        fieldtype: type[Optional[GenericVersion]],
+    ) -> Optional[GenericVersion]:
+        return GenericVersion(version) if version is not None else None
+
     transformers = {
         Path: path_transformer,
         Optional[Path]: optional_path_transformer,
@@ -3195,6 +3223,7 @@ def json_type_transformer(refcls: Union[type[MkosiArgs], type[MkosiConfig]]) -> 
         Verb: enum_transformer,
         DocFormat: enum_transformer,
         list[QemuDrive]: config_drive_transformer,
+        GenericVersion: generic_version_transformer,
     }
 
     def json_transformer(key: str, val: Any) -> Any:
