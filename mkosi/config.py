@@ -1003,6 +1003,7 @@ class MkosiConfig:
     qemu_swtpm: ConfigFeature
     qemu_cdrom: bool
     qemu_firmware: QemuFirmware
+    qemu_firmware_variables: Optional[Path]
     qemu_kernel: Optional[Path]
     qemu_drives: list[QemuDrive]
     qemu_args: list[str]
@@ -2035,6 +2036,13 @@ SETTINGS = (
         default=QemuFirmware.auto,
         help="Set qemu firmware to use",
         choices=QemuFirmware.values(),
+    ),
+    MkosiConfigSetting(
+        dest="qemu_firmware_variables",
+        metavar="PATH",
+        section="Host",
+        parse=config_make_path_parser(),
+        help="Set the path to the qemu firmware variables file to use",
     ),
     MkosiConfigSetting(
         dest="qemu_kernel",
@@ -3103,6 +3111,7 @@ def summary(config: MkosiConfig) -> str:
                 QEMU Use Swtpm: {config.qemu_swtpm}
                QEMU Use CD-ROM: {yes_no(config.qemu_cdrom)}
                  QEMU Firmware: {config.qemu_firmware}
+       QEMU Firmware Variables: {none_to_none(config.qemu_firmware_variables)}
           QEMU Extra Arguments: {line_join_list(config.qemu_args)}
 """
 

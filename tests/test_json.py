@@ -208,6 +208,7 @@ def test_config() -> None:
                 }
             ],
             "QemuFirmware": "linux",
+            "QemuFirmwareVariables": "/foo/bar",
             "QemuGui": true,
             "QemuKernel": null,
             "QemuKvm": "auto",
@@ -348,6 +349,7 @@ def test_config() -> None:
         qemu_cdrom = False,
         qemu_drives = [QemuDrive("abc", 200, Path("/foo/bar"), "abc,qed"), QemuDrive("abc", 200, None, "")],
         qemu_firmware = QemuFirmware.linux,
+        qemu_firmware_variables = Path("/foo/bar"),
         qemu_gui = True,
         qemu_kernel = None,
         qemu_kvm = ConfigFeature.auto,
