@@ -38,6 +38,7 @@ from mkosi.config import (
     SecureBootSignTool,
     ShimBootloader,
     Verb,
+    __version__,
     format_bytes,
     format_tree,
     parse_config,
@@ -3003,6 +3004,12 @@ def run_verb(args: MkosiArgs, images: Sequence[MkosiConfig]) -> None:
 
         page(text, args.pager)
         return
+
+    for config in images:
+        if not config.minimum_version or config.minimum_version <= __version__:
+            continue
+
+        die(f"mkosi {config.minimum_version} or newer is required to build this configuration (found {__version__})")
 
     for config in images:
         check_workspace_directory(config)

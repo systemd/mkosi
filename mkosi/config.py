@@ -671,6 +671,18 @@ def config_parse_vsock_cid(value: Optional[str], old: Optional[int]) -> Optional
     return cid
 
 
+def config_parse_minimum_version(value: Optional[str], old: Optional[GenericVersion]) -> Optional[GenericVersion]:
+    if not value:
+        return old
+
+    new = GenericVersion(value)
+
+    if not old:
+        return new
+
+    return max(old, new)
+
+
 @dataclasses.dataclass(frozen=True)
 class MkosiConfigSetting:
     dest: str
@@ -873,6 +885,7 @@ class MkosiConfig:
     include: tuple[str, ...]
     images: tuple[str, ...]
     dependencies: tuple[str, ...]
+    minimum_version: Optional[GenericVersion]
 
     distribution: Distribution
     release: str
@@ -1244,6 +1257,12 @@ SETTINGS = (
         section="Config",
         parse=config_make_list_parser(delimiter=","),
         help="Specify other images that this image depends on",
+    ),
+    MkosiConfigSetting(
+        dest="minimum_version",
+        section="Config",
+        parse=config_parse_minimum_version,
+        help="Specify the minimum required mkosi version",
     ),
     MkosiConfigSetting(
         dest="distribution",
@@ -2693,7 +2712,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
     if not images:
         die("No images defined in mkosi.images/")
 
-    images = [load_config(ns) for ns in images]
+    images = [load_config(args, ns) for ns in images]
     images = resolve_deps(images, include)
 
     return args, tuple(images)
@@ -2817,6 +2836,9 @@ def load_environment(args: argparse.Namespace) -> dict[str, str]:
 
 
 def load_args(args: argparse.Namespace) -> MkosiArgs:
+    if args.cmdline and not args.verb.supports_cmdline():
+        die(f"Arguments after verb are not supported for {args.verb}.")
+
     if args.debug:
         ARG_DEBUG.set(args.debug)
     if args.debug_shell:
@@ -2825,57 +2847,54 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
     return MkosiArgs.from_namespace(args)
 
 
-def load_config(args: argparse.Namespace) -> MkosiConfig:
-    if args.cmdline and not args.verb.supports_cmdline():
-        die(f"Arguments after verb are not supported for {args.verb}.")
+def load_config(args: MkosiArgs, config: argparse.Namespace) -> MkosiConfig:
+    if config.build_dir:
+        config.build_dir = config.build_dir / f"{config.distribution}~{config.release}~{config.architecture}"
 
-    if args.build_dir:
-        args.build_dir = args.build_dir / f"{args.distribution}~{args.release}~{args.architecture}"
+    if config.sign:
+        config.checksum = True
 
-    if args.sign:
-        args.checksum = True
+    if config.output is None:
+        config.output = config.image_id or config.image or "image"
 
-    if args.output is None:
-        args.output = args.image_id or args.image or "image"
+    config.credentials = load_credentials(config)
+    config.kernel_command_line_extra = load_kernel_command_line_extra(config)
+    config.environment = load_environment(config)
 
-    args.credentials = load_credentials(args)
-    args.kernel_command_line_extra = load_kernel_command_line_extra(args)
-    args.environment = load_environment(args)
-
-    if args.secure_boot and args.verb != Verb.genkey:
-        if args.secure_boot_key is None and args.secure_boot_certificate is None:
+    if config.secure_boot and args.verb != Verb.genkey:
+        if config.secure_boot_key is None and config.secure_boot_certificate is None:
             die("UEFI SecureBoot enabled, but couldn't find the certificate and private key.",
                 hint="Consider generating them with 'mkosi genkey'.")
-        if args.secure_boot_key is None:
+        if config.secure_boot_key is None:
             die("UEFI SecureBoot enabled, certificate was found, but not the private key.",
                 hint="Consider placing it in mkosi.key")
-        if args.secure_boot_certificate is None:
+        if config.secure_boot_certificate is None:
             die("UEFI SecureBoot enabled, private key was found, but not the certificate.",
                 hint="Consider placing it in mkosi.crt")
 
-    if args.repositories and not (
-        args.distribution.is_dnf_distribution() or
-        args.distribution.is_apt_distribution() or
-        args.distribution == Distribution.arch
+    if config.repositories and not (
+        config.distribution.is_dnf_distribution() or
+        config.distribution.is_apt_distribution() or
+        config.distribution == Distribution.arch
     ):
         die("Sorry, the --repositories option is only supported on pacman, dnf and apt based distributions")
 
-    if args.overlay and not args.base_trees:
+    if config.overlay and not config.base_trees:
         die("--overlay can only be used with --base-tree")
 
-    if args.incremental and not args.cache_dir:
+    if config.incremental and not config.cache_dir:
         die("A cache directory must be configured in order to use --incremental")
 
     # For unprivileged builds we need the userxattr OverlayFS mount option, which is only available
     # in Linux v5.11 and later.
     if (
-        (args.build_scripts or args.base_trees) and
+        (config.build_scripts or config.base_trees) and
         GenericVersion(platform.release()) < GenericVersion("5.11") and
         os.geteuid() != 0
     ):
         die("This unprivileged build configuration requires at least Linux v5.11")
 
-    return MkosiConfig.from_namespace(args)
+    return MkosiConfig.from_namespace(config)
 
 
 def yes_no(b: bool) -> str:
@@ -2952,6 +2971,7 @@ def summary(config: MkosiConfig) -> str:
                             Include: {line_join_list(config.include)}
                              Images: {line_join_list(config.images)}
                        Dependencies: {line_join_list(config.dependencies)}
+                    Minimum Version: {none_to_none(config.minimum_version)}
 
     {bold("DISTRIBUTION")}:
                        Distribution: {bold(config.distribution)}
@@ -3093,6 +3113,8 @@ class MkosiJsonEncoder(json.JSONEncoder):
     def default(self, o: Any) -> Any:
         if isinstance(o, StrEnum):
             return str(o)
+        elif isinstance(o, GenericVersion):
+            return str(o)
         elif isinstance(o, os.PathLike):
             return os.fspath(o)
         elif isinstance(o, uuid.UUID):
@@ -3172,6 +3194,12 @@ def json_type_transformer(refcls: Union[type[MkosiArgs], type[MkosiConfig]]) -> 
             )
         return ret
 
+    def generic_version_transformer(
+        version: Optional[str],
+        fieldtype: type[Optional[GenericVersion]],
+    ) -> Optional[GenericVersion]:
+        return GenericVersion(version) if version is not None else None
+
     transformers = {
         Path: path_transformer,
         Optional[Path]: optional_path_transformer,
@@ -3195,6 +3223,7 @@ def json_type_transformer(refcls: Union[type[MkosiArgs], type[MkosiConfig]]) -> 
         Verb: enum_transformer,
         DocFormat: enum_transformer,
         list[QemuDrive]: config_drive_transformer,
+        GenericVersion: generic_version_transformer,
     }
 
     def json_transformer(key: str, val: Any) -> Any:

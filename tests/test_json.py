@@ -28,6 +28,7 @@ from mkosi.config import (
     Verb,
 )
 from mkosi.distributions import Distribution
+from mkosi.versioncomp import GenericVersion
 
 
 @pytest.mark.parametrize("path", [None, "/baz/qux"])
@@ -169,6 +170,7 @@ def test_config() -> None:
                 "json",
                 "changelog"
             ],
+            "MinimumVersion": "123",
             "Mirror": null,
             "NSpawnSettings": null,
             "Output": "outfile",
@@ -329,6 +331,7 @@ def test_config() -> None:
         locale_messages = "",
         make_initrd = False,
         manifest_format = [ManifestFormat.json, ManifestFormat.changelog],
+        minimum_version = GenericVersion("123"),
         mirror = None,
         nspawn_settings = None,
         output = "outfile",
