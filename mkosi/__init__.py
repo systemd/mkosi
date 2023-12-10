@@ -18,7 +18,7 @@ import textwrap
 import uuid
 from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
-from typing import Optional, TextIO, Union
+from typing import Optional, TextIO, Union, cast
 
 import mkosi.resources
 from mkosi.architecture import Architecture
@@ -1063,7 +1063,9 @@ def prepare_grub_bios(state: MkosiState, partitions: Sequence[Partition]) -> Non
     root = finalize_root(partitions)
     assert root
 
-    dst = state.root / "efi" / state.config.distribution.name
+    token = find_entry_token(state)
+
+    dst = state.root / "efi" / token
     with umask(~0o700):
         dst.mkdir(exist_ok=True)
 
@@ -1087,7 +1089,6 @@ def prepare_grub_bios(state: MkosiState, partitions: Sequence[Partition]) -> Non
                 ]
                 initrds += [Path(shutil.copy2(kmods, kdst / "kmods"))]
 
-                distribution = state.config.distribution
                 image = Path("/") / kimg.relative_to(state.root / "efi")
                 cmdline = " ".join(state.config.kernel_command_line)
                 initrds = " ".join(
@@ -1097,7 +1098,7 @@ def prepare_grub_bios(state: MkosiState, partitions: Sequence[Partition]) -> Non
                 f.write(
                     textwrap.dedent(
                         f"""\
-                        menuentry "{distribution}-{kver}" {{
+                        menuentry "{token}-{kver}" {{
                             linux {image} {root} {cmdline}
                             initrd {initrds}
                         }}
@@ -1521,6 +1522,19 @@ def want_efi(config: MkosiConfig) -> bool:
     return True
 
 
+def find_entry_token(state: MkosiState) -> str:
+    if (
+        "--version" not in run(["kernel-install", "--help"], stdout=subprocess.PIPE).stdout or
+        systemd_tool_version("kernel-install") < "255.1"
+    ):
+        return state.config.image_id or state.config.distribution.name
+
+    output = json.loads(run(["kernel-install", "--root", state.root, "--json=pretty", "inspect"],
+                        stdout=subprocess.PIPE).stdout)
+    logging.debug(json.dumps(output, indent=4))
+    return cast(str, output["EntryToken"])
+
+
 def install_uki(state: MkosiState, partitions: Sequence[Partition]) -> None:
     # Iterates through all kernel versions included in the image and generates a combined
     # kernel+initrd+cmdline+osrelease EFI file from it and places it in the /EFI/Linux directory of the ESP.
@@ -1539,8 +1553,6 @@ def install_uki(state: MkosiState, partitions: Sequence[Partition]) -> None:
     roothash = finalize_roothash(partitions)
 
     for kver, kimg in gen_kernel_images(state):
-        image_id = state.config.image_id or state.config.distribution.name
-
         # See https://systemd.io/AUTOMATIC_BOOT_ASSESSMENT/#boot-counting
         boot_count = ""
         if (state.root / "etc/kernel/tries").exists():
@@ -1551,15 +1563,13 @@ def install_uki(state: MkosiState, partitions: Sequence[Partition]) -> None:
                 boot_binary = state.root / shim_second_stage_binary(state)
             else:
                 boot_binary = state.root / efi_boot_binary(state)
-        elif state.config.image_version:
-            boot_binary = (
-                state.root / f"efi/EFI/Linux/{image_id}_{state.config.image_version}-{kver}{boot_count}.efi"
-            )
-        elif roothash:
-            _, _, h = roothash.partition("=")
-            boot_binary = state.root / f"efi/EFI/Linux/{image_id}-{kver}-{h}{boot_count}.efi"
         else:
-            boot_binary = state.root / f"efi/EFI/Linux/{image_id}-{kver}{boot_count}.efi"
+            token = find_entry_token(state)
+            if roothash:
+                _, _, h = roothash.partition("=")
+                boot_binary = state.root / f"efi/EFI/Linux/{token}-{kver}-{h}{boot_count}.efi"
+            else:
+                boot_binary = state.root / f"efi/EFI/Linux/{token}-{kver}{boot_count}.efi"
 
         microcode = build_microcode_initrd(state)
 

@@ -82,6 +82,7 @@ runs:
 
       BINARIES=(
         bootctl
+        kernel-install
         systemctl
         systemd-dissect
         systemd-firstboot
