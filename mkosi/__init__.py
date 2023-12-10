@@ -1018,21 +1018,24 @@ def prepare_grub_config(state: MkosiState) -> Optional[Path]:
         with umask(~0o600), config.open("w") as f:
             f.write("set timeout=0\n")
 
-    # Signed EFI grub shipped by distributions reads its configuration from /EFI/<distribution>/grub.cfg in
-    # the ESP so let's put a shim there to redirect to the actual configuration file.
-    efi = state.root / "efi/EFI" / state.config.distribution.name / "grub.cfg"
-    with umask(~0o700):
-        efi.parent.mkdir(parents=True, exist_ok=True)
-
-    # Read the actual config file from the root of the ESP.
-    efi.write_text(f"configfile /{prefix}/grub.cfg\n")
-
     return config
 
 
 def prepare_grub_efi(state: MkosiState) -> None:
     if not want_grub_efi(state):
         return
+
+    prefix = find_grub_prefix(state)
+    assert prefix
+
+    # Signed EFI grub shipped by distributions reads its configuration from /EFI/<distribution>/grub.cfg in
+    # the ESP so let's put a shim there to redirect to the actual configuration file.
+    earlyconfig = state.root / "efi/EFI" / state.config.distribution.name / "grub.cfg"
+    with umask(~0o700):
+        earlyconfig.parent.mkdir(parents=True, exist_ok=True)
+
+    # Read the actual config file from the root of the ESP.
+    earlyconfig.write_text(f"configfile /{prefix}/grub.cfg\n")
 
     config = prepare_grub_config(state)
     assert config
@@ -1122,27 +1125,39 @@ def prepare_grub_bios(state: MkosiState, partitions: Sequence[Partition]) -> Non
     prefix = find_grub_prefix(state)
     assert prefix
 
-    esp = next(p for p in partitions if p.type == "esp")
-
     dst = state.root / "efi" / prefix / "i386-pc"
     dst.mkdir(parents=True, exist_ok=True)
 
-    bwrap([mkimage,
-           "--directory", directory,
-           # What we really want to do is use grub's search utility in an embedded config file to search for
-           # the ESP by its type UUID. Unfortunately, grub's search command only supports searching by
-           # filesystem UUID and filesystem label, which don't work for us. So for now, we hardcode the
-           # partition number of the ESP, but only very recent systemd-repart will output that information,
-           # so if we're using older systemd-repart, we assume the ESP is the first partition.
-           "--prefix", f"(hd0,gpt{esp.partno + 1 if esp.partno is not None else 1})/{prefix}",
-           "--output", dst / "core.img",
-           "--format", "i386-pc",
-           *(["--verbose"] if ARG_DEBUG.get() else []),
-           # Modules required to find and read from the ESP which has all the other modules.
-           "fat",
-           "part_gpt",
-           "biosdisk"],
-          options=["--bind", state.root / "usr", "/usr"])
+    with tempfile.NamedTemporaryFile("w", prefix="grub-early-config") as earlyconfig:
+        earlyconfig.write(
+            textwrap.dedent(
+                f"""\
+                search --no-floppy --set=root --file /{prefix}/grub.cfg
+                set prefix=($root)/{prefix}
+                """
+            )
+        )
+
+        earlyconfig.flush()
+
+        bwrap(
+            [
+                mkimage,
+                "--directory", directory,
+                "--config", earlyconfig.name,
+                "--prefix", f"/{prefix}",
+                "--output", dst / "core.img",
+                "--format", "i386-pc",
+                *(["--verbose"] if ARG_DEBUG.get() else []),
+                # Modules required to find and read from the XBOOTLDR partition which has all the other modules.
+                "fat",
+                "part_gpt",
+                "biosdisk",
+                "search",
+                "search_fs_file"
+            ],
+            options=["--bind", state.root / "usr", "/usr"],
+        )
 
     for p in directory.glob("*.mod"):
         shutil.copy2(p, dst)
@@ -1154,7 +1169,8 @@ def prepare_grub_bios(state: MkosiState, partitions: Sequence[Partition]) -> Non
     shutil.copy2(directory / "boot.img", dst)
 
     dst = state.root / "efi" / prefix / "fonts"
-    dst.mkdir()
+    with umask(~0o700):
+        dst.mkdir(exist_ok=True)
 
     for prefix in ("grub", "grub2"):
         unicode = state.root / "usr/share" / prefix / "unicode.pf2"
@@ -2262,25 +2278,11 @@ def make_disk(
             else:
                 bootloader = None
 
-            # If grub for BIOS is installed, let's add a BIOS boot partition onto which we can install grub.
-            bios = (state.config.bootable != ConfigFeature.disabled and want_grub_bios(state))
-
-            if bios:
-                (defaults / "05-bios.conf").write_text(
-                    textwrap.dedent(
-                        f"""\
-                        [Partition]
-                        Type={Partition.GRUB_BOOT_PARTITION_UUID}
-                        SizeMinBytes=1M
-                        SizeMaxBytes=1M
-                        """
-                    )
-                )
-
             esp = (
                 state.config.bootable == ConfigFeature.enabled or
                 (state.config.bootable == ConfigFeature.auto and bootloader and bootloader.exists())
             )
+            bios = (state.config.bootable != ConfigFeature.disabled and want_grub_bios(state))
 
             if esp or bios:
                 # Even if we're doing BIOS, let's still use the ESP to store the kernels, initrds and grub
@@ -2296,6 +2298,19 @@ def make_disk(
                         CopyFiles=/efi:/
                         SizeMinBytes={"1G" if bios else "512M"}
                         SizeMaxBytes={"1G" if bios else "512M"}
+                        """
+                    )
+                )
+
+            # If grub for BIOS is installed, let's add a BIOS boot partition onto which we can install grub.
+            if bios:
+                (defaults / "05-bios.conf").write_text(
+                    textwrap.dedent(
+                        f"""\
+                        [Partition]
+                        Type={Partition.GRUB_BOOT_PARTITION_UUID}
+                        SizeMinBytes=1M
+                        SizeMaxBytes=1M
                         """
                     )
                 )
