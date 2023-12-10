@@ -1848,7 +1848,7 @@ def check_outputs(config: MkosiConfig) -> None:
 
 
 def systemd_tool_version(tool: PathString) -> GenericVersion:
-    return GenericVersion(run([tool, "--version"], stdout=subprocess.PIPE).stdout.split()[1])
+    return GenericVersion(run([tool, "--version"], stdout=subprocess.PIPE).stdout.split()[2].strip("()"))
 
 
 def check_systemd_tool(*tools: PathString, version: str, reason: str, hint: Optional[str] = None) -> None:
