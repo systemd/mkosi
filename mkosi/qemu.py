@@ -313,7 +313,8 @@ def start_virtiofsd(directory: Path, *, uidmap: bool) -> Iterator[Path]:
         virtiofsd,
         "--shared-dir", directory,
         "--xattr",
-        "--posix-acl",
+        # qemu's client doesn't seem to support announcing submounts so disable the feature to avoid the warning.
+        "--no-announce-submounts",
     ]
 
     # Map the given user/group to root in the virtual machine for the virtiofs instance to make sure all files
