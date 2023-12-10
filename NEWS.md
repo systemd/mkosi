@@ -11,6 +11,39 @@
   partition which wasn't possible before. Note that this is also safe to
   do before `v20` so `CopyFiles=/boot:/` can unconditionally be added to
   any ESP partition definition files.
+- Added `QemuFirmwareVariables=` to allow specifying a custom OVMF
+  variables file to use.
+- Added `MinimumVersion=` to allow specifying the minimum required mkosi
+  version to build an image.
+- Added support for Arch Linux's debug repositories
+- Merged the mkosi-initrd project into mkosi itself. mkosi-initrd is now
+  used to build the default initrd.
+- Implemented mkosi-initrd for all supported distributions.
+- Added `ShimBootloader=` to support installing shim to the ESP.
+- Added sysext, confext and portable output formats. These will produce
+  signed disk images that can be used as sysexts, confexts and portable
+  services respectively.
+- Added `QemuVsockConnectionId=` to configure how to allocate the vsock
+  connection ID when `QemUVsock=` is enabled.
+- Added documentation on how to build sysexts with mkosi.
+- Global systemd user presets are now also configured.
+- Implemented `WithDocs=` for `apt`.
+- On supported package managers, locale data for other locales is now
+  stripped if the local is explicitly configured using `Locale=`.
+- `rpm` can now be configured in package manager trees in
+  `/usr/lib/rpm`.
+- Added `KernelModulesIncludeHost=` and
+  `KernelModulesInitrdIncludeHost=` to only include modules loaded on
+  the host system in the image/initrd respectively.
+- Implemented `RemovePackages=` for Arch Linux.
+- Added `useradd` script to configure `useradd` to operate on the image
+  during builds instead on the host.
+- Added microcode support. If installed into the image, an early
+  microcode initrd will automatically be built and prepended to the
+  initrd.
+- A passwordless root account may now be created by specifying `hashed:`
+- On `arm64` we now add an autologin dropin for `ttyAMA0` if autologin
+  is enabled.
 
 ## v19
 
