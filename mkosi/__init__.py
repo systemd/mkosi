@@ -1039,12 +1039,12 @@ def prepare_grub_efi(state: MkosiState) -> None:
     with config.open("a") as f:
         f.write('if [ "${grub_platform}" == "efi" ]; then\n')
 
-        for uki in (state.root / "efi/EFI/Linux").glob("*.efi"):
+        for uki in (state.root / "boot/EFI/Linux").glob("*.efi"):
             f.write(
                 textwrap.dedent(
                     f"""\
                     menuentry "{uki.stem}" {{
-                        chainloader /{uki.relative_to(state.root / "efi")}
+                        chainloader /{uki.relative_to(state.root / "boot")}
                     }}
                     """
                 )
@@ -1065,7 +1065,7 @@ def prepare_grub_bios(state: MkosiState, partitions: Sequence[Partition]) -> Non
 
     token = find_entry_token(state)
 
-    dst = state.root / "efi" / token
+    dst = state.root / "boot" / token
     with umask(~0o700):
         dst.mkdir(exist_ok=True)
 
@@ -1089,10 +1089,10 @@ def prepare_grub_bios(state: MkosiState, partitions: Sequence[Partition]) -> Non
                 ]
                 initrds += [Path(shutil.copy2(kmods, kdst / "kmods"))]
 
-                image = Path("/") / kimg.relative_to(state.root / "efi")
+                image = Path("/") / kimg.relative_to(state.root / "boot")
                 cmdline = " ".join(state.config.kernel_command_line)
                 initrds = " ".join(
-                    [os.fspath(Path("/") / initrd.relative_to(state.root / "efi")) for initrd in initrds]
+                    [os.fspath(Path("/") / initrd.relative_to(state.root / "boot")) for initrd in initrds]
                 )
 
                 f.write(
@@ -1567,9 +1567,9 @@ def install_uki(state: MkosiState, partitions: Sequence[Partition]) -> None:
             token = find_entry_token(state)
             if roothash:
                 _, _, h = roothash.partition("=")
-                boot_binary = state.root / f"efi/EFI/Linux/{token}-{kver}-{h}{boot_count}.efi"
+                boot_binary = state.root / f"boot/EFI/Linux/{token}-{kver}-{h}{boot_count}.efi"
             else:
-                boot_binary = state.root / f"efi/EFI/Linux/{token}-{kver}{boot_count}.efi"
+                boot_binary = state.root / f"boot/EFI/Linux/{token}-{kver}{boot_count}.efi"
 
         microcode = build_microcode_initrd(state)
 
@@ -2291,6 +2291,7 @@ def make_disk(
                         [Partition]
                         Type=esp
                         Format=vfat
+                        CopyFiles=/boot:/
                         CopyFiles=/efi:/
                         SizeMinBytes={"1G" if bios else "512M"}
                         SizeMaxBytes={"1G" if bios else "512M"}

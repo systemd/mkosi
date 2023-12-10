@@ -1,5 +1,17 @@
 # mkosi Changelog
 
+## v20
+
+- During the image build we now install UKIs/kernels/initrds to `/boot`
+  instead of `/efi`. While this will generally not be noticeable, users
+  with custom systemd-repart ESP partition definitions will need to add
+  `CopyFiles=/boot:/` along with the usual `CopyFiles=/efi:/` to their
+  ESP partition definitions. By installing UKIs/kernels/initrds to
+  `/boot`, it becomes possible to use `/boot` to populate an XBOOTLDR
+  partition which wasn't possible before. Note that this is also safe to
+  do before `v20` so `CopyFiles=/boot:/` can unconditionally be added to
+  any ESP partition definition files.
+
 ## v19
 
 - Support for RHEL was added!

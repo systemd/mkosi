@@ -117,6 +117,7 @@ def test_initrd_luks(initrd: Image, passphrase: Path) -> None:
                 [Partition]
                 Type=esp
                 Format=vfat
+                CopyFiles=/boot:/
                 CopyFiles=/efi:/
                 SizeMinBytes=512M
                 SizeMaxBytes=512M
