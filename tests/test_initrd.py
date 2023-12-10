@@ -97,10 +97,10 @@ def test_initrd_lvm(initrd: Image) -> None:
         run(["udevadm", "wait", "/dev/vg_mkosi/lv0"])
         run([f"mkfs.{image.distribution.filesystem()}", "-L", "root", "/dev/vg_mkosi/lv0"])
 
-        with mount(Path("/dev/vg_mkosi/lv0"), Path("mnt")) as mnt:
+        with tempfile.TemporaryDirectory() as mnt, mount(Path("/dev/vg_mkosi/lv0"), Path(mnt)):
             # The image might have been built unprivileged so we need to fix the file ownership. Making all the
             # files owned by root isn't completely correct but good enough for the purposes of the test.
-            copy_tree(Path(image.output_dir.name) / "image", mnt, preserve_owner=False)
+            copy_tree(Path(image.output_dir.name) / "image", Path(mnt), preserve_owner=False)
 
         stack.close()
 
@@ -214,10 +214,10 @@ def test_initrd_luks_lvm(initrd: Image, passphrase: Path) -> None:
         run(["udevadm", "wait", "/dev/vg_mkosi/lv0"])
         run([f"mkfs.{image.distribution.filesystem()}", "-L", "root", "/dev/vg_mkosi/lv0"])
 
-        with mount(Path("/dev/vg_mkosi/lv0"), Path("mnt")) as mnt:
+        with tempfile.TemporaryDirectory() as mnt, mount(Path("/dev/vg_mkosi/lv0"), Path(mnt)):
             # The image might have been built unprivileged so we need to fix the file ownership. Making all the
             # files owned by root isn't completely correct but good enough for the purposes of the test.
-            copy_tree(Path(image.output_dir.name) / "image", mnt, preserve_owner=False)
+            copy_tree(Path(image.output_dir.name) / "image", Path(mnt), preserve_owner=False)
 
         stack.close()
 
