@@ -223,6 +223,7 @@ def test_config() -> None:
                 "all"
             ],
             "RepartDirectories": [],
+            "RepartOffline": true,
             "Repositories": [],
             "RepositoryKeyCheck": false,
             "RootPassword": [
@@ -362,6 +363,7 @@ def test_config() -> None:
         remove_files = [],
         remove_packages = ["all"],
         repart_dirs = [],
+        repart_offline = True,
         repositories = [],
         repository_key_check = False,
         root_password = ("test1234", False),
