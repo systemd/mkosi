@@ -10,9 +10,10 @@ from mkosi.qemu import find_virtiofsd
 
 from . import Image
 
+pytestmark = pytest.mark.integration
 
-@pytest.mark.integration
-@pytest.mark.parametrize("format", [f for f in OutputFormat if f != OutputFormat.none])
+
+@pytest.mark.parametrize("format", OutputFormat)
 def test_boot(format: OutputFormat) -> None:
     with Image(
         options=[
@@ -48,7 +49,7 @@ def test_boot(format: OutputFormat) -> None:
         if image.distribution == Distribution.rhel_ubi:
             return
 
-        if format == OutputFormat.tar or format.is_extension_image():
+        if format in (OutputFormat.tar, OutputFormat.none) or format.is_extension_image():
             return
 
         if format == OutputFormat.directory and not find_virtiofsd():
