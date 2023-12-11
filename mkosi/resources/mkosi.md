@@ -722,18 +722,18 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 : Override the default sector size that systemd-repart uses when building a disk
   image.
 
-`Offline=`, `--offline=`
+`RepartOffline=`, `--repart-offline=`
 
 : Specifies whether to build disk images using loopback devices. Enabled
   by default. When enabled, `systemd-repart` will not use loopback
   devices to build disk images. When disabled, `systemd-repart` will
   always use loopback devices to build disk images.
 
-: Note that when using `Offline=no` mkosi cannot run unprivileged and
+: Note that when using `RepartOffline=no` mkosi cannot run unprivileged and
   the image build has to be done as the root user outside of any
   containers and with loopback devices available on the host system.
 
-: There are currently two known scenarios where `Offline=no` has to be
+: There are currently two known scenarios where `RepartOffline=no` has to be
   used. The first is when using `Subvolumes=` in a repart partition
   definition file, as subvolumes cannot be created without using
   loopback devices. The second is when creating a system with SELinux
