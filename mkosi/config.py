@@ -910,6 +910,7 @@ class MkosiConfig:
     split_artifacts: bool
     repart_dirs: list[Path]
     sector_size: Optional[int]
+    repart_offline: bool
     overlay: bool
     use_subvolumes: ConfigFeature
     seed: Optional[uuid.UUID]
@@ -1458,6 +1459,13 @@ SETTINGS = (
         section="Output",
         parse=config_parse_sector_size,
         help="Set the disk image sector size",
+    ),
+    MkosiConfigSetting(
+        dest="repart_offline",
+        section="Output",
+        parse=config_parse_boolean,
+        help="Build disk images without using loopback devices",
+        default=True,
     ),
     MkosiConfigSetting(
         dest="overlay",
@@ -3006,6 +3014,7 @@ def summary(config: MkosiConfig) -> str:
                     Split Artifacts: {yes_no(config.split_artifacts)}
                  Repart Directories: {line_join_list(config.repart_dirs)}
                         Sector Size: {none_to_default(config.sector_size)}
+                     Repart Offline: {yes_no(config.repart_offline)}
                             Overlay: {yes_no(config.overlay)}
                      Use Subvolumes: {yes_no_auto(config.use_subvolumes)}
                                Seed: {none_to_random(config.seed)}

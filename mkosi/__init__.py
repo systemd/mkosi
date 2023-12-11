@@ -43,6 +43,7 @@ from mkosi.config import (
     format_tree,
     parse_config,
     summary,
+    yes_no,
 )
 from mkosi.distributions import Distribution
 from mkosi.installer import clean_package_manager_metadata, package_manager_scripts
@@ -2203,7 +2204,7 @@ def make_image(
         "--dry-run=no",
         "--json=pretty",
         "--no-pager",
-        "--offline=yes",
+        f"--offline={yes_no(state.config.repart_offline)}",
         "--seed", str(state.config.seed) if state.config.seed else "random",
         state.staging / state.config.output_with_format,
     ]
@@ -2227,15 +2228,8 @@ def make_image(
     if state.config.sector_size:
         cmdline += ["--sector-size", str(state.config.sector_size)]
 
-    if definitions:
-        for d in definitions:
-            cmdline += ["--definitions", d]
-
-        # Subvolumes= only works with --offline=no.
-        grep = run(["grep", "--recursive", "--include=*.conf", "Subvolumes=", *definitions],
-                   stdout=subprocess.DEVNULL, check=False)
-        if grep.returncode == 0:
-            cmdline += ["--offline=no"]
+    for d in definitions:
+        cmdline += ["--definitions", d]
 
     env = {
         option: value
@@ -3037,6 +3031,10 @@ def run_verb(args: MkosiArgs, images: Sequence[MkosiConfig]) -> None:
             continue
 
         die(f"mkosi {config.minimum_version} or newer is required to build this configuration (found {__version__})")
+
+    for config in images:
+        if not config.repart_offline and os.getuid() != 0:
+            die(f"Must be root to build {config.name()} image configured with RepartOffline=no")
 
     for config in images:
         check_workspace_directory(config)

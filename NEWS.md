@@ -2,6 +2,10 @@
 
 ## v20
 
+- We don't automatically set `--offline=no` anymore when we detect the
+  `Subvolumes=` setting is used in a `systemd-repart` partition
+  definition file. Instead, use the new `RepartOffline` option to
+  explicitly disable running `systemd-repart` in offline mode.
 - During the image build we now install UKIs/kernels/initrds to `/boot`
   instead of `/efi`. While this will generally not be noticeable, users
   with custom systemd-repart ESP partition definitions will need to add
