@@ -1086,7 +1086,7 @@ def prepare_grub_bios(state: MkosiState, partitions: Sequence[Partition]) -> Non
             kmods = build_kernel_modules_initrd(state, kver)
 
             with umask(~0o600):
-                kimg = Path(shutil.copy2(state.root / kimg, kdst / "vmlinuz"))
+                kimg = Path(shutil.copy2(state.root / kimg, kdst / kimg.name))
                 initrds = [Path(shutil.copy2(microcode, kdst / "microcode"))] if microcode else []
                 initrds += [
                     Path(shutil.copy2(initrd, dst / initrd.name))
@@ -1268,10 +1268,13 @@ def gen_kernel_images(state: MkosiState) -> Iterator[tuple[str, Path]]:
         key=lambda k: GenericVersion(k.name),
         reverse=True
     ):
-        if not (kver / "vmlinuz").exists():
+        for f in ("vmlinuz", "vmlinuz.efi"):
+            if (kver / f).exists():
+                break
+        else:
             continue
 
-        yield kver.name, Path("usr/lib/modules") / kver.name / "vmlinuz"
+        yield kver.name, Path("usr/lib/modules") / kver.name / f
 
 
 def build_initrd(state: MkosiState) -> Path:
