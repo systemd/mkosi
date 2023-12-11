@@ -89,6 +89,7 @@ def extract_tar(src: Path, dst: Path, log: bool = True) -> None:
 def make_cpio(src: Path, dst: Path, files: Optional[Iterable[Path]] = None) -> None:
     if not files:
         files = src.rglob("*")
+    files = sorted(files)
 
     log_step(f"Creating cpio archive {dst}…")
     bwrap(
