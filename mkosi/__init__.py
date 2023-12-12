@@ -1310,6 +1310,7 @@ def build_initrd(state: MkosiState) -> Path:
         "--acl", str(state.config.acl),
         *flatten(["--package", package] for package in state.config.initrd_packages),
         "--output", f"{state.config.output}-initrd",
+        *(["--image-id", state.config.image_id] if state.config.image_id else []),
         *(["--image-version", state.config.image_version] if state.config.image_version else []),
         *(
             ["--source-date-epoch", str(state.config.source_date_epoch)]
