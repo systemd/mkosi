@@ -446,6 +446,11 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 : Note that each path containing extra configuration is only parsed
   once, even if included more than once with `Include=`.
 
+`InitrdInclude=`, `--initrd-include=`
+
+: Same as `Include=`, but the extra configuration files or directories
+  are included when building the default initrd.
+
 `Images=`, `--image=`
 
 : If specified, only build the given image. Can be specified multiple

@@ -132,6 +132,9 @@ def test_config() -> None:
             ],
             "Include": [],
             "Incremental": false,
+            "InitrdInclude": [
+                "/foo/bar"
+            ],
             "InitrdPackages": [
                 "clevis"
             ],
@@ -313,8 +316,9 @@ def test_config() -> None:
         image_id = "myimage",
         image_version = "5",
         images = ("default", "initrd"),
-        include = tuple(),
+        include = [],
         incremental = False,
+        initrd_include = [Path("/foo/bar"),],
         initrd_packages = ["clevis"],
         initrds = [Path("/efi/initrd1"), Path("/efi/initrd2")],
         kernel_command_line = [],
