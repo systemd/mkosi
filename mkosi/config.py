@@ -882,7 +882,8 @@ class MkosiConfig:
     """
 
     profile: Optional[str]
-    include: tuple[str, ...]
+    include: list[Path]
+    initrd_include: list[Path]
     images: tuple[str, ...]
     dependencies: tuple[str, ...]
     minimum_version: Optional[GenericVersion]
@@ -1237,6 +1238,12 @@ SETTINGS = (
         section="Config",
         parse=config_make_list_parser(delimiter=",", reset=False, parse=make_path_parser()),
         help="Include configuration from the specified file or directory",
+    ),
+    MkosiConfigSetting(
+        dest="initrd_include",
+        section="Config",
+        parse=config_make_list_parser(delimiter=",", reset=False, parse=make_path_parser()),
+        help="Include configuration from the specified file or directory when building the initrd",
     ),
     MkosiConfigSetting(
         dest="profile",
@@ -2985,6 +2992,7 @@ def summary(config: MkosiConfig) -> str:
     {bold("CONFIG")}:
                             Profile: {none_to_none(config.profile)}
                             Include: {line_join_list(config.include)}
+                     Initrd Include: {line_join_list(config.initrd_include)}
                              Images: {line_join_list(config.images)}
                        Dependencies: {line_join_list(config.dependencies)}
                     Minimum Version: {none_to_none(config.minimum_version)}

@@ -1327,7 +1327,12 @@ def build_initrd(state: MkosiState) -> Path:
     ]
 
     with resource_path(mkosi.resources) as r:
-        args, [config] = parse_config(cmdline + ["--include", os.fspath(r / "mkosi-initrd"), "build"])
+        cmdline += ["--include", os.fspath(r / "mkosi-initrd")]
+
+        for include in state.config.initrd_include:
+            cmdline += ["--include", os.fspath(include)]
+
+        args, [config] = parse_config(cmdline + ["build"])
 
         config = dataclasses.replace(config, image="default-initrd")
         assert config.output_dir
