@@ -53,7 +53,7 @@ from mkosi.manifest import Manifest
 from mkosi.mounts import mount, mount_overlay, mount_passwd, mount_usr
 from mkosi.pager import page
 from mkosi.partition import Partition, finalize_root, finalize_roothash
-from mkosi.qemu import QemuDeviceNode, copy_ephemeral, run_qemu, run_ssh
+from mkosi.qemu import KernelType, QemuDeviceNode, copy_ephemeral, run_qemu, run_ssh
 from mkosi.run import (
     become_root,
     bwrap,
@@ -1268,10 +1268,14 @@ def gen_kernel_images(state: MkosiState) -> Iterator[tuple[str, Path]]:
         key=lambda k: GenericVersion(k.name),
         reverse=True
     ):
-        if not (kver / "vmlinuz").exists():
-            continue
-
-        yield kver.name, Path("usr/lib/modules") / kver.name / "vmlinuz"
+        # Make sure we look for anything that remotely resembles vmlinuz, as
+        # the arch specific install scripts in the kernel source tree sometimes
+        # do weird stuff. But let's make sure we're not returning UKIs as the
+        # UKI on Fedora is named vmlinuz-virt.efi.
+        for kimg in kver.glob("vmlinuz*"):
+            if KernelType.identify(kimg) != KernelType.uki:
+                yield kver.name, kimg
+                break
 
 
 def build_initrd(state: MkosiState) -> Path:
