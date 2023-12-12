@@ -28,7 +28,7 @@ jobs:
     - name: Run ruff
       run: |
         ruff --version
-        ruff mkosi/ tests/
+        ruff mkosi/ tests/ kernel-install/50-mkosi.install
 
     - name: Check that tabs are not used in code
       run: sh -c '! git grep -P "\\t" "*.py"'
@@ -36,12 +36,12 @@ jobs:
     - name: Type Checking (mypy)
       run: |
         python3 -m mypy --version
-        python3 -m mypy mkosi/ tests/
+        python3 -m mypy mkosi/ tests/ kernel-install/50-mkosi.install
 
     - name: Type Checking (pyright)
       run: |
         pyright --version
-        pyright mkosi/ tests/
+        pyright mkosi/ tests/ kernel-install/50-mkosi.install
 
     - name: Unit Tests
       run: |
