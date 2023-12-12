@@ -1340,6 +1340,13 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   [virt-firmware](https://gitlab.com/kraxel/virt-firmware) project can
   be used to customize OVMF variable files.
 
+: Some distributions also provide variable files which already have
+  Microsoft's certificates for secure boot enrolled. For Fedora
+  and Debian these are `OVMF_VARS.secboot.fd` and `OVMF_VARS_4M.ms.fd`
+  under `/usr/share/OVMF` respectively. You can use `locate` and look
+  under `/usr/share/qemu/firmware` for hints on where to find these
+  files if your distribution ships them.
+
 `QemuKernel=`, `--qemu-kernel=`
 
 : Set the kernel image to use for qemu direct kernel boot. If not
