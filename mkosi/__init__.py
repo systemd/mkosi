@@ -1427,18 +1427,15 @@ def extract_pe_section(state: MkosiState, binary: Path, section: str, output: Pa
 
 def build_uki(
     state: MkosiState,
+    stub: Path,
     kver: str,
     kimg: Path,
     initrds: Sequence[Path],
+    cmdline: Sequence[str],
     output: Path,
     roothash: Optional[str] = None,
 ) -> None:
-    if (state.root / "etc/kernel/cmdline").exists():
-        cmdline = [(state.root / "etc/kernel/cmdline").read_text().strip()]
-    elif (state.root / "usr/lib/kernel/cmdline").exists():
-        cmdline = [(state.root / "usr/lib/kernel/cmdline").read_text().strip()]
-    else:
-        cmdline = []
+    cmdline = list(cmdline)
 
     if roothash:
         cmdline += [roothash]
@@ -1451,10 +1448,6 @@ def build_uki(
 
     if not (arch := state.config.architecture.to_efi()):
         die(f"Architecture {state.config.architecture} does not support UEFI")
-
-    stub = state.root / f"usr/lib/systemd/boot/efi/linux{arch}.efi.stub"
-    if not stub.exists():
-        die(f"sd-stub not found at /{stub.relative_to(state.root)} in the image")
 
     cmd: list[PathString] = [
         shutil.which("ukify") or "/usr/lib/systemd/ukify",
@@ -1505,12 +1498,12 @@ def build_uki(
                 "--pcr-banks", "sha1,sha256",
             ]
 
-    cmd += ["build", "--linux", state.root / kimg]
+    cmd += ["build", "--linux", kimg]
 
     for initrd in initrds:
         cmd += ["--initrd", initrd]
 
-    with complete_step(f"Generating unified kernel image for {kimg}"):
+    with complete_step(f"Generating unified kernel image for kernel version {kver}"):
         run(cmd)
 
 
@@ -1605,7 +1598,14 @@ def install_uki(state: MkosiState, partitions: Sequence[Partition]) -> None:
         with umask(~0o700):
             boot_binary.parent.mkdir(parents=True, exist_ok=True)
 
-        build_uki(state, kver, kimg, initrds, boot_binary, roothash=roothash)
+        if (state.root / "etc/kernel/cmdline").exists():
+            cmdline = [(state.root / "etc/kernel/cmdline").read_text().strip()]
+        elif (state.root / "usr/lib/kernel/cmdline").exists():
+            cmdline = [(state.root / "usr/lib/kernel/cmdline").read_text().strip()]
+        else:
+            cmdline = []
+
+        build_uki(state, stub, kver, state.root / kimg, initrds, cmdline, boot_binary, roothash=roothash)
 
         if not (state.staging / state.config.output_split_initrd).exists():
             # Extract the combined initrds from the UKI so we can use it to direct kernel boot with qemu
@@ -1628,7 +1628,7 @@ def install_uki(state: MkosiState, partitions: Sequence[Partition]) -> None:
         die("A bootable image was requested but no kernel was found")
 
 
-def make_uki(state: MkosiState, output: Path) -> None:
+def make_uki(state: MkosiState, stub: Path, kver: str, kimg: Path, output: Path) -> None:
     microcode = build_microcode_initrd(state)
     make_cpio(state.root, state.workspace / "initrd")
     maybe_compress(state.config, state.config.compress_output, state.workspace / "initrd", state.workspace / "initrd")
@@ -1636,12 +1636,7 @@ def make_uki(state: MkosiState, output: Path) -> None:
     initrds = [microcode] if microcode else []
     initrds += [state.workspace / "initrd"]
 
-    try:
-        kver, kimg = next(gen_kernel_images(state))
-    except StopIteration:
-        die("A kernel must be installed in the image to build a UKI")
-
-    build_uki(state, kver, kimg, initrds, output)
+    build_uki(state, stub, kver, kimg, initrds, [], output)
     extract_pe_section(state, output, ".linux", state.staging / state.config.output_split_kernel)
     extract_pe_section(state, output, ".initrd", state.staging / state.config.output_split_initrd)
 
@@ -2193,6 +2188,29 @@ def reuse_cache(state: MkosiState) -> bool:
     return True
 
 
+def save_uki_components(state: MkosiState) -> tuple[Optional[Path], Optional[str], Optional[Path]]:
+    if state.config.output_format not in (OutputFormat.uki, OutputFormat.esp):
+        return None, None, None
+
+    try:
+        kver, kimg = next(gen_kernel_images(state))
+    except StopIteration:
+        die("A kernel must be installed in the image to build a UKI")
+
+    kimg = shutil.copy2(state.root / kimg, state.workspace)
+
+    if not (arch := state.config.architecture.to_efi()):
+        die(f"Architecture {state.config.architecture} does not support UEFI")
+
+    stub = state.root / f"usr/lib/systemd/boot/efi/linux{arch}.efi.stub"
+    if not stub.exists():
+        die(f"sd-stub not found at /{stub.relative_to(state.root)} in the image")
+
+    stub = shutil.copy2(stub, state.workspace)
+
+    return stub, kver, kimg
+
+
 def make_image(
     state: MkosiState,
     msg: str,
@@ -2505,6 +2523,11 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
             run_depmod(state)
             run_firstboot(state)
             run_hwdb(state)
+
+            # These might be removed by the next steps,
+            # so let's save them for later if needed.
+            stub, kver, kimg = save_uki_components(state)
+
             remove_packages(state)
 
             if manifest:
@@ -2536,9 +2559,11 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
         elif state.config.output_format == OutputFormat.cpio:
             make_cpio(state.root, state.staging / state.config.output_with_format)
         elif state.config.output_format == OutputFormat.uki:
-            make_uki(state, state.staging / state.config.output_with_format)
+            assert stub and kver and kimg
+            make_uki(state, stub, kver, kimg, state.staging / state.config.output_with_format)
         elif state.config.output_format == OutputFormat.esp:
-            make_uki(state, state.staging / state.config.output_split_uki)
+            assert stub and kver and kimg
+            make_uki(state, stub, kver, kimg, state.staging / state.config.output_split_uki)
             make_esp(state, state.staging / state.config.output_split_uki)
         elif state.config.output_format.is_extension_image():
             make_extension_image(state, state.staging / state.config.output_with_format)
