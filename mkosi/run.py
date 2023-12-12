@@ -162,7 +162,7 @@ def ensure_exc_info() -> tuple[type[BaseException], BaseException, TracebackType
 
 
 @contextlib.contextmanager
-def uncaught_exception_handler(exit: Callable[[int], NoReturn]) -> Iterator[None]:
+def uncaught_exception_handler(exit: Callable[[int], NoReturn] = sys.exit) -> Iterator[None]:
     rc = 0
     try:
         yield
