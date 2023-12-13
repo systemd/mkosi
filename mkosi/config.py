@@ -969,6 +969,7 @@ class MkosiConfig:
     ssh: bool
 
     secure_boot: bool
+    secure_boot_auto_enroll: bool
     secure_boot_key: Optional[Path]
     secure_boot_certificate: Optional[Path]
     secure_boot_sign_tool: SecureBootSignTool
@@ -1873,6 +1874,14 @@ SETTINGS = (
         section="Validation",
         parse=config_parse_boolean,
         help="Sign the resulting kernel/initrd image for UEFI SecureBoot",
+    ),
+    MkosiConfigSetting(
+        dest="secure_boot_auto_enroll",
+        metavar="BOOL",
+        section="Validation",
+        parse=config_parse_boolean,
+        default=True,
+        help="Automatically enroll the secureboot signing key on first boot",
     ),
     MkosiConfigSetting(
         dest="secure_boot_key",
@@ -3089,6 +3098,7 @@ def summary(config: MkosiConfig) -> str:
 
     {bold("VALIDATION")}:
                UEFI SecureBoot: {yes_no(config.secure_boot)}
+    UEFI SecureBoot AutoEnroll: {yes_no(config.secure_boot_auto_enroll)}
         SecureBoot Signing Key: {none_to_none(config.secure_boot_key)}
         SecureBoot Certificate: {none_to_none(config.secure_boot_certificate)}
           SecureBoot Sign Tool: {config.secure_boot_sign_tool}

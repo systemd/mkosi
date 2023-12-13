@@ -807,7 +807,7 @@ def install_systemd_boot(state: MkosiState) -> None:
                 state.root / shim_second_stage_binary(state),
             )
 
-    if state.config.secure_boot:
+    if state.config.secure_boot and state.config.secure_boot_auto_enroll:
         assert state.config.secure_boot_key
         assert state.config.secure_boot_certificate
 
