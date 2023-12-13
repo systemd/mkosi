@@ -59,6 +59,7 @@ class Installer(DistributionInstaller):
             "pacman",
             "python3-cryptography",
             "qemu-kvm-core",
+            "qemu-system-aarch64-core",
             "shadow-utils",
             "socat",
             "squashfs-tools",
