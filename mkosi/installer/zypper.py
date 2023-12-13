@@ -12,18 +12,19 @@ from mkosi.util import sort_packages
 
 def setup_zypper(state: MkosiState, repos: Sequence[RpmRepository]) -> None:
     config = state.pkgmngr / "etc/zypp/zypp.conf"
-    if not config.exists():
-        config.parent.mkdir(exist_ok=True, parents=True)
-        with config.open("w") as f:
-            f.write(
-                textwrap.dedent(
-                    f"""\
-                    [main]
-                    rpm.install.excludedocs = {yes_no(not state.config.with_docs)}
-                    solver.onlyRequires = {yes_no(not state.config.with_recommends)}
-                    """
-                )
+    config.parent.mkdir(exist_ok=True, parents=True)
+
+    # rpm.install.excludedocs can only be configured in zypp.conf so we append
+    # to any user provided config file.
+    with config.open("a") as f:
+        f.write(
+            textwrap.dedent(
+                f"""
+                [main]
+                rpm.install.excludedocs = {yes_no(not state.config.with_docs)}
+                """
             )
+        )
 
     repofile = state.pkgmngr / "etc/zypp/repos.d/mkosi.repo"
     if not repofile.exists():

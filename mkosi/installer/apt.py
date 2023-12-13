@@ -38,17 +38,6 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
             )
         )
 
-    config = state.pkgmngr / "etc/apt/apt.conf"
-    if not config.exists():
-        # Anything that users can override with dropins is written into the config file.
-        config.write_text(
-            textwrap.dedent(
-                f"""\
-                APT::Install-Recommends "{str(state.config.with_recommends).lower()}";
-                """
-            )
-        )
-
     sources = state.pkgmngr / "etc/apt/sources.list"
     if not sources.exists():
         with sources.open("w") as f:
@@ -75,6 +64,7 @@ def apt_cmd(state: MkosiState, command: str) -> list[PathString]:
         command,
         "-o", f"APT::Architecture={debarch}",
         "-o", f"APT::Architectures={debarch}",
+        "-o", f"APT::Install-Recommends={str(state.config.with_recommends).lower()}",
         "-o", "APT::Immediate-Configure=off",
         "-o", "APT::Get::Assume-Yes=true",
         "-o", "APT::Get::AutomaticRemove=true",
