@@ -48,6 +48,8 @@
 - A passwordless root account may now be created by specifying `hashed:`
 - On `arm64` we now add an autologin dropin for `ttyAMA0` if autologin
   is enabled.
+- Added `SecureBootAutoEnroll=` to control automatic enrollment of secureboot
+  keys separately from signing `systemd-boot` and generated UKIs.
 
 ## v19
 

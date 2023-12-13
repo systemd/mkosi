@@ -1171,17 +1171,21 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `SecureBoot=`, `--secure-boot`
 
 : Sign systemd-boot (if it is not signed yet) and any generated
-  unified kernel images for UEFI SecureBoot. Also set up automatic
-  enrollment of the secure boot keys in virtual machines as documented
-  in the systemd-boot
-  [man page](https://www.freedesktop.org/software/systemd/man/systemd-boot.html).
+  unified kernel images for UEFI SecureBoot.
+
+`SecureBootAutoEnroll=`, `--secure-boot-auto-enroll=`
+
+: Set up automatic enrollment of the secure boot keys in virtual machines as
+  documented in the systemd-boot
+  [man page](https://www.freedesktop.org/software/systemd/man/systemd-boot.html)
+  if `SecureBoot=` is used.
   Note that systemd-boot will only do automatic secure boot key
   enrollment in virtual machines starting from systemd v253. To do auto
   enrollment on systemd v252 or on bare metal machines, write a
   systemd-boot configuration file to `/efi/loader/loader.conf` using an
   extra tree with `secure-boot-enroll force` or
   `secure-boot-enroll manual` in it. Auto enrollment is not supported on
-  systemd versions older than v252.
+  systemd versions older than v252. Defaults to `yes`.
 
 `SecureBootKey=`, `--secure-boot-key=`
 
