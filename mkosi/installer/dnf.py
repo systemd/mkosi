@@ -51,19 +51,10 @@ def setup_dnf(state: MkosiState, repositories: Iterable[RpmRepository], filelist
     if not config.exists():
         config.parent.mkdir(exist_ok=True, parents=True)
         with config.open("w") as f:
-            f.write(
-                textwrap.dedent(
-                    f"""\
-                    [main]
-                    install_weak_deps={int(state.config.with_recommends)}
-                    """
-                )
-            )
-
             # Make sure we download filelists so all dependencies can be resolved.
             # See https://bugzilla.redhat.com/show_bug.cgi?id=2180842
             if dnf_executable(state).endswith("dnf5") and filelists:
-                f.write("optional_metadata_types=filelists\n")
+                f.write("[main]\noptional_metadata_types=filelists\n")
 
     repofile = state.pkgmngr / "etc/yum.repos.d/mkosi.repo"
     if not repofile.exists():
@@ -122,6 +113,7 @@ def dnf_cmd(state: MkosiState) -> list[PathString]:
         f"--setopt=reposdir={state.pkgmngr / 'etc/yum.repos.d'}",
         f"--setopt=varsdir={state.pkgmngr / 'etc/dnf/vars'}",
         f"--setopt=persistdir={state.pkgmngr / 'var/lib/dnf'}",
+        f"--setopt=install_weak_deps={int(state.config.with_recommends)}",
         "--setopt=check_config_file_age=0",
         "--disable-plugin=*" if dnf.endswith("dnf5") else "--disableplugin=*",
         "--enable-plugin=builddep" if dnf.endswith("dnf5") else "--enableplugin=builddep",

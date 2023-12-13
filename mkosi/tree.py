@@ -54,6 +54,7 @@ def copy_tree(
     *,
     preserve_owner: bool = True,
     clobber: bool = True,
+    dereference: bool = False,
     use_subvolumes: ConfigFeature = ConfigFeature.disabled,
 ) -> None:
     subvolume = (use_subvolumes == ConfigFeature.enabled or
@@ -65,7 +66,7 @@ def copy_tree(
     copy: list[PathString] = [
         "cp",
         "--recursive",
-        "--no-dereference",
+        "--dereference" if dereference else "--no-dereference",
         f"--preserve=mode,timestamps,links,xattr{',ownership' if preserve_owner else ''}",
         "--reflink=auto",
         src, dst,
