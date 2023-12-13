@@ -86,9 +86,7 @@ class MkosiFormatter(logging.Formatter):
 
 def log_setup() -> None:
     handler = logging.StreamHandler(stream=sys.stderr)
-
-    level = logging.getLevelName(os.getenv("SYSTEMD_LOG_LEVEL", "info").upper())
     handler.setFormatter(MkosiFormatter())
 
     logging.getLogger().addHandler(handler)
-    logging.getLogger().setLevel(level)
+    logging.getLogger().setLevel(logging.getLevelName(os.getenv("SYSTEMD_LOG_LEVEL", "info").upper()))

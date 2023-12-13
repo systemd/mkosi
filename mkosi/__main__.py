@@ -19,7 +19,7 @@ def onsigterm(signal: int, frame: Optional[FrameType]) -> None:
     raise KeyboardInterrupt()
 
 
-@uncaught_exception_handler(exit=sys.exit)
+@uncaught_exception_handler()
 def main() -> None:
     signal.signal(signal.SIGTERM, onsigterm)
 

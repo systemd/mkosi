@@ -1,0 +1,134 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: LGPL-2.1+
+
+import argparse
+import logging
+import os
+import shutil
+from pathlib import Path
+from typing import NamedTuple, Optional
+
+from mkosi.config import OutputFormat, __version__
+from mkosi.log import die, log_setup
+from mkosi.run import run, uncaught_exception_handler
+from mkosi.types import PathString
+
+
+class Context(NamedTuple):
+    command: str
+    kernel_version: str
+    entry_dir: Path
+    kernel_image: Path
+    initrds: list[Path]
+    staging_area: Path
+    layout: str
+    image_type: str
+    initrd_generator: Optional[str]
+    uki_generator: Optional[str]
+    verbose: bool
+
+
+def we_are_wanted(context: Context) -> bool:
+    return context.uki_generator == "mkosi" or context.initrd_generator in ("mkosi", "mkosi-initrd")
+
+
+def mandatory_variable(name: str) -> str:
+    try:
+        return os.environ[name]
+    except KeyError:
+        die(f"${name} must be set in the environment")
+
+
+@uncaught_exception_handler()
+def main() -> None:
+    log_setup()
+
+    p = argparse.ArgumentParser(
+        description='kernel-install plugin to build initrds or Unified Kernel Images using mkosi',
+        allow_abbrev=False,
+        usage='50-mkosi.install COMMAND KERNEL_VERSION ENTRY_DIR KERNEL_IMAGE INITRD…',
+    )
+
+    p.add_argument("command",
+                   metavar="COMMAND",
+                   help="The action to perform. Only 'add' is supported.")
+    p.add_argument("kernel_version",
+                   metavar="KERNEL_VERSION",
+                   help="Kernel version string")
+    p.add_argument("entry_dir",
+                   metavar="ENTRY_DIR",
+                   type=Path,
+                   help="Type#1 entry directory (ignored)")
+    p.add_argument("kernel_image",
+                   metavar="KERNEL_IMAGE",
+                   type=Path,
+                   help="Kernel image")
+    p.add_argument("initrds",
+                   metavar="INITRD…",
+                   type=Path,
+                   nargs="*",
+                   help="Initrd files")
+    p.add_argument("--version",
+                   action="version",
+                   version=f"mkosi {__version__}")
+
+    context = Context(
+        **vars(p.parse_args()),
+        staging_area=Path(mandatory_variable("KERNEL_INSTALL_STAGING_AREA")),
+        layout=mandatory_variable("KERNEL_INSTALL_LAYOUT"),
+        image_type=mandatory_variable("KERNEL_INSTALL_IMAGE_TYPE"),
+        initrd_generator=os.getenv("KERNEL_INSTALL_INITRD_GENERATOR"),
+        uki_generator=os.getenv("KERNEL_INSTALL_UKI_GENERATOR"),
+        verbose=int(os.getenv("KERNEL_INSTALL_VERBOSE", 0)) > 0,
+    )
+
+    if context.command != "add" or not we_are_wanted(context):
+        return
+
+    # If kernel-install was passed a UKI, there's no need to build anything ourselves.
+    if context.image_type == "uki":
+        return
+
+    # If the initrd was provided on the kernel command line, we shouldn't generate our own.
+    if context.layout != "uki" and context.initrds:
+        return
+
+    format = OutputFormat.uki if context.layout == "uki" else OutputFormat.cpio
+    output = "initrd" if format == OutputFormat.cpio else "uki"
+
+    cmdline: list[PathString] = [
+        "mkosi",
+        "--directory", "",
+        "--format", str(format),
+        "--output", output,
+        "--workspace-dir=/var/tmp",
+        "--cache-dir=/var/cache",
+        "--output-dir", context.staging_area,
+        "--extra-tree", f"/usr/lib/modules/{context.kernel_version}:/usr/lib/modules/{context.kernel_version}",
+        "--extra-tree=/usr/lib/firmware:/usr/lib/firmware",
+        "--kernel-modules-exclude=.*",
+        "--kernel-modules-include-host=yes",
+    ]
+
+    if context.verbose:
+        cmdline += ["--debug"]
+
+    for d in ("/usr/lib/mkosi-initrd", "/etc/mkosi-initrd"):
+        if Path(d).exists():
+            cmdline += ["--include", d]
+
+    logging.info(f"Building {output}")
+
+    run(cmdline)
+
+    (context.staging_area / output).unlink()
+
+    if format == OutputFormat.cpio:
+        shutil.move(next(context.staging_area.glob("initrd*.cpio*")), context.staging_area / "initrd")
+    else:
+        (context.staging_area / f"{output}.vmlinuz").unlink()
+        (context.staging_area / f"{output}.initrd").unlink()
+
+
+if __name__ == '__main__':
+    main()
