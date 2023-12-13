@@ -117,6 +117,12 @@ class Architecture(StrEnum):
 
         return a
 
+    def default_serial_tty(self) -> str:
+        return {
+            Architecture.arm   : "ttyAMA0",
+            Architecture.arm64 : "ttyAMA0",
+        }.get(self, "ttyS0")
+
     def supports_smbios(self) -> bool:
         return self in (Architecture.x86, Architecture.x86_64, Architecture.arm, Architecture.arm64)
 

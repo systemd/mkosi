@@ -402,6 +402,10 @@ def config_default_source_date_epoch(namespace: argparse.Namespace) -> Optional[
     return config_parse_source_date_epoch(os.environ.get("SOURCE_DATE_EPOCH"), None)
 
 
+def config_default_kernel_command_line(namespace: argparse.Namespace) -> list[str]:
+    return [f"console={namespace.architecture.default_serial_tty()}"]
+
+
 def make_enum_parser(type: type[enum.Enum]) -> Callable[[str], enum.Enum]:
     def parse_enum(value: str) -> enum.Enum:
         try:
@@ -1736,7 +1740,8 @@ SETTINGS = (
         metavar="OPTIONS",
         section="Content",
         parse=config_make_list_parser(delimiter=" "),
-        default=["console=ttyS0"],
+        default_factory_depends=("architecture",),
+        default_factory=config_default_kernel_command_line,
         help="Set the kernel command line (only bootable images)",
     ),
     MkosiConfigSetting(
@@ -2798,15 +2803,16 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
 
 
 def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
+    tty = args.architecture.default_serial_tty()
     columns, lines = shutil.get_terminal_size()
     cmdline = [
         # Make sure we set up networking in the VM/container.
         "systemd.wants=network.target",
         # Make sure we don't load vmw_vmci which messes with virtio vsock.
         "module_blacklist=vmw_vmci",
-        f"systemd.tty.term.ttyS0={os.getenv('TERM', 'vt220')}",
-        f"systemd.tty.columns.ttyS0={columns}",
-        f"systemd.tty.rows.ttyS0={lines}",
+        f"systemd.tty.term.{tty}={os.getenv('TERM', 'vt220')}",
+        f"systemd.tty.columns.{tty}={columns}",
+        f"systemd.tty.rows.{tty}={lines}",
     ]
 
     if not any(s.startswith("ip=") for s in args.kernel_command_line_extra):
@@ -2828,7 +2834,7 @@ def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
             f"systemd.tty.term.console={os.getenv('TERM', 'vt220')}",
             f"systemd.tty.columns.console={columns}",
             f"systemd.tty.rows.console={lines}",
-            "console=ttyS0",
+            f"console={tty}",
         ]
 
     for s in args.kernel_command_line_extra:
