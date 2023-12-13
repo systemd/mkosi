@@ -5,12 +5,14 @@ import argparse
 import logging
 import os
 import shutil
+import tempfile
 from pathlib import Path
 from typing import NamedTuple, Optional
 
 from mkosi.config import OutputFormat, __version__
 from mkosi.log import die, log_setup
 from mkosi.run import run, uncaught_exception_handler
+from mkosi.tree import copy_tree
 from mkosi.types import PathString
 
 
@@ -43,37 +45,37 @@ def mandatory_variable(name: str) -> str:
 def main() -> None:
     log_setup()
 
-    p = argparse.ArgumentParser(
+    parser = argparse.ArgumentParser(
         description='kernel-install plugin to build initrds or Unified Kernel Images using mkosi',
         allow_abbrev=False,
         usage='50-mkosi.install COMMAND KERNEL_VERSION ENTRY_DIR KERNEL_IMAGE INITRD…',
     )
 
-    p.add_argument("command",
-                   metavar="COMMAND",
-                   help="The action to perform. Only 'add' is supported.")
-    p.add_argument("kernel_version",
-                   metavar="KERNEL_VERSION",
-                   help="Kernel version string")
-    p.add_argument("entry_dir",
-                   metavar="ENTRY_DIR",
-                   type=Path,
-                   help="Type#1 entry directory (ignored)")
-    p.add_argument("kernel_image",
-                   metavar="KERNEL_IMAGE",
-                   type=Path,
-                   help="Kernel image")
-    p.add_argument("initrds",
-                   metavar="INITRD…",
-                   type=Path,
-                   nargs="*",
-                   help="Initrd files")
-    p.add_argument("--version",
-                   action="version",
-                   version=f"mkosi {__version__}")
+    parser.add_argument("command",
+                        metavar="COMMAND",
+                        help="The action to perform. Only 'add' is supported.")
+    parser.add_argument("kernel_version",
+                        metavar="KERNEL_VERSION",
+                        help="Kernel version string")
+    parser.add_argument("entry_dir",
+                        metavar="ENTRY_DIR",
+                        type=Path,
+                        help="Type#1 entry directory (ignored)")
+    parser.add_argument("kernel_image",
+                        metavar="KERNEL_IMAGE",
+                        type=Path,
+                        help="Kernel image")
+    parser.add_argument("initrds",
+                        metavar="INITRD…",
+                        type=Path,
+                        nargs="*",
+                        help="Initrd files")
+    parser.add_argument("--version",
+                        action="version",
+                        version=f"mkosi {__version__}")
 
     context = Context(
-        **vars(p.parse_args()),
+        **vars(parser.parse_args()),
         staging_area=Path(mandatory_variable("KERNEL_INSTALL_STAGING_AREA")),
         layout=mandatory_variable("KERNEL_INSTALL_LAYOUT"),
         image_type=mandatory_variable("KERNEL_INSTALL_IMAGE_TYPE"),
@@ -117,9 +119,37 @@ def main() -> None:
         if Path(d).exists():
             cmdline += ["--include", d]
 
-    logging.info(f"Building {output}")
+    with tempfile.TemporaryDirectory() as d:
+        # Make sure we don't use any of mkosi's default repositories.
+        for p in (
+            "yum.repos.d/mkosi.repo",
+            "apt/sources.list",
+            "zypp/repos.d/mkosi.repo",
+            "pacman.conf",
+        ):
+            (Path(d) / "etc" / p).parent.mkdir(parents=True, exist_ok=True)
+            (Path(d) / "etc" / p).touch()
 
-    run(cmdline)
+        # Copy in the host's package manager configuration.
+        for p in (
+            "dnf",
+            "yum.repos.d/",
+            "apt",
+            "zypp",
+            "pacman.conf",
+            "pacman.d/",
+        ):
+            if not (Path("/etc") / p).exists():
+                continue
+
+            (Path(d) / "etc" / p).parent.mkdir(parents=True, exist_ok=True)
+            copy_tree(Path("/etc") / p, Path(d) / "etc" / p, dereference=True)
+
+        cmdline += ["--package-manager-tree", d]
+
+        logging.info(f"Building {output}")
+
+        run(cmdline)
 
     (context.staging_area / output).unlink()
 
