@@ -1693,6 +1693,11 @@ image and execute it as the post-installation script.
 
 Scripts executed by mkosi receive the following environment variables:
 
+* `$ARCHITECTURE` contains the architecture from the `Architecture=`
+  setting. If `Architecture=` is not set, it will contain the native
+  architecture of the host machine. See the documentation of
+  `Architecture=` for possible values for this variable.
+
 * `$CHROOT_SCRIPT` contains the path to the running script relative to
   the image root directory. The primary usecase for this variable is in
   combination with the `mkosi-chroot` script. See the description of

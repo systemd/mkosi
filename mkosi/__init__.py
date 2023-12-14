@@ -426,6 +426,7 @@ def run_prepare_scripts(state: MkosiState, build: bool) -> None:
         return
 
     env = dict(
+        ARCHITECTURE=str(state.config.architecture),
         BUILDROOT=str(state.root),
         CHROOT_SCRIPT="/work/prepare",
         CHROOT_SRCDIR="/work/src",
@@ -486,6 +487,7 @@ def run_build_scripts(state: MkosiState) -> None:
         return
 
     env = dict(
+        ARCHITECTURE=str(state.config.architecture),
         BUILDROOT=str(state.root),
         CHROOT_DESTDIR="/work/dest",
         CHROOT_OUTPUTDIR="/work/out",
@@ -558,6 +560,7 @@ def run_postinst_scripts(state: MkosiState) -> None:
         return
 
     env = dict(
+        ARCHITECTURE=str(state.config.architecture),
         BUILDROOT=str(state.root),
         CHROOT_OUTPUTDIR="/work/out",
         CHROOT_SCRIPT="/work/postinst",
@@ -612,6 +615,7 @@ def run_finalize_scripts(state: MkosiState) -> None:
         return
 
     env = dict(
+        ARCHITECTURE=str(state.config.architecture),
         BUILDROOT=str(state.root),
         CHROOT_OUTPUTDIR="/work/out",
         CHROOT_SCRIPT="/work/finalize",
