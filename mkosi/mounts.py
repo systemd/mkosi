@@ -11,7 +11,7 @@ from typing import Optional
 
 from mkosi.run import run
 from mkosi.types import PathString
-from mkosi.util import umask
+from mkosi.util import INVOKING_USER, umask
 from mkosi.versioncomp import GenericVersion
 
 
@@ -148,3 +148,18 @@ def mount_usr(tree: Optional[Path], umount: bool = True) -> Iterator[None]:
             yield
     finally:
         os.environ["PATH"] = old
+
+
+@contextlib.contextmanager
+def mount_passwd() -> Iterator[None]:
+    with tempfile.NamedTemporaryFile(prefix="mkosi.passwd", mode="w") as passwd:
+        passwd.write("root:x:0:0:root:/root:/bin/sh\n")
+        if INVOKING_USER.uid != 0:
+            name = INVOKING_USER.name()
+            home = INVOKING_USER.home()
+            passwd.write(f"{name}:x:{INVOKING_USER.uid}:{INVOKING_USER.gid}:{name}:{home}:/bin/sh\n")
+        passwd.flush()
+        os.fchown(passwd.file.fileno(), INVOKING_USER.uid, INVOKING_USER.gid)
+
+        with mount(passwd.name, Path("/etc/passwd"), operation="--bind"):
+            yield

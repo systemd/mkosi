@@ -32,6 +32,7 @@ from mkosi.config import (
     format_bytes,
 )
 from mkosi.log import die
+from mkosi.mounts import mount_passwd
 from mkosi.partition import finalize_root, find_partitions
 from mkosi.run import (
     MkosiAsyncioThread,
@@ -592,6 +593,17 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
     notifications: dict[str, str] = {}
 
     with contextlib.ExitStack() as stack:
+        if (
+            os.getuid() == 0 and
+            not INVOKING_USER.invoked_as_root and
+            config.runtime_trees
+        ):
+            # In this scenario newuidmap might fail when invoked by virtiofsd as the user running virtiofsd will not
+            # be resolvable to a name via NSS so we have to trick newuidmap by mounting over /etc/passwd. Once
+            # https://gitlab.com/virtio-fs/virtiofsd/-/issues/137 is fixed we can set up the user namespace ourselves
+            # without uidmap to avoid having to mount over /etc/passwd.
+            stack.enter_context(mount_passwd())
+
         for k, v in config.credentials.items():
             payload = base64.b64encode(v.encode()).decode()
             if config.architecture.supports_smbios() and firmware == QemuFirmware.uefi:
