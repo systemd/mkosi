@@ -71,6 +71,7 @@ class Installer(DistributionInstaller):
             "debian-keyring",
             "distribution-gpg-keys",
             "dnf",
+            "dnf-plugins-core",
             "dosfstools",
             "e2fsprogs",
             "mtools",

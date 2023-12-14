@@ -49,6 +49,7 @@ class Installer(DistributionInstaller):
             "curl",
             "debian-archive-keyring",
             "dnf",
+            "dnf-plugins-core",
             "dosfstools",
             "e2fsprogs",
             "erofs-utils",

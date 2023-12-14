@@ -46,6 +46,7 @@ class Installer(DistributionInstaller):
             "curl",
             "distribution-gpg-keys",
             "dnf",
+            "dnf-plugins-core",
             "dosfstools",
             "e2fsprogs",
             "erofs-utils",
