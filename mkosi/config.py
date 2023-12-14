@@ -241,7 +241,8 @@ def parse_path(value: str,
                executable: bool = False,
                expanduser: bool = True,
                expandvars: bool = True,
-               secret: bool = False) -> Path:
+               secret: bool = False,
+               absolute: bool = False) -> Path:
     if expandvars:
         value = os.path.expandvars(value)
 
@@ -254,6 +255,9 @@ def parse_path(value: str,
 
     if required and not path.exists():
         die(f"{value} does not exist")
+
+    if absolute and not path.is_absolute():
+        die(f"{value} must be an absolute path")
 
     if resolve:
         path = path.resolve()
@@ -272,13 +276,22 @@ def parse_path(value: str,
     return path
 
 
-def parse_tree(value: str) -> ConfigTree:
-    src, sep, tgt = value.partition(':')
+def make_tree_parser(absolute: bool = True) -> Callable[[str], ConfigTree]:
+    def parse_tree(value: str) -> ConfigTree:
+        src, sep, tgt = value.partition(':')
 
-    return ConfigTree(
-        source=parse_path(src, required=False),
-        target=parse_path(tgt, required=False, resolve=False, expanduser=False) if sep else None,
-    )
+        return ConfigTree(
+            source=parse_path(src, required=False),
+            target=parse_path(
+                tgt,
+                required=False,
+                resolve=False,
+                expanduser=False,
+                absolute=absolute,
+            ) if sep else None,
+        )
+
+    return parse_tree
 
 
 def config_match_build_sources(match: str, value: list[ConfigTree]) -> bool:
@@ -1349,7 +1362,7 @@ SETTINGS = (
         long="--package-manager-tree",
         metavar="PATH",
         section="Distribution",
-        parse=config_make_list_parser(delimiter=",", parse=parse_tree),
+        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser()),
         default_factory=lambda ns: ns.skeleton_trees,
         default_factory_depends=("skeleton_trees",),
         help="Use a package manager tree to configure the package manager",
@@ -1550,7 +1563,7 @@ SETTINGS = (
         long="--skeleton-tree",
         metavar="PATH",
         section="Content",
-        parse=config_make_list_parser(delimiter=",", parse=parse_tree),
+        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser()),
         paths=("mkosi.skeleton", "mkosi.skeleton.tar"),
         path_default=False,
         help="Use a skeleton tree to bootstrap the image before installing anything",
@@ -1560,7 +1573,7 @@ SETTINGS = (
         long="--extra-tree",
         metavar="PATH",
         section="Content",
-        parse=config_make_list_parser(delimiter=",", parse=parse_tree),
+        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser()),
         paths=("mkosi.extra", "mkosi.extra.tar"),
         path_default=False,
         help="Copy an extra tree on top of image",
@@ -1645,7 +1658,7 @@ SETTINGS = (
         dest="build_sources",
         metavar="PATH",
         section="Content",
-        parse=config_make_list_parser(delimiter=",", parse=parse_tree),
+        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(absolute=False)),
         match=config_match_build_sources,
         help="Path for sources to build",
     ),
@@ -2170,7 +2183,7 @@ SETTINGS = (
         long="--runtime-tree",
         metavar="SOURCE:[TARGET]",
         section="Host",
-        parse=config_make_list_parser(delimiter=",", parse=parse_tree),
+        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(absolute=False)),
         help="Additional mounts to add when booting the image",
     ),
     MkosiConfigSetting(

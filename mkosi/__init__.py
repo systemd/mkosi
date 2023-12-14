@@ -1227,8 +1227,7 @@ def install_skeleton_trees(state: MkosiState) -> None:
 
     with complete_step("Copying in skeleton file trees…"):
         for tree in state.config.skeleton_trees:
-            source, target = tree.with_prefix()
-            install_tree(source, state.root, target, use_subvolumes=state.config.use_subvolumes)
+            install_tree(tree.source, state.root, tree.target, use_subvolumes=state.config.use_subvolumes)
 
 
 def install_package_manager_trees(state: MkosiState) -> None:
@@ -1237,8 +1236,12 @@ def install_package_manager_trees(state: MkosiState) -> None:
 
     with complete_step("Copying in package manager file trees…"):
         for tree in state.config.package_manager_trees:
-            source, target = tree.with_prefix()
-            install_tree(source, state.workspace / "pkgmngr", target, use_subvolumes=state.config.use_subvolumes)
+            install_tree(
+                tree.source,
+                state.workspace / "pkgmngr",
+                tree.target,
+                use_subvolumes=state.config.use_subvolumes
+            )
 
 
 def install_extra_trees(state: MkosiState) -> None:
@@ -1247,8 +1250,7 @@ def install_extra_trees(state: MkosiState) -> None:
 
     with complete_step("Copying in extra file trees…"):
         for tree in state.config.extra_trees:
-            source, target = tree.with_prefix()
-            install_tree(source, state.root, target, use_subvolumes=state.config.use_subvolumes)
+            install_tree(tree.source, state.root, tree.target, use_subvolumes=state.config.use_subvolumes)
 
 
 def install_build_dest(state: MkosiState) -> None:
