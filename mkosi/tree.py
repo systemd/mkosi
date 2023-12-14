@@ -145,4 +145,5 @@ def install_tree(
     elif src.suffix == ".raw":
         run(["systemd-dissect", "--copy-from", src, "/", t])
     else:
-        die(f"Source tree {src} has unsupported source tree type \"{src.suffix}\"")
+        # If we get an unknown file without a target, we just copy it into /.
+        copy_tree(src, t, preserve_owner=False, use_subvolumes=use_subvolumes)
