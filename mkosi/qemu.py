@@ -307,7 +307,7 @@ def find_virtiofsd() -> Optional[Path]:
 def start_virtiofsd(directory: Path, *, uidmap: bool) -> Iterator[Path]:
     virtiofsd = find_virtiofsd()
     if virtiofsd is None:
-        die("virtiofsd must be installed to boot directory images or use RuntimeMounts= with mkosi qemu")
+        die("virtiofsd must be installed to boot directory images or use RuntimeTrees= with mkosi qemu")
 
     cmdline: list[PathString] = [
         virtiofsd,
