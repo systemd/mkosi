@@ -15,13 +15,15 @@ def setup_zypper(state: MkosiState, repos: Sequence[RpmRepository]) -> None:
     config.parent.mkdir(exist_ok=True, parents=True)
 
     # rpm.install.excludedocs can only be configured in zypp.conf so we append
-    # to any user provided config file.
+    # to any user provided config file. Let's also bump the refresh delay to
+    # the same default as dnf which is 48 hours.
     with config.open("a") as f:
         f.write(
             textwrap.dedent(
                 f"""
                 [main]
                 rpm.install.excludedocs = {yes_no(not state.config.with_docs)}
+                repo.refresh.delay = {48 * 60}
                 """
             )
         )
@@ -39,7 +41,7 @@ def setup_zypper(state: MkosiState, repos: Sequence[RpmRepository]) -> None:
                         {repo.url}
                         gpgcheck=1
                         enabled={int(repo.enabled)}
-                        autorefresh=0
+                        autorefresh=1
                         keeppackages=1
                         """
                     )
