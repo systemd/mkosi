@@ -125,7 +125,7 @@ class Installer(DistributionInstaller):
                 repos += [
                     RpmRepository("updates", f"{url}/$basearch", gpgurls),
                     RpmRepository("updates-debuginfo", f"{url}/$basearch/debug", gpgurls, enabled=False),
-                    RpmRepository("updates-source", f"{url}/SRPMS", gpgurls, enabled=False),
+                    RpmRepository("updates-source", f"{url}/source/tree", gpgurls, enabled=False),
                 ]
 
                 url = f"baseurl={join_mirror(state.config.mirror, 'updates/testing/$releasever/Everything')}"
