@@ -40,6 +40,7 @@ def mount(
     type: Optional[str] = None,
     read_only: bool = False,
     lazy: bool = False,
+    umount: bool = True,
 ) -> Iterator[Path]:
     if not where.exists():
         with umask(~0o755):
@@ -65,7 +66,8 @@ def mount(
         run(cmd)
         yield where
     finally:
-        run(["umount", "--no-mtab", *(["--lazy"] if lazy else []), where])
+        if umount:
+            run(["umount", "--no-mtab", *(["--lazy"] if lazy else []), where])
 
 
 @contextlib.contextmanager
@@ -119,7 +121,7 @@ def mount_overlay(
 
 
 @contextlib.contextmanager
-def mount_usr(tree: Optional[Path]) -> Iterator[None]:
+def mount_usr(tree: Optional[Path], umount: bool = True) -> Iterator[None]:
     if not tree:
         yield
         return
@@ -141,6 +143,7 @@ def mount_usr(tree: Optional[Path]) -> Iterator[None]:
             operation="--bind",
             read_only=True,
             lazy=True,
+            umount=umount,
         ):
             yield
     finally:

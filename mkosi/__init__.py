@@ -3189,7 +3189,7 @@ def run_verb(args: MkosiArgs, images: Sequence[MkosiConfig]) -> None:
     with contextlib.ExitStack() as stack:
         if os.getuid() == 0 and args.verb != Verb.ssh:
             init_mount_namespace()
-            stack.enter_context(mount_usr(last.tools_tree))
+            stack.enter_context(mount_usr(last.tools_tree, umount=False))
 
         stack.enter_context(prepend_to_environ_path(last))
 
