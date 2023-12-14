@@ -586,19 +586,23 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
             "-mon", "console",
         ]
 
-    if config.architecture.supports_smbios():
-        for k, v in config.credentials.items():
-            payload = base64.b64encode(v.encode()).decode()
-            cmdline += [
-                "-smbios", f"type=11,value=io.systemd.credential.binary:{k}={payload}"
-            ]
-
     # QEMU has built-in logic to look for the BIOS firmware so we don't need to do anything special for that.
     if firmware == QemuFirmware.uefi:
         cmdline += ["-drive", f"if=pflash,format=raw,readonly=on,file={ovmf}"]
     notifications: dict[str, str] = {}
 
     with contextlib.ExitStack() as stack:
+        for k, v in config.credentials.items():
+            payload = base64.b64encode(v.encode()).decode()
+            if config.architecture.supports_smbios() and firmware == QemuFirmware.uefi:
+                cmdline += ["-smbios", f"type=11,value=io.systemd.credential.binary:{k}={payload}"]
+            else:
+                f = stack.enter_context(tempfile.NamedTemporaryFile(prefix="mkosi-fw-cfg", mode="w"))
+                f.write(v)
+                f.flush()
+                os.fchown(f.fileno(), INVOKING_USER.uid, INVOKING_USER.gid)
+                cmdline += ["-fw_cfg", f"name=opt/io.systemd.credentials/{k},file={f.name}"]
+
         if firmware == QemuFirmware.uefi:
             ovmf_vars = stack.enter_context(tempfile.NamedTemporaryFile(prefix="mkosi-ovmf-vars"))
             shutil.copy2(config.qemu_firmware_variables or find_ovmf_vars(config), Path(ovmf_vars.name))
