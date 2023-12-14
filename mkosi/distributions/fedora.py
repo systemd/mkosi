@@ -50,6 +50,7 @@ class Installer(DistributionInstaller):
             "debian-keyring",
             "distribution-gpg-keys",
             "dnf5",
+            "dnf5-plugins",
             "dosfstools",
             "e2fsprogs",
             "erofs-utils",
