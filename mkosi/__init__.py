@@ -50,7 +50,7 @@ from mkosi.installer import clean_package_manager_metadata, package_manager_scri
 from mkosi.kmod import gen_required_kernel_modules, process_kernel_modules
 from mkosi.log import ARG_DEBUG, complete_step, die, log_notice, log_step
 from mkosi.manifest import Manifest
-from mkosi.mounts import mount, mount_overlay, mount_passwd, mount_usr
+from mkosi.mounts import mount, mount_overlay, mount_usr
 from mkosi.pager import page
 from mkosi.partition import Partition, finalize_root, finalize_roothash
 from mkosi.qemu import KernelType, QemuDeviceNode, copy_ephemeral, run_qemu, run_ssh
@@ -3183,14 +3183,13 @@ def run_verb(args: MkosiArgs, images: Sequence[MkosiConfig]) -> None:
     if args.verb == Verb.build:
         return
 
-    if last.tools_tree:
+    if last.tools_tree and args.verb != Verb.ssh:
         become_root()
 
     with contextlib.ExitStack() as stack:
-        if os.getuid() == 0:
+        if os.getuid() == 0 and args.verb != Verb.ssh:
             init_mount_namespace()
-            stack.enter_context(mount_usr(last.tools_tree))
-            stack.enter_context(mount_passwd())
+            stack.enter_context(mount_usr(last.tools_tree, umount=False))
 
         stack.enter_context(prepend_to_environ_path(last))
 

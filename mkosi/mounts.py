@@ -11,7 +11,7 @@ from typing import Optional
 
 from mkosi.run import run
 from mkosi.types import PathString
-from mkosi.util import INVOKING_USER, umask
+from mkosi.util import umask
 from mkosi.versioncomp import GenericVersion
 
 
@@ -40,6 +40,7 @@ def mount(
     type: Optional[str] = None,
     read_only: bool = False,
     lazy: bool = False,
+    umount: bool = True,
 ) -> Iterator[Path]:
     if not where.exists():
         with umask(~0o755):
@@ -65,7 +66,8 @@ def mount(
         run(cmd)
         yield where
     finally:
-        run(["umount", "--no-mtab", *(["--lazy"] if lazy else []), where])
+        if umount:
+            run(["umount", "--no-mtab", *(["--lazy"] if lazy else []), where])
 
 
 @contextlib.contextmanager
@@ -119,7 +121,7 @@ def mount_overlay(
 
 
 @contextlib.contextmanager
-def mount_usr(tree: Optional[Path]) -> Iterator[None]:
+def mount_usr(tree: Optional[Path], umount: bool = True) -> Iterator[None]:
     if not tree:
         yield
         return
@@ -141,26 +143,8 @@ def mount_usr(tree: Optional[Path]) -> Iterator[None]:
             operation="--bind",
             read_only=True,
             lazy=True,
+            umount=umount,
         ):
             yield
     finally:
         os.environ["PATH"] = old
-
-
-@contextlib.contextmanager
-def mount_passwd(root: Path = Path("/")) -> Iterator[None]:
-    """
-    ssh looks up the running user in /etc/passwd and fails if it can't find the running user. To trick it, we
-    mount over /etc/passwd with our own file containing our user in the user namespace.
-    """
-    with tempfile.NamedTemporaryFile(prefix="mkosi.passwd", mode="w") as passwd:
-        passwd.write("root:x:0:0:root:/root:/bin/sh\n")
-        if INVOKING_USER.uid != 0:
-            name = INVOKING_USER.name()
-            home = INVOKING_USER.home()
-            passwd.write(f"{name}:x:{INVOKING_USER.uid}:{INVOKING_USER.gid}:{name}:{home}:/bin/sh\n")
-        passwd.flush()
-        os.fchown(passwd.file.fileno(), INVOKING_USER.uid, INVOKING_USER.gid)
-
-        with mount(passwd.name, root / "etc/passwd", operation="--bind"):
-            yield
