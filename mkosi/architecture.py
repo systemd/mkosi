@@ -128,6 +128,9 @@ class Architecture(StrEnum):
     def supports_smbios(self) -> bool:
         return self in (Architecture.x86, Architecture.x86_64, Architecture.arm, Architecture.arm64)
 
+    def supports_fw_cfg(self) -> bool:
+        return self in (Architecture.x86, Architecture.x86_64, Architecture.arm, Architecture.arm64)
+
     def is_native(self) -> bool:
         return self == self.native()
 
