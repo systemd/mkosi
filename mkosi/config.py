@@ -87,6 +87,9 @@ class Verb(StrEnum):
     def needs_root(self) -> bool:
         return self in (Verb.shell, Verb.boot, Verb.burn)
 
+    def needs_credentials(self) -> bool:
+        return self in (Verb.summary, Verb.qemu, Verb.boot, Verb.shell)
+
 
 class ConfigFeature(StrEnum):
     auto     = enum.auto()
@@ -2794,6 +2797,9 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
 
 
 def load_credentials(args: argparse.Namespace) -> dict[str, str]:
+    if not args.verb.needs_credentials():
+        return {}
+
     creds = {
         "agetty.autologin": "root",
         "login.noauth": "yes",
