@@ -121,6 +121,8 @@ class Architecture(StrEnum):
         return {
             Architecture.arm   : "ttyAMA0",
             Architecture.arm64 : "ttyAMA0",
+            Architecture.s390  : "ttysclp0",
+            Architecture.s390x : "ttysclp0",
         }.get(self, "ttyS0")
 
     def supports_smbios(self) -> bool:

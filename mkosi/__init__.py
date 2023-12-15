@@ -312,8 +312,9 @@ def configure_autologin(state: MkosiState) -> None:
         configure_autologin_service(state, "serial-getty@ttyS0.service",
                                     "--keep-baud 115200,57600,38400,9600 -")
 
-        if state.config.architecture == Architecture.arm64:
-            configure_autologin_service(state, "serial-getty@ttyAMA0.service",
+        if state.config.architecture.default_serial_tty() != "ttyS0":
+            configure_autologin_service(state,
+                                        f"serial-getty@{state.config.architecture.default_serial_tty()}.service",
                                         "--keep-baud 115200,57600,38400,9600 -")
 
 
