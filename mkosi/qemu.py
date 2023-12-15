@@ -358,6 +358,7 @@ def start_virtiofsd(directory: Path, *, uidmap: bool) -> Iterator[Path]:
             try:
                 yield path
             finally:
+                proc.terminate()
                 proc.wait()
 
 
