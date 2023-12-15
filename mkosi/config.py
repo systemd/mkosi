@@ -2890,13 +2890,11 @@ def load_environment(args: argparse.Namespace) -> dict[str, str]:
     if dnf := os.getenv("MKOSI_DNF"):
         env["MKOSI_DNF"] = dnf
 
-    environment_values : list[str] = sum([f.read_text().strip().splitlines() for f in args.environment_files], [])
-    environment_values.extend(args.environment)
-    for s in environment_values:
+    entries = [x for y in (f.read_text().strip().splitlines() for f in args.environment_files) for x in y]
+    for s in entries + args.environment:
         key, sep, value = s.partition("=")
         key, value = key.strip(), value.strip()
         value = value if sep else os.getenv(key, "")
-        print(key, value)
         env[key] = value
 
     return env

@@ -751,7 +751,6 @@ def test_specifiers(tmp_path: Path) -> None:
         assert {k: v for k, v in config.environment.items() if k in expected} == expected
 
 
-
 def test_deterministic() -> None:
     assert MkosiConfig.default() == MkosiConfig.default()
 
@@ -760,17 +759,6 @@ def test_environment(tmp_path: Path) -> None:
 
     (d / "mkosi.conf").write_text(
         """\
-        [Distribution]
-        Distribution=ubuntu
-        Release=lunar
-        Architecture=arm64
-
-        [Output]
-        ImageId=my-image-id
-        ImageVersion=1.2.3
-        OutputDirectory=abcde
-        Output=test
-
         [Content]
         Environment=TestValue2=300
                     TestValue3=400

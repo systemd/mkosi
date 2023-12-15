@@ -309,7 +309,7 @@ def test_config() -> None:
         dependencies = ("dep1",),
         distribution = Distribution.fedora,
         environment = {},
-        environment_files=[],
+        environment_files = [],
         ephemeral = True,
         extra_search_paths = [],
         extra_trees = [],
