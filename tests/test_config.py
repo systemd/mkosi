@@ -84,6 +84,8 @@ def test_parse_ini(tmp_path: Path) -> None:
     assert next(g) == ("MySection", "Value", "abc")
     assert next(g) == ("MySection", "Other", "def")
     assert next(g) == ("MySection", "ALLCAPS", "txt")
+    assert next(g) == ("", "", "")
+    assert next(g) == ("", "", "")
     assert next(g) == ("AnotherSection", "EmptyValue", "")
     assert next(g) == ("AnotherSection", "Multiline", "abc\ndef\nqed\nord")
 
@@ -353,6 +355,36 @@ def test_compression(tmp_path: Path) -> None:
     with chdir(tmp_path):
         _, [config] = parse_config(["--format", "disk", "--compress-output", "False"])
         assert config.compress_output == Compression.none
+
+
+def test_match_multiple(tmp_path: Path) -> None:
+    with chdir(tmp_path):
+        Path("mkosi.conf").write_text(
+            """\
+            [Match]
+            Format=|disk
+            Format=|directory
+
+            [Match]
+            Architecture=|x86-64
+            Architecture=|arm64
+
+            [Output]
+            ImageId=abcde
+            """
+        )
+
+        # Both sections are not matched, so image ID should not be "abcde".
+        _, [config] = parse_config(["--format", "tar", "--architecture", "s390x"])
+        assert config.image_id != "abcde"
+
+        # Only a single section is matched, so image ID should not be "abcde".
+        _, [config] = parse_config(["--format", "disk", "--architecture", "s390x"])
+        assert config.image_id != "abcde"
+
+        # Both sections are matched, so image ID should be "abcde".
+        _, [config] = parse_config(["--format", "disk", "--architecture", "x86-64"])
+        assert config.image_id == "abcde"
 
 
 @pytest.mark.parametrize("dist1,dist2", itertools.combinations_with_replacement(Distribution, 2))

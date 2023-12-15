@@ -328,6 +328,24 @@ the entire directory. If the conditions are not satisfied, the entire
 directory is skipped. The `[Match]` sections of files in `mkosi.conf.d/`
 and `mkosi.local.conf` only apply to the file itself.
 
+If there are multiple `[Match]` sections in the same configuration file,
+each of them has to be satisified in order for the configuration file to
+be included. Specifically, triggering matches only apply to the current
+`[Match]` section and are reset between multiple `[Match]` sections. As
+an example, the following will only match if the output format is one
+of `disk` or `directory` and the architecture is one of `x86-64` or
+`arm64`:
+
+```conf
+[Match]
+Format=|disk
+Format=|directory
+
+[Match]
+Architecture=|x86-64
+Architecture=|arm64
+```
+
 Command line options that take no argument are shown without `=` in
 their long version. In the config files, they should be specified with a
 boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
