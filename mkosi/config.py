@@ -1680,15 +1680,13 @@ SETTINGS = (
     ),
     MkosiConfigSetting(
         dest="environment_files",
-        long="--environment-files",
+        long="--env-file",
         metavar="PATH",
-        name="EnvironmentFiles",
         section="Content",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         paths=("mkosi.env",),
         path_default=False,
         help="Enviroment files to set when running scripts",
-        compat_names=("EnvironmentFile",),
     ),
     MkosiConfigSetting(
         dest="with_tests",
@@ -2892,18 +2890,13 @@ def load_environment(args: argparse.Namespace) -> dict[str, str]:
     if dnf := os.getenv("MKOSI_DNF"):
         env["MKOSI_DNF"] = dnf
 
-    environment_values = []
-    for env_file in args.environment_files:
-        with open(env_file) as f:
-            environment_values.extend(f.read().strip().split("\n"))
-    if len(environment_values) != 0:
-        environment_values.extend(args.environment)
-    else:
-        environment_values = args.environment
-
+    environment_values : list[str] = sum([f.read_text().strip().splitlines() for f in args.environment_files], [])
+    environment_values.extend(args.environment)
     for s in environment_values:
         key, sep, value = s.partition("=")
+        key, value = key.strip(), value.strip()
         value = value if sep else os.getenv(key, "")
+        print(key, value)
         env[key] = value
 
     return env
