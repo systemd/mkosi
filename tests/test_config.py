@@ -732,6 +732,19 @@ def test_specifiers(tmp_path: Path) -> None:
                     ImageVersion=%v
                     OutputDirectory=%O
                     Output=%o
+        EnvironmentFiles=other.env
+        """
+    )
+
+    (d / "mkosi.env").write_text(
+        """\
+        TestValue=90
+        """
+    )
+
+    (d / "other.env").write_text(
+        """\
+        TestValue=100
         """
     )
 
@@ -746,9 +759,13 @@ def test_specifiers(tmp_path: Path) -> None:
             "ImageVersion": "1.2.3",
             "OutputDirectory": str(Path.cwd() / "abcde"),
             "Output": "test",
+            "TestValue": "100"
         }
 
         assert {k: v for k, v in config.environment.items() if k in expected} == expected
+
+        expected_env_files = [Path.cwd() / "mkosi.env", Path.cwd() / "other.env"]
+        assert config.environment_files == expected_env_files
 
 
 def test_deterministic() -> None:

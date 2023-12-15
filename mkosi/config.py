@@ -954,6 +954,7 @@ class MkosiConfig:
     build_sources: list[ConfigTree]
     build_sources_ephemeral: bool
     environment: dict[str, str]
+    environment_files: list[Path]
     with_tests: bool
     with_network: bool
 
@@ -1676,6 +1677,18 @@ SETTINGS = (
         section="Content",
         parse=config_make_list_parser(delimiter=" ", unescape=True),
         help="Set an environment variable when running scripts",
+    ),
+    MkosiConfigSetting(
+        dest="environment_files",
+        long="--environment-files",
+        metavar="PATH",
+        name="EnvironmentFiles",
+        section="Content",
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        paths=("mkosi.env",),
+        path_default=False,
+        help="Enviroment files to set when running scripts",
+        compat_names=("EnvironmentFile",),
     ),
     MkosiConfigSetting(
         dest="with_tests",
@@ -2879,7 +2892,16 @@ def load_environment(args: argparse.Namespace) -> dict[str, str]:
     if dnf := os.getenv("MKOSI_DNF"):
         env["MKOSI_DNF"] = dnf
 
-    for s in args.environment:
+    environment_values = []
+    for env_file in args.environment_files:
+        with open(env_file) as f:
+            environment_values.extend(f.read().strip().split("\n"))
+    if len(environment_values) != 0:
+        environment_values.extend(args.environment)
+    else:
+        environment_values = args.environment
+
+    for s in environment_values:
         key, sep, value = s.partition("=")
         value = value if sep else os.getenv(key, "")
         env[key] = value
@@ -3077,6 +3099,7 @@ def summary(config: MkosiConfig) -> str:
                       Build Sources: {line_join_tree_list(config.build_sources)}
             Build Sources Ephemeral: {yes_no(config.build_sources_ephemeral)}
                  Script Environment: {line_join_list(env)}
+                  Environment Files: {line_join_list(config.environment_files)}
          Run Tests in Build Scripts: {yes_no(config.with_tests)}
                Scripts With Network: {yes_no(config.with_network)}
 

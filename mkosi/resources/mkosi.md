@@ -976,6 +976,14 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   listed variables will be set. If the same variable is set twice, the
   later setting overrides the earlier one.
 
+`EnvironmentFiles=`, `--environment-files=`
+
+: Takes a comma-separated list of paths to files that contain enviroment
+  variable definitions to be added to the scripting environment. Uses
+  `mkosi.env` if it is found in the local directory. The variables are
+  first read from `mkosi.env` if it exists, then from the given list of
+  files and then from the `--environment` flag.
+
 `WithTests=`, `--without-tests`, `-T`
 
 : If set to false (or when the command-line option is used), the
