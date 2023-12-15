@@ -93,11 +93,14 @@ The following command line verbs are known:
 
 : When the image is built with the `Ssh=yes` option, this command
   connects to a booted virtual machine (`qemu`) via SSH. Make sure to
-  run `mkosi ssh` with the same config as `mkosi build` was run with so
-  that it has the necessary information available to connect to the
-  running virtual machine via SSH. Any arguments passed after the `ssh`
-  verb are passed as arguments to the `ssh` invocation. To connect to a
-  container, use `machinectl login` or `machinectl shell`.
+  run `mkosi ssh` with the same config as `mkosi build` so that it has
+  the necessary information available to connect to the running virtual
+  machine via SSH. Specifically, the SSH private key from the `SshKey=`
+  setting is used to connect to the virtual machine. Use `mkosi genkey`
+  to automatically generate a key and certificate that will be picked up
+  by mkosi. Any arguments passed after the `ssh` verb are passed as
+  arguments to the `ssh` invocation. To connect to a container, use
+  `machinectl login` or `machinectl shell`.
 
 `journalctl`
 
@@ -1186,11 +1189,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   option and running the image using `mkosi qemu`, the `mkosi ssh`
   command can be used to connect to the container/VM via SSH. Note that
   you still have to make sure openssh is installed in the image to make
-  this option behave correctly. mkosi will automatically provision the
-  user's public SSH key into the image using the
-  `ssh.authorized_keys.root` credential if it can be retrieved from a
-  running SSH agent. To access images booted using `mkosi boot`, use
-  `machinectl`.
+  this option behave correctly. Run `mkosi genkey` to automatically
+  generate an X509 certificate and private key to be used by mkosi to
+  enable SSH access to any virtual machines via `mkosi ssh`. To access
+  images booted using `mkosi boot`, use `machinectl`.
 
 ### [Validation] Section
 
@@ -1541,6 +1543,23 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   they're booted with systemd-nspawn or qemu. Takes a size in bytes.
   Additionally, the suffixes `K`, `M` and `G` can be used to specify a
   size in kilobytes, megabytes and gigabytes respectively.
+
+`SshKey=`, `--ssh-key=`
+
+: Path to the X509 private key in PEM format to use to connect to a
+  virtual machine started with `mkosi qemu` and built with the `Ssh=`
+  option enabled via the `mkosi ssh` command. If not configured and
+  `mkosi.key` exists in the working directory, it will automatically be
+  used for this purpose. Run `mkosi genkey` to automatically generate
+  a key in `mkosi.key`.
+
+`SshCertificate=`, `--ssh-certificate=`
+
+: Path to the X509 certificate in PEM format to provision as the SSH
+  public key in virtual machines started with `mkosi qemu`.  If not
+  configured and `mkosi.crt` exists in the working directory, it will
+  automatically be used for this purpose. Run `mkosi genkey` to
+  automatically generate a certificate in `mkosi.crt`.
 
 ## Specifiers
 
