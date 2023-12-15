@@ -754,6 +754,7 @@ def test_specifiers(tmp_path: Path) -> None:
 def test_deterministic() -> None:
     assert MkosiConfig.default() == MkosiConfig.default()
 
+
 def test_environment(tmp_path: Path) -> None:
     d = tmp_path
 
