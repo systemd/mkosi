@@ -1901,19 +1901,20 @@ def check_systemd_tool(*tools: PathString, version: str, reason: str, hint: Opti
             hint=f"Use ToolsTree=default to get a newer version of '{tools[0]}'.")
 
 
-def check_tools(args: MkosiArgs, config: MkosiConfig) -> None:
-    if want_efi(config):
-        check_systemd_tool(
-            "ukify", "/usr/lib/systemd/ukify",
-            version="254",
-            reason="build bootable images",
-            hint="Bootable=no can be used to create a non-bootable image",
-        )
+def check_tools(verb: Verb, config: MkosiConfig) -> None:
+    if verb == Verb.build:
+        if want_efi(config):
+            check_systemd_tool(
+                "ukify", "/usr/lib/systemd/ukify",
+                version="254",
+                reason="build bootable images",
+                hint="Bootable=no can be used to create a non-bootable image",
+            )
 
-    if config.output_format in (OutputFormat.disk, OutputFormat.esp):
-        check_systemd_tool("systemd-repart", version="254", reason="build disk images")
+        if config.output_format in (OutputFormat.disk, OutputFormat.esp):
+            check_systemd_tool("systemd-repart", version="254", reason="build disk images")
 
-    if args.verb == Verb.boot:
+    if verb == Verb.boot:
         check_systemd_tool("systemd-nspawn", version="254", reason="boot images")
 
 
@@ -3160,7 +3161,7 @@ def run_verb(args: MkosiArgs, images: Sequence[MkosiConfig]) -> None:
                 prepend_to_environ_path(config),
             ):
                 # After tools have been mounted, check if we have what we need
-                check_tools(args, config)
+                check_tools(Verb.build, config)
 
                 # Create these as the invoking user to make sure they're owned by the user running mkosi.
                 for p in (
@@ -3195,7 +3196,7 @@ def run_verb(args: MkosiArgs, images: Sequence[MkosiConfig]) -> None:
 
         stack.enter_context(prepend_to_environ_path(last))
 
-        check_tools(args, last)
+        check_tools(args.verb, last)
 
         with prepend_to_environ_path(last):
             if args.verb in (Verb.shell, Verb.boot):
