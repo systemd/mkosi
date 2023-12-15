@@ -770,6 +770,7 @@ def test_environment(tmp_path: Path) -> None:
     (d / "mkosi.env").write_text(
         """\
         TestValue1=90
+        TestValue4=99
         """
     )
 
@@ -784,9 +785,10 @@ def test_environment(tmp_path: Path) -> None:
         _, [config] = parse_config()
 
         expected = {
-            "TestValue1": "100",
-            "TestValue2": "300",
-            "TestValue3": "400"
+            "TestValue1": "100", # from other.env
+            "TestValue2": "300", # from mkosi.conf
+            "TestValue3": "400", # from mkosi.conf
+            "TestValue4": "99", # from mkosi.env
         }
 
         assert {k: v for k, v in config.environment.items() if k in expected} == expected
