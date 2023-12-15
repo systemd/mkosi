@@ -791,5 +791,4 @@ def test_environment(tmp_path: Path) -> None:
 
         assert {k: v for k, v in config.environment.items() if k in expected} == expected
 
-        expected_env_files = [Path.cwd() / "mkosi.env", Path.cwd() / "other.env"]
-        assert config.environment_files == expected_env_files
+        assert config.environment_files == [Path.cwd() / "mkosi.env", Path.cwd() / "other.env"]
