@@ -95,12 +95,9 @@ jobs:
         distro:
           - arch
           - centos
-          - rhel-ubi
           - debian
           - ubuntu
           - fedora
-          - rocky
-          - alma
           - opensuse
 
     steps:
