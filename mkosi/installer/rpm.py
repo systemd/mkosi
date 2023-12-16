@@ -38,6 +38,12 @@ def setup_rpm(state: MkosiState) -> None:
     if not (macros / "macros.lang").exists() and state.config.locale:
         (macros / "macros.lang").write_text(f"%_install_langs {state.config.locale}")
 
+    rpmplugindir = Path(run(["rpm", "--eval", "%{__plugindir}"], stdout=subprocess.PIPE).stdout.strip())
+    if rpmplugindir.exists():
+        with (macros / "macros.disable-plugins").open("w") as f:
+            for plugin in rpmplugindir.iterdir():
+                f.write(f"%__transaction_{plugin.stem} %{{nil}}\n")
+
     rpmconfigdir = Path(run(["rpm", "--eval", "%{_rpmconfigdir}"], stdout=subprocess.PIPE).stdout.strip())
     copy_tree(rpmconfigdir, state.pkgmngr / "usr/lib/rpm", clobber=False, use_subvolumes=state.config.use_subvolumes)
 
