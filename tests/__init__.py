@@ -20,6 +20,7 @@ class Image:
     class Config(NamedTuple):
         distribution: Distribution
         release: str
+        tools_tree_distribution: Optional[Distribution]
 
     def __init__(self, config: Config, options: Sequence[PathString] = []) -> None:
         self.options = options
@@ -65,6 +66,12 @@ class Image:
             "python3", "-m", "mkosi",
             "--distribution", str(self.config.distribution),
             "--release", self.config.release,
+            *(["--tools-tree=default"] if self.config.tools_tree_distribution else []),
+            *(
+                ["--tools-tree-distribution", str(self.config.tools_tree_distribution)]
+                if self.config.tools_tree_distribution
+                else []
+            ),
             *self.options,
             *options,
             "--output-dir", self.output_dir.name,

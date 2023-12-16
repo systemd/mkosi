@@ -25,6 +25,14 @@ def pytest_addoption(parser: Any) -> None:
         metavar="RELEASE",
         help="Run the integration tests for the given release.",
     )
+    parser.addoption(
+        "-T",
+        "--tools-tree-distribution",
+        metavar="DISTRIBUTION",
+        help="Use the given tools tree distribution to build the integration test images",
+        type=Distribution,
+        choices=[Distribution(d) for d in Distribution.values()],
+    )
 
 
 @pytest.fixture(scope="session")
@@ -34,4 +42,5 @@ def config(request: Any) -> Image.Config:
     return Image.Config(
         distribution=distribution,
         release=release,
+        tools_tree_distribution=cast(Distribution, request.config.getoption("--tools-tree-distribution")),
     )

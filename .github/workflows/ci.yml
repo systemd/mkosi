@@ -87,7 +87,7 @@ jobs:
     runs-on: ubuntu-22.04
     needs: unit-test
     concurrency:
-      group: ${{ github.workflow }}-${{ matrix.distro }}-${{ github.ref }}
+      group: ${{ github.workflow }}-${{ matrix.distro }}-${{ matrix.tools }}-${{ github.ref }}
       cancel-in-progress: true
     strategy:
       fail-fast: false
@@ -96,9 +96,58 @@ jobs:
           - arch
           - centos
           - debian
-          - ubuntu
           - fedora
           - opensuse
+          - ubuntu
+        tools:
+          - ""
+          - arch
+          - debian
+          - fedora
+          - opensuse
+          # TODO: Add Ubuntu and CentOS once they have systemd v254 or newer.
+        exclude:
+          # pacman and archlinux-keyring are not packaged in OpenSUSE.
+          - distro: arch
+            tools: opensuse
+          # apt, debian-keyring and ubuntu-keyring are not packaged in OpenSUSE.
+          - distro: debian
+            tools: opensuse
+          - distro: ubuntu
+            tools: opensuse
+          # Installing dnf in OpenSUSE images is broken until https://build.opensuse.org/request/show/1133852 shows up
+          # in the Tumbleweed repositories.
+          - distro: centos
+            tools: opensuse
+          - distro: fedora
+            tools: opensuse
+          - distro: opensuse
+            tools: opensuse
+          # Debian test_boot[cpio] is super flaky on these combinations until the next v255 stable release with
+          # https://github.com/systemd/systemd/pull/30511 is available in Debian unstable.
+          - distro: debian
+            tools: arch
+          - distro: debian
+            tools: fedora
+          - distro: debian
+            tools: centos
+          - distro: debian
+            tools: debian
+          # Fedora and CentOS don't package ubuntu-keyring.
+          - distro: ubuntu
+            tools: centos
+          - distro: ubuntu
+            tools: fedora
+          # rpm in Debian is currently missing
+          # https://github.com/rpm-software-management/rpm/commit/ea3187cfcf9cac87e5bc5e7db79b0338da9e355e
+          - distro: fedora
+            tools: debian
+          - distro: centos
+            tools: debian
+          # This combination results in rpm failing because of SIGPIPE.
+          # TODO: Try again once Arch gets a new rpm release.
+          - distro: centos
+            tools: arch
 
     steps:
     - uses: actions/checkout@v3
@@ -130,4 +179,12 @@ jobs:
         EOF
 
     - name: Run integration tests
-      run: sudo --preserve-env timeout -k 30 1h python3 -m pytest --tb=no -sv -m integration -D ${{ matrix.distro }} tests/
+      run: |
+        sudo timeout -k 30 1h python3 -m pytest \
+            --tb=no \
+            --capture=no \
+            --verbose \
+            -m integration \
+            --distribution ${{ matrix.distro }} \
+            $([[ -n "${{ matrix.tools }}" ]] && echo --tools-tree-distribution=${{ matrix.tools }}) \
+            tests/
