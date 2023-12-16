@@ -31,48 +31,6 @@ class Installer(DistributionInstaller):
         return Distribution.arch
 
     @classmethod
-    def tools_tree_packages(cls) -> list[str]:
-        return [
-            "apt",
-            "archlinux-keyring",
-            "base",
-            "bash",
-            "btrfs-progs",
-            "bubblewrap",
-            "ca-certificates",
-            "coreutils",
-            "cpio",
-            "curl",
-            "debian-archive-keyring",
-            "dnf",
-            "dosfstools",
-            "e2fsprogs",
-            "edk2-ovmf",
-            "erofs-utils",
-            "mtools",
-            "openssh",
-            "openssl",
-            "pacman",
-            "pesign",
-            "python-cryptography",
-            "qemu-base",
-            "sbsigntools",
-            "shadow",
-            "socat",
-            "squashfs-tools",
-            "strace",
-            "swtpm",
-            "systemd-ukify",
-            "systemd",
-            "tar",
-            "util-linux",
-            "virtiofsd",
-            "xfsprogs",
-            "xz",
-            "zstd",
-        ]
-
-    @classmethod
     def setup(cls, state: MkosiState) -> None:
         if state.config.local_mirror:
             repos = [PacmanRepository("core", state.config.local_mirror)]

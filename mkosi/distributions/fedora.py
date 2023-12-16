@@ -36,59 +36,6 @@ class Installer(DistributionInstaller):
         return Distribution.fedora
 
     @classmethod
-    def tools_tree_packages(cls) -> list[str]:
-        packages = [
-            "apt",
-            "archlinux-keyring",
-            "bash",
-            "btrfs-progs",
-            "bubblewrap",
-            "ca-certificates",
-            "coreutils",
-            "cpio",
-            "curl-minimal",
-            "debian-keyring",
-            "distribution-gpg-keys",
-            "dnf5",
-            "dnf5-plugins",
-            "dosfstools",
-            "e2fsprogs",
-            "erofs-utils",
-            "mtools",
-            "openssh-clients",
-            "openssl",
-            "pacman",
-            "python3-cryptography",
-            "qemu-kvm-core",
-            "qemu-system-aarch64-core",
-            "shadow-utils",
-            "socat",
-            "squashfs-tools",
-            "strace",
-            "swtpm",
-            "systemd-container",
-            "systemd-udev",
-            "systemd-ukify",
-            "systemd",
-            "tar",
-            "util-linux",
-            "virtiofsd",
-            "xfsprogs",
-            "xz",
-            "zstd",
-            "zypper",
-        ]
-
-        if Architecture.native() in (Architecture.x86_64, Architecture.arm64):
-            packages += [
-                "edk2-ovmf",
-                "pesign",
-                "sbsigntools",
-            ]
-
-        return packages
-
-    @classmethod
     def setup(cls, state: MkosiState) -> None:
         gpgurls = (
             find_rpm_gpgkey(

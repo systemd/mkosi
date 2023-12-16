@@ -25,7 +25,6 @@ import mkosi.resources
 from mkosi.archive import extract_tar, make_cpio, make_tar
 from mkosi.burn import run_burn
 from mkosi.config import (
-    Architecture,
     BiosBootloader,
     Bootloader,
     Compression,
@@ -2956,62 +2955,51 @@ def prepend_to_environ_path(config: MkosiConfig) -> Iterator[None]:
 def finalize_tools(args: MkosiArgs, images: Sequence[MkosiConfig]) -> Sequence[MkosiConfig]:
     new = []
 
-    for p in images:
-        if not p.tools_tree or p.tools_tree.name != "default":
-            new.append(p)
+    for config in images:
+        if not config.tools_tree or config.tools_tree.name != "default":
+            new.append(config)
             continue
 
-        distribution = p.tools_tree_distribution or p.distribution.default_tools_tree_distribution()
+        distribution = config.tools_tree_distribution or config.distribution.default_tools_tree_distribution()
         if not distribution:
-            die(f"{p.distribution} does not have a default tools tree distribution",
+            die(f"{config.distribution} does not have a default tools tree distribution",
                 hint="use ToolsTreeDistribution= to set one explicitly")
 
-        release = p.tools_tree_release or distribution.default_release()
-        mirror = p.tools_tree_mirror or (p.mirror if p.mirror and p.distribution == distribution else None)
-
-        if p.cache_dir:
-            if p.distribution == distribution and p.release == release and p.architecture == Architecture.native():
-                cache = p.cache_dir
-            else:
-                cache = p.cache_dir / "tools"
-        else:
-            cache = None
+        release = config.tools_tree_release or distribution.default_release()
+        mirror = (
+            config.tools_tree_mirror or
+            (config.mirror if config.mirror and config.distribution == distribution else None)
+        )
 
         cmdline = [
             "--directory", "",
             "--distribution", str(distribution),
             *(["--release", release] if release else []),
             *(["--mirror", mirror] if mirror else []),
-            "--repository-key-check", str(p.repository_key_check),
-            "--cache-only", str(p.cache_only),
-            *(["--output-dir", str(p.output_dir)] if p.output_dir else []),
-            *(["--workspace-dir", str(p.workspace_dir)] if p.workspace_dir else []),
-            *(["--cache-dir", str(cache)] if cache else []),
-            "--incremental", str(p.incremental),
-            "--acl", str(p.acl),
-            "--format", "directory",
-            *flatten(
-                ["--package", package]
-                for package in itertools.chain(distribution.tools_tree_packages(), p.tools_tree_packages)
-            ),
+            "--repository-key-check", str(config.repository_key_check),
+            "--cache-only", str(config.cache_only),
+            *(["--output-dir", str(config.output_dir)] if config.output_dir else []),
+            *(["--workspace-dir", str(config.workspace_dir)] if config.workspace_dir else []),
+            *(["--cache-dir", str(config.cache_dir)] if config.cache_dir else []),
+            "--incremental", str(config.incremental),
+            "--acl", str(config.acl),
+            *([f"--package={package}" for package in config.tools_tree_packages]),
             "--output", f"{distribution}-tools",
-            "--bootable", "no",
-            "--manifest-format", "",
-            *(["--source-date-epoch", str(p.source_date_epoch)] if p.source_date_epoch is not None else []),
-            *([f"--environment={k}='{v}'" for k, v in p.environment.items()]),
-            *flatten(["--repositories", repo] for repo in distribution.tools_tree_repositories()),
-            *([f"--extra-search-path={p}" for p in p.extra_search_paths]),
+            *(["--source-date-epoch", str(config.source_date_epoch)] if config.source_date_epoch is not None else []),
+            *([f"--environment={k}='{v}'" for k, v in config.environment.items()]),
+            *([f"--extra-search-path={p}" for p in config.extra_search_paths]),
             *(["-f"] * args.force),
-            "build",
         ]
 
-        _, [config] = parse_config(cmdline)
-        config = dataclasses.replace(config, image=f"{distribution}-tools")
+        with resource_path(mkosi.resources) as r:
+            _, [tools] = parse_config(cmdline + ["--include", os.fspath(r / "mkosi-tools"), "build"])
 
-        if config not in new:
-            new.append(config)
+        tools = dataclasses.replace(tools, image=f"{distribution}-tools")
 
-        new.append(dataclasses.replace(p, tools_tree=config.output_dir_or_cwd() / config.output))
+        if tools not in new:
+            new.append(tools)
+
+        new.append(dataclasses.replace(config, tools_tree=tools.output_dir_or_cwd() / tools.output))
 
     return new
 

@@ -36,50 +36,6 @@ class Installer(DistributionInstaller):
     def default_tools_tree_distribution(cls) -> Distribution:
         return Distribution.debian
 
-    @classmethod
-    def tools_tree_packages(cls) -> list[str]:
-        return [
-            "apt",
-            "bash",
-            "btrfs-progs",
-            "bubblewrap",
-            "ca-certificates",
-            "coreutils",
-            "cpio",
-            "curl",
-            "debian-archive-keyring",
-            "dnf",
-            "dnf-plugins-core",
-            "dosfstools",
-            "e2fsprogs",
-            "erofs-utils",
-            "libtss2-dev",
-            "mtools",
-            "openssh-client",
-            "openssl",
-            "ovmf",
-            "pacman-package-manager",
-            "pesign",
-            "python3-cryptography",
-            "python3-pefile",
-            "qemu-system",
-            "sbsigntool",
-            "socat",
-            "squashfs-tools",
-            "strace",
-            "swtpm",
-            "systemd-boot",
-            "systemd-container",
-            "systemd",
-            "tar",
-            "uidmap",
-            "util-linux",
-            "xfsprogs",
-            "xz-utils",
-            "zstd",
-            "zypper",
-        ]
-
     @staticmethod
     def repositories(state: MkosiState, local: bool = True) -> list[str]:
         archives = ("deb", "deb-src")

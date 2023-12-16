@@ -55,55 +55,6 @@ class Installer(DistributionInstaller):
         return Distribution.fedora
 
     @classmethod
-    def tools_tree_repositories(cls) -> list[str]:
-        return ["epel", "epel-next"]
-
-    @classmethod
-    def tools_tree_packages(cls) -> list[str]:
-        packages = [
-            "apt",
-            "bash",
-            "bubblewrap",
-            "ca-certificates",
-            "coreutils",
-            "cpio",
-            "curl",
-            "debian-keyring",
-            "distribution-gpg-keys",
-            "dnf",
-            "dnf-plugins-core",
-            "dosfstools",
-            "e2fsprogs",
-            "mtools",
-            "openssh-clients",
-            "openssl",
-            "python3-cryptography",
-            "qemu-kvm-core",
-            "shadow-utils",
-            "socat",
-            "squashfs-tools",
-            "strace",
-            "swtpm",
-            "systemd-container",
-            "systemd-udev",
-            "systemd",
-            "tar",
-            "util-linux",
-            "virtiofsd",
-            "xfsprogs",
-            "xz",
-            "zstd",
-        ]
-
-        if Architecture.native() in (Architecture.x86_64, Architecture.arm64):
-            packages += [
-                "edk2-ovmf",
-                "pesign",
-            ]
-
-        return packages
-
-    @classmethod
     def setup(cls, state: MkosiState) -> None:
         if GenericVersion(state.config.release) <= 7:
             die(f"{cls.pretty_name()} 7 or earlier variants are not supported")

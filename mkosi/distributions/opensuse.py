@@ -35,48 +35,6 @@ class Installer(DistributionInstaller):
         return Distribution.opensuse
 
     @classmethod
-    def tools_tree_packages(cls) -> list[str]:
-        return [
-            "bash",
-            "btrfs-progs",
-            "bubblewrap",
-            "ca-certificates",
-            "coreutils",
-            "cpio",
-            "curl",
-            "distribution-gpg-keys",
-            "dnf",
-            "dnf-plugins-core",
-            "dosfstools",
-            "e2fsprogs",
-            "erofs-utils",
-            "grep",
-            "mtools",
-            "openssh-clients",
-            "openssl",
-            "ovmf",
-            "pesign",
-            "qemu-headless",
-            "sbsigntools",
-            "shadow",
-            "socat",
-            "squashfs",
-            "strace",
-            "swtpm",
-            "systemd-boot",
-            "systemd-container",
-            "systemd-experimental",
-            "systemd",
-            "tar",
-            "util-linux",
-            "virtiofsd",
-            "xfsprogs",
-            "xz",
-            "zstd",
-            "zypper",
-        ]
-
-    @classmethod
     def setup(cls, state: MkosiState) -> None:
         release = state.config.release
         if release == "leap":
