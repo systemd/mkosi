@@ -753,3 +753,45 @@ def test_specifiers(tmp_path: Path) -> None:
 
 def test_deterministic() -> None:
     assert MkosiConfig.default() == MkosiConfig.default()
+
+
+def test_environment(tmp_path: Path) -> None:
+    d = tmp_path
+
+    (d / "mkosi.conf").write_text(
+        """\
+        [Content]
+        Environment=TestValue2=300
+                    TestValue3=400
+        EnvironmentFiles=other.env
+        """
+    )
+
+    (d / "mkosi.env").write_text(
+        """\
+        TestValue1=90
+        TestValue4=99
+        """
+    )
+
+    (d / "other.env").write_text(
+        """\
+        TestValue1=100
+        TestValue2=200
+        """
+    )
+
+    with chdir(d):
+        _, [config] = parse_config()
+
+        expected = {
+            "TestValue1": "100", # from other.env
+            "TestValue2": "300", # from mkosi.conf
+            "TestValue3": "400", # from mkosi.conf
+            "TestValue4": "99", # from mkosi.env
+        }
+
+        # Only check values for keys from expected, as config.environment contains other items as well
+        assert {k: config.environment[k] for k in expected.keys()} == expected
+
+        assert config.environment_files == [Path.cwd() / "mkosi.env", Path.cwd() / "other.env"]
