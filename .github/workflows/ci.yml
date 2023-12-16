@@ -87,7 +87,7 @@ jobs:
     runs-on: ubuntu-22.04
     needs: unit-test
     concurrency:
-      group: ${{ github.workflow }}-${{ matrix.distro }}-${{ matrix.format }}-${{ github.ref }}
+      group: ${{ github.workflow }}-${{ matrix.distro }}-${{ github.ref }}
       cancel-in-progress: true
     strategy:
       fail-fast: false
