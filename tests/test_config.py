@@ -791,6 +791,7 @@ def test_environment(tmp_path: Path) -> None:
             "TestValue4": "99", # from mkosi.env
         }
 
+        # Only check values for keys from expected, as config.environment contains other items as well
         assert {k: v for k, v in config.environment.items() if k in expected} == expected
 
         assert config.environment_files == [Path.cwd() / "mkosi.env", Path.cwd() / "other.env"]
