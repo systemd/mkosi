@@ -851,6 +851,10 @@ def find_and_install_shim_binary(
     if state.config.shim_bootloader == ShimBootloader.signed:
         for pattern in signed:
             for p in state.root.glob(pattern):
+                if p.is_symlink() and p.readlink().is_absolute():
+                    logging.warning(f"Ignoring signed {name} EFI binary which is an absolute path to {p.readlink()}")
+                    continue
+
                 rel = p.relative_to(state.root)
                 log_step(f"Installing signed {name} EFI binary from /{rel} to /{output}")
                 shutil.copy2(p, state.root / output)
@@ -861,6 +865,10 @@ def find_and_install_shim_binary(
     else:
         for pattern in unsigned:
             for p in state.root.glob(pattern):
+                if p.is_symlink() and p.readlink().is_absolute():
+                    logging.warning(f"Ignoring unsigned {name} EFI binary which is an absolute path to {p.readlink()}")
+                    continue
+
                 rel = p.relative_to(state.root)
                 if state.config.secure_boot:
                     log_step(f"Signing and installing unsigned {name} EFI binary from /{rel} to /{output}")
@@ -892,8 +900,8 @@ def install_shim(state: MkosiState) -> None:
     arch = state.config.architecture.to_efi()
 
     signed = [
-        f"usr/lib/shim/shim{arch}.efi.signed", # Debian
         f"usr/lib/shim/shim{arch}.efi.signed.latest", # Ubuntu
+        f"usr/lib/shim/shim{arch}.efi.signed", # Debian
         f"boot/efi/EFI/*/shim{arch}.efi", # Fedora/CentOS
         "usr/share/efi/*/shim.efi", # OpenSUSE
     ]
