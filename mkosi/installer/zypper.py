@@ -3,7 +3,7 @@ import textwrap
 from collections.abc import Sequence
 
 from mkosi.config import yes_no
-from mkosi.installer.dnf import RpmRepository, fixup_rpmdb_location
+from mkosi.installer.rpm import RpmRepository, fixup_rpmdb_location, setup_rpm
 from mkosi.run import apivfs_cmd, bwrap
 from mkosi.state import MkosiState
 from mkosi.types import PathString
@@ -51,11 +51,14 @@ def setup_zypper(state: MkosiState, repos: Sequence[RpmRepository]) -> None:
                     f.write("gpgkey=" if i == 0 else len("gpgkey=") * " ")
                     f.write(f"{url}\n")
 
+    setup_rpm(state)
+
 
 def zypper_cmd(state: MkosiState) -> list[PathString]:
     return [
         "env",
         f"ZYPP_CONF={state.pkgmngr / 'etc/zypp/zypp.conf'}",
+        f"RPM_CONFIGDIR={state.pkgmngr / 'usr/lib/rpm'}",
         "zypper",
         f"--root={state.root}",
         f"--cache-dir={state.cache_dir / 'zypp'}",

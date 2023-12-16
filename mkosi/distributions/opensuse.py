@@ -7,7 +7,8 @@ from collections.abc import Sequence
 
 from mkosi.config import Architecture
 from mkosi.distributions import Distribution, DistributionInstaller, PackageType
-from mkosi.installer.dnf import RpmRepository, invoke_dnf, setup_dnf
+from mkosi.installer.dnf import invoke_dnf, setup_dnf
+from mkosi.installer.rpm import RpmRepository
 from mkosi.installer.zypper import invoke_zypper, setup_zypper
 from mkosi.log import die
 from mkosi.state import MkosiState

@@ -12,7 +12,8 @@ from mkosi.distributions import (
     PackageType,
     join_mirror,
 )
-from mkosi.installer.dnf import RpmRepository, find_rpm_gpgkey, invoke_dnf, setup_dnf
+from mkosi.installer.dnf import invoke_dnf, setup_dnf
+from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey
 from mkosi.log import complete_step, die
 from mkosi.state import MkosiState
 from mkosi.tree import rmtree
