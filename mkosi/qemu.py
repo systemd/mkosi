@@ -358,6 +358,7 @@ def start_virtiofsd(directory: Path, *, uidmap: bool) -> Iterator[Path]:
             try:
                 yield path
             finally:
+                proc.terminate()
                 proc.wait()
 
 
@@ -528,6 +529,8 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
 
     if config.architecture == Architecture.arm64:
         machine = "type=virt"
+    elif config.architecture == Architecture.s390x:
+        machine = "type=s390-ccw-virtio"
     else:
         machine = f"type=q35,smm={'on' if ovmf_supports_sb else 'off'}"
 
@@ -541,9 +544,11 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
         "-m", config.qemu_mem,
         "-object", "rng-random,filename=/dev/urandom,id=rng0",
         "-device", "virtio-rng-pci,rng=rng0,id=rng-device0",
-        "-nic", "user,model=virtio-net-pci",
         *shm,
     ]
+
+    if config.architecture not in (Architecture.s390, Architecture.s390x):
+        cmdline += ["-nic", "user,model=virtio-net-pci"]
 
     if config.qemu_kvm != ConfigFeature.disabled and have_kvm and config.architecture.is_native():
         accel = "kvm"
@@ -608,7 +613,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
             payload = base64.b64encode(v.encode()).decode()
             if config.architecture.supports_smbios() and firmware == QemuFirmware.uefi:
                 cmdline += ["-smbios", f"type=11,value=io.systemd.credential.binary:{k}={payload}"]
-            else:
+            elif config.architecture.supports_fw_cfg():
                 f = stack.enter_context(tempfile.NamedTemporaryFile(prefix="mkosi-fw-cfg", mode="w"))
                 f.write(v)
                 f.flush()

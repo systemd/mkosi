@@ -194,3 +194,7 @@ def resource_path(mod: ModuleType) -> Iterator[Path]:
     t = importlib.resources.files(mod)
     with importlib.resources.as_file(t) as p:
         yield p
+
+
+def round_up(x: int, blocksize: int = 4096) -> int:
+    return (x + blocksize - 1) // blocksize * blocksize

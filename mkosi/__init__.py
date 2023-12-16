@@ -4,6 +4,7 @@ import contextlib
 import dataclasses
 import datetime
 import hashlib
+import io
 import itertools
 import json
 import logging
@@ -76,6 +77,7 @@ from mkosi.util import (
     read_env_file,
     read_os_release,
     resource_path,
+    round_up,
     scopedenv,
     try_import,
     umask,
@@ -310,8 +312,9 @@ def configure_autologin(state: MkosiState) -> None:
         configure_autologin_service(state, "serial-getty@ttyS0.service",
                                     "--keep-baud 115200,57600,38400,9600 -")
 
-        if state.config.architecture == Architecture.arm64:
-            configure_autologin_service(state, "serial-getty@ttyAMA0.service",
+        if state.config.architecture.default_serial_tty() != "ttyS0":
+            configure_autologin_service(state,
+                                        f"serial-getty@{state.config.architecture.default_serial_tty()}.service",
                                         "--keep-baud 115200,57600,38400,9600 -")
 
 
@@ -1412,6 +1415,25 @@ def build_kernel_modules_initrd(state: MkosiState, kver: str) -> Path:
     return kmods
 
 
+def join_initrds(initrds: Sequence[Path], output: Path) -> Path:
+    assert initrds
+
+    if len(initrds) == 1:
+        copy_tree(initrds[0], output)
+        return output
+
+    seq = io.BytesIO()
+    for p in initrds:
+        initrd = p.read_bytes()
+        n = len(initrd)
+        padding = b'\0' * (round_up(n, 4) - n)  # pad to 32 bit alignment
+        seq.write(initrd)
+        seq.write(padding)
+
+    output.write_bytes(seq.getbuffer())
+    return output
+
+
 def python_binary(config: MkosiConfig) -> str:
     # If there's no tools tree, prefer the interpreter from MKOSI_INTERPRETER. If there is a tools
     # tree, just use the default python3 interpreter.
@@ -1689,6 +1711,27 @@ def copy_vmlinuz(state: MkosiState) -> None:
 
     for _, kimg in gen_kernel_images(state):
         shutil.copy(state.root / kimg, state.staging / state.config.output_split_kernel)
+        break
+
+
+def copy_initrd(state: MkosiState) -> None:
+    if (state.staging / state.config.output_split_initrd).exists():
+        return
+
+    if state.config.bootable == ConfigFeature.disabled:
+        return
+
+    if state.config.output_format not in (OutputFormat.disk, OutputFormat.directory):
+        return
+
+    for kver, _ in gen_kernel_images(state):
+        microcode = build_microcode_initrd(state)
+        initrds = [microcode] if microcode else []
+        initrds += state.config.initrds or [build_initrd(state)]
+        if state.config.kernel_modules_initrd:
+            kver = next(gen_kernel_images(state))[0]
+            initrds += [build_kernel_modules_initrd(state, kver)]
+        join_initrds(initrds, state.staging / state.config.output_split_initrd)
         break
 
 
@@ -2566,6 +2609,7 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
             make_disk(state, split=True, msg="Extracting partitions")
 
         copy_vmlinuz(state)
+        copy_initrd(state)
 
         if state.config.output_format == OutputFormat.tar:
             make_tar(state.root, state.staging / state.config.output_with_format)

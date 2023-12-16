@@ -1225,6 +1225,10 @@ def parse_ini(path: Path, only_sections: Collection[str] = ()) -> Iterator[tuple
             if line[-1] != ']':
                 die(f"{line} is not a valid section")
 
+            # Yield 3 empty strings to indicate we've finished the current section.
+            if section:
+                yield "", "", ""
+
             section = line[1:-1].strip()
             if not section:
                 die("Section name cannot be empty or whitespace")
@@ -2538,14 +2542,21 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
         return default
 
     def match_config(path: Path, namespace: argparse.Namespace, defaults: argparse.Namespace) -> bool:
-        triggered = None
+        triggered: Optional[bool] = None
 
         # If the config file does not exist, we assume it matches so that we look at the other files in the
         # directory as well (mkosi.conf.d/ and extra files).
         if not path.exists():
             return True
 
-        for _, k, v in parse_ini(path, only_sections=["Match"]):
+        for section, k, v in parse_ini(path, only_sections=["Match"]):
+            if not section:
+                if triggered is False:
+                    return False
+
+                triggered = None
+                continue
+
             trigger = v.startswith("|")
             v = v.removeprefix("|")
             negate = v.startswith("!")
@@ -2624,6 +2635,9 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
             logging.debug(f"Including configuration file {Path.cwd() / path}")
 
             for section, k, v in parse_ini(path, only_sections={s.section for s in SETTINGS} | {"Preset"}):
+                if not section:
+                    continue
+
                 name = k.removeprefix("@")
                 ns = namespace if k == name else defaults
 
