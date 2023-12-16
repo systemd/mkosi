@@ -3025,20 +3025,29 @@ def mount_tools(tree: Optional[Path]) -> Iterator[None]:
     with contextlib.ExitStack() as stack:
         stack.enter_context(mount_usr(tree))
 
-        # On recent Fedora versions, rpm has started doing very strict checks on GPG certificate validity. To
-        # make these checks pass, we need to make sure a few directories from /etc in the tools tree are
-        # mounted into the host as well. Because the directories might not exist on the host, we mount a
-        # writable directory on top of /etc in an overlay so we can create these mountpoints without running
-        # into permission errors.
+        # On top of /usr, we also need the certificates, keyrings and crypto policies from the tools tree which are
+        # unfortunately not always in /usr. To make things work, we mount those directories into the host as well.
+        # Because the directories might not exist on the host (which means we can't mount over them), we mount a
+        # writable directory on top of their parent directory using overlayfs so we can create the required mountpoints
+        # without running into permission errors.
 
-        tmp = stack.enter_context(tempfile.TemporaryDirectory(dir="/var/tmp"))
-        stack.enter_context(mount_overlay([Path("/etc")], Path(tmp), Path("/etc")))
+        overlays = set()
 
-        for subdir in ("etc/pki", "etc/ssl", "etc/crypto-policies", "etc/ca-certificates"):
+        for subdir in (Path("etc/pki"),
+                       Path("etc/ssl"),
+                       Path("etc/crypto-policies"),
+                       Path("etc/ca-certificates"),
+                       Path("etc/pacman.d"),
+                       Path("var/lib/ca-certificates")):
             if not (tree / subdir).exists():
                 continue
 
-            (Path("/") / subdir).mkdir(parents=True, exist_ok=True)
+            if not (Path("/") / subdir).exists() and subdir.parent not in overlays:
+                tmp = stack.enter_context(tempfile.TemporaryDirectory(dir="/var/tmp"))
+                stack.enter_context(mount_overlay([Path("/") / subdir.parent], Path(tmp), Path("/") / subdir.parent))
+                overlays.add(subdir.parent)
+                (Path("/") / subdir).mkdir(parents=True, exist_ok=True)
+
             stack.enter_context(
                 mount(what=tree / subdir, where=Path("/") / subdir, operation="--bind", read_only=True)
             )
