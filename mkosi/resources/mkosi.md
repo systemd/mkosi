@@ -432,19 +432,25 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 : Any absolute paths passed to this setting are interpreted relative to
   the current working directory.
 
-| Matcher           | Globs | Rich Comparisons | Default                 |
-|-------------------|-------|------------------|-------------------------|
-| `Profile=`        | no    | no               | match fails             |
-| `Distribution=`   | no    | no               | match host distribution |
-| `Release=`        | no    | no               | match host release      |
-| `Architecture=`   | no    | no               | match host architecture |
-| `PathExists=`     | no    | no               | match fails             |
-| `ImageId=`        | yes   | no               | match fails             |
-| `ImageVersion=`   | no    | yes              | match fails             |
-| `Bootable=`       | no    | no               | match auto feature      |
-| `Format=`         | no    | no               | match default format    |
-| `SystemdVersion=` | no    | yes              | match fails             |
-| `BuildSources=`   | no    | no               | match fails             |
+`HostArchitecture=`
+
+: Matches against the host's native architecture. See the
+  `Architecture=` setting for a list of possible values.
+
+| Matcher             | Globs | Rich Comparisons | Default                 |
+|---------------------|-------|------------------|-------------------------|
+| `Profile=`          | no    | no               | match fails             |
+| `Distribution=`     | no    | no               | match host distribution |
+| `Release=`          | no    | no               | match host release      |
+| `Architecture=`     | no    | no               | match host architecture |
+| `PathExists=`       | no    | no               | n/a                     |
+| `ImageId=`          | yes   | no               | match fails             |
+| `ImageVersion=`     | no    | yes              | match fails             |
+| `Bootable=`         | no    | no               | match auto feature      |
+| `Format=`           | no    | no               | match default format    |
+| `SystemdVersion=`   | no    | yes              | n/a                     |
+| `BuildSources=`     | no    | no               | match fails             |
+| `HostArchitecture=` | no    | no               | n/a                     |
 
 ### [Config] Section
 

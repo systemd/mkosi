@@ -587,6 +587,10 @@ def match_systemd_version(value: str) -> bool:
     return config_match_version(value, version)
 
 
+def match_host_architecture(value: str) -> bool:
+    return Architecture(value) == Architecture.native()
+
+
 def parse_bytes(value: str) -> int:
     if value.endswith("G"):
         factor = 1024**3
@@ -2242,6 +2246,10 @@ MATCHES = (
     MkosiMatch(
         name="SystemdVersion",
         match=match_systemd_version,
+    ),
+    MkosiMatch(
+        name="HostArchitecture",
+        match=match_host_architecture,
     ),
 )
 
