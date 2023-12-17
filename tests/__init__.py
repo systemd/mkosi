@@ -56,7 +56,7 @@ class Image:
             "udev.log_level=info",
             "systemd.log_ratelimit_kmsg=0",
             "systemd.journald.forward_to_console",
-            "systemd.journald.max_level_console=debug",
+            "systemd.journald.max_level_console=warning",
             "printk.devkmsg=on",
             "systemd.early_core_pattern=/core",
         ]
