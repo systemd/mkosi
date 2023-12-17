@@ -21,8 +21,8 @@ from collections.abc import Iterator, Mapping
 from pathlib import Path
 from typing import Optional
 
-from mkosi.architecture import Architecture
 from mkosi.config import (
+    Architecture,
     ConfigFeature,
     MkosiArgs,
     MkosiConfig,

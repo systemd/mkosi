@@ -5,7 +5,7 @@ import shutil
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 
-from mkosi.architecture import Architecture
+from mkosi.config import Architecture
 from mkosi.distributions import (
     Distribution,
     DistributionInstaller,

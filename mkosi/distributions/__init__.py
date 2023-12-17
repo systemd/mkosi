@@ -7,10 +7,10 @@ import urllib.parse
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Optional, cast
 
-from mkosi.architecture import Architecture
 from mkosi.util import StrEnum, read_os_release
 
 if TYPE_CHECKING:
+    from mkosi.config import Architecture
     from mkosi.state import MkosiState
 
 
@@ -48,8 +48,8 @@ class DistributionInstaller:
         return "ext4"
 
     @classmethod
-    def architecture(cls, arch: Architecture) -> str:
-        return str(arch)
+    def architecture(cls, arch: "Architecture") -> str:
+        raise NotImplementedError
 
     @classmethod
     def package_type(cls) -> PackageType:
@@ -129,7 +129,7 @@ class Distribution(StrEnum):
     def filesystem(self) -> str:
         return self.installer().filesystem()
 
-    def architecture(self, arch: Architecture) -> str:
+    def architecture(self, arch: "Architecture") -> str:
         return self.installer().architecture(arch)
 
     def package_type(self) -> PackageType:

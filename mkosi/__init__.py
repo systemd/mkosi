@@ -22,10 +22,10 @@ from pathlib import Path
 from typing import Optional, TextIO, Union, cast
 
 import mkosi.resources
-from mkosi.architecture import Architecture
 from mkosi.archive import extract_tar, make_cpio, make_tar
 from mkosi.burn import run_burn
 from mkosi.config import (
+    Architecture,
     BiosBootloader,
     Bootloader,
     Compression,

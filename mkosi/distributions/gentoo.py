@@ -7,8 +7,8 @@ import urllib.request
 from collections.abc import Sequence
 from pathlib import Path
 
-from mkosi.architecture import Architecture
 from mkosi.archive import extract_tar
+from mkosi.config import Architecture
 from mkosi.distributions import (
     Distribution,
     DistributionInstaller,

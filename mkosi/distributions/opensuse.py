@@ -5,7 +5,7 @@ import urllib.request
 import xml.etree.ElementTree as ElementTree
 from collections.abc import Sequence
 
-from mkosi.architecture import Architecture
+from mkosi.config import Architecture
 from mkosi.distributions import Distribution, DistributionInstaller, PackageType
 from mkosi.installer.dnf import RpmRepository, invoke_dnf, setup_dnf
 from mkosi.installer.zypper import invoke_zypper, setup_zypper

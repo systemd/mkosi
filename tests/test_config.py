@@ -10,8 +10,8 @@ from typing import Optional
 
 import pytest
 
-from mkosi.architecture import Architecture
 from mkosi.config import (
+    Architecture,
     Compression,
     ConfigFeature,
     ConfigTree,

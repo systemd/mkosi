@@ -2,7 +2,7 @@
 
 from collections.abc import Sequence
 
-from mkosi.architecture import Architecture
+from mkosi.config import Architecture
 from mkosi.distributions import (
     Distribution,
     DistributionInstaller,
