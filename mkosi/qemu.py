@@ -611,7 +611,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
 
         for k, v in config.credentials.items():
             payload = base64.b64encode(v.encode()).decode()
-            if config.architecture.supports_smbios() and firmware == QemuFirmware.uefi:
+            if config.architecture.supports_smbios(firmware):
                 cmdline += ["-smbios", f"type=11,value=io.systemd.credential.binary:{k}={payload}"]
             elif config.architecture.supports_fw_cfg():
                 f = stack.enter_context(tempfile.NamedTemporaryFile(prefix="mkosi-fw-cfg", mode="w"))
@@ -668,7 +668,10 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
                  "--offline=yes",
                  fname])
 
-        if kernel and (KernelType.identify(kernel) != KernelType.uki or not config.architecture.supports_smbios()):
+        if (
+            kernel and
+            (KernelType.identify(kernel) != KernelType.uki or not config.architecture.supports_smbios(firmware))
+        ):
             kcl = config.kernel_command_line + config.kernel_command_line_extra
         else:
             kcl = config.kernel_command_line_extra
@@ -703,9 +706,12 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
             target = Path("/root/src") / (tree.target or tree.source.name)
             kcl += [f"systemd.mount-extra={sock.name}:{target}:virtiofs"]
 
-        if kernel and (KernelType.identify(kernel) != KernelType.uki or not config.architecture.supports_smbios()):
+        if (
+            kernel and
+            (KernelType.identify(kernel) != KernelType.uki or not config.architecture.supports_smbios(firmware))
+        ):
             cmdline += ["-append", " ".join(kcl)]
-        elif config.architecture.supports_smbios():
+        elif config.architecture.supports_smbios(firmware):
             cmdline += [
                 "-smbios",
                 f"type=11,value=io.systemd.stub.kernel-cmdline-extra={' '.join(kcl)}"
@@ -739,7 +745,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
             elif config.architecture == Architecture.arm64:
                 cmdline += ["-device", "tpm-tis-device,tpmdev=tpm0"]
 
-        if QemuDeviceNode.vhost_vsock in qemu_device_fds and config.architecture.supports_smbios():
+        if QemuDeviceNode.vhost_vsock in qemu_device_fds and config.architecture.supports_smbios(firmware):
             addr, notifications = stack.enter_context(vsock_notify_handler())
             cmdline += ["-smbios", f"type=11,value=io.systemd.credential:vmm.notify_socket={addr}"]
 

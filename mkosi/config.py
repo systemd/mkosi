@@ -341,8 +341,11 @@ class Architecture(StrEnum):
             Architecture.s390x : "ttysclp0",
         }.get(self, "ttyS0")
 
-    def supports_smbios(self) -> bool:
-        return self in (Architecture.x86, Architecture.x86_64, Architecture.arm, Architecture.arm64)
+    def supports_smbios(self, firmware: QemuFirmware) -> bool:
+        if self in (Architecture.x86, Architecture.x86_64):
+            return True
+
+        return self in (Architecture.arm, Architecture.arm64) and firmware == QemuFirmware.uefi
 
     def supports_fw_cfg(self) -> bool:
         return self in (Architecture.x86, Architecture.x86_64, Architecture.arm, Architecture.arm64)
