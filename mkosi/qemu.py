@@ -788,13 +788,18 @@ def run_ssh(args: MkosiArgs, config: MkosiConfig) -> None:
     if config.qemu_vsock_cid == QemuVsockCID.auto:
         die("Can't use ssh verb with QemuVSockCID=auto")
 
+    if not config.ssh_key:
+        die("SshKey= must be configured to use 'mkosi ssh'",
+            hint="Use 'mkosi genkey' to generate a new SSH key and certificate")
+
     if config.qemu_vsock_cid == QemuVsockCID.hash:
         cid = hash_to_vsock_cid(hash_output(config))
     else:
         cid = config.qemu_vsock_cid
 
-    cmd = [
+    cmd: list[PathString] = [
         "ssh",
+        "-i", config.ssh_key,
         "-F", "none",
         # Silence known hosts file errors/warnings.
         "-o", "UserKnownHostsFile=/dev/null",

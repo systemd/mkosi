@@ -31,7 +31,7 @@ from mkosi.architecture import Architecture
 from mkosi.distributions import Distribution, detect_distribution
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, Style, die
 from mkosi.pager import page
-from mkosi.run import run
+from mkosi.run import run, run_openssl
 from mkosi.types import PathString, SupportsRead
 from mkosi.util import INVOKING_USER, StrEnum, chdir, flatten, is_power_of_2
 from mkosi.versioncomp import GenericVersion
@@ -86,6 +86,9 @@ class Verb(StrEnum):
 
     def needs_root(self) -> bool:
         return self in (Verb.shell, Verb.boot, Verb.burn)
+
+    def needs_credentials(self) -> bool:
+        return self in (Verb.summary, Verb.qemu, Verb.boot, Verb.shell)
 
 
 class ConfigFeature(StrEnum):
@@ -1013,6 +1016,8 @@ class MkosiConfig:
     tools_tree_packages: list[str]
     runtime_trees: list[ConfigTree]
     runtime_size: Optional[int]
+    ssh_key: Optional[Path]
+    ssh_certificate: Optional[Path]
 
     # QEMU-specific options
     qemu_gui: bool
@@ -1920,7 +1925,7 @@ SETTINGS = (
         dest="secure_boot_key",
         metavar="PATH",
         section="Validation",
-        parse=config_make_path_parser(),
+        parse=config_make_path_parser(secret=True),
         paths=("mkosi.key",),
         help="UEFI SecureBoot private key in PEM format",
     ),
@@ -1945,7 +1950,7 @@ SETTINGS = (
         dest="verity_key",
         metavar="PATH",
         section="Validation",
-        parse=config_make_path_parser(),
+        parse=config_make_path_parser(secret=True),
         paths=("mkosi.key",),
         help="Private key for signing verity signature in PEM format",
     ),
@@ -1968,7 +1973,7 @@ SETTINGS = (
         dest="passphrase",
         metavar="PATH",
         section="Validation",
-        parse=config_make_path_parser(required=False),
+        parse=config_make_path_parser(required=False, secret=True),
         paths=("mkosi.passphrase",),
         help="Path to a file containing the passphrase to use when LUKS encryption is selected",
     ),
@@ -2020,6 +2025,105 @@ SETTINGS = (
         section="Host",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         help="List of comma-separated paths to look for programs before looking in PATH",
+    ),
+    MkosiConfigSetting(
+        dest="ephemeral",
+        metavar="BOOL",
+        section="Host",
+        parse=config_parse_boolean,
+        help=('If specified, the container/VM is run with a temporary snapshot of the output '
+                'image that is removed immediately when the container/VM terminates'),
+        nargs="?",
+    ),
+    MkosiConfigSetting(
+        dest="credentials",
+        long="--credential",
+        metavar="NAME=VALUE",
+        section="Host",
+        parse=config_make_list_parser(delimiter=" "),
+        help="Pass a systemd credential to systemd-nspawn or qemu",
+    ),
+    MkosiConfigSetting(
+        dest="kernel_command_line_extra",
+        metavar="OPTIONS",
+        section="Host",
+        parse=config_make_list_parser(delimiter=" "),
+        help="Append extra entries to the kernel command line when booting the image",
+    ),
+    MkosiConfigSetting(
+        dest="acl",
+        metavar="BOOL",
+        nargs="?",
+        section="Host",
+        parse=config_parse_boolean,
+        help="Set ACLs on generated directories to permit the user running mkosi to remove them",
+    ),
+    MkosiConfigSetting(
+        dest="tools_tree",
+        metavar="PATH",
+        section="Host",
+        parse=config_make_path_parser(required=False),
+        paths=("mkosi.tools",),
+        help="Look up programs to execute inside the given tree",
+    ),
+    MkosiConfigSetting(
+        dest="tools_tree_distribution",
+        metavar="DISTRIBUTION",
+        section="Host",
+        parse=config_make_enum_parser(Distribution),
+        help="Set the distribution to use for the default tools tree",
+    ),
+    MkosiConfigSetting(
+        dest="tools_tree_release",
+        metavar="RELEASE",
+        section="Host",
+        parse=config_parse_string,
+        help="Set the release to use for the default tools tree",
+    ),
+    MkosiConfigSetting(
+        dest="tools_tree_mirror",
+        metavar="MIRROR",
+        section="Host",
+        help="Set the mirror to use for the default tools tree",
+    ),
+    MkosiConfigSetting(
+        dest="tools_tree_packages",
+        long="--tools-tree-package",
+        metavar="PACKAGE",
+        section="Host",
+        parse=config_make_list_parser(delimiter=","),
+        help="Add additional packages to the default tools tree",
+    ),
+    MkosiConfigSetting(
+        dest="runtime_trees",
+        long="--runtime-tree",
+        metavar="SOURCE:[TARGET]",
+        section="Host",
+        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(absolute=False)),
+        help="Additional mounts to add when booting the image",
+    ),
+    MkosiConfigSetting(
+        dest="runtime_size",
+        metavar="SIZE",
+        section="Host",
+        parse=config_parse_bytes,
+        help="Grow disk images to the specified size before booting them",
+    ),
+    MkosiConfigSetting(
+        dest="ssh_key",
+        metavar="PATH",
+        section="Host",
+        parse=config_make_path_parser(secret=True),
+        paths=("mkosi.key",),
+        help="Private key for use with mkosi ssh in PEM format",
+    ),
+    MkosiConfigSetting(
+        dest="ssh_certificate",
+        metavar="PATH",
+        section="Host",
+        parse=config_make_path_parser(),
+        paths=("mkosi.crt",),
+        help="Certificate for use with mkosi ssh in X509 format",
     ),
     MkosiConfigSetting(
         dest="qemu_gui",
@@ -2124,89 +2228,6 @@ SETTINGS = (
         # Suppress the command line option because it's already possible to pass qemu args as normal
         # arguments.
         help=argparse.SUPPRESS,
-    ),
-    MkosiConfigSetting(
-        dest="ephemeral",
-        metavar="BOOL",
-        section="Host",
-        parse=config_parse_boolean,
-        help=('If specified, the container/VM is run with a temporary snapshot of the output '
-                'image that is removed immediately when the container/VM terminates'),
-        nargs="?",
-    ),
-    MkosiConfigSetting(
-        dest="credentials",
-        long="--credential",
-        metavar="NAME=VALUE",
-        section="Host",
-        parse=config_make_list_parser(delimiter=" "),
-        help="Pass a systemd credential to systemd-nspawn or qemu",
-    ),
-    MkosiConfigSetting(
-        dest="kernel_command_line_extra",
-        metavar="OPTIONS",
-        section="Host",
-        parse=config_make_list_parser(delimiter=" "),
-        help="Append extra entries to the kernel command line when booting the image",
-    ),
-    MkosiConfigSetting(
-        dest="acl",
-        metavar="BOOL",
-        nargs="?",
-        section="Host",
-        parse=config_parse_boolean,
-        help="Set ACLs on generated directories to permit the user running mkosi to remove them",
-    ),
-    MkosiConfigSetting(
-        dest="tools_tree",
-        metavar="PATH",
-        section="Host",
-        parse=config_make_path_parser(required=False),
-        paths=("mkosi.tools",),
-        help="Look up programs to execute inside the given tree",
-    ),
-    MkosiConfigSetting(
-        dest="tools_tree_distribution",
-        metavar="DISTRIBUTION",
-        section="Host",
-        parse=config_make_enum_parser(Distribution),
-        help="Set the distribution to use for the default tools tree",
-    ),
-    MkosiConfigSetting(
-        dest="tools_tree_release",
-        metavar="RELEASE",
-        section="Host",
-        parse=config_parse_string,
-        help="Set the release to use for the default tools tree",
-    ),
-    MkosiConfigSetting(
-        dest="tools_tree_mirror",
-        metavar="MIRROR",
-        section="Host",
-        help="Set the mirror to use for the default tools tree",
-    ),
-    MkosiConfigSetting(
-        dest="tools_tree_packages",
-        long="--tools-tree-package",
-        metavar="PACKAGE",
-        section="Host",
-        parse=config_make_list_parser(delimiter=","),
-        help="Add additional packages to the default tools tree",
-    ),
-    MkosiConfigSetting(
-        dest="runtime_trees",
-        long="--runtime-tree",
-        metavar="SOURCE:[TARGET]",
-        section="Host",
-        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(absolute=False)),
-        help="Additional mounts to add when booting the image",
-    ),
-    MkosiConfigSetting(
-        dest="runtime_size",
-        metavar="SIZE",
-        section="Host",
-        parse=config_parse_bytes,
-        help="Grow disk images to the specified size before booting them",
     ),
 )
 SETTINGS_LOOKUP_BY_NAME = {name: s for s in SETTINGS for name in [s.name, *s.compat_names]}
@@ -2794,6 +2815,9 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
 
 
 def load_credentials(args: argparse.Namespace) -> dict[str, str]:
+    if not args.verb.needs_credentials():
+        return {}
+
     creds = {
         "agetty.autologin": "root",
         "login.noauth": "yes",
@@ -2823,19 +2847,16 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
     if "firstboot.locale" not in creds:
         creds["firstboot.locale"] = "C.UTF-8"
 
-    if (
-        args.ssh and
-        "ssh.authorized_keys.root" not in creds and
-        "SSH_AUTH_SOCK" in os.environ and shutil.which("ssh-add")
-    ):
-        key = run(
-            ["ssh-add", "-L"],
-            stdout=subprocess.PIPE,
-            env=os.environ,
-            check=False,
-        ).stdout.strip()
-        if key:
-            creds["ssh.authorized_keys.root"] = key
+    if "ssh.authorized_keys.root" not in creds:
+        if args.ssh_certificate:
+            pubkey = run_openssl(["x509", "-in", args.ssh_certificate, "-pubkey", "-noout"],
+                                 stdout=subprocess.PIPE).stdout.strip()
+            sshpubkey = run(["ssh-keygen", "-f", "/dev/stdin", "-i", "-m", "PKCS8"],
+                            input=pubkey, stdout=subprocess.PIPE).stdout.strip()
+            creds["ssh.authorized_keys.root"] = sshpubkey
+        elif args.ssh:
+            die("Ssh= is enabled but no SSH certificate was found",
+                hint="Run 'mkosi genkey' to automatically create one")
 
     return creds
 
@@ -3176,6 +3197,8 @@ def summary(config: MkosiConfig) -> str:
            Tools Tree Packages: {line_join_list(config.tools_tree_packages)}
                  Runtime Trees: {line_join_tree_list(config.runtime_trees)}
                   Runtime Size: {format_bytes_or_none(config.runtime_size)}
+               SSH Signing Key: {none_to_none(config.ssh_key)}
+               SSH Certificate: {none_to_none(config.ssh_certificate)}
 
                       QEMU GUI: {yes_no(config.qemu_gui)}
                 QEMU CPU Cores: {config.qemu_smp}

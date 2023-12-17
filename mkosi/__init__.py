@@ -63,10 +63,11 @@ from mkosi.run import (
     fork_and_wait,
     init_mount_namespace,
     run,
+    run_openssl,
 )
 from mkosi.state import MkosiState
 from mkosi.tree import copy_tree, install_tree, move_tree, rmtree
-from mkosi.types import _FILE, CompletedProcess, PathString
+from mkosi.types import PathString
 from mkosi.util import (
     INVOKING_USER,
     chdir,
@@ -666,11 +667,6 @@ def run_finalize_scripts(state: MkosiState) -> None:
                     env=env | state.config.environment,
                     stdin=sys.stdin,
                 )
-
-
-def run_openssl(args: Sequence[PathString], stdout: _FILE = None) -> CompletedProcess:
-    with tempfile.NamedTemporaryFile(prefix="mkosi-openssl.cnf") as config:
-        return run(["openssl", *args], stdout=stdout, env=dict(OPENSSL_CONF=config.name))
 
 
 def certificate_common_name(certificate: Path) -> str:
