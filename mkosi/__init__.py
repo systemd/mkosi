@@ -186,7 +186,7 @@ def remove_packages(state: MkosiState) -> None:
     if not state.config.remove_packages:
         return
 
-    with complete_step(f"Removing {len(state.config.packages)} packages…"):
+    with complete_step(f"Removing {len(state.config.remove_packages)} packages…"):
         try:
             state.config.distribution.remove_packages(state, state.config.remove_packages)
         except NotImplementedError:
