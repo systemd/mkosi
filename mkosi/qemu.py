@@ -533,6 +533,8 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
         machine = "type=virt"
     elif config.architecture == Architecture.s390x:
         machine = "type=s390-ccw-virtio"
+    elif config.architecture == Architecture.ppc64_le:
+        machine = "type=pseries"
     else:
         machine = f"type=q35,smm={'on' if ovmf_supports_sb else 'off'}"
 

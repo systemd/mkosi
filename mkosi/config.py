@@ -319,8 +319,8 @@ class Architecture(StrEnum):
             Architecture.mips_le     : "mips",
             Architecture.parisc      : "hppa",
             Architecture.ppc         : "ppc",
-            Architecture.ppc64       : "ppc",
-            Architecture.ppc64_le    : "ppc",
+            Architecture.ppc64       : "ppc64",
+            Architecture.ppc64_le    : "ppc64",
             Architecture.riscv32     : "riscv32",
             Architecture.riscv64     : "riscv64",
             Architecture.s390x       : "s390x",
@@ -335,10 +335,13 @@ class Architecture(StrEnum):
 
     def default_serial_tty(self) -> str:
         return {
-            Architecture.arm   : "ttyAMA0",
-            Architecture.arm64 : "ttyAMA0",
-            Architecture.s390  : "ttysclp0",
-            Architecture.s390x : "ttysclp0",
+            Architecture.arm      : "ttyAMA0",
+            Architecture.arm64    : "ttyAMA0",
+            Architecture.s390     : "ttysclp0",
+            Architecture.s390x    : "ttysclp0",
+            Architecture.ppc      : "hvc0",
+            Architecture.ppc64    : "hvc0",
+            Architecture.ppc64_le : "hvc0",
         }.get(self, "ttyS0")
 
     def supports_smbios(self, firmware: QemuFirmware) -> bool:
