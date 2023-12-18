@@ -3030,22 +3030,31 @@ def mount_tools(tree: Optional[Path]) -> Iterator[None]:
         # without running into permission errors.
 
         overlays = set()
+        dirs = [
+            subdir
+            for subdir in (
+                Path("etc/pki"),
+                Path("etc/ssl"),
+                Path("etc/crypto-policies"),
+                Path("etc/ca-certificates"),
+                Path("etc/pacman.d"),
+                Path("var/lib/ca-certificates"),
+            )
+            if (tree / subdir).exists()
+        ]
 
-        for subdir in (Path("etc/pki"),
-                       Path("etc/ssl"),
-                       Path("etc/crypto-policies"),
-                       Path("etc/ca-certificates"),
-                       Path("etc/pacman.d"),
-                       Path("var/lib/ca-certificates")):
-            if not (tree / subdir).exists():
+        for subdir in dirs:
+            if (Path("/") / subdir).exists():
                 continue
 
-            if not (Path("/") / subdir).exists() and subdir.parent not in overlays:
+            if subdir.parent not in overlays:
                 tmp = stack.enter_context(tempfile.TemporaryDirectory(dir="/var/tmp"))
                 stack.enter_context(mount_overlay([Path("/") / subdir.parent], Path(tmp), Path("/") / subdir.parent))
                 overlays.add(subdir.parent)
-                (Path("/") / subdir).mkdir(parents=True, exist_ok=True)
 
+            (Path("/") / subdir).mkdir(parents=True, exist_ok=True)
+
+        for subdir in dirs:
             stack.enter_context(
                 mount(what=tree / subdir, where=Path("/") / subdir, operation="--bind", read_only=True)
             )
