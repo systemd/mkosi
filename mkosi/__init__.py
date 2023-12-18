@@ -1700,7 +1700,7 @@ def maybe_compress(config: MkosiConfig, compression: Compression, src: Path, dst
     if not dst:
         dst = src.parent / f"{src.name}.{compression}"
 
-    with complete_step(f"Compressing {src}"):
+    with complete_step(f"Compressing {src} with {compression}"):
         with src.open("rb") as i:
             src.unlink() # if src == dst, make sure dst doesn't truncate the src file but creates a new file.
 
