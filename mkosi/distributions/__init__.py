@@ -7,10 +7,10 @@ import urllib.parse
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Optional, cast
 
-from mkosi.architecture import Architecture
 from mkosi.util import StrEnum, read_os_release
 
 if TYPE_CHECKING:
+    from mkosi.config import Architecture
     from mkosi.state import MkosiState
 
 
@@ -48,8 +48,8 @@ class DistributionInstaller:
         return "ext4"
 
     @classmethod
-    def architecture(cls, arch: Architecture) -> str:
-        return str(arch)
+    def architecture(cls, arch: "Architecture") -> str:
+        raise NotImplementedError
 
     @classmethod
     def package_type(cls) -> PackageType:
@@ -62,14 +62,6 @@ class DistributionInstaller:
     @classmethod
     def default_tools_tree_distribution(cls) -> Optional["Distribution"]:
         return None
-
-    @classmethod
-    def tools_tree_repositories(cls) -> list[str]:
-        return []
-
-    @classmethod
-    def tools_tree_packages(cls) -> list[str]:
-        return []
 
 
 class Distribution(StrEnum):
@@ -129,7 +121,7 @@ class Distribution(StrEnum):
     def filesystem(self) -> str:
         return self.installer().filesystem()
 
-    def architecture(self, arch: Architecture) -> str:
+    def architecture(self, arch: "Architecture") -> str:
         return self.installer().architecture(arch)
 
     def package_type(self) -> PackageType:
@@ -140,12 +132,6 @@ class Distribution(StrEnum):
 
     def default_tools_tree_distribution(self) -> Optional["Distribution"]:
         return self.installer().default_tools_tree_distribution()
-
-    def tools_tree_repositories(self) -> list[str]:
-        return self.installer().tools_tree_repositories()
-
-    def tools_tree_packages(self) -> list[str]:
-        return self.installer().tools_tree_packages()
 
     def installer(self) -> type[DistributionInstaller]:
         modname = str(self).replace('-', '_')

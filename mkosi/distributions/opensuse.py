@@ -1,15 +1,18 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import shutil
-import urllib.request
+import tempfile
 import xml.etree.ElementTree as ElementTree
 from collections.abc import Sequence
+from pathlib import Path
 
-from mkosi.architecture import Architecture
+from mkosi.config import Architecture
 from mkosi.distributions import Distribution, DistributionInstaller, PackageType
-from mkosi.installer.dnf import RpmRepository, invoke_dnf, setup_dnf
+from mkosi.installer.dnf import invoke_dnf, setup_dnf
+from mkosi.installer.rpm import RpmRepository
 from mkosi.installer.zypper import invoke_zypper, setup_zypper
 from mkosi.log import die
+from mkosi.run import run
 from mkosi.state import MkosiState
 
 
@@ -33,48 +36,6 @@ class Installer(DistributionInstaller):
     @classmethod
     def default_tools_tree_distribution(cls) -> Distribution:
         return Distribution.opensuse
-
-    @classmethod
-    def tools_tree_packages(cls) -> list[str]:
-        return [
-            "bash",
-            "btrfs-progs",
-            "bubblewrap",
-            "ca-certificates",
-            "coreutils",
-            "cpio",
-            "curl",
-            "distribution-gpg-keys",
-            "dnf",
-            "dnf-plugins-core",
-            "dosfstools",
-            "e2fsprogs",
-            "erofs-utils",
-            "grep",
-            "mtools",
-            "openssh-clients",
-            "openssl",
-            "ovmf",
-            "pesign",
-            "qemu-headless",
-            "sbsigntools",
-            "shadow",
-            "socat",
-            "squashfs",
-            "strace",
-            "swtpm",
-            "systemd-boot",
-            "systemd-container",
-            "systemd-experimental",
-            "systemd",
-            "tar",
-            "util-linux",
-            "virtiofsd",
-            "xfsprogs",
-            "xz",
-            "zstd",
-            "zypper",
-        ]
 
     @classmethod
     def setup(cls, state: MkosiState) -> None:
@@ -160,17 +121,27 @@ class Installer(DistributionInstaller):
 def fetch_gpgurls(repourl: str) -> tuple[str, ...]:
     gpgurls = [f"{repourl}/repodata/repomd.xml.key"]
 
-    with urllib.request.urlopen(f"{repourl}/repodata/repomd.xml") as f:
-        xml = f.read().decode()
-        root = ElementTree.fromstring(xml)
+    with tempfile.TemporaryDirectory() as d:
+        run([
+            "curl",
+            "--location",
+            "--output-dir", d,
+            "--remote-name",
+            "--no-progress-meter",
+            "--fail",
+            f"{repourl}/repodata/repomd.xml",
+        ])
+        xml = (Path(d) / "repomd.xml").read_text()
 
-        tags = root.find("{http://linux.duke.edu/metadata/repo}tags")
-        if not tags:
-            die("repomd.xml missing <tags> element")
+    root = ElementTree.fromstring(xml)
 
-        for child in tags.iter("{http://linux.duke.edu/metadata/repo}content"):
-            if child.text and child.text.startswith("gpg-pubkey"):
-                gpgkey = child.text.partition("?")[0]
-                gpgurls += [f"{repourl}{gpgkey}"]
+    tags = root.find("{http://linux.duke.edu/metadata/repo}tags")
+    if not tags:
+        die("repomd.xml missing <tags> element")
+
+    for child in tags.iter("{http://linux.duke.edu/metadata/repo}content"):
+        if child.text and child.text.startswith("gpg-pubkey"):
+            gpgkey = child.text.partition("?")[0]
+            gpgurls += [f"{repourl}{gpgkey}"]
 
     return tuple(gpgurls)

@@ -2,14 +2,15 @@
 
 from collections.abc import Sequence
 
-from mkosi.architecture import Architecture
+from mkosi.config import Architecture
 from mkosi.distributions import (
     Distribution,
     DistributionInstaller,
     PackageType,
     join_mirror,
 )
-from mkosi.installer.dnf import RpmRepository, find_rpm_gpgkey, invoke_dnf, setup_dnf
+from mkosi.installer.dnf import invoke_dnf, setup_dnf
+from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey
 from mkosi.log import die
 from mkosi.state import MkosiState
 
@@ -34,59 +35,6 @@ class Installer(DistributionInstaller):
     @classmethod
     def default_tools_tree_distribution(cls) -> Distribution:
         return Distribution.fedora
-
-    @classmethod
-    def tools_tree_packages(cls) -> list[str]:
-        packages = [
-            "apt",
-            "archlinux-keyring",
-            "bash",
-            "btrfs-progs",
-            "bubblewrap",
-            "ca-certificates",
-            "coreutils",
-            "cpio",
-            "curl-minimal",
-            "debian-keyring",
-            "distribution-gpg-keys",
-            "dnf5",
-            "dnf5-plugins",
-            "dosfstools",
-            "e2fsprogs",
-            "erofs-utils",
-            "mtools",
-            "openssh-clients",
-            "openssl",
-            "pacman",
-            "python3-cryptography",
-            "qemu-kvm-core",
-            "qemu-system-aarch64-core",
-            "shadow-utils",
-            "socat",
-            "squashfs-tools",
-            "strace",
-            "swtpm",
-            "systemd-container",
-            "systemd-udev",
-            "systemd-ukify",
-            "systemd",
-            "tar",
-            "util-linux",
-            "virtiofsd",
-            "xfsprogs",
-            "xz",
-            "zstd",
-            "zypper",
-        ]
-
-        if Architecture.native() in (Architecture.x86_64, Architecture.arm64):
-            packages += [
-                "edk2-ovmf",
-                "pesign",
-                "sbsigntools",
-            ]
-
-        return packages
 
     @classmethod
     def setup(cls, state: MkosiState) -> None:

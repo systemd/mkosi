@@ -3,7 +3,7 @@
 from collections.abc import Iterable
 
 from mkosi.distributions import centos, join_mirror
-from mkosi.installer.dnf import RpmRepository, find_rpm_gpgkey
+from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey
 from mkosi.state import MkosiState
 
 

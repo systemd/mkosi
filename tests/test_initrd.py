@@ -35,13 +35,12 @@ def passphrase() -> Iterator[Path]:
 
 
 @pytest.fixture(scope="module")
-def initrd(config: Image.Config, passphrase: Path) -> Iterator[Image]:
+def initrd(config: Image.Config) -> Iterator[Image]:
     with Image(
         config,
         options=[
             "--directory", "",
             "--include=mkosi-initrd/",
-            "--extra-tree", passphrase,
         ],
     ) as initrd:
         if initrd.config.distribution == Distribution.rhel_ubi:
@@ -180,7 +179,7 @@ def test_initrd_luks_lvm(config: Image.Config, initrd: Image, passphrase: Path) 
             "--kernel-command-line=systemd.unit=mkosi-check-and-shutdown.service",
             "--kernel-command-line=root=LABEL=root",
             "--kernel-command-line=rw",
-            f"--kernel-command-line=rd.luks.key=/{passphrase.name}",
+            "--credential=cryptsetup.passphrase=mkosi",
             "--incremental",
             "--ephemeral",
             "--qemu-firmware=linux",
@@ -237,8 +236,8 @@ def test_initrd_size(initrd: Image) -> None:
     # The fallback value is for CentOS and related distributions.
     maxsize = 1024**2 * {
         Distribution.fedora: 46,
-        Distribution.debian: 36,
-        Distribution.ubuntu: 32,
+        Distribution.debian: 40,
+        Distribution.ubuntu: 36,
         Distribution.arch: 47,
         Distribution.opensuse: 36,
     }.get(initrd.config.distribution, 48)

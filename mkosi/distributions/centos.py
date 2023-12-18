@@ -5,14 +5,15 @@ import shutil
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 
-from mkosi.architecture import Architecture
+from mkosi.config import Architecture
 from mkosi.distributions import (
     Distribution,
     DistributionInstaller,
     PackageType,
     join_mirror,
 )
-from mkosi.installer.dnf import RpmRepository, find_rpm_gpgkey, invoke_dnf, setup_dnf
+from mkosi.installer.dnf import invoke_dnf, setup_dnf
+from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey
 from mkosi.log import complete_step, die
 from mkosi.state import MkosiState
 from mkosi.tree import rmtree
@@ -53,55 +54,6 @@ class Installer(DistributionInstaller):
     @classmethod
     def default_tools_tree_distribution(cls) -> Distribution:
         return Distribution.fedora
-
-    @classmethod
-    def tools_tree_repositories(cls) -> list[str]:
-        return ["epel", "epel-next"]
-
-    @classmethod
-    def tools_tree_packages(cls) -> list[str]:
-        packages = [
-            "apt",
-            "bash",
-            "bubblewrap",
-            "ca-certificates",
-            "coreutils",
-            "cpio",
-            "curl",
-            "debian-keyring",
-            "distribution-gpg-keys",
-            "dnf",
-            "dnf-plugins-core",
-            "dosfstools",
-            "e2fsprogs",
-            "mtools",
-            "openssh-clients",
-            "openssl",
-            "python3-cryptography",
-            "qemu-kvm-core",
-            "shadow-utils",
-            "socat",
-            "squashfs-tools",
-            "strace",
-            "swtpm",
-            "systemd-container",
-            "systemd-udev",
-            "systemd",
-            "tar",
-            "util-linux",
-            "virtiofsd",
-            "xfsprogs",
-            "xz",
-            "zstd",
-        ]
-
-        if Architecture.native() in (Architecture.x86_64, Architecture.arm64):
-            packages += [
-                "edk2-ovmf",
-                "pesign",
-            ]
-
-        return packages
 
     @classmethod
     def setup(cls, state: MkosiState) -> None:

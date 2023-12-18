@@ -3,14 +3,15 @@
 import shutil
 from collections.abc import Sequence
 
-from mkosi.architecture import Architecture
+from mkosi.config import Architecture
 from mkosi.distributions import (
     Distribution,
     DistributionInstaller,
     PackageType,
     join_mirror,
 )
-from mkosi.installer.dnf import RpmRepository, find_rpm_gpgkey, invoke_dnf, setup_dnf
+from mkosi.installer.dnf import invoke_dnf, setup_dnf
+from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey
 from mkosi.log import die
 from mkosi.state import MkosiState
 

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-from mkosi.architecture import Architecture
+from mkosi.config import Architecture
 from mkosi.distributions import debian
 from mkosi.state import MkosiState
 

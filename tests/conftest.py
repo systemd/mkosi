@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: LGPL-2.1+
-from typing import Any, Optional, cast
+from typing import Any, cast
 
 import pytest
 
+from mkosi.config import parse_config
 from mkosi.distributions import Distribution, detect_distribution
 
 from . import Image
@@ -24,13 +25,22 @@ def pytest_addoption(parser: Any) -> None:
         metavar="RELEASE",
         help="Run the integration tests for the given release.",
     )
+    parser.addoption(
+        "-T",
+        "--tools-tree-distribution",
+        metavar="DISTRIBUTION",
+        help="Use the given tools tree distribution to build the integration test images",
+        type=Distribution,
+        choices=[Distribution(d) for d in Distribution.values()],
+    )
 
 
 @pytest.fixture(scope="session")
 def config(request: Any) -> Image.Config:
     distribution = cast(Distribution, request.config.getoption("--distribution"))
-    release = cast(Optional[str], request.config.getoption("--release"))
-    if release is None:
-        release = distribution.default_release()
-
-    return Image.Config(distribution=distribution, release=release)
+    release = cast(str, request.config.getoption("--release") or parse_config(["-d", str(distribution)])[1][0].release)
+    return Image.Config(
+        distribution=distribution,
+        release=release,
+        tools_tree_distribution=cast(Distribution, request.config.getoption("--tools-tree-distribution")),
+    )

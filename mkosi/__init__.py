@@ -22,7 +22,6 @@ from pathlib import Path
 from typing import Optional, TextIO, Union, cast
 
 import mkosi.resources
-from mkosi.architecture import Architecture
 from mkosi.archive import extract_tar, make_cpio, make_tar
 from mkosi.burn import run_burn
 from mkosi.config import (
@@ -187,7 +186,7 @@ def remove_packages(state: MkosiState) -> None:
     if not state.config.remove_packages:
         return
 
-    with complete_step(f"Removing {len(state.config.packages)} packages…"):
+    with complete_step(f"Removing {len(state.config.remove_packages)} packages…"):
         try:
             state.config.distribution.remove_packages(state, state.config.remove_packages)
         except NotImplementedError:
@@ -852,6 +851,10 @@ def find_and_install_shim_binary(
     if state.config.shim_bootloader == ShimBootloader.signed:
         for pattern in signed:
             for p in state.root.glob(pattern):
+                if p.is_symlink() and p.readlink().is_absolute():
+                    logging.warning(f"Ignoring signed {name} EFI binary which is an absolute path to {p.readlink()}")
+                    continue
+
                 rel = p.relative_to(state.root)
                 log_step(f"Installing signed {name} EFI binary from /{rel} to /{output}")
                 shutil.copy2(p, state.root / output)
@@ -862,6 +865,10 @@ def find_and_install_shim_binary(
     else:
         for pattern in unsigned:
             for p in state.root.glob(pattern):
+                if p.is_symlink() and p.readlink().is_absolute():
+                    logging.warning(f"Ignoring unsigned {name} EFI binary which is an absolute path to {p.readlink()}")
+                    continue
+
                 rel = p.relative_to(state.root)
                 if state.config.secure_boot:
                     log_step(f"Signing and installing unsigned {name} EFI binary from /{rel} to /{output}")
@@ -893,8 +900,8 @@ def install_shim(state: MkosiState) -> None:
     arch = state.config.architecture.to_efi()
 
     signed = [
-        f"usr/lib/shim/shim{arch}.efi.signed", # Debian
         f"usr/lib/shim/shim{arch}.efi.signed.latest", # Ubuntu
+        f"usr/lib/shim/shim{arch}.efi.signed", # Debian
         f"boot/efi/EFI/*/shim{arch}.efi", # Fedora/CentOS
         "usr/share/efi/*/shim.efi", # OpenSUSE
     ]
@@ -1305,6 +1312,8 @@ def build_initrd(state: MkosiState) -> Path:
         "--repository-key-check", str(state.config.repository_key_check),
         "--repositories", ",".join(state.config.repositories),
         "--package-manager-tree", ",".join(format_tree(t) for t in state.config.package_manager_trees),
+        # Note that when compress_output == Compression.none == 0 we don't pass --compress-output which means the
+        # default compression will get picked. This is exactly what we want so that initrds are always compressed.
         *(["--compress-output", str(state.config.compress_output)] if state.config.compress_output else []),
         "--with-network", str(state.config.with_network),
         "--cache-only", str(state.config.cache_only),
@@ -1693,7 +1702,7 @@ def maybe_compress(config: MkosiConfig, compression: Compression, src: Path, dst
     if not dst:
         dst = src.parent / f"{src.name}.{compression}"
 
-    with complete_step(f"Compressing {src}"):
+    with complete_step(f"Compressing {src} with {compression}"):
         with src.open("rb") as i:
             src.unlink() # if src == dst, make sure dst doesn't truncate the src file but creates a new file.
 
@@ -2956,62 +2965,51 @@ def prepend_to_environ_path(config: MkosiConfig) -> Iterator[None]:
 def finalize_tools(args: MkosiArgs, images: Sequence[MkosiConfig]) -> Sequence[MkosiConfig]:
     new = []
 
-    for p in images:
-        if not p.tools_tree or p.tools_tree.name != "default":
-            new.append(p)
+    for config in images:
+        if not config.tools_tree or config.tools_tree.name != "default":
+            new.append(config)
             continue
 
-        distribution = p.tools_tree_distribution or p.distribution.default_tools_tree_distribution()
+        distribution = config.tools_tree_distribution or config.distribution.default_tools_tree_distribution()
         if not distribution:
-            die(f"{p.distribution} does not have a default tools tree distribution",
+            die(f"{config.distribution} does not have a default tools tree distribution",
                 hint="use ToolsTreeDistribution= to set one explicitly")
 
-        release = p.tools_tree_release or distribution.default_release()
-        mirror = p.tools_tree_mirror or (p.mirror if p.mirror and p.distribution == distribution else None)
-
-        if p.cache_dir:
-            if p.distribution == distribution and p.release == release and p.architecture == Architecture.native():
-                cache = p.cache_dir
-            else:
-                cache = p.cache_dir / "tools"
-        else:
-            cache = None
+        release = config.tools_tree_release or distribution.default_release()
+        mirror = (
+            config.tools_tree_mirror or
+            (config.mirror if config.mirror and config.distribution == distribution else None)
+        )
 
         cmdline = [
             "--directory", "",
             "--distribution", str(distribution),
             *(["--release", release] if release else []),
             *(["--mirror", mirror] if mirror else []),
-            "--repository-key-check", str(p.repository_key_check),
-            "--cache-only", str(p.cache_only),
-            *(["--output-dir", str(p.output_dir)] if p.output_dir else []),
-            *(["--workspace-dir", str(p.workspace_dir)] if p.workspace_dir else []),
-            *(["--cache-dir", str(cache)] if cache else []),
-            "--incremental", str(p.incremental),
-            "--acl", str(p.acl),
-            "--format", "directory",
-            *flatten(
-                ["--package", package]
-                for package in itertools.chain(distribution.tools_tree_packages(), p.tools_tree_packages)
-            ),
+            "--repository-key-check", str(config.repository_key_check),
+            "--cache-only", str(config.cache_only),
+            *(["--output-dir", str(config.output_dir)] if config.output_dir else []),
+            *(["--workspace-dir", str(config.workspace_dir)] if config.workspace_dir else []),
+            *(["--cache-dir", str(config.cache_dir)] if config.cache_dir else []),
+            "--incremental", str(config.incremental),
+            "--acl", str(config.acl),
+            *([f"--package={package}" for package in config.tools_tree_packages]),
             "--output", f"{distribution}-tools",
-            "--bootable", "no",
-            "--manifest-format", "",
-            *(["--source-date-epoch", str(p.source_date_epoch)] if p.source_date_epoch is not None else []),
-            *([f"--environment={k}='{v}'" for k, v in p.environment.items()]),
-            *flatten(["--repositories", repo] for repo in distribution.tools_tree_repositories()),
-            *([f"--extra-search-path={p}" for p in p.extra_search_paths]),
+            *(["--source-date-epoch", str(config.source_date_epoch)] if config.source_date_epoch is not None else []),
+            *([f"--environment={k}='{v}'" for k, v in config.environment.items()]),
+            *([f"--extra-search-path={p}" for p in config.extra_search_paths]),
             *(["-f"] * args.force),
-            "build",
         ]
 
-        _, [config] = parse_config(cmdline)
-        config = dataclasses.replace(config, image=f"{distribution}-tools")
+        with resource_path(mkosi.resources) as r:
+            _, [tools] = parse_config(cmdline + ["--include", os.fspath(r / "mkosi-tools"), "build"])
 
-        if config not in new:
-            new.append(config)
+        tools = dataclasses.replace(tools, image=f"{distribution}-tools")
 
-        new.append(dataclasses.replace(p, tools_tree=config.output_dir_or_cwd() / config.output))
+        if tools not in new:
+            new.append(tools)
+
+        new.append(dataclasses.replace(config, tools_tree=tools.output_dir_or_cwd() / tools.output))
 
     return new
 
@@ -3025,20 +3023,29 @@ def mount_tools(tree: Optional[Path]) -> Iterator[None]:
     with contextlib.ExitStack() as stack:
         stack.enter_context(mount_usr(tree))
 
-        # On recent Fedora versions, rpm has started doing very strict checks on GPG certificate validity. To
-        # make these checks pass, we need to make sure a few directories from /etc in the tools tree are
-        # mounted into the host as well. Because the directories might not exist on the host, we mount a
-        # writable directory on top of /etc in an overlay so we can create these mountpoints without running
-        # into permission errors.
+        # On top of /usr, we also need the certificates, keyrings and crypto policies from the tools tree which are
+        # unfortunately not always in /usr. To make things work, we mount those directories into the host as well.
+        # Because the directories might not exist on the host (which means we can't mount over them), we mount a
+        # writable directory on top of their parent directory using overlayfs so we can create the required mountpoints
+        # without running into permission errors.
 
-        tmp = stack.enter_context(tempfile.TemporaryDirectory(dir="/var/tmp"))
-        stack.enter_context(mount_overlay([Path("/etc")], Path(tmp), Path("/etc")))
+        overlays = set()
 
-        for subdir in ("etc/pki", "etc/ssl", "etc/crypto-policies", "etc/ca-certificates"):
+        for subdir in (Path("etc/pki"),
+                       Path("etc/ssl"),
+                       Path("etc/crypto-policies"),
+                       Path("etc/ca-certificates"),
+                       Path("etc/pacman.d"),
+                       Path("var/lib/ca-certificates")):
             if not (tree / subdir).exists():
                 continue
 
-            (Path("/") / subdir).mkdir(parents=True, exist_ok=True)
+            if not (Path("/") / subdir).exists() and subdir.parent not in overlays:
+                tmp = stack.enter_context(tempfile.TemporaryDirectory(dir="/var/tmp"))
+                stack.enter_context(mount_overlay([Path("/") / subdir.parent], Path(tmp), Path("/") / subdir.parent))
+                overlays.add(subdir.parent)
+                (Path("/") / subdir).mkdir(parents=True, exist_ok=True)
+
             stack.enter_context(
                 mount(what=tree / subdir, where=Path("/") / subdir, operation="--bind", read_only=True)
             )
