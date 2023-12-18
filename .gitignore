@@ -13,6 +13,8 @@
 /dist
 /mkosi.build
 /mkosi.egg-info
+/mkosi.cache
+/mkosi.output
 /mkosi.extra
 !mkosi.extra/usr/lib/systemd/mkosi-check-and-shutdown.sh
 !mkosi.extra/usr/lib/systemd/system/mkosi-check-and-shutdown.service
