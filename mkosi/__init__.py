@@ -1312,6 +1312,8 @@ def build_initrd(state: MkosiState) -> Path:
         "--repository-key-check", str(state.config.repository_key_check),
         "--repositories", ",".join(state.config.repositories),
         "--package-manager-tree", ",".join(format_tree(t) for t in state.config.package_manager_trees),
+        # Note that when compress_output == Compression.none == 0 we don't pass --compress-output which means the
+        # default compression will get picked. This is exactly what we want so that initrds are always compressed.
         *(["--compress-output", str(state.config.compress_output)] if state.config.compress_output else []),
         "--with-network", str(state.config.with_network),
         "--cache-only", str(state.config.cache_only),
