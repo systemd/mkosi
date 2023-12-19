@@ -441,7 +441,6 @@ def bwrap(
         "--die-with-parent",
         "--proc", "/proc",
         "--dev", "/dev",
-        "--ro-bind", "/sys", "/sys",
         "--setenv", "SYSTEMD_OFFLINE", one_zero(network),
     ]
 
@@ -496,7 +495,6 @@ def apivfs_cmd(root: Path) -> list[PathString]:
         "--bind", os.getenv("TMPDIR", "/var/tmp"), root / "var/tmp",
         "--proc", root / "proc",
         "--dev", root / "dev",
-        "--ro-bind", "/sys", root / "sys",
         # APIVFS generally means chrooting is going to happen so unset TMPDIR just to be safe.
         "--unsetenv", "TMPDIR",
     ]
