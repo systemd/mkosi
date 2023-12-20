@@ -144,10 +144,8 @@ class Installer(DistributionInstaller):
     def architecture(cls, arch: Architecture) -> str:
         a = {
             Architecture.arm64     : "aarch64",
-            Architecture.ia64      : "ia64",
             Architecture.mips64_le : "mips64el",
             Architecture.mips_le   : "mipsel",
-            Architecture.parisc    : "parisc64",
             Architecture.ppc64_le  : "ppc64le",
             Architecture.riscv64   : "riscv64",
             Architecture.s390x     : "s390x",
