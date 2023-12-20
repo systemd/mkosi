@@ -525,6 +525,15 @@ def config_default_compression(namespace: argparse.Namespace) -> Compression:
         return Compression.none
 
 
+def config_default_output(namespace: argparse.Namespace) -> str:
+    output = namespace.image_id or namespace.image or "image"
+
+    if namespace.image_version:
+        output += f"_{namespace.image_version}"
+
+    return output
+
+
 def config_default_distribution(namespace: argparse.Namespace) -> Distribution:
     detected = detect_distribution()[0]
 
@@ -1553,6 +1562,8 @@ SETTINGS = (
         section="Output",
         specifier="o",
         parse=config_parse_output,
+        default_factory=config_default_output,
+        default_factory_depends=("image_id", "image_version"),
         help="Output name",
     ),
     MkosiConfigSetting(
@@ -3104,9 +3115,6 @@ def load_config(args: MkosiArgs, config: argparse.Namespace) -> MkosiConfig:
 
     if config.sign:
         config.checksum = True
-
-    if config.output is None:
-        config.output = config.image_id or config.image or "image"
 
     config.credentials = load_credentials(config)
     config.kernel_command_line_extra = load_kernel_command_line_extra(config)
