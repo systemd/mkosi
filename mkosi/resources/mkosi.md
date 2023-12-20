@@ -1200,6 +1200,23 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   enable SSH access to any virtual machines via `mkosi ssh`. To access
   images booted using `mkosi boot`, use `machinectl`.
 
+`SELinuxRelabel=`, `--selinux-relabel=`
+
+: Specifies whether to relabel files to match the image's SELinux
+  policy. Takes a boolean value or `auto`. Defaults to `auto`. If
+  disabled, files will not relabeled. If enabled, an SELinux policy has
+  to be installed in the image and `setfiles` has to be available to
+  relabel files. If any errors occur during `setfiles`, the build will
+  fail. If set to `auto`, files will be relabeled if an SELinux policy
+  is installed in the image and if `setfiles` is available. Any errors
+  occurred during `setfiles` will be ignored.
+
+: Note that when running unprivileged, `setfiles` will fail to set any
+  labels that are not in the host's SELinux policy. To ensure `setfiles`
+  succeeds without errors, make sure to run mkosi as root or build from
+  a host system with the same SELinux policy as the image you're
+  building.
+
 ### [Validation] Section
 
 `SecureBoot=`, `--secure-boot`

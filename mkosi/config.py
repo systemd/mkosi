@@ -1160,6 +1160,7 @@ class MkosiConfig:
     autologin: bool
     make_initrd: bool
     ssh: bool
+    selinux_relabel: ConfigFeature
 
     secure_boot: bool
     secure_boot_auto_enroll: bool
@@ -2075,6 +2076,14 @@ SETTINGS = (
         section="Content",
         parse=config_parse_boolean,
         help="Set up SSH access from the host to the final image via 'mkosi ssh'",
+    ),
+    MkosiConfigSetting(
+        dest="selinux_relabel",
+        name="SELinuxRelabel",
+        metavar="FEATURE",
+        section="Content",
+        parse=config_parse_feature,
+        help="Specify whether to relabel all files with setfiles",
     ),
 
     MkosiConfigSetting(
@@ -3325,6 +3334,7 @@ def summary(config: MkosiConfig) -> str:
                           Autologin: {yes_no(config.autologin)}
                         Make Initrd: {yes_no(config.make_initrd)}
                                 SSH: {yes_no(config.ssh)}
+                    SELinux Relabel: {config.selinux_relabel}
 """
 
     if config.output_format.is_extension_image() or config.output_format in (
