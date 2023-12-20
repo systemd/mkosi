@@ -2,9 +2,9 @@
 import textwrap
 from collections.abc import Sequence
 
+from mkosi.bubblewrap import apivfs_cmd, bwrap
 from mkosi.config import yes_no
 from mkosi.installer.rpm import RpmRepository, fixup_rpmdb_location, setup_rpm
-from mkosi.run import apivfs_cmd, bwrap
 from mkosi.state import MkosiState
 from mkosi.types import PathString
 from mkosi.util import sort_packages
@@ -76,7 +76,7 @@ def invoke_zypper(
     apivfs: bool = True,
 ) -> None:
     cmd = apivfs_cmd(state.root) if apivfs else []
-    bwrap(cmd + zypper_cmd(state) + [verb, *options, *sort_packages(packages)],
+    bwrap(state, cmd + zypper_cmd(state) + [verb, *options, *sort_packages(packages)],
           network=True, env=state.config.environment)
 
     fixup_rpmdb_location(state.root)

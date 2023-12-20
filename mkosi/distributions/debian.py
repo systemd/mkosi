@@ -126,7 +126,7 @@ class Installer(DistributionInstaller):
         for deb in essential:
             with tempfile.NamedTemporaryFile() as f:
                 run(["dpkg-deb", "--fsys-tarfile", deb], stdout=f)
-                extract_tar(Path(f.name), state.root, log=False)
+                extract_tar(state, Path(f.name), state.root, log=False)
 
         # Finally, run apt to properly install packages in the chroot without having to worry that maintainer
         # scripts won't find basic tools that they depend on.

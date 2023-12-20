@@ -5,7 +5,6 @@ import asyncio.tasks
 import contextlib
 import ctypes
 import ctypes.util
-import enum
 import errno
 import fcntl
 import logging
@@ -24,9 +23,9 @@ from pathlib import Path
 from types import TracebackType
 from typing import Any, Callable, NoReturn, Optional
 
-from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, die
+from mkosi.log import ARG_DEBUG, die
 from mkosi.types import _FILE, CompletedProcess, PathString, Popen
-from mkosi.util import INVOKING_USER, flock, one_zero
+from mkosi.util import INVOKING_USER, flock
 
 CLONE_NEWNS = 0x00020000
 CLONE_NEWUSER = 0x10000000
@@ -376,23 +375,6 @@ def spawn(
             make_foreground_process(new_process_group=False)
 
 
-# https://github.com/torvalds/linux/blob/master/include/uapi/linux/capability.h
-class Capability(enum.Enum):
-    CAP_NET_ADMIN = 12
-
-
-def have_effective_cap(capability: Capability) -> bool:
-    for line in Path("/proc/self/status").read_text().splitlines():
-        if line.startswith("CapEff:"):
-            hexcap = line.removeprefix("CapEff:").strip()
-            break
-    else:
-        logging.warning(f"\"CapEff:\" not found in /proc/self/status, assuming we don't have {capability}")
-        return False
-
-    return (int(hexcap, 16) & (1 << capability.value)) != 0
-
-
 def find_binary(*names: PathString, root: Optional[Path] = None) -> Optional[Path]:
     for name in names:
         path = ":".join(os.fspath(p) for p in [root / "usr/bin", root / "usr/sbin"]) if root else os.environ["PATH"]
@@ -400,154 +382,6 @@ def find_binary(*names: PathString, root: Optional[Path] = None) -> Optional[Pat
             return Path("/") / Path(binary).relative_to(root or "/")
 
     return None
-
-
-def bwrap(
-    cmd: Sequence[PathString],
-    *,
-    network: bool = False,
-    readonly: bool = False,
-    options: Sequence[PathString] = (),
-    log: bool = True,
-    scripts: Optional[Path] = None,
-    env: Mapping[str, str] = {},
-    stdin: _FILE = None,
-    stdout: _FILE = None,
-    input: Optional[str] = None,
-) -> CompletedProcess:
-    cmdline: list[PathString] = [
-        "bwrap",
-        "--dev-bind", "/", "/",
-    ]
-
-    if readonly:
-        cmdline += [
-            "--remount-ro", "/",
-            "--ro-bind", "/root", "/root",
-            "--ro-bind", "/home", "/home",
-            "--ro-bind", "/var", "/var",
-            "--ro-bind", "/run", "/run",
-            "--bind", "/var/tmp", "/var/tmp",
-            "--bind", "/tmp", "/tmp",
-            "--bind", Path.cwd(), Path.cwd(),
-        ]
-
-    cmdline += [
-        "--chdir", Path.cwd(),
-        "--unshare-pid",
-        "--unshare-ipc",
-        "--unshare-cgroup",
-        *(["--unshare-net"] if not network and have_effective_cap(Capability.CAP_NET_ADMIN) else []),
-        "--die-with-parent",
-        "--proc", "/proc",
-        "--dev", "/dev",
-        "--setenv", "SYSTEMD_OFFLINE", one_zero(network),
-    ]
-
-    cmdline += [
-        "--setenv", "PATH", f"{scripts or ''}:{os.environ['PATH']}",
-        *options,
-        "sh", "-c", "chmod 1777 /dev/shm && exec $0 \"$@\"",
-    ]
-
-    if setpgid := find_binary("setpgid"):
-        cmdline += [setpgid, "--foreground", "--"]
-
-    try:
-        result = run([*cmdline, *cmd], env=env, log=False, stdin=stdin, stdout=stdout, input=input)
-    except subprocess.CalledProcessError as e:
-        if log:
-            log_process_failure([os.fspath(s) for s in cmd], e.returncode)
-        if ARG_DEBUG_SHELL.get():
-            run([*cmdline, "sh"], stdin=sys.stdin, check=False, env=env, log=False)
-        raise e
-
-    return result
-
-
-def finalize_passwd_mounts(root: Path) -> list[PathString]:
-    """
-    If passwd or a related file exists in the apivfs directory, bind mount it over the host files while we
-    run the command, to make sure that the command we run uses user/group information from the apivfs
-    directory instead of from the host. If the file doesn't exist yet, mount over /dev/null instead.
-    """
-    options: list[PathString] = []
-
-    for f in ("passwd", "group", "shadow", "gshadow"):
-        if not (Path("/etc") / f).exists():
-            continue
-        p = root / "etc" / f
-        if p.exists():
-            options += ["--bind", p, f"/etc/{f}"]
-        else:
-            options += ["--bind", "/dev/null", f"/etc/{f}"]
-
-    return options
-
-
-def apivfs_cmd(root: Path) -> list[PathString]:
-    cmdline: list[PathString] = [
-        "bwrap",
-        "--dev-bind", "/", "/",
-        "--chdir", Path.cwd(),
-        "--tmpfs", root / "run",
-        "--tmpfs", root / "tmp",
-        "--bind", os.getenv("TMPDIR", "/var/tmp"), root / "var/tmp",
-        "--proc", root / "proc",
-        "--dev", root / "dev",
-        # APIVFS generally means chrooting is going to happen so unset TMPDIR just to be safe.
-        "--unsetenv", "TMPDIR",
-    ]
-
-    if (root / "etc/machine-id").exists():
-        # Make sure /etc/machine-id is not overwritten by any package manager post install scripts.
-        cmdline += ["--ro-bind", root / "etc/machine-id", root / "etc/machine-id"]
-
-    cmdline += finalize_passwd_mounts(root)
-
-    if setpgid := find_binary("setpgid"):
-        cmdline += [setpgid, "--foreground", "--"]
-
-    chmod = f"chmod 1777 {root / 'tmp'} {root / 'var/tmp'} {root / 'dev/shm'}"
-    # Make sure anything running in the root directory thinks it's in a container. $container can't always be
-    # accessed so we write /run/host/container-manager as well which is always accessible.
-    container = f"mkdir {root}/run/host && echo mkosi >{root}/run/host/container-manager"
-
-    cmdline += ["sh", "-c", f"{chmod} && {container} && exec $0 \"$@\""]
-
-    return cmdline
-
-
-def chroot_cmd(root: Path, *, resolve: bool = False, options: Sequence[PathString] = ()) -> list[PathString]:
-    cmdline: list[PathString] = [
-        "sh", "-c",
-        # No exec here because we need to clean up the /work directory afterwards.
-        f"trap 'rm -rf {root / 'work'}' EXIT && mkdir -p {root / 'work'} && chown 777 {root / 'work'} && $0 \"$@\"",
-        "bwrap",
-        "--dev-bind", root, "/",
-        "--setenv", "container", "mkosi",
-        "--setenv", "HOME", "/",
-        "--setenv", "PATH", "/work/scripts:/usr/bin:/usr/sbin",
-    ]
-
-    if resolve:
-        p = Path("etc/resolv.conf")
-        if (root / p).is_symlink():
-            # For each component in the target path, bubblewrap will try to create it if it doesn't exist
-            # yet. If a component in the path is a dangling symlink, bubblewrap will end up calling
-            # mkdir(symlink) which obviously fails if multiple components of the dangling symlink path don't
-            # exist yet. As a workaround, we resolve the symlink ourselves so that bubblewrap will correctly
-            # create all missing components in the target path.
-            p = p.parent / (root / p).readlink()
-
-        cmdline += ["--ro-bind", "/etc/resolv.conf", Path("/") / p]
-
-    cmdline += [*options]
-
-    if setpgid := find_binary("setpgid", root=root):
-        cmdline += [setpgid, "--foreground", "--"]
-
-    return apivfs_cmd(root) + cmdline
 
 
 class MkosiAsyncioThread(threading.Thread):

@@ -163,3 +163,23 @@ def mount_passwd() -> Iterator[None]:
 
         with mount(passwd.name, Path("/etc/passwd"), operation="--bind"):
             yield
+
+
+def finalize_passwd_mounts(root: Path) -> list[PathString]:
+    """
+    If passwd or a related file exists in the apivfs directory, bind mount it over the host files while we
+    run the command, to make sure that the command we run uses user/group information from the apivfs
+    directory instead of from the host. If the file doesn't exist yet, mount over /dev/null instead.
+    """
+    options: list[PathString] = []
+
+    for f in ("passwd", "group", "shadow", "gshadow"):
+        if not (Path("/etc") / f).exists():
+            continue
+        p = root / "etc" / f
+        if p.exists():
+            options += ["--bind", p, f"/etc/{f}"]
+        else:
+            options += ["--bind", "/dev/null", f"/etc/{f}"]
+
+    return options
