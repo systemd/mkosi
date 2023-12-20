@@ -613,17 +613,6 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
             # without uidmap to avoid having to mount over /etc/passwd.
             stack.enter_context(mount_passwd())
 
-        for k, v in config.credentials.items():
-            payload = base64.b64encode(v.encode()).decode()
-            if config.architecture.supports_smbios(firmware):
-                cmdline += ["-smbios", f"type=11,value=io.systemd.credential.binary:{k}={payload}"]
-            elif config.architecture.supports_fw_cfg():
-                f = stack.enter_context(tempfile.NamedTemporaryFile(prefix="mkosi-fw-cfg", mode="w"))
-                f.write(v)
-                f.flush()
-                os.fchown(f.fileno(), INVOKING_USER.uid, INVOKING_USER.gid)
-                cmdline += ["-fw_cfg", f"name=opt/io.systemd.credentials/{k},file={f.name}"]
-
         if firmware == QemuFirmware.uefi:
             ovmf_vars = stack.enter_context(tempfile.NamedTemporaryFile(prefix="mkosi-ovmf-vars"))
             shutil.copy2(config.qemu_firmware_variables or find_ovmf_vars(config), Path(ovmf_vars.name))
@@ -679,6 +668,19 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
             kcl = config.kernel_command_line + config.kernel_command_line_extra
         else:
             kcl = config.kernel_command_line_extra
+
+        for k, v in config.credentials.items():
+            payload = base64.b64encode(v.encode()).decode()
+            if config.architecture.supports_smbios(firmware):
+                cmdline += ["-smbios", f"type=11,value=io.systemd.credential.binary:{k}={payload}"]
+            elif config.architecture.supports_fw_cfg():
+                f = stack.enter_context(tempfile.NamedTemporaryFile(prefix="mkosi-fw-cfg", mode="w"))
+                f.write(v)
+                f.flush()
+                os.fchown(f.fileno(), INVOKING_USER.uid, INVOKING_USER.gid)
+                cmdline += ["-fw_cfg", f"name=opt/io.systemd.credentials/{k},file={f.name}"]
+            elif kernel:
+                kcl += [f"systemd.set_credential_binary={k}:{payload}"]
 
         if kernel:
             cmdline += ["-kernel", kernel]
