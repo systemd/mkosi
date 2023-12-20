@@ -1233,17 +1233,8 @@ class MkosiConfig:
         })
 
     @property
-    def output_with_version(self) -> str:
-        output = self.output
-
-        if self.image_version:
-            output += f"_{self.image_version}"
-
-        return output
-
-    @property
     def output_with_format(self) -> str:
-        return self.output_with_version + self.output_format.extension()
+        return self.output + self.output_format.extension()
 
     @property
     def output_with_compression(self) -> str:
@@ -1256,31 +1247,31 @@ class MkosiConfig:
 
     @property
     def output_split_uki(self) -> str:
-        return f"{self.output_with_version}.efi"
+        return f"{self.output}.efi"
 
     @property
     def output_split_kernel(self) -> str:
-        return f"{self.output_with_version}.vmlinuz"
+        return f"{self.output}.vmlinuz"
 
     @property
     def output_split_initrd(self) -> str:
-        return f"{self.output_with_version}.initrd"
+        return f"{self.output}.initrd"
 
     @property
     def output_checksum(self) -> str:
-        return f"{self.output_with_version}.SHA256SUMS"
+        return f"{self.output}.SHA256SUMS"
 
     @property
     def output_signature(self) -> str:
-        return f"{self.output_with_version}.SHA256SUMS.gpg"
+        return f"{self.output}.SHA256SUMS.gpg"
 
     @property
     def output_manifest(self) -> str:
-        return f"{self.output_with_version}.manifest"
+        return f"{self.output}.manifest"
 
     @property
     def output_changelog(self) -> str:
-        return f"{self.output_with_version}.changelog"
+        return f"{self.output}.changelog"
 
     def cache_manifest(self) -> dict[str, Any]:
         return {

@@ -2490,8 +2490,8 @@ def finalize_staging(state: MkosiState) -> None:
             continue
 
         name = f.name
-        if not name.startswith(state.config.output_with_version):
-            name = f"{state.config.output_with_version}-{name}"
+        if not name.startswith(state.config.output):
+            name = f"{state.config.output}-{name}"
         if name != f.name:
             f.rename(state.staging / name)
 
