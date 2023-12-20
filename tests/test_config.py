@@ -783,6 +783,23 @@ def test_specifiers(tmp_path: Path) -> None:
         assert {k: v for k, v in config.environment.items() if k in expected} == expected
 
 
+def test_output_id_version(tmp_path: Path) -> None:
+    d = tmp_path
+
+    (d / "mkosi.conf").write_text(
+        """
+        [Output]
+        ImageId=output
+        ImageVersion=1.2.3
+        """
+    )
+
+    with chdir(d):
+        _, [config] = parse_config()
+
+    assert config.output == "output_1.2.3"
+
+
 def test_deterministic() -> None:
     assert MkosiConfig.default() == MkosiConfig.default()
 

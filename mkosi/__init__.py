@@ -1847,21 +1847,19 @@ def empty_directory(path: Path) -> None:
 def unlink_output(args: MkosiArgs, config: MkosiConfig) -> None:
     # We remove any cached images if either the user used --force twice, or he/she called "clean" with it
     # passed once. Let's also remove the downloaded package cache if the user specified one additional
-    # "--force". Let's also remove all versions if the user specified one additional "--force".
+    # "--force".
 
     if args.verb == Verb.clean:
         remove_build_cache = args.force > 0
         remove_package_cache = args.force > 1
-        prefix = config.output if args.force > 1 else config.output_with_version
     else:
         remove_build_cache = args.force > 1
         remove_package_cache = args.force > 2
-        prefix = config.output if args.force > 2 else config.output_with_version
 
     with complete_step("Removing output files…"):
         if config.output_dir_or_cwd().exists():
             for p in config.output_dir_or_cwd().iterdir():
-                if p.name.startswith(prefix):
+                if p.name.startswith(config.output):
                     rmtree(p)
 
     if remove_build_cache:
@@ -2492,8 +2490,8 @@ def finalize_staging(state: MkosiState) -> None:
             continue
 
         name = f.name
-        if not name.startswith(state.config.output_with_version):
-            name = f"{state.config.output_with_version}-{name}"
+        if not name.startswith(state.config.output):
+            name = f"{state.config.output}-{name}"
         if name != f.name:
             f.rename(state.staging / name)
 

@@ -525,6 +525,15 @@ def config_default_compression(namespace: argparse.Namespace) -> Compression:
         return Compression.none
 
 
+def config_default_output(namespace: argparse.Namespace) -> str:
+    output = namespace.image_id or namespace.image or "image"
+
+    if namespace.image_version:
+        output += f"_{namespace.image_version}"
+
+    return output
+
+
 def config_default_distribution(namespace: argparse.Namespace) -> Distribution:
     detected = detect_distribution()[0]
 
@@ -1224,17 +1233,8 @@ class MkosiConfig:
         })
 
     @property
-    def output_with_version(self) -> str:
-        output = self.output
-
-        if self.image_version:
-            output += f"_{self.image_version}"
-
-        return output
-
-    @property
     def output_with_format(self) -> str:
-        return self.output_with_version + self.output_format.extension()
+        return self.output + self.output_format.extension()
 
     @property
     def output_with_compression(self) -> str:
@@ -1247,31 +1247,31 @@ class MkosiConfig:
 
     @property
     def output_split_uki(self) -> str:
-        return f"{self.output_with_version}.efi"
+        return f"{self.output}.efi"
 
     @property
     def output_split_kernel(self) -> str:
-        return f"{self.output_with_version}.vmlinuz"
+        return f"{self.output}.vmlinuz"
 
     @property
     def output_split_initrd(self) -> str:
-        return f"{self.output_with_version}.initrd"
+        return f"{self.output}.initrd"
 
     @property
     def output_checksum(self) -> str:
-        return f"{self.output_with_version}.SHA256SUMS"
+        return f"{self.output}.SHA256SUMS"
 
     @property
     def output_signature(self) -> str:
-        return f"{self.output_with_version}.SHA256SUMS.gpg"
+        return f"{self.output}.SHA256SUMS.gpg"
 
     @property
     def output_manifest(self) -> str:
-        return f"{self.output_with_version}.manifest"
+        return f"{self.output}.manifest"
 
     @property
     def output_changelog(self) -> str:
-        return f"{self.output_with_version}.changelog"
+        return f"{self.output}.changelog"
 
     def cache_manifest(self) -> dict[str, Any]:
         return {
@@ -1553,6 +1553,8 @@ SETTINGS = (
         section="Output",
         specifier="o",
         parse=config_parse_output,
+        default_factory=config_default_output,
+        default_factory_depends=("image_id", "image_version"),
         help="Output name",
     ),
     MkosiConfigSetting(
@@ -3104,9 +3106,6 @@ def load_config(args: MkosiArgs, config: argparse.Namespace) -> MkosiConfig:
 
     if config.sign:
         config.checksum = True
-
-    if config.output is None:
-        config.output = config.image_id or config.image or "image"
 
     config.credentials = load_credentials(config)
     config.kernel_command_line_extra = load_kernel_command_line_extra(config)
