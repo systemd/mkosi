@@ -56,6 +56,10 @@
   is enabled.
 - Added `SecureBootAutoEnroll=` to control automatic enrollment of secureboot
   keys separately from signing `systemd-boot` and generated UKIs.
+- `ImageVersion=` is no longer automatically appended to the output files,
+  instead this is automatically appended to `Output=` if not specified and
+  results in the `%o` specifier being equivalent to `%i` or `%i_%v` depending
+  on if `ImageVersion=` is specified.
 
 ## v19
 
