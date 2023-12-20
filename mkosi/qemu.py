@@ -529,15 +529,9 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
     if config.runtime_trees or config.output_format == OutputFormat.directory:
         shm = ["-object", f"memory-backend-memfd,id=mem,size={config.qemu_mem},share=on"]
 
-    if config.architecture == Architecture.arm64:
-        machine = "type=virt"
-    elif config.architecture == Architecture.s390x:
-        machine = "type=s390-ccw-virtio"
-    elif config.architecture == Architecture.ppc64_le:
-        machine = "type=pseries"
-    else:
-        machine = f"type=q35,smm={'on' if ovmf_supports_sb else 'off'}"
-
+    machine = f"type={config.architecture.default_qemu_machine()}"
+    if firmware == QemuFirmware.uefi:
+        machine += f",smm={'on' if ovmf_supports_sb else 'off'}"
     if shm:
         machine += ",memory-backend=mem"
 
@@ -551,8 +545,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
         *shm,
     ]
 
-    if config.architecture not in (Architecture.s390, Architecture.s390x):
-        cmdline += ["-nic", "user,model=virtio-net-pci"]
+    cmdline += ["-nic", f"user,model={config.architecture.default_qemu_nic_model()}"]
 
     if config.qemu_kvm != ConfigFeature.disabled and have_kvm and config.architecture.is_native():
         accel = "kvm"

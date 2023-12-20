@@ -308,7 +308,6 @@ class Architecture(StrEnum):
             Architecture.loongarch64 : "loongarch64",
         }.get(self)
 
-
     def to_qemu(self) -> str:
         a = {
             Architecture.alpha       : "alpha",
@@ -352,6 +351,30 @@ class Architecture(StrEnum):
 
     def supports_fw_cfg(self) -> bool:
         return self in (Architecture.x86, Architecture.x86_64, Architecture.arm, Architecture.arm64)
+
+    def default_qemu_machine(self) -> str:
+        m = {
+            Architecture.x86      : "q35",
+            Architecture.x86_64   : "q35",
+            Architecture.arm      : "virt",
+            Architecture.arm64    : "virt",
+            Architecture.s390     : "s390-ccw-virtio",
+            Architecture.s390x    : "s390-ccw-virtio",
+            Architecture.ppc      : "pseries",
+            Architecture.ppc64    : "pseries",
+            Architecture.ppc64_le : "pseries",
+        }
+
+        if self not in m:
+            die(f"No qemu machine defined for architecture {self}")
+
+        return m[self]
+
+    def default_qemu_nic_model(self) -> str:
+        return {
+            Architecture.s390  : "virtio",
+            Architecture.s390x : "virtio",
+        }.get(self, "virtio-net-pci")
 
     def is_native(self) -> bool:
         return self == self.native()
@@ -3028,7 +3051,7 @@ def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
     ]
 
     if not any(s.startswith("ip=") for s in args.kernel_command_line_extra):
-        cmdline += ["ip=enp0s1:any", "ip=enp0s2:any", "ip=host0:any", "ip=none"]
+        cmdline += ["ip=enc0:any", "ip=enp0s1:any", "ip=enp0s2:any", "ip=host0:any", "ip=none"]
 
     if not any(s.startswith("loglevel=") for s in args.kernel_command_line_extra):
         cmdline += ["loglevel=4"]
