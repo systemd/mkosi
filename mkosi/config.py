@@ -3174,10 +3174,6 @@ def yes_no(b: bool) -> str:
     return "yes" if b else "no"
 
 
-def yes_no_auto(f: ConfigFeature) -> str:
-    return "auto" if f is ConfigFeature.auto else yes_no(f == ConfigFeature.enabled)
-
-
 def none_to_na(s: Optional[object]) -> str:
     return "n/a" if s is None else str(s)
 
@@ -3274,7 +3270,7 @@ def summary(config: MkosiConfig) -> str:
                         Sector Size: {none_to_default(config.sector_size)}
                      Repart Offline: {yes_no(config.repart_offline)}
                             Overlay: {yes_no(config.overlay)}
-                     Use Subvolumes: {yes_no_auto(config.use_subvolumes)}
+                     Use Subvolumes: {config.use_subvolumes}
                                Seed: {none_to_random(config.seed)}
 
     {bold("CONTENT")}:
@@ -3288,7 +3284,7 @@ def summary(config: MkosiConfig) -> str:
 
                     Remove Packages: {line_join_list(config.remove_packages)}
                        Remove Files: {line_join_list(config.remove_files)}
-     Clean Package Manager Metadata: {yes_no_auto(config.clean_package_metadata)}
+     Clean Package Manager Metadata: {config.clean_package_metadata}
                   Source Date Epoch: {none_to_none(config.source_date_epoch)}
 
                     Prepare Scripts: {line_join_list(config.prepare_scripts)}
@@ -3302,7 +3298,7 @@ def summary(config: MkosiConfig) -> str:
          Run Tests in Build Scripts: {yes_no(config.with_tests)}
                Scripts With Network: {yes_no(config.with_network)}
 
-                           Bootable: {yes_no_auto(config.bootable)}
+                           Bootable: {config.bootable}
                          Bootloader: {config.bootloader}
                     BIOS Bootloader: {config.bios_bootloader}
                     Shim Bootloader: {config.shim_bootloader}
@@ -3346,7 +3342,7 @@ def summary(config: MkosiConfig) -> str:
           SecureBoot Sign Tool: {config.secure_boot_sign_tool}
             Verity Signing Key: {none_to_none(config.verity_key)}
             Verity Certificate: {none_to_none(config.verity_certificate)}
-            Sign Expected PCRs: {yes_no_auto(config.sign_expected_pcr)}
+            Sign Expected PCRs: {config.sign_expected_pcr}
                     Passphrase: {none_to_none(config.passphrase)}
                       Checksum: {yes_no(config.checksum)}
                           Sign: {yes_no(config.sign)}
