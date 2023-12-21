@@ -2862,6 +2862,9 @@ def run_systemd_tool(tool: str, args: MkosiArgs, config: MkosiConfig) -> None:
     if (tool_path := find_binary(tool)) is None:
         die(f"Failed to find {tool}")
 
+    if config.ephemeral:
+        die(f"Images booted in ephemeral mode cannot be inspected with {tool}")
+
     image_arg_name = "root" if config.output_format == OutputFormat.directory else "image"
     run(
         [
