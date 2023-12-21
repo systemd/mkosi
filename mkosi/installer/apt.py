@@ -3,7 +3,7 @@ import shutil
 import textwrap
 from collections.abc import Sequence
 
-from mkosi.run import apivfs_cmd, bwrap
+from mkosi.bubblewrap import apivfs_cmd, bwrap
 from mkosi.state import MkosiState
 from mkosi.types import PathString
 from mkosi.util import sort_packages, umask
@@ -109,5 +109,5 @@ def invoke_apt(
     apivfs: bool = True,
 ) -> None:
     cmd = apivfs_cmd(state.root) if apivfs else []
-    bwrap(cmd + apt_cmd(state, command) + [operation, *sort_packages(packages)],
+    bwrap(state, cmd + apt_cmd(state, command) + [operation, *sort_packages(packages)],
           network=True, env=state.config.environment)

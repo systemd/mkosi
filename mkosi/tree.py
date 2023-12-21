@@ -4,14 +4,11 @@ import errno
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Optional
 
-from mkosi.archive import extract_tar
 from mkosi.config import ConfigFeature
 from mkosi.log import die
 from mkosi.run import run
 from mkosi.types import PathString
-from mkosi.util import umask
 from mkosi.versioncomp import GenericVersion
 
 
@@ -123,27 +120,3 @@ def move_tree(src: Path, dst: Path, use_subvolumes: ConfigFeature = ConfigFeatur
 
         copy_tree(src, dst, use_subvolumes=use_subvolumes)
         rmtree(src)
-
-
-def install_tree(
-    src: Path,
-    dst: Path,
-    target: Optional[Path] = None,
-    use_subvolumes: ConfigFeature = ConfigFeature.disabled,
-) -> None:
-    t = dst
-    if target:
-        t = dst / target.relative_to("/")
-
-    with umask(~0o755):
-        t.parent.mkdir(parents=True, exist_ok=True)
-
-    if src.is_dir() or (src.is_file() and target):
-        copy_tree(src, t, preserve_owner=False, use_subvolumes=use_subvolumes)
-    elif src.suffix == ".tar":
-        extract_tar(src, t)
-    elif src.suffix == ".raw":
-        run(["systemd-dissect", "--copy-from", src, "/", t])
-    else:
-        # If we get an unknown file without a target, we just copy it into /.
-        copy_tree(src, t, preserve_owner=False, use_subvolumes=use_subvolumes)

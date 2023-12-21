@@ -125,11 +125,6 @@ jobs:
             tools: centos
           - distro: debian
             tools: debian
-          # Fedora and CentOS don't package ubuntu-keyring.
-          - distro: ubuntu
-            tools: centos
-          - distro: ubuntu
-            tools: fedora
           # rpm in Debian is currently missing
           # https://github.com/rpm-software-management/rpm/commit/ea3187cfcf9cac87e5bc5e7db79b0338da9e355e
           - distro: fedora

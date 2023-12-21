@@ -8,6 +8,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from mkosi.archive import extract_tar
+from mkosi.bubblewrap import apivfs_cmd, bwrap, chroot_cmd
 from mkosi.config import Architecture
 from mkosi.distributions import (
     Distribution,
@@ -16,7 +17,7 @@ from mkosi.distributions import (
     join_mirror,
 )
 from mkosi.log import ARG_DEBUG, complete_step, die
-from mkosi.run import apivfs_cmd, bwrap, chroot_cmd, run
+from mkosi.run import run
 from mkosi.state import MkosiState
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
@@ -25,6 +26,7 @@ from mkosi.util import sort_packages
 
 def invoke_emerge(state: MkosiState, packages: Sequence[str] = (), apivfs: bool = True) -> None:
     bwrap(
+        state,
         cmd=apivfs_cmd(state.root) + [
             # We can't mount the stage 3 /usr using `options`, because bwrap isn't available in the stage 3
             # tarball which is required by apivfs_cmd(), so we have to mount /usr from the tarball later
@@ -129,7 +131,7 @@ class Installer(DistributionInstaller):
 
         if not any(stage3.iterdir()):
             with complete_step(f"Extracting {stage3_tar.name} to {stage3}"):
-                extract_tar(stage3_tar, stage3)
+                extract_tar(state, stage3_tar, stage3)
 
         for d in ("binpkgs", "distfiles", "repos/gentoo"):
             (state.cache_dir / d).mkdir(parents=True, exist_ok=True)
@@ -161,7 +163,7 @@ class Installer(DistributionInstaller):
             options=["--bind", state.cache_dir / "repos", "/var/db/repos"],
         )
 
-        bwrap(cmd=chroot + ["emerge-webrsync"], network=True)
+        bwrap(state, cmd=chroot + ["emerge-webrsync"], network=True)
 
         invoke_emerge(state, packages=["sys-apps/baselayout"], apivfs=False)
 

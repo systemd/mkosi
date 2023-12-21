@@ -6,11 +6,11 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from mkosi.archive import extract_tar
+from mkosi.bubblewrap import bwrap
 from mkosi.config import Architecture
 from mkosi.distributions import Distribution, DistributionInstaller, PackageType
 from mkosi.installer.apt import invoke_apt, setup_apt
 from mkosi.log import die
-from mkosi.run import run
 from mkosi.state import MkosiState
 from mkosi.util import umask
 
@@ -125,8 +125,8 @@ class Installer(DistributionInstaller):
 
         for deb in essential:
             with tempfile.NamedTemporaryFile() as f:
-                run(["dpkg-deb", "--fsys-tarfile", deb], stdout=f)
-                extract_tar(Path(f.name), state.root, log=False)
+                bwrap(state, ["dpkg-deb", "--fsys-tarfile", deb], stdout=f)
+                extract_tar(state, Path(f.name), state.root, log=False)
 
         # Finally, run apt to properly install packages in the chroot without having to worry that maintainer
         # scripts won't find basic tools that they depend on.

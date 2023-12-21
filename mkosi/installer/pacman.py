@@ -4,7 +4,7 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import NamedTuple
 
-from mkosi.run import apivfs_cmd, bwrap
+from mkosi.bubblewrap import apivfs_cmd, bwrap
 from mkosi.state import MkosiState
 from mkosi.types import PathString
 from mkosi.util import sort_packages, umask
@@ -96,5 +96,5 @@ def invoke_pacman(
     apivfs: bool = True,
 ) -> None:
     cmd = apivfs_cmd(state.root) if apivfs else []
-    bwrap(cmd + pacman_cmd(state) + [operation, *options, *sort_packages(packages)],
+    bwrap(state, cmd + pacman_cmd(state) + [operation, *options, *sort_packages(packages)],
           network=True, env=state.config.environment)

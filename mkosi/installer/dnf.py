@@ -3,8 +3,8 @@ import shutil
 import textwrap
 from collections.abc import Iterable
 
+from mkosi.bubblewrap import apivfs_cmd, bwrap
 from mkosi.installer.rpm import RpmRepository, fixup_rpmdb_location, setup_rpm
-from mkosi.run import apivfs_cmd, bwrap
 from mkosi.state import MkosiState
 from mkosi.types import PathString
 from mkosi.util import sort_packages
@@ -111,7 +111,7 @@ def dnf_cmd(state: MkosiState) -> list[PathString]:
 
 def invoke_dnf(state: MkosiState, command: str, packages: Iterable[str], apivfs: bool = True) -> None:
     cmd = apivfs_cmd(state.root) if apivfs else []
-    bwrap(cmd + dnf_cmd(state) + [command, *sort_packages(packages)],
+    bwrap(state, cmd + dnf_cmd(state) + [command, *sort_packages(packages)],
           network=True, env=state.config.environment)
 
     fixup_rpmdb_location(state.root)

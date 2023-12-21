@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 from typing import NamedTuple, Optional
 
-from mkosi.run import run
+from mkosi.bubblewrap import bwrap
 from mkosi.state import MkosiState
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
@@ -38,13 +38,13 @@ def setup_rpm(state: MkosiState) -> None:
     if not (macros / "macros.lang").exists() and state.config.locale:
         (macros / "macros.lang").write_text(f"%_install_langs {state.config.locale}")
 
-    rpmplugindir = Path(run(["rpm", "--eval", "%{__plugindir}"], stdout=subprocess.PIPE).stdout.strip())
+    rpmplugindir = Path(bwrap(state, ["rpm", "--eval", "%{__plugindir}"], stdout=subprocess.PIPE).stdout.strip())
     if rpmplugindir.exists():
         with (macros / "macros.disable-plugins").open("w") as f:
             for plugin in rpmplugindir.iterdir():
                 f.write(f"%__transaction_{plugin.stem} %{{nil}}\n")
 
-    rpmconfigdir = Path(run(["rpm", "--eval", "%{_rpmconfigdir}"], stdout=subprocess.PIPE).stdout.strip())
+    rpmconfigdir = Path(bwrap(state, ["rpm", "--eval", "%{_rpmconfigdir}"], stdout=subprocess.PIPE).stdout.strip())
     copy_tree(rpmconfigdir, state.pkgmngr / "usr/lib/rpm", clobber=False, use_subvolumes=state.config.use_subvolumes)
 
 

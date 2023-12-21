@@ -8,7 +8,7 @@ from collections.abc import Iterator, Sequence
 from pathlib import Path
 
 from mkosi.log import complete_step, log_step
-from mkosi.run import bwrap, chroot_cmd
+from mkosi.run import run
 
 
 def loaded_modules() -> list[str]:
@@ -76,8 +76,8 @@ def resolve_module_dependencies(root: Path, kver: str, modules: Sequence[str]) -
     info = ""
     for i in range(0, len(nametofile.keys()), 8500):
         chunk = list(nametofile.keys())[i:i+8500]
-        info += bwrap(chroot_cmd(root) + ["modinfo", "--set-version", kver, "--null", *chunk],
-                      stdout=subprocess.PIPE).stdout.strip()
+        info += run(["modinfo", "--basedir", root, "--set-version", kver, "--null", *chunk],
+                    stdout=subprocess.PIPE).stdout.strip()
 
     log_step("Calculating required kernel modules and firmware")
 

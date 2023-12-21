@@ -2,13 +2,13 @@
 
 import os
 
+from mkosi.bubblewrap import apivfs_cmd
 from mkosi.config import ConfigFeature
 from mkosi.installer.apt import apt_cmd
 from mkosi.installer.dnf import dnf_cmd
 from mkosi.installer.pacman import pacman_cmd
 from mkosi.installer.rpm import rpm_cmd
 from mkosi.installer.zypper import zypper_cmd
-from mkosi.run import apivfs_cmd
 from mkosi.state import MkosiState
 from mkosi.tree import rmtree
 from mkosi.types import PathString
