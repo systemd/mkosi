@@ -2454,7 +2454,7 @@ def make_extension_image(state: MkosiState, output: Path) -> None:
         "--root", state.root,
         "--dry-run=no",
         "--no-pager",
-        "--offline=yes",
+        f"--offline={yes_no(state.config.repart_offline)}",
         "--seed", str(state.config.seed) if state.config.seed else "random",
         "--empty=create",
         "--size=auto",
