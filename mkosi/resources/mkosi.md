@@ -1490,13 +1490,20 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   | `cpio`                  | X      | X      | X      | X    | X        |
   | `curl`                  | X      | X      | X      | X    | X        |
   | `debian-keyring`        | X      | X      | X      | X    |          |
+  | `diffutils`             | X      | X      | X      | X    | X        |
   | `distribution-gpg-keys` | X      | X      |        |      | X        |
   | `dnf`                   | X      | X      | X      | X    | X        |
+  | `dnf-plugins-core`      | X      | X      |        |      | X        |
+  | `dnf5`                  | X      |        |        |      |          |
+  | `dnf5-plugins`          | X      |        |        |      |          |
   | `dosfstools`            | X      | X      | X      | X    | X        |
   | `e2fsprogs`             | X      | X      | X      | X    | X        |
   | `edk2-ovmf`             | X      | X      | X      | X    | X        |
   | `erofs-utils`           | X      |        | X      | X    | X        |
+  | `kmod`                  | X      | X      | X      | X    | X        |
+  | `less`                  | X      | X      | X      | X    | X        |
   | `mtools`                | X      | X      | X      | X    | X        |
+  | `nano`                  | X      | X      | X      | X    | X        |
   | `openssh`               | X      | X      | X      | X    | X        |
   | `openssl`               | X      | X      | X      | X    | X        |
   | `pacman`                | X      |        | X      | X    |          |
@@ -1510,6 +1517,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   | `systemd`               | X      | X      | X      | X    | X        |
   | `ukify`                 | X      |        | X      | X    | X        |
   | `tar`                   | X      | X      | X      | X    | X        |
+  | `ubuntu-keyring`        | X      | X      | X      | X    |          |
   | `util-linux`            | X      | X      | X      | X    | X        |
   | `virtiofsd`             | X      | X      |        | X    | X        |
   | `xfsprogs`              | X      | X      | X      | X    | X        |
