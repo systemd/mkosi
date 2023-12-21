@@ -65,13 +65,16 @@ def bwrap(
     cmd: Sequence[PathString],
     *,
     network: bool = False,
+    devices: bool = False,
     options: Sequence[PathString] = (),
     log: bool = True,
     scripts: Optional[Path] = None,
     env: Mapping[str, str] = {},
     stdin: _FILE = None,
     stdout: _FILE = None,
+    stderr: _FILE = None,
     input: Optional[str] = None,
+    check: bool = True,
 ) -> CompletedProcess:
     cmdline: list[PathString] = [
         "bwrap",
@@ -86,9 +89,16 @@ def bwrap(
         *(["--unshare-net"] if not network and have_effective_cap(Capability.CAP_NET_ADMIN) else []),
         "--die-with-parent",
         "--proc", "/proc",
-        "--dev", "/dev",
         "--setenv", "SYSTEMD_OFFLINE", one_zero(network),
     ]
+
+    if devices:
+        cmdline += [
+            "--bind", "/sys", "/sys",
+            "--dev-bind", "/dev", "/dev",
+        ]
+    else:
+        cmdline += ["--dev", "/dev"]
 
     for p in Path("/").iterdir():
         if p.is_symlink():
@@ -107,7 +117,16 @@ def bwrap(
         cmdline += [setpgid, "--foreground", "--"]
 
     try:
-        result = run([*cmdline, *cmd], env=env, log=False, stdin=stdin, stdout=stdout, input=input)
+        result = run(
+            [*cmdline, *cmd],
+            env=env,
+            log=False,
+            stdin=stdin,
+            stdout=stdout,
+            stderr=stderr,
+            input=input,
+            check=check,
+        )
     except subprocess.CalledProcessError as e:
         if log:
             log_process_failure([os.fspath(s) for s in cmd], e.returncode)

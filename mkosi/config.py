@@ -30,7 +30,7 @@ from typing import Any, Callable, Optional, TypeVar, Union, cast
 from mkosi.distributions import Distribution, detect_distribution
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, Style, die
 from mkosi.pager import page
-from mkosi.run import run, run_openssl
+from mkosi.run import run
 from mkosi.types import PathString, SupportsRead
 from mkosi.util import INVOKING_USER, StrEnum, chdir, flatten, is_power_of_2
 from mkosi.versioncomp import GenericVersion
@@ -3034,8 +3034,8 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
 
     if "ssh.authorized_keys.root" not in creds:
         if args.ssh_certificate:
-            pubkey = run_openssl(["x509", "-in", args.ssh_certificate, "-pubkey", "-noout"],
-                                 stdout=subprocess.PIPE).stdout.strip()
+            pubkey = run(["openssl", "x509", "-in", args.ssh_certificate, "-pubkey", "-noout"],
+                          stdout=subprocess.PIPE, env=dict(OPENSSL_CONF="/dev/null")).stdout.strip()
             sshpubkey = run(["ssh-keygen", "-f", "/dev/stdin", "-i", "-m", "PKCS8"],
                             input=pubkey, stdout=subprocess.PIPE).stdout.strip()
             creds["ssh.authorized_keys.root"] = sshpubkey

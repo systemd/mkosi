@@ -16,7 +16,6 @@ import shutil
 import signal
 import subprocess
 import sys
-import tempfile
 import threading
 from collections.abc import Awaitable, Collection, Iterator, Mapping, Sequence
 from pathlib import Path
@@ -435,8 +434,3 @@ class MkosiAsyncioThread(threading.Thread):
                 raise self.exc.get_nowait()
             except queue.Empty:
                 pass
-
-
-def run_openssl(args: Sequence[PathString], stdout: _FILE = None) -> CompletedProcess:
-    with tempfile.NamedTemporaryFile(prefix="mkosi-openssl.cnf") as config:
-        return run(["openssl", *args], stdout=stdout, env=dict(OPENSSL_CONF=config.name))
