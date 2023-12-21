@@ -239,7 +239,7 @@ def test_initrd_size(initrd: Image) -> None:
         Distribution.debian: 40,
         Distribution.ubuntu: 36,
         Distribution.arch: 47,
-        Distribution.opensuse: 36,
+        Distribution.opensuse: 39,
     }.get(initrd.config.distribution, 48)
 
     assert (Path(initrd.output_dir.name) / "initrd").stat().st_size <= maxsize

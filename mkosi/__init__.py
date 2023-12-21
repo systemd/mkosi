@@ -2058,20 +2058,7 @@ def run_depmod(state: MkosiState) -> None:
     if state.config.overlay or state.config.output_format.is_extension_image():
         return
 
-    outputs = (
-        "modules.dep",
-        "modules.dep.bin",
-        "modules.symbols",
-        "modules.symbols.bin",
-    )
-
     for kver, _ in gen_kernel_images(state):
-        if (
-            not state.config.kernel_modules_exclude and
-            all((state.root / "usr/lib/modules" / kver / o).exists() for o in outputs)
-        ):
-            continue
-
         process_kernel_modules(
             state.root, kver,
             state.config.kernel_modules_include,
@@ -2080,7 +2067,7 @@ def run_depmod(state: MkosiState) -> None:
         )
 
         with complete_step(f"Running depmod for {kver}"):
-            bwrap(chroot_cmd(state.root) + ["depmod", "--all", kver])
+            run(["depmod", "--all", "--basedir", state.root, kver])
 
 
 def run_sysusers(state: MkosiState) -> None:
