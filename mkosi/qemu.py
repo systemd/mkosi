@@ -166,7 +166,10 @@ def find_qemu_binary(config: MkosiConfig) -> str:
 
 def find_ovmf_firmware(config: MkosiConfig) -> tuple[Path, bool]:
     FIRMWARE_LOCATIONS = {
-        Architecture.x86_64: ["/usr/share/ovmf/x64/OVMF_CODE.secboot.fd"],
+        Architecture.x86_64: [
+            "/usr/share/ovmf/x64/OVMF_CODE.secboot.fd",
+            "/usr/share/qemu/ovmf-x86_64.smm.bin",
+        ],
         Architecture.x86: [
             "/usr/share/edk2/ovmf-ia32/OVMF_CODE.secboot.fd",
             "/usr/share/OVMF/OVMF32_CODE_4M.secboot.fd"
@@ -229,7 +232,10 @@ def find_ovmf_vars(config: MkosiConfig) -> Path:
     OVMF_VARS_LOCATIONS = []
 
     if config.architecture == Architecture.x86_64:
-        OVMF_VARS_LOCATIONS += ["/usr/share/ovmf/x64/OVMF_VARS.fd"]
+        OVMF_VARS_LOCATIONS += [
+            "/usr/share/ovmf/x64/OVMF_VARS.fd",
+            "/usr/share/qemu/ovmf-x86_64-vars.bin",
+        ]
     elif config.architecture == Architecture.x86:
         OVMF_VARS_LOCATIONS += [
             "/usr/share/edk2/ovmf-ia32/OVMF_VARS.fd",
