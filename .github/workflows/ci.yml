@@ -115,14 +115,6 @@ jobs:
             tools: opensuse
           - distro: ubuntu
             tools: opensuse
-          # Installing dnf in OpenSUSE images is broken until https://build.opensuse.org/request/show/1133852 shows up
-          # in the Tumbleweed repositories.
-          - distro: centos
-            tools: opensuse
-          - distro: fedora
-            tools: opensuse
-          - distro: opensuse
-            tools: opensuse
           # Debian test_boot[cpio] is super flaky on these combinations until the next v255 stable release with
           # https://github.com/systemd/systemd/pull/30511 is available in Debian unstable.
           - distro: debian
