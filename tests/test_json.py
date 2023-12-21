@@ -246,6 +246,7 @@ def test_config() -> None:
                     "target": "/qux"
                 }
             ],
+            "SELinuxRelabel": "disabled",
             "SectorSize": null,
             "SecureBoot": true,
             "SecureBootAutoEnroll": true,
@@ -386,6 +387,7 @@ def test_config() -> None:
         secure_boot_key = Path("/path/to/keyfile"),
         secure_boot_sign_tool = SecureBootSignTool.pesign,
         seed = uuid.UUID("7496d7d8-7f08-4a2b-96c6-ec8c43791b60"),
+        selinux_relabel = ConfigFeature.disabled,
         shim_bootloader = ShimBootloader.none,
         sign = False,
         sign_expected_pcr = ConfigFeature.disabled,

@@ -1936,10 +1936,16 @@ def systemd_tool_version(tool: PathString) -> GenericVersion:
     return GenericVersion(run([tool, "--version"], stdout=subprocess.PIPE).stdout.split()[2].strip("()"))
 
 
-def check_systemd_tool(*tools: PathString, version: str, reason: str, hint: Optional[str] = None) -> None:
+def check_tool(*tools: PathString, reason: str, hint: Optional[str] = None) -> Path:
     tool = find_binary(*tools)
     if not tool:
         die(f"Could not find '{tools[0]}' which is required to {reason}.", hint=hint)
+
+    return tool
+
+
+def check_systemd_tool(*tools: PathString, version: str, reason: str, hint: Optional[str] = None) -> None:
+    tool = check_tool(*tools, reason=reason, hint=hint)
 
     v = systemd_tool_version(tool)
     if v < version:
@@ -1959,6 +1965,9 @@ def check_tools(verb: Verb, config: MkosiConfig) -> None:
 
         if config.output_format in (OutputFormat.disk, OutputFormat.esp):
             check_systemd_tool("systemd-repart", version="254", reason="build disk images")
+
+        if config.selinux_relabel == ConfigFeature.enabled:
+            check_tool("setfiles", reason="relabel files")
 
     if verb == Verb.boot:
         check_systemd_tool("systemd-nspawn", version="254", reason="boot images")
@@ -2157,12 +2166,19 @@ def run_firstboot(state: MkosiState) -> None:
 
 
 def run_selinux_relabel(state: MkosiState) -> None:
+    if state.config.selinux_relabel == ConfigFeature.disabled:
+        return
+
     selinux = state.root / "etc/selinux/config"
     if not selinux.exists():
+        if state.config.selinux_relabel == ConfigFeature.enabled:
+            die("SELinux relabel is requested but could not find selinux config at /etc/selinux/config")
         return
 
     policy = run(["sh", "-c", f". {selinux} && echo $SELINUXTYPE"], stdout=subprocess.PIPE).stdout.strip()
     if not policy:
+        if state.config.selinux_relabel == ConfigFeature.enabled:
+            die("SELinux relabel is requested but no selinux policy is configured in /etc/selinux/config")
         return
 
     if not shutil.which("setfiles"):
@@ -2180,7 +2196,8 @@ def run_selinux_relabel(state: MkosiState) -> None:
         die(f"SELinux binary policy not found in {binpolicydir}")
 
     with complete_step(f"Relabeling files using {policy} policy"):
-        run(["setfiles", "-mFr", state.root, "-c", binpolicy, fc, state.root])
+        run(["setfiles", "-mFr", state.root, "-c", binpolicy, fc, state.root],
+            check=state.config.selinux_relabel == ConfigFeature.enabled)
 
 
 def need_build_overlay(config: MkosiConfig) -> bool:
