@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1+
+import contextlib
 import enum
 import logging
 import os
@@ -9,7 +10,7 @@ from pathlib import Path
 from typing import Optional
 
 from mkosi.log import ARG_DEBUG_SHELL
-from mkosi.mounts import finalize_passwd_mounts
+from mkosi.mounts import finalize_passwd_mounts, mount_overlay
 from mkosi.run import find_binary, log_process_failure, run
 from mkosi.state import MkosiState
 from mkosi.types import _FILE, CompletedProcess, PathString
@@ -142,24 +143,27 @@ def bwrap(
         cmdline += [setpgid, "--foreground", "--"]
 
     try:
-        result = run(
-            [*cmdline, *cmd],
-            env=env,
-            log=False,
-            stdin=stdin,
-            stdout=stdout,
-            stderr=stderr,
-            input=input,
-            check=check,
-        )
+        with (
+            mount_overlay([Path("/usr"), state.pkgmngr / "usr"], where=Path("/usr"), lazy=True)
+            if (state.pkgmngr / "usr").exists()
+            else contextlib.nullcontext()
+        ):
+            return run(
+                [*cmdline, *cmd],
+                env=env,
+                log=False,
+                stdin=stdin,
+                stdout=stdout,
+                stderr=stderr,
+                input=input,
+                check=check,
+            )
     except subprocess.CalledProcessError as e:
         if log:
             log_process_failure([os.fspath(s) for s in cmd], e.returncode)
         if ARG_DEBUG_SHELL.get():
             run([*cmdline, "sh"], stdin=sys.stdin, check=False, env=env, log=False)
         raise e
-
-    return result
 
 
 def apivfs_cmd(root: Path) -> list[PathString]:
