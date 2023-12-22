@@ -1292,15 +1292,19 @@ def install_skeleton_trees(state: MkosiState) -> None:
 
 
 def install_package_manager_trees(state: MkosiState) -> None:
+    # Ensure /etc exists in the package manager tree
+    (state.pkgmngr / "etc").mkdir(exist_ok=True)
+
+    # Required to be able to access certificates in the sandbox when running from nix.
+    if Path("/etc/static").is_symlink():
+        (state.pkgmngr / "etc/static").symlink_to(Path("/etc/static").readlink())
+
     if not state.config.package_manager_trees:
         return
 
     with complete_step("Copying in package manager file trees…"):
         for tree in state.config.package_manager_trees:
             install_tree(state, tree.source, state.workspace / "pkgmngr", tree.target)
-
-    # Ensure /etc exists in the package manager tree
-    (state.pkgmngr / "etc").mkdir(exist_ok=True)
 
 
 def install_extra_trees(state: MkosiState) -> None:
