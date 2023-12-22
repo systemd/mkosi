@@ -20,7 +20,6 @@ def dnf_executable(state: MkosiState) -> str:
 def setup_dnf(state: MkosiState, repositories: Iterable[RpmRepository], filelists: bool = True) -> None:
     (state.pkgmngr / "etc/dnf/vars").mkdir(exist_ok=True, parents=True)
     (state.pkgmngr / "etc/yum.repos.d").mkdir(exist_ok=True, parents=True)
-    (state.pkgmngr / "var/lib/dnf").mkdir(exist_ok=True, parents=True)
 
     config = state.pkgmngr / "etc/dnf/dnf.conf"
 
@@ -71,18 +70,13 @@ def dnf_cmd(state: MkosiState) -> list[PathString]:
     cmdline: list[PathString] = [
         "env",
         "HOME=/", # Make sure rpm doesn't pick up ~/.rpmmacros and ~/.rpmrc.
-        f"RPM_CONFIGDIR={state.pkgmngr / 'usr/lib/rpm'}",
         dnf,
         "--assumeyes",
-        f"--config={state.pkgmngr / 'etc/dnf/dnf.conf'}",
         "--best",
         f"--releasever={state.config.release}",
         f"--installroot={state.root}",
         "--setopt=keepcache=1",
         f"--setopt=cachedir={state.cache_dir / ('libdnf5' if dnf.endswith('dnf5') else 'dnf')}",
-        f"--setopt=reposdir={state.pkgmngr / 'etc/yum.repos.d'}",
-        f"--setopt=varsdir={state.pkgmngr / 'etc/dnf/vars'}",
-        f"--setopt=persistdir={state.pkgmngr / 'var/lib/dnf'}",
         f"--setopt=install_weak_deps={int(state.config.with_recommends)}",
         "--setopt=check_config_file_age=0",
         "--disable-plugin=*" if dnf.endswith("dnf5") else "--disableplugin=*",
@@ -105,6 +99,16 @@ def dnf_cmd(state: MkosiState) -> list[PathString]:
 
     if not state.config.with_docs:
         cmdline += ["--no-docs" if dnf.endswith("dnf5") else "--nodocs"]
+
+    if dnf.endswith("dnf5"):
+        cmdline += ["--use-host-config"]
+    else:
+        cmdline += [
+            "--config=/etc/dnf/dnf.conf",
+            "--setopt=reposdir=/etc/yum.repos.d",
+            "--setopt=varsdir=/etc/dnf/vars",
+            "--setopt=persistdir=/var/lib/dnf",
+        ]
 
     return cmdline
 

@@ -596,15 +596,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 : `mkosi` will look for the package manager configuration and related
   files in the configured package manager trees. Unless specified
   otherwise, it will use the configuration file from its canonical
-  location in the package manager trees. For example, it will look for
-  `etc/dnf/dnf.conf` in the package manager trees if `dnf` is used to
-  install packages.
-
-: Extra rpm configuration should be put in `usr/lib/rpm` in the package
-  manager trees. Any configuration in `etc/rpm` will be ignored. The
-  extra configuration in `usr/lib/rpm` should mimick the layout of
-  `usr/lib/rpm` on the host. For example, extra macro files should go in
-  `usr/lib/rpm/macros.d` in the package manager trees.
+  location in `/etc` in the package manager trees. For example, it will
+  look for `etc/dnf/dnf.conf` in the package manager trees if `dnf` is
+  used to install packages.
 
 : `SkeletonTrees=` and `PackageManagerTrees=` fulfill similar roles. Use
   `SkeletonTrees=` if you want the files to be present in the final image. Use

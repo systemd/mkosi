@@ -8,7 +8,7 @@ from typing import NamedTuple, Optional
 
 from mkosi.bubblewrap import bwrap
 from mkosi.state import MkosiState
-from mkosi.tree import copy_tree, rmtree
+from mkosi.tree import rmtree
 from mkosi.types import PathString
 
 
@@ -23,29 +23,28 @@ class RpmRepository(NamedTuple):
 
 
 def find_rpm_gpgkey(state: MkosiState, key: str, url: str) -> str:
-    for gpgdir in ("usr/share/distribution-gpg-keys", "etc/pki/rpm-gpg"):
-        for root in (state.pkgmngr, state.root, Path("/")):
-            gpgpath = next((root / Path(gpgdir)).rglob(key), None)
-            if gpgpath:
-                return f"file://{gpgpath}"
+    gpgpath = next(Path("/usr/share/distribution-gpg-keys").rglob(key), None)
+    if gpgpath:
+        return f"file://{gpgpath}"
+
+    gpgpath = next(Path(state.pkgmngr / "etc/pki/rpm-gpg").rglob(key), None)
+    if gpgpath:
+        return f"file://{Path('/') / gpgpath.relative_to(state.pkgmngr)}"
 
     return url
 
 
 def setup_rpm(state: MkosiState) -> None:
-    macros = state.pkgmngr / "usr/lib/rpm/macros.d"
-    macros.mkdir(parents=True, exist_ok=True)
-    if not (macros / "macros.lang").exists() and state.config.locale:
-        (macros / "macros.lang").write_text(f"%_install_langs {state.config.locale}")
+    confdir = state.pkgmngr / "etc/rpm"
+    confdir.mkdir(parents=True, exist_ok=True)
+    if not (confdir / "macros.lang").exists() and state.config.locale:
+        (confdir / "macros.lang").write_text(f"%_install_langs {state.config.locale}")
 
-    rpmplugindir = Path(bwrap(state, ["rpm", "--eval", "%{__plugindir}"], stdout=subprocess.PIPE).stdout.strip())
-    if rpmplugindir.exists():
-        with (macros / "macros.disable-plugins").open("w") as f:
-            for plugin in rpmplugindir.iterdir():
+    plugindir = Path(bwrap(state, ["rpm", "--eval", "%{__plugindir}"], stdout=subprocess.PIPE).stdout.strip())
+    if plugindir.exists():
+        with (confdir / "macros.disable-plugins").open("w") as f:
+            for plugin in plugindir.iterdir():
                 f.write(f"%__transaction_{plugin.stem} %{{nil}}\n")
-
-    rpmconfigdir = Path(bwrap(state, ["rpm", "--eval", "%{_rpmconfigdir}"], stdout=subprocess.PIPE).stdout.strip())
-    copy_tree(rpmconfigdir, state.pkgmngr / "usr/lib/rpm", clobber=False, use_subvolumes=state.config.use_subvolumes)
 
 
 def fixup_rpmdb_location(root: Path) -> None:
@@ -66,4 +65,4 @@ def fixup_rpmdb_location(root: Path) -> None:
 
 
 def rpm_cmd(state: MkosiState) -> list[PathString]:
-    return ["env", "HOME=/", f"RPM_CONFIGDIR={state.pkgmngr / 'usr/lib/rpm'}", "rpm", "--root", state.root]
+    return ["env", "HOME=/", "rpm", "--root", state.root]

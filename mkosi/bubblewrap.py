@@ -33,15 +33,34 @@ def have_effective_cap(capability: Capability) -> bool:
     return (int(hexcap, 16) & (1 << capability.value)) != 0
 
 
-def finalize_mounts(state: MkosiState) -> list[PathString]:
+def finalize_mounts(state: MkosiState) -> list[str]:
     mounts = [
+        (state.pkgmngr / subdir, Path("/") / subdir, True)
+        for subdir in (
+            Path("etc/apt"),
+            Path("etc/rpm"),
+            Path("etc/dnf"),
+            Path("etc/pacman.conf"),
+            Path("etc/pacman.d"),
+            Path("etc/zypp"),
+            Path("etc/yum.repos.d"),
+        )
+        if (state.pkgmngr / subdir).exists()
+    ]
+
+    dirs = [
+        "/var/log/apt",
+        "/var/lib/dnf",
+    ]
+
+    mounts += [
         ((state.config.tools_tree or Path("/")) / subdir, Path("/") / subdir, True)
         for subdir in (
             Path("etc/pki"),
             Path("etc/ssl"),
             Path("etc/crypto-policies"),
             Path("etc/ca-certificates"),
-            Path("etc/pacman.d"),
+            Path("etc/pacman.d/gnupg"),
             Path("var/lib/ca-certificates"),
         )
         if ((state.config.tools_tree or Path("/")) / subdir).exists()
@@ -54,10 +73,10 @@ def finalize_mounts(state: MkosiState) -> list[PathString]:
     ]
 
     return flatten(
-        ["--ro-bind" if readonly else "--bind", src, target]
+        ["--ro-bind" if readonly else "--bind", os.fspath(src), os.fspath(target)]
         for src, target, readonly
         in sorted(set(mounts), key=lambda s: s[1])
-    )
+    ) + flatten(["--dir", d] for d in dirs)
 
 
 def bwrap(
