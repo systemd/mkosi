@@ -1921,7 +1921,11 @@ def unlink_output(args: MkosiArgs, config: MkosiConfig) -> None:
     if remove_package_cache:
         if config.cache_dir and config.cache_dir.exists() and any(config.cache_dir.iterdir()):
             with complete_step("Clearing out package cache…"):
-                empty_directory(config.cache_dir)
+                rmtree(*(
+                    config.cache_dir / p / d
+                    for p in ("cache", "lib")
+                    for d in ("apt", "dnf", "libdnf5", "pacman", "zypp")
+                ))
 
 
 def cache_tree_paths(config: MkosiConfig) -> tuple[Path, Path, Path]:

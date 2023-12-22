@@ -104,7 +104,7 @@ def main() -> None:
         "--format", str(format),
         "--output", output,
         "--workspace-dir=/var/tmp",
-        "--cache-dir=/var/cache",
+        "--cache-dir=/var",
         "--output-dir", context.staging_area,
         "--extra-tree", f"/usr/lib/modules/{context.kernel_version}:/usr/lib/modules/{context.kernel_version}",
         "--extra-tree=/usr/lib/firmware:/usr/lib/firmware",
