@@ -2213,11 +2213,6 @@ Note that despite the name, qemu's `-append` option replaces
 the default kernel commandline embedded in the kernel
 and any previous `-append` specifications.
 
-`mkosi` builds a Unified Kernel Image (UKI).
-Further customization, e.g. a splash image, can be applied using a configuration
-for `ukify` in `/etc/kernel/uki.conf` inside the skeleton tree.
-`ukify` is run from the same working directory as mkosi itself.
-
 The UKI is also copied into the output directory and may be booted directly:
 ```console
 $ mkosi qemu -kernel mkosi.output/fedora~38/image.efi

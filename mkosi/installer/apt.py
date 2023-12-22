@@ -69,6 +69,7 @@ def apt_cmd(state: MkosiState, command: str) -> list[PathString]:
         "-o", f"Dir::State={state.cache_dir / 'apt'}",
         "-o", f"Dir::State::Status={state.root / 'var/lib/dpkg/status'}",
         "-o", f"Dir::Etc::Trusted={trustedkeys}",
+        "-o", f"Dir::Log={state.workspace}",
         "-o", f"Dir::Bin::DPkg={shutil.which('dpkg')}",
         "-o", "Debug::NoLocking=true",
         "-o", f"DPkg::Options::=--root={state.root}",
