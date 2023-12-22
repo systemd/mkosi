@@ -808,7 +808,7 @@ def install_systemd_boot(state: MkosiState) -> None:
         bwrap(
             state,
             ["bootctl", "install", "--root", state.root, "--all-architectures", "--no-variables"],
-            env={"SYSTEMD_ESP_PATH": "/efi", "SYSTEMD_LOG_LEVEL": "debug"},
+            env={"SYSTEMD_ESP_PATH": "/efi"},
         )
 
         if state.config.shim_bootloader != ShimBootloader.none:
