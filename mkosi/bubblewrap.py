@@ -111,9 +111,6 @@ def bwrap(
         if p.is_symlink():
             cmdline += ["--symlink", p.readlink(), p]
 
-    if Path("/etc/static").is_symlink():
-        cmdline += ["--symlink", Path("/etc/static").readlink(), "/etc/static"]
-
     if network:
         cmdline += ["--bind", "/etc/resolv.conf", "/etc/resolv.conf"]
 
