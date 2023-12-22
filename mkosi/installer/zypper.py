@@ -57,12 +57,11 @@ def setup_zypper(state: MkosiState, repos: Sequence[RpmRepository]) -> None:
 def zypper_cmd(state: MkosiState) -> list[PathString]:
     return [
         "env",
-        f"ZYPP_CONF={state.pkgmngr / 'etc/zypp/zypp.conf'}",
-        f"RPM_CONFIGDIR={state.pkgmngr / 'usr/lib/rpm'}",
+        "ZYPP_CONF=/etc/zypp/zypp.conf",
+        "HOME=/",
         "zypper",
-        f"--root={state.root}",
+        f"--installroot={state.root}",
         f"--cache-dir={state.cache_dir / 'zypp'}",
-        f"--reposd-dir={state.pkgmngr / 'etc/zypp/repos.d'}",
         "--gpg-auto-import-keys" if state.config.repository_key_check else "--no-gpg-checks",
         "--non-interactive",
     ]

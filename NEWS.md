@@ -53,8 +53,7 @@
 - Implemented `WithDocs=` for `apt`.
 - On supported package managers, locale data for other locales is now
   stripped if the local is explicitly configured using `Locale=`.
-- `rpm` can now be configured in package manager trees in
-  `/usr/lib/rpm`.
+- `rpm` can now be configured in package manager trees in `/etc/rpm`.
 - All `rpm` plugins are now disabled when building images.
 - Added `KernelModulesIncludeHost=` and
   `KernelModulesInitrdIncludeHost=` to only include modules loaded on
