@@ -79,6 +79,7 @@ def bwrap(
     cmdline: list[PathString] = [
         "bwrap",
         "--ro-bind", "/usr", "/usr",
+        "--ro-bind-try", "/nix/store", "/nix/store",
         "--bind", "/var/tmp", "/var/tmp",
         "--bind", "/tmp", "/tmp",
         "--bind", Path.cwd(), Path.cwd(),
