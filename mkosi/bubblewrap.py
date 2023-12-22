@@ -100,6 +100,7 @@ def bwrap(
     cmdline: list[PathString] = [
         "bwrap",
         "--ro-bind", "/usr", "/usr",
+        "--ro-bind-try", "/nix/store", "/nix/store",
         "--bind", "/var/tmp", "/var/tmp",
         "--bind", "/tmp", "/tmp",
         "--bind", Path.cwd(), Path.cwd(),
@@ -124,6 +125,9 @@ def bwrap(
     for p in Path("/").iterdir():
         if p.is_symlink():
             cmdline += ["--symlink", p.readlink(), p]
+
+    if Path("/etc/static").is_symlink():
+        cmdline += ["--symlink", Path("/etc/static").readlink(), "/etc/static"]
 
     if network:
         cmdline += ["--bind", "/etc/resolv.conf", "/etc/resolv.conf"]
