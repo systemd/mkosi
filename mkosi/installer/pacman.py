@@ -26,6 +26,8 @@ def setup_pacman(state: MkosiState, repositories: Iterable[PacmanRepository]) ->
     with umask(~0o755):
         (state.root / "var/lib/pacman").mkdir(exist_ok=True, parents=True)
 
+    (state.cache_dir / "cache/pacman/pkg").mkdir(parents=True, exist_ok=True)
+
     config = state.pkgmngr / "etc/pacman.conf"
     if config.exists():
         return
@@ -67,14 +69,11 @@ def setup_pacman(state: MkosiState, repositories: Iterable[PacmanRepository]) ->
 
 
 def pacman_cmd(state: MkosiState) -> list[PathString]:
-    with umask(~0o755):
-        (state.cache_dir / "pacman/pkg").mkdir(parents=True, exist_ok=True)
-
     return [
         "pacman",
         "--root", state.root,
         "--logfile=/dev/null",
-        "--cachedir", state.cache_dir / "pacman/pkg",
+        "--cachedir", state.cache_dir / "cache/pacman/pkg",
         "--hookdir", state.root / "etc/pacman.d/hooks",
         "--arch", state.config.distribution.architecture(state.config.architecture),
         "--color", "auto",

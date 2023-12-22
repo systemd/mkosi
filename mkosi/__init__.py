@@ -1299,6 +1299,9 @@ def install_package_manager_trees(state: MkosiState) -> None:
         for tree in state.config.package_manager_trees:
             install_tree(state, tree.source, state.workspace / "pkgmngr", tree.target)
 
+    # Ensure /etc exists in the package manager tree
+    (state.pkgmngr / "etc").mkdir(exist_ok=True)
+
 
 def install_extra_trees(state: MkosiState) -> None:
     if not state.config.extra_trees:
@@ -1552,11 +1555,6 @@ def build_uki(
     if not state.config.tools_tree:
         for p in state.config.extra_search_paths:
             cmd += ["--tools", p]
-
-    for d in ("etc/kernel", "usr/lib/kernel"):
-        uki_config = state.pkgmngr / d / "uki.conf"
-        if uki_config.exists():
-            cmd += ["--config", uki_config]
 
     if state.config.secure_boot:
         assert state.config.secure_boot_key
@@ -1923,7 +1921,11 @@ def unlink_output(args: MkosiArgs, config: MkosiConfig) -> None:
     if remove_package_cache:
         if config.cache_dir and config.cache_dir.exists() and any(config.cache_dir.iterdir()):
             with complete_step("Clearing out package cache…"):
-                empty_directory(config.cache_dir)
+                rmtree(*(
+                    config.cache_dir / p / d
+                    for p in ("cache", "lib")
+                    for d in ("apt", "dnf", "libdnf5", "pacman", "zypp")
+                ))
 
 
 def cache_tree_paths(config: MkosiConfig) -> tuple[Path, Path, Path]:

@@ -75,6 +75,7 @@ def mount_overlay(
     lowerdirs: Sequence[Path],
     upperdir: Optional[Path] = None,
     where: Optional[Path] = None,
+    lazy: bool = False,
 ) -> Iterator[Path]:
     with contextlib.ExitStack() as stack:
         if upperdir is None:
@@ -114,7 +115,7 @@ def mount_overlay(
             options.append("userxattr")
 
         try:
-            with mount("overlay", where, options=options, type="overlay"):
+            with mount("overlay", where, options=options, type="overlay", lazy=lazy):
                 yield where
         finally:
             delete_whiteout_files(upperdir)

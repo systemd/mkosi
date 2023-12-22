@@ -595,10 +595,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 : `mkosi` will look for the package manager configuration and related
   files in the configured package manager trees. Unless specified
-  otherwise, it will use the configuration file from its canonical
-  location in `/etc` in the package manager trees. For example, it will
-  look for `etc/dnf/dnf.conf` in the package manager trees if `dnf` is
-  used to install packages.
+  otherwise, it will use the configuration files from their canonical
+  locations in `/usr` or `/etc` in the package manager trees. For
+  example, it will look for `etc/dnf/dnf.conf` in the package manager
+  trees if `dnf` is used to install packages.
 
 : `SkeletonTrees=` and `PackageManagerTrees=` fulfill similar roles. Use
   `SkeletonTrees=` if you want the files to be present in the final image. Use
@@ -2212,11 +2212,6 @@ easier to experiment with different kernels and kernel commandlines.
 Note that despite the name, qemu's `-append` option replaces
 the default kernel commandline embedded in the kernel
 and any previous `-append` specifications.
-
-`mkosi` builds a Unified Kernel Image (UKI).
-Further customization, e.g. a splash image, can be applied using a configuration
-for `ukify` in `/etc/kernel/uki.conf` inside the skeleton tree.
-`ukify` is run from the same working directory as mkosi itself.
 
 The UKI is also copied into the output directory and may be booted directly:
 ```console

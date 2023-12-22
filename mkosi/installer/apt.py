@@ -20,6 +20,9 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
         (state.root / "var/lib/dpkg").mkdir(parents=True, exist_ok=True)
         (state.root / "var/lib/dpkg/status").touch()
 
+    (state.cache_dir / "lib/apt").mkdir(exist_ok=True, parents=True)
+    (state.cache_dir / "cache/apt").mkdir(exist_ok=True, parents=True)
+
     # We have a special apt.conf outside of pkgmngr dir that only configures "Dir::Etc" that we pass to APT_CONFIG to
     # tell apt it should read config files from /etc/apt in case this is overridden by distributions. This is required
     # because apt parses CLI configuration options after parsing its configuration files and as such we can't use CLI
@@ -65,10 +68,11 @@ def apt_cmd(state: MkosiState, command: str) -> list[PathString]:
         "-o", "APT::Get::Allow-Change-Held-Packages=true",
         "-o", "APT::Get::Allow-Remove-Essential=true",
         "-o", "APT::Sandbox::User=root",
-        "-o", f"Dir::Cache={state.cache_dir / 'apt'}",
-        "-o", f"Dir::State={state.cache_dir / 'apt'}",
+        "-o", f"Dir::Cache={state.cache_dir / 'cache/apt'}",
+        "-o", f"Dir::State={state.cache_dir / 'lib/apt'}",
         "-o", f"Dir::State::Status={state.root / 'var/lib/dpkg/status'}",
         "-o", f"Dir::Etc::Trusted={trustedkeys}",
+        "-o", f"Dir::Log={state.workspace}",
         "-o", f"Dir::Bin::DPkg={shutil.which('dpkg')}",
         "-o", "Debug::NoLocking=true",
         "-o", f"DPkg::Options::=--root={state.root}",
