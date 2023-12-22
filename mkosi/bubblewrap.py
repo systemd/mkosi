@@ -53,6 +53,8 @@ def finalize_mounts(state: MkosiState) -> list[PathString]:
         if d
     ]
 
+    mounts += [(d, d, True) for d in state.config.extra_search_paths]
+
     return flatten(
         ["--ro-bind" if readonly else "--bind", src, target]
         for src, target, readonly
