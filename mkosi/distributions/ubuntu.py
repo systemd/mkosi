@@ -26,18 +26,20 @@ class Installer(debian.Installer):
         else:
             mirror = state.config.mirror or "http://ports.ubuntu.com"
 
+        signedby = "[signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg]"
+
         # From kinetic onwards, the usr-is-merged package is available in universe and is required by
         # mkosi to set up a proper usr-merged system so we add the universe repository unconditionally.
         components = ["main"] + (["universe"] if state.config.release not in ("focal", "jammy") else [])
         components = ' '.join((*components, *state.config.repositories))
 
         repos = [
-            f"{archive} {mirror} {state.config.release} {components}"
+            f"{archive} {signedby} {mirror} {state.config.release} {components}"
             for archive in archives
         ]
 
         repos += [
-            f"{archive} {mirror} {state.config.release}-updates {components}"
+            f"{archive} {signedby} {mirror} {state.config.release}-updates {components}"
             for archive in archives
         ]
 
@@ -48,7 +50,7 @@ class Installer(debian.Installer):
             mirror = "http://ports.ubuntu.com/"
 
         repos += [
-            f"{archive} {mirror} {state.config.release}-security {components}"
+            f"{archive} {signedby} {mirror} {state.config.release}-security {components}"
             for archive in archives
         ]
 
