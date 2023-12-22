@@ -47,11 +47,6 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
 def apt_cmd(state: MkosiState, command: str) -> list[PathString]:
     debarch = state.config.distribution.architecture(state.config.architecture)
 
-    trustedkeys = state.pkgmngr / "etc/apt/trusted.gpg"
-    trustedkeys = (
-        trustedkeys if trustedkeys.exists() else f"/usr/share/keyrings/{state.config.distribution}-archive-keyring.gpg"
-    )
-
     cmdline: list[PathString] = [
         "env",
         f"APT_CONFIG={state.workspace / 'apt.conf'}",
@@ -71,7 +66,6 @@ def apt_cmd(state: MkosiState, command: str) -> list[PathString]:
         "-o", f"Dir::Cache={state.cache_dir / 'cache/apt'}",
         "-o", f"Dir::State={state.cache_dir / 'lib/apt'}",
         "-o", f"Dir::State::Status={state.root / 'var/lib/dpkg/status'}",
-        "-o", f"Dir::Etc::Trusted={trustedkeys}",
         "-o", f"Dir::Log={state.workspace}",
         "-o", f"Dir::Bin::DPkg={shutil.which('dpkg')}",
         "-o", "Debug::NoLocking=true",

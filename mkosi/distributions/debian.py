@@ -45,26 +45,29 @@ class Installer(DistributionInstaller):
             return [f"deb [trusted=yes] {state.config.local_mirror} {state.config.release} {components}"]
 
         mirror = state.config.mirror or "http://deb.debian.org/debian"
+        signedby = "[signed-by=/usr/share/keyrings/debian-archive-keyring.gpg]"
 
         repos = [
-            f"{archive} {mirror} {state.config.release} {components}"
+            f"{archive} {signedby} {mirror} {state.config.release} {components}"
             for archive in archives
         ]
 
         # Debug repos are typically not mirrored.
-        repos += [f"deb http://deb.debian.org/debian-debug {state.config.release}-debug {components}"]
+        url = "http://deb.debian.org/debian-debug"
+        repos += [f"deb {signedby} {url} {state.config.release}-debug {components}"]
 
         if state.config.release in ("unstable", "sid"):
             return repos
 
         repos += [
-            f"{archive} {mirror} {state.config.release}-updates {components}"
+            f"{archive} {signedby} {mirror} {state.config.release}-updates {components}"
             for archive in archives
         ]
 
-        # Security updates repos are never mirrored
+        # Security updates repos are never mirrored.
+        url = "http://security.debian.org/debian-security "
         repos += [
-            f"{archive} http://security.debian.org/debian-security {state.config.release}-security {components}"
+            f"{archive} {signedby} {url} {state.config.release}-security {components}"
             for archive in archives
         ]
 
