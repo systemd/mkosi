@@ -2641,6 +2641,7 @@ def make_image(
     msg: str,
     skip: Sequence[str] = [],
     split: bool = False,
+    tabs: bool = False,
     root: Optional[Path] = None,
     definitions: Sequence[Path] = [],
 ) -> list[Partition]:
@@ -2652,7 +2653,7 @@ def make_image(
         "--json=pretty",
         "--no-pager",
         f"--offline={yes_no(context.config.repart_offline)}",
-        "--seed", str(context.config.seed) if context.config.seed else "random",
+        "--seed", str(context.config.seed),
         context.staging / context.config.output_with_format,
     ]
     options: list[PathString] = ["--bind", context.staging, context.staging]
@@ -2679,6 +2680,11 @@ def make_image(
         cmdline += ["--split=yes"]
     if context.config.sector_size:
         cmdline += ["--sector-size", str(context.config.sector_size)]
+    if tabs and systemd_tool_version(context.config, "systemd-repart") >= 256:
+        cmdline += [
+            "--generate-fstab=/etc/fstab",
+            "--generate-crypttab=/etc/crypttab",
+        ]
 
     for d in definitions:
         cmdline += ["--definitions", d]
@@ -2711,6 +2717,7 @@ def make_disk(
     msg: str,
     skip: Sequence[str] = [],
     split: bool = False,
+    tabs: bool = False,
 ) -> list[Partition]:
     if context.config.output_format != OutputFormat.disk:
         return []
@@ -2777,7 +2784,7 @@ def make_disk(
 
         definitions = [defaults]
 
-    return make_image(context, msg=msg, skip=skip, split=split, root=context.root, definitions=definitions)
+    return make_image(context, msg=msg, skip=skip, split=split, tabs=tabs, root=context.root, definitions=definitions)
 
 
 def make_esp(context: Context, uki: Path) -> list[Partition]:
@@ -3041,7 +3048,7 @@ def build_image(context: Context) -> None:
         run_finalize_scripts(context)
 
     normalize_mtime(context.root, context.config.source_date_epoch)
-    partitions = make_disk(context, skip=("esp", "xbootldr"), msg="Generating disk image")
+    partitions = make_disk(context, skip=("esp", "xbootldr"), tabs=True, msg="Generating disk image")
     install_uki(context, partitions)
     prepare_grub_efi(context)
     prepare_grub_bios(context, partitions)

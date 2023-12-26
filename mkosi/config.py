@@ -1209,7 +1209,7 @@ class Config:
     repart_offline: bool
     overlay: bool
     use_subvolumes: ConfigFeature
-    seed: Optional[uuid.UUID]
+    seed: uuid.UUID
 
     packages: list[str]
     build_packages: list[str]
@@ -1850,6 +1850,7 @@ SETTINGS = (
         metavar="UUID",
         section="Output",
         parse=config_parse_seed,
+        default=uuid.uuid4(),
         help="Set the seed for systemd-repart",
     ),
 
@@ -3639,8 +3640,8 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
     def path_list_transformer(pathlist: list[str], fieldtype: type[list[Path]]) -> list[Path]:
         return [Path(p) for p in pathlist]
 
-    def optional_uuid_transformer(optuuid: Optional[str], fieldtype: type[Optional[uuid.UUID]]) -> Optional[uuid.UUID]:
-        return uuid.UUID(optuuid) if optuuid is not None else None
+    def uuid_transformer(uuidstr: str, fieldtype: type[uuid.UUID]) -> uuid.UUID:
+        return uuid.UUID(uuidstr)
 
     def root_password_transformer(
         rootpw: Optional[list[Union[str, bool]]], fieldtype: type[Optional[tuple[str, bool]]]
@@ -3704,7 +3705,7 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         Path: path_transformer,
         Optional[Path]: optional_path_transformer,
         list[Path]: path_list_transformer,
-        Optional[uuid.UUID]: optional_uuid_transformer,
+        uuid.UUID: uuid_transformer,
         Optional[tuple[str, bool]]: root_password_transformer,
         list[ConfigTree]: config_tree_transformer,
         tuple[str, ...]: str_tuple_transformer,
