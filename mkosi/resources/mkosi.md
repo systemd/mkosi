@@ -1155,6 +1155,8 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 : Like `KernelModulesIncludeHost=`, but applies to the kernel modules included in the kernel modules initrd.
 
+`Locale=`, `--locale=`, `LocaleMessages=`, `--locale-messages=`, `Keymap=`, `--keymap=`, `Timezone=`, `--timezone=`, `Hostname=`, `--hostname=`, `RootShell=`, `--root-shell=`
+
 : The settings `Locale=`, `--locale=`, `LocaleMessages=`, `--locale-messages=`,
   `Keymap=`, `--keymap=`, `Timezone=`, `--timezone=`, `Hostname=`,
   `--hostname=`, `RootShell=`, `--root-shell=` correspond to the identically
