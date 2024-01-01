@@ -383,7 +383,7 @@ def find_binary(*names: PathString, root: Optional[Path] = None) -> Optional[Pat
     return None
 
 
-class MkosiAsyncioThread(threading.Thread):
+class AsyncioThread(threading.Thread):
     """
     The default threading.Thread() is not interruptable, so we make our own version by using the concurrency
     feature in python that is interruptable, namely asyncio.
@@ -416,7 +416,7 @@ class MkosiAsyncioThread(threading.Thread):
         for task in asyncio.tasks.all_tasks(loop):
             loop.call_soon_threadsafe(task.cancel)
 
-    def __enter__(self) -> "MkosiAsyncioThread":
+    def __enter__(self) -> "AsyncioThread":
         self.start()
         return self
 

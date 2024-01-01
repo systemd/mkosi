@@ -3,9 +3,9 @@
 from collections.abc import Sequence
 
 from mkosi.config import Architecture
+from mkosi.context import Context
 from mkosi.distributions import DistributionInstaller
 from mkosi.log import die
-from mkosi.state import MkosiState
 
 
 class Installer(DistributionInstaller):
@@ -14,19 +14,19 @@ class Installer(DistributionInstaller):
         return str(arch)
 
     @classmethod
-    def setup(cls, state: MkosiState) -> None:
+    def setup(cls, context: Context) -> None:
         pass
 
     @classmethod
-    def install(cls, state: MkosiState) -> None:
+    def install(cls, context: Context) -> None:
         pass
 
     @classmethod
-    def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
+    def install_packages(cls, context: Context, packages: Sequence[str]) -> None:
         if packages:
             die("Installing packages is not supported for custom distributions'")
 
     @classmethod
-    def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
+    def remove_packages(cls, context: Context, packages: Sequence[str]) -> None:
         if packages:
             die("Removing packages is not supported for custom distributions")

@@ -4,6 +4,7 @@ import shutil
 from collections.abc import Sequence
 
 from mkosi.config import Architecture
+from mkosi.context import Context
 from mkosi.distributions import (
     Distribution,
     DistributionInstaller,
@@ -13,7 +14,6 @@ from mkosi.distributions import (
 from mkosi.installer.dnf import invoke_dnf, setup_dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey
 from mkosi.log import die
-from mkosi.state import MkosiState
 
 
 class Installer(DistributionInstaller):
@@ -38,12 +38,12 @@ class Installer(DistributionInstaller):
         return Distribution.openmandriva
 
     @classmethod
-    def setup(cls, state: MkosiState) -> None:
-        mirror = state.config.mirror or "http://mirror.openmandriva.org"
+    def setup(cls, context: Context) -> None:
+        mirror = context.config.mirror or "http://mirror.openmandriva.org"
 
         gpgurls = (
             find_rpm_gpgkey(
-                state,
+                context,
                 "RPM-GPG-KEY-OpenMandriva",
                 "https://raw.githubusercontent.com/OpenMandrivaAssociation/openmandriva-repos/master/RPM-GPG-KEY-OpenMandriva",
             ),
@@ -51,8 +51,8 @@ class Installer(DistributionInstaller):
 
         repos = []
 
-        if state.config.local_mirror:
-            repos += [RpmRepository("main-release", f"baseurl={state.config.local_mirror}", gpgurls)]
+        if context.config.local_mirror:
+            repos += [RpmRepository("main-release", f"baseurl={context.config.local_mirror}", gpgurls)]
         else:
             url = f"baseurl={join_mirror(mirror, '$releasever/repository/$basearch/main')}"
             repos += [
@@ -60,19 +60,19 @@ class Installer(DistributionInstaller):
                 RpmRepository("main-updates", f"{url}/updates", gpgurls),
             ]
 
-        setup_dnf(state, repos)
+        setup_dnf(context, repos)
 
     @classmethod
-    def install(cls, state: MkosiState) -> None:
-        cls.install_packages(state, ["filesystem"], apivfs=False)
+    def install(cls, context: Context) -> None:
+        cls.install_packages(context, ["filesystem"], apivfs=False)
 
     @classmethod
-    def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
-        invoke_dnf(state, "install", packages, apivfs=apivfs)
+    def install_packages(cls, context: Context, packages: Sequence[str], apivfs: bool = True) -> None:
+        invoke_dnf(context, "install", packages, apivfs=apivfs)
 
-        for d in state.root.glob("boot/vmlinuz-*"):
+        for d in context.root.glob("boot/vmlinuz-*"):
             kver = d.name.removeprefix("vmlinuz-")
-            vmlinuz = state.root / "usr/lib/modules" / kver / "vmlinuz"
+            vmlinuz = context.root / "usr/lib/modules" / kver / "vmlinuz"
             # Openmandriva symlinks /usr/lib/modules/<kver>/vmlinuz to /boot/vmlinuz-<kver>, so get rid of the symlink
             # and put the actual vmlinuz in /usr/lib/modules/<kver>.
             if vmlinuz.is_symlink():
@@ -81,8 +81,8 @@ class Installer(DistributionInstaller):
                 shutil.copy2(d, vmlinuz)
 
     @classmethod
-    def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
-        invoke_dnf(state, "remove", packages)
+    def remove_packages(cls, context: Context, packages: Sequence[str]) -> None:
+        invoke_dnf(context, "remove", packages)
 
     @classmethod
     def architecture(cls, arch: Architecture) -> str:

@@ -10,15 +10,15 @@ import pytest
 
 from mkosi.config import (
     Architecture,
+    Args,
     BiosBootloader,
     Bootloader,
     Compression,
+    Config,
     ConfigFeature,
     ConfigTree,
     DocFormat,
     ManifestFormat,
-    MkosiArgs,
-    MkosiConfig,
     OutputFormat,
     QemuDrive,
     QemuFirmware,
@@ -56,7 +56,7 @@ def test_args(path: Optional[Path]) -> None:
         """
     )
 
-    args = MkosiArgs(
+    args = Args(
         auto_bump = False,
         cmdline = ["foo", "bar"],
         debug = False,
@@ -73,7 +73,7 @@ def test_args(path: Optional[Path]) -> None:
     )
 
     assert args.to_json(indent=4, sort_keys=True) == dump.rstrip()
-    assert MkosiArgs.from_json(dump) == args
+    assert Args.from_json(dump) == args
 
 
 def test_config() -> None:
@@ -290,7 +290,7 @@ def test_config() -> None:
         """
     )
 
-    args = MkosiConfig(
+    args = Config(
         acl =  True,
         architecture = Architecture.ia64,
         autologin = False,
@@ -414,4 +414,4 @@ def test_config() -> None:
     )
 
     assert args.to_json() == dump.rstrip()
-    assert MkosiConfig.from_json(dump) == args
+    assert Config.from_json(dump) == args

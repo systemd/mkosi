@@ -9,7 +9,7 @@ import textwrap
 from pathlib import Path
 from typing import IO, Any, Optional
 
-from mkosi.config import ManifestFormat, MkosiConfig
+from mkosi.config import Config, ManifestFormat
 from mkosi.distributions import Distribution, PackageType
 from mkosi.run import run
 
@@ -80,7 +80,7 @@ def parse_pkg_desc(f: Path) -> tuple[str, str, str, str]:
 
 @dataclasses.dataclass
 class Manifest:
-    config: MkosiConfig
+    config: Config
     packages: list[PackageManifest] = dataclasses.field(default_factory=list)
     source_packages: dict[str, SourcePackageManifest] = dataclasses.field(default_factory=dict)
 

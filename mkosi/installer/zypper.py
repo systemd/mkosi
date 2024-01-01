@@ -4,14 +4,14 @@ from collections.abc import Sequence
 
 from mkosi.bubblewrap import apivfs_cmd, bwrap
 from mkosi.config import yes_no
+from mkosi.context import Context
 from mkosi.installer.rpm import RpmRepository, fixup_rpmdb_location, setup_rpm
-from mkosi.state import MkosiState
 from mkosi.types import PathString
 from mkosi.util import sort_packages
 
 
-def setup_zypper(state: MkosiState, repos: Sequence[RpmRepository]) -> None:
-    config = state.pkgmngr / "etc/zypp/zypp.conf"
+def setup_zypper(context: Context, repos: Sequence[RpmRepository]) -> None:
+    config = context.pkgmngr / "etc/zypp/zypp.conf"
     config.parent.mkdir(exist_ok=True, parents=True)
 
     # rpm.install.excludedocs can only be configured in zypp.conf so we append
@@ -22,13 +22,13 @@ def setup_zypper(state: MkosiState, repos: Sequence[RpmRepository]) -> None:
             textwrap.dedent(
                 f"""
                 [main]
-                rpm.install.excludedocs = {yes_no(not state.config.with_docs)}
+                rpm.install.excludedocs = {yes_no(not context.config.with_docs)}
                 repo.refresh.delay = {48 * 60}
                 """
             )
         )
 
-    repofile = state.pkgmngr / "etc/zypp/repos.d/mkosi.repo"
+    repofile = context.pkgmngr / "etc/zypp/repos.d/mkosi.repo"
     if not repofile.exists():
         repofile.parent.mkdir(exist_ok=True, parents=True)
         with repofile.open("w") as f:
@@ -51,31 +51,31 @@ def setup_zypper(state: MkosiState, repos: Sequence[RpmRepository]) -> None:
                     f.write("gpgkey=" if i == 0 else len("gpgkey=") * " ")
                     f.write(f"{url}\n")
 
-    setup_rpm(state)
+    setup_rpm(context)
 
 
-def zypper_cmd(state: MkosiState) -> list[PathString]:
+def zypper_cmd(context: Context) -> list[PathString]:
     return [
         "env",
         "ZYPP_CONF=/etc/zypp/zypp.conf",
         "HOME=/",
         "zypper",
-        f"--installroot={state.root}",
-        f"--cache-dir={state.cache_dir / 'cache/zypp'}",
-        "--gpg-auto-import-keys" if state.config.repository_key_check else "--no-gpg-checks",
+        f"--installroot={context.root}",
+        f"--cache-dir={context.cache_dir / 'cache/zypp'}",
+        "--gpg-auto-import-keys" if context.config.repository_key_check else "--no-gpg-checks",
         "--non-interactive",
     ]
 
 
 def invoke_zypper(
-    state: MkosiState,
+    context: Context,
     verb: str,
     packages: Sequence[str],
     options: Sequence[str] = (),
     apivfs: bool = True,
 ) -> None:
-    cmd = apivfs_cmd(state.root) if apivfs else []
-    bwrap(state, cmd + zypper_cmd(state) + [verb, *options, *sort_packages(packages)],
-          network=True, env=state.config.environment)
+    cmd = apivfs_cmd(context.root) if apivfs else []
+    bwrap(context, cmd + zypper_cmd(context) + [verb, *options, *sort_packages(packages)],
+          network=True, env=context.config.environment)
 
-    fixup_rpmdb_location(state.root)
+    fixup_rpmdb_location(context.root)

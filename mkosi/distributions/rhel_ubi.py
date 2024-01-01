@@ -2,9 +2,9 @@
 
 from collections.abc import Iterable
 
+from mkosi.context import Context
 from mkosi.distributions import centos, join_mirror
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey
-from mkosi.state import MkosiState
 
 
 class Installer(centos.Installer):
@@ -13,46 +13,46 @@ class Installer(centos.Installer):
         return "RHEL UBI"
 
     @staticmethod
-    def gpgurls(state: MkosiState) -> tuple[str, ...]:
-        major = int(float(state.config.release))
+    def gpgurls(context: Context) -> tuple[str, ...]:
+        major = int(float(context.config.release))
 
         return (
             find_rpm_gpgkey(
-                state,
+                context,
                 f"RPM-GPG-KEY-redhat{major}-release",
                 "https://access.redhat.com/security/data/fd431d51.txt",
             ),
         )
 
     @classmethod
-    def repository_variants(cls, state: MkosiState, repo: str) -> Iterable[RpmRepository]:
-        if state.config.local_mirror:
-            yield RpmRepository(repo, f"baseurl={state.config.local_mirror}", cls.gpgurls(state))
+    def repository_variants(cls, context: Context, repo: str) -> Iterable[RpmRepository]:
+        if context.config.local_mirror:
+            yield RpmRepository(repo, f"baseurl={context.config.local_mirror}", cls.gpgurls(context))
         else:
-            mirror = state.config.mirror or "https://cdn-ubi.redhat.com/content/public/ubi/dist/"
+            mirror = context.config.mirror or "https://cdn-ubi.redhat.com/content/public/ubi/dist/"
 
-            v = state.config.release
+            v = context.config.release
             yield RpmRepository(
                 f"ubi-{v}-{repo}-rpms",
                 f"baseurl={join_mirror(mirror, f'ubi{v}/{v}/$basearch/{repo}/os')}",
-                cls.gpgurls(state),
+                cls.gpgurls(context),
             )
             yield RpmRepository(
                 f"ubi-{v}-{repo}-debug-rpms",
                 f"baseurl={join_mirror(mirror, f'ubi{v}/{v}/$basearch/{repo}/debug')}",
-                cls.gpgurls(state),
+                cls.gpgurls(context),
                 enabled=False,
             )
             yield RpmRepository(
                 f"ubi-{v}-{repo}-source",
                 f"baseurl={join_mirror(mirror, f'ubi{v}/{v}/$basearch/{repo}/source')}",
-                cls.gpgurls(state),
+                cls.gpgurls(context),
                 enabled=False,
             )
 
     @classmethod
-    def repositories(cls, state: MkosiState) -> Iterable[RpmRepository]:
-        yield from cls.repository_variants(state, "baseos")
-        yield from cls.repository_variants(state, "appstream")
-        yield from cls.repository_variants(state, "codeready-builder")
-        yield from cls.epel_repositories(state)
+    def repositories(cls, context: Context) -> Iterable[RpmRepository]:
+        yield from cls.repository_variants(context, "baseos")
+        yield from cls.repository_variants(context, "appstream")
+        yield from cls.repository_variants(context, "codeready-builder")
+        yield from cls.epel_repositories(context)

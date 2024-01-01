@@ -9,10 +9,10 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Optional
 
+from mkosi.context import Context
 from mkosi.log import ARG_DEBUG_SHELL
 from mkosi.mounts import finalize_passwd_mounts, mount_overlay
 from mkosi.run import find_binary, log_process_failure, run
-from mkosi.state import MkosiState
 from mkosi.types import _FILE, CompletedProcess, PathString
 from mkosi.util import flatten, one_zero
 
@@ -34,9 +34,9 @@ def have_effective_cap(capability: Capability) -> bool:
     return (int(hexcap, 16) & (1 << capability.value)) != 0
 
 
-def finalize_mounts(state: MkosiState) -> list[str]:
+def finalize_mounts(context: Context) -> list[str]:
     mounts = [
-        ((state.config.tools_tree or Path("/")) / subdir, Path("/") / subdir, True)
+        ((context.config.tools_tree or Path("/")) / subdir, Path("/") / subdir, True)
         for subdir in (
             Path("etc/pki"),
             Path("etc/ssl"),
@@ -45,16 +45,16 @@ def finalize_mounts(state: MkosiState) -> list[str]:
             Path("etc/pacman.d/gnupg"),
             Path("var/lib/ca-certificates"),
         )
-        if ((state.config.tools_tree or Path("/")) / subdir).exists()
+        if ((context.config.tools_tree or Path("/")) / subdir).exists()
     ]
 
     mounts += [
         (d, d, False)
-        for d in (state.workspace, state.config.cache_dir, state.config.output_dir, state.config.build_dir)
+        for d in (context.workspace, context.config.cache_dir, context.config.output_dir, context.config.build_dir)
         if d
     ]
 
-    mounts += [(d, d, True) for d in state.config.extra_search_paths]
+    mounts += [(d, d, True) for d in context.config.extra_search_paths]
 
     return flatten(
         ["--ro-bind" if readonly else "--bind", os.fspath(src), os.fspath(target)]
@@ -64,7 +64,7 @@ def finalize_mounts(state: MkosiState) -> list[str]:
 
 
 def bwrap(
-    state: MkosiState,
+    context: Context,
     cmd: Sequence[PathString],
     *,
     network: bool = False,
@@ -85,7 +85,7 @@ def bwrap(
         "--ro-bind-try", "/nix/store", "/nix/store",
         # This mount is writable so bwrap can create extra directories or symlinks inside of it as needed. This isn't a
         # problem as the package manager directory is created by mkosi and thrown away when the build finishes.
-        "--bind", state.pkgmngr / "etc", "/etc",
+        "--bind", context.pkgmngr / "etc", "/etc",
         "--ro-bind-try", "/etc/alternatives", "/etc/alternatives",
         "--bind", "/var/tmp", "/var/tmp",
         "--bind", "/tmp", "/tmp",
@@ -115,7 +115,7 @@ def bwrap(
     if network:
         cmdline += ["--bind", "/etc/resolv.conf", "/etc/resolv.conf"]
 
-    cmdline += finalize_mounts(state) + [
+    cmdline += finalize_mounts(context) + [
         "--setenv", "PATH", f"{scripts or ''}:{os.environ['PATH']}",
         *options,
         "sh", "-c", "chmod 1777 /dev/shm && exec $0 \"$@\"",
@@ -126,8 +126,8 @@ def bwrap(
 
     try:
         with (
-            mount_overlay([Path("/usr"), state.pkgmngr / "usr"], where=Path("/usr"), lazy=True)
-            if (state.pkgmngr / "usr").exists()
+            mount_overlay([Path("/usr"), context.pkgmngr / "usr"], where=Path("/usr"), lazy=True)
+            if (context.pkgmngr / "usr").exists()
             else contextlib.nullcontext()
         ):
             return run(

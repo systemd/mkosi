@@ -2,15 +2,15 @@
 
 from pathlib import Path
 
-from mkosi.config import MkosiArgs, MkosiConfig
+from mkosi.config import Args, Config
 from mkosi.tree import make_tree
 from mkosi.util import umask
 
 
-class MkosiState:
+class Context:
     """State related properties."""
 
-    def __init__(self, args: MkosiArgs, config: MkosiConfig, workspace: Path) -> None:
+    def __init__(self, args: Args, config: Config, workspace: Path) -> None:
         self.args = args
         self.config = config
         self.workspace = workspace

@@ -6,6 +6,7 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 
 from mkosi.config import Architecture
+from mkosi.context import Context
 from mkosi.distributions import (
     Distribution,
     DistributionInstaller,
@@ -15,7 +16,6 @@ from mkosi.distributions import (
 from mkosi.installer.dnf import invoke_dnf, setup_dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey
 from mkosi.log import complete_step, die
-from mkosi.state import MkosiState
 from mkosi.tree import rmtree
 from mkosi.versioncomp import GenericVersion
 
@@ -56,29 +56,29 @@ class Installer(DistributionInstaller):
         return Distribution.fedora
 
     @classmethod
-    def setup(cls, state: MkosiState) -> None:
-        if GenericVersion(state.config.release) <= 7:
+    def setup(cls, context: Context) -> None:
+        if GenericVersion(context.config.release) <= 7:
             die(f"{cls.pretty_name()} 7 or earlier variants are not supported")
 
-        setup_dnf(state, cls.repositories(state))
-        (state.pkgmngr / "etc/dnf/vars/stream").write_text(f"{state.config.release}-stream\n")
+        setup_dnf(context, cls.repositories(context))
+        (context.pkgmngr / "etc/dnf/vars/stream").write_text(f"{context.config.release}-stream\n")
 
     @classmethod
-    def install(cls, state: MkosiState) -> None:
+    def install(cls, context: Context) -> None:
         # Make sure glibc-minimal-langpack is installed instead of glibc-all-langpacks.
-        cls.install_packages(state, ["filesystem", "glibc-minimal-langpack"], apivfs=False)
+        cls.install_packages(context, ["filesystem", "glibc-minimal-langpack"], apivfs=False)
 
         # On Fedora, the default rpmdb has moved to /usr/lib/sysimage/rpm so if that's the case we
         # need to move it back to /var/lib/rpm on CentOS.
-        move_rpm_db(state.root)
+        move_rpm_db(context.root)
 
     @classmethod
-    def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
-        invoke_dnf(state, "install", packages, apivfs=apivfs)
+    def install_packages(cls, context: Context, packages: Sequence[str], apivfs: bool = True) -> None:
+        invoke_dnf(context, "install", packages, apivfs=apivfs)
 
     @classmethod
-    def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
-        invoke_dnf(state, "remove", packages)
+    def remove_packages(cls, context: Context, packages: Sequence[str]) -> None:
+        invoke_dnf(context, "remove", packages)
 
     @classmethod
     def architecture(cls, arch: Architecture) -> str:
@@ -95,85 +95,85 @@ class Installer(DistributionInstaller):
         return a
 
     @staticmethod
-    def gpgurls(state: MkosiState) -> tuple[str, ...]:
+    def gpgurls(context: Context) -> tuple[str, ...]:
         keys = ("RPM-GPG-KEY-CentOS-Official", "RPM-GPG-KEY-CentOS-SIG-Extras")
-        return tuple(find_rpm_gpgkey(state, key, f"https://www.centos.org/keys/{key}") for key in keys)
+        return tuple(find_rpm_gpgkey(context, key, f"https://www.centos.org/keys/{key}") for key in keys)
 
     @classmethod
-    def repository_variants(cls, state: MkosiState, repo: str) -> Iterable[RpmRepository]:
-        if state.config.local_mirror:
-            yield RpmRepository(repo, f"baseurl={state.config.local_mirror}", cls.gpgurls(state))
+    def repository_variants(cls, context: Context, repo: str) -> Iterable[RpmRepository]:
+        if context.config.local_mirror:
+            yield RpmRepository(repo, f"baseurl={context.config.local_mirror}", cls.gpgurls(context))
 
-        elif state.config.mirror:
-            if GenericVersion(state.config.release) <= 8:
+        elif mirror := context.config.mirror:
+            if GenericVersion(context.config.release) <= 8:
                 yield RpmRepository(
                     repo.lower(),
-                    f"baseurl={join_mirror(state.config.mirror, f'centos/$stream/{repo}/$basearch/os')}",
-                    cls.gpgurls(state),
+                    f"baseurl={join_mirror(mirror, f'centos/$stream/{repo}/$basearch/os')}",
+                    cls.gpgurls(context),
                 )
                 yield RpmRepository(
                     f"{repo.lower()}-debuginfo",
-                    f"baseurl={join_mirror(state.config.mirror, 'centos-debuginfo/$stream/$basearch')}",
-                    cls.gpgurls(state),
+                    f"baseurl={join_mirror(mirror, 'centos-debuginfo/$stream/$basearch')}",
+                    cls.gpgurls(context),
                     enabled=False,
                 )
                 yield RpmRepository(
                     f"{repo.lower()}-source",
-                    f"baseurl={join_mirror(state.config.mirror, f'centos/$stream/{repo}/Source')}",
-                    cls.gpgurls(state),
+                    f"baseurl={join_mirror(mirror, f'centos/$stream/{repo}/Source')}",
+                    cls.gpgurls(context),
                     enabled=False,
                 )
             else:
                 if repo == "extras":
                     yield RpmRepository(
                         repo.lower(),
-                        f"baseurl={join_mirror(state.config.mirror, f'SIGs/$stream/{repo}/$basearch/extras-common')}",
-                        cls.gpgurls(state),
+                        f"baseurl={join_mirror(mirror, f'SIGs/$stream/{repo}/$basearch/extras-common')}",
+                        cls.gpgurls(context),
                     )
                     yield RpmRepository(
                         f"{repo.lower()}-source",
-                        f"baseurl={join_mirror(state.config.mirror, f'SIGs/$stream/{repo}/source/extras-common')}",
-                        cls.gpgurls(state),
+                        f"baseurl={join_mirror(mirror, f'SIGs/$stream/{repo}/source/extras-common')}",
+                        cls.gpgurls(context),
                         enabled=False,
                     )
 
                 else:
                     yield RpmRepository(
                         repo.lower(),
-                        f"baseurl={join_mirror(state.config.mirror, f'$stream/{repo}/$basearch/os')}",
-                        cls.gpgurls(state),
+                        f"baseurl={join_mirror(mirror, f'$stream/{repo}/$basearch/os')}",
+                        cls.gpgurls(context),
                     )
                     yield RpmRepository(
                         f"{repo.lower()}-debuginfo",
-                        f"baseurl={join_mirror(state.config.mirror, f'$stream/{repo}/$basearch/debug/tree')}",
-                        cls.gpgurls(state),
+                        f"baseurl={join_mirror(mirror, f'$stream/{repo}/$basearch/debug/tree')}",
+                        cls.gpgurls(context),
                         enabled=False,
                     )
                     yield RpmRepository(
                         f"{repo.lower()}-source",
-                        f"baseurl={join_mirror(state.config.mirror, f'$stream/{repo}/source/tree')}",
-                        cls.gpgurls(state),
+                        f"baseurl={join_mirror(mirror, f'$stream/{repo}/source/tree')}",
+                        cls.gpgurls(context),
                         enabled=False,
                     )
 
         else:
-            if GenericVersion(state.config.release) <= 8:
+            if GenericVersion(context.config.release) <= 8:
                 yield RpmRepository(
                     repo.lower(),
                     f"mirrorlist=http://mirrorlist.centos.org/?release=$stream&arch=$basearch&repo={repo}",
-                    cls.gpgurls(state),
+                    cls.gpgurls(context),
                 )
                 # These can't be retrieved from the mirrorlist.
                 yield RpmRepository(
                     f"{repo.lower()}-debuginfo",
                     "baseurl=http://debuginfo.centos.org/$stream/$basearch",
-                    cls.gpgurls(state),
+                    cls.gpgurls(context),
                     enabled=False,
                 )
                 yield RpmRepository(
                     f"{repo.lower()}-source",
                     f"baseurl=https://vault.centos.org/centos/$stream/{repo}/Source",
-                    cls.gpgurls(state),
+                    cls.gpgurls(context),
                     enabled=False,
                 )
             else:
@@ -183,64 +183,64 @@ class Installer(DistributionInstaller):
                     yield RpmRepository(
                         repo.lower(),
                         f"{url}?arch=$basearch&repo=centos-extras-sig-extras-common-$stream",
-                        cls.gpgurls(state),
+                        cls.gpgurls(context),
                     )
                     yield RpmRepository(
                         f"{repo.lower()}-source",
                         f"{url}?arch=source&repo=centos-extras-sig-extras-common-source-$stream",
-                        cls.gpgurls(state),
+                        cls.gpgurls(context),
                         enabled=False,
                     )
                 else:
                     yield RpmRepository(
                         repo.lower(),
                         f"{url}?arch=$basearch&repo=centos-{repo.lower()}-$stream",
-                        cls.gpgurls(state),
+                        cls.gpgurls(context),
                     )
                     yield RpmRepository(
                         f"{repo.lower()}-debuginfo",
                         f"{url}?arch=$basearch&repo=centos-{repo.lower()}-debug-$stream",
-                        cls.gpgurls(state),
+                        cls.gpgurls(context),
                         enabled=False,
                     )
                     yield RpmRepository(
                         f"{repo.lower()}-source",
                         f"{url}?arch=source&repo=centos-{repo.lower()}-source-$stream",
-                        cls.gpgurls(state),
+                        cls.gpgurls(context),
                         enabled=False,
                     )
 
     @classmethod
-    def repositories(cls, state: MkosiState) -> Iterable[RpmRepository]:
-        if state.config.local_mirror:
-            yield from cls.repository_variants(state, "AppStream")
+    def repositories(cls, context: Context) -> Iterable[RpmRepository]:
+        if context.config.local_mirror:
+            yield from cls.repository_variants(context, "AppStream")
         else:
-            yield from cls.repository_variants(state, "BaseOS")
-            yield from cls.repository_variants(state, "AppStream")
-            yield from cls.repository_variants(state, "extras")
+            yield from cls.repository_variants(context, "BaseOS")
+            yield from cls.repository_variants(context, "AppStream")
+            yield from cls.repository_variants(context, "extras")
 
-        if GenericVersion(state.config.release) >= 9:
-            yield from cls.repository_variants(state, "CRB")
+        if GenericVersion(context.config.release) >= 9:
+            yield from cls.repository_variants(context, "CRB")
         else:
-            yield from cls.repository_variants(state, "PowerTools")
+            yield from cls.repository_variants(context, "PowerTools")
 
-        yield from cls.epel_repositories(state)
-        yield from cls.sig_repositories(state)
+        yield from cls.epel_repositories(context)
+        yield from cls.sig_repositories(context)
 
     @classmethod
-    def epel_repositories(cls, state: MkosiState) -> Iterable[RpmRepository]:
+    def epel_repositories(cls, context: Context) -> Iterable[RpmRepository]:
         gpgurls = (
             find_rpm_gpgkey(
-                state,
-                f"RPM-GPG-KEY-EPEL-{state.config.release}",
-                f"https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{state.config.release}",
+                context,
+                f"RPM-GPG-KEY-EPEL-{context.config.release}",
+                f"https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{context.config.release}",
             ),
         )
 
-        if state.config.local_mirror:
+        if context.config.local_mirror:
             return
 
-        if state.config.mirror:
+        if mirror := context.config.mirror:
             for repo, dir in (
                 ("epel", "epel"),
                 ("epel-next", "epel/next"),
@@ -249,19 +249,19 @@ class Installer(DistributionInstaller):
             ):
                 yield RpmRepository(
                     repo,
-                    f"baseurl={join_mirror(state.config.mirror, f'{dir}/$releasever/Everything/$basearch')}",
+                    f"baseurl={join_mirror(mirror, f'{dir}/$releasever/Everything/$basearch')}",
                     gpgurls,
                     enabled=False,
                 )
                 yield RpmRepository(
                     f"{repo}-debuginfo",
-                    f"baseurl={join_mirror(state.config.mirror, f'{dir}/$releasever/Everything/$basearch/debug')}",
+                    f"baseurl={join_mirror(mirror, f'{dir}/$releasever/Everything/$basearch/debug')}",
                     gpgurls,
                     enabled=False,
                 )
                 yield RpmRepository(
                     f"{repo}-source",
-                    f"baseurl={join_mirror(state.config.mirror, f'{dir}/$releasever/Everything/source/tree')}",
+                    f"baseurl={join_mirror(mirror, f'{dir}/$releasever/Everything/source/tree')}",
                     gpgurls,
                     enabled=False,
                 )
@@ -320,8 +320,8 @@ class Installer(DistributionInstaller):
             )
 
     @classmethod
-    def sig_repositories(cls, state: MkosiState) -> Iterable[RpmRepository]:
-        if state.config.local_mirror:
+    def sig_repositories(cls, context: Context) -> Iterable[RpmRepository]:
+        if context.config.local_mirror:
             return
 
         sigs = (
@@ -333,50 +333,50 @@ class Installer(DistributionInstaller):
         )
 
         for sig, components, keys in sigs:
-            gpgurls = tuple(find_rpm_gpgkey(state, key, f"https://www.centos.org/keys/{key}") for key in keys)
+            gpgurls = tuple(find_rpm_gpgkey(context, key, f"https://www.centos.org/keys/{key}") for key in keys)
 
             for c in components:
-                if state.config.mirror:
-                    if GenericVersion(state.config.release) <= 8:
+                if mirror := context.config.mirror:
+                    if GenericVersion(context.config.release) <= 8:
                         yield RpmRepository(
                             f"{sig}-{c}",
-                            f"baseurl={join_mirror(state.config.mirror, f'centos/$stream/{sig}/$basearch/{c}')}",
+                            f"baseurl={join_mirror(mirror, f'centos/$stream/{sig}/$basearch/{c}')}",
                             gpgurls,
                             enabled=False,
                         )
                         yield RpmRepository(
                             f"{sig}-{c}-debuginfo",
-                            f"baseurl={join_mirror(state.config.mirror, f'$stream/{sig}/$basearch')}",
+                            f"baseurl={join_mirror(mirror, f'$stream/{sig}/$basearch')}",
                             gpgurls,
                             enabled=False,
                         )
                         yield RpmRepository(
                             f"{sig}-{c}-source",
-                            f"baseurl={join_mirror(state.config.mirror, f'centos/$stream/{sig}/Source')}",
+                            f"baseurl={join_mirror(mirror, f'centos/$stream/{sig}/Source')}",
                             gpgurls,
                             enabled=False,
                         )
                     else:
                         yield RpmRepository(
                             f"{sig}-{c}",
-                            f"baseurl={join_mirror(state.config.mirror, f'SIGs/$stream/{sig}/$basearch/{c}')}",
+                            f"baseurl={join_mirror(mirror, f'SIGs/$stream/{sig}/$basearch/{c}')}",
                             gpgurls,
                             enabled=False,
                         )
                         yield RpmRepository(
                             f"{sig}-{c}-debuginfo",
-                            f"baseurl={join_mirror(state.config.mirror, f'SIGs/$stream/{sig}/$basearch/{c}/debug')}",
+                            f"baseurl={join_mirror(mirror, f'SIGs/$stream/{sig}/$basearch/{c}/debug')}",
                             gpgurls,
                             enabled=False,
                         )
                         yield RpmRepository(
                             f"{sig}-{c}-source",
-                            f"baseurl={join_mirror(state.config.mirror, f'SIGs/$stream/{sig}/source/{c}')}",
+                            f"baseurl={join_mirror(mirror, f'SIGs/$stream/{sig}/source/{c}')}",
                             gpgurls,
                             enabled=False,
                         )
                 else:
-                    if GenericVersion(state.config.release) <= 8:
+                    if GenericVersion(context.config.release) <= 8:
                         yield RpmRepository(
                             f"{sig}-{c}",
                             f"mirrorlist=http://mirrorlist.centos.org/?release=$stream&arch=$basearch&repo={sig}-{c}",
@@ -424,7 +424,7 @@ class Installer(DistributionInstaller):
                         enabled=False,
                     )
 
-                    if GenericVersion(state.config.release) >= 9:
+                    if GenericVersion(context.config.release) >= 9:
                         yield RpmRepository(
                             f"{sig}-{c}-testing-debuginfo",
                             f"baseurl=https://buildlogs.centos.org/centos/$stream/{sig}/$basearch/{c}",

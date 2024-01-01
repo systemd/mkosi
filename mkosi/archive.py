@@ -7,9 +7,9 @@ from pathlib import Path
 from typing import Optional
 
 from mkosi.bubblewrap import bwrap
+from mkosi.context import Context
 from mkosi.log import log_step
 from mkosi.mounts import finalize_passwd_mounts
-from mkosi.state import MkosiState
 
 
 def tar_binary() -> str:
@@ -38,10 +38,10 @@ def tar_exclude_apivfs_tmp() -> list[str]:
     ]
 
 
-def make_tar(state: MkosiState, src: Path, dst: Path) -> None:
+def make_tar(context: Context, src: Path, dst: Path) -> None:
     log_step(f"Creating tar archive {dst}…")
     bwrap(
-        state,
+        context,
         [
             tar_binary(),
             "--create",
@@ -64,11 +64,11 @@ def make_tar(state: MkosiState, src: Path, dst: Path) -> None:
     )
 
 
-def extract_tar(state: MkosiState, src: Path, dst: Path, log: bool = True) -> None:
+def extract_tar(context: Context, src: Path, dst: Path, log: bool = True) -> None:
     if log:
         log_step(f"Extracting tar archive {src}…")
     bwrap(
-        state,
+        context,
         [
             tar_binary(),
             "--extract",
@@ -90,14 +90,14 @@ def extract_tar(state: MkosiState, src: Path, dst: Path, log: bool = True) -> No
     )
 
 
-def make_cpio(state: MkosiState, src: Path, dst: Path, files: Optional[Iterable[Path]] = None) -> None:
+def make_cpio(context: Context, src: Path, dst: Path, files: Optional[Iterable[Path]] = None) -> None:
     if not files:
         files = src.rglob("*")
     files = sorted(files)
 
     log_step(f"Creating cpio archive {dst}…")
     bwrap(
-        state,
+        context,
         [
             cpio_binary(),
             "--create",

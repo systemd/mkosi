@@ -23,9 +23,9 @@ from typing import Optional
 
 from mkosi.config import (
     Architecture,
+    Args,
+    Config,
     ConfigFeature,
-    MkosiArgs,
-    MkosiConfig,
     OutputFormat,
     QemuFirmware,
     QemuVsockCID,
@@ -34,14 +34,7 @@ from mkosi.config import (
 from mkosi.log import die
 from mkosi.mounts import mount_passwd
 from mkosi.partition import finalize_root, find_partitions
-from mkosi.run import (
-    MkosiAsyncioThread,
-    become_root,
-    find_binary,
-    fork_and_wait,
-    run,
-    spawn,
-)
+from mkosi.run import AsyncioThread, become_root, find_binary, fork_and_wait, run, spawn
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
 from mkosi.util import INVOKING_USER, StrEnum
@@ -64,7 +57,7 @@ class QemuDeviceNode(StrEnum):
             QemuDeviceNode.vhost_vsock: "a VSock device",
         }[self]
 
-    def feature(self, config: MkosiConfig) -> ConfigFeature:
+    def feature(self, config: Config) -> ConfigFeature:
         return {
             QemuDeviceNode.kvm: config.qemu_kvm,
             QemuDeviceNode.vhost_vsock: config.qemu_vsock,
@@ -95,7 +88,7 @@ class QemuDeviceNode(StrEnum):
         return True
 
 
-def hash_output(config: MkosiConfig) -> "hashlib._Hash":
+def hash_output(config: Config) -> "hashlib._Hash":
     p = os.fspath(config.output_dir_or_cwd() / config.output_with_compression)
     return hashlib.sha256(p.encode())
 
@@ -118,7 +111,7 @@ def vsock_cid_in_use(vfd: int, cid: int) -> bool:
     return False
 
 
-def find_unused_vsock_cid(config: MkosiConfig, vfd: int) -> int:
+def find_unused_vsock_cid(config: Config, vfd: int) -> int:
     hash = hash_output(config)
 
     for i in range(64):
@@ -154,7 +147,7 @@ class KernelType(StrEnum):
             return KernelType.unknown
 
 
-def find_qemu_binary(config: MkosiConfig) -> str:
+def find_qemu_binary(config: Config) -> str:
     binaries = ["qemu", "qemu-kvm"] if config.architecture.is_native() else []
     binaries += [f"qemu-system-{config.architecture.to_qemu()}"]
     for binary in binaries:
@@ -164,7 +157,7 @@ def find_qemu_binary(config: MkosiConfig) -> str:
     die("Couldn't find QEMU/KVM binary")
 
 
-def find_ovmf_firmware(config: MkosiConfig) -> tuple[Path, bool]:
+def find_ovmf_firmware(config: Config) -> tuple[Path, bool]:
     FIRMWARE_LOCATIONS = {
         Architecture.x86_64: [
             "/usr/share/ovmf/x64/OVMF_CODE.secboot.fd",
@@ -230,7 +223,7 @@ def find_ovmf_firmware(config: MkosiConfig) -> tuple[Path, bool]:
     die("Couldn't find OVMF UEFI firmware blob.")
 
 
-def find_ovmf_vars(config: MkosiConfig) -> Path:
+def find_ovmf_vars(config: Config) -> Path:
     OVMF_VARS_LOCATIONS = []
 
     if config.architecture == Architecture.x86_64:
@@ -340,15 +333,15 @@ def start_virtiofsd(directory: Path, *, uidmap: bool) -> Iterator[Path]:
     # We create the socket ourselves and pass the fd to virtiofsd to avoid race conditions where we start qemu
     # before virtiofsd has had the chance to create the socket (or where we try to chown it first).
     with (
-        tempfile.TemporaryDirectory(prefix="mkosi-virtiofsd") as state,
+        tempfile.TemporaryDirectory(prefix="mkosi-virtiofsd") as context,
         socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock,
     ):
         # Make sure qemu can access the virtiofsd socket in this directory.
-        os.chown(state, INVOKING_USER.uid, INVOKING_USER.gid)
+        os.chown(context, INVOKING_USER.uid, INVOKING_USER.gid)
 
         # Make sure we can use the socket name as a unique identifier for the fs as well but make sure it's not too
         # long as virtiofs tag names are limited to 36 bytes.
-        path = Path(state) / f"sock-{uuid.uuid4().hex}"[:35]
+        path = Path(context) / f"sock-{uuid.uuid4().hex}"[:35]
         sock.bind(os.fspath(path))
         sock.listen()
 
@@ -414,7 +407,7 @@ def vsock_notify_handler() -> Iterator[tuple[str, dict[str, str]]]:
                     k, _, v = msg.partition("=")
                     messages[k] = v
 
-        with MkosiAsyncioThread(notify()):
+        with AsyncioThread(notify()):
             yield f"vsock-stream:{socket.VMADDR_CID_HOST}:{vsock.getsockname()[1]}", messages
 
         logging.debug(f"Received {num_messages} notify messages totalling {format_bytes(num_bytes)} bytes")
@@ -423,7 +416,7 @@ def vsock_notify_handler() -> Iterator[tuple[str, dict[str, str]]]:
 
 
 @contextlib.contextmanager
-def copy_ephemeral(config: MkosiConfig, src: Path) -> Iterator[Path]:
+def copy_ephemeral(config: Config, src: Path) -> Iterator[Path]:
     src = src.resolve()
     # tempfile doesn't provide an API to get a random filename in an arbitrary directory so we do this
     # instead.
@@ -452,11 +445,11 @@ def copy_ephemeral(config: MkosiConfig, src: Path) -> Iterator[Path]:
         fork_and_wait(rm)
 
 
-def qemu_version(config: MkosiConfig) -> GenericVersion:
+def qemu_version(config: Config) -> GenericVersion:
     return GenericVersion(run([find_qemu_binary(config), "--version"], stdout=subprocess.PIPE).stdout.split()[3])
 
 
-def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[QemuDeviceNode, int]) -> None:
+def run_qemu(args: Args, config: Config, qemu_device_fds: Mapping[QemuDeviceNode, int]) -> None:
     if config.output_format not in (
         OutputFormat.disk,
         OutputFormat.cpio,
@@ -800,7 +793,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
         raise subprocess.CalledProcessError(status, cmdline)
 
 
-def run_ssh(args: MkosiArgs, config: MkosiConfig) -> None:
+def run_ssh(args: Args, config: Config) -> None:
     if config.qemu_vsock_cid == QemuVsockCID.auto:
         die("Can't use ssh verb with QemuVSockCID=auto")
 
