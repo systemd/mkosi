@@ -879,7 +879,7 @@ def config_parse_minimum_version(value: Optional[str], old: Optional[GenericVers
 
 
 @dataclasses.dataclass(frozen=True)
-class MkosiConfigSetting:
+class ConfigSetting:
     dest: str
     section: str
     parse: ConfigParseCallback = config_parse_string
@@ -914,7 +914,7 @@ class MkosiConfigSetting:
 
 
 @dataclasses.dataclass(frozen=True)
-class MkosiMatch:
+class Match:
     name: str
     match: Callable[[str], bool]
 
@@ -992,7 +992,7 @@ class PagerHelpAction(argparse._HelpAction):
 
 
 @dataclasses.dataclass(frozen=True)
-class MkosiArgs:
+class Args:
     verb: Verb
     cmdline: list[str]
     force: int
@@ -1008,7 +1008,7 @@ class MkosiArgs:
     json: bool
 
     @classmethod
-    def default(cls) -> "MkosiArgs":
+    def default(cls) -> "Args":
         """Alternative constructor to generate an all-default MkosiArgs.
 
         This prevents MkosiArgs being generated with defaults values implicitly.
@@ -1020,7 +1020,7 @@ class MkosiArgs:
         return args
 
     @classmethod
-    def from_namespace(cls, ns: argparse.Namespace) -> "MkosiArgs":
+    def from_namespace(cls, ns: argparse.Namespace) -> "Args":
         return cls(**{
             k: v for k, v in vars(ns).items()
             if k in inspect.signature(cls).parameters
@@ -1034,7 +1034,7 @@ class MkosiArgs:
 
     def to_json(self, *, indent: Optional[int] = 4, sort_keys: bool = True) -> str:
         """Dump MkosiArgs as JSON string."""
-        return json.dumps(self.to_dict(), cls=MkosiJsonEncoder, indent=indent, sort_keys=sort_keys)
+        return json.dumps(self.to_dict(), cls=JsonEncoder, indent=indent, sort_keys=sort_keys)
 
     @classmethod
     def _load_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> dict[str, Any]:
@@ -1055,25 +1055,25 @@ class MkosiArgs:
         return {(tk := key_transformer(k)): value_transformer(tk, v) for k, v in j.items()}
 
     @classmethod
-    def from_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "MkosiArgs":
+    def from_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "Args":
         """Instantiate a MkosiArgs object from a full JSON dump."""
         j = cls._load_json(s)
         return cls(**j)
 
     @classmethod
-    def from_partial_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "MkosiArgs":
+    def from_partial_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "Args":
         """Return a new MkosiArgs with defaults overwritten by the attributes from passed in JSON."""
         j = cls._load_json(s)
         return dataclasses.replace(cls.default(), **j)
 
 
 @dataclasses.dataclass(frozen=True)
-class MkosiConfig:
+class Config:
     """Type-hinted storage for command line arguments.
 
     Only user configuration is stored here while dynamic state exists in
-    MkosiState. If a field of the same name exists in both classes always
-    access the value from state.
+    Mkosicontext. If a field of the same name exists in both classes always
+    access the value from context.
     """
 
     profile: Optional[str]
@@ -1241,7 +1241,7 @@ class MkosiConfig:
         return Path("/var/tmp")
 
     @classmethod
-    def default(cls) -> "MkosiConfig":
+    def default(cls) -> "Config":
         """Alternative constructor to generate an all-default MkosiArgs.
 
         This prevents MkosiArgs being generated with defaults values implicitly.
@@ -1253,7 +1253,7 @@ class MkosiConfig:
         return config
 
     @classmethod
-    def from_namespace(cls, ns: argparse.Namespace) -> "MkosiConfig":
+    def from_namespace(cls, ns: argparse.Namespace) -> "Config":
         return cls(**{
             k: v for k, v in vars(ns).items()
             if k in inspect.signature(cls).parameters
@@ -1332,7 +1332,7 @@ class MkosiConfig:
 
     def to_json(self, *, indent: Optional[int] = 4, sort_keys: bool = True) -> str:
         """Dump MkosiConfig as JSON string."""
-        return json.dumps(self.to_dict(), cls=MkosiJsonEncoder, indent=indent, sort_keys=sort_keys)
+        return json.dumps(self.to_dict(), cls=JsonEncoder, indent=indent, sort_keys=sort_keys)
 
     @classmethod
     def _load_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> dict[str, Any]:
@@ -1355,13 +1355,13 @@ class MkosiConfig:
         return {(tk := key_transformer(k)): value_transformer(tk, v) for k, v in j.items()}
 
     @classmethod
-    def from_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "MkosiConfig":
+    def from_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "Config":
         """Instantiate a MkosiConfig object from a full JSON dump."""
         j = cls._load_json(s)
         return cls(**j)
 
     @classmethod
-    def from_partial_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "MkosiConfig":
+    def from_partial_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "Config":
         """Return a new MkosiConfig with defaults overwritten by the attributes from passed in JSON."""
         j = cls._load_json(s)
         return dataclasses.replace(cls.default(), **j)
@@ -1435,26 +1435,26 @@ def parse_ini(path: Path, only_sections: Collection[str] = ()) -> Iterator[tuple
 
 
 SETTINGS = (
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="include",
         section="Config",
         parse=config_make_list_parser(delimiter=",", reset=False, parse=make_path_parser()),
         help="Include configuration from the specified file or directory",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="initrd_include",
         section="Config",
         parse=config_make_list_parser(delimiter=",", reset=False, parse=make_path_parser()),
         help="Include configuration from the specified file or directory when building the initrd",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="profile",
         section="Config",
         help="Build the specified profile",
         parse=config_parse_profile,
         match=config_make_string_matcher(),
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="images",
         compat_names=("Presets",),
         long="--image",
@@ -1462,20 +1462,20 @@ SETTINGS = (
         parse=config_make_list_parser(delimiter=","),
         help="Specify which images to build",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="dependencies",
         long="--dependency",
         section="Config",
         parse=config_make_list_parser(delimiter=","),
         help="Specify other images that this image depends on",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="minimum_version",
         section="Config",
         parse=config_parse_minimum_version,
         help="Specify the minimum required mkosi version",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="distribution",
         short="-d",
         section="Distribution",
@@ -1486,7 +1486,7 @@ SETTINGS = (
         choices=Distribution.values(),
         help="Distribution to install",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="release",
         short="-r",
         section="Distribution",
@@ -1497,7 +1497,7 @@ SETTINGS = (
         default_factory_depends=("distribution",),
         help="Distribution release to install",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="architecture",
         section="Distribution",
         specifier="a",
@@ -1507,18 +1507,18 @@ SETTINGS = (
         choices=Architecture.values(),
         help="Override the architecture of installation",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="mirror",
         short="-m",
         section="Distribution",
         help="Distribution mirror to use",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="local_mirror",
         section="Distribution",
         help="Use a single local, flat and plain mirror to build the image",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="repository_key_check",
         metavar="BOOL",
         nargs="?",
@@ -1527,21 +1527,21 @@ SETTINGS = (
         parse=config_parse_boolean,
         help="Controls signature and key checks on repositories",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="repositories",
         metavar="REPOS",
         section="Distribution",
         parse=config_make_list_parser(delimiter=","),
         help="Repositories to use",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="cache_only",
         metavar="BOOL",
         section="Distribution",
         parse=config_parse_boolean,
         help="Only use the package cache when installing packages",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="package_manager_trees",
         long="--package-manager-tree",
         metavar="PATH",
@@ -1552,7 +1552,7 @@ SETTINGS = (
         help="Use a package manager tree to configure the package manager",
     ),
 
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="output_format",
         short="-t",
         long="--format",
@@ -1566,14 +1566,14 @@ SETTINGS = (
         choices=OutputFormat.values(),
         help="Output Format",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="manifest_format",
         metavar="FORMAT",
         section="Output",
         parse=config_make_list_parser(delimiter=",", parse=make_enum_parser(ManifestFormat)),
         help="Manifest Format",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="output",
         short="-o",
         metavar="NAME",
@@ -1584,7 +1584,7 @@ SETTINGS = (
         default_factory_depends=("image_id", "image_version"),
         help="Output name",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="compress_output",
         metavar="ALG",
         nargs="?",
@@ -1594,7 +1594,7 @@ SETTINGS = (
         default_factory_depends=("distribution", "release", "output_format"),
         help="Enable whole-output compression (with images or archives)",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="output_dir",
         short="-O",
         metavar="DIR",
@@ -1605,7 +1605,7 @@ SETTINGS = (
         paths=("mkosi.output",),
         help="Output directory",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="workspace_dir",
         metavar="DIR",
         name="WorkspaceDirectory",
@@ -1613,7 +1613,7 @@ SETTINGS = (
         parse=config_make_path_parser(required=False),
         help="Workspace directory",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="cache_dir",
         metavar="PATH",
         name="CacheDirectory",
@@ -1622,7 +1622,7 @@ SETTINGS = (
         paths=("mkosi.cache",),
         help="Package cache path",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="build_dir",
         metavar="PATH",
         name="BuildDirectory",
@@ -1631,7 +1631,7 @@ SETTINGS = (
         paths=("mkosi.builddir",),
         help="Path to use as persistent build directory",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="image_version",
         match=config_match_version,
         section="Output",
@@ -1640,14 +1640,14 @@ SETTINGS = (
         paths=("mkosi.version",),
         path_read_text=True,
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="image_id",
         match=config_make_string_matcher(allow_globs=True),
         section="Output",
         specifier="i",
         help="Set ID for image",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="split_artifacts",
         metavar="BOOL",
         nargs="?",
@@ -1655,7 +1655,7 @@ SETTINGS = (
         parse=config_parse_boolean,
         help="Generate split partitions",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="repart_dirs",
         long="--repart-dir",
         metavar="PATH",
@@ -1665,20 +1665,20 @@ SETTINGS = (
         paths=("mkosi.repart",),
         help="Directory containing systemd-repart partition definitions",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="sector_size",
         section="Output",
         parse=config_parse_sector_size,
         help="Set the disk image sector size",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="repart_offline",
         section="Output",
         parse=config_parse_boolean,
         help="Build disk images without using loopback devices",
         default=True,
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="overlay",
         metavar="BOOL",
         nargs="?",
@@ -1686,7 +1686,7 @@ SETTINGS = (
         parse=config_parse_boolean,
         help="Only output the additions on top of the given base trees",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="use_subvolumes",
         metavar="FEATURE",
         nargs="?",
@@ -1694,7 +1694,7 @@ SETTINGS = (
         parse=config_parse_feature,
         help="Use btrfs subvolumes for faster directory operations where possible",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="seed",
         metavar="UUID",
         section="Output",
@@ -1702,7 +1702,7 @@ SETTINGS = (
         help="Set the seed for systemd-repart",
     ),
 
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="packages",
         short="-p",
         long="--package",
@@ -1711,7 +1711,7 @@ SETTINGS = (
         parse=config_make_list_parser(delimiter=","),
         help="Add an additional package to the OS image",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="build_packages",
         long="--build-package",
         metavar="PACKAGE",
@@ -1719,7 +1719,7 @@ SETTINGS = (
         parse=config_make_list_parser(delimiter=","),
         help="Additional packages needed for build scripts",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="with_recommends",
         metavar="BOOL",
         nargs="?",
@@ -1727,7 +1727,7 @@ SETTINGS = (
         parse=config_parse_boolean,
         help="Install recommended packages",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="with_docs",
         metavar="BOOL",
         nargs="?",
@@ -1736,7 +1736,7 @@ SETTINGS = (
         default=True,
         help="Install documentation",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="base_trees",
         long='--base-tree',
         metavar='PATH',
@@ -1744,7 +1744,7 @@ SETTINGS = (
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser(required=False)),
         help='Use the given tree as base tree (e.g. lower sysext layer)',
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="skeleton_trees",
         long="--skeleton-tree",
         metavar="PATH",
@@ -1754,7 +1754,7 @@ SETTINGS = (
         path_default=False,
         help="Use a skeleton tree to bootstrap the image before installing anything",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="extra_trees",
         long="--extra-tree",
         metavar="PATH",
@@ -1764,7 +1764,7 @@ SETTINGS = (
         path_default=False,
         help="Copy an extra tree on top of image",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="remove_packages",
         long="--remove-package",
         metavar="PACKAGE",
@@ -1772,21 +1772,21 @@ SETTINGS = (
         parse=config_make_list_parser(delimiter=","),
         help="Remove package from the image OS image after installation",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="remove_files",
         metavar="GLOB",
         section="Content",
         parse=config_make_list_parser(delimiter=","),
         help="Remove files from built image",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="clean_package_metadata",
         metavar="FEATURE",
         section="Content",
         parse=config_parse_feature,
         help="Remove package manager database and other files",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="source_date_epoch",
         metavar="TIMESTAMP",
         section="Content",
@@ -1795,7 +1795,7 @@ SETTINGS = (
         default_factory_depends=("environment",),
         help="Set the $SOURCE_DATE_EPOCH timestamp",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="prepare_scripts",
         long="--prepare-script",
         metavar="PATH",
@@ -1806,7 +1806,7 @@ SETTINGS = (
         help="Prepare script to run inside the image before it is cached",
         compat_names=("PrepareScript",),
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="build_scripts",
         long="--build-script",
         metavar="PATH",
@@ -1817,7 +1817,7 @@ SETTINGS = (
         help="Build script to run inside image",
         compat_names=("BuildScript",),
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="postinst_scripts",
         long="--postinst-script",
         metavar="PATH",
@@ -1829,7 +1829,7 @@ SETTINGS = (
         help="Postinstall script to run inside image",
         compat_names=("PostInstallationScript",),
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="finalize_scripts",
         long="--finalize-script",
         metavar="PATH",
@@ -1840,7 +1840,7 @@ SETTINGS = (
         help="Postinstall script to run outside image",
         compat_names=("FinalizeScript",),
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="build_sources",
         metavar="PATH",
         section="Content",
@@ -1848,14 +1848,14 @@ SETTINGS = (
         match=config_match_build_sources,
         help="Path for sources to build",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="build_sources_ephemeral",
         metavar="BOOL",
         section="Content",
         parse=config_parse_boolean,
         help="Make build sources ephemeral when running scripts",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="environment",
         short="-E",
         metavar="NAME[=VALUE]",
@@ -1863,7 +1863,7 @@ SETTINGS = (
         parse=config_make_list_parser(delimiter=" ", unescape=True),
         help="Set an environment variable when running scripts",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="environment_files",
         long="--env-file",
         metavar="PATH",
@@ -1873,7 +1873,7 @@ SETTINGS = (
         path_default=False,
         help="Enviroment files to set when running scripts",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="with_tests",
         short="-T",
         long="--without-tests",
@@ -1884,7 +1884,7 @@ SETTINGS = (
         default=True,
         help="Do not run tests as part of build scripts, if supported",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="with_network",
         metavar="BOOL",
         nargs="?",
@@ -1892,7 +1892,7 @@ SETTINGS = (
         parse=config_parse_boolean,
         help="Run build and postinst scripts with network access (instead of private network)",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="bootable",
         metavar="FEATURE",
         nargs="?",
@@ -1901,7 +1901,7 @@ SETTINGS = (
         match=config_match_feature,
         help="Generate ESP partition with systemd-boot and UKIs for installed kernels",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="bootloader",
         metavar="BOOTLOADER",
         section="Content",
@@ -1910,7 +1910,7 @@ SETTINGS = (
         default=Bootloader.systemd_boot,
         help="Specify which UEFI bootloader to use",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="bios_bootloader",
         metavar="BOOTLOADER",
         section="Content",
@@ -1919,7 +1919,7 @@ SETTINGS = (
         default=BiosBootloader.none,
         help="Specify which BIOS bootloader to use",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="shim_bootloader",
         metavar="BOOTLOADER",
         section="Content",
@@ -1928,7 +1928,7 @@ SETTINGS = (
         default=ShimBootloader.none,
         help="Specify whether to use shim",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="initrds",
         long="--initrd",
         metavar="PATH",
@@ -1936,7 +1936,7 @@ SETTINGS = (
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser(required=False)),
         help="Add a user-provided initrd to image",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="initrd_packages",
         long="--initrd-package",
         metavar="PACKAGE",
@@ -1944,7 +1944,7 @@ SETTINGS = (
         parse=config_make_list_parser(delimiter=","),
         help="Add additional packages to the default initrd",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="kernel_command_line",
         metavar="OPTIONS",
         section="Content",
@@ -1953,28 +1953,28 @@ SETTINGS = (
         default_factory=config_default_kernel_command_line,
         help="Set the kernel command line (only bootable images)",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="kernel_modules_include",
         metavar="REGEX",
         section="Content",
         parse=config_make_list_parser(delimiter=","),
         help="Include the specified kernel modules in the image",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="kernel_modules_include_host",
         metavar="BOOL",
         section="Content",
         parse=config_parse_boolean,
         help="Include the currently loaded modules on the host in the image",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="kernel_modules_exclude",
         metavar="REGEX",
         section="Content",
         parse=config_make_list_parser(delimiter=","),
         help="Exclude the specified kernel modules from the image",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="kernel_modules_initrd",
         metavar="BOOL",
         nargs="?",
@@ -1983,62 +1983,62 @@ SETTINGS = (
         default=True,
         help="When building a bootable image, add an extra initrd containing the kernel modules",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="kernel_modules_initrd_include",
         metavar="REGEX",
         section="Content",
         parse=config_make_list_parser(delimiter=","),
         help="When building a kernel modules initrd, include the specified kernel modules",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="kernel_modules_initrd_include_host",
         metavar="BOOL",
         section="Content",
         parse=config_parse_boolean,
         help="When building a kernel modules initrd, include the currently loaded modules on the host in the image",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="kernel_modules_initrd_exclude",
         metavar="REGEX",
         section="Content",
         parse=config_make_list_parser(delimiter=","),
         help="When building a kernel modules initrd, exclude the specified kernel modules",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="locale",
         section="Content",
         parse=config_parse_string,
         help="Set the system locale",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="locale_messages",
         metavar="LOCALE",
         section="Content",
         parse=config_parse_string,
         help="Set the messages locale",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="keymap",
         metavar="KEYMAP",
         section="Content",
         parse=config_parse_string,
         help="Set the system keymap",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="timezone",
         metavar="TIMEZONE",
         section="Content",
         parse=config_parse_string,
         help="Set the system timezone",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="hostname",
         metavar="HOSTNAME",
         section="Content",
         parse=config_parse_string,
         help="Set the system hostname",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="root_password",
         metavar="PASSWORD",
         section="Content",
@@ -2048,14 +2048,14 @@ SETTINGS = (
         path_secret=True,
         help="Set the password for root",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="root_shell",
         metavar="SHELL",
         section="Content",
         parse=config_parse_string,
         help="Set the shell for root",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="autologin",
         short="-a",
         metavar="BOOL",
@@ -2064,7 +2064,7 @@ SETTINGS = (
         parse=config_parse_boolean,
         help="Enable root autologin",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="make_initrd",
         metavar="BOOL",
         nargs="?",
@@ -2072,7 +2072,7 @@ SETTINGS = (
         parse=config_parse_boolean,
         help="Make sure the image can be used as an initramfs",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="ssh",
         metavar="BOOL",
         nargs="?",
@@ -2080,7 +2080,7 @@ SETTINGS = (
         parse=config_parse_boolean,
         help="Set up SSH access from the host to the final image via 'mkosi ssh'",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="selinux_relabel",
         name="SELinuxRelabel",
         metavar="FEATURE",
@@ -2089,7 +2089,7 @@ SETTINGS = (
         help="Specify whether to relabel all files with setfiles",
     ),
 
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="secure_boot",
         metavar="BOOL",
         nargs="?",
@@ -2097,7 +2097,7 @@ SETTINGS = (
         parse=config_parse_boolean,
         help="Sign the resulting kernel/initrd image for UEFI SecureBoot",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="secure_boot_auto_enroll",
         metavar="BOOL",
         section="Validation",
@@ -2105,7 +2105,7 @@ SETTINGS = (
         default=True,
         help="Automatically enroll the secureboot signing key on first boot",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="secure_boot_key",
         metavar="PATH",
         section="Validation",
@@ -2113,7 +2113,7 @@ SETTINGS = (
         paths=("mkosi.key",),
         help="UEFI SecureBoot private key in PEM format",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="secure_boot_certificate",
         metavar="PATH",
         section="Validation",
@@ -2121,7 +2121,7 @@ SETTINGS = (
         paths=("mkosi.crt",),
         help="UEFI SecureBoot certificate in X509 format",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="secure_boot_sign_tool",
         metavar="TOOL",
         section="Validation",
@@ -2130,7 +2130,7 @@ SETTINGS = (
         choices=SecureBootSignTool.values(),
         help="Tool to use for signing PE binaries for secure boot",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="verity_key",
         metavar="PATH",
         section="Validation",
@@ -2138,7 +2138,7 @@ SETTINGS = (
         paths=("mkosi.key",),
         help="Private key for signing verity signature in PEM format",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="verity_certificate",
         metavar="PATH",
         section="Validation",
@@ -2146,14 +2146,14 @@ SETTINGS = (
         paths=("mkosi.crt",),
         help="Certificate for signing verity signature in X509 format",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="sign_expected_pcr",
         metavar="FEATURE",
         section="Validation",
         parse=config_parse_feature,
         help="Measure the components of the unified kernel image (UKI) and embed the PCR signature into the UKI",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="passphrase",
         metavar="PATH",
         section="Validation",
@@ -2161,7 +2161,7 @@ SETTINGS = (
         paths=("mkosi.passphrase",),
         help="Path to a file containing the passphrase to use when LUKS encryption is selected",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="checksum",
         metavar="BOOL",
         nargs="?",
@@ -2169,7 +2169,7 @@ SETTINGS = (
         parse=config_parse_boolean,
         help="Write SHA256SUMS file",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="sign",
         metavar="BOOL",
         nargs="?",
@@ -2177,13 +2177,13 @@ SETTINGS = (
         parse=config_parse_boolean,
         help="Write and sign SHA256SUMS file",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="key",
         section="Validation",
         help="GPG key to use for signing",
     ),
 
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="incremental",
         short="-i",
         metavar="BOOL",
@@ -2192,7 +2192,7 @@ SETTINGS = (
         parse=config_parse_boolean,
         help="Make use of and generate intermediary cache images",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="nspawn_settings",
         name="NSpawnSettings",
         long="--settings",
@@ -2202,7 +2202,7 @@ SETTINGS = (
         paths=("mkosi.nspawn",),
         help="Add in .nspawn settings file",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="extra_search_paths",
         long="--extra-search-path",
         metavar="PATH",
@@ -2210,7 +2210,7 @@ SETTINGS = (
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         help="List of comma-separated paths to look for programs before looking in PATH",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="ephemeral",
         metavar="BOOL",
         section="Host",
@@ -2219,7 +2219,7 @@ SETTINGS = (
                 'image that is removed immediately when the container/VM terminates'),
         nargs="?",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="credentials",
         long="--credential",
         metavar="NAME=VALUE",
@@ -2227,14 +2227,14 @@ SETTINGS = (
         parse=config_make_list_parser(delimiter=" "),
         help="Pass a systemd credential to systemd-nspawn or qemu",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="kernel_command_line_extra",
         metavar="OPTIONS",
         section="Host",
         parse=config_make_list_parser(delimiter=" "),
         help="Append extra entries to the kernel command line when booting the image",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="acl",
         metavar="BOOL",
         nargs="?",
@@ -2242,7 +2242,7 @@ SETTINGS = (
         parse=config_parse_boolean,
         help="Set ACLs on generated directories to permit the user running mkosi to remove them",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="tools_tree",
         metavar="PATH",
         section="Host",
@@ -2250,27 +2250,27 @@ SETTINGS = (
         paths=("mkosi.tools",),
         help="Look up programs to execute inside the given tree",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="tools_tree_distribution",
         metavar="DISTRIBUTION",
         section="Host",
         parse=config_make_enum_parser(Distribution),
         help="Set the distribution to use for the default tools tree",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="tools_tree_release",
         metavar="RELEASE",
         section="Host",
         parse=config_parse_string,
         help="Set the release to use for the default tools tree",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="tools_tree_mirror",
         metavar="MIRROR",
         section="Host",
         help="Set the mirror to use for the default tools tree",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="tools_tree_packages",
         long="--tools-tree-package",
         metavar="PACKAGE",
@@ -2278,7 +2278,7 @@ SETTINGS = (
         parse=config_make_list_parser(delimiter=","),
         help="Add additional packages to the default tools tree",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="runtime_trees",
         long="--runtime-tree",
         metavar="SOURCE:[TARGET]",
@@ -2286,14 +2286,14 @@ SETTINGS = (
         parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(absolute=False)),
         help="Additional mounts to add when booting the image",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="runtime_size",
         metavar="SIZE",
         section="Host",
         parse=config_parse_bytes,
         help="Grow disk images to the specified size before booting them",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="ssh_key",
         metavar="PATH",
         section="Host",
@@ -2301,7 +2301,7 @@ SETTINGS = (
         paths=("mkosi.key",),
         help="Private key for use with mkosi ssh in PEM format",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="ssh_certificate",
         metavar="PATH",
         section="Host",
@@ -2309,7 +2309,7 @@ SETTINGS = (
         paths=("mkosi.crt",),
         help="Certificate for use with mkosi ssh in X509 format",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="qemu_gui",
         metavar="BOOL",
         nargs="?",
@@ -2317,21 +2317,21 @@ SETTINGS = (
         parse=config_parse_boolean,
         help="Start QEMU in graphical mode",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="qemu_smp",
         metavar="SMP",
         section="Host",
         default="1",
         help="Configure guest's SMP settings",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="qemu_mem",
         metavar="MEM",
         section="Host",
         default="2G",
         help="Configure guest's RAM size",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="qemu_kvm",
         metavar="FEATURE",
         nargs="?",
@@ -2339,7 +2339,7 @@ SETTINGS = (
         parse=config_parse_feature,
         help="Configure whether to use KVM or not",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="qemu_vsock",
         metavar="FEATURE",
         nargs="?",
@@ -2347,7 +2347,7 @@ SETTINGS = (
         parse=config_parse_feature,
         help="Configure whether to use qemu with a vsock or not",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="qemu_vsock_cid",
         name="QemuVsockConnectionId",
         long="--qemu-vsock-cid",
@@ -2357,7 +2357,7 @@ SETTINGS = (
         default=QemuVsockCID.hash,
         help="Specify the VSock connection ID to use",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="qemu_swtpm",
         metavar="FEATURE",
         nargs="?",
@@ -2365,7 +2365,7 @@ SETTINGS = (
         parse=config_parse_feature,
         help="Configure whether to use qemu with swtpm or not",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="qemu_cdrom",
         metavar="BOOLEAN",
         nargs="?",
@@ -2373,7 +2373,7 @@ SETTINGS = (
         parse=config_parse_boolean,
         help="Attach the image as a CD-ROM to the virtual machine",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="qemu_firmware",
         metavar="FIRMWARE",
         section="Host",
@@ -2382,21 +2382,21 @@ SETTINGS = (
         help="Set qemu firmware to use",
         choices=QemuFirmware.values(),
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="qemu_firmware_variables",
         metavar="PATH",
         section="Host",
         parse=config_make_path_parser(),
         help="Set the path to the qemu firmware variables file to use",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="qemu_kernel",
         metavar="PATH",
         section="Host",
         parse=config_make_path_parser(),
         help="Specify the kernel to use for qemu direct kernel boot",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="qemu_drives",
         long="--qemu-drive",
         metavar="DRIVE",
@@ -2404,7 +2404,7 @@ SETTINGS = (
         parse=config_make_list_parser(delimiter=" ", parse=parse_drive),
         help="Specify a qemu drive that mkosi should create and pass to qemu",
     ),
-    MkosiConfigSetting(
+    ConfigSetting(
         dest="qemu_args",
         metavar="ARGS",
         section="Host",
@@ -2419,15 +2419,15 @@ SETTINGS_LOOKUP_BY_DEST = {s.dest: s for s in SETTINGS}
 SETTINGS_LOOKUP_BY_SPECIFIER = {s.specifier: s for s in SETTINGS if s.specifier}
 
 MATCHES = (
-    MkosiMatch(
+    Match(
         name="PathExists",
         match=match_path_exists,
     ),
-    MkosiMatch(
+    Match(
         name="SystemdVersion",
         match=match_systemd_version,
     ),
-    MkosiMatch(
+    Match(
         name="HostArchitecture",
         match=match_host_architecture,
     ),
@@ -2612,7 +2612,7 @@ def create_argument_parser(action: type[argparse.Action]) -> argparse.ArgumentPa
     return parser
 
 
-def resolve_deps(images: Sequence[MkosiConfig], include: Sequence[str]) -> list[MkosiConfig]:
+def resolve_deps(images: Sequence[Config], include: Sequence[str]) -> list[Config]:
     graph = {config.image: config.dependencies for config in images}
 
     if include:
@@ -2639,7 +2639,7 @@ def resolve_deps(images: Sequence[MkosiConfig], include: Sequence[str]) -> list[
     return sorted(images, key=lambda i: order.index(i.image))
 
 
-def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig, ...]]:
+def parse_config(argv: Sequence[str] = ()) -> tuple[Args, tuple[Config, ...]]:
     # Compare inodes instead of paths so we can't get tricked by bind mounts and such.
     parsed_includes: set[tuple[int, int]] = set()
     immutable_settings: set[str] = set()
@@ -2698,7 +2698,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
                     parse_config(p if p.is_file() else Path("."), namespace, defaults)
                 parsed_includes.add((st.st_dev, st.st_ino))
 
-    class MkosiAction(argparse.Action):
+    class ConfigAction(argparse.Action):
         def __call__(
             self,
             parser: argparse.ArgumentParser,
@@ -2725,7 +2725,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
                         setattr(namespace, s.dest, s.parse(v, getattr(namespace, self.dest, None)))
 
     def finalize_default(
-        setting: MkosiConfigSetting,
+        setting: ConfigSetting,
         namespace: argparse.Namespace,
         defaults: argparse.Namespace
     ) -> Optional[Any]:
@@ -2809,7 +2809,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
         defaults: argparse.Namespace,
         profiles: bool = False,
     ) -> bool:
-        s: Optional[MkosiConfigSetting] # Make mypy happy
+        s: Optional[ConfigSetting] # Make mypy happy
         extras = path.is_dir()
 
         if path.is_dir():
@@ -2919,7 +2919,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
         argv += ["--", "build"]
 
     namespace = argparse.Namespace()
-    argparser = create_argument_parser(MkosiAction)
+    argparser = create_argument_parser(ConfigAction)
     argparser.parse_args(argv, namespace)
     cli_ns = copy.deepcopy(namespace)
 
@@ -3123,7 +3123,7 @@ def load_environment(args: argparse.Namespace) -> dict[str, str]:
     return env
 
 
-def load_args(args: argparse.Namespace) -> MkosiArgs:
+def load_args(args: argparse.Namespace) -> Args:
     if args.cmdline and not args.verb.supports_cmdline():
         die(f"Arguments after verb are not supported for {args.verb}.")
 
@@ -3132,10 +3132,10 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
     if args.debug_shell:
         ARG_DEBUG_SHELL.set(args.debug_shell)
 
-    return MkosiArgs.from_namespace(args)
+    return Args.from_namespace(args)
 
 
-def load_config(args: MkosiArgs, config: argparse.Namespace) -> MkosiConfig:
+def load_config(args: Args, config: argparse.Namespace) -> Config:
     if config.build_dir:
         config.build_dir = config.build_dir / f"{config.distribution}~{config.release}~{config.architecture}"
 
@@ -3179,7 +3179,7 @@ def load_config(args: MkosiArgs, config: argparse.Namespace) -> MkosiConfig:
     ):
         die("This unprivileged build configuration requires at least Linux v5.11")
 
-    return MkosiConfig.from_namespace(config)
+    return Config.from_namespace(config)
 
 
 def yes_no(b: bool) -> str:
@@ -3237,7 +3237,7 @@ def format_bytes_or_none(num_bytes: Optional[int]) -> str:
     return format_bytes(num_bytes) if num_bytes is not None else "none"
 
 
-def summary(config: MkosiConfig) -> str:
+def summary(config: Config) -> str:
     def bold(s: Any) -> str:
         return f"{Style.bold}{s}{Style.reset}"
 
@@ -3398,7 +3398,7 @@ def summary(config: MkosiConfig) -> str:
     return summary
 
 
-class MkosiJsonEncoder(json.JSONEncoder):
+class JsonEncoder(json.JSONEncoder):
     def default(self, o: Any) -> Any:
         if isinstance(o, StrEnum):
             return str(o)
@@ -3408,7 +3408,7 @@ class MkosiJsonEncoder(json.JSONEncoder):
             return os.fspath(o)
         elif isinstance(o, uuid.UUID):
             return str(o)
-        elif isinstance(o, (MkosiArgs, MkosiConfig)):
+        elif isinstance(o, (Args, Config)):
             return o.to_dict()
         return json.JSONEncoder.default(self, o)
 
@@ -3416,7 +3416,7 @@ class MkosiJsonEncoder(json.JSONEncoder):
 E = TypeVar("E", bound=StrEnum)
 
 
-def json_type_transformer(refcls: Union[type[MkosiArgs], type[MkosiConfig]]) -> Callable[[str, Any], Any]:
+def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[str, Any], Any]:
     fields_by_name = {field.name: field for field in dataclasses.fields(refcls)}
 
     def path_transformer(path: str, fieldtype: type[Path]) -> Path:

@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import NamedTuple, Optional
 
 from mkosi.bubblewrap import bwrap
-from mkosi.state import MkosiState
+from mkosi.context import Context
 from mkosi.tree import rmtree
 from mkosi.types import PathString
 
@@ -22,25 +22,25 @@ class RpmRepository(NamedTuple):
     sslclientcert: Optional[Path] = None
 
 
-def find_rpm_gpgkey(state: MkosiState, key: str, url: str) -> str:
+def find_rpm_gpgkey(context: Context, key: str, url: str) -> str:
     gpgpath = next(Path("/usr/share/distribution-gpg-keys").rglob(key), None)
     if gpgpath:
         return f"file://{gpgpath}"
 
-    gpgpath = next(Path(state.pkgmngr / "etc/pki/rpm-gpg").rglob(key), None)
+    gpgpath = next(Path(context.pkgmngr / "etc/pki/rpm-gpg").rglob(key), None)
     if gpgpath:
-        return f"file://{Path('/') / gpgpath.relative_to(state.pkgmngr)}"
+        return f"file://{Path('/') / gpgpath.relative_to(context.pkgmngr)}"
 
     return url
 
 
-def setup_rpm(state: MkosiState) -> None:
-    confdir = state.pkgmngr / "etc/rpm"
+def setup_rpm(context: Context) -> None:
+    confdir = context.pkgmngr / "etc/rpm"
     confdir.mkdir(parents=True, exist_ok=True)
-    if not (confdir / "macros.lang").exists() and state.config.locale:
-        (confdir / "macros.lang").write_text(f"%_install_langs {state.config.locale}")
+    if not (confdir / "macros.lang").exists() and context.config.locale:
+        (confdir / "macros.lang").write_text(f"%_install_langs {context.config.locale}")
 
-    plugindir = Path(bwrap(state, ["rpm", "--eval", "%{__plugindir}"], stdout=subprocess.PIPE).stdout.strip())
+    plugindir = Path(bwrap(context, ["rpm", "--eval", "%{__plugindir}"], stdout=subprocess.PIPE).stdout.strip())
     if plugindir.exists():
         with (confdir / "macros.disable-plugins").open("w") as f:
             for plugin in plugindir.iterdir():
@@ -64,5 +64,5 @@ def fixup_rpmdb_location(root: Path) -> None:
     rpmdb_home.symlink_to(os.path.relpath(rpmdb, start=rpmdb_home.parent))
 
 
-def rpm_cmd(state: MkosiState) -> list[PathString]:
-    return ["env", "HOME=/", "rpm", "--root", state.root]
+def rpm_cmd(context: Context) -> list[PathString]:
+    return ["env", "HOME=/", "rpm", "--root", context.root]

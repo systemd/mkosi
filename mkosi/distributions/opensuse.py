@@ -7,13 +7,13 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from mkosi.config import Architecture
+from mkosi.context import Context
 from mkosi.distributions import Distribution, DistributionInstaller, PackageType
 from mkosi.installer.dnf import invoke_dnf, setup_dnf
 from mkosi.installer.rpm import RpmRepository
 from mkosi.installer.zypper import invoke_zypper, setup_zypper
 from mkosi.log import die
 from mkosi.run import run
-from mkosi.state import MkosiState
 
 
 class Installer(DistributionInstaller):
@@ -38,17 +38,17 @@ class Installer(DistributionInstaller):
         return Distribution.opensuse
 
     @classmethod
-    def setup(cls, state: MkosiState) -> None:
-        release = state.config.release
+    def setup(cls, context: Context) -> None:
+        release = context.config.release
         if release == "leap":
             release = "stable"
 
-        mirror = state.config.mirror or "https://download.opensuse.org"
+        mirror = context.config.mirror or "https://download.opensuse.org"
 
         # If the release looks like a timestamp, it's Tumbleweed. 13.x is legacy
         # (14.x won't ever appear). For anything else, let's default to Leap.
-        if state.config.local_mirror:
-            release_url = f"{state.config.local_mirror}"
+        if context.config.local_mirror:
+            release_url = f"{context.config.local_mirror}"
             updates_url = None
         if release.isdigit() or release == "tumbleweed":
             release_url = f"{mirror}/tumbleweed/repo/oss/"
@@ -64,8 +64,8 @@ class Installer(DistributionInstaller):
 
         # If we need to use a local mirror, create a temporary repository definition
         # that doesn't get in the image, as it is valid only at image build time.
-        if state.config.local_mirror:
-            repos = [RpmRepository("local-mirror", f"baseurl={state.config.local_mirror}", ())]
+        if context.config.local_mirror:
+            repos = [RpmRepository("local-mirror", f"baseurl={context.config.local_mirror}", ())]
         else:
             repos = [
                 RpmRepository("repo-oss", f"baseurl={release_url}", fetch_gpgurls(release_url) if not zypper else ()),
@@ -80,31 +80,31 @@ class Installer(DistributionInstaller):
                 ]
 
         if zypper:
-            setup_zypper(state, repos)
+            setup_zypper(context, repos)
         else:
-            setup_dnf(state, repos)
+            setup_dnf(context, repos)
 
     @classmethod
-    def install(cls, state: MkosiState) -> None:
-        cls.install_packages(state, ["filesystem", "distribution-release"], apivfs=False)
+    def install(cls, context: Context) -> None:
+        cls.install_packages(context, ["filesystem", "distribution-release"], apivfs=False)
 
     @classmethod
-    def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
+    def install_packages(cls, context: Context, packages: Sequence[str], apivfs: bool = True) -> None:
         if shutil.which("zypper"):
             options = [
                 "--download", "in-advance",
-                "--recommends" if state.config.with_recommends else "--no-recommends",
+                "--recommends" if context.config.with_recommends else "--no-recommends",
             ]
-            invoke_zypper(state, "install", packages, options, apivfs=apivfs)
+            invoke_zypper(context, "install", packages, options, apivfs=apivfs)
         else:
-            invoke_dnf(state, "install", packages, apivfs=apivfs)
+            invoke_dnf(context, "install", packages, apivfs=apivfs)
 
     @classmethod
-    def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
+    def remove_packages(cls, context: Context, packages: Sequence[str]) -> None:
         if shutil.which("zypper"):
-            invoke_zypper(state, "remove", packages, ["--clean-deps"])
+            invoke_zypper(context, "remove", packages, ["--clean-deps"])
         else:
-            invoke_dnf(state, "remove", packages)
+            invoke_dnf(context, "remove", packages)
 
     @classmethod
     def architecture(cls, arch: Architecture) -> str:

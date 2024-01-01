@@ -4,7 +4,7 @@ from collections.abc import Iterable, Sequence
 from typing import NamedTuple
 
 from mkosi.bubblewrap import apivfs_cmd, bwrap
-from mkosi.state import MkosiState
+from mkosi.context import Context
 from mkosi.types import PathString
 from mkosi.util import sort_packages, umask
 
@@ -14,8 +14,8 @@ class PacmanRepository(NamedTuple):
     url: str
 
 
-def setup_pacman(state: MkosiState, repositories: Iterable[PacmanRepository]) -> None:
-    if state.config.repository_key_check:
+def setup_pacman(context: Context, repositories: Iterable[PacmanRepository]) -> None:
+    if context.config.repository_key_check:
         sig_level = "Required DatabaseOptional"
     else:
         # If we are using a single local mirror built on the fly there
@@ -24,11 +24,11 @@ def setup_pacman(state: MkosiState, repositories: Iterable[PacmanRepository]) ->
 
     # Create base layout for pacman and pacman-key
     with umask(~0o755):
-        (state.root / "var/lib/pacman").mkdir(exist_ok=True, parents=True)
+        (context.root / "var/lib/pacman").mkdir(exist_ok=True, parents=True)
 
-    (state.cache_dir / "cache/pacman/pkg").mkdir(parents=True, exist_ok=True)
+    (context.cache_dir / "cache/pacman/pkg").mkdir(parents=True, exist_ok=True)
 
-    config = state.pkgmngr / "etc/pacman.conf"
+    config = context.pkgmngr / "etc/pacman.conf"
     if config.exists():
         return
 
@@ -57,7 +57,7 @@ def setup_pacman(state: MkosiState, repositories: Iterable[PacmanRepository]) ->
                 )
             )
 
-        if any((state.pkgmngr / "etc/pacman.d/").glob("*.conf")):
+        if any((context.pkgmngr / "etc/pacman.d/").glob("*.conf")):
             f.write(
                 textwrap.dedent(
                     """\
@@ -68,26 +68,26 @@ def setup_pacman(state: MkosiState, repositories: Iterable[PacmanRepository]) ->
             )
 
 
-def pacman_cmd(state: MkosiState) -> list[PathString]:
+def pacman_cmd(context: Context) -> list[PathString]:
     return [
         "pacman",
-        "--root", state.root,
+        "--root", context.root,
         "--logfile=/dev/null",
-        "--cachedir", state.cache_dir / "cache/pacman/pkg",
-        "--hookdir", state.root / "etc/pacman.d/hooks",
-        "--arch", state.config.distribution.architecture(state.config.architecture),
+        "--cachedir", context.cache_dir / "cache/pacman/pkg",
+        "--hookdir", context.root / "etc/pacman.d/hooks",
+        "--arch", context.config.distribution.architecture(context.config.architecture),
         "--color", "auto",
         "--noconfirm",
     ]
 
 
 def invoke_pacman(
-    state: MkosiState,
+    context: Context,
     operation: str,
     options: Sequence[str] = (),
     packages: Sequence[str] = (),
     apivfs: bool = True,
 ) -> None:
-    cmd = apivfs_cmd(state.root) if apivfs else []
-    bwrap(state, cmd + pacman_cmd(state) + [operation, *options, *sort_packages(packages)],
-          network=True, env=state.config.environment)
+    cmd = apivfs_cmd(context.root) if apivfs else []
+    bwrap(context, cmd + pacman_cmd(context) + [operation, *options, *sort_packages(packages)],
+          network=True, env=context.config.environment)

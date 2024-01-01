@@ -13,9 +13,9 @@ import pytest
 from mkosi.config import (
     Architecture,
     Compression,
+    Config,
     ConfigFeature,
     ConfigTree,
-    MkosiConfig,
     OutputFormat,
     Verb,
     config_parse_bytes,
@@ -801,7 +801,7 @@ def test_output_id_version(tmp_path: Path) -> None:
 
 
 def test_deterministic() -> None:
-    assert MkosiConfig.default() == MkosiConfig.default()
+    assert Config.default() == Config.default()
 
 
 def test_environment(tmp_path: Path) -> None:

@@ -4,6 +4,7 @@ import shutil
 from collections.abc import Sequence
 
 from mkosi.config import Architecture
+from mkosi.context import Context
 from mkosi.distributions import (
     Distribution,
     DistributionInstaller,
@@ -13,7 +14,6 @@ from mkosi.distributions import (
 from mkosi.installer.dnf import invoke_dnf, setup_dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey
 from mkosi.log import die
-from mkosi.state import MkosiState
 
 
 class Installer(DistributionInstaller):
@@ -38,10 +38,10 @@ class Installer(DistributionInstaller):
         return Distribution.mageia
 
     @classmethod
-    def setup(cls, state: MkosiState) -> None:
+    def setup(cls, context: Context) -> None:
         gpgurls = (
             find_rpm_gpgkey(
-                state,
+                context,
                 "RPM-GPG-KEY-Mageia",
                 "https://mirrors.kernel.org/mageia/distrib/$releasever/$basearch/media/core/release/media_info/pubkey",
             ),
@@ -49,10 +49,10 @@ class Installer(DistributionInstaller):
 
         repos = []
 
-        if state.config.local_mirror:
-            repos += [RpmRepository("core-release", f"baseurl={state.config.local_mirror}", gpgurls)]
-        elif state.config.mirror:
-            url = f"baseurl={join_mirror(state.config.mirror, 'distrib/$releasever/$basearch/media/core/')}"
+        if context.config.local_mirror:
+            repos += [RpmRepository("core-release", f"baseurl={context.config.local_mirror}", gpgurls)]
+        elif context.config.mirror:
+            url = f"baseurl={join_mirror(context.config.mirror, 'distrib/$releasever/$basearch/media/core/')}"
             repos += [
                 RpmRepository("core-release", f"{url}/release", gpgurls),
                 RpmRepository("core-updates", f"{url}/updates/", gpgurls)
@@ -64,25 +64,25 @@ class Installer(DistributionInstaller):
                 RpmRepository("core-updates", f"{url}&repo=updates", gpgurls)
             ]
 
-        setup_dnf(state, repos)
+        setup_dnf(context, repos)
 
     @classmethod
-    def install(cls, state: MkosiState) -> None:
-        cls.install_packages(state, ["filesystem"], apivfs=False)
+    def install(cls, context: Context) -> None:
+        cls.install_packages(context, ["filesystem"], apivfs=False)
 
     @classmethod
-    def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
-        invoke_dnf(state, "install", packages, apivfs=apivfs)
+    def install_packages(cls, context: Context, packages: Sequence[str], apivfs: bool = True) -> None:
+        invoke_dnf(context, "install", packages, apivfs=apivfs)
 
-        for d in state.root.glob("boot/vmlinuz-*"):
+        for d in context.root.glob("boot/vmlinuz-*"):
             kver = d.name.removeprefix("vmlinuz-")
-            vmlinuz = state.root / "usr/lib/modules" / kver / "vmlinuz"
+            vmlinuz = context.root / "usr/lib/modules" / kver / "vmlinuz"
             if not vmlinuz.exists():
                 shutil.copy2(d, vmlinuz)
 
     @classmethod
-    def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
-        invoke_dnf(state, "remove", packages)
+    def remove_packages(cls, context: Context, packages: Sequence[str]) -> None:
+        invoke_dnf(context, "remove", packages)
 
     @classmethod
     def architecture(cls, arch: Architecture) -> str:

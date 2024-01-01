@@ -11,7 +11,7 @@ from mkosi.util import StrEnum, read_os_release
 
 if TYPE_CHECKING:
     from mkosi.config import Architecture
-    from mkosi.state import MkosiState
+    from mkosi.context import Context
 
 
 class PackageType(StrEnum):
@@ -28,19 +28,19 @@ class DistributionInstaller:
         raise NotImplementedError
 
     @classmethod
-    def setup(cls, state: "MkosiState") -> None:
+    def setup(cls, context: "Context") -> None:
         raise NotImplementedError
 
     @classmethod
-    def install(cls, state: "MkosiState") -> None:
+    def install(cls, context: "Context") -> None:
         raise NotImplementedError
 
     @classmethod
-    def install_packages(cls, state: "MkosiState", packages: Sequence[str]) -> None:
+    def install_packages(cls, context: "Context", packages: Sequence[str]) -> None:
         raise NotImplementedError
 
     @classmethod
-    def remove_packages(cls, state: "MkosiState", packages: Sequence[str]) -> None:
+    def remove_packages(cls, context: "Context", packages: Sequence[str]) -> None:
         raise NotImplementedError
 
     @classmethod
@@ -106,17 +106,17 @@ class Distribution(StrEnum):
     def is_apt_distribution(self) -> bool:
         return self in (Distribution.debian, Distribution.ubuntu)
 
-    def setup(self, state: "MkosiState") -> None:
-        return self.installer().setup(state)
+    def setup(self, context: "Context") -> None:
+        return self.installer().setup(context)
 
-    def install(self, state: "MkosiState") -> None:
-        return self.installer().install(state)
+    def install(self, context: "Context") -> None:
+        return self.installer().install(context)
 
-    def install_packages(self, state: "MkosiState", packages: Sequence[str]) -> None:
-        return self.installer().install_packages(state, packages)
+    def install_packages(self, context: "Context", packages: Sequence[str]) -> None:
+        return self.installer().install_packages(context, packages)
 
-    def remove_packages(self, state: "MkosiState", packages: Sequence[str]) -> None:
-        return self.installer().remove_packages(state, packages)
+    def remove_packages(self, context: "Context", packages: Sequence[str]) -> None:
+        return self.installer().remove_packages(context, packages)
 
     def filesystem(self) -> str:
         return self.installer().filesystem()

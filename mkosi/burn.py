@@ -3,12 +3,12 @@
 import os
 import sys
 
-from mkosi.config import MkosiArgs, MkosiConfig, OutputFormat
+from mkosi.config import Args, Config, OutputFormat
 from mkosi.log import complete_step, die
 from mkosi.run import run
 
 
-def run_burn(args: MkosiArgs, config: MkosiConfig) -> None:
+def run_burn(args: Args, config: Config) -> None:
     if config.output_format not in (OutputFormat.disk, OutputFormat.esp):
         die(f"{config.output_format} images cannot be burned to disk")
 

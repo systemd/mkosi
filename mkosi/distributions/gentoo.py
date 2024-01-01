@@ -10,6 +10,7 @@ from pathlib import Path
 from mkosi.archive import extract_tar
 from mkosi.bubblewrap import apivfs_cmd, bwrap, chroot_cmd
 from mkosi.config import Architecture
+from mkosi.context import Context
 from mkosi.distributions import (
     Distribution,
     DistributionInstaller,
@@ -18,22 +19,21 @@ from mkosi.distributions import (
 )
 from mkosi.log import ARG_DEBUG, complete_step, die
 from mkosi.run import run
-from mkosi.state import MkosiState
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
 from mkosi.util import sort_packages
 
 
-def invoke_emerge(state: MkosiState, packages: Sequence[str] = (), apivfs: bool = True) -> None:
+def invoke_emerge(context: Context, packages: Sequence[str] = (), apivfs: bool = True) -> None:
     bwrap(
-        state,
-        cmd=apivfs_cmd(state.root) + [
+        context,
+        cmd=apivfs_cmd(context.root) + [
             # We can't mount the stage 3 /usr using `options`, because bwrap isn't available in the stage 3
             # tarball which is required by apivfs_cmd(), so we have to mount /usr from the tarball later
             # using another bwrap exec.
             "bwrap",
             "--dev-bind", "/", "/",
-            "--bind", state.cache_dir / "stage3/usr", "/usr",
+            "--bind", context.cache_dir / "stage3/usr", "/usr",
             "emerge",
             "--buildpkg=y",
             "--usepkg=y",
@@ -46,21 +46,21 @@ def invoke_emerge(state: MkosiState, packages: Sequence[str] = (), apivfs: bool 
             "--verbose-conflicts",
             "--noreplace",
             *(["--verbose", "--quiet=n", "--quiet-fail=n"] if ARG_DEBUG.get() else ["--quiet-build", "--quiet"]),
-            f"--root={state.root}",
+            f"--root={context.root}",
             *sort_packages(packages),
         ],
         network=True,
         options=[
             # TODO: Get rid of as many of these as possible.
-            "--bind", state.cache_dir / "stage3/etc", "/etc",
-            "--bind", state.cache_dir / "stage3/var", "/var",
+            "--bind", context.cache_dir / "stage3/etc", "/etc",
+            "--bind", context.cache_dir / "stage3/var", "/var",
             "--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf",
-            "--bind", state.cache_dir / "repos", "/var/db/repos",
+            "--bind", context.cache_dir / "repos", "/var/db/repos",
         ],
         env=dict(
-            PKGDIR=str(state.cache_dir / "binpkgs"),
-            DISTDIR=str(state.cache_dir / "distfiles"),
-        ) | ({"USE": "build"} if not apivfs else {}) | state.config.environment,
+            PKGDIR=str(context.cache_dir / "binpkgs"),
+            DISTDIR=str(context.cache_dir / "distfiles"),
+        ) | ({"USE": "build"} if not apivfs else {}) | context.config.environment,
     )
 
 
@@ -86,14 +86,14 @@ class Installer(DistributionInstaller):
         return Distribution.gentoo
 
     @classmethod
-    def setup(cls, state: MkosiState) -> None:
+    def setup(cls, context: Context) -> None:
         pass
 
     @classmethod
-    def install(cls, state: MkosiState) -> None:
-        arch = state.config.distribution.architecture(state.config.architecture)
+    def install(cls, context: Context) -> None:
+        arch = context.config.distribution.architecture(context.config.architecture)
 
-        mirror = state.config.mirror or "https://distfiles.gentoo.org"
+        mirror = context.config.mirror or "https://distfiles.gentoo.org"
         # http://distfiles.gentoo.org/releases/amd64/autobuilds/latest-stage3.txt
         stage3tsf_path_url = join_mirror(
             mirror.partition(" ")[0],
@@ -112,8 +112,8 @@ class Installer(DistributionInstaller):
                 die("profile names changed upstream?")
 
         stage3_url = join_mirror(mirror, f"releases/{arch}/autobuilds/{stage3_latest}")
-        stage3_tar = state.cache_dir / "stage3.tar"
-        stage3 = state.cache_dir / "stage3"
+        stage3_tar = context.cache_dir / "stage3.tar"
+        stage3 = context.cache_dir / "stage3"
 
         with complete_step("Fetching latest stage3 snapshot"):
             old = stage3_tar.stat().st_mtime if stage3_tar.exists() else 0
@@ -131,12 +131,12 @@ class Installer(DistributionInstaller):
 
         if not any(stage3.iterdir()):
             with complete_step(f"Extracting {stage3_tar.name} to {stage3}"):
-                extract_tar(state, stage3_tar, stage3)
+                extract_tar(context, stage3_tar, stage3)
 
         for d in ("binpkgs", "distfiles", "repos/gentoo"):
-            (state.cache_dir / d).mkdir(parents=True, exist_ok=True)
+            (context.cache_dir / d).mkdir(parents=True, exist_ok=True)
 
-        copy_tree(state.pkgmngr, stage3, preserve_owner=False, use_subvolumes=state.config.use_subvolumes)
+        copy_tree(context.pkgmngr, stage3, preserve_owner=False, use_subvolumes=context.config.use_subvolumes)
 
         features = " ".join([
             # Disable sandboxing in emerge because we already do it in mkosi.
@@ -150,7 +150,7 @@ class Installer(DistributionInstaller):
             "-usersync",
             "-ebuild-locks",
             "parallel-install",
-            *(["noman", "nodoc", "noinfo"] if state.config.with_docs else []),
+            *(["noman", "nodoc", "noinfo"] if context.config.with_docs else []),
         ])
 
         # Setting FEATURES via the environment variable does not seem to apply to ebuilds in portage, so we
@@ -160,25 +160,25 @@ class Installer(DistributionInstaller):
 
         chroot = chroot_cmd(
             stage3,
-            options=["--bind", state.cache_dir / "repos", "/var/db/repos"],
+            options=["--bind", context.cache_dir / "repos", "/var/db/repos"],
         )
 
-        bwrap(state, cmd=chroot + ["emerge-webrsync"], network=True)
+        bwrap(context, cmd=chroot + ["emerge-webrsync"], network=True)
 
-        invoke_emerge(state, packages=["sys-apps/baselayout"], apivfs=False)
+        invoke_emerge(context, packages=["sys-apps/baselayout"], apivfs=False)
 
     @classmethod
-    def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
-        invoke_emerge(state, packages=packages, apivfs=apivfs)
+    def install_packages(cls, context: Context, packages: Sequence[str], apivfs: bool = True) -> None:
+        invoke_emerge(context, packages=packages, apivfs=apivfs)
 
-        for d in state.root.glob("usr/src/linux-*"):
+        for d in context.root.glob("usr/src/linux-*"):
             kver = d.name.removeprefix("linux-")
             kimg = d / {
                 Architecture.x86_64: "arch/x86/boot/bzImage",
                 Architecture.arm64: "arch/arm64/boot/Image.gz",
                 Architecture.arm: "arch/arm/boot/zImage",
-            }[state.config.architecture]
-            vmlinuz = state.root / "usr/lib/modules" / kver / "vmlinuz"
+            }[context.config.architecture]
+            vmlinuz = context.root / "usr/lib/modules" / kver / "vmlinuz"
             if not vmlinuz.exists() and not vmlinuz.is_symlink():
                 vmlinuz.symlink_to(os.path.relpath(kimg, start=vmlinuz.parent))
 
