@@ -1,9 +1,11 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
+import functools
+import itertools
 import string
-from itertools import takewhile
 
 
+@functools.total_ordering
 class GenericVersion:
     # These constants follow the convention of the return value of rpmdev-vercmp that are followe
     # by systemd-analyze compare-versions when called with only two arguments (without a comparison
@@ -26,10 +28,10 @@ class GenericVersion:
             return ""
 
         def digit_prefix(s: str) -> str:
-            return "".join(takewhile(lambda c: c in string.digits, s))
+            return "".join(itertools.takewhile(lambda c: c in string.digits, s))
 
         def letter_prefix(s: str) -> str:
-            return "".join(takewhile(lambda c: c in string.ascii_letters, s))
+            return "".join(itertools.takewhile(lambda c: c in string.ascii_letters, s))
 
         while True:
             # Any characters which are outside of the set of listed above (a-z, A-Z, 0-9, -, ., ~,
@@ -145,40 +147,12 @@ class GenericVersion:
             return False
         return self.compare_versions(self._version, other._version) == self._EQUAL
 
-    def __ne__(self, other: object) -> bool:
-        if isinstance(other, (str, int)):
-            other = GenericVersion(str(other))
-        elif not isinstance(other, GenericVersion):
-            return False
-        return self.compare_versions(self._version, other._version) != self._EQUAL
-
     def __lt__(self, other: object) -> bool:
         if isinstance(other, (str, int)):
             other = GenericVersion(str(other))
         elif not isinstance(other, GenericVersion):
             return False
         return self.compare_versions(self._version, other._version) == self._LEFT_SMALLER
-
-    def __le__(self, other: object) -> bool:
-        if isinstance(other, (str, int)):
-            other = GenericVersion(str(other))
-        elif not isinstance(other, GenericVersion):
-            return False
-        return self.compare_versions(self._version, other._version) in (self._EQUAL, self._LEFT_SMALLER)
-
-    def __gt__(self, other: object) -> bool:
-        if isinstance(other, (str, int)):
-            other = GenericVersion(str(other))
-        elif not isinstance(other, GenericVersion):
-            return False
-        return self.compare_versions(self._version, other._version) == self._RIGHT_SMALLER
-
-    def __ge__(self, other: object) -> bool:
-        if isinstance(other, (str, int)):
-            other = GenericVersion(str(other))
-        elif not isinstance(other, GenericVersion):
-            return False
-        return self.compare_versions(self._version, other._version) in (self._EQUAL, self._RIGHT_SMALLER)
 
     def __str__(self) -> str:
         return self._version
