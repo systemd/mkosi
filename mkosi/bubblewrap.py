@@ -86,6 +86,7 @@ def bwrap(
         # This mount is writable so bwrap can create extra directories or symlinks inside of it as needed. This isn't a
         # problem as the package manager directory is created by mkosi and thrown away when the build finishes.
         "--bind", state.pkgmngr / "etc", "/etc",
+        "--ro-bind-try", "/etc/alternatives", "/etc/alternatives",
         "--bind", "/var/tmp", "/var/tmp",
         "--bind", "/tmp", "/tmp",
         "--bind", Path.cwd(), Path.cwd(),
