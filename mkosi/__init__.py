@@ -1254,6 +1254,8 @@ def install_tree(
     src: Path,
     dst: Path,
     target: Optional[Path] = None,
+    *,
+    preserve_owner: bool = True,
 ) -> None:
     t = dst
     if target:
@@ -1263,14 +1265,14 @@ def install_tree(
         t.parent.mkdir(parents=True, exist_ok=True)
 
     if src.is_dir() or (src.is_file() and target):
-        copy_tree(src, t, preserve_owner=False, use_subvolumes=state.config.use_subvolumes)
+        copy_tree(src, t, preserve_owner=preserve_owner, use_subvolumes=state.config.use_subvolumes)
     elif src.suffix == ".tar":
         extract_tar(state, src, t)
     elif src.suffix == ".raw":
         run(["systemd-dissect", "--copy-from", src, "/", t])
     else:
         # If we get an unknown file without a target, we just copy it into /.
-        copy_tree(src, t, preserve_owner=False, use_subvolumes=state.config.use_subvolumes)
+        copy_tree(src, t, preserve_owner=preserve_owner, use_subvolumes=state.config.use_subvolumes)
 
 
 def install_base_trees(state: MkosiState) -> None:
@@ -1288,7 +1290,7 @@ def install_skeleton_trees(state: MkosiState) -> None:
 
     with complete_step("Copying in skeleton file trees…"):
         for tree in state.config.skeleton_trees:
-            install_tree(state, tree.source, state.root, tree.target)
+            install_tree(state, tree.source, state.root, tree.target, preserve_owner=False)
 
 
 def install_package_manager_trees(state: MkosiState) -> None:
@@ -1304,7 +1306,7 @@ def install_package_manager_trees(state: MkosiState) -> None:
 
     with complete_step("Copying in package manager file trees…"):
         for tree in state.config.package_manager_trees:
-            install_tree(state, tree.source, state.workspace / "pkgmngr", tree.target)
+            install_tree(state, tree.source, state.workspace / "pkgmngr", tree.target, preserve_owner=False)
 
 
 def install_extra_trees(state: MkosiState) -> None:
@@ -1313,7 +1315,7 @@ def install_extra_trees(state: MkosiState) -> None:
 
     with complete_step("Copying in extra file trees…"):
         for tree in state.config.extra_trees:
-            install_tree(state, tree.source, state.root, tree.target)
+            install_tree(state, tree.source, state.root, tree.target, preserve_owner=False)
 
 
 def install_build_dest(state: MkosiState) -> None:
