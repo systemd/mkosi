@@ -1469,9 +1469,9 @@ def build_kernel_modules_initrd(context: Context, kver: str) -> Path:
         context, context.root, kmods,
         gen_required_kernel_modules(
             context.root, kver,
-            context.config.kernel_modules_initrd_include,
-            context.config.kernel_modules_initrd_exclude,
-            context.config.kernel_modules_initrd_include_host,
+            include=context.config.kernel_modules_initrd_include,
+            exclude=context.config.kernel_modules_initrd_exclude,
+            host=context.config.kernel_modules_initrd_include_host,
         )
     )
 
@@ -2128,9 +2128,9 @@ def run_depmod(context: Context) -> None:
     for kver, _ in gen_kernel_images(context):
         process_kernel_modules(
             context.root, kver,
-            context.config.kernel_modules_include,
-            context.config.kernel_modules_exclude,
-            context.config.kernel_modules_include_host,
+            include=context.config.kernel_modules_include,
+            exclude=context.config.kernel_modules_exclude,
+            host=context.config.kernel_modules_include_host,
         )
 
         with complete_step(f"Running depmod for {kver}"):
