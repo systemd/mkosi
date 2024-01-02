@@ -73,6 +73,7 @@ def apt_cmd(state: MkosiState, command: str) -> list[PathString]:
         "-o", "DPkg::Options::=--force-unsafe-io",
         "-o", "DPkg::Options::=--force-architecture",
         "-o", "DPkg::Options::=--force-depends",
+        "-o", "DPkg::Options::=--no-debsig",
         "-o", "DPkg::Use-Pty=false",
         "-o", "DPkg::Install::Recursive::Minimum=1000",
         "-o", "pkgCacheGen::ForceEssential=,",
