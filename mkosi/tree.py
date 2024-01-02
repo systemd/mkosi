@@ -1,8 +1,11 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
+import contextlib
 import errno
 import shutil
 import subprocess
+import tempfile
+from collections.abc import Iterator
 from pathlib import Path
 
 from mkosi.config import ConfigFeature
@@ -45,6 +48,21 @@ def cp_version() -> GenericVersion:
     return GenericVersion(run(["cp", "--version"], stdout=subprocess.PIPE).stdout.strip().splitlines()[0].split()[3])
 
 
+@contextlib.contextmanager
+def preserve_target_directories_stat(src: Path, dst: Path) -> Iterator[None]:
+    dirs = [p for d in src.glob("**/") if (dst / (p := d.relative_to(src))).exists()]
+
+    with tempfile.TemporaryDirectory() as tmp:
+        for d in dirs:
+            (tmp / d).mkdir(exist_ok=True)
+            shutil.copystat(dst / d, tmp / d)
+
+        yield
+
+        for d in dirs:
+            shutil.copystat(tmp / d, dst / d)
+
+
 def copy_tree(
     src: Path,
     dst: Path,
@@ -84,7 +102,12 @@ def copy_tree(
 
     # Subvolumes always have inode 256 so we can use that to check if a directory is a subvolume.
     if not subvolume or not preserve_owner or not is_subvolume(src) or (dst.exists() and any(dst.iterdir())):
-        run(copy)
+        with (
+            preserve_target_directories_stat(src, dst)
+            if not preserve_owner
+            else contextlib.nullcontext()
+        ):
+            run(copy)
         return
 
     # btrfs can't snapshot to an existing directory so make sure the destination does not exist.
@@ -98,7 +121,12 @@ def copy_tree(
         result = 1
 
     if result != 0:
-        run(copy)
+        with (
+            preserve_target_directories_stat(src, dst)
+            if not preserve_owner
+            else contextlib.nullcontext()
+        ):
+            run(copy)
 
 
 def rmtree(*paths: Path) -> None:
