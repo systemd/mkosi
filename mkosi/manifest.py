@@ -106,12 +106,17 @@ class Manifest:
         if not (root / dbpath).exists():
             dbpath = "/var/lib/rpm"
 
-        c = run(["rpm",
-                 f"--root={root}",
-                 f"--dbpath={dbpath}",
-                 "-qa",
-                 "--qf", r"%{NEVRA}\t%{SOURCERPM}\t%{NAME}\t%{ARCH}\t%{LONGSIZE}\t%{INSTALLTIME}\n"],
-                stdout=subprocess.PIPE)
+        c = run(
+            [
+                "rpm",
+                f"--root={root}",
+                f"--dbpath={dbpath}",
+                "-qa",
+                "--qf", r"%{NEVRA}\t%{SOURCERPM}\t%{NAME}\t%{ARCH}\t%{LONGSIZE}\t%{INSTALLTIME}\n",
+            ],
+            stdout=subprocess.PIPE,
+            sandbox=self.config.sandbox(),
+        )
 
         packages = sorted(c.stdout.splitlines())
 
@@ -146,14 +151,19 @@ class Manifest:
 
             source = self.source_packages.get(srpm)
             if source is None:
-                c = run(["rpm",
-                         f"--root={root}",
-                         f"--dbpath={dbpath}",
-                         "-q",
-                         "--changelog",
-                         nevra],
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.DEVNULL)
+                c = run(
+                    [
+                        "rpm",
+                        f"--root={root}",
+                        f"--dbpath={dbpath}",
+                        "-q",
+                        "--changelog",
+                        nevra,
+                    ],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,
+                    sandbox=self.config.sandbox(),
+                )
                 changelog = c.stdout.strip()
                 source = SourcePackageManifest(srpm, changelog)
                 self.source_packages[srpm] = source
@@ -161,12 +171,17 @@ class Manifest:
             source.add(manifest)
 
     def record_deb_packages(self, root: Path) -> None:
-        c = run(["dpkg-query",
-                 f"--admindir={root}/var/lib/dpkg",
-                 "--show",
-                 "--showformat",
-                     r'${Package}\t${source:Package}\t${Version}\t${Architecture}\t${Installed-Size}\t${db-fsys:Last-Modified}\n'],
-                 stdout=subprocess.PIPE)
+        c = run(
+            [
+                "dpkg-query",
+                f"--admindir={root}/var/lib/dpkg",
+                "--show",
+                "--showformat",
+                    r'${Package}\t${source:Package}\t${Version}\t${Architecture}\t${Installed-Size}\t${db-fsys:Last-Modified}\n',
+            ],
+            stdout=subprocess.PIPE,
+            sandbox=self.config.sandbox(),
+        )
 
         packages = sorted(c.stdout.splitlines())
 
@@ -225,7 +240,7 @@ class Manifest:
                 # We have to run from the root, because if we use the RootDir option to make
                 # apt from the host look at the repositories in the image, it will also pick
                 # the 'methods' executables from there, but the ABI might not be compatible.
-                result = run(cmd, stdout=subprocess.PIPE)
+                result = run(cmd, stdout=subprocess.PIPE, sandbox=self.config.sandbox())
                 source_package = SourcePackageManifest(source, result.stdout.strip())
                 self.source_packages[source] = source_package
 

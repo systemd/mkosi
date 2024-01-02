@@ -5,16 +5,20 @@ import os
 import subprocess
 import tempfile
 import textwrap
+import time
 from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 
 from mkosi.distributions import Distribution
+from mkosi.log import die
 from mkosi.mounts import mount
-from mkosi.run import run
+from mkosi.run import find_binary, run
 from mkosi.tree import copy_tree
+from mkosi.types import PathString
 from mkosi.util import INVOKING_USER
+from mkosi.versioncomp import GenericVersion
 
 from . import Image
 
@@ -65,6 +69,23 @@ def test_initrd(initrd: Image) -> None:
         image.qemu()
 
 
+def wait_for_device(device: PathString) -> None:
+    if (
+        find_binary("udevadm") and
+        GenericVersion(run(["udevadm", "--version"], stdout=subprocess.PIPE).stdout.strip()) >= 251
+    ):
+        run(["udevadm", "wait", "--timeout=30", "/dev/vg_mkosi/lv0"])
+        return
+
+    for i in range(30):
+        if Path(device).exists():
+            return
+
+        time.sleep(1)
+
+    die(f"Device {device} did not appear within 30 seconds")
+
+
 @pytest.mark.skipif(os.getuid() != 0, reason="mkosi-initrd LVM test can only be executed as root")
 def test_initrd_lvm(initrd: Image) -> None:
     with Image(
@@ -96,7 +117,7 @@ def test_initrd_lvm(initrd: Image) -> None:
         stack.callback(lambda: run(["vgchange", "-an", "vg_mkosi"]))
         run(["lvm", "lvcreate", "-l", "100%FREE", "-n", "lv0", "vg_mkosi"])
         run(["lvm", "lvs"])
-        run(["udevadm", "wait", "/dev/vg_mkosi/lv0"])
+        wait_for_device("/dev/vg_mkosi/lv0")
         run([f"mkfs.{image.config.distribution.filesystem()}", "-L", "root", "/dev/vg_mkosi/lv0"])
 
         with tempfile.TemporaryDirectory() as mnt, mount(Path("/dev/vg_mkosi/lv0"), Path(mnt)):
@@ -216,7 +237,7 @@ def test_initrd_luks_lvm(config: Image.Config, initrd: Image, passphrase: Path) 
         stack.callback(lambda: run(["vgchange", "-an", "vg_mkosi"]))
         run(["lvm", "lvcreate", "-l", "100%FREE", "-n", "lv0", "vg_mkosi"])
         run(["lvm", "lvs"])
-        run(["udevadm", "wait", "/dev/vg_mkosi/lv0"])
+        wait_for_device("/dev/vg_mkosi/lv0")
         run([f"mkfs.{image.config.distribution.filesystem()}", "-L", "root", "/dev/vg_mkosi/lv0"])
 
         with tempfile.TemporaryDirectory() as mnt, mount(Path("/dev/vg_mkosi/lv0"), Path(mnt)):

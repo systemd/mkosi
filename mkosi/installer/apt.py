@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: LGPL-2.1+
-import shutil
 import textwrap
 from collections.abc import Sequence
 
-from mkosi.bubblewrap import apivfs_cmd, bwrap
 from mkosi.context import Context
+from mkosi.run import find_binary, run
+from mkosi.sandbox import apivfs_cmd, finalize_crypto_mounts
 from mkosi.types import PathString
 from mkosi.util import sort_packages, umask
 
@@ -67,7 +67,7 @@ def apt_cmd(context: Context, command: str) -> list[PathString]:
         "-o", f"Dir::State={context.cache_dir / 'lib/apt'}",
         "-o", f"Dir::State::Status={context.root / 'var/lib/dpkg/status'}",
         "-o", f"Dir::Log={context.workspace}",
-        "-o", f"Dir::Bin::DPkg={shutil.which('dpkg')}",
+        "-o", f"Dir::Bin::DPkg={find_binary('dpkg', root=context.config.tools())}",
         "-o", "Debug::NoLocking=true",
         "-o", f"DPkg::Options::=--root={context.root}",
         "-o", "DPkg::Options::=--force-unsafe-io",
@@ -98,6 +98,18 @@ def invoke_apt(
     packages: Sequence[str] = (),
     apivfs: bool = True,
 ) -> None:
-    cmd = apivfs_cmd(context.root) if apivfs else []
-    bwrap(context, cmd + apt_cmd(context, command) + [operation, *sort_packages(packages)],
-          network=True, env=context.config.environment)
+    run(
+        apt_cmd(context, command) + [operation, *sort_packages(packages)],
+        sandbox=(
+            context.sandbox(
+                network=True,
+                options=[
+                    "--bind", context.root, context.root,
+                    "--bind", context.cache_dir, context.cache_dir,
+                    "--ro-bind", context.workspace / "apt.conf", context.workspace / "apt.conf",
+                    *finalize_crypto_mounts(tools=context.config.tools()),
+                ],
+            ) + (apivfs_cmd(context.root, tools=context.config.tools()) if apivfs else [])
+        ),
+        env=context.config.environment,
+    )

@@ -124,13 +124,6 @@ def make_executable(*paths: Path) -> None:
         os.chmod(path, st.st_mode | stat.S_IEXEC)
 
 
-def try_import(module: str) -> None:
-    try:
-        importlib.import_module(module)
-    except ModuleNotFoundError:
-        pass
-
-
 @contextlib.contextmanager
 def flock(path: Path) -> Iterator[int]:
     fd = os.open(path, os.O_CLOEXEC|os.O_RDONLY)

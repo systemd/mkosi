@@ -9,6 +9,7 @@ from pathlib import Path
 
 from mkosi.log import complete_step, log_step
 from mkosi.run import run
+from mkosi.types import PathString
 
 
 def loaded_modules() -> list[str]:
@@ -56,7 +57,13 @@ def module_path_to_name(path: Path) -> str:
     return path.name.partition(".")[0]
 
 
-def resolve_module_dependencies(root: Path, kver: str, modules: Sequence[str]) -> tuple[set[Path], set[Path]]:
+def resolve_module_dependencies(
+    root: Path,
+    kver: str,
+    modules: Sequence[str],
+    *,
+    sandbox: Sequence[PathString] = (),
+) -> tuple[set[Path], set[Path]]:
     """
     Returns a tuple of lists containing the paths to the module and firmware dependencies of the given list
     of module names (including the given module paths themselves). The paths are returned relative to the
@@ -78,7 +85,7 @@ def resolve_module_dependencies(root: Path, kver: str, modules: Sequence[str]) -
     for i in range(0, len(nametofile.keys()), 8500):
         chunk = list(nametofile.keys())[i:i+8500]
         info += run(["modinfo", "--basedir", root, "--set-version", kver, "--null", *chunk],
-                    stdout=subprocess.PIPE).stdout.strip()
+                    stdout=subprocess.PIPE, sandbox=sandbox).stdout.strip()
 
     log_step("Calculating required kernel modules and firmware")
 
@@ -142,12 +149,13 @@ def gen_required_kernel_modules(
     include: Sequence[str],
     exclude: Sequence[str],
     host: bool,
+    sandbox: Sequence[PathString] = (),
 ) -> Iterator[Path]:
     modulesd = root / "usr/lib/modules" / kver
     modules = filter_kernel_modules(root, kver, include=include, exclude=exclude, host=host)
 
     names = [module_path_to_name(m) for m in modules]
-    mods, firmware = resolve_module_dependencies(root, kver, names)
+    mods, firmware = resolve_module_dependencies(root, kver, names, sandbox=sandbox)
 
     def files() -> Iterator[Path]:
         yield modulesd.parent
@@ -184,12 +192,15 @@ def process_kernel_modules(
     include: Sequence[str],
     exclude: Sequence[str],
     host: bool,
+    sandbox: Sequence[PathString] = (),
 ) -> None:
     if not include and not exclude:
         return
 
     with complete_step("Applying kernel module filters"):
-        required = set(gen_required_kernel_modules(root, kver, include=include, exclude=exclude, host=host))
+        required = set(
+            gen_required_kernel_modules(root, kver, include=include, exclude=exclude, host=host, sandbox=sandbox)
+        )
 
         for m in (root / "usr/lib/modules" / kver).rglob("*.ko*"):
             if m in required:

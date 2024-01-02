@@ -2,12 +2,16 @@
 
 ## v20
 
+- The github action does not build and install systemd from source
+  anymore. Instead, `ToolsTree=default` can be used to make sure a
+  recent version of systemd is used to do the image build.
 - Added `EnvironmentFiles=` to read environment variables from
   environment files.
 - We drastically reduced how much of the host system we expose to
   scripts. Aside from `/usr`, a few directories in `/etc`, `/tmp`,
-  `/var/tmp` and various directory configured in mkosi settings, all
-  host directories are hidden from scripts and package managers.
+  `/var/tmp` and various directories configured in mkosi settings, all
+  host directories are hidden from scripts, package managers and other
+  tools executed by mkosi.
 - Added `SELinuxRelabel=` to specify whether to relabel selinux files
   or not.
 - Many fixes to tools trees were made and tools trees are now covered by

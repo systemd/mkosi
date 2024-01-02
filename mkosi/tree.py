@@ -5,37 +5,44 @@ import errno
 import shutil
 import subprocess
 import tempfile
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from pathlib import Path
 
 from mkosi.config import ConfigFeature
 from mkosi.log import die
-from mkosi.run import run
+from mkosi.run import find_binary, run
 from mkosi.types import PathString
 
 
-def statfs(path: Path) -> str:
-    return run(["stat", "--file-system", "--format", "%T", path], stdout=subprocess.PIPE).stdout.strip()
+def statfs(path: Path, *, sandbox: Sequence[PathString] = ()) -> str:
+    return run(["stat", "--file-system", "--format", "%T", path],
+               sandbox=sandbox, stdout=subprocess.PIPE).stdout.strip()
 
 
-def is_subvolume(path: Path) -> bool:
-    return path.is_dir() and statfs(path) == "btrfs" and path.stat().st_ino == 256
+def is_subvolume(path: Path, *, sandbox: Sequence[PathString] = ()) -> bool:
+    return path.is_dir() and statfs(path, sandbox=sandbox) == "btrfs" and path.stat().st_ino == 256
 
 
-def make_tree(path: Path, use_subvolumes: ConfigFeature = ConfigFeature.disabled) -> None:
-    if use_subvolumes == ConfigFeature.enabled and not shutil.which("btrfs"):
+def make_tree(
+    path: Path,
+    *,
+    use_subvolumes: ConfigFeature = ConfigFeature.disabled,
+    tools: Path = Path("/"),
+    sandbox: Sequence[PathString] = (),
+) -> None:
+    if use_subvolumes == ConfigFeature.enabled and not find_binary("btrfs", root=tools):
         die("Subvolumes requested but the btrfs command was not found")
 
-    if statfs(path.parent) != "btrfs":
+    if statfs(path.parent, sandbox=sandbox) != "btrfs":
         if use_subvolumes == ConfigFeature.enabled:
             die(f"Subvolumes requested but {path} is not located on a btrfs filesystem")
 
         path.mkdir()
         return
 
-    if use_subvolumes != ConfigFeature.disabled and shutil.which("btrfs") is not None:
+    if use_subvolumes != ConfigFeature.disabled and find_binary("btrfs", root=tools) is not None:
         result = run(["btrfs", "subvolume", "create", path],
-                     check=use_subvolumes == ConfigFeature.enabled).returncode
+                     sandbox=sandbox, check=use_subvolumes == ConfigFeature.enabled).returncode
     else:
         result = 1
 
@@ -65,11 +72,13 @@ def copy_tree(
     preserve: bool = True,
     dereference: bool = False,
     use_subvolumes: ConfigFeature = ConfigFeature.disabled,
+    tools: Path = Path("/"),
+    sandbox: Sequence[PathString] = (),
 ) -> None:
     subvolume = (use_subvolumes == ConfigFeature.enabled or
-                 use_subvolumes == ConfigFeature.auto and shutil.which("btrfs") is not None)
+                 use_subvolumes == ConfigFeature.auto and find_binary("btrfs", root=tools) is not None)
 
-    if use_subvolumes == ConfigFeature.enabled and not shutil.which("btrfs"):
+    if use_subvolumes == ConfigFeature.enabled and not find_binary("btrfs", root=tools):
         die("Subvolumes requested but the btrfs command was not found")
 
     copy: list[PathString] = [
@@ -91,8 +100,8 @@ def copy_tree(
     if (
         not subvolume or
         not preserve or
-        not is_subvolume(src) or
-        not shutil.which("btrfs") or
+        not is_subvolume(src, sandbox=sandbox) or
+        not find_binary("btrfs", root=tools) or
         (dst.exists() and any(dst.iterdir()))
     ):
         with (
@@ -100,7 +109,7 @@ def copy_tree(
             if not preserve
             else contextlib.nullcontext()
         ):
-            run(copy)
+            run(copy, sandbox=sandbox)
         return
 
     # btrfs can't snapshot to an existing directory so make sure the destination does not exist.
@@ -108,21 +117,29 @@ def copy_tree(
         dst.rmdir()
 
     result = run(["btrfs", "subvolume", "snapshot", src, dst],
-                 check=use_subvolumes == ConfigFeature.enabled).returncode
+                 check=use_subvolumes == ConfigFeature.enabled, sandbox=sandbox).returncode
     if result != 0:
         with (
             preserve_target_directories_stat(src, dst)
             if not preserve
             else contextlib.nullcontext()
         ):
-            run(copy)
+            run(copy, sandbox=sandbox)
 
 
-def rmtree(*paths: Path) -> None:
-    run(["rm", "-rf", "--", *paths])
+def rmtree(*paths: Path, sandbox: Sequence[PathString] = ()) -> None:
+    if paths:
+        run(["rm", "-rf", "--", *paths], sandbox=sandbox)
 
 
-def move_tree(src: Path, dst: Path, use_subvolumes: ConfigFeature = ConfigFeature.disabled) -> None:
+def move_tree(
+    src: Path,
+    dst: Path,
+    *,
+    use_subvolumes: ConfigFeature = ConfigFeature.disabled,
+    tools: Path = Path("/"),
+    sandbox: Sequence[PathString] = (),
+) -> None:
     if src == dst:
         return
 
@@ -135,5 +152,5 @@ def move_tree(src: Path, dst: Path, use_subvolumes: ConfigFeature = ConfigFeatur
         if e.errno != errno.EXDEV:
             raise e
 
-        copy_tree(src, dst, use_subvolumes=use_subvolumes)
-        rmtree(src)
+        copy_tree(src, dst, use_subvolumes=use_subvolumes, tools=tools, sandbox=sandbox)
+        rmtree(src, sandbox=sandbox)

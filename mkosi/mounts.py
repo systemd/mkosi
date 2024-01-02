@@ -11,7 +11,7 @@ from typing import Optional
 
 from mkosi.run import run
 from mkosi.types import PathString
-from mkosi.util import INVOKING_USER, umask
+from mkosi.util import umask
 from mkosi.versioncomp import GenericVersion
 
 
@@ -119,68 +119,3 @@ def mount_overlay(
                 yield where
         finally:
             delete_whiteout_files(upperdir)
-
-
-@contextlib.contextmanager
-def mount_usr(tree: Optional[Path], umount: bool = True) -> Iterator[None]:
-    if not tree:
-        yield
-        return
-
-    # If we replace /usr, we should ignore any local modifications made to PATH as any of those binaries
-    # might not work anymore when /usr is replaced wholesale. We also make sure that both /usr/bin and
-    # /usr/sbin/ are searched so that e.g. if the host is Arch and the root is Debian we don't ignore the
-    # binaries from /usr/sbin in the Debian root.
-    old = os.environ["PATH"]
-    os.environ["PATH"] = "/usr/bin:/usr/sbin"
-
-    try:
-        # If we mounted over /usr, trying to use umount will fail with "target is busy", because umount is
-        # being called from /usr, which we're trying to unmount. To work around this issue, we do a lazy
-        # unmount.
-        with mount(
-            what=tree / "usr",
-            where=Path("/usr"),
-            operation="--bind",
-            read_only=True,
-            lazy=True,
-            umount=umount,
-        ):
-            yield
-    finally:
-        os.environ["PATH"] = old
-
-
-@contextlib.contextmanager
-def mount_passwd() -> Iterator[None]:
-    with tempfile.NamedTemporaryFile(prefix="mkosi.passwd", mode="w") as passwd:
-        passwd.write("root:x:0:0:root:/root:/bin/sh\n")
-        if INVOKING_USER.uid != 0:
-            name = INVOKING_USER.name()
-            home = INVOKING_USER.home()
-            passwd.write(f"{name}:x:{INVOKING_USER.uid}:{INVOKING_USER.gid}:{name}:{home}:/bin/sh\n")
-        passwd.flush()
-        os.fchown(passwd.file.fileno(), INVOKING_USER.uid, INVOKING_USER.gid)
-
-        with mount(passwd.name, Path("/etc/passwd"), operation="--bind"):
-            yield
-
-
-def finalize_passwd_mounts(root: Path) -> list[PathString]:
-    """
-    If passwd or a related file exists in the apivfs directory, bind mount it over the host files while we
-    run the command, to make sure that the command we run uses user/group information from the apivfs
-    directory instead of from the host. If the file doesn't exist yet, mount over /dev/null instead.
-    """
-    options: list[PathString] = []
-
-    for f in ("passwd", "group", "shadow", "gshadow"):
-        if not (Path("/etc") / f).exists():
-            continue
-        p = root / "etc" / f
-        if p.exists():
-            options += ["--bind", p, f"/etc/{f}"]
-        else:
-            options += ["--bind", "/dev/null", f"/etc/{f}"]
-
-    return options

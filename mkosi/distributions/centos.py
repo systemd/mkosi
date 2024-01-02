@@ -3,7 +3,6 @@
 import os
 import shutil
 from collections.abc import Iterable, Sequence
-from pathlib import Path
 
 from mkosi.config import Architecture
 from mkosi.context import Context
@@ -20,14 +19,14 @@ from mkosi.tree import rmtree
 from mkosi.versioncomp import GenericVersion
 
 
-def move_rpm_db(root: Path) -> None:
+def move_rpm_db(context: Context) -> None:
     """Link /var/lib/rpm to /usr/lib/sysimage/rpm for compat with old rpm"""
-    olddb = root / "var/lib/rpm"
-    newdb = root / "usr/lib/sysimage/rpm"
+    olddb = context.root / "var/lib/rpm"
+    newdb = context.root / "usr/lib/sysimage/rpm"
 
     if newdb.exists() and not newdb.is_symlink():
         with complete_step("Moving rpm database /usr/lib/sysimage/rpm → /var/lib/rpm"):
-            rmtree(olddb)
+            rmtree(olddb, sandbox=context.sandbox(options=["--bind", olddb.parent, olddb.parent]))
             shutil.move(newdb, olddb)
 
             newdb.symlink_to(os.path.relpath(olddb, start=newdb.parent))
@@ -70,7 +69,7 @@ class Installer(DistributionInstaller):
 
         # On Fedora, the default rpmdb has moved to /usr/lib/sysimage/rpm so if that's the case we
         # need to move it back to /var/lib/rpm on CentOS.
-        move_rpm_db(context.root)
+        move_rpm_db(context)
 
     @classmethod
     def install_packages(cls, context: Context, packages: Sequence[str], apivfs: bool = True) -> None:

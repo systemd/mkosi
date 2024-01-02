@@ -1,20 +1,14 @@
 # SPDX-License-Identifier: LGPL-2.1+
-import contextlib
 import enum
 import logging
 import os
-import subprocess
-import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Optional
 
-from mkosi.context import Context
-from mkosi.log import ARG_DEBUG_SHELL
-from mkosi.mounts import finalize_passwd_mounts, mount_overlay
-from mkosi.run import find_binary, log_process_failure, run
-from mkosi.types import _FILE, CompletedProcess, PathString
-from mkosi.util import flatten, one_zero
+from mkosi.run import find_binary
+from mkosi.types import PathString
+from mkosi.util import INVOKING_USER, flatten, one_zero
 
 
 # https://github.com/torvalds/linux/blob/master/include/uapi/linux/capability.h
@@ -34,9 +28,29 @@ def have_effective_cap(capability: Capability) -> bool:
     return (int(hexcap, 16) & (1 << capability.value)) != 0
 
 
-def finalize_mounts(context: Context) -> list[str]:
+def finalize_passwd_mounts(root: Path) -> list[PathString]:
+    """
+    If passwd or a related file exists in the apivfs directory, bind mount it over the host files while we
+    run the command, to make sure that the command we run uses user/group information from the apivfs
+    directory instead of from the host. If the file doesn't exist yet, mount over /dev/null instead.
+    """
+    options: list[PathString] = []
+
+    for f in ("passwd", "group", "shadow", "gshadow"):
+        if not (Path("/etc") / f).exists():
+            continue
+        p = root / "etc" / f
+        if p.exists():
+            options += ["--bind", p, f"/etc/{f}"]
+        else:
+            options += ["--bind", "/dev/null", f"/etc/{f}"]
+
+    return options
+
+
+def finalize_crypto_mounts(tools: Path = Path("/")) -> list[PathString]:
     mounts = [
-        ((context.config.tools_tree or Path("/")) / subdir, Path("/") / subdir, True)
+        (tools / subdir, Path("/") / subdir)
         for subdir in (
             Path("etc/pki"),
             Path("etc/ssl"),
@@ -45,111 +59,100 @@ def finalize_mounts(context: Context) -> list[str]:
             Path("etc/pacman.d/gnupg"),
             Path("var/lib/ca-certificates"),
         )
-        if ((context.config.tools_tree or Path("/")) / subdir).exists()
+        if (tools / subdir).exists()
     ]
-
-    mounts += [
-        (d, d, False)
-        for d in (context.workspace, context.config.cache_dir, context.config.output_dir, context.config.build_dir)
-        if d
-    ]
-
-    mounts += [(d, d, True) for d in context.config.extra_search_paths]
 
     return flatten(
-        ["--ro-bind" if readonly else "--bind", os.fspath(src), os.fspath(target)]
-        for src, target, readonly
+        ["--ro-bind", src, target]
+        for src, target
         in sorted(set(mounts), key=lambda s: s[1])
     )
 
 
-def bwrap(
-    context: Context,
-    cmd: Sequence[PathString],
+def sandbox_cmd(
     *,
     network: bool = False,
     devices: bool = False,
-    options: Sequence[PathString] = (),
-    log: bool = True,
     scripts: Optional[Path] = None,
-    env: Mapping[str, str] = {},
-    stdin: _FILE = None,
-    stdout: _FILE = None,
-    stderr: _FILE = None,
-    input: Optional[str] = None,
-    check: bool = True,
-) -> CompletedProcess:
+    tools: Path = Path("/"),
+    relaxed: bool = False,
+    options: Sequence[PathString] = (),
+) -> list[PathString]:
     cmdline: list[PathString] = [
         "bwrap",
-        "--ro-bind", "/usr", "/usr",
-        "--ro-bind-try", "/nix/store", "/nix/store",
-        # This mount is writable so bwrap can create extra directories or symlinks inside of it as needed. This isn't a
-        # problem as the package manager directory is created by mkosi and thrown away when the build finishes.
-        "--bind", context.pkgmngr / "etc", "/etc",
-        "--ro-bind-try", "/etc/alternatives", "/etc/alternatives",
-        "--bind", "/var/tmp", "/var/tmp",
+        "--ro-bind", tools / "usr", "/usr",
         "--bind", "/tmp", "/tmp",
-        "--bind", Path.cwd(), Path.cwd(),
-        "--chdir", Path.cwd(),
         *(["--unshare-net"] if not network and have_effective_cap(Capability.CAP_NET_ADMIN) else []),
         "--die-with-parent",
         "--proc", "/proc",
         "--setenv", "SYSTEMD_OFFLINE", one_zero(network),
     ]
 
+    if (tools / "nix/store").exists():
+        cmdline += ["--bind", tools / "nix/store", "/nix/store"]
+
     if devices:
         cmdline += [
             "--bind", "/sys", "/sys",
+            "--bind", "/run", "/run",
             "--dev-bind", "/dev", "/dev",
         ]
     else:
         cmdline += ["--dev", "/dev"]
 
-    for p in Path("/").iterdir():
-        if p.is_symlink():
-            cmdline += ["--symlink", p.readlink(), p]
+    if relaxed:
+        dirs = ("/etc", "/opt", "/srv", "/media", "/mnt", "/var", os.fspath(INVOKING_USER.home()))
+
+        for d in dirs:
+            cmdline += ["--bind", d, d]
+
+        # `Path.parents` only supports slices and negative indexing from Python 3.10 onwards.
+        # TODO: Remove list() when we depend on Python 3.10 or newer.
+        if (d := os.fspath(list(Path.cwd().parents)[-2])) not in (*dirs, "/home", "/usr", "/nix", "/tmp"):
+            cmdline += ["--bind", d, d]
+    else:
+        cmdline += ["--bind", "/var/tmp", "/var/tmp"]
+
+    for d in ("bin", "sbin", "lib", "lib32", "lib64"):
+        if (p := tools / d).is_symlink():
+            cmdline += ["--symlink", p.readlink(), Path("/") / p.relative_to(tools)]
+
+    path = "/usr/bin:/usr/sbin" if tools != Path("/") else os.environ["PATH"]
+
+    cmdline += [
+        "--setenv", "PATH", f"{scripts or ''}:{path}",
+        *options,
+    ]
+
+    # If we're using /usr from a tools tree, we have to use /etc/alternatives from the tools tree as well if it
+    # exists since that points directly back to /usr. Apply this after the options so the caller can mount
+    # something else to /etc without overriding this mount.
+    if (tools / "etc/alternatives").exists():
+        cmdline += ["--ro-bind", tools / "etc/alternatives", "/etc/alternatives"]
+
+    if scripts:
+        cmdline += ["--ro-bind", scripts, scripts]
 
     if network:
         cmdline += ["--bind", "/etc/resolv.conf", "/etc/resolv.conf"]
 
-    cmdline += finalize_mounts(context) + [
-        "--setenv", "PATH", f"{scripts or ''}:{os.environ['PATH']}",
-        *options,
-        "sh", "-c", "chmod 1777 /dev/shm && exec $0 \"$@\"",
-    ]
+    if devices:
+        shm = ":"
+    else:
+        shm = "chmod 1777 /dev/shm"
 
-    if setpgid := find_binary("setpgid"):
+    cmdline += ["sh", "-c", f"{shm} && exec $0 \"$@\""]
+
+    if setpgid := find_binary("setpgid", root=tools):
         cmdline += [setpgid, "--foreground", "--"]
 
-    try:
-        with (
-            mount_overlay([Path("/usr"), context.pkgmngr / "usr"], where=Path("/usr"), lazy=True)
-            if (context.pkgmngr / "usr").exists()
-            else contextlib.nullcontext()
-        ):
-            return run(
-                [*cmdline, *cmd],
-                env=env,
-                log=False,
-                stdin=stdin,
-                stdout=stdout,
-                stderr=stderr,
-                input=input,
-                check=check,
-            )
-    except subprocess.CalledProcessError as e:
-        if log:
-            log_process_failure([os.fspath(s) for s in cmd], e.returncode)
-        if ARG_DEBUG_SHELL.get():
-            run([*cmdline, "sh"], stdin=sys.stdin, check=False, env=env, log=False)
-        raise e
+    return cmdline
 
 
-def apivfs_cmd(root: Path) -> list[PathString]:
+def apivfs_cmd(root: Path, *, tools: Path = Path("/")) -> list[PathString]:
     cmdline: list[PathString] = [
         "bwrap",
         "--dev-bind", "/", "/",
-        "--chdir", Path.cwd(),
         "--tmpfs", root / "run",
         "--tmpfs", root / "tmp",
         "--bind", os.getenv("TMPDIR", "/var/tmp"), root / "var/tmp",
@@ -165,7 +168,7 @@ def apivfs_cmd(root: Path) -> list[PathString]:
 
     cmdline += finalize_passwd_mounts(root)
 
-    if setpgid := find_binary("setpgid"):
+    if setpgid := find_binary("setpgid", root=tools):
         cmdline += [setpgid, "--foreground", "--"]
 
     chmod = f"chmod 1777 {root / 'tmp'} {root / 'var/tmp'} {root / 'dev/shm'}"
@@ -178,7 +181,13 @@ def apivfs_cmd(root: Path) -> list[PathString]:
     return cmdline
 
 
-def chroot_cmd(root: Path, *, resolve: bool = False, options: Sequence[PathString] = ()) -> list[PathString]:
+def chroot_cmd(
+    root: Path,
+    *,
+    resolve: bool = False,
+    tools: Path = Path("/"),
+    options: Sequence[PathString] = (),
+) -> list[PathString]:
     cmdline: list[PathString] = [
         "sh", "-c",
         # No exec here because we need to clean up the /work directory afterwards.
@@ -207,4 +216,4 @@ def chroot_cmd(root: Path, *, resolve: bool = False, options: Sequence[PathStrin
     if setpgid := find_binary("setpgid", root=root):
         cmdline += [setpgid, "--foreground", "--"]
 
-    return apivfs_cmd(root) + cmdline
+    return apivfs_cmd(root, tools=tools) + cmdline

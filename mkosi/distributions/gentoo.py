@@ -8,7 +8,6 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from mkosi.archive import extract_tar
-from mkosi.bubblewrap import apivfs_cmd, bwrap, chroot_cmd
 from mkosi.config import Architecture
 from mkosi.context import Context
 from mkosi.distributions import (
@@ -19,15 +18,15 @@ from mkosi.distributions import (
 )
 from mkosi.log import ARG_DEBUG, complete_step, die
 from mkosi.run import run
+from mkosi.sandbox import apivfs_cmd, chroot_cmd
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
 from mkosi.util import sort_packages
 
 
 def invoke_emerge(context: Context, packages: Sequence[str] = (), apivfs: bool = True) -> None:
-    bwrap(
-        context,
-        cmd=apivfs_cmd(context.root) + [
+    run(
+        apivfs_cmd(context.root, tools=context.config.tools()) + [
             # We can't mount the stage 3 /usr using `options`, because bwrap isn't available in the stage 3
             # tarball which is required by apivfs_cmd(), so we have to mount /usr from the tarball later
             # using another bwrap exec.
@@ -49,14 +48,16 @@ def invoke_emerge(context: Context, packages: Sequence[str] = (), apivfs: bool =
             f"--root={context.root}",
             *sort_packages(packages),
         ],
-        network=True,
-        options=[
-            # TODO: Get rid of as many of these as possible.
-            "--bind", context.cache_dir / "stage3/etc", "/etc",
-            "--bind", context.cache_dir / "stage3/var", "/var",
-            "--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf",
-            "--bind", context.cache_dir / "repos", "/var/db/repos",
-        ],
+        sandbox=context.sandbox(
+            network=True,
+            options=[
+                # TODO: Get rid of as many of these as possible.
+                "--bind", context.cache_dir / "stage3/etc", "/etc",
+                "--bind", context.cache_dir / "stage3/var", "/var",
+                "--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf",
+                "--bind", context.cache_dir / "repos", "/var/db/repos",
+            ],
+        ),
         env=dict(
             PKGDIR=str(context.cache_dir / "binpkgs"),
             DISTDIR=str(context.cache_dir / "distfiles"),
@@ -122,7 +123,7 @@ class Installer(DistributionInstaller):
             if stage3_tar.exists():
                 cmd += ["--time-cond", stage3_tar]
 
-            run(cmd)
+            run(cmd, sandbox=context.sandbox())
 
             if stage3_tar.stat().st_mtime > old:
                 rmtree(stage3)
@@ -160,10 +161,11 @@ class Installer(DistributionInstaller):
 
         chroot = chroot_cmd(
             stage3,
+            tools=context.config.tools(),
             options=["--bind", context.cache_dir / "repos", "/var/db/repos"],
         )
 
-        bwrap(context, cmd=chroot + ["emerge-webrsync"], network=True)
+        run(chroot + ["emerge-webrsync"], sandbox=context.sandbox(network=True))
 
         invoke_emerge(context, packages=["sys-apps/baselayout"], apivfs=False)
 

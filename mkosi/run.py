@@ -22,7 +22,7 @@ from pathlib import Path
 from types import TracebackType
 from typing import Any, Callable, NoReturn, Optional
 
-from mkosi.log import ARG_DEBUG, die
+from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, die
 from mkosi.types import _FILE, CompletedProcess, PathString, Popen
 from mkosi.util import INVOKING_USER, flock
 
@@ -251,11 +251,14 @@ def run(
     env: Mapping[str, str] = {},
     cwd: Optional[Path] = None,
     log: bool = True,
+    preexec_fn: Optional[Callable[[], None]] = None,
+    sandbox: Sequence[PathString] = (),
 ) -> CompletedProcess:
+    sandbox = [os.fspath(x) for x in sandbox]
     cmdline = [os.fspath(x) for x in cmdline]
 
     if ARG_DEBUG.get():
-        logging.info(f"+ {shlex.join(cmdline)}")
+        logging.info(f"+ {shlex.join(sandbox + cmdline)}")
 
     if not stdout and not stderr:
         # Unless explicit redirection is done, print all subprocess
@@ -281,6 +284,11 @@ def run(
     elif stdin is None:
         stdin = subprocess.DEVNULL
 
+    def preexec() -> None:
+        make_foreground_process()
+        if preexec_fn:
+            preexec_fn()
+
     try:
         # subprocess.run() will use SIGKILL to kill processes when an exception is raised.
         # We'd prefer it to use SIGTERM instead but since this we can't configure which signal
@@ -288,7 +296,7 @@ def run(
         # subprocess.run().
         with sigkill_to_sigterm():
             return subprocess.run(
-                cmdline,
+                sandbox + cmdline,
                 check=check,
                 stdin=stdin,
                 stdout=stdout,
@@ -299,14 +307,28 @@ def run(
                 group=group,
                 env=env,
                 cwd=cwd,
-                preexec_fn=make_foreground_process,
+                preexec_fn=preexec,
             )
     except FileNotFoundError as e:
         die(f"{e.filename} not found.")
     except subprocess.CalledProcessError as e:
+        if ARG_DEBUG_SHELL.get():
+            subprocess.run(
+                [*sandbox, "sh"],
+                check=False,
+                stdin=sys.stdin,
+                text=True,
+                user=user,
+                group=group,
+                env=env,
+                cwd=cwd,
+                preexec_fn=preexec,
+            )
         if log:
             log_process_failure(cmdline, e.returncode)
-        raise e
+        # Remove the sandboxing stuff from the command line to show a more readable error to users.
+        e.cmd = cmdline
+        raise
     finally:
         make_foreground_process(new_process_group=False)
 
@@ -324,11 +346,13 @@ def spawn(
     log: bool = True,
     foreground: bool = False,
     preexec_fn: Optional[Callable[[], None]] = None,
+    sandbox: Sequence[PathString] = (),
 ) -> Iterator[Popen]:
+    sandbox = [os.fspath(x) for x in sandbox]
     cmdline = [os.fspath(x) for x in cmdline]
 
     if ARG_DEBUG.get():
-        logging.info(f"+ {shlex.join(cmdline)}")
+        logging.info(f"+ {shlex.join(sandbox + cmdline)}")
 
     if not stdout and not stderr:
         # Unless explicit redirection is done, print all subprocess
@@ -351,7 +375,7 @@ def spawn(
 
     try:
         with subprocess.Popen(
-            cmdline,
+            sandbox + cmdline,
             stdin=stdin,
             stdout=stdout,
             stderr=stderr,
@@ -374,11 +398,23 @@ def spawn(
             make_foreground_process(new_process_group=False)
 
 
-def find_binary(*names: PathString, root: Optional[Path] = None) -> Optional[Path]:
+def find_binary(*names: PathString, root: Path = Path("/")) -> Optional[Path]:
+    if root != Path("/"):
+        path = ":".join(os.fspath(p) for p in (root / "usr/bin", root / "usr/sbin"))
+    else:
+        path = os.environ["PATH"]
+
     for name in names:
-        path = ":".join(os.fspath(p) for p in [root / "usr/bin", root / "usr/sbin"]) if root else os.environ["PATH"]
+        if Path(name).is_absolute():
+            name = root / Path(name).relative_to("/")
+        elif "/" in str(name):
+            name = root / name
+
         if (binary := shutil.which(name, path=path)):
-            return Path("/") / Path(binary).relative_to(root or "/")
+            if root != Path("/") and not Path(binary).is_relative_to(root):
+                return Path(binary)
+            else:
+                return Path("/") / Path(binary).relative_to(root)
 
     return None
 
