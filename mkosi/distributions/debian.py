@@ -6,12 +6,12 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from mkosi.archive import extract_tar
-from mkosi.bubblewrap import bwrap
 from mkosi.config import Architecture
 from mkosi.context import Context
 from mkosi.distributions import Distribution, DistributionInstaller, PackageType
 from mkosi.installer.apt import invoke_apt, setup_apt
 from mkosi.log import die
+from mkosi.run import run
 from mkosi.util import umask
 
 
@@ -114,7 +114,7 @@ class Installer(DistributionInstaller):
         # By configuring Debug::pkgDpkgPm=1, apt-get install will not actually execute any dpkg commands, so
         # all it does is download the essential debs and tell us their full in the apt cache without actually
         # installing them.
-        with tempfile.NamedTemporaryFile(mode="r") as f:
+        with tempfile.NamedTemporaryFile(dir="/tmp", mode="r") as f:
             cls.install_packages(context, [
                 "-oDebug::pkgDPkgPm=1",
                 f"-oDPkg::Pre-Install-Pkgs::=cat >{f.name}",
@@ -127,9 +127,9 @@ class Installer(DistributionInstaller):
         # then extracting the tar file into the chroot.
 
         for deb in essential:
-            with tempfile.NamedTemporaryFile() as f:
-                bwrap(context, ["dpkg-deb", "--fsys-tarfile", deb], stdout=f)
-                extract_tar(context, Path(f.name), context.root, log=False)
+            with open(deb, "rb") as i, tempfile.NamedTemporaryFile() as o:
+                run(["dpkg-deb", "--fsys-tarfile", "/dev/stdin"], stdin=i, stdout=o, sandbox=context.sandbox())
+                extract_tar(context, Path(o.name), context.root, log=False)
 
         # Finally, run apt to properly install packages in the chroot without having to worry that maintainer
         # scripts won't find basic tools that they depend on.

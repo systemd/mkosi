@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-import shutil
 import tempfile
 import xml.etree.ElementTree as ElementTree
 from collections.abc import Sequence
@@ -13,7 +12,7 @@ from mkosi.installer.dnf import invoke_dnf, setup_dnf
 from mkosi.installer.rpm import RpmRepository
 from mkosi.installer.zypper import invoke_zypper, setup_zypper
 from mkosi.log import die
-from mkosi.run import run
+from mkosi.run import find_binary, run
 
 
 class Installer(DistributionInstaller):
@@ -60,22 +59,26 @@ class Installer(DistributionInstaller):
             release_url = f"{mirror}/distribution/leap/{release}/repo/oss/"
             updates_url = f"{mirror}/update/leap/{release}/oss/"
 
-        zypper = shutil.which("zypper")
+        zypper = find_binary("zypper", root=context.config.tools())
 
         # If we need to use a local mirror, create a temporary repository definition
         # that doesn't get in the image, as it is valid only at image build time.
         if context.config.local_mirror:
-            repos = [RpmRepository("local-mirror", f"baseurl={context.config.local_mirror}", ())]
+            repos = [RpmRepository(id="local-mirror", url=f"baseurl={context.config.local_mirror}", gpgurls=())]
         else:
             repos = [
-                RpmRepository("repo-oss", f"baseurl={release_url}", fetch_gpgurls(release_url) if not zypper else ()),
+                RpmRepository(
+                    id="repo-oss",
+                    url=f"baseurl={release_url}",
+                    gpgurls=fetch_gpgurls(context, release_url) if not zypper else (),
+                ),
             ]
             if updates_url is not None:
                 repos += [
                     RpmRepository(
-                        "repo-update",
-                        f"baseurl={updates_url}",
-                        fetch_gpgurls(updates_url) if not zypper else (),
+                        id="repo-update",
+                        url=f"baseurl={updates_url}",
+                        gpgurls=fetch_gpgurls(context, updates_url) if not zypper else (),
                     )
                 ]
 
@@ -90,7 +93,7 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def install_packages(cls, context: Context, packages: Sequence[str], apivfs: bool = True) -> None:
-        if shutil.which("zypper"):
+        if find_binary("zypper", root=context.config.tools()):
             options = [
                 "--download", "in-advance",
                 "--recommends" if context.config.with_recommends else "--no-recommends",
@@ -101,7 +104,7 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def remove_packages(cls, context: Context, packages: Sequence[str]) -> None:
-        if shutil.which("zypper"):
+        if find_binary("zypper", root=context.config.tools()):
             invoke_zypper(context, "remove", packages, ["--clean-deps"])
         else:
             invoke_dnf(context, "remove", packages)
@@ -118,19 +121,22 @@ class Installer(DistributionInstaller):
         return a
 
 
-def fetch_gpgurls(repourl: str) -> tuple[str, ...]:
+def fetch_gpgurls(context: Context, repourl: str) -> tuple[str, ...]:
     gpgurls = [f"{repourl}/repodata/repomd.xml.key"]
 
     with tempfile.TemporaryDirectory() as d:
-        run([
-            "curl",
-            "--location",
-            "--output-dir", d,
-            "--remote-name",
-            "--no-progress-meter",
-            "--fail",
-            f"{repourl}/repodata/repomd.xml",
-        ])
+        run(
+            [
+                "curl",
+                "--location",
+                "--output-dir", d,
+                "--remote-name",
+                "--no-progress-meter",
+                "--fail",
+                f"{repourl}/repodata/repomd.xml",
+            ],
+            sandbox=context.sandbox(network=True, options=["--bind", d, d]),
+        )
         xml = (Path(d) / "repomd.xml").read_text()
 
     root = ElementTree.fromstring(xml)

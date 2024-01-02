@@ -2,7 +2,6 @@
 
 import os
 
-from mkosi.bubblewrap import apivfs_cmd
 from mkosi.config import ConfigFeature
 from mkosi.context import Context
 from mkosi.installer.apt import apt_cmd
@@ -10,6 +9,7 @@ from mkosi.installer.dnf import dnf_cmd
 from mkosi.installer.pacman import pacman_cmd
 from mkosi.installer.rpm import rpm_cmd
 from mkosi.installer.zypper import zypper_cmd
+from mkosi.sandbox import apivfs_cmd
 from mkosi.tree import rmtree
 from mkosi.types import PathString
 
@@ -35,18 +35,18 @@ def clean_package_manager_metadata(context: Context) -> None:
             if not always and os.access(context.root / "usr" / bin / tool, mode=os.F_OK, follow_symlinks=False):
                 break
         else:
-            for p in paths:
-                rmtree(context.root / p)
+            rmtree(*(context.root / p for p in paths),
+                   sandbox=context.sandbox(options=["--bind", context.root, context.root]))
 
 
 def package_manager_scripts(context: Context) -> dict[str, list[PathString]]:
     return {
-        "pacman": apivfs_cmd(context.root) + pacman_cmd(context),
-        "zypper": apivfs_cmd(context.root) + zypper_cmd(context),
-        "dnf"   : apivfs_cmd(context.root) + dnf_cmd(context),
-        "rpm"   : apivfs_cmd(context.root) + rpm_cmd(context),
+        "pacman": apivfs_cmd(context.root, tools=context.config.tools()) + pacman_cmd(context),
+        "zypper": apivfs_cmd(context.root, tools=context.config.tools()) + zypper_cmd(context),
+        "dnf"   : apivfs_cmd(context.root, tools=context.config.tools()) + dnf_cmd(context),
+        "rpm"   : apivfs_cmd(context.root, tools=context.config.tools()) + rpm_cmd(context),
     } | {
-        command: apivfs_cmd(context.root) + apt_cmd(context, command) for command in (
+        command: apivfs_cmd(context.root, tools=context.config.tools()) + apt_cmd(context, command) for command in (
             "apt",
             "apt-cache",
             "apt-cdrom",

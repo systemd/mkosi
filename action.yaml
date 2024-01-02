@@ -1,5 +1,5 @@
 name: setup-mkosi
-description: Install mkosi and all its dependencies
+description: Install mkosi
 
 runs:
   using: composite
@@ -40,91 +40,15 @@ runs:
       sudo apt-get update
       sudo apt-get install --assume-yes --no-install-recommends \
         archlinux-keyring \
-        btrfs-progs \
         bubblewrap \
         debian-archive-keyring \
         dnf \
-        e2fsprogs \
-        erofs-utils \
-        mtools \
-        ovmf \
         pacman-package-manager \
-        python3-pefile \
-        python3-pyelftools \
-        qemu-system-x86 \
-        squashfs-tools \
-        swtpm \
         systemd-container \
-        xfsprogs \
         zypper
 
       sudo pacman-key --init
       sudo pacman-key --populate archlinux
-
-  - name: Update systemd
-    shell: bash
-    working-directory: ${{ github.action_path }}
-    run: |
-      echo "deb-src http://archive.ubuntu.com/ubuntu/ $(lsb_release -cs) main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
-      sudo apt-get update
-      sudo apt-get build-dep systemd
-      sudo apt-get install --assume-yes --no-install-recommends libfdisk-dev libtss2-dev
-
-      git clone https://github.com/systemd/systemd-stable --single-branch --branch=v255-stable --depth=1 systemd
-      meson setup systemd/build systemd \
-        -D repart=true \
-        -D efi=true \
-        -D bootloader=true \
-        -D ukify=true \
-        -D firstboot=true \
-        -D blkid=true \
-        -D openssl=true \
-        -D tpm2=true
-
-      BINARIES=(
-        bootctl
-        kernel-install
-        systemctl
-        systemd-dissect
-        systemd-firstboot
-        systemd-measure
-        systemd-nspawn
-        systemd-repart
-        udevadm
-        ukify
-      )
-
-      ninja -C systemd/build ${BINARIES[@]}
-
-      for BINARY in "${BINARIES[@]}"; do
-        sudo ln -svf $PWD/systemd/build/$BINARY /usr/bin/$BINARY
-        $BINARY --version
-      done
-
-  # Make sure we have mkfs.xfs that can handle spaces in protofiles.
-  # TODO: Drop when we move to the next Ubuntu LTS.
-  - name: Update xfsprogs
-    shell: bash
-    working-directory: ${{ github.action_path }}
-    run: |
-      sudo apt-get install --assume-yes --no-install-recommends \
-        make \
-        gcc \
-        autoconf \
-        automake \
-        libtool \
-        libdevmapper-dev \
-        libblkid-dev \
-        libicu-dev \
-        libedit-dev \
-        libinih-dev \
-        liburcu-dev \
-        uuid-dev
-
-      git clone --single-branch --branch v6.4.0 https://git.kernel.org/pub/scm/fs/xfs/xfsprogs-dev.git
-      cd xfsprogs-dev
-      make -j $(nproc)
-      sudo make install
 
   - name: Install
     shell: bash

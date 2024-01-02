@@ -1,11 +1,12 @@
 # SPDX-License-Identifier: LGPL-2.1+
-import shutil
 import textwrap
 from collections.abc import Iterable
+from pathlib import Path
 
-from mkosi.bubblewrap import apivfs_cmd, bwrap
 from mkosi.context import Context
 from mkosi.installer.rpm import RpmRepository, fixup_rpmdb_location, setup_rpm
+from mkosi.run import find_binary, run
+from mkosi.sandbox import apivfs_cmd, finalize_crypto_mounts
 from mkosi.types import PathString
 from mkosi.util import sort_packages
 
@@ -13,8 +14,9 @@ from mkosi.util import sort_packages
 def dnf_executable(context: Context) -> str:
     # Allow the user to override autodetection with an environment variable
     dnf = context.config.environment.get("MKOSI_DNF")
+    root = context.config.tools()
 
-    return dnf or shutil.which("dnf5") or shutil.which("dnf") or "yum"
+    return Path(dnf or find_binary("dnf5", root=root) or find_binary("dnf", root=root) or "yum").name
 
 
 def setup_dnf(context: Context, repositories: Iterable[RpmRepository], filelists: bool = True) -> None:
@@ -114,11 +116,22 @@ def dnf_cmd(context: Context) -> list[PathString]:
 
 
 def invoke_dnf(context: Context, command: str, packages: Iterable[str], apivfs: bool = True) -> None:
-    cmd = apivfs_cmd(context.root) if apivfs else []
-    bwrap(context, cmd + dnf_cmd(context) + [command, *sort_packages(packages)],
-          network=True, env=context.config.environment)
+    run(
+        dnf_cmd(context) + [command, *sort_packages(packages)],
+        sandbox=(
+            context.sandbox(
+                network=True,
+                options=[
+                    "--bind", context.root, context.root,
+                    "--bind", context.cache_dir, context.cache_dir,
+                    *finalize_crypto_mounts(tools=context.config.tools()),
+                ],
+            ) + (apivfs_cmd(context.root, tools=context.config.tools()) if apivfs else [])
+        ),
+        env=context.config.environment,
+    )
 
-    fixup_rpmdb_location(context.root)
+    fixup_rpmdb_location(context)
 
     # The log directory is always interpreted relative to the install root so there's nothing we can do but
     # to remove the log files from the install root afterwards.

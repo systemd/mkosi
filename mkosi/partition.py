@@ -7,6 +7,7 @@ from typing import Any, Optional
 
 from mkosi.log import die
 from mkosi.run import run
+from mkosi.types import PathString
 
 
 @dataclasses.dataclass(frozen=True)
@@ -30,9 +31,10 @@ class Partition:
     GRUB_BOOT_PARTITION_UUID = "21686148-6449-6e6f-744e-656564454649"
 
 
-def find_partitions(image: Path) -> list[Partition]:
+def find_partitions(image: Path, *, sandbox: Sequence[PathString]) -> list[Partition]:
     output = json.loads(run(["systemd-repart", "--json=short", image],
-                        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout)
+                            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                            sandbox=sandbox).stdout)
     return [Partition.from_dict(d) for d in output]
 
 

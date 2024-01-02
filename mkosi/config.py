@@ -30,7 +30,8 @@ from typing import Any, Callable, Optional, TypeVar, Union, cast
 from mkosi.distributions import Distribution, detect_distribution
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, Style, die
 from mkosi.pager import page
-from mkosi.run import run
+from mkosi.run import find_binary, run
+from mkosi.sandbox import sandbox_cmd
 from mkosi.types import PathString, SupportsRead
 from mkosi.util import INVOKING_USER, StrEnum, chdir, flatten, is_power_of_2
 from mkosi.versioncomp import GenericVersion
@@ -1233,6 +1234,9 @@ class Config:
 
         return Path("/var/tmp")
 
+    def tools(self) -> Path:
+        return self.tools_tree or Path("/")
+
     @classmethod
     def default(cls) -> "Config":
         """Alternative constructor to generate an all-default MkosiArgs.
@@ -1358,6 +1362,30 @@ class Config:
         """Return a new MkosiConfig with defaults overwritten by the attributes from passed in JSON."""
         j = cls._load_json(s)
         return dataclasses.replace(cls.default(), **j)
+
+    def sandbox(
+        self,
+        *,
+        network: bool = False,
+        devices: bool = False,
+        relaxed: bool = False,
+        scripts: Optional[Path] = None,
+        options: Sequence[PathString] = (),
+    ) -> list[PathString]:
+        mounts: list[PathString] = (
+            flatten(("--ro-bind", d, d) for d in self.extra_search_paths)
+            if not relaxed and not self.tools_tree
+            else []
+        )
+
+        return sandbox_cmd(
+            network=network,
+            devices=devices,
+            relaxed=relaxed,
+            scripts=scripts,
+            tools=self.tools(),
+            options=[*options, *mounts],
+        )
 
 
 def parse_ini(path: Path, only_sections: Collection[str] = ()) -> Iterator[tuple[str, str, str]]:
@@ -3023,7 +3051,7 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
         key, _, value = s.partition("=")
         creds[key] = value
 
-    if "firstboot.timezone" not in creds and shutil.which("timedatectl"):
+    if "firstboot.timezone" not in creds and find_binary("timedatectl"):
         tz = run(
             ["timedatectl", "show", "-p", "Timezone", "--value"],
             stdout=subprocess.PIPE,

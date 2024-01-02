@@ -1,9 +1,13 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
+import os
+from collections.abc import Sequence
 from pathlib import Path
+from typing import Optional
 
 from mkosi.config import Args, Config
 from mkosi.tree import make_tree
+from mkosi.types import PathString
 from mkosi.util import umask
 
 
@@ -21,7 +25,12 @@ class Context:
             if config.overlay:
                 self.root.mkdir()
             else:
-                make_tree(self.root, use_subvolumes=self.config.use_subvolumes)
+                make_tree(
+                    self.root,
+                    use_subvolumes=self.config.use_subvolumes,
+                    tools=config.tools(),
+                    sandbox=config.sandbox(options=["--bind", self.workspace, self.workspace]),
+                )
 
         self.staging.mkdir()
         self.pkgmngr.mkdir()
@@ -47,3 +56,31 @@ class Context:
     @property
     def install_dir(self) -> Path:
         return self.workspace / "dest"
+
+    def sandbox(
+        self,
+        *,
+        network: bool = False,
+        devices: bool = False,
+        scripts: Optional[Path] = None,
+        options: Sequence[PathString] = (),
+    ) -> list[PathString]:
+        return self.config.sandbox(
+            network=network,
+            devices=devices,
+            scripts=scripts,
+            options=[
+                # This mount is writable so bwrap can create extra directories or symlinks inside of it as
+                # needed. This isn't a problem as the package manager directory is created by mkosi and
+                # thrown away when the build finishes.
+                "--bind", self.pkgmngr / "etc", "/etc",
+                *options,
+                *(["--ro-bind", os.fspath(p), os.fspath(p)] if (p := self.pkgmngr / "usr").exists() else []),
+            ],
+        ) + (
+            [
+                "sh",
+                "-c",
+                f"mount -t overlay -o lowerdir={self.pkgmngr / 'usr'}:/usr overlayfs /usr && exec $0 \"$@\"",
+            ] if (self.pkgmngr / "usr").exists() else []
+        )

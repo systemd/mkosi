@@ -2,7 +2,6 @@
 # PYTHON_ARGCOMPLETE_OK
 
 import faulthandler
-import shutil
 import signal
 import sys
 from types import FrameType
@@ -11,7 +10,7 @@ from typing import Optional
 from mkosi import run_verb
 from mkosi.config import parse_config
 from mkosi.log import log_setup
-from mkosi.run import run, uncaught_exception_handler
+from mkosi.run import find_binary, run, uncaught_exception_handler
 from mkosi.util import INVOKING_USER
 
 
@@ -34,7 +33,7 @@ def main() -> None:
     try:
         run_verb(args, images)
     finally:
-        if sys.stderr.isatty() and shutil.which("tput"):
+        if sys.stderr.isatty() and find_binary("tput"):
             run(["tput", "cnorm"], check=False)
             run(["tput", "smam"], check=False)
 
