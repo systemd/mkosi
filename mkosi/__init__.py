@@ -2013,7 +2013,8 @@ def check_tools(verb: Verb, config: MkosiConfig) -> None:
                 "ukify", "/usr/lib/systemd/ukify",
                 version="254",
                 reason="build bootable images",
-                hint="Bootable=no can be used to create a non-bootable image",
+                hint="Use ToolsTree=default to download most required tools including ukify automatically or use "
+                     "Bootable=no to create a non-bootable image which doesn't require ukify",
             )
 
         if config.output_format in (OutputFormat.disk, OutputFormat.esp):
