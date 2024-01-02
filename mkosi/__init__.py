@@ -102,8 +102,8 @@ def mount_base_trees(context: Context) -> Iterator[None]:
                 extract_tar(context, path, d)
                 bases += [d]
             elif path.suffix == ".raw":
-                bwrap(context, ["systemd-dissect", "-M", path, d])
-                stack.callback(lambda: bwrap(context, ["systemd-dissect", "-U", d]))
+                run(["systemd-dissect", "-M", path, d])
+                stack.callback(lambda: run(["systemd-dissect", "-U", d]))
                 bases += [d]
             else:
                 die(f"Unsupported base tree source {path}")
