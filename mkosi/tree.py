@@ -88,7 +88,13 @@ def copy_tree(
         copy += ["--no-target-directory"]
 
     # Subvolumes always have inode 256 so we can use that to check if a directory is a subvolume.
-    if not subvolume or not preserve_owner or not is_subvolume(src) or (dst.exists() and any(dst.iterdir())):
+    if (
+        not subvolume or
+        not preserve_owner or
+        not is_subvolume(src) or
+        not shutil.which("btrfs") or
+        (dst.exists() and any(dst.iterdir()))
+    ):
         with (
             preserve_target_directories_stat(src, dst)
             if not preserve_owner
@@ -101,12 +107,8 @@ def copy_tree(
     if dst.exists():
         dst.rmdir()
 
-    if shutil.which("btrfs"):
-        result = run(["btrfs", "subvolume", "snapshot", src, dst],
-                     check=use_subvolumes == ConfigFeature.enabled).returncode
-    else:
-        result = 1
-
+    result = run(["btrfs", "subvolume", "snapshot", src, dst],
+                 check=use_subvolumes == ConfigFeature.enabled).returncode
     if result != 0:
         with (
             preserve_target_directories_stat(src, dst)
