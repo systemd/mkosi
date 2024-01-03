@@ -312,7 +312,7 @@ def configure_autologin(context: Context) -> None:
 
 @contextlib.contextmanager
 def mount_cache_overlay(context: Context) -> Iterator[None]:
-    if not context.config.incremental or not any(context.root.iterdir()):
+    if not context.config.incremental or not context.config.base_trees or context.config.overlay:
         yield
         return
 
