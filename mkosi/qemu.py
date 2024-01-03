@@ -541,8 +541,8 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
         shm = ["-object", f"memory-backend-memfd,id=mem,size={config.qemu_mem},share=on"]
 
     machine = f"type={config.architecture.default_qemu_machine()}"
-    if firmware == QemuFirmware.uefi:
-        machine += f",smm={'on' if ovmf_supports_sb and config.architecture.supports_smm() else 'off'}"
+    if firmware == QemuFirmware.uefi and config.architecture.supports_smm():
+        machine += f",smm={'on' if ovmf_supports_sb else 'off'}"
     if shm:
         machine += ",memory-backend=mem"
 
