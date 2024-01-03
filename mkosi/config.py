@@ -352,6 +352,9 @@ class Architecture(StrEnum):
     def supports_fw_cfg(self) -> bool:
         return self in (Architecture.x86, Architecture.x86_64, Architecture.arm, Architecture.arm64)
 
+    def supports_smm(self) -> bool:
+        return self in (Architecture.x86, Architecture.x86_64)
+
     def default_qemu_machine(self) -> str:
         m = {
             Architecture.x86      : "q35",
