@@ -901,6 +901,11 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   purpose with the root directory as target (also see the **Files**
   section below).
 
+: Note that skeleton trees are cached and any changes to skeleton trees
+  after a cached image has been built (when using `Incremental=`) are
+  only applied when the cached image is rebuilt (by using `-ff` or
+  running `mkosi -f clean`).
+
 : As with the base tree logic above, instead of a directory, a tar
   file may be provided too. `mkosi.skeleton.tar` will be automatically
   used if found in the local directory.

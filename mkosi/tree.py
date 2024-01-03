@@ -12,7 +12,6 @@ from mkosi.config import ConfigFeature
 from mkosi.log import die
 from mkosi.run import run
 from mkosi.types import PathString
-from mkosi.versioncomp import GenericVersion
 
 
 def statfs(path: Path) -> str:
@@ -44,10 +43,6 @@ def make_tree(path: Path, use_subvolumes: ConfigFeature = ConfigFeature.disabled
         path.mkdir()
 
 
-def cp_version() -> GenericVersion:
-    return GenericVersion(run(["cp", "--version"], stdout=subprocess.PIPE).stdout.strip().splitlines()[0].split()[3])
-
-
 @contextlib.contextmanager
 def preserve_target_directories_stat(src: Path, dst: Path) -> Iterator[None]:
     dirs = [p for d in src.glob("**/") if (dst / (p := d.relative_to(src))).exists()]
@@ -68,7 +63,6 @@ def copy_tree(
     dst: Path,
     *,
     preserve_owner: bool = True,
-    clobber: bool = True,
     dereference: bool = False,
     use_subvolumes: ConfigFeature = ConfigFeature.disabled,
 ) -> None:
@@ -87,13 +81,6 @@ def copy_tree(
         src, dst,
     ]
 
-    # --no-clobber will make cp fail if a file already exists since coreutils v9.2. In coreutils v9.3, --update=none
-    # was introduced to support the previous behavior of --no-clobber again. On coreutils v9.2, --no-clobber will fail
-    # and --update=none is not available so in that case we're out of luck. There don't seem to be any distros
-    # packaging coreutils v9.2 though so let's hope we don't trigger this edge case.
-    if not clobber:
-        copy += ["--update=none"] if cp_version() >= "9.3" else ["--no-clobber"]
-
     # If the source and destination are both directories, we want to merge the source directory with the
     # destination directory. If the source if a file and the destination is a directory, we want to copy
     # the source inside the directory.
@@ -101,7 +88,13 @@ def copy_tree(
         copy += ["--no-target-directory"]
 
     # Subvolumes always have inode 256 so we can use that to check if a directory is a subvolume.
-    if not subvolume or not preserve_owner or not is_subvolume(src) or (dst.exists() and any(dst.iterdir())):
+    if (
+        not subvolume or
+        not preserve_owner or
+        not is_subvolume(src) or
+        not shutil.which("btrfs") or
+        (dst.exists() and any(dst.iterdir()))
+    ):
         with (
             preserve_target_directories_stat(src, dst)
             if not preserve_owner
@@ -114,12 +107,8 @@ def copy_tree(
     if dst.exists():
         dst.rmdir()
 
-    if shutil.which("btrfs"):
-        result = run(["btrfs", "subvolume", "snapshot", src, dst],
-                     check=use_subvolumes == ConfigFeature.enabled).returncode
-    else:
-        result = 1
-
+    result = run(["btrfs", "subvolume", "snapshot", src, dst],
+                 check=use_subvolumes == ConfigFeature.enabled).returncode
     if result != 0:
         with (
             preserve_target_directories_stat(src, dst)

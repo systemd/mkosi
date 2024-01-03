@@ -102,8 +102,8 @@ def mount_base_trees(context: Context) -> Iterator[None]:
                 extract_tar(context, path, d)
                 bases += [d]
             elif path.suffix == ".raw":
-                bwrap(context, ["systemd-dissect", "-M", path, d])
-                stack.callback(lambda: bwrap(context, ["systemd-dissect", "-U", d]))
+                run(["systemd-dissect", "-M", path, d])
+                stack.callback(lambda: run(["systemd-dissect", "-U", d]))
                 bases += [d]
             else:
                 die(f"Unsupported base tree source {path}")
@@ -312,7 +312,7 @@ def configure_autologin(context: Context) -> None:
 
 @contextlib.contextmanager
 def mount_cache_overlay(context: Context) -> Iterator[None]:
-    if not context.config.incremental or not any(context.root.iterdir()):
+    if not context.config.incremental or not context.config.base_trees or context.config.overlay:
         yield
         return
 
@@ -1469,9 +1469,9 @@ def build_kernel_modules_initrd(context: Context, kver: str) -> Path:
         context, context.root, kmods,
         gen_required_kernel_modules(
             context.root, kver,
-            context.config.kernel_modules_initrd_include,
-            context.config.kernel_modules_initrd_exclude,
-            context.config.kernel_modules_initrd_include_host,
+            include=context.config.kernel_modules_initrd_include,
+            exclude=context.config.kernel_modules_initrd_exclude,
+            host=context.config.kernel_modules_initrd_include_host,
         )
     )
 
@@ -2128,9 +2128,9 @@ def run_depmod(context: Context) -> None:
     for kver, _ in gen_kernel_images(context):
         process_kernel_modules(
             context.root, kver,
-            context.config.kernel_modules_include,
-            context.config.kernel_modules_exclude,
-            context.config.kernel_modules_include_host,
+            include=context.config.kernel_modules_include,
+            exclude=context.config.kernel_modules_exclude,
+            host=context.config.kernel_modules_include_host,
         )
 
         with complete_step(f"Running depmod for {kver}"):
@@ -2619,13 +2619,13 @@ def build_image(args: Args, config: Config) -> None:
 
         with mount_base_trees(context):
             install_base_trees(context)
-            install_skeleton_trees(context)
             cached = reuse_cache(context)
 
             context.config.distribution.setup(context)
 
             if not cached:
                 with mount_cache_overlay(context):
+                    install_skeleton_trees(context)
                     install_distribution(context)
                     run_prepare_scripts(context, build=False)
                     install_build_packages(context)

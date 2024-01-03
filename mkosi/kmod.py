@@ -18,6 +18,7 @@ def loaded_modules() -> list[str]:
 def filter_kernel_modules(
     root: Path,
     kver: str,
+    *,
     include: Sequence[str],
     exclude: Sequence[str],
     host: bool,
@@ -137,12 +138,13 @@ def resolve_module_dependencies(root: Path, kver: str, modules: Sequence[str]) -
 def gen_required_kernel_modules(
     root: Path,
     kver: str,
+    *,
     include: Sequence[str],
     exclude: Sequence[str],
     host: bool,
 ) -> Iterator[Path]:
     modulesd = root / "usr/lib/modules" / kver
-    modules = filter_kernel_modules(root, kver, include, exclude, host)
+    modules = filter_kernel_modules(root, kver, include=include, exclude=exclude, host=host)
 
     names = [module_path_to_name(m) for m in modules]
     mods, firmware = resolve_module_dependencies(root, kver, names)
@@ -178,6 +180,7 @@ def gen_required_kernel_modules(
 def process_kernel_modules(
     root: Path,
     kver: str,
+    *,
     include: Sequence[str],
     exclude: Sequence[str],
     host: bool,
@@ -186,7 +189,7 @@ def process_kernel_modules(
         return
 
     with complete_step("Applying kernel module filters"):
-        required = set(gen_required_kernel_modules(root, kver, include, exclude, host))
+        required = set(gen_required_kernel_modules(root, kver, include=include, exclude=exclude, host=host))
 
         for m in (root / "usr/lib/modules" / kver).rglob("*.ko*"):
             if m in required:
