@@ -2619,13 +2619,13 @@ def build_image(args: Args, config: Config) -> None:
 
         with mount_base_trees(context):
             install_base_trees(context)
-            install_skeleton_trees(context)
             cached = reuse_cache(context)
 
             context.config.distribution.setup(context)
 
             if not cached:
                 with mount_cache_overlay(context):
+                    install_skeleton_trees(context)
                     install_distribution(context)
                     run_prepare_scripts(context, build=False)
                     install_build_packages(context)
