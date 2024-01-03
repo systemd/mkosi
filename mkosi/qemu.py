@@ -204,6 +204,7 @@ def find_ovmf_firmware(config: MkosiConfig) -> tuple[Path, bool]:
         "/usr/share/edk2-ovmf/OVMF_CODE.secboot.fd",
         "/usr/share/qemu/OVMF_CODE.secboot.fd",
         "/usr/share/ovmf/OVMF.secboot.fd",
+        "/usr/share/OVMF/OVMF_CODE_4M.secboot.fd",
         "/usr/share/OVMF/OVMF_CODE.secboot.fd",
     ]
 
@@ -216,6 +217,7 @@ def find_ovmf_firmware(config: MkosiConfig) -> tuple[Path, bool]:
         "/usr/share/edk2-ovmf/OVMF_CODE.fd",
         "/usr/share/qemu/OVMF_CODE.fd",
         "/usr/share/ovmf/OVMF.fd",
+        "/usr/share/OVMF/OVMF_CODE_4M.fd",
         "/usr/share/OVMF/OVMF_CODE.fd",
     ]
 
@@ -246,11 +248,14 @@ def find_ovmf_vars(config: MkosiConfig) -> Path:
     elif config.architecture == Architecture.arm64:
         OVMF_VARS_LOCATIONS += ["/usr/share/AAVMF/AAVMF_VARS.fd"]
 
-    OVMF_VARS_LOCATIONS += ["/usr/share/edk2/ovmf/OVMF_VARS.fd",
-                            "/usr/share/edk2-ovmf/OVMF_VARS.fd",
-                            "/usr/share/qemu/OVMF_VARS.fd",
-                            "/usr/share/ovmf/OVMF_VARS.fd",
-                            "/usr/share/OVMF/OVMF_VARS.fd"]
+    OVMF_VARS_LOCATIONS += [
+        "/usr/share/edk2/ovmf/OVMF_VARS.fd",
+        "/usr/share/edk2-ovmf/OVMF_VARS.fd",
+        "/usr/share/qemu/OVMF_VARS.fd",
+        "/usr/share/ovmf/OVMF_VARS.fd",
+        "/usr/share/OVMF/OVMF_VARS_4M.fd",
+        "/usr/share/OVMF/OVMF_VARS.fd",
+    ]
 
     for location in OVMF_VARS_LOCATIONS:
         if os.path.exists(location):
