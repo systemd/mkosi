@@ -709,12 +709,13 @@ def run_qemu(args: Args, config: Config, qemu_device_fds: Mapping[QemuDeviceNode
 
         for tree in config.runtime_trees:
             sock = stack.enter_context(start_virtiofsd(tree.source, uidmap=True))
+            tag = tree.target.name if tree.target else tree.source.name
             cmdline += [
                 "-chardev", f"socket,id={sock.name},path={sock}",
-                "-device", f"vhost-user-fs-pci,queue-size=1024,chardev={sock.name},tag={sock.name}",
+                "-device", f"vhost-user-fs-pci,queue-size=1024,chardev={sock.name},tag={tag}",
             ]
             target = Path("/root/src") / (tree.target or tree.source.name)
-            kcl += [f"systemd.mount-extra={sock.name}:{target}:virtiofs"]
+            kcl += [f"systemd.mount-extra={tag}:{target}:virtiofs"]
 
         if want_scratch(config) or config.output_format in (OutputFormat.disk, OutputFormat.esp):
             cmdline += ["-device", "virtio-scsi-pci,id=scsi"]
