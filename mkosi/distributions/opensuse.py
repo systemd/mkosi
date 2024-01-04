@@ -99,13 +99,6 @@ class Installer(DistributionInstaller):
         else:
             invoke_dnf(context, "install", packages, apivfs=apivfs)
 
-        # Leap doesn't put its kernel images in /usr/lib/modules so copy them over if needed.
-        for d in context.root.glob("boot/vmlinuz-*"):
-            kver = d.name.removeprefix("vmlinuz-")
-            vmlinuz = context.root / "usr/lib/modules" / kver / "vmlinuz"
-            if not vmlinuz.exists():
-                shutil.copy2(d, vmlinuz)
-
     @classmethod
     def remove_packages(cls, context: Context, packages: Sequence[str]) -> None:
         if shutil.which("zypper"):
