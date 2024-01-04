@@ -101,7 +101,8 @@ jobs:
           - ubuntu
         tools:
           - ""
-          - arch
+          # TODO: Enable again when https://gitlab.com/qemu-project/qemu/-/issues/2070 is fixed and available in Arch.
+          # - arch
           - debian
           - fedora
           - opensuse
