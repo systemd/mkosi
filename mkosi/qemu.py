@@ -40,7 +40,7 @@ from mkosi.types import PathString
 from mkosi.util import INVOKING_USER, StrEnum
 from mkosi.versioncomp import GenericVersion
 
-QEMU_KVM_DEVICE_VERSION = GenericVersion("8.3")
+QEMU_KVM_DEVICE_VERSION = GenericVersion("9.0")
 VHOST_VSOCK_SET_GUEST_CID = 0x4008af60
 
 
