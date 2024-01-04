@@ -449,6 +449,13 @@ def qemu_version(config: Config) -> GenericVersion:
     return GenericVersion(run([find_qemu_binary(config), "--version"], stdout=subprocess.PIPE).stdout.split()[3])
 
 
+def want_scratch(config: Config) -> bool:
+    return config.runtime_scratch == ConfigFeature.enabled or (
+        config.runtime_scratch == ConfigFeature.auto and
+        shutil.which(f"mkfs.{config.distribution.filesystem()}") is not None
+    )
+
+
 def run_qemu(args: Args, config: Config, qemu_device_fds: Mapping[QemuDeviceNode, int]) -> None:
     if config.output_format not in (
         OutputFormat.disk,
@@ -709,6 +716,21 @@ def run_qemu(args: Args, config: Config, qemu_device_fds: Mapping[QemuDeviceNode
             target = Path("/root/src") / (tree.target or tree.source.name)
             kcl += [f"systemd.mount-extra={sock.name}:{target}:virtiofs"]
 
+        if want_scratch(config) or config.output_format in (OutputFormat.disk, OutputFormat.esp):
+            cmdline += ["-device", "virtio-scsi-pci,id=scsi"]
+
+        if want_scratch(config):
+            scratch = stack.enter_context(tempfile.NamedTemporaryFile(dir="/var/tmp", prefix="mkosi-scratch"))
+            scratch.truncate(1024**4)
+            os.chown(scratch.name, INVOKING_USER.uid, INVOKING_USER.gid)
+            run([f"mkfs.{config.distribution.filesystem()}", "-L", "scratch", scratch.name],
+                stdout=subprocess.DEVNULL, stderr=None)
+            cmdline += [
+                "-drive", f"if=none,id=scratch,file={scratch.name},format=raw",
+                "-device", "scsi-hd,drive=scratch",
+            ]
+            kcl += [f"systemd.mount-extra=LABEL=scratch:/var/tmp:{config.distribution.filesystem()}"]
+
         if (
             kernel and
             (KernelType.identify(kernel) != KernelType.uki or not config.architecture.supports_smbios(firmware))
@@ -731,7 +753,6 @@ def run_qemu(args: Args, config: Config, qemu_device_fds: Mapping[QemuDeviceNode
 
         if config.output_format in (OutputFormat.disk, OutputFormat.esp):
             cmdline += ["-drive", f"if=none,id=mkosi,file={fname},format=raw",
-                        "-device", "virtio-scsi-pci,id=scsi",
                         "-device", f"scsi-{'cd' if config.qemu_cdrom else 'hd'},drive=mkosi,bootindex=1"]
 
         if (

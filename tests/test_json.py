@@ -235,6 +235,7 @@ def test_config() -> None:
                 false
             ],
             "RootShell": "/bin/tcsh",
+            "RuntimeScratch": "enabled",
             "RuntimeSize": 8589934592,
             "RuntimeTrees": [
                 {
@@ -378,6 +379,7 @@ def test_config() -> None:
         repository_key_check = False,
         root_password = ("test1234", False),
         root_shell = "/bin/tcsh",
+        runtime_scratch = ConfigFeature.enabled,
         runtime_size = 8589934592,
         runtime_trees = [ConfigTree(Path("/foo/bar"), Path("/baz")), ConfigTree(Path("/bar/baz"), Path("/qux"))],
         sector_size = None,

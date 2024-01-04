@@ -2878,6 +2878,14 @@ def run_shell(args: Args, config: Config) -> None:
             # which means the container root directory mounts will be skipped.
             cmdline += ["--bind", f"{tree.source}:{target}:norbind,rootidmap"]
 
+        if config.runtime_scratch == ConfigFeature.enabled or (
+            config.runtime_scratch == ConfigFeature.auto and
+            config.output_format == OutputFormat.disk
+        ):
+            scratch = stack.enter_context(tempfile.TemporaryDirectory(dir="/var/tmp"))
+            os.chmod(scratch, 0o1777)
+            cmdline += ["--bind", f"{scratch}:/var/tmp"]
+
         if args.verb == Verb.boot:
             # Add nspawn options first since systemd-nspawn ignores all options after the first argument.
             cmdline += args.cmdline

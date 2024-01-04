@@ -1184,6 +1184,7 @@ class Config:
     tools_tree_packages: list[str]
     runtime_trees: list[ConfigTree]
     runtime_size: Optional[int]
+    runtime_scratch: ConfigFeature
     ssh_key: Optional[Path]
     ssh_certificate: Optional[Path]
 
@@ -2286,6 +2287,13 @@ SETTINGS = (
         help="Grow disk images to the specified size before booting them",
     ),
     ConfigSetting(
+        dest="runtime_scratch",
+        metavar="FEATURE",
+        section="Host",
+        parse=config_parse_feature,
+        help="Mount extra scratch space to /var/tmp",
+    ),
+    ConfigSetting(
         dest="ssh_key",
         metavar="PATH",
         section="Host",
@@ -3371,6 +3379,7 @@ def summary(config: Config) -> str:
            Tools Tree Packages: {line_join_list(config.tools_tree_packages)}
                  Runtime Trees: {line_join_tree_list(config.runtime_trees)}
                   Runtime Size: {format_bytes_or_none(config.runtime_size)}
+               Runtime Scratch: {config.runtime_scratch}
                SSH Signing Key: {none_to_none(config.ssh_key)}
                SSH Certificate: {none_to_none(config.ssh_certificate)}
 
