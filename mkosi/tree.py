@@ -62,7 +62,7 @@ def copy_tree(
     src: Path,
     dst: Path,
     *,
-    preserve_owner: bool = True,
+    preserve: bool = True,
     dereference: bool = False,
     use_subvolumes: ConfigFeature = ConfigFeature.disabled,
 ) -> None:
@@ -76,7 +76,7 @@ def copy_tree(
         "cp",
         "--recursive",
         "--dereference" if dereference else "--no-dereference",
-        f"--preserve=mode,timestamps,links,xattr{',ownership' if preserve_owner else ''}",
+        f"--preserve=mode,timestamps,links{',ownership,xattr' if preserve else ''}",
         "--reflink=auto",
         src, dst,
     ]
@@ -90,14 +90,14 @@ def copy_tree(
     # Subvolumes always have inode 256 so we can use that to check if a directory is a subvolume.
     if (
         not subvolume or
-        not preserve_owner or
+        not preserve or
         not is_subvolume(src) or
         not shutil.which("btrfs") or
         (dst.exists() and any(dst.iterdir()))
     ):
         with (
             preserve_target_directories_stat(src, dst)
-            if not preserve_owner
+            if not preserve
             else contextlib.nullcontext()
         ):
             run(copy)
@@ -112,7 +112,7 @@ def copy_tree(
     if result != 0:
         with (
             preserve_target_directories_stat(src, dst)
-            if not preserve_owner
+            if not preserve
             else contextlib.nullcontext()
         ):
             run(copy)

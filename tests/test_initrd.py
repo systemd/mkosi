@@ -102,7 +102,7 @@ def test_initrd_lvm(initrd: Image) -> None:
         with tempfile.TemporaryDirectory() as mnt, mount(Path("/dev/vg_mkosi/lv0"), Path(mnt)):
             # The image might have been built unprivileged so we need to fix the file ownership. Making all the
             # files owned by root isn't completely correct but good enough for the purposes of the test.
-            copy_tree(Path(image.output_dir.name) / "image", Path(mnt), preserve_owner=False)
+            copy_tree(Path(image.output_dir.name) / "image", Path(mnt), preserve=False)
 
         stack.close()
 
@@ -222,7 +222,7 @@ def test_initrd_luks_lvm(config: Image.Config, initrd: Image, passphrase: Path) 
         with tempfile.TemporaryDirectory() as mnt, mount(Path("/dev/vg_mkosi/lv0"), Path(mnt)):
             # The image might have been built unprivileged so we need to fix the file ownership. Making all the
             # files owned by root isn't completely correct but good enough for the purposes of the test.
-            copy_tree(Path(image.output_dir.name) / "image", Path(mnt), preserve_owner=False)
+            copy_tree(Path(image.output_dir.name) / "image", Path(mnt), preserve=False)
 
         stack.close()
 

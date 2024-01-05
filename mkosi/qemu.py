@@ -429,7 +429,7 @@ def copy_ephemeral(config: Config, src: Path) -> Iterator[Path]:
 
             copy_tree(
                 src, tmp,
-                preserve_owner=config.output_format == OutputFormat.directory,
+                preserve=config.output_format == OutputFormat.directory,
                 use_subvolumes=config.use_subvolumes
             )
 
