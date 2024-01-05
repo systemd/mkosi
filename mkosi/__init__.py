@@ -396,8 +396,9 @@ def finalize_host_scripts(
     scripts: dict[str, Sequence[PathString]] = {}
     if find_binary("git"):
         scripts["git"] = ("git", "-c", "safe.directory=*")
-    if find_binary("useradd"):
-        scripts["useradd"] = ("useradd", "--root", context.root)
+    for binary in ("useradd", "groupadd"):
+        if find_binary(binary):
+            scripts[binary] = (binary, "--root", context.root)
     return finalize_scripts(scripts | helpers | package_manager_scripts(context))
 
 
@@ -1259,7 +1260,7 @@ def install_tree(
     dst: Path,
     target: Optional[Path] = None,
     *,
-    preserve_owner: bool = True,
+    preserve: bool = True,
 ) -> None:
     t = dst
     if target:
@@ -1269,14 +1270,14 @@ def install_tree(
         t.parent.mkdir(parents=True, exist_ok=True)
 
     if src.is_dir() or (src.is_file() and target):
-        copy_tree(src, t, preserve_owner=preserve_owner, use_subvolumes=context.config.use_subvolumes)
+        copy_tree(src, t, preserve=preserve, use_subvolumes=context.config.use_subvolumes)
     elif src.suffix == ".tar":
         extract_tar(context, src, t)
     elif src.suffix == ".raw":
         run(["systemd-dissect", "--copy-from", src, "/", t])
     else:
         # If we get an unknown file without a target, we just copy it into /.
-        copy_tree(src, t, preserve_owner=preserve_owner, use_subvolumes=context.config.use_subvolumes)
+        copy_tree(src, t, preserve=preserve, use_subvolumes=context.config.use_subvolumes)
 
 
 def install_base_trees(context: Context) -> None:
@@ -1294,7 +1295,7 @@ def install_skeleton_trees(context: Context) -> None:
 
     with complete_step("Copying in skeleton file trees…"):
         for tree in context.config.skeleton_trees:
-            install_tree(context, tree.source, context.root, tree.target, preserve_owner=False)
+            install_tree(context, tree.source, context.root, tree.target, preserve=False)
 
 
 def install_package_manager_trees(context: Context) -> None:
@@ -1310,7 +1311,7 @@ def install_package_manager_trees(context: Context) -> None:
 
     with complete_step("Copying in package manager file trees…"):
         for tree in context.config.package_manager_trees:
-            install_tree(context, tree.source, context.workspace / "pkgmngr", tree.target, preserve_owner=False)
+            install_tree(context, tree.source, context.workspace / "pkgmngr", tree.target, preserve=False)
 
 
 def install_extra_trees(context: Context) -> None:
@@ -1319,7 +1320,7 @@ def install_extra_trees(context: Context) -> None:
 
     with complete_step("Copying in extra file trees…"):
         for tree in context.config.extra_trees:
-            install_tree(context, tree.source, context.root, tree.target, preserve_owner=False)
+            install_tree(context, tree.source, context.root, tree.target, preserve=False)
 
 
 def install_build_dest(context: Context) -> None:
@@ -2877,6 +2878,14 @@ def run_shell(args: Args, config: Config) -> None:
             # itself which tends to lead to all kinds of weird issues, which we avoid by not doing a recursive mount
             # which means the container root directory mounts will be skipped.
             cmdline += ["--bind", f"{tree.source}:{target}:norbind,rootidmap"]
+
+        if config.runtime_scratch == ConfigFeature.enabled or (
+            config.runtime_scratch == ConfigFeature.auto and
+            config.output_format == OutputFormat.disk
+        ):
+            scratch = stack.enter_context(tempfile.TemporaryDirectory(dir="/var/tmp"))
+            os.chmod(scratch, 0o1777)
+            cmdline += ["--bind", f"{scratch}:/var/tmp"]
 
         if args.verb == Verb.boot:
             # Add nspawn options first since systemd-nspawn ignores all options after the first argument.

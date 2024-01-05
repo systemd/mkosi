@@ -30,6 +30,7 @@ runs:
       lsmod
       [[ -e /dev/kvm ]] && ls -l /dev/kvm
       ls -l /dev/vhost-*
+      id
 
   - name: Dependencies
     shell: bash

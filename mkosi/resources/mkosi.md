@@ -1569,12 +1569,22 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 : Note that when using `mkosi qemu` with this feature systemd v254 or
   newer has to be installed in the image.
 
-`RuntimeSize=`, `--runtime-size`
+`RuntimeSize=`, `--runtime-size=`
 
 : If specified, disk images are grown to the specified size before
   they're booted with systemd-nspawn or qemu. Takes a size in bytes.
   Additionally, the suffixes `K`, `M` and `G` can be used to specify a
   size in kilobytes, megabytes and gigabytes respectively.
+
+`RuntimeScratch=`: `--runtime-scratch=`
+
+: Takes a boolean value or `auto`. Specifies whether to mount extra
+  scratch space to `/var/tmp`. If enabled, practically unlimited scratch
+  space is made available under `/var/tmp` when booting the image with
+  `mkosi qemu`, `mkosi boot` or `mkosi shell`.
+
+: Note that using this feature with `mkosi qemu` requires systemd v254
+  or newer in the guest.
 
 `SshKey=`, `--ssh-key=`
 
@@ -1904,8 +1914,8 @@ available via `$PATH` to simplify common usecases.
 * `git` is automatically invoked with `safe.directory=*` to avoid
   permissions errors when running as the root user in a user namespace.
 
-* `useradd` is automatically invoked with `--root=$BUILDROOT` when
-  executed outside of the image.
+* `useradd` and `groupadd` are automatically invoked with
+  `--root=$BUILDROOT` when executed outside of the image.
 
 When scripts are executed, any directories that are still writable are
 also made read-only (`/home`, `/var`, `/root`, ...) and only the minimal

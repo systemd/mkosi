@@ -40,7 +40,7 @@ from mkosi.types import PathString
 from mkosi.util import INVOKING_USER, StrEnum
 from mkosi.versioncomp import GenericVersion
 
-QEMU_KVM_DEVICE_VERSION = GenericVersion("8.3")
+QEMU_KVM_DEVICE_VERSION = GenericVersion("9.0")
 VHOST_VSOCK_SET_GUEST_CID = 0x4008af60
 
 
@@ -429,7 +429,7 @@ def copy_ephemeral(config: Config, src: Path) -> Iterator[Path]:
 
             copy_tree(
                 src, tmp,
-                preserve_owner=config.output_format == OutputFormat.directory,
+                preserve=config.output_format == OutputFormat.directory,
                 use_subvolumes=config.use_subvolumes
             )
 
@@ -447,6 +447,13 @@ def copy_ephemeral(config: Config, src: Path) -> Iterator[Path]:
 
 def qemu_version(config: Config) -> GenericVersion:
     return GenericVersion(run([find_qemu_binary(config), "--version"], stdout=subprocess.PIPE).stdout.split()[3])
+
+
+def want_scratch(config: Config) -> bool:
+    return config.runtime_scratch == ConfigFeature.enabled or (
+        config.runtime_scratch == ConfigFeature.auto and
+        shutil.which(f"mkfs.{config.distribution.filesystem()}") is not None
+    )
 
 
 def run_qemu(args: Args, config: Config, qemu_device_fds: Mapping[QemuDeviceNode, int]) -> None:
@@ -702,12 +709,28 @@ def run_qemu(args: Args, config: Config, qemu_device_fds: Mapping[QemuDeviceNode
 
         for tree in config.runtime_trees:
             sock = stack.enter_context(start_virtiofsd(tree.source, uidmap=True))
+            tag = tree.target.name if tree.target else tree.source.name
             cmdline += [
                 "-chardev", f"socket,id={sock.name},path={sock}",
-                "-device", f"vhost-user-fs-pci,queue-size=1024,chardev={sock.name},tag={sock.name}",
+                "-device", f"vhost-user-fs-pci,queue-size=1024,chardev={sock.name},tag={tag}",
             ]
             target = Path("/root/src") / (tree.target or tree.source.name)
-            kcl += [f"systemd.mount-extra={sock.name}:{target}:virtiofs"]
+            kcl += [f"systemd.mount-extra={tag}:{target}:virtiofs"]
+
+        if want_scratch(config) or config.output_format in (OutputFormat.disk, OutputFormat.esp):
+            cmdline += ["-device", "virtio-scsi-pci,id=scsi"]
+
+        if want_scratch(config):
+            scratch = stack.enter_context(tempfile.NamedTemporaryFile(dir="/var/tmp", prefix="mkosi-scratch"))
+            scratch.truncate(1024**4)
+            os.chown(scratch.name, INVOKING_USER.uid, INVOKING_USER.gid)
+            run([f"mkfs.{config.distribution.filesystem()}", "-L", "scratch", scratch.name],
+                stdout=subprocess.DEVNULL, stderr=None)
+            cmdline += [
+                "-drive", f"if=none,id=scratch,file={scratch.name},format=raw",
+                "-device", "scsi-hd,drive=scratch",
+            ]
+            kcl += [f"systemd.mount-extra=LABEL=scratch:/var/tmp:{config.distribution.filesystem()}"]
 
         if (
             kernel and
@@ -731,7 +754,6 @@ def run_qemu(args: Args, config: Config, qemu_device_fds: Mapping[QemuDeviceNode
 
         if config.output_format in (OutputFormat.disk, OutputFormat.esp):
             cmdline += ["-drive", f"if=none,id=mkosi,file={fname},format=raw",
-                        "-device", "virtio-scsi-pci,id=scsi",
                         "-device", f"scsi-{'cd' if config.qemu_cdrom else 'hd'},drive=mkosi,bootindex=1"]
 
         if (
