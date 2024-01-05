@@ -59,8 +59,8 @@
   `KernelModulesInitrdIncludeHost=` to only include modules loaded on
   the host system in the image/initrd respectively.
 - Implemented `RemovePackages=` for Arch Linux.
-- Added `useradd` script to configure `useradd` to operate on the image
-  during builds instead on the host.
+- Added `useradd` and `groupadd` scripts to configure these binaries to
+  operate on the image during builds instead on the host.
 - Added microcode support. If installed into the image, an early
   microcode initrd will automatically be built and prepended to the
   initrd.

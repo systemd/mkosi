@@ -396,8 +396,9 @@ def finalize_host_scripts(
     scripts: dict[str, Sequence[PathString]] = {}
     if find_binary("git"):
         scripts["git"] = ("git", "-c", "safe.directory=*")
-    if find_binary("useradd"):
-        scripts["useradd"] = ("useradd", "--root", context.root)
+    for binary in ("useradd", "groupadd"):
+        if find_binary(binary):
+            scripts[binary] = (binary, "--root", context.root)
     return finalize_scripts(scripts | helpers | package_manager_scripts(context))
 
 

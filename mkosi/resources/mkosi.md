@@ -1914,8 +1914,8 @@ available via `$PATH` to simplify common usecases.
 * `git` is automatically invoked with `safe.directory=*` to avoid
   permissions errors when running as the root user in a user namespace.
 
-* `useradd` is automatically invoked with `--root=$BUILDROOT` when
-  executed outside of the image.
+* `useradd` and `groupadd` are automatically invoked with
+  `--root=$BUILDROOT` when executed outside of the image.
 
 When scripts are executed, any directories that are still writable are
 also made read-only (`/home`, `/var`, `/root`, ...) and only the minimal
