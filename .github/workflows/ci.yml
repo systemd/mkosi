@@ -74,6 +74,7 @@ jobs:
       run: |
         ./tools/generate-zipapp.sh
         ./builddir/mkosi -h
+        ./builddir/mkosi documentation
 
     - name: Test shell scripts
       run: |
