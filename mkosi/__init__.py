@@ -1292,7 +1292,11 @@ def prepare_grub_bios(context: Context, partitions: Sequence[Partition]) -> None
                 "search_fs_file",
             ],
             sandbox=context.sandbox(
-                options=["--ro-bind", context.root / "usr", "/usr", "--bind", context.root, context.root],
+                options=[
+                    "--ro-bind", context.root / "usr", "/usr",
+                    "--bind", context.root, context.root,
+                    "--ro-bind", earlyconfig.name, earlyconfig.name,
+                ],
             ),
         )
 
@@ -1325,20 +1329,23 @@ def install_grub_bios(context: Context, partitions: Sequence[Partition]) -> None
     prefix = find_grub_prefix(context)
     assert prefix
 
-    # grub-bios-setup insists on being able to open the root device that --directory is located on, which
-    # needs root privileges. However, it only uses the root device when it is unable to embed itself in the
-    # bios boot partition. To make installation work unprivileged, we trick grub to think that the root
-    # device is our image by mounting over its /proc/self/mountinfo file (where it gets its information from)
-    # with our own file correlating the root directory to our image file.
-    mountinfo = context.workspace / "mountinfo"
-    mountinfo.write_text(f"1 0 1:1 / / - fat {context.staging / context.config.output_with_format}\n")
+    with (
+        complete_step("Installing grub boot loader…"),
+        tempfile.NamedTemporaryFile(mode="w") as mountinfo,
+    ):
+        # grub-bios-setup insists on being able to open the root device that --directory is located on, which
+        # needs root privileges. However, it only uses the root device when it is unable to embed itself in the
+        # bios boot partition. To make installation work unprivileged, we trick grub to think that the root
+        # device is our image by mounting over its /proc/self/mountinfo file (where it gets its information from)
+        # with our own file correlating the root directory to our image file.
+        mountinfo.write(f"1 0 1:1 / / - fat {context.staging / context.config.output_with_format}\n")
+        mountinfo.flush()
 
-    with complete_step("Installing grub boot loader…"):
         # We don't setup the mountinfo bind mount with bwrap because we need to know the child process pid to
         # be able to do the mount and we don't know the pid beforehand.
         run(
             [
-                "sh", "-c", f"mount --bind {mountinfo} /proc/$$/mountinfo && exec $0 \"$@\"",
+                "sh", "-c", f"mount --bind {mountinfo.name} /proc/$$/mountinfo && exec $0 \"$@\"",
                 setup,
                 "--directory", context.root / "efi" / prefix / "i386-pc",
                 *(["--verbose"] if ARG_DEBUG.get() else []),
@@ -1348,7 +1355,8 @@ def install_grub_bios(context: Context, partitions: Sequence[Partition]) -> None
                 options=[
                     "--bind", context.root / "usr", "/usr",
                     "--bind", context.root, context.root,
-                    "--bind", context.staging, context.staging
+                    "--bind", context.staging, context.staging,
+                    "--bind", mountinfo.name, mountinfo.name,
                 ],
             ),
         )
