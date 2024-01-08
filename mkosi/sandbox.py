@@ -2,6 +2,7 @@
 import enum
 import logging
 import os
+import uuid
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Optional
@@ -78,7 +79,18 @@ def sandbox_cmd(
     relaxed: bool = False,
     options: Sequence[PathString] = (),
 ) -> list[PathString]:
-    cmdline: list[PathString] = [
+    cmdline: list[PathString] = []
+
+    if not relaxed:
+        # We want to use an empty subdirectory in the host's /var/tmp as the sandbox's /var/tmp. To make sure it only
+        # gets created when we run the sandboxed command and cleaned up when the sandboxed command exits, we create it
+        # using shell.
+        vartmp = f"/var/tmp/mkosi-var-tmp-{uuid.uuid4().hex[:16]}"
+        cmdline += ["sh", "-c", f"trap 'rm -rf {vartmp}' EXIT && mkdir --mode 1777 {vartmp} && $0 \"$@\""]
+    else:
+        vartmp = None
+
+    cmdline += [
         "bwrap",
         "--ro-bind", tools / "usr", "/usr",
         *(["--unshare-net"] if not network and have_effective_cap(Capability.CAP_NET_ADMIN) else []),
@@ -115,8 +127,9 @@ def sandbox_cmd(
         # TODO: Remove list() when we depend on Python 3.10 or newer.
         if (d := os.fspath(list(Path.cwd().parents)[-2])) not in (*dirs, "/home", "/usr", "/nix", "/tmp"):
             cmdline += ["--bind", d, d]
-    else:
-        cmdline += ["--bind", "/var/tmp", "/var/tmp"]
+
+    if vartmp:
+        cmdline += ["--bind", vartmp, "/var/tmp"]
 
     for d in ("bin", "sbin", "lib", "lib32", "lib64"):
         if (p := tools / d).is_symlink():
