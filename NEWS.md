@@ -12,6 +12,11 @@
   `/var/tmp` and various directories configured in mkosi settings, all
   host directories are hidden from scripts, package managers and other
   tools executed by mkosi.
+- Added `RuntimeScratch=` to automatically mount a directory with extra
+  scratch space into mkosi-spawned containers and virtual machines.
+- Package manager trees can now be used to configure every tool invoked
+  by mkosi while building an image that reads config files from `/etc`
+  or `/usr`.
 - Added `SELinuxRelabel=` to specify whether to relabel selinux files
   or not.
 - Many fixes to tools trees were made and tools trees are now covered by
@@ -27,7 +32,7 @@
   `mkosi ssh` working.
 - We don't automatically set `--offline=no` anymore when we detect the
   `Subvolumes=` setting is used in a `systemd-repart` partition
-  definition file. Instead, use the new `RepartOffline` option to
+  definition file. Instead, use the new `RepartOffline=` option to
   explicitly disable running `systemd-repart` in offline mode.
 - During the image build we now install UKIs/kernels/initrds to `/boot`
   instead of `/efi`. While this will generally not be noticeable, users
@@ -57,7 +62,6 @@
 - Implemented `WithDocs=` for `apt`.
 - On supported package managers, locale data for other locales is now
   stripped if the local is explicitly configured using `Locale=`.
-- `rpm` can now be configured in package manager trees in `/etc/rpm`.
 - All `rpm` plugins are now disabled when building images.
 - Added `KernelModulesIncludeHost=` and
   `KernelModulesInitrdIncludeHost=` to only include modules loaded on
