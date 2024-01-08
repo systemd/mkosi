@@ -91,7 +91,7 @@ def sandbox_cmd(
     if (tools / "nix/store").exists():
         cmdline += ["--bind", tools / "nix/store", "/nix/store"]
 
-    if devices:
+    if devices or relaxed:
         cmdline += [
             "--bind", "/sys", "/sys",
             "--bind", "/run", "/run",
