@@ -444,9 +444,7 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
                 resolve=True,
                 tools=context.config.tools(),
                 options=[
-                    "--bind", "/work/prepare", "/work/prepare",
-                    "--bind", "/work/src", "/work/src",
-                    "--bind", "/work/scripts", "/work/scripts",
+                    "--bind", "/work", "/work",
                     "--chdir", "/work/src",
                     "--setenv", "BUILDROOT", "/",
                 ],
@@ -521,16 +519,7 @@ def run_build_scripts(context: Context) -> None:
                 resolve=context.config.with_network,
                 tools=context.config.tools(),
                 options=[
-                    "--bind", "/work/build-script", "/work/build-script",
-                    "--bind", "/work/dest", "/work/dest",
-                    "--bind", "/work/out", "/work/out",
-                    "--bind", "/work/src", "/work/src",
-                    "--bind", "/work/scripts", "/work/scripts",
-                    *(
-                        ["--bind", "/work/build", "/work/build"]
-                        if context.config.build_dir
-                        else []
-                    ),
+                    "--bind", "/work", "/work",
                     "--chdir", "/work/src",
                     "--setenv", "BUILDROOT", "/",
                     *(["--setenv", "BUILDDIR", "/work/build"] if context.config.build_dir else []),
@@ -600,10 +589,7 @@ def run_postinst_scripts(context: Context) -> None:
                 resolve=context.config.with_network,
                 tools=context.config.tools(),
                 options=[
-                    "--bind", "/work/postinst", "/work/postinst",
-                    "--bind", "/work/out", "/work/out",
-                    "--bind", "/work/src", "/work/src",
-                    "--bind", "/work/scripts", "/work/scripts",
+                    "--bind", "/work", "/work",
                     "--chdir", "/work/src",
                     "--setenv", "BUILDROOT", "/",
                 ],
@@ -664,10 +650,7 @@ def run_finalize_scripts(context: Context) -> None:
                 resolve=context.config.with_network,
                 tools=context.config.tools(),
                 options=[
-                    "--bind", "/work/finalize", "/work/finalize",
-                    "--bind", "/work/out", "/work/out",
-                    "--bind", "/work/src", "/work/src",
-                    "--bind", "/work/scripts", "/work/scripts",
+                    "--bind", "/work", "/work",
                     "--chdir", "/work/src",
                     "--setenv", "BUILDROOT", "/",
                 ],
