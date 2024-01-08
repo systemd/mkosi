@@ -113,7 +113,7 @@ def invoke_apt(
                     *finalize_crypto_mounts(tools=context.config.tools()),
                     *mounts,
                 ],
-            ) + (apivfs_cmd(context.root, tools=context.config.tools()) if apivfs else [])
+            ) + (apivfs_cmd(context.root) if apivfs else [])
         ),
         env=context.config.environment,
     )

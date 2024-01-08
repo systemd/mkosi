@@ -442,7 +442,6 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
             chroot = chroot_cmd(
                 context.root,
                 resolve=True,
-                tools=context.config.tools(),
                 options=[
                     "--bind", "/work", "/work",
                     "--chdir", "/work/src",
@@ -517,7 +516,6 @@ def run_build_scripts(context: Context) -> None:
             chroot = chroot_cmd(
                 context.root,
                 resolve=context.config.with_network,
-                tools=context.config.tools(),
                 options=[
                     "--bind", "/work", "/work",
                     "--chdir", "/work/src",
@@ -587,7 +585,6 @@ def run_postinst_scripts(context: Context) -> None:
             chroot = chroot_cmd(
                 context.root,
                 resolve=context.config.with_network,
-                tools=context.config.tools(),
                 options=[
                     "--bind", "/work", "/work",
                     "--chdir", "/work/src",
@@ -648,7 +645,6 @@ def run_finalize_scripts(context: Context) -> None:
             chroot = chroot_cmd(
                 context.root,
                 resolve=context.config.with_network,
-                tools=context.config.tools(),
                 options=[
                     "--bind", "/work", "/work",
                     "--chdir", "/work/src",

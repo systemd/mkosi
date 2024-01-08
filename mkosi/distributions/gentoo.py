@@ -26,7 +26,7 @@ from mkosi.util import sort_packages
 
 def invoke_emerge(context: Context, packages: Sequence[str] = (), apivfs: bool = True) -> None:
     run(
-        apivfs_cmd(context.root, tools=context.config.tools()) + [
+        apivfs_cmd(context.root) + [
             # We can't mount the stage 3 /usr using `options`, because bwrap isn't available in the stage 3
             # tarball which is required by apivfs_cmd(), so we have to mount /usr from the tarball later
             # using another bwrap exec.
@@ -161,7 +161,6 @@ class Installer(DistributionInstaller):
 
         chroot = chroot_cmd(
             stage3,
-            tools=context.config.tools(),
             options=["--bind", context.cache_dir / "repos", "/var/db/repos"],
         )
 

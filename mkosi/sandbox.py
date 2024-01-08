@@ -7,7 +7,6 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Optional
 
-from mkosi.run import find_binary
 from mkosi.types import PathString
 from mkosi.util import INVOKING_USER, flatten, one_zero
 
@@ -33,18 +32,12 @@ def finalize_passwd_mounts(root: Path) -> list[PathString]:
     """
     If passwd or a related file exists in the apivfs directory, bind mount it over the host files while we
     run the command, to make sure that the command we run uses user/group information from the apivfs
-    directory instead of from the host. If the file doesn't exist yet, mount over /dev/null instead.
+    directory instead of from the host.
     """
     options: list[PathString] = []
 
     for f in ("passwd", "group", "shadow", "gshadow"):
-        if not (Path("/etc") / f).exists():
-            continue
-        p = root / "etc" / f
-        if p.exists():
-            options += ["--bind", p, f"/etc/{f}"]
-        else:
-            options += ["--bind", "/dev/null", f"/etc/{f}"]
+        options += ["--ro-bind-try", root / "etc" / f, f"/etc/{f}"]
 
     return options
 
@@ -161,14 +154,11 @@ def sandbox_cmd(
 
     cmdline += ["sh", "-c", f"{shm} && exec $0 \"$@\""]
 
-    if setpgid := find_binary("setpgid", root=tools):
-        cmdline += [setpgid, "--foreground", "--"]
-
     return cmdline
 
 
-def apivfs_cmd(root: Path, *, tools: Path = Path("/")) -> list[PathString]:
-    cmdline: list[PathString] = [
+def apivfs_cmd(root: Path) -> list[PathString]:
+    return [
         "bwrap",
         "--dev-bind", "/", "/",
         "--tmpfs", root / "run",
@@ -178,38 +168,30 @@ def apivfs_cmd(root: Path, *, tools: Path = Path("/")) -> list[PathString]:
         "--dev", root / "dev",
         # APIVFS generally means chrooting is going to happen so unset TMPDIR just to be safe.
         "--unsetenv", "TMPDIR",
+        # Make sure /etc/machine-id is not overwritten by any package manager post install scripts.
+        "--ro-bind-try", root / "etc/machine-id", root / "etc/machine-id",
+        *finalize_passwd_mounts(root),
+        "sh", "-c",
+        f"chmod 1777 {root / 'tmp'} {root / 'var/tmp'} {root / 'dev/shm'} && "
+        f"chmod 755 {root / 'run'} && "
+        # Make sure anything running in the root directory thinks it's in a container. $container can't always be
+        # accessed so we write /run/host/container-manager as well which is always accessible.
+        f"mkdir -m 755 {root}/run/host && echo mkosi >{root}/run/host/container-manager && "
+        "exec $0 \"$@\"",
     ]
 
-    if (root / "etc/machine-id").exists():
-        # Make sure /etc/machine-id is not overwritten by any package manager post install scripts.
-        cmdline += ["--ro-bind", root / "etc/machine-id", root / "etc/machine-id"]
 
-    cmdline += finalize_passwd_mounts(root)
-
-    if setpgid := find_binary("setpgid", root=tools):
-        cmdline += [setpgid, "--foreground", "--"]
-
-    chmod = f"chmod 1777 {root / 'tmp'} {root / 'var/tmp'} {root / 'dev/shm'}"
-    # Make sure anything running in the root directory thinks it's in a container. $container can't always be
-    # accessed so we write /run/host/container-manager as well which is always accessible.
-    container = f"mkdir {root}/run/host && echo mkosi >{root}/run/host/container-manager"
-
-    cmdline += ["sh", "-c", f"{chmod} && {container} && exec $0 \"$@\""]
-
-    return cmdline
-
-
-def chroot_cmd(
-    root: Path,
-    *,
-    resolve: bool = False,
-    tools: Path = Path("/"),
-    options: Sequence[PathString] = (),
-) -> list[PathString]:
+def chroot_cmd(root: Path, *, resolve: bool = False, options: Sequence[PathString] = ()) -> list[PathString]:
     cmdline: list[PathString] = [
         "sh", "-c",
+        f"trap 'rm -rf {root / 'work'}' EXIT && "
+        # /etc/resolv.conf can be a dangling symlink to /run/systemd/resolve/stub-resolv.conf. Bubblewrap tries to call
+        # mkdir() on each component of the path which means it will try to call
+        # mkdir(/run/systemd/resolve/stub-resolv.conf) which will fail unless /run/systemd/resolve exists already so
+        # we make sure that it already exists.
+        f"mkdir -p -m 755 {root / 'work'} {root / 'run/systemd'} {root / 'run/systemd/resolve'} && "
         # No exec here because we need to clean up the /work directory afterwards.
-        f"trap 'rm -rf {root / 'work'}' EXIT && mkdir -p {root / 'work'} && chown 777 {root / 'work'} && $0 \"$@\"",
+        f"$0 \"$@\"",
         "bwrap",
         "--dev-bind", root, "/",
         "--setenv", "container", "mkosi",
@@ -218,20 +200,8 @@ def chroot_cmd(
     ]
 
     if resolve:
-        p = Path("etc/resolv.conf")
-        if (root / p).is_symlink():
-            # For each component in the target path, bubblewrap will try to create it if it doesn't exist
-            # yet. If a component in the path is a dangling symlink, bubblewrap will end up calling
-            # mkdir(symlink) which obviously fails if multiple components of the dangling symlink path don't
-            # exist yet. As a workaround, we resolve the symlink ourselves so that bubblewrap will correctly
-            # create all missing components in the target path.
-            p = p.parent / (root / p).readlink()
+        cmdline += ["--ro-bind-try", "/etc/resolv.conf", "/etc/resolv.conf"]
 
-        cmdline += ["--ro-bind", "/etc/resolv.conf", Path("/") / p]
+    cmdline += options
 
-    cmdline += [*options]
-
-    if setpgid := find_binary("setpgid", root=root):
-        cmdline += [setpgid, "--foreground", "--"]
-
-    return apivfs_cmd(root, tools=tools) + cmdline
+    return apivfs_cmd(root) + cmdline

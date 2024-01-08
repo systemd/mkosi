@@ -99,7 +99,7 @@ def invoke_pacman(
                     "--bind", context.cache_dir / "cache/pacman/pkg", context.cache_dir / "cache/pacman/pkg",
                     *finalize_crypto_mounts(tools=context.config.tools()),
                 ],
-            ) + (apivfs_cmd(context.root, tools=context.config.tools()) if apivfs else [])
+            ) + (apivfs_cmd(context.root) if apivfs else [])
         ),
         env=context.config.environment,
     )
