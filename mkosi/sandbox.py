@@ -173,7 +173,7 @@ def apivfs_cmd(root: Path, *, tools: Path = Path("/")) -> list[PathString]:
         "--dev-bind", "/", "/",
         "--tmpfs", root / "run",
         "--tmpfs", root / "tmp",
-        "--bind", os.getenv("TMPDIR", "/var/tmp"), root / "var/tmp",
+        "--bind", "/var/tmp", root / "var/tmp",
         "--proc", root / "proc",
         "--dev", root / "dev",
         # APIVFS generally means chrooting is going to happen so unset TMPDIR just to be safe.
