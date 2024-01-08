@@ -322,6 +322,9 @@ def start_virtiofsd(config: Config, directory: Path, *, uidmap: bool) -> Iterato
         "--sandbox=chroot",
     ]
 
+    if not uidmap:
+        cmdline += ["--security-label"]
+
     # We create the socket ourselves and pass the fd to virtiofsd to avoid race conditions where we start qemu
     # before virtiofsd has had the chance to create the socket (or where we try to chown it first).
     with (

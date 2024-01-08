@@ -91,7 +91,7 @@ def sandbox_cmd(
     if (tools / "nix/store").exists():
         cmdline += ["--bind", tools / "nix/store", "/nix/store"]
 
-    if devices:
+    if devices or relaxed:
         cmdline += [
             "--bind", "/sys", "/sys",
             "--bind", "/run", "/run",
@@ -104,7 +104,8 @@ def sandbox_cmd(
         dirs = ("/etc", "/opt", "/srv", "/media", "/mnt", "/var", os.fspath(INVOKING_USER.home()))
 
         for d in dirs:
-            cmdline += ["--bind", d, d]
+            if Path(d).exists():
+                cmdline += ["--bind", d, d]
 
         # `Path.parents` only supports slices and negative indexing from Python 3.10 onwards.
         # TODO: Remove list() when we depend on Python 3.10 or newer.
@@ -133,7 +134,7 @@ def sandbox_cmd(
     if scripts:
         cmdline += ["--ro-bind", scripts, scripts]
 
-    if network:
+    if network and not relaxed:
         cmdline += ["--bind", "/etc/resolv.conf", "/etc/resolv.conf"]
 
     if devices:
