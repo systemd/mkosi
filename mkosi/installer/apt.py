@@ -96,7 +96,9 @@ def invoke_apt(
     command: str,
     operation: str,
     packages: Sequence[str] = (),
+    *,
     apivfs: bool = True,
+    mounts: Sequence[PathString] = (),
 ) -> None:
     run(
         apt_cmd(context, command) + [operation, *sort_packages(packages)],
@@ -108,6 +110,7 @@ def invoke_apt(
                     "--bind", context.cache_dir, context.cache_dir,
                     "--ro-bind", context.workspace / "apt.conf", context.workspace / "apt.conf",
                     *finalize_crypto_mounts(tools=context.config.tools()),
+                    *mounts,
                 ],
             ) + (apivfs_cmd(context.root, tools=context.config.tools()) if apivfs else [])
         ),

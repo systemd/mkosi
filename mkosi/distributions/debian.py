@@ -109,17 +109,26 @@ class Installer(DistributionInstaller):
                 (context.root / d).symlink_to(f"usr/{d}")
                 (context.root / f"usr/{d}").mkdir(parents=True, exist_ok=True)
 
+        invoke_apt(context, "apt-get", "update", apivfs=False)
+
         # Next, we invoke apt-get install to download all the essential packages. With DPkg::Pre-Install-Pkgs,
         # we specify a shell command that will receive the list of packages that will be installed on stdin.
         # By configuring Debug::pkgDpkgPm=1, apt-get install will not actually execute any dpkg commands, so
         # all it does is download the essential debs and tell us their full in the apt cache without actually
         # installing them.
-        with tempfile.NamedTemporaryFile(dir="/tmp", mode="r") as f:
-            cls.install_packages(context, [
-                "-oDebug::pkgDPkgPm=1",
-                f"-oDPkg::Pre-Install-Pkgs::=cat >{f.name}",
-                "?essential", "?name(usr-is-merged)",
-            ], apivfs=False)
+        with tempfile.NamedTemporaryFile(mode="r") as f:
+            invoke_apt(
+                context,
+                "apt-get",
+                "install",
+                [
+                    "-oDebug::pkgDPkgPm=1",
+                    f"-oDPkg::Pre-Install-Pkgs::=cat >{f.name}",
+                    "?essential", "?name(usr-is-merged)",
+                ],
+                apivfs=False,
+                mounts=("--bind", f.name, f.name),
+            )
 
             essential = f.read().strip().splitlines()
 
