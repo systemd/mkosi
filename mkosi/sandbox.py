@@ -134,7 +134,7 @@ def sandbox_cmd(
     if scripts:
         cmdline += ["--ro-bind", scripts, scripts]
 
-    if network:
+    if network and not relaxed:
         cmdline += ["--bind", "/etc/resolv.conf", "/etc/resolv.conf"]
 
     if devices:
