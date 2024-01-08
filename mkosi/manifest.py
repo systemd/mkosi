@@ -96,7 +96,6 @@ class Manifest:
             self.record_deb_packages(root)
         if self.config.distribution.package_type() == PackageType.pkg:
             self.record_pkg_packages(root)
-        # TODO: add implementations for other package managers
 
     def record_rpm_packages(self, root: Path) -> None:
         # On Debian, rpm/dnf ship with a patch to store the rpmdb under ~/ so rpm

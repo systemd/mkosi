@@ -106,6 +106,9 @@ class Distribution(StrEnum):
     def is_apt_distribution(self) -> bool:
         return self in (Distribution.debian, Distribution.ubuntu)
 
+    def pretty_name(self) -> str:
+        return self.installer().pretty_name()
+
     def setup(self, context: "Context") -> None:
         return self.installer().setup(context)
 
