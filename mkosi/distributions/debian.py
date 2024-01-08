@@ -124,7 +124,7 @@ class Installer(DistributionInstaller):
                 [
                     "-oDebug::pkgDPkgPm=1",
                     f"-oDPkg::Pre-Install-Pkgs::=cat >{f.name}",
-                    "?essential", "?name(usr-is-merged)",
+                    "?essential", "?exact-name(usr-is-merged)",
                 ],
                 apivfs=False,
                 mounts=("--bind", f.name, f.name),
