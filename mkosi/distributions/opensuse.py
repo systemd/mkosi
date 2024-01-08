@@ -13,6 +13,7 @@ from mkosi.installer.rpm import RpmRepository
 from mkosi.installer.zypper import invoke_zypper, setup_zypper
 from mkosi.log import die
 from mkosi.run import find_binary, run
+from mkosi.sandbox import finalize_crypto_mounts
 
 
 class Installer(DistributionInstaller):
@@ -135,7 +136,10 @@ def fetch_gpgurls(context: Context, repourl: str) -> tuple[str, ...]:
                 "--fail",
                 f"{repourl}/repodata/repomd.xml",
             ],
-            sandbox=context.sandbox(network=True, options=["--bind", d, d]),
+            sandbox=context.sandbox(
+                network=True,
+                options=["--bind", d, d, *finalize_crypto_mounts(context.config.tools())],
+            ),
         )
         xml = (Path(d) / "repomd.xml").read_text()
 
