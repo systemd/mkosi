@@ -286,7 +286,11 @@ def start_swtpm(config: Config) -> Iterator[Path]:
 
             cmdline += ["--ctrl", f"type=unixio,fd={sock.fileno()}"]
 
-            with spawn(cmdline, pass_fds=(sock.fileno(),), sandbox=config.sandbox()) as proc:
+            with spawn(
+                cmdline,
+                pass_fds=(sock.fileno(),),
+                sandbox=config.sandbox(options=["--bind", state, state]),
+            ) as proc:
                 try:
                     yield path
                 finally:

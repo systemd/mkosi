@@ -81,12 +81,16 @@ def sandbox_cmd(
     cmdline: list[PathString] = [
         "bwrap",
         "--ro-bind", tools / "usr", "/usr",
-        "--bind", "/tmp", "/tmp",
         *(["--unshare-net"] if not network and have_effective_cap(Capability.CAP_NET_ADMIN) else []),
         "--die-with-parent",
         "--proc", "/proc",
         "--setenv", "SYSTEMD_OFFLINE", one_zero(network),
     ]
+
+    if relaxed:
+        cmdline += ["--bind", "/tmp", "/tmp"]
+    else:
+        cmdline += ["--tmpfs", "/tmp"]
 
     if (tools / "nix/store").exists():
         cmdline += ["--bind", tools / "nix/store", "/nix/store"]
