@@ -116,16 +116,6 @@ jobs:
             tools: opensuse
           - distro: ubuntu
             tools: opensuse
-          # Debian test_boot[cpio] is super flaky on these combinations until the next v255 stable release with
-          # https://github.com/systemd/systemd/pull/30511 is available in Debian unstable.
-          - distro: debian
-            tools: arch
-          - distro: debian
-            tools: fedora
-          - distro: debian
-            tools: centos
-          - distro: debian
-            tools: debian
           # rpm in Debian is currently missing
           # https://github.com/rpm-software-management/rpm/commit/ea3187cfcf9cac87e5bc5e7db79b0338da9e355e
           - distro: fedora
