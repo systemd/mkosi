@@ -303,7 +303,8 @@ the earlier assignment would be used instead of later assignments.
 
 Settings that take a list of values are merged by appending the new
 values to the previously configured values. Assigning the empty string
-to such a setting removes all previously assigned values.
+to such a setting removes all previously assigned values, and overrides
+any configured default values as well.
 
 If a setting's name in the configuration file is prefixed with `@`, it
 configures the default value used for that setting if no explicit

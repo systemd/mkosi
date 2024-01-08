@@ -636,7 +636,7 @@ def config_make_list_parser(delimiter: str,
 
         # Empty strings reset the list.
         if reset and len(values) == 1 and values[0] == "":
-            return None
+            return []
 
         return new + [parse(v) for v in values if v]
 

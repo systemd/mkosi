@@ -2,6 +2,8 @@
 
 ## v20
 
+- Assigning the empty string to a setting that takes a list of values
+  now overrides any configured default value as well.
 - The github action does not build and install systemd from source
   anymore. Instead, `ToolsTree=default` can be used to make sure a
   recent version of systemd is used to do the image build.
