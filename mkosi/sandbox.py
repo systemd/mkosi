@@ -104,7 +104,8 @@ def sandbox_cmd(
         dirs = ("/etc", "/opt", "/srv", "/media", "/mnt", "/var", os.fspath(INVOKING_USER.home()))
 
         for d in dirs:
-            cmdline += ["--bind", d, d]
+            if Path(d).exists():
+                cmdline += ["--bind", d, d]
 
         # `Path.parents` only supports slices and negative indexing from Python 3.10 onwards.
         # TODO: Remove list() when we depend on Python 3.10 or newer.
