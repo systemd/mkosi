@@ -977,13 +977,11 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 : Takes a comma separated list of colon separated path pairs. The first
   path of each pair refers to a directory to mount from the host. The
   second path of each pair refers to the directory where the source
-  directory should be mounted when running scripts. Every target path
-  is prefixed with the current working directory and all build sources
-  are sorted lexicographically by their target before mounting so that
-  top level paths are mounted first. When using the `mkosi-chroot`
-  script ( see the **Scripts** section), the current working directory
-  with all build sources mounted in it is mounted to `/work/src` inside
-  the image's root directory.
+  directory should be mounted when running scripts. Every target path is
+  prefixed with `/work/src` and all build sources are sorted
+  lexicographically by their target before mounting, so that top level
+  paths are mounted first. If not configured explicitly, the current
+  working directory is mounted to `/work/src`.
 
 `BuildSourcesEphemeral=`, `--build-sources-ephemeral=`
 

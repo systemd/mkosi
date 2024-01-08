@@ -1866,6 +1866,7 @@ SETTINGS = (
         section="Content",
         parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(absolute=False)),
         match=config_match_build_sources,
+        default_factory=lambda _: [ConfigTree(Path.cwd(), None)],
         help="Path for sources to build",
     ),
     ConfigSetting(

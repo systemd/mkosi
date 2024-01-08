@@ -2,6 +2,11 @@
 
 ## v20
 
+- The current working directory is not mounted unconditionally to
+  `/work/src` anymore. Instead, the default value for `BuildSources=`
+  now mounts the current working directory to `/work/src`. This means
+  that the current working directory is no longer implicitly included
+  when `BuildSources=` is explicitly configured.
 - Assigning the empty string to a setting that takes a list of values
   now overrides any configured default value as well.
 - The github action does not build and install systemd from source
