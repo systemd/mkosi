@@ -96,7 +96,7 @@ def invoke_pacman(
                 network=True,
                 options=[
                     "--bind", context.root, context.root,
-                    "--bind", context.cache_dir, context.cache_dir,
+                    "--bind", context.cache_dir / "cache/pacman/pkg", context.cache_dir / "cache/pacman/pkg",
                     *finalize_crypto_mounts(tools=context.config.tools()),
                 ],
             ) + (apivfs_cmd(context.root, tools=context.config.tools()) if apivfs else [])

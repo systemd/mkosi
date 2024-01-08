@@ -15,6 +15,8 @@ def setup_zypper(context: Context, repos: Sequence[RpmRepository]) -> None:
     config = context.pkgmngr / "etc/zypp/zypp.conf"
     config.parent.mkdir(exist_ok=True, parents=True)
 
+    (context.cache_dir / "cache/zypp").mkdir(exist_ok=True, parents=True)
+
     # rpm.install.excludedocs can only be configured in zypp.conf so we append
     # to any user provided config file. Let's also bump the refresh delay to
     # the same default as dnf which is 48 hours.
@@ -82,7 +84,7 @@ def invoke_zypper(
                 network=True,
                 options=[
                     "--bind", context.root, context.root,
-                    "--bind", context.cache_dir, context.cache_dir,
+                    "--bind", context.cache_dir / "cache/zypp", context.cache_dir / "cache/zypp",
                     *finalize_crypto_mounts(tools=context.config.tools()),
                 ],
             ) + (apivfs_cmd(context.root, tools=context.config.tools()) if apivfs else [])
