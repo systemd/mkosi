@@ -1243,9 +1243,8 @@ class Config:
 
         This prevents MkosiArgs being generated with defaults values implicitly.
         """
-        with tempfile.TemporaryDirectory() as tempdir:
-            with chdir(tempdir):
-                _, [config] = parse_config([])
+        with chdir("/"):
+            _, [config] = parse_config([])
 
         return config
 
