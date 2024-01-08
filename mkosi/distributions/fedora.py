@@ -125,8 +125,7 @@ class Installer(DistributionInstaller):
                     ),
                 ]
 
-        # TODO: Use `filelists=True` when F37 goes EOL.
-        setup_dnf(context, repos, filelists=fedora_release_at_most(context.config.release, "37"))
+        setup_dnf(context, repos, filelists=True)
 
     @classmethod
     def install(cls, context: Context) -> None:
@@ -156,12 +155,3 @@ class Installer(DistributionInstaller):
             die(f"Architecture {a} is not supported by Fedora")
 
         return a
-
-
-def fedora_release_at_most(release: str, threshold: str) -> bool:
-    if release in ("rawhide", "eln"):
-        return False
-    if threshold in ("rawhide", "eln"):
-        return True
-    # If neither is 'rawhide', both must be integers
-    return int(release) <= int(threshold)

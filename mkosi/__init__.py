@@ -164,9 +164,10 @@ def install_build_packages(context: Context) -> None:
     if not context.config.build_scripts or not context.config.build_packages:
         return
 
-    # TODO: move to parenthesised context managers once on 3.10
-    pd = str(context.config.distribution).capitalize()
-    with complete_step(f"Installing build packages for {pd}"), mount_build_overlay(context):
+    with (
+        complete_step(f"Installing build packages for {context.config.distribution.pretty_name()}"),
+        mount_build_overlay(context),
+    ):
         context.config.distribution.install_packages(context, context.config.build_packages)
 
 
@@ -385,7 +386,7 @@ def finalize_scripts(scripts: Mapping[str, Sequence[PathString]] = {}) -> Iterat
 
 def finalize_host_scripts(
     context: Context,
-    helpers: dict[str, Sequence[PathString]],  # FIXME: change dict to Mapping when PyRight is fixed
+    helpers: Mapping[str, Sequence[PathString]],
 ) -> contextlib.AbstractContextManager[Path]:
     scripts: dict[str, Sequence[PathString]] = {}
     if find_binary("git", root=context.config.tools()):
@@ -393,7 +394,7 @@ def finalize_host_scripts(
     for binary in ("useradd", "groupadd"):
         if find_binary(binary, root=context.config.tools()):
             scripts[binary] = (binary, "--root", context.root)
-    return finalize_scripts(scripts | helpers | package_manager_scripts(context))
+    return finalize_scripts(scripts | dict(helpers) | package_manager_scripts(context))
 
 
 def finalize_chroot_scripts(context: Context) -> contextlib.AbstractContextManager[Path]:
