@@ -350,10 +350,14 @@ def finalize_source_mounts(config: Config) -> Iterator[list[PathString]]:
         mounts = [
             (stack.enter_context(mount_overlay([source])) if config.build_sources_ephemeral else source, target)
             for source, target
-            in [(Path.cwd(), Path.cwd())] + [t.with_prefix(Path.cwd()) for t in config.build_sources]
+            in (t.with_prefix(Path("/work/src")) for t in config.build_sources)
         ]
 
-        yield flatten(["--bind", src, target] for src, target in sorted(set(mounts), key=lambda s: s[1]))
+        options: list[PathString] = ["--dir", "/work/src"]
+        for src, target in sorted(set(mounts), key=lambda s: s[1]):
+            options += ["--bind", src, target]
+
+        yield options
 
 
 @contextlib.contextmanager
@@ -416,7 +420,7 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
         MKOSI_UID=str(INVOKING_USER.uid),
         MKOSI_GID=str(INVOKING_USER.gid),
         SCRIPT="/work/prepare",
-        SRCDIR=str(Path.cwd()),
+        SRCDIR="/work/src",
         WITH_DOCS=one_zero(context.config.with_docs),
         WITH_NETWORK=one_zero(context.config.with_network),
         WITH_TESTS=one_zero(context.config.with_tests),
@@ -440,11 +444,10 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
                 resolve=True,
                 tools=context.config.tools(),
                 options=[
-                    "--bind", script, "/work/prepare",
-                    "--bind", Path.cwd(), "/work/src",
-                    "--bind", cd, "/work/scripts",
+                    "--bind", "/work/prepare", "/work/prepare",
+                    "--bind", "/work/src", "/work/src",
+                    "--bind", "/work/scripts", "/work/scripts",
                     "--chdir", "/work/src",
-                    "--setenv", "SRCDIR", "/work/src",
                     "--setenv", "BUILDROOT", "/",
                 ],
             )
@@ -458,18 +461,21 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
 
             with complete_step(step_msg.format(script)):
                 run(
-                    ["/work/prepare" if script.suffix == ".chroot" else script, arg],
+                    ["/work/prepare", arg],
                     env=env | context.config.environment,
                     stdin=sys.stdin,
                     sandbox=context.sandbox(
                         network=True,
                         options=sources + [
-                            "--ro-bind", script, script,
-                            "--ro-bind", cd, cd,
-                            "--bind", context.root, context.root,
+                            # If the cache dir is /var and the workspace directory is /var/tmp (e.g. in mkosi-initrd),
+                            # then all the files we mount here might be located in the configured cache directory, so
+                            # we have to mount the cache directory first to not override all the other mounts.
                             "--bind", context.cache_dir, context.cache_dir,
+                            "--ro-bind", script, "/work/prepare",
+                            "--ro-bind", cd, "/work/scripts",
+                            "--bind", context.root, context.root,
                             *finalize_crypto_mounts(tools=context.config.tools()),
-                            "--chdir", Path.cwd(),
+                            "--chdir", "/work/src",
                         ],
                         scripts=hd,
                     ) + (chroot if script.suffix == ".chroot" else []),
@@ -483,16 +489,16 @@ def run_build_scripts(context: Context) -> None:
     env = dict(
         ARCHITECTURE=str(context.config.architecture),
         BUILDROOT=str(context.root),
+        DESTDIR="/work/dest",
         CHROOT_DESTDIR="/work/dest",
+        OUTPUTDIR="/work/out",
         CHROOT_OUTPUTDIR="/work/out",
-        CHROOT_SCRIPT="/work/build-script",
+        SRCDIR="/work/src",
         CHROOT_SRCDIR="/work/src",
-        DESTDIR=str(context.install_dir),
+        SCRIPT="/work/build-script",
+        CHROOT_SCRIPT="/work/build-script",
         MKOSI_UID=str(INVOKING_USER.uid),
         MKOSI_GID=str(INVOKING_USER.gid),
-        OUTPUTDIR=str(context.staging),
-        SCRIPT="/work/build-script",
-        SRCDIR=str(Path.cwd()),
         WITH_DOCS=one_zero(context.config.with_docs),
         WITH_NETWORK=one_zero(context.config.with_network),
         WITH_TESTS=one_zero(context.config.with_tests),
@@ -500,7 +506,7 @@ def run_build_scripts(context: Context) -> None:
 
     if context.config.build_dir is not None:
         env |= dict(
-            BUILDDIR=str(context.config.build_dir),
+            BUILDDIR="/work/build",
             CHROOT_BUILDDIR="/work/build",
         )
 
@@ -515,20 +521,17 @@ def run_build_scripts(context: Context) -> None:
                 resolve=context.config.with_network,
                 tools=context.config.tools(),
                 options=[
-                    "--bind", script, "/work/build-script",
-                    "--bind", context.install_dir, "/work/dest",
-                    "--bind", context.staging, "/work/out",
-                    "--bind", Path.cwd(), "/work/src",
-                    "--bind", cd, "/work/scripts",
+                    "--bind", "/work/build-script", "/work/build-script",
+                    "--bind", "/work/dest", "/work/dest",
+                    "--bind", "/work/out", "/work/out",
+                    "--bind", "/work/src", "/work/src",
+                    "--bind", "/work/scripts", "/work/scripts",
                     *(
-                        ["--bind", os.fspath(context.config.build_dir), "/work/build"]
+                        ["--bind", "/work/build", "/work/build"]
                         if context.config.build_dir
                         else []
                     ),
                     "--chdir", "/work/src",
-                    "--setenv", "SRCDIR", "/work/src",
-                    "--setenv", "DESTDIR", "/work/dest",
-                    "--setenv", "OUTPUTDIR", "/work/out",
                     "--setenv", "BUILDROOT", "/",
                     *(["--setenv", "BUILDDIR", "/work/build"] if context.config.build_dir else []),
                 ],
@@ -546,24 +549,24 @@ def run_build_scripts(context: Context) -> None:
                 complete_step(f"Running build script {script}…"),
             ):
                 run(
-                    ["/work/build-script" if script.suffix == ".chroot" else script, *cmdline],
+                    ["/work/build-script", *cmdline],
                     env=env | context.config.environment,
                     stdin=sys.stdin,
                     sandbox=context.sandbox(
                         network=context.config.with_network,
                         options=sources + [
-                            "--ro-bind", script, script,
-                            "--ro-bind", cd, cd,
+                            "--ro-bind", script, "/work/build-script",
+                            "--ro-bind", cd, "/work/scripts",
                             "--bind", context.root, context.root,
-                            "--bind", context.install_dir, context.install_dir,
-                            "--bind", context.staging, context.staging,
+                            "--bind", context.install_dir, "/work/dest",
+                            "--bind", context.staging, "/work/out",
                             *(
-                                ["--bind", os.fspath(context.config.build_dir), os.fspath(context.config.build_dir)]
+                                ["--bind", os.fspath(context.config.build_dir), "/work/build"]
                                 if context.config.build_dir
                                 else []
                             ),
                             *finalize_crypto_mounts(tools=context.config.tools()),
-                            "--chdir", Path.cwd(),
+                            "--chdir", "/work/src",
                         ],
                         scripts=hd,
                     ) + (chroot if script.suffix == ".chroot" else []),
@@ -577,14 +580,14 @@ def run_postinst_scripts(context: Context) -> None:
     env = dict(
         ARCHITECTURE=str(context.config.architecture),
         BUILDROOT=str(context.root),
+        OUTPUTDIR="/work/out",
         CHROOT_OUTPUTDIR="/work/out",
+        SCRIPT="/work/postinst",
         CHROOT_SCRIPT="/work/postinst",
+        SRCDIR="/work/src",
         CHROOT_SRCDIR="/work/src",
         MKOSI_UID=str(INVOKING_USER.uid),
         MKOSI_GID=str(INVOKING_USER.gid),
-        OUTPUTDIR=str(context.staging),
-        SCRIPT="/work/postinst",
-        SRCDIR=str(Path.cwd()),
     )
 
     with (
@@ -597,13 +600,11 @@ def run_postinst_scripts(context: Context) -> None:
                 resolve=context.config.with_network,
                 tools=context.config.tools(),
                 options=[
-                    "--bind", script, "/work/postinst",
-                    "--bind", context.staging, "/work/out",
-                    "--bind", Path.cwd(), "/work/src",
-                    "--bind", cd, "/work/scripts",
+                    "--bind", "/work/postinst", "/work/postinst",
+                    "--bind", "/work/out", "/work/out",
+                    "--bind", "/work/src", "/work/src",
+                    "--bind", "/work/scripts", "/work/scripts",
                     "--chdir", "/work/src",
-                    "--setenv", "SRCDIR", "/work/src",
-                    "--setenv", "OUTPUTDIR", "/work/out",
                     "--setenv", "BUILDROOT", "/",
                 ],
             )
@@ -618,18 +619,18 @@ def run_postinst_scripts(context: Context) -> None:
                 complete_step(f"Running postinstall script {script}…"),
             ):
                 run(
-                    ["/work/postinst" if script.suffix == ".chroot" else script, "final"],
+                    ["/work/postinst", "final"],
                     env=env | context.config.environment,
                     stdin=sys.stdin,
                     sandbox=context.sandbox(
                         network=context.config.with_network,
                         options=sources + [
-                            "--ro-bind", script, script,
-                            "--ro-bind", cd, cd,
+                            "--ro-bind", script, "/work/postinst",
+                            "--ro-bind", cd, "/work/scripts",
                             "--bind", context.root, context.root,
-                            "--bind", context.staging, context.staging,
+                            "--bind", context.staging, "/work/out",
                             *finalize_crypto_mounts(tools=context.config.tools()),
-                            "--chdir", Path.cwd(),
+                            "--chdir", "/work/src",
                         ],
                         scripts=hd,
                     ) + (chroot if script.suffix == ".chroot" else []),
@@ -643,14 +644,14 @@ def run_finalize_scripts(context: Context) -> None:
     env = dict(
         ARCHITECTURE=str(context.config.architecture),
         BUILDROOT=str(context.root),
+        OUTPUTDIR="/work/out",
         CHROOT_OUTPUTDIR="/work/out",
-        CHROOT_SCRIPT="/work/finalize",
+        SRCDIR="/work/src",
         CHROOT_SRCDIR="/work/src",
+        SCRIPT="/work/finalize",
+        CHROOT_SCRIPT="/work/finalize",
         MKOSI_UID=str(INVOKING_USER.uid),
         MKOSI_GID=str(INVOKING_USER.gid),
-        OUTPUTDIR=str(context.staging),
-        SCRIPT="/work/finalize",
-        SRCDIR=str(Path.cwd()),
     )
 
     with (
@@ -663,13 +664,11 @@ def run_finalize_scripts(context: Context) -> None:
                 resolve=context.config.with_network,
                 tools=context.config.tools(),
                 options=[
-                    "--bind", script, "/work/finalize",
-                    "--bind", context.staging, "/work/out",
-                    "--bind", Path.cwd(), "/work/src",
-                    "--bind", cd, "/work/scripts",
+                    "--bind", "/work/finalize", "/work/finalize",
+                    "--bind", "/work/out", "/work/out",
+                    "--bind", "/work/src", "/work/src",
+                    "--bind", "/work/scripts", "/work/scripts",
                     "--chdir", "/work/src",
-                    "--setenv", "SRCDIR", "/work/src",
-                    "--setenv", "OUTPUTDIR", "/work/out",
                     "--setenv", "BUILDROOT", "/",
                 ],
             )
@@ -684,18 +683,18 @@ def run_finalize_scripts(context: Context) -> None:
                 complete_step(f"Running finalize script {script}…"),
             ):
                 run(
-                    ["/work/finalize" if script.suffix == ".chroot" else script],
+                    ["/work/finalize"],
                     env=env | context.config.environment,
                     stdin=sys.stdin,
                     sandbox=context.sandbox(
                         network=context.config.with_network,
                         options=sources + [
-                            "--ro-bind", script, script,
-                            "--ro-bind", cd, cd,
+                            "--ro-bind", script, "/work/finalize",
+                            "--ro-bind", cd, "/work/scripts",
                             "--bind", context.root, context.root,
-                            "--bind", context.staging, context.staging,
+                            "--bind", context.staging, "/work/out",
                             *finalize_crypto_mounts(tools=context.config.tools()),
-                            "--chdir", Path.cwd(),
+                            "--chdir", "/work/src",
                         ],
                         scripts=hd,
                     ) + (chroot if script.suffix == ".chroot" else []),

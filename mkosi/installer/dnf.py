@@ -19,9 +19,17 @@ def dnf_executable(context: Context) -> str:
     return Path(dnf or find_binary("dnf5", root=root) or find_binary("dnf", root=root) or "yum").name
 
 
+def dnf_subdir(context: Context) -> str:
+    dnf = dnf_executable(context)
+    return "libdnf5" if dnf.endswith("dnf5") else "dnf"
+
+
 def setup_dnf(context: Context, repositories: Iterable[RpmRepository], filelists: bool = True) -> None:
     (context.pkgmngr / "etc/dnf/vars").mkdir(exist_ok=True, parents=True)
     (context.pkgmngr / "etc/yum.repos.d").mkdir(exist_ok=True, parents=True)
+
+    (context.cache_dir / "cache" / dnf_subdir(context)).mkdir(exist_ok=True, parents=True)
+    (context.cache_dir / "lib" / dnf_subdir(context)).mkdir(exist_ok=True, parents=True)
 
     config = context.pkgmngr / "etc/dnf/dnf.conf"
 
@@ -78,8 +86,8 @@ def dnf_cmd(context: Context) -> list[PathString]:
         f"--releasever={context.config.release}",
         f"--installroot={context.root}",
         "--setopt=keepcache=1",
-        f"--setopt=cachedir={context.cache_dir / 'cache' / ('libdnf5' if dnf.endswith('dnf5') else 'dnf')}",
-        f"--setopt=persistdir={context.cache_dir / 'lib' / ('libdnf5' if dnf.endswith('dnf5') else 'dnf')}",
+        f"--setopt=cachedir={context.cache_dir / 'cache' / dnf_subdir(context)}",
+        f"--setopt=persistdir={context.cache_dir / 'lib' / dnf_subdir(context)}",
         f"--setopt=install_weak_deps={int(context.config.with_recommends)}",
         "--setopt=check_config_file_age=0",
         "--disable-plugin=*" if dnf.endswith("dnf5") else "--disableplugin=*",
@@ -123,7 +131,12 @@ def invoke_dnf(context: Context, command: str, packages: Iterable[str], apivfs: 
                 network=True,
                 options=[
                     "--bind", context.root, context.root,
-                    "--bind", context.cache_dir, context.cache_dir,
+                    "--bind",
+                    context.cache_dir / "cache" / dnf_subdir(context),
+                    context.cache_dir / "cache" / dnf_subdir(context),
+                    "--bind",
+                    context.cache_dir / "lib" / dnf_subdir(context),
+                    context.cache_dir / "lib" / dnf_subdir(context),
                     *finalize_crypto_mounts(tools=context.config.tools()),
                 ],
             ) + (apivfs_cmd(context.root, tools=context.config.tools()) if apivfs else [])

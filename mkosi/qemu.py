@@ -286,7 +286,11 @@ def start_swtpm(config: Config) -> Iterator[Path]:
 
             cmdline += ["--ctrl", f"type=unixio,fd={sock.fileno()}"]
 
-            with spawn(cmdline, pass_fds=(sock.fileno(),), sandbox=config.sandbox()) as proc:
+            with spawn(
+                cmdline,
+                pass_fds=(sock.fileno(),),
+                sandbox=config.sandbox(options=["--bind", state, state]),
+            ) as proc:
                 try:
                     yield path
                 finally:
@@ -742,7 +746,7 @@ def run_qemu(args: Args, config: Config) -> None:
             scratch = stack.enter_context(tempfile.NamedTemporaryFile(dir="/var/tmp", prefix="mkosi-scratch"))
             scratch.truncate(1024**4)
             run([f"mkfs.{config.distribution.filesystem()}", "-L", "scratch", scratch.name],
-                stdout=subprocess.DEVNULL, stderr=None, sandbox=config.sandbox())
+                stdout=subprocess.DEVNULL, sandbox=config.sandbox(options=["--bind", scratch.name, scratch.name]))
             cmdline += [
                 "-drive", f"if=none,id=scratch,file={scratch.name},format=raw",
                 "-device", "scsi-hd,drive=scratch",

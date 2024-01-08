@@ -636,7 +636,7 @@ def config_make_list_parser(delimiter: str,
 
         # Empty strings reset the list.
         if reset and len(values) == 1 and values[0] == "":
-            return None
+            return []
 
         return new + [parse(v) for v in values if v]
 
@@ -1243,9 +1243,8 @@ class Config:
 
         This prevents MkosiArgs being generated with defaults values implicitly.
         """
-        with tempfile.TemporaryDirectory() as tempdir:
-            with chdir(tempdir):
-                _, [config] = parse_config([])
+        with chdir("/"):
+            _, [config] = parse_config([])
 
         return config
 
@@ -1867,6 +1866,7 @@ SETTINGS = (
         section="Content",
         parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(absolute=False)),
         match=config_match_build_sources,
+        default_factory=lambda _: [ConfigTree(Path.cwd(), None)],
         help="Path for sources to build",
     ),
     ConfigSetting(
