@@ -86,6 +86,7 @@ def invoke_zypper(
                 options=[
                     "--bind", context.root, context.root,
                     "--bind", context.cache_dir / "cache/zypp", context.cache_dir / "cache/zypp",
+                    *(["--ro-bind", m, m] if (m := context.config.local_mirror) else []),
                     *finalize_crypto_mounts(tools=context.config.tools()),
                     *finalize_source_mounts(context.config),
                     "--chdir", "/work/src",

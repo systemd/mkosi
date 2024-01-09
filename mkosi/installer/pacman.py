@@ -98,6 +98,7 @@ def invoke_pacman(
                 options=[
                     "--bind", context.root, context.root,
                     "--bind", context.cache_dir / "cache/pacman/pkg", context.cache_dir / "cache/pacman/pkg",
+                    *(["--ro-bind", m, m] if (m := context.config.local_mirror) else []),
                     *finalize_crypto_mounts(tools=context.config.tools()),
                     *finalize_source_mounts(context.config),
                     "--chdir", "/work/src",

@@ -111,6 +111,7 @@ def invoke_apt(
                     "--bind", context.cache_dir / "lib/apt", context.cache_dir / "lib/apt",
                     "--bind", context.cache_dir / "cache/apt", context.cache_dir / "cache/apt",
                     "--ro-bind", context.workspace / "apt.conf", context.workspace / "apt.conf",
+                    *(["--ro-bind", m, m] if (m := context.config.local_mirror) else []),
                     *finalize_crypto_mounts(tools=context.config.tools()),
                     *finalize_source_mounts(context.config),
                     *mounts,
