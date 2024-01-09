@@ -945,6 +945,7 @@ def parse_chdir(path: str) -> Optional[Path]:
         die(f"{path} is not a directory!")
     except OSError as e:
         die(f"Cannot change the directory to {path}: {e}")
+
     # Keep track of the current directory
     return Path.cwd()
 
@@ -1866,7 +1867,7 @@ SETTINGS = (
         section="Content",
         parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(absolute=False)),
         match=config_match_build_sources,
-        default_factory=lambda _: [ConfigTree(Path.cwd(), None)],
+        default_factory=lambda ns: [ConfigTree(ns.directory, None)] if ns.directory else [],
         help="Path for sources to build",
     ),
     ConfigSetting(
