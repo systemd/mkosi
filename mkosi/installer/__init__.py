@@ -41,12 +41,12 @@ def clean_package_manager_metadata(context: Context) -> None:
 
 def package_manager_scripts(context: Context) -> dict[str, list[PathString]]:
     return {
-        "pacman": apivfs_cmd(context.root, tools=context.config.tools()) + pacman_cmd(context),
-        "zypper": apivfs_cmd(context.root, tools=context.config.tools()) + zypper_cmd(context),
-        "dnf"   : apivfs_cmd(context.root, tools=context.config.tools()) + dnf_cmd(context),
-        "rpm"   : apivfs_cmd(context.root, tools=context.config.tools()) + rpm_cmd(context),
+        "pacman": apivfs_cmd(context.root) + pacman_cmd(context),
+        "zypper": apivfs_cmd(context.root) + zypper_cmd(context),
+        "dnf"   : apivfs_cmd(context.root) + dnf_cmd(context),
+        "rpm"   : apivfs_cmd(context.root) + rpm_cmd(context),
     } | {
-        command: apivfs_cmd(context.root, tools=context.config.tools()) + apt_cmd(context, command) for command in (
+        command: apivfs_cmd(context.root) + apt_cmd(context, command) for command in (
             "apt",
             "apt-cache",
             "apt-cdrom",

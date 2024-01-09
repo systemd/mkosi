@@ -289,6 +289,12 @@ def run(
         if preexec_fn:
             preexec_fn()
 
+    if (
+        sandbox and
+        subprocess.run(sandbox + ["sh", "-c", "command -v setpgid"], stdout=subprocess.DEVNULL).returncode == 0
+    ):
+        cmdline = ["setpgid", "--foreground", "--"] + cmdline
+
     try:
         # subprocess.run() will use SIGKILL to kill processes when an exception is raised.
         # We'd prefer it to use SIGTERM instead but since this we can't configure which signal
@@ -372,6 +378,13 @@ def spawn(
             make_foreground_process()
         if preexec_fn:
             preexec_fn()
+
+    if (
+        foreground and
+        sandbox and
+        subprocess.run(sandbox + ["sh", "-c", "command -v setpgid"], stdout=subprocess.DEVNULL).returncode == 0
+    ):
+        cmdline = ["setpgid", "--foreground", "--"] + cmdline
 
     try:
         with subprocess.Popen(

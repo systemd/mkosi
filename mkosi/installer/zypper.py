@@ -87,7 +87,7 @@ def invoke_zypper(
                     "--bind", context.cache_dir / "cache/zypp", context.cache_dir / "cache/zypp",
                     *finalize_crypto_mounts(tools=context.config.tools()),
                 ],
-            ) + (apivfs_cmd(context.root, tools=context.config.tools()) if apivfs else [])
+            ) + (apivfs_cmd(context.root) if apivfs else [])
         ),
         env=context.config.environment,
     )

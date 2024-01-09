@@ -3561,3 +3561,29 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         return val
 
     return json_transformer
+
+
+def want_selinux_relabel(config: Config, root: Path, fatal: bool = True) -> Optional[str]:
+    if config.selinux_relabel == ConfigFeature.disabled:
+        return None
+
+    selinux = root / "etc/selinux/config"
+    if not selinux.exists():
+        if fatal and config.selinux_relabel == ConfigFeature.enabled:
+            die("SELinux relabel is requested but could not find selinux config at /etc/selinux/config")
+        return None
+
+    policy = run(["sh", "-c", f". {selinux} && echo $SELINUXTYPE"],
+                 sandbox=config.sandbox(options=["--ro-bind", selinux, selinux]),
+                 stdout=subprocess.PIPE).stdout.strip()
+    if not policy:
+        if fatal and config.selinux_relabel == ConfigFeature.enabled:
+            die("SELinux relabel is requested but no selinux policy is configured in /etc/selinux/config")
+        return None
+
+    if not find_binary("setfiles", root=config.tools()):
+        if fatal:
+            logging.info("setfiles is not installed, not relabeling files")
+        return None
+
+    return policy

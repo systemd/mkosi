@@ -43,6 +43,7 @@ from mkosi.config import (
     format_tree,
     parse_config,
     summary,
+    want_selinux_relabel,
     yes_no,
 )
 from mkosi.context import Context
@@ -442,7 +443,6 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
             chroot = chroot_cmd(
                 context.root,
                 resolve=True,
-                tools=context.config.tools(),
                 options=[
                     "--bind", "/work", "/work",
                     "--chdir", "/work/src",
@@ -517,7 +517,6 @@ def run_build_scripts(context: Context) -> None:
             chroot = chroot_cmd(
                 context.root,
                 resolve=context.config.with_network,
-                tools=context.config.tools(),
                 options=[
                     "--bind", "/work", "/work",
                     "--chdir", "/work/src",
@@ -587,7 +586,6 @@ def run_postinst_scripts(context: Context) -> None:
             chroot = chroot_cmd(
                 context.root,
                 resolve=context.config.with_network,
-                tools=context.config.tools(),
                 options=[
                     "--bind", "/work", "/work",
                     "--chdir", "/work/src",
@@ -648,7 +646,6 @@ def run_finalize_scripts(context: Context) -> None:
             chroot = chroot_cmd(
                 context.root,
                 resolve=context.config.with_network,
-                tools=context.config.tools(),
                 options=[
                     "--bind", "/work", "/work",
                     "--chdir", "/work/src",
@@ -2358,25 +2355,7 @@ def run_firstboot(context: Context) -> None:
 
 
 def run_selinux_relabel(context: Context) -> None:
-    if context.config.selinux_relabel == ConfigFeature.disabled:
-        return
-
-    selinux = context.root / "etc/selinux/config"
-    if not selinux.exists():
-        if context.config.selinux_relabel == ConfigFeature.enabled:
-            die("SELinux relabel is requested but could not find selinux config at /etc/selinux/config")
-        return
-
-    policy = run(["sh", "-c", f". {selinux} && echo $SELINUXTYPE"],
-                 sandbox=context.sandbox(options=["--ro-bind", selinux, selinux]),
-                 stdout=subprocess.PIPE).stdout.strip()
-    if not policy:
-        if context.config.selinux_relabel == ConfigFeature.enabled:
-            die("SELinux relabel is requested but no selinux policy is configured in /etc/selinux/config")
-        return
-
-    if not find_binary("setfiles", root=context.config.tools()):
-        logging.info("setfiles is not installed, not relabeling files")
+    if not (policy := want_selinux_relabel(context.config, context.root)):
         return
 
     fc = context.root / "etc/selinux" / policy / "contexts/files/file_contexts"
