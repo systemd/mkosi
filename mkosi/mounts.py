@@ -9,6 +9,7 @@ from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import Optional
 
+from mkosi.config import Config
 from mkosi.run import run
 from mkosi.types import PathString
 from mkosi.util import umask
@@ -119,3 +120,29 @@ def mount_overlay(
                 yield where
         finally:
             delete_whiteout_files(upperdir)
+
+
+def finalize_source_mounts(config: Config) -> list[PathString]:
+    mounts = {t.with_prefix(Path("/work/src")) for t in config.build_sources}
+
+    options: list[PathString] = ["--dir", "/work/src"]
+    for src, target in sorted(mounts, key=lambda s: s[1]):
+        options += ["--ro-bind", src, target]
+
+    return options
+
+
+@contextlib.contextmanager
+def finalize_ephemeral_source_mounts(config: Config) -> Iterator[list[PathString]]:
+    with contextlib.ExitStack() as stack:
+        mounts = (
+            (stack.enter_context(mount_overlay([source])) if config.build_sources_ephemeral else source, target)
+            for source, target
+            in {t.with_prefix(Path("/work/src")) for t in config.build_sources}
+        )
+
+        options: list[PathString] = ["--dir", "/work/src"]
+        for src, target in sorted(mounts, key=lambda s: s[1]):
+            options += ["--bind", src, target]
+
+        yield options
