@@ -5,6 +5,7 @@ from pathlib import Path
 
 from mkosi.context import Context
 from mkosi.installer.rpm import RpmRepository, fixup_rpmdb_location, setup_rpm
+from mkosi.mounts import finalize_source_mounts
 from mkosi.run import find_binary, run
 from mkosi.sandbox import apivfs_cmd, finalize_crypto_mounts
 from mkosi.types import PathString
@@ -138,6 +139,8 @@ def invoke_dnf(context: Context, command: str, packages: Iterable[str], apivfs: 
                     context.cache_dir / "lib" / dnf_subdir(context),
                     context.cache_dir / "lib" / dnf_subdir(context),
                     *finalize_crypto_mounts(tools=context.config.tools()),
+                    *finalize_source_mounts(context.config),
+                    "--chdir", "/work/src",
                 ],
             ) + (apivfs_cmd(context.root) if apivfs else [])
         ),

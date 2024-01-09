@@ -52,7 +52,7 @@ from mkosi.installer import clean_package_manager_metadata, package_manager_scri
 from mkosi.kmod import gen_required_kernel_modules, process_kernel_modules
 from mkosi.log import ARG_DEBUG, complete_step, die, log_notice, log_step
 from mkosi.manifest import Manifest
-from mkosi.mounts import mount_overlay
+from mkosi.mounts import finalize_ephemeral_source_mounts, mount_overlay
 from mkosi.pager import page
 from mkosi.partition import Partition, finalize_root, finalize_roothash
 from mkosi.qemu import KernelType, copy_ephemeral, run_qemu, run_ssh
@@ -346,22 +346,6 @@ def mount_build_overlay(context: Context, volatile: bool = False) -> Iterator[Pa
 
 
 @contextlib.contextmanager
-def finalize_source_mounts(config: Config) -> Iterator[list[PathString]]:
-    with contextlib.ExitStack() as stack:
-        mounts = [
-            (stack.enter_context(mount_overlay([source])) if config.build_sources_ephemeral else source, target)
-            for source, target
-            in (t.with_prefix(Path("/work/src")) for t in config.build_sources)
-        ]
-
-        options: list[PathString] = ["--dir", "/work/src"]
-        for src, target in sorted(set(mounts), key=lambda s: s[1]):
-            options += ["--bind", src, target]
-
-        yield options
-
-
-@contextlib.contextmanager
 def finalize_scripts(scripts: Mapping[str, Sequence[PathString]] = {}) -> Iterator[Path]:
     with tempfile.TemporaryDirectory(prefix="mkosi-scripts") as d:
         for name, script in scripts.items():
@@ -436,7 +420,7 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
             step_msg = "Running prepare script {}…"
             arg = "final"
 
-        sources = stack.enter_context(finalize_source_mounts(context.config))
+        sources = stack.enter_context(finalize_ephemeral_source_mounts(context.config))
         cd = stack.enter_context(finalize_chroot_scripts(context))
 
         for script in context.config.prepare_scripts:
@@ -511,7 +495,7 @@ def run_build_scripts(context: Context) -> None:
     with (
         mount_build_overlay(context, volatile=True),
         finalize_chroot_scripts(context) as cd,
-        finalize_source_mounts(context.config) as sources,
+        finalize_ephemeral_source_mounts(context.config) as sources,
     ):
         for script in context.config.build_scripts:
             chroot = chroot_cmd(
@@ -580,7 +564,7 @@ def run_postinst_scripts(context: Context) -> None:
 
     with (
         finalize_chroot_scripts(context) as cd,
-        finalize_source_mounts(context.config) as sources,
+        finalize_ephemeral_source_mounts(context.config) as sources,
     ):
         for script in context.config.postinst_scripts:
             chroot = chroot_cmd(
@@ -640,7 +624,7 @@ def run_finalize_scripts(context: Context) -> None:
 
     with (
         finalize_chroot_scripts(context) as cd,
-        finalize_source_mounts(context.config) as sources,
+        finalize_ephemeral_source_mounts(context.config) as sources,
     ):
         for script in context.config.finalize_scripts:
             chroot = chroot_cmd(

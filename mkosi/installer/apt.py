@@ -3,6 +3,7 @@ import textwrap
 from collections.abc import Sequence
 
 from mkosi.context import Context
+from mkosi.mounts import finalize_source_mounts
 from mkosi.run import find_binary, run
 from mkosi.sandbox import apivfs_cmd, finalize_crypto_mounts
 from mkosi.types import PathString
@@ -111,7 +112,9 @@ def invoke_apt(
                     "--bind", context.cache_dir / "cache/apt", context.cache_dir / "cache/apt",
                     "--ro-bind", context.workspace / "apt.conf", context.workspace / "apt.conf",
                     *finalize_crypto_mounts(tools=context.config.tools()),
+                    *finalize_source_mounts(context.config),
                     *mounts,
+                    "--chdir", "/work/src",
                 ],
             ) + (apivfs_cmd(context.root) if apivfs else [])
         ),
