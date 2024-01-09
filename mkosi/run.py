@@ -129,11 +129,6 @@ def become_root() -> None:
     INVOKING_USER.gid = SUBRANGE - 100
 
 
-def init_mount_namespace() -> None:
-    unshare(CLONE_NEWNS)
-    run(["mount", "--make-rslave", "/"])
-
-
 def make_foreground_process(*, new_process_group: bool = True) -> None:
     """
     If we're connected to a terminal, put the process in a new process group and make that the foreground

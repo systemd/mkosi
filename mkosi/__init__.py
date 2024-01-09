@@ -56,7 +56,7 @@ from mkosi.mounts import mount_overlay
 from mkosi.pager import page
 from mkosi.partition import Partition, finalize_root, finalize_roothash
 from mkosi.qemu import KernelType, copy_ephemeral, run_qemu, run_ssh
-from mkosi.run import become_root, find_binary, fork_and_wait, init_mount_namespace, run
+from mkosi.run import CLONE_NEWNS, become_root, find_binary, fork_and_wait, run, unshare
 from mkosi.sandbox import chroot_cmd, finalize_crypto_mounts
 from mkosi.tree import copy_tree, move_tree, rmtree
 from mkosi.types import PathString
@@ -3365,7 +3365,9 @@ def run_clean(args: Args, config: Config) -> None:
 
 def run_build(args: Args, config: Config) -> None:
     become_root()
-    init_mount_namespace()
+    unshare(CLONE_NEWNS)
+    if INVOKING_USER.invoked_as_root:
+        run(["mount", "--make-rslave", "/"])
 
     # For extra safety when running as root, remount a bunch of stuff read-only.
     for d in ("/usr", "/etc", "/opt", "/srv", "/boot", "/efi", "/media", "/mnt"):
