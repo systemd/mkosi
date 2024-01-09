@@ -333,7 +333,7 @@ directory is skipped. The `[Match]` sections of files in `mkosi.conf.d/`
 and `mkosi.local.conf` only apply to the file itself.
 
 If there are multiple `[Match]` sections in the same configuration file,
-each of them has to be satisified in order for the configuration file to
+each of them has to be satisfied in order for the configuration file to
 be included. Specifically, triggering matches only apply to the current
 `[Match]` section and are reset between multiple `[Match]` sections. As
 an example, the following will only match if the output format is one
@@ -1003,7 +1003,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `EnvironmentFiles=`, `--env-file=`
 
-: Takes a comma-separated list of paths to files that contain enviroment
+: Takes a comma-separated list of paths to files that contain environment
   variable definitions to be added to the scripting environment. Uses
   `mkosi.env` if it is found in the local directory. The variables are
   first read from `mkosi.env` if it exists, then from the given list of
