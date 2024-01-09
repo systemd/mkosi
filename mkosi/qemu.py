@@ -30,6 +30,7 @@ from mkosi.config import (
     QemuFirmware,
     QemuVsockCID,
     format_bytes,
+    want_selinux_relabel,
 )
 from mkosi.log import die
 from mkosi.partition import finalize_root, find_partitions
@@ -326,7 +327,7 @@ def start_virtiofsd(config: Config, directory: Path, *, uidmap: bool) -> Iterato
         "--sandbox=chroot",
     ]
 
-    if not uidmap:
+    if not uidmap and want_selinux_relabel(config, directory, fatal=False):
         cmdline += ["--security-label"]
 
     # We create the socket ourselves and pass the fd to virtiofsd to avoid race conditions where we start qemu
