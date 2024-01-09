@@ -29,7 +29,7 @@
 - Many fixes to tools trees were made and tools trees are now covered by
   CI. Some combinations aren't possible yet but we're actively working
   to make these possible.
-- `mkosi qemu` can now direct kernel boot `s390x` and `powerpc` images.
+- `mkosi qemu` now supports direct kernel boots of `s390x` and `powerpc` images.
 - Added `HostArchitecture=` match to match against the host
   architecture.
 - We don't use the user's SSH public/private keypair anymore for
@@ -54,7 +54,7 @@
   variables file to use.
 - Added `MinimumVersion=` to allow specifying the minimum required mkosi
   version to build an image.
-- Added support for Arch Linux's debug repositories
+- Added support for Arch Linux's debug repositories.
 - Merged the mkosi-initrd project into mkosi itself. mkosi-initrd is now
   used to build the default initrd.
 - Implemented mkosi-initrd for all supported distributions.
@@ -79,7 +79,7 @@
 - Added microcode support. If installed into the image, an early
   microcode initrd will automatically be built and prepended to the
   initrd.
-- A passwordless root account may now be created by specifying `hashed:`
+- A passwordless root account may now be created by specifying `hashed:`.
 - The `Autologin=` feature was extended with support for `arm64`,
   `s390x` and `powerpc` architectures.
 - Added `SecureBootAutoEnroll=` to control automatic enrollment of secureboot
@@ -87,7 +87,7 @@
 - `ImageVersion=` is no longer automatically appended to the output files,
   instead this is automatically appended to `Output=` if not specified and
   results in the `%o` specifier being equivalent to `%i` or `%i_%v` depending
-  on if `ImageVersion=` is specified.
+  on whether `ImageVersion=` is specified.
 
 ## v19
 
