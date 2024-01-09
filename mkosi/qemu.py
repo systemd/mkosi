@@ -746,8 +746,13 @@ def run_qemu(args: Args, config: Config) -> None:
         if want_scratch(config):
             scratch = stack.enter_context(tempfile.NamedTemporaryFile(dir="/var/tmp", prefix="mkosi-scratch"))
             scratch.truncate(1024**4)
-            run([f"mkfs.{config.distribution.filesystem()}", "-L", "scratch", scratch.name],
-                stdout=subprocess.DEVNULL, sandbox=config.sandbox(options=["--bind", scratch.name, scratch.name]))
+            fs = config.distribution.filesystem()
+            extra = config.environment.get(f"SYSTEMD_REPART_MKFS_OPTIONS_{fs.upper()}", "")
+            run(
+                [f"mkfs.{fs}", "-L", "scratch", *extra.split(), scratch.name],
+                stdout=subprocess.DEVNULL,
+                sandbox=config.sandbox(options=["--bind", scratch.name, scratch.name]),
+            )
             cmdline += [
                 "-drive", f"if=none,id=scratch,file={scratch.name},format=raw",
                 "-device", "scsi-hd,drive=scratch",

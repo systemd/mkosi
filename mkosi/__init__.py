@@ -2538,18 +2538,12 @@ def make_image(
         cmdline += ["--definitions", d]
         options += ["--ro-bind", d, d]
 
-    env = {
-        option: value
-        for option, value in context.config.environment.items()
-        if option.startswith("SYSTEMD_REPART_MKFS_OPTIONS_") or option == "SOURCE_DATE_EPOCH"
-    }
-
     with complete_step(msg):
         output = json.loads(
             run(
                 cmdline,
                 stdout=subprocess.PIPE,
-                env=env,
+                env=context.config.environment,
                 sandbox=context.sandbox(devices=not context.config.repart_offline, options=options),
             ).stdout
         )
@@ -3035,6 +3029,7 @@ def run_shell(args: Args, config: Config) -> None:
                     fname,
                 ],
                 stdin=sys.stdin,
+                env=config.environment,
                 sandbox=config.sandbox(network=True, devices=True, options=["--bind", fname, fname]),
             )
 
