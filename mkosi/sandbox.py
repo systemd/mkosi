@@ -95,7 +95,10 @@ def sandbox_cmd(
     if relaxed:
         cmdline += ["--bind", "/tmp", "/tmp"]
     else:
-        cmdline += ["--tmpfs", "/tmp"]
+        cmdline += [
+            "--tmpfs", "/tmp",
+            "--unshare-ipc",
+        ]
 
     if (tools / "nix/store").exists():
         cmdline += ["--bind", tools / "nix/store", "/nix/store"]
