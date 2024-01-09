@@ -1508,6 +1508,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   | `openssl`               | X      | X      | X      | X      | X    | X        |
   | `pacman`                | X      |        | X      | X      | X    |          |
   | `pesign`                | X      | X      | X      | X      | X    | X        |
+  | `policycoreutils`       | X      | X      | X      | X      |      | X        |
   | `qemu`                  | X      | X      | X      | X      | X    | X        |
   | `sbsigntools`           | X      |        | X      | X      | X    | X        |
   | `socat`                 | X      | X      | X      | X      | X    | X        |
