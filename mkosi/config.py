@@ -1282,6 +1282,10 @@ class Config:
         return f"{self.output}.initrd"
 
     @property
+    def output_nspawn_settings(self) -> str:
+        return f"{self.output}.nspawn"
+
+    @property
     def output_checksum(self) -> str:
         return f"{self.output}.SHA256SUMS"
 
