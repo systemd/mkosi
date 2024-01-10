@@ -249,7 +249,7 @@ def configure_extension_release(context: Context) -> None:
     extrelease = read_env_file(p) if p.exists() else {}
     new = p.with_suffix(".new")
 
-    with new.open() as f:
+    with new.open("w") as f:
         for k, v in extrelease.items():
             f.write(f"{k}={v}\n")
 
@@ -2823,6 +2823,7 @@ def build_image(args: Args, config: Config) -> None:
 
             configure_autologin(context)
             configure_os_release(context)
+            configure_extension_release(context)
             configure_initrd(context)
             configure_ssh(context)
             configure_clock(context)
