@@ -2363,7 +2363,7 @@ def need_build_overlay(config: Config) -> bool:
 
 
 def save_cache(context: Context) -> None:
-    if not context.config.incremental:
+    if not context.config.incremental or context.config.overlay:
         return
 
     final, build, manifest = cache_tree_paths(context.config)
@@ -2422,7 +2422,7 @@ def save_cache(context: Context) -> None:
 
 
 def reuse_cache(context: Context) -> bool:
-    if not context.config.incremental:
+    if not context.config.incremental or context.config.overlay:
         return False
 
     final, build, manifest = cache_tree_paths(context.config)
