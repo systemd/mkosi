@@ -25,3 +25,6 @@ mkosi.local.conf
 /mkosi.key
 /mkosi.crt
 __pycache__
+blog/output
+blog/pelicanconf.py
+blog/publishconf.py
