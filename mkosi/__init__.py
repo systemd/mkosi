@@ -1911,6 +1911,14 @@ def copy_vmlinuz(context: Context) -> None:
         break
 
 
+def copy_nspawn_settings(context: Context) -> None:
+    if context.config.nspawn_settings is None:
+        return None
+
+    with complete_step("Copying nspawn settings file…"):
+        shutil.copy2(context.config.nspawn_settings, context.staging / context.config.output_nspawn_settings)
+
+
 def copy_initrd(context: Context) -> None:
     if (context.staging / context.config.output_split_initrd).exists():
         return
@@ -2096,6 +2104,7 @@ def check_outputs(config: Config) -> None:
         config.output_with_compression,
         config.output_checksum if config.checksum else None,
         config.output_signature if config.sign else None,
+        config.output_nspawn_settings if config.nspawn_settings else None,
     ):
         if f and (config.output_dir_or_cwd() / f).exists():
             die(f"Output path {f} exists already. (Consider invocation with --force.)")
@@ -2848,6 +2857,7 @@ def build_image(args: Args, config: Config) -> None:
         if context.config.split_artifacts:
             make_disk(context, split=True, msg="Extracting partitions")
 
+        copy_nspawn_settings(context)
         copy_vmlinuz(context)
         copy_initrd(context)
 
@@ -2993,9 +3003,11 @@ def run_shell(args: Args, config: Config) -> None:
         cmdline += [f"--set-credential={k}:{v}"]
 
     with contextlib.ExitStack() as stack:
+        # Make sure the latest nspawn settings are always used.
         if config.nspawn_settings:
+            if not (config.output_dir_or_cwd() / f"{name}.nspawn").exists():
+                stack.callback(lambda: (config.output_dir_or_cwd() / f"{name}.nspawn").unlink(missing_ok=True))
             shutil.copy2(config.nspawn_settings, config.output_dir_or_cwd() / f"{name}.nspawn")
-            stack.callback(lambda: (config.output_dir_or_cwd() / f"{name}.nspawn").unlink())
 
         if config.ephemeral:
             fname = stack.enter_context(copy_ephemeral(config, config.output_dir_or_cwd() / config.output))
