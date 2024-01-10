@@ -3564,7 +3564,7 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
     return json_transformer
 
 
-def want_selinux_relabel(config: Config, root: Path, fatal: bool = True) -> Optional[str]:
+def want_selinux_relabel(config: Config, root: Path, fatal: bool = True) -> Optional[tuple[str, Path, Path]]:
     if config.selinux_relabel == ConfigFeature.disabled:
         return None
 
@@ -3583,8 +3583,25 @@ def want_selinux_relabel(config: Config, root: Path, fatal: bool = True) -> Opti
         return None
 
     if not find_binary("setfiles", root=config.tools()):
-        if fatal:
-            logging.info("setfiles is not installed, not relabeling files")
+        if fatal and config.selinux_relabel == ConfigFeature.enabled:
+            die("SELinux relabel is requested but setfiles is not installed")
         return None
 
-    return policy
+    fc = root / "etc/selinux" / policy / "contexts/files/file_contexts"
+    if not fc.exists():
+        if fatal and config.selinux_relabel == ConfigFeature.enabled:
+            die(f"SELinux relabel is requested but SELinux file contexts not found in {fc}")
+        return None
+
+    binpolicydir = root / "etc/selinux" / policy / "policy"
+
+    try:
+        # The policy file is named policy.XX where XX is the policy version that indicates what features are
+        # available. It's not expected for there to be more than one file in this directory.
+        binpolicy = next(binpolicydir.glob("*"))
+    except StopIteration:
+        if fatal and config.selinux_relabel == ConfigFeature.enabled:
+            die(f"SELinux relabel is requested but SELinux binary policy not found in {binpolicydir}")
+        return None
+
+    return policy, fc, binpolicy

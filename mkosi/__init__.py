@@ -2339,18 +2339,10 @@ def run_firstboot(context: Context) -> None:
 
 
 def run_selinux_relabel(context: Context) -> None:
-    if not (policy := want_selinux_relabel(context.config, context.root)):
+    if not (selinux := want_selinux_relabel(context.config, context.root)):
         return
 
-    fc = context.root / "etc/selinux" / policy / "contexts/files/file_contexts"
-    binpolicydir = context.root / "etc/selinux" / policy / "policy"
-
-    try:
-        # The policy file is named policy.XX where XX is the policy version that indicates what features are
-        # available. It's not expected for there to be more than one file in this directory.
-        binpolicy = next(binpolicydir.iterdir())
-    except StopIteration:
-        die(f"SELinux binary policy not found in {binpolicydir}")
+    policy, fc, binpolicy = selinux
 
     with complete_step(f"Relabeling files using {policy} policy"):
         run(["setfiles", "-mFr", context.root, "-c", binpolicy, fc, context.root],
