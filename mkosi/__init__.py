@@ -3359,9 +3359,10 @@ def run_clean(args: Args, config: Config) -> None:
 
 
 def run_build(args: Args, config: Config) -> None:
-    become_root()
+    if (uid := os.getuid()) != 0:
+        become_root()
     unshare(CLONE_NEWNS)
-    if INVOKING_USER.invoked_as_root:
+    if uid == 0:
         run(["mount", "--make-rslave", "/"])
 
     # For extra safety when running as root, remount a bunch of stuff read-only.

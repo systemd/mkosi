@@ -80,7 +80,6 @@ def flatten(lists: Iterable[Iterable[T]]) -> list[T]:
 class INVOKING_USER:
     uid = int(os.getenv("SUDO_UID") or os.getenv("PKEXEC_UID") or os.getuid())
     gid = int(os.getenv("SUDO_GID") or os.getgid())
-    invoked_as_root = (uid == 0)
 
     @classmethod
     def init(cls) -> None:
