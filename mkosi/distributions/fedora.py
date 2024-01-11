@@ -37,6 +37,10 @@ class Installer(DistributionInstaller):
         return Distribution.fedora
 
     @classmethod
+    def grub_prefix(cls) -> str:
+        return "grub2"
+
+    @classmethod
     def setup(cls, context: Context) -> None:
         gpgurls = (
             find_rpm_gpgkey(

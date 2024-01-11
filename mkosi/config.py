@@ -2281,6 +2281,8 @@ SETTINGS = (
         metavar="DISTRIBUTION",
         section="Host",
         parse=config_make_enum_parser(Distribution),
+        default_factory_depends=("distribution",),
+        default_factory=lambda ns: ns.distribution.default_tools_tree_distribution(),
         help="Set the distribution to use for the default tools tree",
     ),
     ConfigSetting(
@@ -2288,12 +2290,16 @@ SETTINGS = (
         metavar="RELEASE",
         section="Host",
         parse=config_parse_string,
+        default_factory_depends=("tools_tree_distribution",),
+        default_factory=lambda ns: d.default_release() if (d := ns.tools_tree_distribution) else None,
         help="Set the release to use for the default tools tree",
     ),
     ConfigSetting(
         dest="tools_tree_mirror",
         metavar="MIRROR",
         section="Host",
+        default_factory_depends=("distribution", "tools_tree_distribution"),
+        default_factory=lambda ns: ns.mirror if ns.mirror and ns.distribution == ns.tools_tree_distribution else None,
         help="Set the mirror to use for the default tools tree",
     ),
     ConfigSetting(

@@ -55,6 +55,10 @@ class Installer(DistributionInstaller):
         return Distribution.fedora
 
     @classmethod
+    def grub_prefix(cls) -> str:
+        return "grub2"
+
+    @classmethod
     def setup(cls, context: Context) -> None:
         if GenericVersion(context.config.release) <= 7:
             die(f"{cls.pretty_name()} 7 or earlier variants are not supported")

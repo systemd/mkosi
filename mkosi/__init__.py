@@ -1025,17 +1025,9 @@ def find_grub_bios_directory(context: Context) -> Optional[Path]:
     return None
 
 
-def find_grub_binary(context: Context, binary: str) -> Optional[Path]:
+def find_grub_binary(binary: str, root: Path = Path("/")) -> Optional[Path]:
     assert "grub" in binary and "grub2" not in binary
-    return find_binary(binary, root=context.root) or find_binary(binary.replace("grub", "grub2"), root=context.root)
-
-
-def find_grub_prefix(context: Context) -> Optional[str]:
-    path = find_grub_binary(context, "grub-mkimage")
-    if path is None:
-        return None
-
-    return "grub2" if "grub2" in os.fspath(path) else "grub"
+    return find_binary(binary, binary.replace("grub", "grub2"), root=root)
 
 
 def want_grub_efi(context: Context) -> bool:
@@ -1089,8 +1081,7 @@ def want_grub_bios(context: Context, partitions: Sequence[Partition] = ()) -> bo
     installed = True
 
     for binary in ("grub-mkimage", "grub-bios-setup"):
-        path = find_grub_binary(context, binary)
-        if path is not None:
+        if find_grub_binary(binary, root=context.config.tools()):
             continue
 
         if context.config.bootable == ConfigFeature.enabled:
@@ -1102,11 +1093,7 @@ def want_grub_bios(context: Context, partitions: Sequence[Partition] = ()) -> bo
 
 
 def prepare_grub_config(context: Context) -> Optional[Path]:
-    prefix = find_grub_prefix(context)
-    if not prefix:
-        return None
-
-    config = context.root / "efi" / prefix / "grub.cfg"
+    config = context.root / "efi" / context.config.distribution.grub_prefix() / "grub.cfg"
     with umask(~0o700):
         config.parent.mkdir(exist_ok=True)
 
@@ -1123,9 +1110,6 @@ def prepare_grub_efi(context: Context) -> None:
     if not want_grub_efi(context):
         return
 
-    prefix = find_grub_prefix(context)
-    assert prefix
-
     # Signed EFI grub shipped by distributions reads its configuration from /EFI/<distribution>/grub.cfg in
     # the ESP so let's put a shim there to redirect to the actual configuration file.
     earlyconfig = context.root / "efi/EFI" / context.config.distribution.name / "grub.cfg"
@@ -1133,7 +1117,7 @@ def prepare_grub_efi(context: Context) -> None:
         earlyconfig.parent.mkdir(parents=True, exist_ok=True)
 
     # Read the actual config file from the root of the ESP.
-    earlyconfig.write_text(f"configfile /{prefix}/grub.cfg\n")
+    earlyconfig.write_text(f"configfile /{context.config.distribution.grub_prefix()}/grub.cfg\n")
 
     config = prepare_grub_config(context)
     assert config
@@ -1214,24 +1198,21 @@ def prepare_grub_bios(context: Context, partitions: Sequence[Partition]) -> None
     # so we're forced to reimplement its functionality. Luckily that's pretty simple, run grub-mkimage to
     # generate the required core.img and copy the relevant files to the ESP.
 
-    mkimage = find_grub_binary(context, "grub-mkimage")
+    mkimage = find_grub_binary("grub-mkimage", root=context.config.tools())
     assert mkimage
 
     directory = find_grub_bios_directory(context)
     assert directory
 
-    prefix = find_grub_prefix(context)
-    assert prefix
-
-    dst = context.root / "efi" / prefix / "i386-pc"
+    dst = context.root / "efi" / context.config.distribution.grub_prefix() / "i386-pc"
     dst.mkdir(parents=True, exist_ok=True)
 
     with tempfile.NamedTemporaryFile("w", prefix="grub-early-config") as earlyconfig:
         earlyconfig.write(
             textwrap.dedent(
                 f"""\
-                search --no-floppy --set=root --file /{prefix}/grub.cfg
-                set prefix=($root)/{prefix}
+                search --no-floppy --set=root --file /{context.config.distribution.grub_prefix()}/grub.cfg
+                set prefix=($root)/{context.config.distribution.grub_prefix()}
                 """
             )
         )
@@ -1243,7 +1224,7 @@ def prepare_grub_bios(context: Context, partitions: Sequence[Partition]) -> None
                 mkimage,
                 "--directory", directory,
                 "--config", earlyconfig.name,
-                "--prefix", f"/{prefix}",
+                "--prefix", f"/{context.config.distribution.grub_prefix()}",
                 "--output", dst / "core.img",
                 "--format", "i386-pc",
                 *(["--verbose"] if ARG_DEBUG.get() else []),
@@ -1256,7 +1237,6 @@ def prepare_grub_bios(context: Context, partitions: Sequence[Partition]) -> None
             ],
             sandbox=context.sandbox(
                 options=[
-                    "--ro-bind", context.root / "usr", "/usr",
                     "--bind", context.root, context.root,
                     "--ro-bind", earlyconfig.name, earlyconfig.name,
                 ],
@@ -1272,12 +1252,12 @@ def prepare_grub_bios(context: Context, partitions: Sequence[Partition]) -> None
     shutil.copy2(directory / "modinfo.sh", dst)
     shutil.copy2(directory / "boot.img", dst)
 
-    dst = context.root / "efi" / prefix / "fonts"
+    dst = context.root / "efi" / context.config.distribution.grub_prefix() / "fonts"
     with umask(~0o700):
         dst.mkdir(exist_ok=True)
 
-    for prefix in ("grub", "grub2"):
-        unicode = context.root / "usr/share" / prefix / "unicode.pf2"
+    for d in ("grub", "grub2"):
+        unicode = context.root / "usr/share" / d / "unicode.pf2"
         if unicode.exists():
             shutil.copy2(unicode, dst)
 
@@ -1286,11 +1266,8 @@ def install_grub_bios(context: Context, partitions: Sequence[Partition]) -> None
     if not want_grub_bios(context, partitions):
         return
 
-    setup = find_grub_binary(context, "grub-bios-setup")
+    setup = find_grub_binary("grub-bios-setup", root=context.config.tools())
     assert setup
-
-    prefix = find_grub_prefix(context)
-    assert prefix
 
     with (
         complete_step("Installing grub boot loader…"),
@@ -1310,13 +1287,12 @@ def install_grub_bios(context: Context, partitions: Sequence[Partition]) -> None
             [
                 "sh", "-c", f"mount --bind {mountinfo.name} /proc/$$/mountinfo && exec $0 \"$@\"",
                 setup,
-                "--directory", context.root / "efi" / prefix / "i386-pc",
+                "--directory", context.root / "efi" / context.config.distribution.grub_prefix() / "i386-pc",
                 *(["--verbose"] if ARG_DEBUG.get() else []),
                 context.staging / context.config.output_with_format,
             ],
             sandbox=context.sandbox(
                 options=[
-                    "--bind", context.root / "usr", "/usr",
                     "--bind", context.root, context.root,
                     "--bind", context.staging, context.staging,
                     "--bind", mountinfo.name, mountinfo.name,
@@ -3249,22 +3225,15 @@ def prepend_to_environ_path(config: Config) -> Iterator[None]:
 
 @contextlib.contextmanager
 def finalize_default_tools(args: Args, config: Config) -> Iterator[Config]:
-    distribution = config.tools_tree_distribution or config.distribution.default_tools_tree_distribution()
-    if not distribution:
+    if not config.tools_tree_distribution:
         die(f"{config.distribution} does not have a default tools tree distribution",
             hint="use ToolsTreeDistribution= to set one explicitly")
 
-    release = config.tools_tree_release or distribution.default_release()
-    mirror = (
-        config.tools_tree_mirror or
-        (config.mirror if config.mirror and config.distribution == distribution else None)
-    )
-
     cmdline = [
         "--directory", "",
-        "--distribution", str(distribution),
-        *(["--release", release] if release else []),
-        *(["--mirror", mirror] if mirror else []),
+        "--distribution", str(config.tools_tree_distribution),
+        *(["--release", config.tools_tree_release] if config.tools_tree_release else []),
+        *(["--mirror", config.tools_tree_mirror] if config.tools_tree_mirror else []),
         "--repository-key-check", str(config.repository_key_check),
         "--cache-only", str(config.cache_only),
         *(["--output-dir", str(config.output_dir)] if config.output_dir else []),
@@ -3273,7 +3242,7 @@ def finalize_default_tools(args: Args, config: Config) -> Iterator[Config]:
         "--incremental", str(config.incremental),
         "--acl", str(config.acl),
         *([f"--package={package}" for package in config.tools_tree_packages]),
-        "--output", f"{distribution}-tools",
+        "--output", f"{config.tools_tree_distribution}-tools",
         *(["--source-date-epoch", str(config.source_date_epoch)] if config.source_date_epoch is not None else []),
         *([f"--environment={k}='{v}'" for k, v in config.environment.items()]),
         *([f"--extra-search-path={p}" for p in config.extra_search_paths]),
@@ -3290,7 +3259,7 @@ def finalize_default_tools(args: Args, config: Config) -> Iterator[Config]:
             *tools.build_scripts,
         )
 
-        tools = dataclasses.replace(tools, image=f"{distribution}-tools")
+        tools = dataclasses.replace(tools, image=f"{config.tools_tree_distribution}-tools")
 
         yield tools
 
