@@ -3,5 +3,5 @@
 
 if [ "$1" = "final" ] && command -v pacman-key; then
     pacman-key --init
-    pacman-key --populate
+    pacman-key --populate archlinux
 fi
