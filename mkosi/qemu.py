@@ -149,8 +149,8 @@ class KernelType(StrEnum):
 
 
 def find_qemu_binary(config: Config) -> str:
-    binaries = ["qemu", "qemu-kvm"] if config.architecture.is_native() else []
-    binaries += [f"qemu-system-{config.architecture.to_qemu()}"]
+    binaries = [f"qemu-system-{config.architecture.to_qemu()}"]
+    binaries += ["qemu", "qemu-kvm"] if config.architecture.is_native() else []
     for binary in binaries:
         if find_binary(binary, root=config.tools()) is not None:
             return binary
