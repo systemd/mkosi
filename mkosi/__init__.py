@@ -3249,22 +3249,15 @@ def prepend_to_environ_path(config: Config) -> Iterator[None]:
 
 @contextlib.contextmanager
 def finalize_default_tools(args: Args, config: Config) -> Iterator[Config]:
-    distribution = config.tools_tree_distribution or config.distribution.default_tools_tree_distribution()
-    if not distribution:
+    if not config.tools_tree_distribution:
         die(f"{config.distribution} does not have a default tools tree distribution",
             hint="use ToolsTreeDistribution= to set one explicitly")
 
-    release = config.tools_tree_release or distribution.default_release()
-    mirror = (
-        config.tools_tree_mirror or
-        (config.mirror if config.mirror and config.distribution == distribution else None)
-    )
-
     cmdline = [
         "--directory", "",
-        "--distribution", str(distribution),
-        *(["--release", release] if release else []),
-        *(["--mirror", mirror] if mirror else []),
+        "--distribution", str(config.tools_tree_distribution),
+        *(["--release", config.tools_tree_release] if config.tools_tree_release else []),
+        *(["--mirror", config.tools_tree_mirror] if config.tools_tree_mirror else []),
         "--repository-key-check", str(config.repository_key_check),
         "--cache-only", str(config.cache_only),
         *(["--output-dir", str(config.output_dir)] if config.output_dir else []),
@@ -3273,7 +3266,7 @@ def finalize_default_tools(args: Args, config: Config) -> Iterator[Config]:
         "--incremental", str(config.incremental),
         "--acl", str(config.acl),
         *([f"--package={package}" for package in config.tools_tree_packages]),
-        "--output", f"{distribution}-tools",
+        "--output", f"{config.tools_tree_distribution}-tools",
         *(["--source-date-epoch", str(config.source_date_epoch)] if config.source_date_epoch is not None else []),
         *([f"--environment={k}='{v}'" for k, v in config.environment.items()]),
         *([f"--extra-search-path={p}" for p in config.extra_search_paths]),
@@ -3290,7 +3283,7 @@ def finalize_default_tools(args: Args, config: Config) -> Iterator[Config]:
             *tools.build_scripts,
         )
 
-        tools = dataclasses.replace(tools, image=f"{distribution}-tools")
+        tools = dataclasses.replace(tools, image=f"{config.tools_tree_distribution}-tools")
 
         yield tools
 
