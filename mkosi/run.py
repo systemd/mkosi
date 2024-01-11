@@ -313,6 +313,8 @@ def run(
     except FileNotFoundError as e:
         die(f"{e.filename} not found.")
     except subprocess.CalledProcessError as e:
+        if log:
+            log_process_failure(cmdline, e.returncode)
         if ARG_DEBUG_SHELL.get():
             subprocess.run(
                 [*sandbox, "sh"],
@@ -325,8 +327,6 @@ def run(
                 cwd=cwd,
                 preexec_fn=preexec,
             )
-        if log:
-            log_process_failure(cmdline, e.returncode)
         # Remove the sandboxing stuff from the command line to show a more readable error to users.
         e.cmd = cmdline
         raise
