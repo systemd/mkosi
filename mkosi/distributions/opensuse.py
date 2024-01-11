@@ -38,6 +38,10 @@ class Installer(DistributionInstaller):
         return Distribution.opensuse
 
     @classmethod
+    def grub_prefix(cls) -> str:
+        return "grub2"
+
+    @classmethod
     def setup(cls, context: Context) -> None:
         release = context.config.release
         if release == "leap":

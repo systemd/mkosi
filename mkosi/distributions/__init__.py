@@ -63,6 +63,10 @@ class DistributionInstaller:
     def default_tools_tree_distribution(cls) -> Optional["Distribution"]:
         return None
 
+    @classmethod
+    def grub_prefix(cls) -> str:
+        return "grub"
+
 
 class Distribution(StrEnum):
     # Please consult docs/distribution-policy.md and contact one
@@ -135,6 +139,9 @@ class Distribution(StrEnum):
 
     def default_tools_tree_distribution(self) -> Optional["Distribution"]:
         return self.installer().default_tools_tree_distribution()
+
+    def grub_prefix(self) -> str:
+        return self.installer().grub_prefix()
 
     def installer(self) -> type[DistributionInstaller]:
         modname = str(self).replace('-', '_')
