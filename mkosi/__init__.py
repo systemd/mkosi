@@ -1509,6 +1509,7 @@ def build_microcode_initrd(context: Context) -> Optional[Path]:
     intel = context.root / "usr/lib/firmware/intel-ucode"
 
     if not amd.exists() and not intel.exists():
+        logging.debug("/usr/lib/firmware/{amd-ucode,intel-ucode} not found, not adding microcode initrd")
         return None
 
     root = context.workspace / "initrd-microcode-root"
