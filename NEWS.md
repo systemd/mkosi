@@ -1,5 +1,28 @@
 # mkosi Changelog
 
+## v20.1
+
+- `BuildSources=` are now mounted when we install packages so local
+  packages can be made available in the sandbox.
+- Fixed check to see if we're running as root which makes sure we don't
+  do shared mounts when running as root.
+- The extension release file is now actually written when building
+  system or configuration extensions.
+- The nspawn settings are copied to the output directory again.
+- Incremental caching is now skipped when `Overlay=` is enabled as this
+  combination isn't supported.
+- The SELinux relabel check is more granular and now checks for all
+  required files instead of just whether there's a policy configured.
+- `qemu-system-xxx` binaries are now preferred over the generic `qemu`
+  and `qemu-kvm` binaries.
+- Grub tools from the tools tree are now used to install grub instead of
+  grub tools from the image itself. The grub tools were added to the
+  default tools trees as well.
+- The pacman keyring in tools trees is now only populated from the
+  Arch Linux keyring (and not the Debian/Ubuntu ones anymore).
+- `gpg` is allowed to access `/run/pscsd/pscsd.comm` on the host if it
+  exists to allow interaction with smartcards.
+
 ## v20
 
 - The current working directory is not mounted unconditionally to
