@@ -834,7 +834,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   packages that provides `/usr/bin/ld`, the packages in the *Development Tools*
   group, and the package that contains the `mypy` python module.
 
-  ```
+  ```conf
   Packages=meson
            libfdisk-devel.i686
            git-*
@@ -844,6 +844,16 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
            python3dist(mypy)
   ```
 
+: Note that since mkosi runs in a sandbox with most of the host files
+  unavailable, any local packages have to be mounted into the sandbox
+  explicitly using `BuildSources=`. For example, let's say we have a
+  local package located at `../my-packages/abc.rpm` relative to the mkosi
+  working directory, then we'd be able to install it as follows:
+
+  ```conf
+  BuildSources=../my-packages:my-packages-in-sandbox
+  Packages=my-packages-in-sandbox/abc.rpm
+  ```
 
 `BuildPackages=`, `--build-package=`
 
