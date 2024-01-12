@@ -122,16 +122,6 @@ def mount_overlay(
             delete_whiteout_files(upperdir)
 
 
-def finalize_source_mounts(config: Config) -> list[PathString]:
-    mounts = {t.with_prefix(Path("/work/src")) for t in config.build_sources}
-
-    options: list[PathString] = ["--dir", "/work/src"]
-    for src, target in sorted(mounts, key=lambda s: s[1]):
-        options += ["--ro-bind", src, target]
-
-    return options
-
-
 @contextlib.contextmanager
 def finalize_ephemeral_source_mounts(config: Config) -> Iterator[list[PathString]]:
     with contextlib.ExitStack() as stack:

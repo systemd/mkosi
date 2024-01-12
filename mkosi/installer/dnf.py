@@ -5,7 +5,7 @@ from pathlib import Path
 
 from mkosi.context import Context
 from mkosi.installer.rpm import RpmRepository, fixup_rpmdb_location, setup_rpm
-from mkosi.mounts import finalize_source_mounts
+from mkosi.mounts import finalize_ephemeral_source_mounts
 from mkosi.run import find_binary, run
 from mkosi.sandbox import apivfs_cmd, finalize_crypto_mounts
 from mkosi.types import PathString
@@ -125,28 +125,29 @@ def dnf_cmd(context: Context) -> list[PathString]:
 
 
 def invoke_dnf(context: Context, command: str, packages: Iterable[str], apivfs: bool = True) -> None:
-    run(
-        dnf_cmd(context) + [command, *sort_packages(packages)],
-        sandbox=(
-            context.sandbox(
-                network=True,
-                options=[
-                    "--bind", context.root, context.root,
-                    "--bind",
-                    context.cache_dir / "cache" / dnf_subdir(context),
-                    context.cache_dir / "cache" / dnf_subdir(context),
-                    "--bind",
-                    context.cache_dir / "lib" / dnf_subdir(context),
-                    context.cache_dir / "lib" / dnf_subdir(context),
-                    *(["--ro-bind", m, m] if (m := context.config.local_mirror) else []),
-                    *finalize_crypto_mounts(tools=context.config.tools()),
-                    *finalize_source_mounts(context.config),
-                    "--chdir", "/work/src",
-                ],
-            ) + (apivfs_cmd(context.root) if apivfs else [])
-        ),
-        env=context.config.environment,
-    )
+    with finalize_ephemeral_source_mounts(context.config) as sources:
+        run(
+            dnf_cmd(context) + [command, *sort_packages(packages)],
+            sandbox=(
+                context.sandbox(
+                    network=True,
+                    options=[
+                        "--bind", context.root, context.root,
+                        "--bind",
+                        context.cache_dir / "cache" / dnf_subdir(context),
+                        context.cache_dir / "cache" / dnf_subdir(context),
+                        "--bind",
+                        context.cache_dir / "lib" / dnf_subdir(context),
+                        context.cache_dir / "lib" / dnf_subdir(context),
+                        *(["--ro-bind", m, m] if (m := context.config.local_mirror) else []),
+                        *finalize_crypto_mounts(tools=context.config.tools()),
+                        *sources,
+                        "--chdir", "/work/src",
+                    ],
+                ) + (apivfs_cmd(context.root) if apivfs else [])
+            ),
+            env=context.config.environment,
+        )
 
     fixup_rpmdb_location(context)
 
