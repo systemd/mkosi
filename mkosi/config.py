@@ -19,6 +19,7 @@ import platform
 import re
 import shlex
 import shutil
+import string
 import subprocess
 import tempfile
 import textwrap
@@ -3605,13 +3606,15 @@ def want_selinux_relabel(config: Config, root: Path, fatal: bool = True) -> Opti
 
     binpolicydir = root / "etc/selinux" / policy / "policy"
 
-    try:
-        # The policy file is named policy.XX where XX is the policy version that indicates what features are
-        # available. It's not expected for there to be more than one file in this directory.
-        binpolicy = next(binpolicydir.glob("*"))
-    except StopIteration:
+    # The policy file is named policy.XX where XX is the policy version that indicates what features are
+    # available. We check for string.digits instead of using isdecimal() as the latter checks for more than just
+    # digits.
+    policies = [p for p in binpolicydir.glob("*") if p.suffix and all(c in string.digits for c in p.suffix[1:])]
+    if not policies:
         if fatal and config.selinux_relabel == ConfigFeature.enabled:
             die(f"SELinux relabel is requested but SELinux binary policy not found in {binpolicydir}")
         return None
+
+    binpolicy = sorted(policies, key=lambda p: GenericVersion(p.name), reverse=True)[0]
 
     return policy, fc, binpolicy
