@@ -1974,18 +1974,18 @@ def calculate_signature(context: Context) -> None:
     if sys.stderr.isatty():
         env |= dict(GPGTTY=os.ttyname(sys.stderr.fileno()))
 
+    options: list[PathString] = ["--perms", "755", "--dir", home, "--bind", home, home]
+
+    # gpg can communicate with smartcard readers via this socket so bind mount it in if it exists.
+    if (p := Path("/run/pcscd/pcscd.comm")).exists():
+        options += ["--perms", "755", "--dir", p.parent, "--bind", p, p]
+
     with (
         complete_step("Signing SHA256SUMS…"),
         open(context.staging / context.config.output_checksum, "rb") as i,
         open(context.staging / context.config.output_signature, "wb") as o,
     ):
-        run(
-            cmdline,
-            env=env,
-            stdin=i,
-            stdout=o,
-            sandbox=context.sandbox(options=["--perms", "755", "--dir", home, "--bind", home, home]),
-        )
+        run(cmdline, env=env, stdin=i, stdout=o, sandbox=context.sandbox(options=options))
 
 
 def dir_size(path: Union[Path, os.DirEntry[str]]) -> int:
