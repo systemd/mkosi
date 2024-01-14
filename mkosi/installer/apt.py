@@ -3,7 +3,7 @@ import textwrap
 from collections.abc import Sequence
 
 from mkosi.context import Context
-from mkosi.mounts import finalize_source_mounts
+from mkosi.mounts import finalize_ephemeral_source_mounts
 from mkosi.run import find_binary, run
 from mkosi.sandbox import apivfs_cmd, finalize_crypto_mounts
 from mkosi.types import PathString
@@ -101,23 +101,24 @@ def invoke_apt(
     apivfs: bool = True,
     mounts: Sequence[PathString] = (),
 ) -> None:
-    run(
-        apt_cmd(context, command) + [operation, *sort_packages(packages)],
-        sandbox=(
-            context.sandbox(
-                network=True,
-                options=[
-                    "--bind", context.root, context.root,
-                    "--bind", context.cache_dir / "lib/apt", context.cache_dir / "lib/apt",
-                    "--bind", context.cache_dir / "cache/apt", context.cache_dir / "cache/apt",
-                    "--ro-bind", context.workspace / "apt.conf", context.workspace / "apt.conf",
-                    *(["--ro-bind", m, m] if (m := context.config.local_mirror) else []),
-                    *finalize_crypto_mounts(tools=context.config.tools()),
-                    *finalize_source_mounts(context.config),
-                    *mounts,
-                    "--chdir", "/work/src",
-                ],
-            ) + (apivfs_cmd(context.root) if apivfs else [])
-        ),
-        env=context.config.environment,
-    )
+    with finalize_ephemeral_source_mounts(context.config) as sources:
+        run(
+            apt_cmd(context, command) + [operation, *sort_packages(packages)],
+            sandbox=(
+                context.sandbox(
+                    network=True,
+                    options=[
+                        "--bind", context.root, context.root,
+                        "--bind", context.cache_dir / "lib/apt", context.cache_dir / "lib/apt",
+                        "--bind", context.cache_dir / "cache/apt", context.cache_dir / "cache/apt",
+                        "--ro-bind", context.workspace / "apt.conf", context.workspace / "apt.conf",
+                        *(["--ro-bind", m, m] if (m := context.config.local_mirror) else []),
+                        *finalize_crypto_mounts(tools=context.config.tools()),
+                        *sources,
+                        *mounts,
+                        "--chdir", "/work/src",
+                    ],
+                ) + (apivfs_cmd(context.root) if apivfs else [])
+            ),
+            env=context.config.environment,
+        )

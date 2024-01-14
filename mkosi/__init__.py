@@ -411,17 +411,17 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
         WITH_TESTS=one_zero(context.config.with_tests),
     )
 
-    with contextlib.ExitStack() as stack:
+    with (
+        mount_build_overlay(context) if build else contextlib.nullcontext(),
+        finalize_chroot_scripts(context) as cd,
+        finalize_ephemeral_source_mounts(context.config) as sources,
+    ):
         if build:
-            stack.enter_context(mount_build_overlay(context))
             step_msg = "Running prepare script {} in build overlay…"
             arg = "build"
         else:
             step_msg = "Running prepare script {}…"
             arg = "final"
-
-        sources = stack.enter_context(finalize_ephemeral_source_mounts(context.config))
-        cd = stack.enter_context(finalize_chroot_scripts(context))
 
         for script in context.config.prepare_scripts:
             chroot = chroot_cmd(
@@ -439,9 +439,10 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
                 "mkosi-as-caller" : MKOSI_AS_CALLER,
             }
 
-            hd = stack.enter_context(finalize_host_scripts(context, helpers))
-
-            with complete_step(step_msg.format(script)):
+            with (
+                finalize_host_scripts(context, helpers) as hd,
+                complete_step(step_msg.format(script)),
+            ):
                 run(
                     ["/work/prepare", arg],
                     env=env | context.config.environment,
