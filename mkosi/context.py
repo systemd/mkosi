@@ -8,7 +8,7 @@ from typing import Optional
 from mkosi.config import Args, Config
 from mkosi.tree import make_tree
 from mkosi.types import PathString
-from mkosi.util import umask
+from mkosi.util import flatten, umask
 
 
 class Context:
@@ -70,10 +70,13 @@ class Context:
             devices=devices,
             scripts=scripts,
             options=[
-                # This mount is writable so bwrap can create extra directories or symlinks inside of it as
-                # needed. This isn't a problem as the package manager directory is created by mkosi and
-                # thrown away when the build finishes.
-                "--bind", self.pkgmngr / "etc", "/etc",
+                # These mounts are writable so bubblewrap can create extra directories or symlinks inside of it as
+                # needed. This isn't a problem as the package manager directory is created by mkosi and thrown away
+                # when the build finishes.
+                *flatten(
+                    ["--bind", os.fspath(self.pkgmngr / "etc" / p.name), f"/etc/{p.name}"]
+                    for p in (self.pkgmngr / "etc").iterdir()
+                ),
                 *options,
                 *(["--ro-bind", os.fspath(p), os.fspath(p)] if (p := self.pkgmngr / "usr").exists() else []),
             ],
