@@ -2720,6 +2720,9 @@ def normalize_mtime(root: Path, mtime: Optional[int], directory: Optional[Path] 
 
     directory = directory or Path("")
 
+    if not (root / directory).exists():
+        return
+
     with complete_step(f"Normalizing modification times of /{directory}"):
         os.utime(root / directory, (mtime, mtime), follow_symlinks=False)
         for p in (root / directory).rglob("*"):
