@@ -1727,6 +1727,7 @@ Then, for each image, we execute the following steps:
 1. Write config files required for `Ssh=`, `Autologin=` and `MakeInitrd=`
 1. Install systemd-boot and configure secure boot if configured (`--secure-boot`)
 1. Run `systemd-sysusers`
+1. Run `systemd-tmpfiles`
 1. Run `systemctl preset-all`
 1. Run `depmod`
 1. Run `systemd-firstboot`

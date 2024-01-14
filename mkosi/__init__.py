@@ -56,8 +56,16 @@ from mkosi.mounts import finalize_ephemeral_source_mounts, mount_overlay
 from mkosi.pager import page
 from mkosi.partition import Partition, finalize_root, finalize_roothash
 from mkosi.qemu import KernelType, copy_ephemeral, run_qemu, run_ssh
-from mkosi.run import CLONE_NEWNS, become_root, find_binary, fork_and_wait, run, unshare
-from mkosi.sandbox import chroot_cmd, finalize_crypto_mounts
+from mkosi.run import (
+    CLONE_NEWNS,
+    become_root,
+    find_binary,
+    fork_and_wait,
+    log_process_failure,
+    run,
+    unshare,
+)
+from mkosi.sandbox import chroot_cmd, finalize_crypto_mounts, finalize_passwd_mounts
 from mkosi.tree import copy_tree, move_tree, rmtree
 from mkosi.types import PathString
 from mkosi.util import (
@@ -2248,6 +2256,42 @@ def run_sysusers(context: Context) -> None:
             sandbox=context.sandbox(options=["--bind", context.root, context.root]))
 
 
+def run_tmpfiles(context: Context) -> None:
+    if not find_binary("systemd-tmpfiles", root=context.config.tools()):
+        logging.info("systemd-tmpfiles is not installed, not generating volatile files")
+        return
+
+    with complete_step("Generating volatile files"):
+        cmdline = [
+            "systemd-tmpfiles",
+            f"--root={context.root}",
+            "--boot",
+            "--create",
+            "--remove",
+            # Exclude APIVFS and temporary files directories.
+            *(f"--exclude-prefix={d}" for d in ("/tmp", "/var/tmp", "/run", "/proc", "/sys", "/dev")),
+        ]
+
+        result = run(
+            cmdline,
+            sandbox=context.sandbox(
+                options=[
+                    "--bind", context.root, context.root,
+                    # systemd uses acl.h to parse ACLs in tmpfiles snippets which uses the host's passwd so we have to
+                    # mount the image's passwd over it to make ACL parsing work.
+                    *finalize_passwd_mounts(context.root)
+                ],
+            ),
+            env={"SYSTEMD_TMPFILES_FORCE_SUBVOL": "0"},
+            check=False,
+        )
+        # systemd-tmpfiles can exit with DATAERR or CANTCREAT in some cases which are handled as success by the
+        # systemd-tmpfiles service so we handle those as success as well.
+        if result.returncode not in (0, 65, 73):
+            log_process_failure(cmdline, result.returncode)
+            raise subprocess.CalledProcessError(result.returncode, cmdline)
+
+
 def run_preset(context: Context) -> None:
     if not find_binary("systemctl", root=context.config.tools()):
         logging.info("systemctl is not installed, not applying presets")
@@ -2797,6 +2841,7 @@ def build_image(args: Args, config: Config) -> None:
             install_systemd_boot(context)
             install_shim(context)
             run_sysusers(context)
+            run_tmpfiles(context)
             run_preset(context)
             run_depmod(context)
             run_firstboot(context)
