@@ -138,6 +138,9 @@ def sandbox_cmd(
         *options,
     ]
 
+    if not relaxed:
+        cmdline += ["--symlink", "../proc/self/mounts", "/etc/mtab"]
+
     # If we're using /usr from a tools tree, we have to use /etc/alternatives from the tools tree as well if it
     # exists since that points directly back to /usr. Apply this after the options so the caller can mount
     # something else to /etc without overriding this mount. In relaxed mode, we only do this if /etc/alternatives
@@ -152,12 +155,15 @@ def sandbox_cmd(
     if network and not relaxed:
         cmdline += ["--bind", "/etc/resolv.conf", "/etc/resolv.conf"]
 
-    if devices:
-        shm = ":"
-    else:
-        shm = "chmod 1777 /dev/shm"
+    # bubblewrap creates everything with a restricted mode so relax stuff as needed.
+    ops = []
+    if not devices:
+        ops += ["chmod 1777 /dev/shm"]
+    if not relaxed:
+        ops += ["chmod 755 /etc"]
+    ops += ["exec $0 \"$@\""]
 
-    cmdline += ["sh", "-c", f"{shm} && exec $0 \"$@\""]
+    cmdline += ["sh", "-c", " && ".join(ops)]
 
     return cmdline
 
