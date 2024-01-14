@@ -140,8 +140,10 @@ def sandbox_cmd(
 
     # If we're using /usr from a tools tree, we have to use /etc/alternatives from the tools tree as well if it
     # exists since that points directly back to /usr. Apply this after the options so the caller can mount
-    # something else to /etc without overriding this mount.
-    if (tools / "etc/alternatives").exists():
+    # something else to /etc without overriding this mount. In relaxed mode, we only do this if /etc/alternatives
+    # already exists on the host as otherwise we'd modify the host's /etc by creating the mountpoint ourselves (or
+    # fail when trying to create it).
+    if (tools / "etc/alternatives").exists() and (not relaxed or Path("/etc/alternatives").exists()):
         cmdline += ["--ro-bind", tools / "etc/alternatives", "/etc/alternatives"]
 
     if scripts:
