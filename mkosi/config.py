@@ -1306,6 +1306,7 @@ class Config:
         return {
             "distribution": self.distribution,
             "release": self.release,
+            "mirror": self.mirror,
             "architecture": self.architecture,
             "packages": self.packages,
             "build_packages": self.build_packages,
