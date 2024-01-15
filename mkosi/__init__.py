@@ -74,7 +74,6 @@ from mkosi.tree import copy_tree, move_tree, rmtree
 from mkosi.types import PathString
 from mkosi.util import (
     INVOKING_USER,
-    flatten,
     format_rlimit,
     make_executable,
     one_zero,
@@ -1459,7 +1458,7 @@ def build_initrd(context: Context) -> Path:
         *(["--local-mirror", str(context.config.local_mirror)] if context.config.local_mirror else []),
         "--incremental", str(context.config.incremental),
         "--acl", str(context.config.acl),
-        *flatten(["--package", package] for package in context.config.initrd_packages),
+        *(f"--package={package}" for package in context.config.initrd_packages),
         "--output", f"{context.config.output}-initrd",
         *(["--image-id", context.config.image_id] if context.config.image_id else []),
         *(["--image-version", context.config.image_version] if context.config.image_version else []),
