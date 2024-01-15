@@ -130,12 +130,12 @@ class Installer(DistributionInstaller):
                 if repo == "extras":
                     yield RpmRepository(
                         repo.lower(),
-                        f"baseurl={join_mirror(mirror, f'SIGs/$stream/{repo}/$basearch/extras-common')}",
+                        f"baseurl={join_mirror(mirror, f'centos-stream/SIGs/$stream/{repo}/$basearch/extras-common')}",
                         cls.gpgurls(context),
                     )
                     yield RpmRepository(
                         f"{repo.lower()}-source",
-                        f"baseurl={join_mirror(mirror, f'SIGs/$stream/{repo}/source/extras-common')}",
+                        f"baseurl={join_mirror(mirror, f'centos-stream/SIGs/$stream/{repo}/source/extras-common')}",
                         cls.gpgurls(context),
                         enabled=False,
                     )
@@ -143,18 +143,18 @@ class Installer(DistributionInstaller):
                 else:
                     yield RpmRepository(
                         repo.lower(),
-                        f"baseurl={join_mirror(mirror, f'$stream/{repo}/$basearch/os')}",
+                        f"baseurl={join_mirror(mirror, f'centos-stream/$stream/{repo}/$basearch/os')}",
                         cls.gpgurls(context),
                     )
                     yield RpmRepository(
                         f"{repo.lower()}-debuginfo",
-                        f"baseurl={join_mirror(mirror, f'$stream/{repo}/$basearch/debug/tree')}",
+                        f"baseurl={join_mirror(mirror, f'centos-stream/$stream/{repo}/$basearch/debug/tree')}",
                         cls.gpgurls(context),
                         enabled=False,
                     )
                     yield RpmRepository(
                         f"{repo.lower()}-source",
-                        f"baseurl={join_mirror(mirror, f'$stream/{repo}/source/tree')}",
+                        f"baseurl={join_mirror(mirror, f'centos-stream/$stream/{repo}/source/tree')}",
                         cls.gpgurls(context),
                         enabled=False,
                     )
@@ -252,19 +252,19 @@ class Installer(DistributionInstaller):
             ):
                 yield RpmRepository(
                     repo,
-                    f"baseurl={join_mirror(mirror, f'{dir}/$releasever/Everything/$basearch')}",
+                    f"baseurl={join_mirror(mirror, f'fedora/{dir}/$releasever/Everything/$basearch')}",
                     gpgurls,
                     enabled=False,
                 )
                 yield RpmRepository(
                     f"{repo}-debuginfo",
-                    f"baseurl={join_mirror(mirror, f'{dir}/$releasever/Everything/$basearch/debug')}",
+                    f"baseurl={join_mirror(mirror, f'fedora/{dir}/$releasever/Everything/$basearch/debug')}",
                     gpgurls,
                     enabled=False,
                 )
                 yield RpmRepository(
                     f"{repo}-source",
-                    f"baseurl={join_mirror(mirror, f'{dir}/$releasever/Everything/source/tree')}",
+                    f"baseurl={join_mirror(mirror, f'fedora/{dir}/$releasever/Everything/source/tree')}",
                     gpgurls,
                     enabled=False,
                 )
@@ -349,7 +349,7 @@ class Installer(DistributionInstaller):
                         )
                         yield RpmRepository(
                             f"{sig}-{c}-debuginfo",
-                            f"baseurl={join_mirror(mirror, f'$stream/{sig}/$basearch')}",
+                            f"baseurl={join_mirror(mirror, f'centos-debuginfo/$stream/{sig}/$basearch')}",
                             gpgurls,
                             enabled=False,
                         )
@@ -362,19 +362,19 @@ class Installer(DistributionInstaller):
                     else:
                         yield RpmRepository(
                             f"{sig}-{c}",
-                            f"baseurl={join_mirror(mirror, f'SIGs/$stream/{sig}/$basearch/{c}')}",
+                            f"baseurl={join_mirror(mirror, f'centos-stream/SIGs/$stream/{sig}/$basearch/{c}')}",
                             gpgurls,
                             enabled=False,
                         )
                         yield RpmRepository(
                             f"{sig}-{c}-debuginfo",
-                            f"baseurl={join_mirror(mirror, f'SIGs/$stream/{sig}/$basearch/{c}/debug')}",
+                            f"baseurl={join_mirror(mirror, f'centos-stream/SIGs/$stream/{sig}/$basearch/{c}/debug')}",
                             gpgurls,
                             enabled=False,
                         )
                         yield RpmRepository(
                             f"{sig}-{c}-source",
-                            f"baseurl={join_mirror(mirror, f'SIGs/$stream/{sig}/source/{c}')}",
+                            f"baseurl={join_mirror(mirror, f'centos-stream/SIGs/$stream/{sig}/source/{c}')}",
                             gpgurls,
                             enabled=False,
                         )

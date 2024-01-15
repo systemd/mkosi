@@ -65,7 +65,7 @@ class Installer(DistributionInstaller):
                 ]
         elif context.config.mirror:
             directory = "development" if context.config.release == "rawhide" else "releases"
-            url = f"baseurl={join_mirror(context.config.mirror, f'{directory}/$releasever/Everything')}"
+            url = f"baseurl={join_mirror(context.config.mirror, f'fedora/{directory}/$releasever/Everything')}"
             repos += [
                 RpmRepository("fedora", f"{url}/$basearch/os", gpgurls),
                 RpmRepository("fedora-debuginfo", f"{url}/$basearch/debug/tree", gpgurls, enabled=False),
