@@ -1693,11 +1693,11 @@ installation if not already existing and replaces the distribution installation
 in consecutive runs with data from the cached one.
 
 1. Parse CLI options
-2. Parse configuration files
-3. If we're not running as root, unshare the user namespace and map the
+1. Parse configuration files
+1. If we're not running as root, unshare the user namespace and map the
    subuid range configured in `/etc/subuid` and `/etc/subgid` into it.
-4. Unshare the mount namespace
-5. Remount the following directories read-only if they exist:
+1. Unshare the mount namespace
+1. Remount the following directories read-only if they exist:
    - `/usr`
    - `/etc`
    - `/opt`
@@ -1709,33 +1709,34 @@ in consecutive runs with data from the cached one.
 
 Then, for each image, we execute the following steps:
 
-6. Copy package manager trees into the workspace
-7. Copy base trees (`--base-tree=`) into the image
-8. Copy skeleton trees (`mkosi.skeleton`) into image
-9. Install distribution and packages into image or use cache tree if
+1. Copy package manager trees into the workspace
+1. Copy base trees (`--base-tree=`) into the image
+1. Copy skeleton trees (`mkosi.skeleton`) into image
+1. Install distribution and packages into image or use cache tree if
    available
-10. Run prepare scripts on image with the `final` argument (`mkosi.prepare`)
-11. Install build packages in overlay if any build scripts are configured
-12. Run prepare scripts on overlay with the `build` argument if any build
+1. Run prepare scripts on image with the `final` argument (`mkosi.prepare`)
+1. Install build packages in overlay if any build scripts are configured
+1. Run prepare scripts on overlay with the `build` argument if any build
     scripts are configured (`mkosi.prepare`)
-13. Cache the image if configured (`--incremental`)
-14. Run build scripts on image + overlay if any build scripts are configured (`mkosi.build`)
-15. Finalize the build if the output format `none` is configured
-16. Copy the build scripts outputs into the image
-17. Copy the extra trees into the image (`mkosi.extra`)
-18. Run post-install scripts (`mkosi.postinst`)
-19. Write config files required for `Ssh=`, `Autologin=` and `MakeInitrd=`
-20. Install systemd-boot and configure secure boot if configured (`--secure-boot`)
-21. Run `systemd-sysusers`
-22. Run `systemctl preset-all`
-23. Run `depmod`
-24. Run `systemd-firstboot`
-25. Run `systemd-hwdb`
-26. Remove packages and files (`RemovePackages=`, `RemoveFiles=`)
-27. Run SELinux relabel is a SELinux policy is installed
-28. Run finalize scripts (`mkosi.finalize`)
-29. Generate unified kernel image if configured to do so
-30. Generate final output format
+1. Cache the image if configured (`--incremental`)
+1. Run build scripts on image + overlay if any build scripts are configured (`mkosi.build`)
+1. Finalize the build if the output format `none` is configured
+1. Copy the build scripts outputs into the image
+1. Copy the extra trees into the image (`mkosi.extra`)
+1. Run post-install scripts (`mkosi.postinst`)
+1. Write config files required for `Ssh=`, `Autologin=` and `MakeInitrd=`
+1. Install systemd-boot and configure secure boot if configured (`--secure-boot`)
+1. Run `systemd-sysusers`
+1. Run `systemd-tmpfiles`
+1. Run `systemctl preset-all`
+1. Run `depmod`
+1. Run `systemd-firstboot`
+1. Run `systemd-hwdb`
+1. Remove packages and files (`RemovePackages=`, `RemoveFiles=`)
+1. Run SELinux relabel is a SELinux policy is installed
+1. Run finalize scripts (`mkosi.finalize`)
+1. Generate unified kernel image if configured to do so
+1. Generate final output format
 
 # Scripts
 
