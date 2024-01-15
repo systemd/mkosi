@@ -129,7 +129,7 @@ class Installer(DistributionInstaller):
                     ),
                 ]
 
-        setup_dnf(context, repos, filelists=True)
+        setup_dnf(context, repos)
 
     @classmethod
     def install(cls, context: Context) -> None:
