@@ -4,10 +4,11 @@ from collections.abc import Iterable
 from pathlib import Path
 
 from mkosi.context import Context
+from mkosi.installer import finalize_package_manager_mounts
 from mkosi.installer.rpm import RpmRepository, fixup_rpmdb_location, setup_rpm
 from mkosi.mounts import finalize_ephemeral_source_mounts
 from mkosi.run import find_binary, run
-from mkosi.sandbox import apivfs_cmd, finalize_crypto_mounts
+from mkosi.sandbox import apivfs_cmd
 from mkosi.types import PathString
 from mkosi.util import sort_packages
 
@@ -133,14 +134,7 @@ def invoke_dnf(context: Context, command: str, packages: Iterable[str], apivfs: 
                     network=True,
                     options=[
                         "--bind", context.root, context.root,
-                        "--bind",
-                        context.cache_dir / "cache" / dnf_subdir(context),
-                        context.cache_dir / "cache" / dnf_subdir(context),
-                        "--bind",
-                        context.cache_dir / "lib" / dnf_subdir(context),
-                        context.cache_dir / "lib" / dnf_subdir(context),
-                        *(["--ro-bind", m, m] if (m := context.config.local_mirror) else []),
-                        *finalize_crypto_mounts(tools=context.config.tools()),
+                        *finalize_package_manager_mounts(context),
                         *sources,
                         "--chdir", "/work/src",
                     ],

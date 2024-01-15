@@ -48,7 +48,11 @@ from mkosi.config import (
 )
 from mkosi.context import Context
 from mkosi.distributions import Distribution
-from mkosi.installer import clean_package_manager_metadata, package_manager_scripts
+from mkosi.installer import (
+    clean_package_manager_metadata,
+    finalize_package_manager_mounts,
+    package_manager_scripts,
+)
 from mkosi.kmod import gen_required_kernel_modules, process_kernel_modules
 from mkosi.log import ARG_DEBUG, complete_step, die, log_notice, log_step
 from mkosi.manifest import Manifest
@@ -65,7 +69,7 @@ from mkosi.run import (
     run,
     unshare,
 )
-from mkosi.sandbox import chroot_cmd, finalize_crypto_mounts, finalize_passwd_mounts
+from mkosi.sandbox import chroot_cmd, finalize_passwd_mounts
 from mkosi.tree import copy_tree, move_tree, rmtree
 from mkosi.types import PathString
 from mkosi.util import (
@@ -458,14 +462,10 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
                     sandbox=context.sandbox(
                         network=True,
                         options=sources + [
-                            # If the cache dir is /var and the workspace directory is /var/tmp (e.g. in mkosi-initrd),
-                            # then all the files we mount here might be located in the configured cache directory, so
-                            # we have to mount the cache directory first to not override all the other mounts.
-                            "--bind", context.cache_dir, context.cache_dir,
                             "--ro-bind", script, "/work/prepare",
                             "--ro-bind", cd, "/work/scripts",
                             "--bind", context.root, context.root,
-                            *finalize_crypto_mounts(tools=context.config.tools()),
+                            *finalize_package_manager_mounts(context),
                             "--chdir", "/work/src",
                         ],
                         scripts=hd,
@@ -546,7 +546,7 @@ def run_build_scripts(context: Context) -> None:
                                 if context.config.build_dir
                                 else []
                             ),
-                            *finalize_crypto_mounts(tools=context.config.tools()),
+                            *finalize_package_manager_mounts(context),
                             "--chdir", "/work/src",
                         ],
                         scripts=hd,
@@ -606,7 +606,7 @@ def run_postinst_scripts(context: Context) -> None:
                             "--ro-bind", cd, "/work/scripts",
                             "--bind", context.root, context.root,
                             "--bind", context.staging, "/work/out",
-                            *finalize_crypto_mounts(tools=context.config.tools()),
+                            *finalize_package_manager_mounts(context),
                             "--chdir", "/work/src",
                         ],
                         scripts=hd,
@@ -666,7 +666,7 @@ def run_finalize_scripts(context: Context) -> None:
                             "--ro-bind", cd, "/work/scripts",
                             "--bind", context.root, context.root,
                             "--bind", context.staging, "/work/out",
-                            *finalize_crypto_mounts(tools=context.config.tools()),
+                            *finalize_package_manager_mounts(context),
                             "--chdir", "/work/src",
                         ],
                         scripts=hd,

@@ -3,9 +3,10 @@ import textwrap
 from collections.abc import Sequence
 
 from mkosi.context import Context
+from mkosi.installer import finalize_package_manager_mounts
 from mkosi.mounts import finalize_ephemeral_source_mounts
 from mkosi.run import find_binary, run
-from mkosi.sandbox import apivfs_cmd, finalize_crypto_mounts
+from mkosi.sandbox import apivfs_cmd
 from mkosi.types import PathString
 from mkosi.util import sort_packages, umask
 
@@ -109,11 +110,7 @@ def invoke_apt(
                     network=True,
                     options=[
                         "--bind", context.root, context.root,
-                        "--bind", context.cache_dir / "lib/apt", context.cache_dir / "lib/apt",
-                        "--bind", context.cache_dir / "cache/apt", context.cache_dir / "cache/apt",
-                        "--ro-bind", context.workspace / "apt.conf", context.workspace / "apt.conf",
-                        *(["--ro-bind", m, m] if (m := context.config.local_mirror) else []),
-                        *finalize_crypto_mounts(tools=context.config.tools()),
+                        *finalize_package_manager_mounts(context),
                         *sources,
                         *mounts,
                         "--chdir", "/work/src",

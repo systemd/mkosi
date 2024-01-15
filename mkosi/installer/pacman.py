@@ -4,9 +4,10 @@ from collections.abc import Iterable, Sequence
 from typing import NamedTuple
 
 from mkosi.context import Context
+from mkosi.installer import finalize_package_manager_mounts
 from mkosi.mounts import finalize_ephemeral_source_mounts
 from mkosi.run import run
-from mkosi.sandbox import apivfs_cmd, finalize_crypto_mounts
+from mkosi.sandbox import apivfs_cmd
 from mkosi.types import PathString
 from mkosi.util import sort_packages, umask
 
@@ -98,9 +99,7 @@ def invoke_pacman(
                     network=True,
                     options=[
                         "--bind", context.root, context.root,
-                        "--bind", context.cache_dir / "cache/pacman/pkg", context.cache_dir / "cache/pacman/pkg",
-                        *(["--ro-bind", m, m] if (m := context.config.local_mirror) else []),
-                        *finalize_crypto_mounts(tools=context.config.tools()),
+                        *finalize_package_manager_mounts(context),
                         *sources,
                         "--chdir", "/work/src",
                     ],
