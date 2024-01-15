@@ -34,6 +34,7 @@ class Context:
 
         self.staging.mkdir()
         self.pkgmngr.mkdir()
+        self.packages.mkdir()
         self.install_dir.mkdir(exist_ok=True)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
@@ -48,6 +49,10 @@ class Context:
     @property
     def pkgmngr(self) -> Path:
         return self.workspace / "pkgmngr"
+
+    @property
+    def packages(self) -> Path:
+        return self.workspace / "packages"
 
     @property
     def cache_dir(self) -> Path:

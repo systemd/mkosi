@@ -1108,6 +1108,7 @@ class Config:
 
     packages: list[str]
     build_packages: list[str]
+    package_directories: list[Path]
     with_recommends: bool
     with_docs: bool
 
@@ -1745,6 +1746,14 @@ SETTINGS = (
         section="Content",
         parse=config_make_list_parser(delimiter=","),
         help="Additional packages needed for build scripts",
+    ),
+    ConfigSetting(
+        dest="package_directories",
+        long="--package-directory",
+        metavar="PATH",
+        section="Content",
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        help="Specify a directory containing extra packages",
     ),
     ConfigSetting(
         dest="with_recommends",

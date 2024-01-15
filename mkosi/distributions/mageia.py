@@ -11,7 +11,7 @@ from mkosi.distributions import (
     PackageType,
     join_mirror,
 )
-from mkosi.installer.dnf import invoke_dnf, setup_dnf
+from mkosi.installer.dnf import createrepo_dnf, invoke_dnf, setup_dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey
 from mkosi.log import die
 
@@ -36,6 +36,10 @@ class Installer(DistributionInstaller):
     @classmethod
     def default_tools_tree_distribution(cls) -> Distribution:
         return Distribution.mageia
+
+    @classmethod
+    def createrepo(cls, context: "Context") -> None:
+        return createrepo_dnf(context)
 
     @classmethod
     def setup(cls, context: Context) -> None:

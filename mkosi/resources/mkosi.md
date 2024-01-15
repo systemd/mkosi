@@ -865,6 +865,17 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   `mkosi.build` scripts require to operate. Note that packages listed
   here will be absent in the final image.
 
+`PackageDirectories=`, `--package-directory=`
+
+: Specify directories containing extra packages to be made available during
+  the build. `mkosi` will create a local repository containing all
+  packages in these directories and make it available when installing packages or
+  running scripts.
+
+: Note that this local repository is also made available when running
+  scripts. Build scripts can add more packages to the local repository
+  by placing the built packages in `$PACKAGEDIR`.
+
 `WithRecommends=`, `--with-recommends=`
 
 : Configures whether to install recommended or weak dependencies,
@@ -1820,6 +1831,10 @@ Scripts executed by mkosi receive the following environment variables:
 * `$OUTPUTDIR` points to the staging directory used to store build
   artifacts generated during the build. `$CHROOT_OUTPUTDIR` contains the
   value that `$OUTPUTDIR` will have after invoking `mkosi-chroot`.
+
+* `$PACKAGEDIR` points to the directory containing the local package
+  repository. Build scripts can add more packages to the local
+  repository by writing the packages to `$PACKAGEDIR`.
 
 * `$BUILDROOT` is the root directory of the image being built,
   optionally with the build overlay mounted on top depending on the

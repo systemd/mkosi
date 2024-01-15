@@ -107,3 +107,17 @@ def invoke_pacman(
             ),
             env=context.config.environment,
         )
+
+
+def createrepo_pacman(context: Context) -> None:
+    run(["repo-add", context.packages / "mkosi-packages.db.tar", *context.packages.glob("*.pkg.tar*")])
+
+    with (context.pkgmngr / "etc/pacman.conf").open("a") as f:
+        f.write(
+            textwrap.dedent(
+                """\
+                [mkosi-packages]
+                Server = file:///work/packages
+                """
+            )
+        )

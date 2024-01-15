@@ -8,9 +8,9 @@ from pathlib import Path
 from mkosi.config import Architecture
 from mkosi.context import Context
 from mkosi.distributions import Distribution, DistributionInstaller, PackageType
-from mkosi.installer.dnf import invoke_dnf, setup_dnf
+from mkosi.installer.dnf import createrepo_dnf, invoke_dnf, setup_dnf
 from mkosi.installer.rpm import RpmRepository
-from mkosi.installer.zypper import invoke_zypper, setup_zypper
+from mkosi.installer.zypper import createrepo_zypper, invoke_zypper, setup_zypper
 from mkosi.log import die
 from mkosi.run import find_binary, run
 from mkosi.sandbox import finalize_crypto_mounts
@@ -40,6 +40,13 @@ class Installer(DistributionInstaller):
     @classmethod
     def grub_prefix(cls) -> str:
         return "grub2"
+
+    @classmethod
+    def createrepo(cls, context: "Context") -> None:
+        if find_binary("zypper", root=context.config.tools()):
+            createrepo_zypper(context)
+        else:
+            createrepo_dnf(context)
 
     @classmethod
     def setup(cls, context: Context) -> None:

@@ -411,12 +411,13 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
     env = dict(
         ARCHITECTURE=str(context.config.architecture),
         BUILDROOT=str(context.root),
-        CHROOT_SCRIPT="/work/prepare",
+        SRCDIR="/work/src",
         CHROOT_SRCDIR="/work/src",
+        PACKAGEDIR="/work/packages",
+        SCRIPT="/work/prepare",
+        CHROOT_SCRIPT="/work/prepare",
         MKOSI_UID=str(INVOKING_USER.uid),
         MKOSI_GID=str(INVOKING_USER.gid),
-        SCRIPT="/work/prepare",
-        SRCDIR="/work/src",
         WITH_DOCS=one_zero(context.config.with_docs),
         WITH_NETWORK=one_zero(context.config.with_network),
         WITH_TESTS=one_zero(context.config.with_tests),
@@ -485,6 +486,7 @@ def run_build_scripts(context: Context) -> None:
         CHROOT_OUTPUTDIR="/work/out",
         SRCDIR="/work/src",
         CHROOT_SRCDIR="/work/src",
+        PACKAGEDIR="/work/packages",
         SCRIPT="/work/build-script",
         CHROOT_SCRIPT="/work/build-script",
         MKOSI_UID=str(INVOKING_USER.uid),
@@ -552,6 +554,10 @@ def run_build_scripts(context: Context) -> None:
                     ) + (chroot if script.suffix == ".chroot" else []),
                 )
 
+    if any(context.packages.iterdir()):
+        with complete_step("Rebuilding local package repository"):
+            context.config.distribution.createrepo(context)
+
 
 def run_postinst_scripts(context: Context) -> None:
     if not context.config.postinst_scripts:
@@ -566,6 +572,7 @@ def run_postinst_scripts(context: Context) -> None:
         CHROOT_SCRIPT="/work/postinst",
         SRCDIR="/work/src",
         CHROOT_SRCDIR="/work/src",
+        PACKAGEDIR="/work/packages",
         MKOSI_UID=str(INVOKING_USER.uid),
         MKOSI_GID=str(INVOKING_USER.gid),
     )
@@ -624,6 +631,7 @@ def run_finalize_scripts(context: Context) -> None:
         CHROOT_OUTPUTDIR="/work/out",
         SRCDIR="/work/src",
         CHROOT_SRCDIR="/work/src",
+        PACKAGEDIR="/work/packages",
         SCRIPT="/work/finalize",
         CHROOT_SCRIPT="/work/finalize",
         MKOSI_UID=str(INVOKING_USER.uid),
@@ -1385,6 +1393,19 @@ def install_package_manager_trees(context: Context) -> None:
             install_tree(context, tree.source, context.pkgmngr, target=tree.target, preserve=False)
 
 
+def install_package_directories(context: Context) -> None:
+    if not context.config.package_directories:
+        return
+
+    with complete_step("Copying in extra packages…"):
+        for d in context.config.package_directories:
+            install_tree(context, d, context.packages)
+
+    if any(context.packages.iterdir()):
+        with complete_step("Initializing local package repository…"):
+            context.config.distribution.createrepo(context)
+
+
 def install_extra_trees(context: Context) -> None:
     if not context.config.extra_trees:
         return
@@ -1459,6 +1480,7 @@ def build_initrd(context: Context) -> Path:
         "--incremental", str(context.config.incremental),
         "--acl", str(context.config.acl),
         *(f"--package={package}" for package in context.config.initrd_packages),
+        "--package-directory", str(context.packages),
         "--output", f"{context.config.output}-initrd",
         *(["--image-id", context.config.image_id] if context.config.image_id else []),
         *(["--image-version", context.config.image_version] if context.config.image_version else []),
@@ -2799,6 +2821,7 @@ def build_image(args: Args, config: Config) -> None:
     with setup_workspace(args, config) as workspace:
         context = Context(args, config, workspace)
         install_package_manager_trees(context)
+        install_package_directories(context)
 
         with mount_base_trees(context):
             install_base_trees(context)

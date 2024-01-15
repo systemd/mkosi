@@ -70,6 +70,7 @@ def finalize_package_manager_mounts(context: Context) -> list[PathString]:
         *(["--ro-bind", m, m] if (m := context.config.local_mirror) else []),
         *(["--ro-bind", os.fspath(p), os.fspath(p)] if (p := context.workspace / "apt.conf").exists() else []),
         *finalize_crypto_mounts(tools=context.config.tools()),
+        "--bind", context.packages, "/work/packages",
     ]
 
     mounts += flatten(

@@ -97,3 +97,23 @@ def invoke_zypper(
         )
 
     fixup_rpmdb_location(context)
+
+
+def createrepo_zypper(context: Context) -> None:
+    run(["createrepo_c", context.packages],
+        sandbox=context.sandbox(options=["--bind", context.packages, context.packages]))
+
+    (context.pkgmngr / "etc/zypp/repos.d").mkdir(parents=True, exist_ok=True)
+    (context.pkgmngr / "etc/zypp/repos.d/mkosi-packages.repo").write_text(
+        textwrap.dedent(
+            """\
+            [mkosi-packages]
+            name=mkosi-packages
+            gpgcheck=0
+            enabled=1
+            baseurl=file:///work/packages
+            autorefresh=0
+            priority=50
+            """
+        )
+    )

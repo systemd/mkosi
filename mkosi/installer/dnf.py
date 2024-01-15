@@ -150,3 +150,23 @@ def invoke_dnf(context: Context, command: str, packages: Iterable[str], apivfs: 
     for p in (context.root / "var/log").iterdir():
         if any(p.name.startswith(prefix) for prefix in ("dnf", "hawkey", "yum")):
             p.unlink()
+
+
+def createrepo_dnf(context: Context) -> None:
+    run(["createrepo_c", context.packages],
+        sandbox=context.sandbox(options=["--bind", context.packages, context.packages]))
+
+    (context.pkgmngr / "etc/yum.repos.d").mkdir(parents=True, exist_ok=True)
+    (context.pkgmngr / "etc/yum.repos.d/mkosi-packages.repo").write_text(
+        textwrap.dedent(
+            """\
+            [mkosi-packages]
+            name=mkosi-packages
+            gpgcheck=0
+            enabled=1
+            baseurl=file:///work/packages
+            metadata_expire=0
+            priority=50
+            """
+        )
+    )

@@ -9,7 +9,7 @@ from mkosi.archive import extract_tar
 from mkosi.config import Architecture
 from mkosi.context import Context
 from mkosi.distributions import Distribution, DistributionInstaller, PackageType
-from mkosi.installer.apt import invoke_apt, setup_apt
+from mkosi.installer.apt import createrepo_apt, invoke_apt, setup_apt
 from mkosi.log import die
 from mkosi.run import run
 from mkosi.util import umask
@@ -76,6 +76,10 @@ class Installer(DistributionInstaller):
     @classmethod
     def setup(cls, context: Context) -> None:
         setup_apt(context, cls.repositories(context))
+
+    @classmethod
+    def createrepo(cls, context: "Context") -> None:
+        return createrepo_apt(context)
 
     @classmethod
     def install(cls, context: Context) -> None:
