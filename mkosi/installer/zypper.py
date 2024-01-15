@@ -66,7 +66,7 @@ def zypper_cmd(context: Context) -> list[PathString]:
         "HOME=/",
         "zypper",
         f"--installroot={context.root}",
-        f"--cache-dir={context.cache_dir / 'cache/zypp'}",
+        "--cache-dir=/var/cache/zypp",
         "--gpg-auto-import-keys" if context.config.repository_key_check else "--no-gpg-checks",
         "--non-interactive",
     ]

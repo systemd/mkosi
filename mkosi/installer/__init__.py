@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import os
+from pathlib import Path
 
 from mkosi.config import ConfigFeature
 from mkosi.context import Context
@@ -72,16 +73,16 @@ def finalize_package_manager_mounts(context: Context) -> list[PathString]:
     ]
 
     mounts += flatten(
-        ["--bind", d, d]
+        ["--bind", context.cache_dir / d, Path("/var") / d]
         for d in (
-            context.cache_dir / "lib/apt",
-            context.cache_dir / "cache/apt",
-            context.cache_dir / "cache" / dnf_subdir(context),
-            context.cache_dir / "lib" / dnf_subdir(context),
-            context.cache_dir / "cache/pacman/pkg",
-            context.cache_dir / "cache/zypp",
+            "lib/apt",
+            "cache/apt",
+            f"cache/{dnf_subdir(context)}",
+            f"lib/{dnf_subdir(context)}",
+            "cache/pacman/pkg",
+            "cache/zypp",
         )
-        if d.exists()
+        if (context.cache_dir / d).exists()
     )
 
     return mounts

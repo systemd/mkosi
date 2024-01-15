@@ -136,7 +136,12 @@ class Installer(DistributionInstaller):
         # then extracting the tar file into the chroot.
 
         for deb in essential:
-            with open(deb, "rb") as i, tempfile.NamedTemporaryFile() as o:
+            with (
+                # The deb paths will be in the form of "/var/cache/apt/<deb>" so we transform them to the corresponding
+                # path in mkosi's package cache directory.
+                open(context.cache_dir / Path(deb).relative_to("/var"), "rb") as i,
+                tempfile.NamedTemporaryFile() as o
+            ):
                 run(["dpkg-deb", "--fsys-tarfile", "/dev/stdin"], stdin=i, stdout=o, sandbox=context.sandbox())
                 extract_tar(context, Path(o.name), context.root, log=False)
 

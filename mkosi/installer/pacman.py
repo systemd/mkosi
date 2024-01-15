@@ -76,7 +76,7 @@ def pacman_cmd(context: Context) -> list[PathString]:
         "pacman",
         "--root", context.root,
         "--logfile=/dev/null",
-        "--cachedir", context.cache_dir / "cache/pacman/pkg",
+        "--cachedir=/var/cache/pacman/pkg",
         "--hookdir", context.root / "etc/pacman.d/hooks",
         "--arch", context.config.distribution.architecture(context.config.architecture),
         "--color", "auto",
