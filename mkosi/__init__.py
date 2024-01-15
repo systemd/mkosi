@@ -1383,7 +1383,7 @@ def install_package_manager_trees(context: Context) -> None:
 
     with complete_step("Copying in package manager file trees…"):
         for tree in context.config.package_manager_trees:
-            install_tree(context, tree.source, context.workspace / "pkgmngr", target=tree.target, preserve=False)
+            install_tree(context, tree.source, context.pkgmngr, target=tree.target, preserve=False)
 
 
 def install_extra_trees(context: Context) -> None:
