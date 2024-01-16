@@ -9,11 +9,13 @@ import tempfile
 from pathlib import Path
 from typing import NamedTuple, Optional
 
+from mkosi.archive import make_cpio
 from mkosi.config import OutputFormat, __version__
 from mkosi.log import die, log_setup
 from mkosi.run import run, uncaught_exception_handler
 from mkosi.tree import copy_tree
 from mkosi.types import PathString
+from mkosi.util import umask
 
 
 class Context(NamedTuple):
@@ -39,6 +41,36 @@ def mandatory_variable(name: str) -> str:
         return os.environ[name]
     except KeyError:
         die(f"${name} must be set in the environment")
+
+
+def build_microcode_initrd(output: Path) -> Optional[Path]:
+    amd = Path("/usr/lib/firmware/amd-ucode")
+    intel = Path("/usr/lib/firmware/intel-ucode")
+
+    if not amd.exists() and not intel.exists():
+        logging.debug("/usr/lib/firmware/{amd-ucode,intel-ucode} not found, not adding microcode initrd")
+        return None
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp) / "initrd-microcode-root"
+        destdir = root / "kernel/x86/microcode"
+
+        with umask(~0o755):
+            destdir.mkdir(parents=True, exist_ok=True)
+
+        if amd.exists():
+            with (destdir / "AuthenticAMD.bin").open("wb") as f:
+                for p in amd.iterdir():
+                    f.write(p.read_bytes())
+
+        if intel.exists():
+            with (destdir / "GenuineIntel.bin").open("wb") as f:
+                for p in intel.iterdir():
+                    f.write(p.read_bytes())
+
+        make_cpio(root, output)
+
+    return output
 
 
 @uncaught_exception_handler()
@@ -155,6 +187,7 @@ def main() -> None:
 
     if format == OutputFormat.cpio:
         shutil.move(next(context.staging_area.glob("initrd*.cpio*")), context.staging_area / "initrd")
+        build_microcode_initrd(context.staging_area / "microcode")
     else:
         (context.staging_area / f"{output}.vmlinuz").unlink()
         (context.staging_area / f"{output}.initrd").unlink()

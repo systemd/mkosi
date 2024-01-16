@@ -122,7 +122,7 @@ def invoke_apt(
 
 
 def createrepo_apt(context: Context) -> None:
-    with (context.packages / "Packages").open("w") as f:
+    with (context.packages / "Packages").open("wb") as f:
         run(["dpkg-scanpackages", context.packages],
             stdout=f, sandbox=context.sandbox(options=["--ro-bind", context.packages, context.packages]))
 
