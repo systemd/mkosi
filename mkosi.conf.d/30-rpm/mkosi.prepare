@@ -12,7 +12,7 @@ mkosi-chroot \
     rpmspec \
     --query \
     "$DEPS" \
-    --define "_topdir ." \
+    --define "_topdir /var/tmp" \
     --define "_sourcedir rpm" \
     rpm/mkosi.spec |
         grep -E -v "mkosi" |
@@ -23,7 +23,7 @@ if [ "$1" = "build" ]; then
         rpmbuild \
         -bd \
         --build-in-place \
-        --define "_topdir ." \
+        --define "_topdir /var/tmp" \
         --define "_sourcedir rpm" \
         --define "_build_name_fmt %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm" \
         rpm/mkosi.spec
