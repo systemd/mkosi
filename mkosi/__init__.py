@@ -2271,11 +2271,25 @@ def configure_clock(context: Context) -> None:
         (context.root / "usr/lib/clock-epoch").touch()
 
 
-def run_depmod(context: Context) -> None:
+def run_depmod(context: Context, *, force: bool = False) -> None:
     if context.config.overlay or context.config.output_format.is_extension_image():
         return
 
+    outputs = (
+        "modules.dep",
+        "modules.dep.bin",
+        "modules.symbols",
+        "modules.symbols.bin",
+    )
+
     for kver, _ in gen_kernel_images(context):
+        if (
+            not force and
+            not context.config.kernel_modules_exclude and
+            all((context.root / "usr/lib/modules" / kver / o).exists() for o in outputs)
+        ):
+            continue
+
         process_kernel_modules(
             context.root, kver,
             include=context.config.kernel_modules_include,
@@ -2857,6 +2871,7 @@ def build_image(args: Args, config: Config) -> None:
                     run_prepare_scripts(context, build=False)
                     install_build_packages(context)
                     run_prepare_scripts(context, build=True)
+                    run_depmod(context, force=True)
 
                 save_cache(context)
                 reuse_cache(context)
