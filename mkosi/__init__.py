@@ -959,6 +959,9 @@ def find_and_install_shim_binary(
                     continue
 
                 rel = p.relative_to(context.root)
+                if (context.root / output).is_dir():
+                    output /= rel.name
+
                 log_step(f"Installing signed {name} EFI binary from /{rel} to /{output}")
                 shutil.copy2(p, context.root / output)
                 return
@@ -973,6 +976,9 @@ def find_and_install_shim_binary(
                     continue
 
                 rel = p.relative_to(context.root)
+                if (context.root / output).is_dir():
+                    output /= rel.name
+
                 if context.config.secure_boot:
                     log_step(f"Signing and installing unsigned {name} EFI binary from /{rel} to /{output}")
                     sign_efi_binary(context, p, context.root / output)
