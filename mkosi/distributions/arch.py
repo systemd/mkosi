@@ -5,7 +5,12 @@ from collections.abc import Sequence
 from mkosi.config import Architecture
 from mkosi.context import Context
 from mkosi.distributions import Distribution, DistributionInstaller, PackageType
-from mkosi.installer.pacman import PacmanRepository, invoke_pacman, setup_pacman
+from mkosi.installer.pacman import (
+    PacmanRepository,
+    createrepo_pacman,
+    invoke_pacman,
+    setup_pacman,
+)
 from mkosi.log import die
 
 
@@ -29,6 +34,10 @@ class Installer(DistributionInstaller):
     @classmethod
     def default_tools_tree_distribution(cls) -> Distribution:
         return Distribution.arch
+
+    @classmethod
+    def createrepo(cls, context: "Context") -> None:
+        return createrepo_pacman(context)
 
     @classmethod
     def setup(cls, context: Context) -> None:

@@ -10,7 +10,7 @@ from mkosi.distributions import (
     PackageType,
     join_mirror,
 )
-from mkosi.installer.dnf import invoke_dnf, setup_dnf
+from mkosi.installer.dnf import createrepo_dnf, invoke_dnf, setup_dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey
 from mkosi.log import die
 
@@ -41,6 +41,10 @@ class Installer(DistributionInstaller):
         return "grub2"
 
     @classmethod
+    def createrepo(cls, context: Context) -> None:
+        return createrepo_dnf(context)
+
+    @classmethod
     def setup(cls, context: Context) -> None:
         gpgurls = (
             find_rpm_gpgkey(
@@ -65,7 +69,7 @@ class Installer(DistributionInstaller):
                 ]
         elif context.config.mirror:
             directory = "development" if context.config.release == "rawhide" else "releases"
-            url = f"baseurl={join_mirror(context.config.mirror, f'{directory}/$releasever/Everything')}"
+            url = f"baseurl={join_mirror(context.config.mirror, f'fedora/{directory}/$releasever/Everything')}"
             repos += [
                 RpmRepository("fedora", f"{url}/$basearch/os", gpgurls),
                 RpmRepository("fedora-debuginfo", f"{url}/$basearch/debug/tree", gpgurls, enabled=False),

@@ -4,10 +4,11 @@ from collections.abc import Sequence
 
 from mkosi.config import yes_no
 from mkosi.context import Context
+from mkosi.installer import finalize_package_manager_mounts
 from mkosi.installer.rpm import RpmRepository, fixup_rpmdb_location, setup_rpm
 from mkosi.mounts import finalize_ephemeral_source_mounts
 from mkosi.run import run
-from mkosi.sandbox import apivfs_cmd, finalize_crypto_mounts
+from mkosi.sandbox import apivfs_cmd
 from mkosi.types import PathString
 from mkosi.util import sort_packages
 
@@ -65,7 +66,7 @@ def zypper_cmd(context: Context) -> list[PathString]:
         "HOME=/",
         "zypper",
         f"--installroot={context.root}",
-        f"--cache-dir={context.cache_dir / 'cache/zypp'}",
+        "--cache-dir=/var/cache/zypp",
         "--gpg-auto-import-keys" if context.config.repository_key_check else "--no-gpg-checks",
         "--non-interactive",
     ]
@@ -86,9 +87,7 @@ def invoke_zypper(
                     network=True,
                     options=[
                         "--bind", context.root, context.root,
-                        "--bind", context.cache_dir / "cache/zypp", context.cache_dir / "cache/zypp",
-                        *(["--ro-bind", m, m] if (m := context.config.local_mirror) else []),
-                        *finalize_crypto_mounts(tools=context.config.tools()),
+                        *finalize_package_manager_mounts(context),
                         *sources,
                         "--chdir", "/work/src",
                     ],
@@ -98,3 +97,23 @@ def invoke_zypper(
         )
 
     fixup_rpmdb_location(context)
+
+
+def createrepo_zypper(context: Context) -> None:
+    run(["createrepo_c", context.packages],
+        sandbox=context.sandbox(options=["--bind", context.packages, context.packages]))
+
+    (context.pkgmngr / "etc/zypp/repos.d").mkdir(parents=True, exist_ok=True)
+    (context.pkgmngr / "etc/zypp/repos.d/mkosi-packages.repo").write_text(
+        textwrap.dedent(
+            """\
+            [mkosi-packages]
+            name=mkosi-packages
+            gpgcheck=0
+            enabled=1
+            baseurl=file:///work/packages
+            autorefresh=0
+            priority=50
+            """
+        )
+    )

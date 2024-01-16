@@ -4,9 +4,10 @@ from collections.abc import Iterable, Sequence
 from typing import NamedTuple
 
 from mkosi.context import Context
+from mkosi.installer import finalize_package_manager_mounts
 from mkosi.mounts import finalize_ephemeral_source_mounts
 from mkosi.run import run
-from mkosi.sandbox import apivfs_cmd, finalize_crypto_mounts
+from mkosi.sandbox import apivfs_cmd
 from mkosi.types import PathString
 from mkosi.util import sort_packages, umask
 
@@ -75,7 +76,7 @@ def pacman_cmd(context: Context) -> list[PathString]:
         "pacman",
         "--root", context.root,
         "--logfile=/dev/null",
-        "--cachedir", context.cache_dir / "cache/pacman/pkg",
+        "--cachedir=/var/cache/pacman/pkg",
         "--hookdir", context.root / "etc/pacman.d/hooks",
         "--arch", context.config.distribution.architecture(context.config.architecture),
         "--color", "auto",
@@ -98,13 +99,25 @@ def invoke_pacman(
                     network=True,
                     options=[
                         "--bind", context.root, context.root,
-                        "--bind", context.cache_dir / "cache/pacman/pkg", context.cache_dir / "cache/pacman/pkg",
-                        *(["--ro-bind", m, m] if (m := context.config.local_mirror) else []),
-                        *finalize_crypto_mounts(tools=context.config.tools()),
+                        *finalize_package_manager_mounts(context),
                         *sources,
                         "--chdir", "/work/src",
                     ],
                 ) + (apivfs_cmd(context.root) if apivfs else [])
             ),
             env=context.config.environment,
+        )
+
+
+def createrepo_pacman(context: Context) -> None:
+    run(["repo-add", context.packages / "mkosi-packages.db.tar", *context.packages.glob("*.pkg.tar*")])
+
+    with (context.pkgmngr / "etc/pacman.conf").open("a") as f:
+        f.write(
+            textwrap.dedent(
+                """\
+                [mkosi-packages]
+                Server = file:///work/packages
+                """
+            )
         )

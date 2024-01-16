@@ -1,17 +1,14 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import os
+from pathlib import Path
 
 from mkosi.config import ConfigFeature
 from mkosi.context import Context
-from mkosi.installer.apt import apt_cmd
-from mkosi.installer.dnf import dnf_cmd
-from mkosi.installer.pacman import pacman_cmd
-from mkosi.installer.rpm import rpm_cmd
-from mkosi.installer.zypper import zypper_cmd
-from mkosi.sandbox import apivfs_cmd
+from mkosi.sandbox import apivfs_cmd, finalize_crypto_mounts
 from mkosi.tree import rmtree
 from mkosi.types import PathString
+from mkosi.util import flatten
 
 
 def clean_package_manager_metadata(context: Context) -> None:
@@ -40,6 +37,12 @@ def clean_package_manager_metadata(context: Context) -> None:
 
 
 def package_manager_scripts(context: Context) -> dict[str, list[PathString]]:
+    from mkosi.installer.apt import apt_cmd
+    from mkosi.installer.dnf import dnf_cmd
+    from mkosi.installer.pacman import pacman_cmd
+    from mkosi.installer.rpm import rpm_cmd
+    from mkosi.installer.zypper import zypper_cmd
+
     return {
         "pacman": apivfs_cmd(context.root) + pacman_cmd(context),
         "zypper": apivfs_cmd(context.root) + zypper_cmd(context),
@@ -58,3 +61,29 @@ def package_manager_scripts(context: Context) -> dict[str, list[PathString]]:
             "apt-sortpkgs",
         )
     }
+
+
+def finalize_package_manager_mounts(context: Context) -> list[PathString]:
+    from mkosi.installer.dnf import dnf_subdir
+
+    mounts: list[PathString] = [
+        *(["--ro-bind", m, m] if (m := context.config.local_mirror) else []),
+        *(["--ro-bind", os.fspath(p), os.fspath(p)] if (p := context.workspace / "apt.conf").exists() else []),
+        *finalize_crypto_mounts(tools=context.config.tools()),
+        "--bind", context.packages, "/work/packages",
+    ]
+
+    mounts += flatten(
+        ["--bind", context.cache_dir / d, Path("/var") / d]
+        for d in (
+            "lib/apt",
+            "cache/apt",
+            f"cache/{dnf_subdir(context)}",
+            f"lib/{dnf_subdir(context)}",
+            "cache/pacman/pkg",
+            "cache/zypp",
+        )
+        if (context.cache_dir / d).exists()
+    )
+
+    return mounts

@@ -4,10 +4,11 @@ from collections.abc import Iterable
 from pathlib import Path
 
 from mkosi.context import Context
+from mkosi.installer import finalize_package_manager_mounts
 from mkosi.installer.rpm import RpmRepository, fixup_rpmdb_location, setup_rpm
 from mkosi.mounts import finalize_ephemeral_source_mounts
 from mkosi.run import find_binary, run
-from mkosi.sandbox import apivfs_cmd, finalize_crypto_mounts
+from mkosi.sandbox import apivfs_cmd
 from mkosi.types import PathString
 from mkosi.util import sort_packages
 
@@ -87,8 +88,8 @@ def dnf_cmd(context: Context) -> list[PathString]:
         f"--releasever={context.config.release}",
         f"--installroot={context.root}",
         "--setopt=keepcache=1",
-        f"--setopt=cachedir={context.cache_dir / 'cache' / dnf_subdir(context)}",
-        f"--setopt=persistdir={context.cache_dir / 'lib' / dnf_subdir(context)}",
+        f"--setopt=cachedir=/var/cache/{dnf_subdir(context)}",
+        f"--setopt=persistdir=/var/lib/{dnf_subdir(context)}",
         f"--setopt=install_weak_deps={int(context.config.with_recommends)}",
         "--setopt=check_config_file_age=0",
         "--disable-plugin=*" if dnf.endswith("dnf5") else "--disableplugin=*",
@@ -133,14 +134,7 @@ def invoke_dnf(context: Context, command: str, packages: Iterable[str], apivfs: 
                     network=True,
                     options=[
                         "--bind", context.root, context.root,
-                        "--bind",
-                        context.cache_dir / "cache" / dnf_subdir(context),
-                        context.cache_dir / "cache" / dnf_subdir(context),
-                        "--bind",
-                        context.cache_dir / "lib" / dnf_subdir(context),
-                        context.cache_dir / "lib" / dnf_subdir(context),
-                        *(["--ro-bind", m, m] if (m := context.config.local_mirror) else []),
-                        *finalize_crypto_mounts(tools=context.config.tools()),
+                        *finalize_package_manager_mounts(context),
                         *sources,
                         "--chdir", "/work/src",
                     ],
@@ -156,3 +150,23 @@ def invoke_dnf(context: Context, command: str, packages: Iterable[str], apivfs: 
     for p in (context.root / "var/log").iterdir():
         if any(p.name.startswith(prefix) for prefix in ("dnf", "hawkey", "yum")):
             p.unlink()
+
+
+def createrepo_dnf(context: Context) -> None:
+    run(["createrepo_c", context.packages],
+        sandbox=context.sandbox(options=["--bind", context.packages, context.packages]))
+
+    (context.pkgmngr / "etc/yum.repos.d").mkdir(parents=True, exist_ok=True)
+    (context.pkgmngr / "etc/yum.repos.d/mkosi-packages.repo").write_text(
+        textwrap.dedent(
+            """\
+            [mkosi-packages]
+            name=mkosi-packages
+            gpgcheck=0
+            enabled=1
+            baseurl=file:///work/packages
+            metadata_expire=0
+            priority=50
+            """
+        )
+    )

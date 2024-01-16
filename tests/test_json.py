@@ -180,6 +180,7 @@ def test_config() -> None:
             "Output": "outfile",
             "OutputDirectory": "/your/output/here",
             "Overlay": true,
+            "PackageDirectories": [],
             "PackageManagerTrees": [
                 {
                     "source": "/foo/bar",
@@ -351,6 +352,7 @@ def test_config() -> None:
         output_dir = Path("/your/output/here"),
         output_format = OutputFormat.uki,
         overlay = True,
+        package_directories = [],
         package_manager_trees = [ConfigTree(Path("/foo/bar"), None)],
         packages = [],
         passphrase = None,

@@ -67,6 +67,10 @@ class DistributionInstaller:
     def grub_prefix(cls) -> str:
         return "grub"
 
+    @classmethod
+    def createrepo(cls, context: "Context") -> None:
+        raise NotImplementedError
+
 
 class Distribution(StrEnum):
     # Please consult docs/distribution-policy.md and contact one
@@ -142,6 +146,9 @@ class Distribution(StrEnum):
 
     def grub_prefix(self) -> str:
         return self.installer().grub_prefix()
+
+    def createrepo(self, context: "Context") -> None:
+        return self.installer().createrepo(context)
 
     def installer(self) -> type[DistributionInstaller]:
         modname = str(self).replace('-', '_')

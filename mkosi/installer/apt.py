@@ -3,9 +3,10 @@ import textwrap
 from collections.abc import Sequence
 
 from mkosi.context import Context
+from mkosi.installer import finalize_package_manager_mounts
 from mkosi.mounts import finalize_ephemeral_source_mounts
 from mkosi.run import find_binary, run
-from mkosi.sandbox import apivfs_cmd, finalize_crypto_mounts
+from mkosi.sandbox import apivfs_cmd
 from mkosi.types import PathString
 from mkosi.util import sort_packages, umask
 
@@ -64,8 +65,8 @@ def apt_cmd(context: Context, command: str) -> list[PathString]:
         "-o", "APT::Get::Allow-Change-Held-Packages=true",
         "-o", "APT::Get::Allow-Remove-Essential=true",
         "-o", "APT::Sandbox::User=root",
-        "-o", f"Dir::Cache={context.cache_dir / 'cache/apt'}",
-        "-o", f"Dir::State={context.cache_dir / 'lib/apt'}",
+        "-o", "Dir::Cache=/var/cache/apt",
+        "-o", "Dir::State=/var/lib/apt",
         "-o", f"Dir::State::Status={context.root / 'var/lib/dpkg/status'}",
         "-o", f"Dir::Log={context.workspace}",
         "-o", f"Dir::Bin::DPkg={find_binary('dpkg', root=context.config.tools())}",
@@ -109,11 +110,7 @@ def invoke_apt(
                     network=True,
                     options=[
                         "--bind", context.root, context.root,
-                        "--bind", context.cache_dir / "lib/apt", context.cache_dir / "lib/apt",
-                        "--bind", context.cache_dir / "cache/apt", context.cache_dir / "cache/apt",
-                        "--ro-bind", context.workspace / "apt.conf", context.workspace / "apt.conf",
-                        *(["--ro-bind", m, m] if (m := context.config.local_mirror) else []),
-                        *finalize_crypto_mounts(tools=context.config.tools()),
+                        *finalize_package_manager_mounts(context),
                         *sources,
                         *mounts,
                         "--chdir", "/work/src",
@@ -122,3 +119,21 @@ def invoke_apt(
             ),
             env=context.config.environment,
         )
+
+
+def createrepo_apt(context: Context) -> None:
+    with (context.packages / "Packages").open("w") as f:
+        run(["dpkg-scanpackages", context.packages],
+            stdout=f, sandbox=context.sandbox(options=["--ro-bind", context.packages, context.packages]))
+
+    (context.pkgmngr / "etc/apt/sources.list.d").mkdir(parents=True, exist_ok=True)
+    (context.pkgmngr / "etc/apt/sources.list.d/mkosi-packages.sources").write_text(
+        f"""\
+        Enabled: yes
+        Types: deb
+        URIs: file:///work/packages
+        Suites: {context.config.release}
+        Components: main
+        Trusted: yes
+        """
+    )

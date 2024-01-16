@@ -9,7 +9,7 @@ from mkosi.archive import extract_tar
 from mkosi.config import Architecture
 from mkosi.context import Context
 from mkosi.distributions import Distribution, DistributionInstaller, PackageType
-from mkosi.installer.apt import invoke_apt, setup_apt
+from mkosi.installer.apt import createrepo_apt, invoke_apt, setup_apt
 from mkosi.log import die
 from mkosi.run import run
 from mkosi.util import umask
@@ -78,6 +78,10 @@ class Installer(DistributionInstaller):
         setup_apt(context, cls.repositories(context))
 
     @classmethod
+    def createrepo(cls, context: "Context") -> None:
+        return createrepo_apt(context)
+
+    @classmethod
     def install(cls, context: Context) -> None:
         # Instead of using debootstrap, we replicate its core functionality here. Because dpkg does not have
         # an option to delay running pre-install maintainer scripts when it installs a package, it's
@@ -136,7 +140,12 @@ class Installer(DistributionInstaller):
         # then extracting the tar file into the chroot.
 
         for deb in essential:
-            with open(deb, "rb") as i, tempfile.NamedTemporaryFile() as o:
+            with (
+                # The deb paths will be in the form of "/var/cache/apt/<deb>" so we transform them to the corresponding
+                # path in mkosi's package cache directory.
+                open(context.cache_dir / Path(deb).relative_to("/var"), "rb") as i,
+                tempfile.NamedTemporaryFile() as o
+            ):
                 run(["dpkg-deb", "--fsys-tarfile", "/dev/stdin"], stdin=i, stdout=o, sandbox=context.sandbox())
                 extract_tar(context, Path(o.name), context.root, log=False)
 
