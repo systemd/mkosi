@@ -2,6 +2,9 @@
 
 ## v20.2
 
+- Fixed a bug in signing unsigned shim EFI binaries.
+- We now build an early microcode initrd in the mkosi kernel-install
+  plugin.
 - Added `PackageDirectories=` to allow providing extra packages to be
   made available during the build.
 - Fixed issue where `KernelModulesIncludeHost` was including unnecessary
