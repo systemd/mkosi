@@ -8,6 +8,6 @@ rpmbuild \
     $([ "$WITH_TESTS" = "0" ] && echo --nocheck) \
     --define "_topdir $PWD" \
     --define "_sourcedir rpm" \
-    --define "_rpmdir $OUTPUTDIR" \
+    --define "_rpmdir $PACKAGEDIR" \
     --define "_build_name_fmt %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm" \
     rpm/mkosi.spec
