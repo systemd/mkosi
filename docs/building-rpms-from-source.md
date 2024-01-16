@@ -119,10 +119,13 @@ dependencies installed to be able to build the RPM.
 Next is the build script. We suffix the build script with `.chroot` so
 that mkosi runs it entirely inside the image. In the build script, we
 invoke `rpmbuild -bb --build-in-place` to have `rpmbuild` build the RPM
-in place from the upstream sources. Again, `_sourcedir` has to point to
-the RPM spec sources. We also have to override `_rpmdir` to point to the
-mkosi output directory (stored in `$OUTPUTDIR`). The build script
-`mkosi.build.chroot` then looks as follows:
+in place from the upstream sources. Because `--build-in-place`
+configures `_builddir` to the current working directory, we change
+directory to the upstream sources before invoking `rpmbuild`. Again,
+`_sourcedir` has to point to the RPM spec sources. We also have to
+override `_rpmdir` to point to the mkosi output directory (stored in
+`$OUTPUTDIR`). The build script `mkosi.build.chroot` then looks as
+follows:
 
 ```shell
 #!/bin/sh
