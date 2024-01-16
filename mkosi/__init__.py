@@ -109,7 +109,11 @@ def mount_base_trees(context: Context) -> Iterator[None]:
             if path.is_dir():
                 bases += [path]
             elif path.suffix == ".tar":
-                extract_tar(context, path, d)
+                extract_tar(
+                    path, d,
+                    tools=context.config.tools(),
+                    sandbox=context.sandbox(options=["--bind", d, d]),
+                )
                 bases += [d]
             elif path.suffix == ".raw":
                 run(["systemd-dissect", "-M", path, d])
@@ -1344,7 +1348,12 @@ def install_tree(
     if src.is_dir() or (src.is_file() and target):
         copy()
     elif src.suffix == ".tar":
-        extract_tar(context, src, t)
+        extract_tar(
+            src, t,
+            tools=context.config.tools(),
+            # Make sure tar uses user/group information from the root directory instead of the host.
+            sandbox=context.sandbox(options=["--bind", dst, dst, *finalize_passwd_mounts(dst)]),
+        )
     elif src.suffix == ".raw":
         run(
             ["systemd-dissect", "--copy-from", src, "/", t],
@@ -1558,7 +1567,11 @@ def build_microcode_initrd(context: Context) -> Optional[Path]:
             for p in intel.iterdir():
                 f.write(p.read_bytes())
 
-    make_cpio(context, root, microcode)
+    make_cpio(
+        root, microcode,
+        tools=context.config.tools(),
+        sandbox=context.sandbox(options=["--ro-bind", root, root]),
+    )
 
     return microcode
 
@@ -1569,14 +1582,16 @@ def build_kernel_modules_initrd(context: Context, kver: str) -> Path:
         return kmods
 
     make_cpio(
-        context, context.root, kmods,
-        gen_required_kernel_modules(
+        context.root, kmods,
+        files=gen_required_kernel_modules(
             context.root, kver,
             include=context.config.kernel_modules_initrd_include,
             exclude=context.config.kernel_modules_initrd_exclude,
             host=context.config.kernel_modules_initrd_include_host,
             sandbox=context.sandbox(options=["--ro-bind", context.root, context.root]),
-        )
+        ),
+        tools=context.config.tools(),
+        sandbox=context.sandbox(options=["--ro-bind", context.root, context.root]),
     )
 
     # Debian/Ubuntu do not compress their kernel modules, so we compress the initramfs instead. Note that
@@ -1863,7 +1878,14 @@ def install_uki(context: Context, partitions: Sequence[Partition]) -> None:
 
 def make_uki(context: Context, stub: Path, kver: str, kimg: Path, output: Path) -> None:
     microcode = build_microcode_initrd(context)
-    make_cpio(context, context.root, context.workspace / "initrd")
+    make_cpio(
+        context.root, context.workspace / "initrd",
+        tools=context.config.tools(),
+        sandbox=context.sandbox(
+            # Make sure cpio uses user/group information from the root directory instead of the host.
+            options=["--ro-bind", context.root, context.root, *finalize_passwd_mounts(context.root)],
+        ),
+    )
     maybe_compress(context, context.config.compress_output, context.workspace / "initrd", context.workspace / "initrd")
 
     initrds = [microcode] if microcode else []
@@ -2901,9 +2923,23 @@ def build_image(args: Args, config: Config) -> None:
         copy_initrd(context)
 
         if context.config.output_format == OutputFormat.tar:
-            make_tar(context, context.root, context.staging / context.config.output_with_format)
+            make_tar(
+                context.root, context.staging / context.config.output_with_format,
+                tools=context.config.tools(),
+                # Make sure tar uses user/group information from the root directory instead of the host.
+                sandbox=context.sandbox(
+                    options=["--ro-bind", context.root, context.root, *finalize_passwd_mounts(context.root)],
+                ),
+            )
         elif context.config.output_format == OutputFormat.cpio:
-            make_cpio(context, context.root, context.staging / context.config.output_with_format)
+            make_cpio(
+                context.root, context.staging / context.config.output_with_format,
+                tools=context.config.tools(),
+                # Make sure cpio uses user/group information from the root directory instead of the host.
+                sandbox=context.sandbox(
+                    options=["--ro-bind", context.root, context.root, *finalize_passwd_mounts(context.root)],
+                ),
+            )
         elif context.config.output_format == OutputFormat.uki:
             assert stub and kver and kimg
             make_uki(context, stub, kver, kimg, context.staging / context.config.output_with_format)

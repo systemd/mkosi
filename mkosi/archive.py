@@ -1,17 +1,16 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import os
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Optional
 
-from mkosi.context import Context
 from mkosi.log import log_step
 from mkosi.run import find_binary, run
-from mkosi.sandbox import finalize_passwd_mounts
+from mkosi.types import PathString
 
 
-def tar_binary(context: Context) -> str:
+def tar_binary(*, tools: Path = Path("/")) -> str:
     # Some distros (Mandriva) install BSD tar as "tar", hence prefer
     # "gtar" if it exists, which should be GNU tar wherever it exists.
     # We are interested in exposing same behaviour everywhere hence
@@ -19,11 +18,11 @@ def tar_binary(context: Context) -> str:
     # everywhere. In particular given the limited/different SELinux
     # support in BSD tar and the different command line syntax
     # compared to GNU tar.
-    return "gtar" if find_binary("gtar", root=context.config.tools()) else "tar"
+    return "gtar" if find_binary("gtar", root=tools) else "tar"
 
 
-def cpio_binary(context: Context) -> str:
-    return "gcpio" if find_binary("gcpio", root=context.config.tools()) else "cpio"
+def cpio_binary(*, tools: Path = Path("/")) -> str:
+    return "gcpio" if find_binary("gcpio", root=tools) else "cpio"
 
 
 def tar_exclude_apivfs_tmp() -> list[str]:
@@ -37,13 +36,13 @@ def tar_exclude_apivfs_tmp() -> list[str]:
     ]
 
 
-def make_tar(context: Context, src: Path, dst: Path) -> None:
+def make_tar(src: Path, dst: Path, *, tools: Path = Path("/"), sandbox: Sequence[PathString] = ()) -> None:
     log_step(f"Creating tar archive {dst}…")
 
     with dst.open("wb") as f:
         run(
             [
-                tar_binary(context),
+                tar_binary(tools=tools),
                 "--create",
                 "--file", "-",
                 "--directory", src,
@@ -60,19 +59,25 @@ def make_tar(context: Context, src: Path, dst: Path) -> None:
                 ".",
             ],
             stdout=f,
-            # Make sure tar uses user/group information from the root directory instead of the host.
-            sandbox=context.sandbox(options=["--ro-bind", src, src, *finalize_passwd_mounts(src)]),
+            sandbox=sandbox,
         )
 
 
-def extract_tar(context: Context, src: Path, dst: Path, log: bool = True) -> None:
+def extract_tar(
+    src: Path,
+    dst: Path,
+    *,
+    log: bool = True,
+    tools: Path = Path("/"),
+    sandbox: Sequence[PathString] = (),
+) -> None:
     if log:
         log_step(f"Extracting tar archive {src}…")
 
     with src.open("rb") as f:
         run(
             [
-                tar_binary(context),
+                tar_binary(tools=tools),
                 "--extract",
                 "--file", "-",
                 "--directory", dst,
@@ -88,12 +93,18 @@ def extract_tar(context: Context, src: Path, dst: Path, log: bool = True) -> Non
                 *tar_exclude_apivfs_tmp(),
             ],
             stdin=f,
-            # Make sure tar uses user/group information from the root directory instead of the host.
-            sandbox=context.sandbox(options=["--bind", dst, dst, *finalize_passwd_mounts(dst)]),
+            sandbox=sandbox,
         )
 
 
-def make_cpio(context: Context, src: Path, dst: Path, files: Optional[Iterable[Path]] = None) -> None:
+def make_cpio(
+    src: Path,
+    dst: Path,
+    *,
+    files: Optional[Iterable[Path]] = None,
+    tools: Path = Path("/"),
+    sandbox: Sequence[PathString] = (),
+) -> None:
     if not files:
         files = src.rglob("*")
     files = sorted(files)
@@ -103,7 +114,7 @@ def make_cpio(context: Context, src: Path, dst: Path, files: Optional[Iterable[P
     with dst.open("wb") as f:
         run(
             [
-                cpio_binary(context),
+                cpio_binary(tools=tools),
                 "--create",
                 "--reproducible",
                 "--null",
@@ -114,5 +125,5 @@ def make_cpio(context: Context, src: Path, dst: Path, files: Optional[Iterable[P
             input="\0".join(os.fspath(f.relative_to(src)) for f in files),
             stdout=f,
             # Make sure cpio uses user/group information from the root directory instead of the host.
-            sandbox=context.sandbox(options=["--ro-bind", src, src, *finalize_passwd_mounts(dst)]),
+            sandbox=sandbox,
         )

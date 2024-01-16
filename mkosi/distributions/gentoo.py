@@ -132,7 +132,11 @@ class Installer(DistributionInstaller):
 
         if not any(stage3.iterdir()):
             with complete_step(f"Extracting {stage3_tar.name} to {stage3}"):
-                extract_tar(context, stage3_tar, stage3)
+                extract_tar(
+                    stage3_tar, stage3,
+                    tools=context.config.tools(),
+                    sandbox=context.sandbox(options=["--bind", context.root, context.root]),
+                )
 
         for d in ("binpkgs", "distfiles", "repos/gentoo"):
             (context.cache_dir / d).mkdir(parents=True, exist_ok=True)

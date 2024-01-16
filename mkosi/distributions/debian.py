@@ -12,6 +12,7 @@ from mkosi.distributions import Distribution, DistributionInstaller, PackageType
 from mkosi.installer.apt import createrepo_apt, invoke_apt, setup_apt
 from mkosi.log import die
 from mkosi.run import run
+from mkosi.sandbox import finalize_passwd_mounts
 from mkosi.util import umask
 
 
@@ -147,7 +148,15 @@ class Installer(DistributionInstaller):
                 tempfile.NamedTemporaryFile() as o
             ):
                 run(["dpkg-deb", "--fsys-tarfile", "/dev/stdin"], stdin=i, stdout=o, sandbox=context.sandbox())
-                extract_tar(context, Path(o.name), context.root, log=False)
+                extract_tar(
+                    Path(o.name), context.root,
+                    log=False,
+                    tools=context.config.tools(),
+                    # Make sure tar uses user/group information from the root directory instead of the host.
+                    sandbox=context.sandbox(
+                        options=["--bind", context.root, context.root, *finalize_passwd_mounts(context.root)],
+                    ),
+                )
 
         # Finally, run apt to properly install packages in the chroot without having to worry that maintainer
         # scripts won't find basic tools that they depend on.
