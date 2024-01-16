@@ -1,5 +1,26 @@
 # mkosi Changelog
 
+## v20.2
+
+- Added `PackageDirectories=` to allow providing extra packages to be
+  made available during the build.
+- Fixed issue where `KernelModulesIncludeHost` was including unnecessary
+  modules
+- Fixed `--mirror` specification for CentOS (and variants) and Fedora.
+  Previously a subdirectory within the mirror had to be specified which
+  prevented using CentOS and EPEL repositories from the same mirror. Now
+  only the URL has be specified.
+- We now mount package manager cache directories when running scripts on
+  the host so that any packages installed in scripts are properly
+  cached.
+- We don't download filelists on Fedora anymore
+- Nested build sources don't cause errors anymore when trying to install
+  packages.
+- We don't try to build the same tools tree more than once anymore when
+  building multiple images.
+- We now create the `/etc/mtab` compatibility symlink in mkosi's
+  sandbox.
+
 ## v20.1
 
 - `BuildSources=` are now mounted when we install packages so local
