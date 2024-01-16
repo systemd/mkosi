@@ -39,64 +39,58 @@ def tar_exclude_apivfs_tmp() -> list[str]:
 
 def make_tar(context: Context, src: Path, dst: Path) -> None:
     log_step(f"Creating tar archive {dst}…")
-    run(
-        [
-            tar_binary(context),
-            "--create",
-            "--file", dst,
-            "--directory", src,
-            "--acls",
-            "--selinux",
-            # --xattrs implies --format=pax
-            "--xattrs",
-            # PAX format emits additional headers for atime, ctime and mtime
-            # that would make the archive non-reproducible.
-            "--pax-option=delete=atime,delete=ctime,delete=mtime",
-            "--sparse",
-            "--force-local",
-            *tar_exclude_apivfs_tmp(),
-            ".",
-        ],
-        # Make sure tar uses user/group information from the root directory instead of the host.
-        sandbox=context.sandbox(
-            options=[
-                "--bind", dst.parent, dst.parent,
-                "--ro-bind", src, src,
-                *(finalize_passwd_mounts(src) if (src / "etc/passwd").exists() else []),
+
+    with dst.open("wb") as f:
+        run(
+            [
+                tar_binary(context),
+                "--create",
+                "--file", "-",
+                "--directory", src,
+                "--acls",
+                "--selinux",
+                # --xattrs implies --format=pax
+                "--xattrs",
+                # PAX format emits additional headers for atime, ctime and mtime
+                # that would make the archive non-reproducible.
+                "--pax-option=delete=atime,delete=ctime,delete=mtime",
+                "--sparse",
+                "--force-local",
+                *tar_exclude_apivfs_tmp(),
+                ".",
             ],
-        ),
-    )
+            stdout=f,
+            # Make sure tar uses user/group information from the root directory instead of the host.
+            sandbox=context.sandbox(options=["--ro-bind", src, src, *finalize_passwd_mounts(src)]),
+        )
 
 
 def extract_tar(context: Context, src: Path, dst: Path, log: bool = True) -> None:
     if log:
         log_step(f"Extracting tar archive {src}…")
-    run(
-        [
-            tar_binary(context),
-            "--extract",
-            "--file", src,
-            "--directory", dst,
-            "--keep-directory-symlink",
-            "--no-overwrite-dir",
-            "--same-permissions",
-            "--same-owner" if (dst / "etc/passwd").exists() else "--numeric-owner",
-            "--same-order",
-            "--acls",
-            "--selinux",
-            "--xattrs",
-            "--force-local",
-            *tar_exclude_apivfs_tmp(),
-        ],
-        # Make sure tar uses user/group information from the root directory instead of the host.
-        sandbox=context.sandbox(
-            options=[
-                "--bind", dst, dst,
-                "--ro-bind", src, src,
-                *(finalize_passwd_mounts(dst) if (dst / "etc/passwd").exists() else []),
+
+    with src.open("rb") as f:
+        run(
+            [
+                tar_binary(context),
+                "--extract",
+                "--file", "-",
+                "--directory", dst,
+                "--keep-directory-symlink",
+                "--no-overwrite-dir",
+                "--same-permissions",
+                "--same-owner" if (dst / "etc/passwd").exists() else "--numeric-owner",
+                "--same-order",
+                "--acls",
+                "--selinux",
+                "--xattrs",
+                "--force-local",
+                *tar_exclude_apivfs_tmp(),
             ],
-        ),
-    )
+            stdin=f,
+            # Make sure tar uses user/group information from the root directory instead of the host.
+            sandbox=context.sandbox(options=["--bind", dst, dst, *finalize_passwd_mounts(dst)]),
+        )
 
 
 def make_cpio(context: Context, src: Path, dst: Path, files: Optional[Iterable[Path]] = None) -> None:
@@ -105,24 +99,20 @@ def make_cpio(context: Context, src: Path, dst: Path, files: Optional[Iterable[P
     files = sorted(files)
 
     log_step(f"Creating cpio archive {dst}…")
-    run(
-        [
-            cpio_binary(context),
-            "--create",
-            "--reproducible",
-            "--null",
-            "--format=newc",
-            "--quiet",
-            "--directory", src,
-            "-O", dst,
-        ],
-        input="\0".join(os.fspath(f.relative_to(src)) for f in files),
-        # Make sure cpio uses user/group information from the root directory instead of the host.
-        sandbox=context.sandbox(
-            options=[
-                "--bind", dst.parent, dst.parent,
-                "--ro-bind", src, src,
-                *finalize_passwd_mounts(dst),
+
+    with dst.open("wb") as f:
+        run(
+            [
+                cpio_binary(context),
+                "--create",
+                "--reproducible",
+                "--null",
+                "--format=newc",
+                "--quiet",
+                "--directory", src,
             ],
-        ),
-    )
+            input="\0".join(os.fspath(f.relative_to(src)) for f in files),
+            stdout=f,
+            # Make sure cpio uses user/group information from the root directory instead of the host.
+            sandbox=context.sandbox(options=["--ro-bind", src, src, *finalize_passwd_mounts(dst)]),
+        )
