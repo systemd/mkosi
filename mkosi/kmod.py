@@ -13,7 +13,7 @@ from mkosi.types import PathString
 
 
 def loaded_modules() -> list[str]:
-    return [line.split()[0] for line in Path("/proc/modules").read_text().splitlines()]
+    return [f"{line.split()[0]}\\.ko" for line in Path("/proc/modules").read_text().splitlines()]
 
 
 def filter_kernel_modules(
