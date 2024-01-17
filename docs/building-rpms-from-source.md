@@ -65,7 +65,7 @@ mkosi-chroot \
     rpmspec \
     --query \
     "$DEPS" \
-    --define "_topdir mkosi" \
+    --define "_topdir /var/tmp" \
     --define "_sourcedir mkosi/rpm" \
     mkosi/rpm/mkosi.spec |
         grep -E -v "mkosi" |
@@ -77,7 +77,7 @@ if [ "$1" = "build" ]; then
         rpmbuild \
         -bd \
         --build-in-place \
-        --define "_topdir ." \
+        --define "_topdir /var/tmp" \
         --define "_sourcedir rpm" \
         --define "_build_name_fmt %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm" \
         rpm/mkosi.spec
@@ -94,12 +94,13 @@ fi
 ```
 
 To install non-dynamic dependencies, we use `rpmspec`. What's important
-is to set `_topdir` to the directory containing the upstream sources of
-the project that we want to build and to set `_sourcedir` to the
-directory containing the RPM spec for the project that we want to build.
-We run `rpmspec` inside the image to make sure all the RPM macros have
-their expected values and then run `dnf` outside the image to install
-the required dependencies.
+is to set `_sourcedir` to the directory containing the RPM sources for
+the RPM spec that we want to build. We run `rpmspec` inside the image to
+make sure all the RPM macros have their expected values and then run
+`dnf` outside the image to install the required dependencies.
+
+We always set `_topdir` to `/var/tmp` to avoid polluting the image with
+`rpmbuild` artifacts.
 
 Subpackages from the same RPM might depend on each other. We need to
 filter out those dependencies using `grep -E -v <package-name>`.
@@ -118,11 +119,13 @@ dependencies installed to be able to build the RPM.
 Next is the build script. We suffix the build script with `.chroot` so
 that mkosi runs it entirely inside the image. In the build script, we
 invoke `rpmbuild -bb --build-in-place` to have `rpmbuild` build the RPM
-in place from the upstream sources. Again `_topdir` and `_sourcedir`
-have to be configured to the upstream sources and the RPM spec sources
-respectively. We also have to override `_rpmdir` to point to the mkosi
-output directory (stored in `$OUTPUTDIR`). The build script
-`mkosi.build.chroot` then looks as follows:
+in place from the upstream sources. Because `--build-in-place`
+configures `_builddir` to the current working directory, we change
+directory to the upstream sources before invoking `rpmbuild`. Again,
+`_sourcedir` has to point to the RPM spec sources. We also have to
+override `_rpmdir` to point to the mkosi output directory (stored in
+`$OUTPUTDIR`). The build script `mkosi.build.chroot` then looks as
+follows:
 
 ```shell
 #!/bin/sh
@@ -133,7 +136,7 @@ env --chdir=mkosi \
     -bb \
     --build-in-place \
     $([ "$WITH_TESTS" = "0" ] && echo --nocheck) \
-    --define "_topdir $PWD" \
+    --define "_topdir /var/tmp" \
     --define "_sourcedir rpm" \
     --define "_rpmdir $OUTPUTDIR" \
     ${BUILDDIR:+--define} \

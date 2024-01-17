@@ -6,7 +6,7 @@ rpmbuild \
     -bb \
     --build-in-place \
     $([ "$WITH_TESTS" = "0" ] && echo --nocheck) \
-    --define "_topdir $PWD" \
+    --define "_topdir /var/tmp" \
     --define "_sourcedir rpm" \
     --define "_rpmdir $PACKAGEDIR" \
     --define "_build_name_fmt %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm" \
