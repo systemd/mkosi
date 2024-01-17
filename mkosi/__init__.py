@@ -2389,6 +2389,7 @@ def run_firstboot(context: Context) -> None:
 
     password, hashed = context.config.root_password or (None, False)
     pwopt = "--root-password-hashed" if hashed else "--root-password"
+    pwcred = "passwd.hashed-password.root" if hashed else "passwd.plaintext-password.root"
 
     settings = (
         ("--locale",          "firstboot.locale",          context.config.locale),
@@ -2396,7 +2397,7 @@ def run_firstboot(context: Context) -> None:
         ("--keymap",          "firstboot.keymap",          context.config.keymap),
         ("--timezone",        "firstboot.timezone",        context.config.timezone),
         ("--hostname",        None,                        context.config.hostname),
-        (pwopt,               None,                        password),
+        (pwopt,               pwcred,                      password),
         ("--root-shell",      "passwd.shell.root",         context.config.root_shell),
     )
 
@@ -2427,7 +2428,7 @@ def run_firstboot(context: Context) -> None:
                 (context.root / "usr/lib/credstore").mkdir(exist_ok=True)
 
             for cred, value in creds:
-                with umask(~0o644):
+                with umask(~0o600 if "password" in cred else ~0o644):
                     (context.root / "usr/lib/credstore" / cred).write_text(value)
 
 
