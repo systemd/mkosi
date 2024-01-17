@@ -106,6 +106,8 @@ tests locally as well.
 * [The mkosi OS generation tool](https://lwn.net/Articles/726655/) story on LWN (2017)
 * [systemd-repart: Building Discoverable Disk Images](https://media.ccc.de/v/all-systems-go-2023-191-systemd-repart-building-discoverable-disk-images) and [mkosi: Building Bespoke Operating System Images](https://media.ccc.de/v/all-systems-go-2023-190-mkosi-building-bespoke-operating-system-images) talks at All Systems Go! 2023
 * [Building RHEL and RHEL UBI images with mkosi](https://fedoramagazine.org/create-images-directly-from-rhel-and-rhel-ubi-package-using-mkosi/) an article in Fedora Magazine (2023)
+* [Building USIs with mkosi](https://overhead.neocities.org/blog/build-usi-mkosi/)
+* [Constellation 💖 mkosi — Minimal TCB, tailor-made for measured boot](https://www.edgeless.systems/blog/constellation-mkosi-minimal-tcb-tailor-made-for-measured-boot/)
 
 ## Community
 
