@@ -671,6 +671,48 @@ def config_match_version(match: str, value: str) -> bool:
     return True
 
 
+def config_make_dict_parser(delimiter: str,
+                            *,
+                            parse: Callable[[str], tuple[str, Any]],
+                            unescape: bool = False,
+                            reset: bool = True) -> ConfigParseCallback:
+    def config_parse_dict(value: Optional[str], old: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
+        new = old.copy() if old else {}
+
+        if value is None:
+            return {}
+
+        if unescape:
+            lex = shlex.shlex(value, posix=True)
+            lex.whitespace_split = True
+            lex.whitespace = f"\n{delimiter}"
+            lex.commenters = ""
+            values = list(lex)
+        else:
+            values = value.replace(delimiter, "\n").split("\n")
+
+        # Empty strings reset the dict.
+        if reset and len(values) == 1 and values[0] == "":
+            return {}
+
+        return new | dict(parse(v) for v in values if v)
+
+    return config_parse_dict
+
+
+def parse_environment(value: str) -> tuple[str, str]:
+    key, sep, value = value.partition("=")
+    key, value = key.strip(), value.strip()
+    value = value if sep else os.getenv(key, "")
+    return (key, value)
+
+
+def parse_credential(value: str) -> tuple[str, str]:
+    key, _, value = value.partition("=")
+    key, value = key.strip(), value.strip()
+    return (key, value)
+
+
 def make_path_parser(*,
                      required: bool = True,
                      resolve: bool = True,
@@ -1897,7 +1939,7 @@ SETTINGS = (
         short="-E",
         metavar="NAME[=VALUE]",
         section="Content",
-        parse=config_make_list_parser(delimiter=" ", unescape=True),
+        parse=config_make_dict_parser(delimiter=" ", parse=parse_environment, unescape=True),
         help="Set an environment variable when running scripts",
     ),
     ConfigSetting(
@@ -2261,7 +2303,7 @@ SETTINGS = (
         long="--credential",
         metavar="NAME=VALUE",
         section="Host",
-        parse=config_make_list_parser(delimiter=" "),
+        parse=config_make_dict_parser(delimiter=" ", parse=parse_credential, unescape=True),
         help="Pass a systemd credential to systemd-nspawn or qemu",
     ),
     ConfigSetting(
@@ -3069,9 +3111,7 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
             else:
                 creds[e.name] = e.read_text()
 
-    for s in args.credentials:
-        key, _, value = s.partition("=")
-        creds[key] = value
+    creds |= args.credentials
 
     if "firstboot.timezone" not in creds and find_binary("timedatectl"):
         tz = run(
@@ -3163,12 +3203,8 @@ def load_environment(args: argparse.Namespace) -> dict[str, str]:
     if dnf := os.getenv("MKOSI_DNF"):
         env["MKOSI_DNF"] = dnf
 
-    entries = [line for envfile in args.environment_files for line in envfile.read_text().strip().splitlines()]
-    for s in entries + args.environment:
-        key, sep, value = s.partition("=")
-        key, value = key.strip(), value.strip()
-        value = value if sep else os.getenv(key, "")
-        env[key] = value
+    env |= dict(parse_environment(line) for f in args.environment_files for line in f.read_text().strip().splitlines())
+    env |= args.environment
 
     return env
 
