@@ -87,8 +87,7 @@ if [ "$1" = "build" ]; then
             exit $EXIT_STATUS
         fi
 
-        dnf builddep mkosi/SRPMS/mkosi-*.buildreqs.nosrc.rpm
-        rm mkosi/SRPMS/mkosi-*.buildreqs.nosrc.rpm
+        dnf builddep /var/tmp/SRPMS/mkosi-*.buildreqs.nosrc.rpm
     done
 fi
 ```
