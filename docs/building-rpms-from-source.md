@@ -68,7 +68,7 @@ mkosi-chroot \
     --define "_topdir /var/tmp" \
     --define "_sourcedir mkosi/rpm" \
     mkosi/rpm/mkosi.spec |
-        grep -E -v "mkosi" |
+        grep -E -v mkosi |
         xargs -d '\n' dnf install --best
 
 if [ "$1" = "build" ]; then
