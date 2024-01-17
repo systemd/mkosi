@@ -67,9 +67,9 @@ class Installer(DistributionInstaller):
                     RpmRepository(repo.lower(), f"{url}/$basearch/debug/tree", gpgurls, enabled=False),
                     RpmRepository(repo.lower(), f"{url}/source/tree", gpgurls, enabled=False),
                 ]
-        elif context.config.mirror:
+        elif (m := context.config.mirror):
             directory = "development" if context.config.release == "rawhide" else "releases"
-            url = f"baseurl={join_mirror(context.config.mirror, f'fedora/{directory}/$releasever/Everything')}"
+            url = f"baseurl={join_mirror(m, f'fedora/linux/{directory}/$releasever/Everything')}"
             repos += [
                 RpmRepository("fedora", f"{url}/$basearch/os", gpgurls),
                 RpmRepository("fedora-debuginfo", f"{url}/$basearch/debug/tree", gpgurls, enabled=False),
@@ -77,14 +77,14 @@ class Installer(DistributionInstaller):
             ]
 
             if context.config.release != "rawhide":
-                url = f"baseurl={join_mirror(context.config.mirror, 'updates/$releasever/Everything')}"
+                url = f"baseurl={join_mirror(m, 'fedora/linux/updates/$releasever/Everything')}"
                 repos += [
                     RpmRepository("updates", f"{url}/$basearch", gpgurls),
                     RpmRepository("updates-debuginfo", f"{url}/$basearch/debug", gpgurls, enabled=False),
                     RpmRepository("updates-source", f"{url}/source/tree", gpgurls, enabled=False),
                 ]
 
-                url = f"baseurl={join_mirror(context.config.mirror, 'updates/testing/$releasever/Everything')}"
+                url = f"baseurl={join_mirror(m, 'fedora/linux/updates/testing/$releasever/Everything')}"
                 repos += [
                     RpmRepository("updates-testing", f"{url}/$basearch", gpgurls, enabled=False),
                     RpmRepository("updates-testing-debuginfo", f"{url}/$basearch/debug", gpgurls, enabled=False),
