@@ -3293,7 +3293,7 @@ def line_join_list(array: Iterable[PathString]) -> str:
         return "none"
 
     items = (str(none_to_none(cast(Path, item))) for item in array)
-    return "\n                                ".join(items)
+    return "\n                                     ".join(items)
 
 
 def format_tree(tree: ConfigTree) -> str:
@@ -3305,7 +3305,7 @@ def line_join_tree_list(array: Sequence[ConfigTree]) -> str:
         return "none"
 
     items = [format_tree(tree) for tree in array]
-    return "\n                                ".join(items)
+    return "\n                                     ".join(items)
 
 
 def format_bytes(num_bytes: int) -> str:
@@ -3433,53 +3433,53 @@ def summary(config: Config) -> str:
     ):
         summary += f"""\
 
-    {bold("VALIDATION")}:
-               UEFI SecureBoot: {yes_no(config.secure_boot)}
-    UEFI SecureBoot AutoEnroll: {yes_no(config.secure_boot_auto_enroll)}
-        SecureBoot Signing Key: {none_to_none(config.secure_boot_key)}
-        SecureBoot Certificate: {none_to_none(config.secure_boot_certificate)}
-          SecureBoot Sign Tool: {config.secure_boot_sign_tool}
-            Verity Signing Key: {none_to_none(config.verity_key)}
-            Verity Certificate: {none_to_none(config.verity_certificate)}
-            Sign Expected PCRs: {config.sign_expected_pcr}
-                    Passphrase: {none_to_none(config.passphrase)}
-                      Checksum: {yes_no(config.checksum)}
-                          Sign: {yes_no(config.sign)}
-                       GPG Key: ({"default" if config.key is None else config.key})
+         {bold("VALIDATION")}:
+                    UEFI SecureBoot: {yes_no(config.secure_boot)}
+         UEFI SecureBoot AutoEnroll: {yes_no(config.secure_boot_auto_enroll)}
+             SecureBoot Signing Key: {none_to_none(config.secure_boot_key)}
+             SecureBoot Certificate: {none_to_none(config.secure_boot_certificate)}
+               SecureBoot Sign Tool: {config.secure_boot_sign_tool}
+                 Verity Signing Key: {none_to_none(config.verity_key)}
+                 Verity Certificate: {none_to_none(config.verity_certificate)}
+                 Sign Expected PCRs: {config.sign_expected_pcr}
+                         Passphrase: {none_to_none(config.passphrase)}
+                           Checksum: {yes_no(config.checksum)}
+                               Sign: {yes_no(config.sign)}
+                            GPG Key: ({"default" if config.key is None else config.key})
 """
 
     summary += f"""\
 
     {bold("HOST CONFIGURATION")}:
-                   Incremental: {yes_no(config.incremental)}
-               NSpawn Settings: {none_to_none(config.nspawn_settings)}
-            Extra Search Paths: {line_join_list(config.extra_search_paths)}
-                     Ephemeral: {config.ephemeral}
-                   Credentials: {line_join_list(config.credentials.keys())}
-     Extra Kernel Command Line: {line_join_list(config.kernel_command_line_extra)}
-                      Use ACLs: {yes_no(config.acl)}
-                    Tools Tree: {config.tools_tree}
-       Tools Tree Distribution: {none_to_none(config.tools_tree_distribution)}
-            Tools Tree Release: {none_to_none(config.tools_tree_release)}
-             Tools Tree Mirror: {none_to_default(config.tools_tree_mirror)}
-           Tools Tree Packages: {line_join_list(config.tools_tree_packages)}
-                 Runtime Trees: {line_join_tree_list(config.runtime_trees)}
-                  Runtime Size: {format_bytes_or_none(config.runtime_size)}
-               Runtime Scratch: {config.runtime_scratch}
-               SSH Signing Key: {none_to_none(config.ssh_key)}
-               SSH Certificate: {none_to_none(config.ssh_certificate)}
+                        Incremental: {yes_no(config.incremental)}
+                    NSpawn Settings: {none_to_none(config.nspawn_settings)}
+                 Extra Search Paths: {line_join_list(config.extra_search_paths)}
+                          Ephemeral: {config.ephemeral}
+                        Credentials: {line_join_list(config.credentials.keys())}
+          Extra Kernel Command Line: {line_join_list(config.kernel_command_line_extra)}
+                           Use ACLs: {yes_no(config.acl)}
+                         Tools Tree: {config.tools_tree}
+            Tools Tree Distribution: {none_to_none(config.tools_tree_distribution)}
+                 Tools Tree Release: {none_to_none(config.tools_tree_release)}
+                  Tools Tree Mirror: {none_to_default(config.tools_tree_mirror)}
+                Tools Tree Packages: {line_join_list(config.tools_tree_packages)}
+                      Runtime Trees: {line_join_tree_list(config.runtime_trees)}
+                       Runtime Size: {format_bytes_or_none(config.runtime_size)}
+                    Runtime Scratch: {config.runtime_scratch}
+                    SSH Signing Key: {none_to_none(config.ssh_key)}
+                    SSH Certificate: {none_to_none(config.ssh_certificate)}
 
-                      QEMU GUI: {yes_no(config.qemu_gui)}
-                QEMU CPU Cores: {config.qemu_smp}
-                   QEMU Memory: {config.qemu_mem}
-                  QEMU Use KVM: {config.qemu_kvm}
-                QEMU Use VSock: {config.qemu_vsock}
-      QEMU VSock Connection ID: {QemuVsockCID.format(config.qemu_vsock_cid)}
-                QEMU Use Swtpm: {config.qemu_swtpm}
-               QEMU Use CD-ROM: {yes_no(config.qemu_cdrom)}
-                 QEMU Firmware: {config.qemu_firmware}
-       QEMU Firmware Variables: {none_to_none(config.qemu_firmware_variables)}
-          QEMU Extra Arguments: {line_join_list(config.qemu_args)}
+                           QEMU GUI: {yes_no(config.qemu_gui)}
+                     QEMU CPU Cores: {config.qemu_smp}
+                        QEMU Memory: {config.qemu_mem}
+                       QEMU Use KVM: {config.qemu_kvm}
+                     QEMU Use VSock: {config.qemu_vsock}
+           QEMU VSock Connection ID: {QemuVsockCID.format(config.qemu_vsock_cid)}
+                     QEMU Use Swtpm: {config.qemu_swtpm}
+                    QEMU Use CD-ROM: {yes_no(config.qemu_cdrom)}
+                      QEMU Firmware: {config.qemu_firmware}
+            QEMU Firmware Variables: {none_to_none(config.qemu_firmware_variables)}
+               QEMU Extra Arguments: {line_join_list(config.qemu_args)}
 """
 
     return summary
