@@ -69,7 +69,7 @@ mkosi-chroot \
     --define "_sourcedir mkosi/rpm" \
     mkosi/rpm/mkosi.spec |
         grep -E -v mkosi |
-        xargs -d '\n' dnf install --best
+        xargs -d '\n' dnf install
 
 if [ "$1" = "build" ]; then
     until mkosi-chroot \
