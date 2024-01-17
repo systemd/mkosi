@@ -68,8 +68,8 @@ mkosi-chroot \
     --define "_topdir /var/tmp" \
     --define "_sourcedir mkosi/rpm" \
     mkosi/rpm/mkosi.spec |
-        grep -E -v "mkosi" |
-        xargs -d '\n' dnf install --best
+        grep -E -v mkosi |
+        xargs -d '\n' dnf install
 
 if [ "$1" = "build" ]; then
     until mkosi-chroot \
@@ -87,8 +87,7 @@ if [ "$1" = "build" ]; then
             exit $EXIT_STATUS
         fi
 
-        dnf builddep mkosi/SRPMS/mkosi-*.buildreqs.nosrc.rpm
-        rm mkosi/SRPMS/mkosi-*.buildreqs.nosrc.rpm
+        dnf builddep /var/tmp/SRPMS/mkosi-*.buildreqs.nosrc.rpm
     done
 fi
 ```

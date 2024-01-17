@@ -2388,16 +2388,18 @@ def run_firstboot(context: Context) -> None:
         return
 
     password, hashed = context.config.root_password or (None, False)
-    pwopt = "--root-password-hashed" if hashed else "--root-password"
+    if password and not hashed:
+        password = run(["openssl", "passwd", "-stdin", "-6"],
+                       sandbox=context.sandbox(), input=password, stdout=subprocess.PIPE).stdout.strip()
 
     settings = (
-        ("--locale",          "firstboot.locale",          context.config.locale),
-        ("--locale-messages", "firstboot.locale-messages", context.config.locale_messages),
-        ("--keymap",          "firstboot.keymap",          context.config.keymap),
-        ("--timezone",        "firstboot.timezone",        context.config.timezone),
-        ("--hostname",        None,                        context.config.hostname),
-        (pwopt,               None,                        password),
-        ("--root-shell",      "passwd.shell.root",         context.config.root_shell),
+        ("--locale",               "firstboot.locale",            context.config.locale),
+        ("--locale-messages",      "firstboot.locale-messages",   context.config.locale_messages),
+        ("--keymap",               "firstboot.keymap",            context.config.keymap),
+        ("--timezone",             "firstboot.timezone",          context.config.timezone),
+        ("--hostname",             None,                          context.config.hostname),
+        ("--root-password-hashed", "passwd.hashed-password.root", password),
+        ("--root-shell",           "passwd.shell.root",           context.config.root_shell),
     )
 
     options = []
@@ -2427,7 +2429,7 @@ def run_firstboot(context: Context) -> None:
                 (context.root / "usr/lib/credstore").mkdir(exist_ok=True)
 
             for cred, value in creds:
-                with umask(~0o644):
+                with umask(~0o600 if "password" in cred else ~0o644):
                     (context.root / "usr/lib/credstore" / cred).write_text(value)
 
 
