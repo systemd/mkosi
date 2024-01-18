@@ -2289,12 +2289,16 @@ def run_depmod(context: Context, *, force: bool = False) -> None:
     )
 
     for kver, _ in gen_kernel_images(context):
+        modulesd = context.root / "usr/lib/modules" / kver
+
         if (
             not force and
             not context.config.kernel_modules_exclude and
-            all((context.root / "usr/lib/modules" / kver / o).exists() for o in outputs)
+            all((modulesd / o).exists() for o in outputs)
         ):
-            continue
+            mtime = (modulesd / "modules.dep").stat().st_mtime
+            if all(m.stat().st_mtime <= mtime for m in modulesd.rglob("*.ko*")):
+                continue
 
         process_kernel_modules(
             context.root, kver,
