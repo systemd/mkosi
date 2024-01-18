@@ -3462,7 +3462,7 @@ def run_build(args: Args, config: Config) -> None:
         run(["mount", "--make-rslave", "/"])
 
     # For extra safety when running as root, remount a bunch of stuff read-only.
-    for d in ("/usr", "/etc", "/opt", "/srv", "/boot", "/efi", "/media", "/mnt"):
+    for d in ("/usr", "/etc", "/opt", "/boot", "/efi", "/media"):
         if Path(d).exists():
             run(["mount", "--rbind", d, d, "--options", "ro"])
 
