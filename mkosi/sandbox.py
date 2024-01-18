@@ -119,9 +119,16 @@ def sandbox_cmd(
             if Path(d).exists():
                 cmdline += ["--bind", d, d]
 
-        # `Path.parents` only supports slices and negative indexing from Python 3.10 onwards.
-        # TODO: Remove list() when we depend on Python 3.10 or newer.
-        if (d := os.fspath(list(Path.cwd().parents)[-2])) not in (*dirs, "/home", "/usr", "/nix", "/tmp"):
+        if len(Path.cwd().parents) >= 2:
+            # `Path.parents` only supports slices and negative indexing from Python 3.10 onwards.
+            # TODO: Remove list() when we depend on Python 3.10 or newer.
+            d = os.fspath(list(Path.cwd().parents)[-2])
+        elif len(Path.cwd().parents) == 1:
+            d = os.fspath(Path.cwd())
+        else:
+            d = ""
+
+        if d and d not in (*dirs, "/home", "/usr", "/nix", "/tmp"):
             cmdline += ["--bind", d, d]
 
     if vartmp:
