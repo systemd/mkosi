@@ -1180,6 +1180,7 @@ class Config:
     shim_bootloader: ShimBootloader
     initrds: list[Path]
     initrd_packages: list[str]
+    microcode_host: bool
     kernel_command_line: list[str]
     kernel_modules_include: list[str]
     kernel_modules_exclude: list[str]
@@ -2014,6 +2015,15 @@ SETTINGS = (
         section="Content",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser(required=False)),
         help="Add a user-provided initrd to image",
+    ),
+    ConfigSetting(
+        dest="microcode_host",
+        metavar="BOOL",
+        nargs="?",
+        section="Content",
+        parse=config_parse_boolean,
+        default=False,
+        help="Only include the host CPU's microcode",
     ),
     ConfigSetting(
         dest="initrd_packages",
