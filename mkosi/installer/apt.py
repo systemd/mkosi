@@ -56,6 +56,7 @@ def apt_cmd(context: Context, command: str) -> list[PathString]:
         "DEBCONF_INTERACTIVE_SEEN=true",
         "INITRD=No",
         command,
+        "-o", "APT::System=Debian dpkg interface",
         "-o", f"APT::Architecture={debarch}",
         "-o", f"APT::Architectures={debarch}",
         "-o", f"APT::Install-Recommends={str(context.config.with_recommends).lower()}",
