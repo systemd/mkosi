@@ -23,6 +23,11 @@
   building multiple images.
 - We now create the `/etc/mtab` compatibility symlink in mkosi's
   sandbox.
+- We now always hash the root password ourselves instead of leaving it
+  to `systemd-firstboot`.
+- `/srv` and `/mnt` are not mounted read-only anymore during builds.
+- Fixed a crash when running mkosi in a directory with fewer than two
+  parent directories.
 
 ## v20.1
 
