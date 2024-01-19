@@ -81,6 +81,13 @@ def apt_cmd(context: Context, command: str) -> list[PathString]:
         "-o", "pkgCacheGen::ForceEssential=,",
     ]
 
+    if not context.config.repository_key_check:
+        cmdline += [
+            "-o", "Acquire::AllowInsecureRepositories=true",
+            "-o", "Acquire::AllowDowngradeToInsecureRepositories=true",
+            "-o", "APT::Get::AllowUnauthenticated=true",
+        ]
+
     if not context.config.with_docs:
         cmdline += [
             "-o", "DPkg::Options::=--path-exclude=/usr/share/doc/*",
