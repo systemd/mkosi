@@ -1516,8 +1516,8 @@ def build_initrd(context: Context) -> Path:
         *(["-f"] * context.args.force),
     ]
 
-    with resource_path(mkosi.resources, "mkosi-initrd") as r:
-        cmdline += ["--include", os.fspath(r)]
+    with resource_path(mkosi.resources) as r:
+        cmdline += ["--include", os.fspath(r / "mkosi-initrd")]
 
         for include in context.config.initrd_include:
             cmdline += ["--include", os.fspath(include)]
@@ -2784,9 +2784,10 @@ def make_extension_image(context: Context, output: Path) -> None:
     }
 
     with (
-        resource_path(mkosi.resources, f"repart/definitions/{context.config.output_format}.repart.d") as r,
+        resource_path(mkosi.resources) as r,
         complete_step(f"Building {context.config.output_format} extension image")
     ):
+        r /= f"repart/definitions/{context.config.output_format}.repart.d"
         options += ["--ro-bind", r, r]
         run(
             cmdline + ["--definitions", r],
@@ -3298,7 +3299,8 @@ def show_docs(args: Args) -> None:
         form = formats.pop(0)
         try:
             if form == DocFormat.man:
-                with resource_path(mkosi.resources, "mkosi.1") as man:
+                with resource_path(mkosi.resources) as man:
+                    man /= "mkosi.1"
                     if not man.exists():
                         raise FileNotFoundError()
                     run(["man", "--local-file", man])
@@ -3306,13 +3308,13 @@ def show_docs(args: Args) -> None:
             elif form == DocFormat.pandoc:
                 if not find_binary("pandoc"):
                     logging.error("pandoc is not available")
-                with resource_path(mkosi.resources, "mkosi.md") as mdr:
-                    pandoc = run(["pandoc", "-t", "man", "-s", mdr], stdout=subprocess.PIPE)
+                with resource_path(mkosi.resources) as mdr:
+                    pandoc = run(["pandoc", "-t", "man", "-s", mdr / "mkosi.md"], stdout=subprocess.PIPE)
                 run(["man", "--local-file", "-"], input=pandoc.stdout)
                 return
             elif form == DocFormat.markdown:
-                with resource_path(mkosi.resources, "mkosi.md") as mdr:
-                    page(mdr.read_text(), args.pager)
+                with resource_path(mkosi.resources) as mdr:
+                    page((mdr / "mkosi.md").read_text(), args.pager)
                 return
             elif form == DocFormat.system:
                 run(["man", "mkosi"])
@@ -3376,8 +3378,8 @@ def finalize_default_tools(args: Args, config: Config) -> Iterator[Config]:
         *(["-f"] * args.force),
     ]
 
-    with resource_path(mkosi.resources, "mkosi-tools") as r:
-        _, [tools] = parse_config(cmdline + ["--include", os.fspath(r), "build"])
+    with resource_path(mkosi.resources) as r:
+        _, [tools] = parse_config(cmdline + ["--include", os.fspath(r / "mkosi-tools"), "build"])
 
         make_executable(
             *tools.prepare_scripts,
