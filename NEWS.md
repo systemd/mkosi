@@ -28,6 +28,7 @@
 - `/srv` and `/mnt` are not mounted read-only anymore during builds.
 - Fixed a crash when running mkosi in a directory with fewer than two
   parent directories.
+- Implemented `RepositoryKeyCheck=` for apt-based distributions.
 
 ## v20.1
 
