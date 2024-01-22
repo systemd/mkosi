@@ -474,6 +474,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 : Note that each path containing extra configuration is only parsed
   once, even if included more than once with `Include=`.
 
+: The builtin configs for the mkosi default initrd and default tools
+  tree can be included by including the literal value `mkosi-initrd` and
+  `mkosi-tools` respectively.
+
 `InitrdInclude=`, `--initrd-include=`
 
 : Same as `Include=`, but the extra configuration files or directories

@@ -34,7 +34,14 @@ from mkosi.pager import page
 from mkosi.run import find_binary, run
 from mkosi.sandbox import sandbox_cmd
 from mkosi.types import PathString, SupportsRead
-from mkosi.util import INVOKING_USER, StrEnum, chdir, flatten, is_power_of_2
+from mkosi.util import (
+    INVOKING_USER,
+    StrEnum,
+    chdir,
+    flatten,
+    is_power_of_2,
+    make_executable,
+)
 from mkosi.versioncomp import GenericVersion
 
 __version__ = "20.2"
@@ -42,6 +49,9 @@ __version__ = "20.2"
 ConfigParseCallback = Callable[[Optional[str], Optional[Any]], Any]
 ConfigMatchCallback = Callable[[str, Any], bool]
 ConfigDefaultCallback = Callable[[argparse.Namespace], Any]
+
+
+BUILTIN_CONFIGS = ("mkosi-tools", "mkosi-initrd")
 
 
 class Verb(StrEnum):
@@ -408,7 +418,11 @@ def parse_path(value: str,
                expanduser: bool = True,
                expandvars: bool = True,
                secret: bool = False,
-               absolute: bool = False) -> Path:
+               absolute: bool = False,
+               constants: Sequence[str] = ()) -> Path:
+    if value in constants:
+        return Path(value)
+
     if expandvars:
         value = os.path.expandvars(value)
 
@@ -718,7 +732,8 @@ def make_path_parser(*,
                      resolve: bool = True,
                      expanduser: bool = True,
                      expandvars: bool = True,
-                     secret: bool = False) -> Callable[[str], Path]:
+                     secret: bool = False,
+                     constants: Sequence[str] = ()) -> Callable[[str], Path]:
     return functools.partial(
         parse_path,
         required=required,
@@ -726,6 +741,7 @@ def make_path_parser(*,
         expanduser=expanduser,
         expandvars=expandvars,
         secret=secret,
+        constants=constants,
     )
 
 
@@ -734,7 +750,8 @@ def config_make_path_parser(*,
                             resolve: bool = True,
                             expanduser: bool = True,
                             expandvars: bool = True,
-                            secret: bool = False) -> ConfigParseCallback:
+                            secret: bool = False,
+                            constants: Sequence[str] = ()) -> ConfigParseCallback:
     def config_parse_path(value: Optional[str], old: Optional[Path]) -> Optional[Path]:
         if not value:
             return None
@@ -746,6 +763,7 @@ def config_make_path_parser(*,
             expanduser=expanduser,
             expandvars=expandvars,
             secret=secret,
+            constants=constants,
         )
 
     return config_parse_path
@@ -1508,7 +1526,11 @@ SETTINGS = (
     ConfigSetting(
         dest="include",
         section="Config",
-        parse=config_make_list_parser(delimiter=",", reset=False, parse=make_path_parser()),
+        parse=config_make_list_parser(
+            delimiter=",",
+            reset=False,
+            parse=make_path_parser(constants=BUILTIN_CONFIGS),
+        ),
         help="Include configuration from the specified file or directory",
     ),
     ConfigSetting(
@@ -2325,7 +2347,7 @@ SETTINGS = (
         dest="tools_tree",
         metavar="PATH",
         section="Host",
-        parse=config_make_path_parser(required=False),
+        parse=config_make_path_parser(required=False, constants=("default",)),
         paths=("mkosi.tools",),
         help="Look up programs to execute inside the given tree",
     ),
@@ -2731,7 +2753,7 @@ def resolve_deps(images: Sequence[Config], include: Sequence[str]) -> list[Confi
     return sorted(images, key=lambda i: order.index(i.image))
 
 
-def parse_config(argv: Sequence[str] = ()) -> tuple[Args, tuple[Config, ...]]:
+def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tuple[Args, tuple[Config, ...]]:
     # Compare inodes instead of paths so we can't get tricked by bind mounts and such.
     parsed_includes: set[tuple[int, int]] = set()
     immutable_settings: set[str] = set()
@@ -2781,13 +2803,29 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[Args, tuple[Config, ...]]:
         finally:
             # Parse any includes that were added after yielding.
             for p in getattr(namespace, "include", [])[current_num_of_includes:]:
-                st = p.stat()
+                for c in BUILTIN_CONFIGS:
+                    if p == Path(c):
+                        path = resources / c
+                        break
+                else:
+                    path = p
+
+                st = path.stat()
 
                 if (st.st_dev, st.st_ino) in parsed_includes:
                     continue
 
-                with chdir(p if p.is_dir() else Path.cwd()):
-                    parse_config_one(p if p.is_file() else Path("."), namespace, defaults)
+                if any(p == Path(c) for c in BUILTIN_CONFIGS):
+                    _, [config] = parse_config(["--include", os.fspath(path)])
+                    make_executable(
+                        *config.prepare_scripts,
+                        *config.postinst_scripts,
+                        *config.finalize_scripts,
+                        *config.build_scripts,
+                    )
+
+                with chdir(path if path.is_dir() else Path.cwd()):
+                    parse_config_one(path if path.is_file() else Path("."), namespace, defaults)
                 parsed_includes.add((st.st_dev, st.st_ino))
 
     class ConfigAction(argparse.Action):

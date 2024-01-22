@@ -195,12 +195,12 @@ def uncaught_exception_handler(exit: Callable[[int], NoReturn] = sys.exit) -> It
         exit(rc)
 
 
-def fork_and_wait(target: Callable[[], None]) -> None:
+def fork_and_wait(target: Callable[..., None], *args: Any, **kwargs: Any) -> None:
     pid = os.fork()
     if pid == 0:
         with uncaught_exception_handler(exit=os._exit):
             make_foreground_process()
-            target()
+            target(*args, **kwargs)
 
     try:
         _, status = os.waitpid(pid, 0)

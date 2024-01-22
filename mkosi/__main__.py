@@ -28,7 +28,7 @@ def main() -> None:
     INVOKING_USER.init()
 
     with resource_path(mkosi.resources) as resources:
-        args, images = parse_config(sys.argv[1:])
+        args, images = parse_config(sys.argv[1:], resources=resources)
 
         if args.debug:
             faulthandler.enable()

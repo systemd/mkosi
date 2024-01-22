@@ -1519,7 +1519,7 @@ def build_initrd(context: Context) -> Path:
     for include in context.config.initrd_include:
         cmdline += ["--include", os.fspath(include)]
 
-    args, [config] = parse_config(cmdline + ["build"])
+    args, [config] = parse_config(cmdline + ["build"], resources=context.resources)
 
     make_executable(
         *config.prepare_scripts,
@@ -3368,7 +3368,10 @@ def finalize_default_tools(args: Args, config: Config, *, resources: Path) -> Co
         *(["-f"] * args.force),
     ]
 
-    _, [tools] = parse_config(cmdline + ["--include", os.fspath(resources / "mkosi-tools"), "build"])
+    _, [tools] = parse_config(
+        cmdline + ["--include", os.fspath(resources / "mkosi-tools"), "build"],
+        resources=resources,
+    )
 
     make_executable(
         *tools.prepare_scripts,
@@ -3540,11 +3543,10 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         if not args.verb.needs_build() and args.verb != Verb.clean:
             continue
 
-        if config.tools_tree and config.tools_tree.name == "default":
-            tools = finalize_default_tools(args, config, resources=resources)
-            fork_and_wait(lambda: run_clean(args, tools)) # type: ignore
+        if config.tools_tree and config.tools_tree == Path("default"):
+            fork_and_wait(run_clean, args, finalize_default_tools(args, config, resources=resources))
 
-        fork_and_wait(lambda: run_clean(args, config))
+        fork_and_wait(run_clean, args, config)
 
     if args.verb == Verb.clean:
         return
@@ -3557,7 +3559,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
 
         tools = (
             finalize_default_tools(args, config, resources=resources)
-            if config.tools_tree and config.tools_tree.name == "default"
+            if config.tools_tree and config.tools_tree == Path("default")
             else None
         )
 
@@ -3567,12 +3569,12 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         )
 
         if tools and not (tools.output_dir_or_cwd() / tools.output_with_compression).exists():
-            fork_and_wait(lambda: run_build(args, tools, resources=resources)) # type:ignore
+            fork_and_wait(run_build, args, tools, resources=resources)
 
         if (config.output_dir_or_cwd() / config.output_with_compression).exists():
             continue
 
-        fork_and_wait(lambda: run_build(args, config, resources=resources))
+        fork_and_wait(run_build, args, config, resources=resources)
 
         build = True
 
