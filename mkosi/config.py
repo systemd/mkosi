@@ -2787,7 +2787,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[Args, tuple[Config, ...]]:
                     continue
 
                 with chdir(p if p.is_dir() else Path.cwd()):
-                    parse_config(p if p.is_file() else Path("."), namespace, defaults)
+                    parse_config_one(p if p.is_file() else Path("."), namespace, defaults)
                 parsed_includes.add((st.st_dev, st.st_ino))
 
     class ConfigAction(argparse.Action):
@@ -2895,7 +2895,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[Args, tuple[Config, ...]]:
 
         return triggered is not False
 
-    def parse_config(
+    def parse_config_one(
         path: Path,
         namespace: argparse.Namespace,
         defaults: argparse.Namespace,
@@ -2912,7 +2912,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[Args, tuple[Config, ...]]:
 
         if extras:
             if (path.parent / "mkosi.local.conf").exists():
-                parse_config(path.parent / "mkosi.local.conf", namespace, defaults)
+                parse_config_one(path.parent / "mkosi.local.conf", namespace, defaults)
 
             for s in SETTINGS:
                 ns = defaults if s.path_default else namespace
@@ -2975,13 +2975,13 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[Args, tuple[Config, ...]]:
                 setattr(namespace, "profile", profile)
 
                 with chdir(p if p.is_dir() else Path.cwd()):
-                    parse_config(p if p.is_file() else Path("."), namespace, defaults)
+                    parse_config_one(p if p.is_file() else Path("."), namespace, defaults)
 
         if extras and (path.parent / "mkosi.conf.d").exists():
             for p in sorted((path.parent / "mkosi.conf.d").iterdir()):
                 if p.is_dir() or p.suffix == ".conf":
                     with chdir(p if p.is_dir() else Path.cwd()):
-                        parse_config(p if p.is_file() else Path("."), namespace, defaults)
+                        parse_config_one(p if p.is_file() else Path("."), namespace, defaults)
 
         return True
 
@@ -3026,7 +3026,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[Args, tuple[Config, ...]]:
     include = ()
 
     if args.directory is not None:
-        parse_config(Path("."), namespace, defaults, profiles=True)
+        parse_config_one(Path("."), namespace, defaults, profiles=True)
 
         finalize_default(SETTINGS_LOOKUP_BY_DEST["images"], namespace, defaults)
         include = getattr(namespace, "images")
@@ -3054,7 +3054,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[Args, tuple[Config, ...]]:
                 setattr(ns_copy, "image", name)
 
                 with chdir(p if p.is_dir() else Path.cwd()):
-                    if not parse_config(p if p.is_file() else Path("."), ns_copy, defaults_copy):
+                    if not parse_config_one(p if p.is_file() else Path("."), ns_copy, defaults_copy):
                         continue
 
                 finalize_defaults(ns_copy, defaults_copy)
