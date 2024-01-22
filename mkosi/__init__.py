@@ -21,7 +21,6 @@ from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
 from typing import Optional, TextIO, Union, cast
 
-import mkosi.resources
 from mkosi.archive import extract_tar, make_cpio, make_tar
 from mkosi.burn import run_burn
 from mkosi.config import (
@@ -79,7 +78,6 @@ from mkosi.util import (
     one_zero,
     read_env_file,
     read_os_release,
-    resource_path,
     round_up,
     scopedenv,
     umask,
@@ -1516,31 +1514,30 @@ def build_initrd(context: Context) -> Path:
         *(["-f"] * context.args.force),
     ]
 
-    with resource_path(mkosi.resources) as r:
-        cmdline += ["--include", os.fspath(r / "mkosi-initrd")]
+    cmdline += ["--include", os.fspath(context.resources / "mkosi-initrd")]
 
-        for include in context.config.initrd_include:
-            cmdline += ["--include", os.fspath(include)]
+    for include in context.config.initrd_include:
+        cmdline += ["--include", os.fspath(include)]
 
-        args, [config] = parse_config(cmdline + ["build"])
+    args, [config] = parse_config(cmdline + ["build"])
 
-        make_executable(
-            *config.prepare_scripts,
-            *config.postinst_scripts,
-            *config.finalize_scripts,
-            *config.build_scripts,
-        )
+    make_executable(
+        *config.prepare_scripts,
+        *config.postinst_scripts,
+        *config.finalize_scripts,
+        *config.build_scripts,
+    )
 
-        config = dataclasses.replace(config, image="default-initrd")
-        assert config.output_dir
+    config = dataclasses.replace(config, image="default-initrd")
+    assert config.output_dir
 
-        config.output_dir.mkdir(exist_ok=True)
+    config.output_dir.mkdir(exist_ok=True)
 
-        if (config.output_dir / config.output).exists():
-            return config.output_dir / config.output
+    if (config.output_dir / config.output).exists():
+        return config.output_dir / config.output
 
-        with complete_step("Building default initrd"):
-            build_image(args, config)
+    with complete_step("Building default initrd"):
+        build_image(args, config, resources=context.resources)
 
     return config.output_dir / config.output
 
@@ -2783,11 +2780,8 @@ def make_extension_image(context: Context, output: Path) -> None:
         if option.startswith("SYSTEMD_REPART_MKFS_OPTIONS_") or option == "SOURCE_DATE_EPOCH"
     }
 
-    with (
-        resource_path(mkosi.resources) as r,
-        complete_step(f"Building {context.config.output_format} extension image")
-    ):
-        r /= f"repart/definitions/{context.config.output_format}.repart.d"
+    with complete_step(f"Building {context.config.output_format} extension image"):
+        r = context.resources / f"repart/definitions/{context.config.output_format}.repart.d"
         options += ["--ro-bind", r, r]
         run(
             cmdline + ["--definitions", r],
@@ -2863,11 +2857,11 @@ def setup_workspace(args: Args, config: Config) -> Iterator[Path]:
                 raise
 
 
-def build_image(args: Args, config: Config) -> None:
+def build_image(args: Args, config: Config, *, resources: Path) -> None:
     manifest = Manifest(config) if config.manifest_format else None
 
     with setup_workspace(args, config) as workspace:
-        context = Context(args, config, workspace)
+        context = Context(args, config, workspace=workspace, resources=resources)
         install_package_manager_trees(context)
         install_package_directories(context)
 
@@ -3289,7 +3283,7 @@ def bump_image_version() -> None:
     os.chown("mkosi.version", INVOKING_USER.uid, INVOKING_USER.gid)
 
 
-def show_docs(args: Args) -> None:
+def show_docs(args: Args, *, resources: Path) -> None:
     if args.doc_format == DocFormat.auto:
         formats = [DocFormat.man, DocFormat.pandoc, DocFormat.markdown, DocFormat.system]
     else:
@@ -3299,22 +3293,19 @@ def show_docs(args: Args) -> None:
         form = formats.pop(0)
         try:
             if form == DocFormat.man:
-                with resource_path(mkosi.resources) as man:
-                    man /= "mkosi.1"
-                    if not man.exists():
-                        raise FileNotFoundError()
-                    run(["man", "--local-file", man])
+                man = resources / "mkosi.1"
+                if not man.exists():
+                    raise FileNotFoundError()
+                run(["man", "--local-file", man])
                 return
             elif form == DocFormat.pandoc:
                 if not find_binary("pandoc"):
                     logging.error("pandoc is not available")
-                with resource_path(mkosi.resources) as mdr:
-                    pandoc = run(["pandoc", "-t", "man", "-s", mdr / "mkosi.md"], stdout=subprocess.PIPE)
+                pandoc = run(["pandoc", "-t", "man", "-s", resources / "mkosi.md"], stdout=subprocess.PIPE)
                 run(["man", "--local-file", "-"], input=pandoc.stdout)
                 return
             elif form == DocFormat.markdown:
-                with resource_path(mkosi.resources) as mdr:
-                    page((mdr / "mkosi.md").read_text(), args.pager)
+                page((resources / "mkosi.md").read_text(), args.pager)
                 return
             elif form == DocFormat.system:
                 run(["man", "mkosi"])
@@ -3352,8 +3343,7 @@ def prepend_to_environ_path(config: Config) -> Iterator[None]:
             os.environ["PATH"] = ":".join(olds)
 
 
-@contextlib.contextmanager
-def finalize_default_tools(args: Args, config: Config) -> Iterator[Config]:
+def finalize_default_tools(args: Args, config: Config, *, resources: Path) -> Config:
     if not config.tools_tree_distribution:
         die(f"{config.distribution} does not have a default tools tree distribution",
             hint="use ToolsTreeDistribution= to set one explicitly")
@@ -3378,19 +3368,18 @@ def finalize_default_tools(args: Args, config: Config) -> Iterator[Config]:
         *(["-f"] * args.force),
     ]
 
-    with resource_path(mkosi.resources) as r:
-        _, [tools] = parse_config(cmdline + ["--include", os.fspath(r / "mkosi-tools"), "build"])
+    _, [tools] = parse_config(cmdline + ["--include", os.fspath(resources / "mkosi-tools"), "build"])
 
-        make_executable(
-            *tools.prepare_scripts,
-            *tools.postinst_scripts,
-            *tools.finalize_scripts,
-            *tools.build_scripts,
-        )
+    make_executable(
+        *tools.prepare_scripts,
+        *tools.postinst_scripts,
+        *tools.finalize_scripts,
+        *tools.build_scripts,
+    )
 
-        tools = dataclasses.replace(tools, image=f"{config.tools_tree_distribution}-tools")
+    tools = dataclasses.replace(tools, image=f"{config.tools_tree_distribution}-tools")
 
-        yield tools
+    return tools
 
 
 def check_workspace_directory(config: Config) -> None:
@@ -3458,7 +3447,7 @@ def run_clean(args: Args, config: Config) -> None:
             )
 
 
-def run_build(args: Args, config: Config) -> None:
+def run_build(args: Args, config: Config, *, resources: Path) -> None:
     check_inputs(config)
 
     if (uid := os.getuid()) != 0:
@@ -3490,17 +3479,17 @@ def run_build(args: Args, config: Config) -> None:
                 run(["mkdir", "--parents", p], user=INVOKING_USER.uid, group=INVOKING_USER.gid)
 
         with acl_toggle_build(config, INVOKING_USER.uid):
-            build_image(args, config)
+            build_image(args, config, resources=resources)
 
 
-def run_verb(args: Args, images: Sequence[Config]) -> None:
+def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
     images = list(images)
 
     if args.verb.needs_root() and os.getuid() != 0:
         die(f"Must be root to run the {args.verb} command")
 
     if args.verb == Verb.documentation:
-        return show_docs(args)
+        return show_docs(args, resources=resources)
 
     if args.verb == Verb.genkey:
         return generate_key_cert_pair(args)
@@ -3545,14 +3534,15 @@ def run_verb(args: Args, images: Sequence[Config]) -> None:
 
     # First, process all directory removals because otherwise if different images share directories a later
     # image build could end up deleting the output generated by an earlier image build.
+    tools: Optional[Config]
 
     for config in images:
         if not args.verb.needs_build() and args.verb != Verb.clean:
             continue
 
         if config.tools_tree and config.tools_tree.name == "default":
-            with finalize_default_tools(args, config) as tools:
-                fork_and_wait(lambda: run_clean(args, tools)) # pyright: ignore
+            tools = finalize_default_tools(args, config, resources=resources)
+            fork_and_wait(lambda: run_clean(args, tools)) # type: ignore
 
         fork_and_wait(lambda: run_clean(args, config))
 
@@ -3565,24 +3555,24 @@ def run_verb(args: Args, images: Sequence[Config]) -> None:
         if not args.verb.needs_build():
             continue
 
-        with (
-            finalize_default_tools(args, config)
+        tools = (
+            finalize_default_tools(args, config, resources=resources)
             if config.tools_tree and config.tools_tree.name == "default"
-            else contextlib.nullcontext()
-            as tools
-        ):
-            images[i] = config = dataclasses.replace(
-                config,
-                tools_tree=tools.output_dir_or_cwd() / tools.output if tools else config.tools_tree,
-            )
+            else None
+        )
 
-            if tools and not (tools.output_dir_or_cwd() / tools.output_with_compression).exists():
-                fork_and_wait(lambda: run_build(args, tools)) # pyright: ignore
+        images[i] = config = dataclasses.replace(
+            config,
+            tools_tree=tools.output_dir_or_cwd() / tools.output if tools else config.tools_tree,
+        )
+
+        if tools and not (tools.output_dir_or_cwd() / tools.output_with_compression).exists():
+            fork_and_wait(lambda: run_build(args, tools, resources=resources)) # type:ignore
 
         if (config.output_dir_or_cwd() / config.output_with_compression).exists():
             continue
 
-        fork_and_wait(lambda: run_build(args, config))
+        fork_and_wait(lambda: run_build(args, config, resources=resources))
 
         build = True
 

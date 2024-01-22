@@ -14,10 +14,11 @@ from mkosi.util import flatten, umask
 class Context:
     """State related properties."""
 
-    def __init__(self, args: Args, config: Config, workspace: Path) -> None:
+    def __init__(self, args: Args, config: Config, *, workspace: Path, resources: Path) -> None:
         self.args = args
         self.config = config
         self.workspace = workspace
+        self.resources = resources
 
         with umask(~0o755):
             # Using a btrfs subvolume as the upperdir in an overlayfs results in EXDEV so make sure we create
