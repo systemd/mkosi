@@ -137,6 +137,8 @@ def sandbox_cmd(
     for d in ("bin", "sbin", "lib", "lib32", "lib64"):
         if (p := tools / d).is_symlink():
             cmdline += ["--symlink", p.readlink(), Path("/") / p.relative_to(tools)]
+        elif p.is_dir():
+            cmdline += ["--ro-bind", p, Path("/") / p.relative_to(tools)]
 
     path = "/usr/bin:/usr/sbin" if tools != Path("/") else os.environ["PATH"]
 
