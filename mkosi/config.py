@@ -37,7 +37,7 @@ from mkosi.types import PathString, SupportsRead
 from mkosi.util import INVOKING_USER, StrEnum, chdir, flatten, is_power_of_2
 from mkosi.versioncomp import GenericVersion
 
-__version__ = "20.1"
+__version__ = "20.2"
 
 ConfigParseCallback = Callable[[Optional[str], Optional[Any]], Any]
 ConfigMatchCallback = Callable[[str, Any], bool]
