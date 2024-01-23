@@ -2866,7 +2866,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[Args, tuple[Config, ...]]:
             if not v:
                 die("Match value cannot be empty")
 
-            if (s := SETTINGS_LOOKUP_BY_NAME.get(k)):
+            if s := SETTINGS_LOOKUP_BY_NAME.get(k):
                 if not s.match:
                     die(f"{k} cannot be used in [Match]")
 
@@ -2881,7 +2881,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[Args, tuple[Config, ...]]:
                 else:
                     result = s.match(v, getattr(namespace, s.dest))
 
-            elif (m := MATCH_LOOKUP.get(k)):
+            elif m := MATCH_LOOKUP.get(k):
                 result = m.match(v)
             else:
                 die(f"{k} cannot be used in [Match]")

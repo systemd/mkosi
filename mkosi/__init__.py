@@ -2650,7 +2650,7 @@ def make_disk(
         defaults = context.workspace / "repart-definitions"
         if not defaults.exists():
             defaults.mkdir()
-            if (arch := context.config.architecture.to_efi()):
+            if arch := context.config.architecture.to_efi():
                 bootloader = context.root / f"efi/EFI/BOOT/BOOT{arch.upper()}.EFI"
             else:
                 bootloader = None
@@ -3432,7 +3432,7 @@ def run_clean(args: Args, config: Config) -> None:
         remove_build_cache = args.force > 1
         remove_package_cache = args.force > 2
 
-    if (outputs := list(config.output_dir_or_cwd().glob(f"{config.output}*"))):
+    if outputs := list(config.output_dir_or_cwd().glob(f"{config.output}*")):
         with complete_step(f"Removing output files of {config.name()} image…"):
             rmtree(*outputs)
 

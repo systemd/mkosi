@@ -41,7 +41,7 @@ def read_env_file(path: Path) -> Iterator[tuple[str, str]]:
             line = line.rstrip()
             if not line or line.startswith("#"):
                 continue
-            if (m := re.match(r"([A-Z][A-Z_0-9]+)=(.*)", line)):
+            if m := re.match(r"([A-Z][A-Z_0-9]+)=(.*)", line):
                 name, val = m.groups()
                 if val and val[0] in "\"'":
                     val = ast.literal_eval(val)

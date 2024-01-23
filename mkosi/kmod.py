@@ -13,7 +13,7 @@ from mkosi.types import PathString
 
 
 def loaded_modules() -> list[str]:
-    return [f"{line.split()[0]}\\.ko" for line in Path("/proc/modules").read_text().splitlines()]
+    return [fr"{line.split()[0]}\.ko" for line in Path("/proc/modules").read_text().splitlines()]
 
 
 def filter_kernel_modules(
@@ -157,32 +157,27 @@ def gen_required_kernel_modules(
     names = [module_path_to_name(m) for m in modules]
     mods, firmware = resolve_module_dependencies(root, kver, names, sandbox=sandbox)
 
-    def files() -> Iterator[Path]:
-        yield modulesd.parent
-        yield modulesd
-        yield modulesd / "kernel"
+    yield modulesd.parent
+    yield modulesd
+    yield modulesd / "kernel"
 
-        for d in (modulesd, root / "usr/lib/firmware"):
-            for p in (root / d).rglob("*"):
-                if p.is_dir():
-                    yield p
-
-        for p in sorted(mods) + sorted(firmware):
-            yield p
-
-        for p in (root / modulesd).iterdir():
-            if not p.name.startswith("modules"):
-                continue
-
-            yield p
-
-        if (root / modulesd / "vdso").exists():
-            yield modulesd / "vdso"
-
-            for p in (root / modulesd / "vdso").iterdir():
+    for d in (modulesd, root / "usr/lib/firmware"):
+        for p in (root / d).rglob("*"):
+            if p.is_dir():
                 yield p
 
-    return files()
+    for p in sorted(mods) + sorted(firmware):
+        yield p
+
+    for p in (root / modulesd).iterdir():
+        if p.name.startswith("modules"):
+            yield p
+
+    if (root / modulesd / "vdso").exists():
+        yield modulesd / "vdso"
+
+        for p in (root / modulesd / "vdso").iterdir():
+            yield p
 
 
 def process_kernel_modules(

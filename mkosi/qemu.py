@@ -485,7 +485,7 @@ def run_qemu(args: Args, config: Config) -> None:
     ):
         die(f"{config.output_format} images cannot be booted with the '{config.qemu_firmware}' firmware")
 
-    if (config.runtime_trees and config.qemu_firmware == QemuFirmware.bios):
+    if config.runtime_trees and config.qemu_firmware == QemuFirmware.bios:
         die("RuntimeTrees= cannot be used when booting in BIOS firmware")
 
     if config.qemu_kvm == ConfigFeature.enabled and not config.architecture.is_native():
@@ -503,7 +503,7 @@ def run_qemu(args: Args, config: Config) -> None:
 
     have_kvm = ((qemu_version(config) < QEMU_KVM_DEVICE_VERSION and QemuDeviceNode.kvm.available()) or
                 (qemu_version(config) >= QEMU_KVM_DEVICE_VERSION and QemuDeviceNode.kvm in qemu_device_fds))
-    if (config.qemu_kvm == ConfigFeature.enabled and not have_kvm):
+    if config.qemu_kvm == ConfigFeature.enabled and not have_kvm:
         die("KVM acceleration requested but cannot access /dev/kvm")
 
     if config.qemu_vsock == ConfigFeature.enabled and QemuDeviceNode.vhost_vsock not in qemu_device_fds:
