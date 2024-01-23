@@ -1546,6 +1546,9 @@ def build_initrd(context: Context) -> Path:
 
 
 def build_microcode_initrd(context: Context) -> Optional[Path]:
+    if context.config.architecture not in [Architecture.x86, Architecture.x86_64]:
+        return None
+
     microcode = context.workspace / "initrd-microcode.img"
     if microcode.exists():
         return microcode
