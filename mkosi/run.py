@@ -418,7 +418,7 @@ def find_binary(*names: PathString, root: Path = Path("/")) -> Optional[Path]:
         elif "/" in str(name):
             name = root / name
 
-        if (binary := shutil.which(name, path=path)):
+        if binary := shutil.which(name, path=path):
             if root != Path("/") and not Path(binary).is_relative_to(root):
                 return Path(binary)
             else:
