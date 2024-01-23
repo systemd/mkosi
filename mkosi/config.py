@@ -90,8 +90,6 @@ class Verb(StrEnum):
             Verb.boot,
             Verb.qemu,
             Verb.serve,
-            Verb.journalctl,
-            Verb.coredumpctl,
             Verb.burn,
         )
 

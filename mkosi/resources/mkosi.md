@@ -1486,12 +1486,12 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `ToolsTree=`, `--tools-tree=`
 
-: If specified, programs executed by mkosi are looked up inside the
-  given tree instead of in the host system. Use this option to make
-  image builds more reproducible by always using the same versions of
-  programs to build the final image instead of whatever version is
-  installed on the host system. If this option is not used, but the
-  `mkosi.tools/` directory is found in the local directory it is
+: If specified, programs executed by mkosi to build and boot an image
+  are looked up inside the given tree instead of in the host system. Use
+  this option to make image builds more reproducible by always using the
+  same versions of programs to build the final image instead of whatever
+  version is installed on the host system. If this option is not used,
+  but the `mkosi.tools/` directory is found in the local directory it is
   automatically used for this purpose with the root directory as target.
   Note that when looking up binaries in `--tools-tree=`, only `/usr/bin`
   and `/usr/sbin` are considered. Specifically, paths specified by
