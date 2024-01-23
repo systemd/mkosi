@@ -200,7 +200,7 @@ Those settings cannot be configured in the configuration files.
 
 : Enable additional debugging output.
 
-`--debug-shell=`
+`--debug-shell`
 
 : When executing a command in the image fails, mkosi will start an interactive
   shell in the image allowing further debugging.
