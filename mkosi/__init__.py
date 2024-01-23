@@ -3545,7 +3545,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         return
 
     for config in images:
-        if (minversion := config.minimum_version) and minversion <= __version__:
+        if (minversion := config.minimum_version) and minversion > __version__:
             die(f"mkosi {minversion} or newer is required to build this configuration (found {__version__})")
 
         if not config.repart_offline and os.getuid() != 0:
