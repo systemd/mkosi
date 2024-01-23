@@ -76,6 +76,8 @@ class Context:
             devices=devices,
             scripts=scripts,
             options=[
+                # TMPDIR is used by some subprocesses so must be made available
+                *(["--bind", os.fspath(p), os.fspath(p)] if (p := os.environ.get("TMPDIR")) else []),
                 # These mounts are writable so bubblewrap can create extra directories or symlinks inside of it as
                 # needed. This isn't a problem as the package manager directory is created by mkosi and thrown away
                 # when the build finishes.
