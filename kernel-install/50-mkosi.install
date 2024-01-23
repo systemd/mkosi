@@ -142,6 +142,7 @@ def main() -> None:
         "--extra-tree=/usr/lib/firmware:/usr/lib/firmware",
         "--kernel-modules-exclude=.*",
         "--kernel-modules-include-host=yes",
+        "--include=mkosi-initrd",
     ]
 
     if context.verbose:

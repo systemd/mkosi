@@ -183,7 +183,7 @@ def is_power_of_2(x: int) -> bool:
 
 
 @contextlib.contextmanager
-def resource_path(mod: ModuleType, path: str) -> Iterator[Path]:
+def resource_path(mod: ModuleType) -> Iterator[Path]:
 
     # We backport as_file() from python 3.12 here temporarily since it added directory support.
     # TODO: Remove once minimum python version is 3.12.
@@ -276,7 +276,7 @@ def resource_path(mod: ModuleType, path: str) -> Iterator[Path]:
         return child
 
     t = importlib.resources.files(mod)
-    with as_file(t.joinpath(path)) as p:
+    with as_file(t) as p:
         yield p
 
 

@@ -7,11 +7,12 @@ import sys
 from types import FrameType
 from typing import Optional
 
+import mkosi.resources
 from mkosi import run_verb
 from mkosi.config import parse_config
 from mkosi.log import log_setup
 from mkosi.run import find_binary, run, uncaught_exception_handler
-from mkosi.util import INVOKING_USER
+from mkosi.util import INVOKING_USER, resource_path
 
 
 def onsigterm(signal: int, frame: Optional[FrameType]) -> None:
@@ -25,17 +26,19 @@ def main() -> None:
     log_setup()
     # Ensure that the name and home of the user we are running as are resolved as early as possible.
     INVOKING_USER.init()
-    args, images = parse_config(sys.argv[1:])
 
-    if args.debug:
-        faulthandler.enable()
+    with resource_path(mkosi.resources) as resources:
+        args, images = parse_config(sys.argv[1:], resources=resources)
 
-    try:
-        run_verb(args, images)
-    finally:
-        if sys.stderr.isatty() and find_binary("tput"):
-            run(["tput", "cnorm"], check=False)
-            run(["tput", "smam"], check=False)
+        if args.debug:
+            faulthandler.enable()
+
+        try:
+            run_verb(args, images, resources=resources)
+        finally:
+            if sys.stderr.isatty() and find_binary("tput"):
+                run(["tput", "cnorm"], check=False)
+                run(["tput", "smam"], check=False)
 
 
 if __name__ == "__main__":
