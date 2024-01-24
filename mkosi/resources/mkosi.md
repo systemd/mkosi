@@ -2316,6 +2316,18 @@ Note that the minimum required Python version is 3.9.
   `/etc/tmpfiles.d/static-nodes-permissions.conf` and change the mode of
   `/dev/kvm` from `0660` to `0666`.
 
+- How do I add a regular user to an image?
+
+  You can use the following snippet in a post-installation script:
+
+  ```sh
+  useradd --create-home --user-group $USER --password "$(openssl passwd -stdin -6 <$USER_PASSWORD_FILE)"
+  ```
+
+  Note that from systemd v256 onwards, if enabled,
+  `systemd-homed-firstboot.service` will prompt to create a regular user
+  on first boot if there are no regular users.
+
 # REFERENCES
 * [Primary mkosi git repository on GitHub](https://github.com/systemd/mkosi/)
 * [mkosi — A Tool for Generating OS Images](https://0pointer.net/blog/mkosi-a-tool-for-generating-os-images.html) introductory blog post by Lennart Poettering
