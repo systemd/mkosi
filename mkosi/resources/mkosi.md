@@ -478,6 +478,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   tree can be included by including the literal value `mkosi-initrd` and
   `mkosi-tools` respectively.
 
+: Note: Include names starting with either of the literals `mkosi-` or
+  `contrib-` are reserved for use by mkosi itself.
+
 `InitrdInclude=`, `--initrd-include=`
 
 : Same as `Include=`, but the extra configuration files or directories
