@@ -1,3 +1,10 @@
+---
+title: Building system extensions with mkosi
+category: Documentation
+layout: default
+SPDX-License-Identifier: LGPL-2.1-or-later
+---
+
 # Building system extensions with mkosi
 
 [System extension](https://uapi-group.org/specifications/specs/extension_image/)

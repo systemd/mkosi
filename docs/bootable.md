@@ -1,3 +1,10 @@
+---
+title: Building a bootable image on different distros
+category: Documentation
+layout: default
+SPDX-License-Identifier: LGPL-2.1-or-later
+---
+
 # Building a bootable image on different distros
 
 To build a bootable image, you'll need to install a list of packages that differs depending on the
@@ -6,7 +13,7 @@ distributions:
 
 ## Arch
 
-```
+```conf
 [Content]
 Packages=linux
          systemd
@@ -14,7 +21,7 @@ Packages=linux
 
 ## Fedora
 
-```
+```conf
 [Content]
 Packages=kernel
          systemd
@@ -25,7 +32,7 @@ Packages=kernel
 
 ## CentOS
 
-```
+```conf
 [Content]
 Packages=kernel
          systemd
@@ -35,7 +42,7 @@ Packages=kernel
 
 ## Debian
 
-```
+```conf
 [Content]
 Packages=linux-image-generic
          systemd
@@ -47,7 +54,7 @@ Packages=linux-image-generic
 
 ## Ubuntu
 
-```
+```conf
 [Content]
 Repositories=main,universe
 Packages=linux-image-generic
@@ -59,7 +66,7 @@ Packages=linux-image-generic
 
 ## Opensuse
 
-```
+```conf
 [Content]
 Packages=kernel-default
          systemd
