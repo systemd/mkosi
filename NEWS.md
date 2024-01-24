@@ -1,5 +1,24 @@
 # mkosi Changelog
 
+## v20.3
+
+- We now handle unmerged-usr systems correctly
+- Builtin configs (`mkosi-initrd`, `mkosi-tools`) can now be included
+  using `Include=` (e.g. `Include=mkosi-initrd`)
+- The kernel-install plugin now uses the builtin `mkosi-initrd` config
+  so there's no need anymore to copy the full `mkosi-initrd` config into
+  `/usr/lib/mkosi-initrd`.
+- We don't require a build anymore for the `journalctl` and
+  `coredumpctl` verbs.
+- `mkosi ssh` works again when used with `ToolsTree=default`
+- We now use `.zst` instead of `.zstd` for compressed split artifacts
+  produced by `systemd-repart`.
+- `systemd-repart` uses a persistent temporary directory again for
+  assembling images instead of a tmpfs.
+- Added `MicrocodeHost=` setting to only include the CPU specific
+  microcode for the current host system.
+- The kernel-install plugin now only includes the CPU specific microcode
+
 ## v20.2
 
 - Fixed a bug in signing unsigned shim EFI binaries.
