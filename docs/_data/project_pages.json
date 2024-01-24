@@ -3,6 +3,5 @@
     { "category": "Project", "title": "Releases", "url": "https://github.com/systemd/mkosi/releases" },
     { "category": "Project", "title": "GitHub Project Page", "url": "https://github.com/systemd/mkosi" },
     { "category": "Project", "title": "Issues", "url": "https://github.com/systemd/mkosi/issues" },
-    { "category": "Project", "title": "Pull Requests", "url": "https://github.com/systemd/mkosi/pulls" },
-    { "category": "Man page", "title": "A longer description and available features and options", "url": "https://github.com/systemd/mkosi/blob/main/mkosi/resources/mkosi.md" }
+    { "category": "Project", "title": "Pull Requests", "url": "https://github.com/systemd/mkosi/pulls" }
 ]

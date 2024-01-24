@@ -1,6 +1,6 @@
 ---
 title: Building RPMs from source with mkosi
-category: Documentation
+category: Tutorials
 layout: default
 SPDX-License-Identifier: LGPL-2.1-or-later
 ---

@@ -1,6 +1,6 @@
 ---
 title: Building a custom initrd and using it in a mkosi image
-category: Documentation
+category: Tutorials
 layout: default
 SPDX-License-Identifier: LGPL-2.1-or-later
 ---
