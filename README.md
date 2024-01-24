@@ -102,7 +102,7 @@ tests locally as well.
 # References
 
 * [Primary mkosi git repository on GitHub](https://github.com/systemd/mkosi/)
-* [mkosi — A Tool for Generating OS Images](http://0pointer.net/blog/mkosi-a-tool-for-generating-os-images.html) introductory blog post by Lennart Poettering (2017)
+* [A re-introduction to mkosi — A Tool for Generating OS Images](https://0pointer.net/blog/a-re-introduction-to-mkosi-a-tool-for-generating-os-images.html)
 * [The mkosi OS generation tool](https://lwn.net/Articles/726655/) story on LWN (2017)
 * [systemd-repart: Building Discoverable Disk Images](https://media.ccc.de/v/all-systems-go-2023-191-systemd-repart-building-discoverable-disk-images) and [mkosi: Building Bespoke Operating System Images](https://media.ccc.de/v/all-systems-go-2023-190-mkosi-building-bespoke-operating-system-images) talks at All Systems Go! 2023
 * [Building RHEL and RHEL UBI images with mkosi](https://fedoramagazine.org/create-images-directly-from-rhel-and-rhel-ubi-package-using-mkosi/) an article in Fedora Magazine (2023)
