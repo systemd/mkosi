@@ -1924,7 +1924,7 @@ def maybe_compress(context: Context, compression: Compression, src: Path, dst: O
         return
 
     if not dst:
-        dst = src.parent / f"{src.name}.{compression}"
+        dst = src.parent / f"{src.name}{compression.extension()}"
 
     with complete_step(f"Compressing {src} with {compression}"):
         with src.open("rb") as i:
