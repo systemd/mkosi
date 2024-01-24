@@ -2303,18 +2303,30 @@ Note that the minimum required Python version is 3.9.
 
 - Why does `mkosi qemu` with KVM not work on Debian/Ubuntu?
 
-While other distributions are OK with allowing access to `/dev/kvm`, on
-Debian/Ubuntu this is only allowed for users in the `kvm` group. Because
-mkosi unshares a user namespace when running unprivileged, even if the
-calling user was in the kvm group, when mkosi unshares the user
-namespace to run unprivileged, it loses access to the `kvm` group and by
-the time we start `qemu` we don't have access to `/dev/kvm` anymore. As
-a workaround, you can change the permissions of the device nodes to
-`0666` which is sufficient to make KVM work unprivileged. To persist
-these settings across reboots, copy
-`/usr/lib/tmpfiles.d/static-nodes-permissions.conf` to
-`/etc/tmpfiles.d/static-nodes-permissions.conf` and change the mode of
-`/dev/kvm` from `0660` to `0666`.
+  While other distributions are OK with allowing access to `/dev/kvm`, on
+  Debian/Ubuntu this is only allowed for users in the `kvm` group. Because
+  mkosi unshares a user namespace when running unprivileged, even if the
+  calling user was in the kvm group, when mkosi unshares the user
+  namespace to run unprivileged, it loses access to the `kvm` group and by
+  the time we start `qemu` we don't have access to `/dev/kvm` anymore. As
+  a workaround, you can change the permissions of the device nodes to
+  `0666` which is sufficient to make KVM work unprivileged. To persist
+  these settings across reboots, copy
+  `/usr/lib/tmpfiles.d/static-nodes-permissions.conf` to
+  `/etc/tmpfiles.d/static-nodes-permissions.conf` and change the mode of
+  `/dev/kvm` from `0660` to `0666`.
+
+- How do I add a regular user to an image?
+
+  You can use the following snippet in a post-installation script:
+
+  ```sh
+  useradd --create-home --user-group $USER --password "$(openssl passwd -stdin -6 <$USER_PASSWORD_FILE)"
+  ```
+
+  Note that from systemd v256 onwards, if enabled,
+  `systemd-homed-firstboot.service` will prompt to create a regular user
+  on first boot if there are no regular users.
 
 # REFERENCES
 * [Primary mkosi git repository on GitHub](https://github.com/systemd/mkosi/)
