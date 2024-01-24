@@ -75,10 +75,10 @@ def sandbox_cmd(
     cmdline: list[PathString] = []
 
     if not relaxed:
-        # We want to use an empty subdirectory in the host's /var/tmp as the sandbox's /var/tmp. To make sure it only
-        # gets created when we run the sandboxed command and cleaned up when the sandboxed command exits, we create it
-        # using shell.
-        vartmp = f"/var/tmp/mkosi-var-tmp-{uuid.uuid4().hex[:16]}"
+        # We want to use an empty subdirectory in the host's temporary directory as the sandbox's /var/tmp. To make
+        # sure it only gets created when we run the sandboxed command and cleaned up when the sandboxed command exits,
+        # we create it using shell.
+        vartmp = Path(os.getenv("TMPDIR", "/var/tmp")) / f"mkosi-var-tmp-{uuid.uuid4().hex[:16]}"
         cmdline += ["sh", "-c", f"trap 'rm -rf {vartmp}' EXIT && mkdir --mode 1777 {vartmp} && $0 \"$@\""]
     else:
         vartmp = None
@@ -90,6 +90,8 @@ def sandbox_cmd(
         "--die-with-parent",
         "--proc", "/proc",
         "--setenv", "SYSTEMD_OFFLINE", one_zero(network),
+        # We mounted a subdirectory of TMPDIR to /var/tmp so we unset TMPDIR so that /tmp or /var/tmp are used instead.
+        "--unsetenv", "TMPDIR",
     ]
 
     if relaxed:
@@ -186,8 +188,6 @@ def apivfs_cmd(root: Path) -> list[PathString]:
         "--bind", "/var/tmp", root / "var/tmp",
         "--proc", root / "proc",
         "--dev", root / "dev",
-        # APIVFS generally means chrooting is going to happen so unset TMPDIR just to be safe.
-        "--unsetenv", "TMPDIR",
         # Make sure /etc/machine-id is not overwritten by any package manager post install scripts.
         "--ro-bind-try", root / "etc/machine-id", root / "etc/machine-id",
         *finalize_passwd_mounts(root),
