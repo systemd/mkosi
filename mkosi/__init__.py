@@ -2844,8 +2844,9 @@ def setup_workspace(args: Args, config: Config) -> Iterator[Path]:
             options=["--bind", config.workspace_dir_or_default(), config.workspace_dir_or_default()],
         )
         stack.callback(lambda: rmtree(workspace, sandbox=sandbox))
+        (workspace / "tmp").mkdir(mode=0o1777)
 
-        with scopedenv({"TMPDIR" : os.fspath(workspace)}):
+        with scopedenv({"TMPDIR" : os.fspath(workspace / "tmp")}):
             try:
                 yield Path(workspace)
             except BaseException:
