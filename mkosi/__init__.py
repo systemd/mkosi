@@ -24,6 +24,7 @@ from typing import Optional, TextIO, Union, cast
 from mkosi.archive import extract_tar, make_cpio, make_tar
 from mkosi.burn import run_burn
 from mkosi.config import (
+    Architecture,
     Args,
     BiosBootloader,
     Bootloader,
@@ -1542,7 +1543,53 @@ def build_initrd(context: Context) -> Path:
     return config.output_dir / config.output
 
 
+def identify_cpu(root: Path) -> tuple[Optional[Path], Optional[Path]]:
+    for entry in Path("/proc/cpuinfo").read_text().split("\n\n"):
+        vendor_id = family = model = stepping = None
+        for line in entry.splitlines():
+            key, _, value = line.partition(":")
+            key = key.strip()
+            value = value.strip()
+
+            if not key or not value:
+                continue
+
+            if key == "vendor_id":
+                vendor_id = value
+            elif key == "cpu family":
+                family = int(value)
+            elif key == "model":
+                model = int(value)
+            elif key == "stepping":
+                stepping = int(value)
+
+        if vendor_id is not None and family is not None and model is not None and stepping is not None:
+            break
+    else:
+        return (None, None)
+
+    if vendor_id == "AuthenticAMD":
+        uroot = root / "usr/lib/firmware/amd-ucode"
+        if family > 21:
+            ucode = uroot / f"microcode_amd_fam{family:x}h.bin"
+        else:
+            ucode = uroot / "microcode_amd.bin"
+        if ucode.exists():
+            return (Path(f"{vendor_id}.bin"), ucode)
+    elif vendor_id == "GenuineIntel":
+        uroot = root / "usr/lib/firmware/intel-ucode"
+        if (ucode := (uroot / f"{family:02x}-{model:02x}-{stepping:02x}")).exists():
+            return (Path(f"{vendor_id}.bin"), ucode)
+        if (ucode := (uroot / f"{family:02x}-{model:02x}-{stepping:02x}.initramfs")).exists():
+            return (Path(f"{vendor_id}.bin"), ucode)
+
+    return (Path(f"{vendor_id}.bin"), None)
+
+
 def build_microcode_initrd(context: Context) -> Optional[Path]:
+    if context.config.architecture not in (Architecture.x86, Architecture.x86_64):
+        return None
+
     microcode = context.workspace / "initrd-microcode.img"
     if microcode.exists():
         return microcode
@@ -1551,7 +1598,7 @@ def build_microcode_initrd(context: Context) -> Optional[Path]:
     intel = context.root / "usr/lib/firmware/intel-ucode"
 
     if not amd.exists() and not intel.exists():
-        logging.debug("/usr/lib/firmware/{amd-ucode,intel-ucode} not found, not adding microcode initrd")
+        logging.warning("/usr/lib/firmware/{amd-ucode,intel-ucode} not found, not adding microcode")
         return None
 
     root = context.workspace / "initrd-microcode-root"
@@ -1560,15 +1607,23 @@ def build_microcode_initrd(context: Context) -> Optional[Path]:
     with umask(~0o755):
         destdir.mkdir(parents=True, exist_ok=True)
 
-    if amd.exists():
-        with (destdir / "AuthenticAMD.bin").open("wb") as f:
-            for p in amd.iterdir():
-                f.write(p.read_bytes())
+    if context.config.microcode_host:
+        vendorfile, ucodefile = identify_cpu(context.root)
+        if vendorfile is None or ucodefile is None:
+            logging.warning("Unable to identify CPU for MicrocodeHostonly=")
+            return None
+        with (destdir / vendorfile).open("wb") as f:
+            f.write(ucodefile.read_bytes())
+    else:
+        if amd.exists():
+            with (destdir / "AuthenticAMD.bin").open("wb") as f:
+                for p in amd.iterdir():
+                    f.write(p.read_bytes())
 
-    if intel.exists():
-        with (destdir / "GenuineIntel.bin").open("wb") as f:
-            for p in intel.iterdir():
-                f.write(p.read_bytes())
+        if intel.exists():
+            with (destdir / "GenuineIntel.bin").open("wb") as f:
+                for p in intel.iterdir():
+                    f.write(p.read_bytes())
 
     make_cpio(
         root, microcode,

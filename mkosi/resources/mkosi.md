@@ -1137,6 +1137,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   separated list of package specifications. This option may be used
   multiple times in which case the specified package lists are combined.
 
+`MicrocodeHost=`, `--microcode-host=`
+
+: When set to true only include microcode for the host's CPU in the image.
+
 `KernelCommandLine=`, `--kernel-command-line=`
 
 : Use the specified kernel command line when building images.

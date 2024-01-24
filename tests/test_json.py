@@ -174,6 +174,7 @@ def test_config() -> None:
                 "json",
                 "changelog"
             ],
+            "MicrocodeHost": true,
             "MinimumVersion": "123",
             "Mirror": null,
             "NSpawnSettings": null,
@@ -329,6 +330,7 @@ def test_config() -> None:
         initrd_include = [Path("/foo/bar"),],
         initrd_packages = ["clevis"],
         initrds = [Path("/efi/initrd1"), Path("/efi/initrd2")],
+        microcode_host=True,
         kernel_command_line = [],
         kernel_command_line_extra = ["look", "im", "on", "the", "kernel", "command", "line"],
         kernel_modules_exclude = ["nvidia"],

@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path
 from typing import NamedTuple, Optional
 
+from mkosi import identify_cpu
 from mkosi.archive import make_cpio
 from mkosi.config import OutputFormat, __version__
 from mkosi.log import die, log_setup
@@ -44,11 +45,14 @@ def mandatory_variable(name: str) -> str:
 
 
 def build_microcode_initrd(output: Path) -> Optional[Path]:
-    amd = Path("/usr/lib/firmware/amd-ucode")
-    intel = Path("/usr/lib/firmware/intel-ucode")
+    vendor, ucode = identify_cpu(Path("/"))
 
-    if not amd.exists() and not intel.exists():
-        logging.debug("/usr/lib/firmware/{amd-ucode,intel-ucode} not found, not adding microcode initrd")
+    if vendor is None:
+        logging.warning("Unable to determine the vendor of your CPU, not adding microcode")
+        return None
+
+    if ucode is None:
+        logging.warning("Unable to find microcode for your CPU in /usr/lib/firmware, not adding microcode")
         return None
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -58,15 +62,8 @@ def build_microcode_initrd(output: Path) -> Optional[Path]:
         with umask(~0o755):
             destdir.mkdir(parents=True, exist_ok=True)
 
-        if amd.exists():
-            with (destdir / "AuthenticAMD.bin").open("wb") as f:
-                for p in amd.iterdir():
-                    f.write(p.read_bytes())
-
-        if intel.exists():
-            with (destdir / "GenuineIntel.bin").open("wb") as f:
-                for p in intel.iterdir():
-                    f.write(p.read_bytes())
+            with (destdir / f"{vendor}.bin").open("wb") as f:
+                f.write(ucode.read_bytes())
 
         make_cpio(root, output)
 
