@@ -1485,6 +1485,7 @@ def build_initrd(context: Context) -> Path:
         # Note that when compress_output == Compression.none == 0 we don't pass --compress-output which means the
         # default compression will get picked. This is exactly what we want so that initrds are always compressed.
         *(["--compress-output", str(context.config.compress_output)] if context.config.compress_output else []),
+        "--compress-level", str(context.config.compress_level),
         "--with-network", str(context.config.with_network),
         "--cache-only", str(context.config.cache_only),
         "--output-dir", str(context.workspace / "initrd"),
@@ -1958,11 +1959,11 @@ def compressor_command(context: Context, compression: Compression) -> list[PathS
     """Returns a command suitable for compressing archives."""
 
     if compression == Compression.gz:
-        return [gzip_binary(context), "--fast", "--stdout", "-"]
+        return [gzip_binary(context), f"-{context.config.compress_level}" "--stdout", "-"]
     elif compression == Compression.xz:
-        return ["xz", "--check=crc32", "--fast", "-T0", "--stdout", "-"]
+        return ["xz", "--check=crc32", f"-{context.config.compress_level}", "-T0", "--stdout", "-"]
     elif compression == Compression.zstd:
-        return ["zstd", "-q", "-T0", "--stdout", "-"]
+        return ["zstd", "-q", f"-{context.config.compress_level}", "-T0", "--stdout", "-"]
     else:
         die(f"Unknown compression {compression}")
 
