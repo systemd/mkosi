@@ -108,6 +108,7 @@ def test_config() -> None:
             "CacheOnly": true,
             "Checksum": false,
             "CleanPackageMetadata": "auto",
+            "CompressLevel": 3,
             "CompressOutput": "bz2",
             "Credentials": {
                 "credkey": "credval"
@@ -310,6 +311,7 @@ def test_config() -> None:
         cache_only =  True,
         checksum =  False,
         clean_package_metadata = ConfigFeature.auto,
+        compress_level = 3,
         compress_output = Compression.bz2,
         credentials =  {"credkey": "credval"},
         dependencies = ("dep1",),

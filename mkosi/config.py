@@ -545,10 +545,27 @@ def config_parse_source_date_epoch(value: Optional[str], old: Optional[int]) -> 
     try:
         timestamp = int(value)
     except ValueError:
-        raise ValueError(f"{value} is not a valid timestamp")
+        die(f"{value} is not a valid timestamp")
+
     if timestamp < 0:
-        raise ValueError(f"{value} is negative")
+        die(f"Source date epoch timestamp cannot be negative (got {value})")
+
     return timestamp
+
+
+def config_parse_compress_level(value: Optional[str], old: Optional[int]) -> Optional[int]:
+    if not value:
+        return None
+
+    try:
+        level = int(value)
+    except ValueError:
+        die(f"{value} is not a valid compression level")
+
+    if level < 0:
+        die(f"Compression level cannot be negative (got {value})")
+
+    return level
 
 
 def config_default_compression(namespace: argparse.Namespace) -> Compression:
@@ -1150,6 +1167,7 @@ class Config:
     manifest_format: list[ManifestFormat]
     output: str
     compress_output: Compression
+    compress_level: int
     output_dir: Optional[Path]
     workspace_dir: Optional[Path]
     cache_dir: Optional[Path]
@@ -1684,6 +1702,14 @@ SETTINGS = (
         default_factory=config_default_compression,
         default_factory_depends=("distribution", "release", "output_format"),
         help="Enable whole-output compression (with images or archives)",
+    ),
+    ConfigSetting(
+        dest="compress_level",
+        metavar="LEVEL",
+        section="Output",
+        parse=config_parse_compress_level,
+        default=3,
+        help="Set the compression level to use",
     ),
     ConfigSetting(
         dest="output_dir",
@@ -3403,6 +3429,7 @@ def summary(config: Config) -> str:
                    Manifest Formats: {maniformats}
                              Output: {bold(config.output_with_compression)}
                         Compression: {config.compress_output}
+                  Compression Level: {config.compress_level}
                    Output Directory: {config.output_dir_or_cwd()}
                 Workspace Directory: {config.workspace_dir_or_default()}
                     Cache Directory: {none_to_none(config.cache_dir)}

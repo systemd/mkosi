@@ -669,6 +669,11 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   are not available when this option is used. Implied for `tar`, `cpio`, `uki`,
   and `esp`.
 
+`CompressLevel=`, `--compress-level=`
+
+: Configure the compression level to use. Takes an integer. The possible
+  values depend on the compression being used.
+
 `OutputDirectory=`, `--output-dir=`, `-O`
 
 : Path to a directory where to place all generated artifacts. If this is
