@@ -1538,6 +1538,10 @@ def build_initrd(context: Context) -> Path:
     if (config.output_dir / config.output).exists():
         return config.output_dir / config.output
 
+    if args.force > 1 and config.cache_dir:
+        with complete_step(f"Removing cache entries of {config.name()} image…"):
+            rmtree(*(p for p in cache_tree_paths(config) if p.exists()))
+
     with complete_step("Building default initrd"):
         build_image(args, config, resources=context.resources)
 
