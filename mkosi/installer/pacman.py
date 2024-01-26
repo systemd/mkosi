@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1+
 import textwrap
 from collections.abc import Iterable, Sequence
+from pathlib import Path
 from typing import NamedTuple
 
 from mkosi.context import Context
@@ -10,6 +11,7 @@ from mkosi.run import run
 from mkosi.sandbox import apivfs_cmd
 from mkosi.types import PathString
 from mkosi.util import sort_packages, umask
+from mkosi.versioncomp import GenericVersion
 
 
 class PacmanRepository(NamedTuple):
@@ -109,15 +111,15 @@ def invoke_pacman(
         )
 
 
-def createrepo_pacman(context: Context) -> None:
-    run(["repo-add", context.packages / "mkosi-packages.db.tar", *context.packages.glob("*.pkg.tar*")])
+def createrepo_pacman(context: Context, *, force: bool = False) -> None:
+    run(
+        [
+            "repo-add",
+            context.packages / "mkosi-packages.db.tar",
+            *sorted(context.packages.glob("*.pkg.tar*"), key=lambda p: GenericVersion(Path(p).name)),
+        ]
+    )
 
-    with (context.pkgmngr / "etc/pacman.conf").open("a") as f:
-        f.write(
-            textwrap.dedent(
-                """\
-                [mkosi-packages]
-                Server = file:///work/packages
-                """
-            )
-        )
+
+def localrepo_pacman() -> PacmanRepository:
+    return PacmanRepository(id="mkosi-packages", url="file:///work/packages")

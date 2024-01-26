@@ -1415,10 +1415,6 @@ def install_package_directories(context: Context) -> None:
         for d in context.config.package_directories:
             install_tree(context, d, context.packages)
 
-    if any(context.packages.iterdir()):
-        with complete_step("Initializing local package repository…"):
-            context.config.distribution.createrepo(context)
-
 
 def install_extra_trees(context: Context) -> None:
     if not context.config.extra_trees:
@@ -1537,6 +1533,10 @@ def build_initrd(context: Context) -> Path:
 
     if (config.output_dir / config.output).exists():
         return config.output_dir / config.output
+
+    if args.force > 1 and config.cache_dir:
+        with complete_step(f"Removing cache entries of {config.name()} image…"):
+            rmtree(*(p for p in cache_tree_paths(config) if p.exists()))
 
     with complete_step("Building default initrd"):
         build_image(args, config, resources=context.resources)

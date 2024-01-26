@@ -2,15 +2,15 @@
 
 import tempfile
 import xml.etree.ElementTree as ElementTree
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 
 from mkosi.config import Architecture
 from mkosi.context import Context
 from mkosi.distributions import Distribution, DistributionInstaller, PackageType
-from mkosi.installer.dnf import createrepo_dnf, invoke_dnf, setup_dnf
+from mkosi.installer.dnf import createrepo_dnf, invoke_dnf, localrepo_dnf, setup_dnf
 from mkosi.installer.rpm import RpmRepository
-from mkosi.installer.zypper import createrepo_zypper, invoke_zypper, setup_zypper
+from mkosi.installer.zypper import createrepo_zypper, invoke_zypper, localrepo_zypper, setup_zypper
 from mkosi.log import die
 from mkosi.run import find_binary, run
 from mkosi.sandbox import finalize_crypto_mounts
@@ -42,7 +42,7 @@ class Installer(DistributionInstaller):
         return "grub2"
 
     @classmethod
-    def createrepo(cls, context: "Context") -> None:
+    def createrepo(cls, context: Context) -> None:
         if find_binary("zypper", root=context.config.tools()):
             createrepo_zypper(context)
         else:
@@ -50,54 +50,11 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def setup(cls, context: Context) -> None:
-        release = context.config.release
-        if release == "leap":
-            release = "stable"
-
-        mirror = context.config.mirror or "https://download.opensuse.org"
-
-        # If the release looks like a timestamp, it's Tumbleweed. 13.x is legacy
-        # (14.x won't ever appear). For anything else, let's default to Leap.
-        if context.config.local_mirror:
-            release_url = f"{context.config.local_mirror}"
-            updates_url = None
-        if release.isdigit() or release == "tumbleweed":
-            release_url = f"{mirror}/tumbleweed/repo/oss/"
-            updates_url = f"{mirror}/update/tumbleweed/"
-        elif release in ("current", "stable"):
-            release_url = f"{mirror}/distribution/openSUSE-{release}/repo/oss/"
-            updates_url = f"{mirror}/update/openSUSE-{release}/"
-        else:
-            release_url = f"{mirror}/distribution/leap/{release}/repo/oss/"
-            updates_url = f"{mirror}/update/leap/{release}/oss/"
-
         zypper = find_binary("zypper", root=context.config.tools())
-
-        # If we need to use a local mirror, create a temporary repository definition
-        # that doesn't get in the image, as it is valid only at image build time.
-        if context.config.local_mirror:
-            repos = [RpmRepository(id="local-mirror", url=f"baseurl={context.config.local_mirror}", gpgurls=())]
-        else:
-            repos = [
-                RpmRepository(
-                    id="repo-oss",
-                    url=f"baseurl={release_url}",
-                    gpgurls=fetch_gpgurls(context, release_url) if not zypper else (),
-                ),
-            ]
-            if updates_url is not None:
-                repos += [
-                    RpmRepository(
-                        id="repo-update",
-                        url=f"baseurl={updates_url}",
-                        gpgurls=fetch_gpgurls(context, updates_url) if not zypper else (),
-                    )
-                ]
-
         if zypper:
-            setup_zypper(context, repos)
+            setup_zypper(context, cls.repositories(context))
         else:
-            setup_dnf(context, repos)
+            setup_dnf(context, cls.repositories(context))
 
     @classmethod
     def install(cls, context: Context) -> None:
@@ -120,6 +77,49 @@ class Installer(DistributionInstaller):
             invoke_zypper(context, "remove", packages, ["--clean-deps"])
         else:
             invoke_dnf(context, "remove", packages)
+
+    @classmethod
+    def repositories(cls, context: Context) -> Iterable[RpmRepository]:
+        zypper = find_binary("zypper", root=context.config.tools())
+
+        if any(context.packages.iterdir()):
+            yield localrepo_zypper() if zypper else localrepo_dnf()
+
+        release = context.config.release
+        if release == "leap":
+            release = "stable"
+
+        mirror = context.config.mirror or "https://download.opensuse.org"
+
+        # If the release looks like a timestamp, it's Tumbleweed. 13.x is legacy
+        # (14.x won't ever appear). For anything else, let's default to Leap.
+        if context.config.local_mirror:
+            release_url = f"{context.config.local_mirror}"
+            updates_url = None
+        if release.isdigit() or release == "tumbleweed":
+            release_url = f"{mirror}/tumbleweed/repo/oss/"
+            updates_url = f"{mirror}/update/tumbleweed/"
+        elif release in ("current", "stable"):
+            release_url = f"{mirror}/distribution/openSUSE-{release}/repo/oss/"
+            updates_url = f"{mirror}/update/openSUSE-{release}/"
+        else:
+            release_url = f"{mirror}/distribution/leap/{release}/repo/oss/"
+            updates_url = f"{mirror}/update/leap/{release}/oss/"
+
+        if context.config.local_mirror:
+            yield RpmRepository(id="local-mirror", url=f"baseurl={context.config.local_mirror}", gpgurls=())
+        else:
+            yield RpmRepository(
+                id="repo-oss",
+                url=f"baseurl={release_url}",
+                gpgurls=fetch_gpgurls(context, release_url) if not zypper else (),
+            )
+            if updates_url is not None:
+                yield RpmRepository(
+                    id="repo-update",
+                    url=f"baseurl={updates_url}",
+                    gpgurls=fetch_gpgurls(context, updates_url) if not zypper else (),
+                )
 
     @classmethod
     def architecture(cls, arch: Architecture) -> str:

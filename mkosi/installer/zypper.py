@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1+
 import textwrap
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 
 from mkosi.config import yes_no
 from mkosi.context import Context
@@ -13,7 +13,7 @@ from mkosi.types import PathString
 from mkosi.util import sort_packages
 
 
-def setup_zypper(context: Context, repos: Sequence[RpmRepository]) -> None:
+def setup_zypper(context: Context, repos: Iterable[RpmRepository]) -> None:
     config = context.pkgmngr / "etc/zypp/zypp.conf"
     config.parent.mkdir(exist_ok=True, parents=True)
 
@@ -44,13 +44,16 @@ def setup_zypper(context: Context, repos: Sequence[RpmRepository]) -> None:
                         [{repo.id}]
                         name={repo.id}
                         {repo.url}
-                        gpgcheck=1
+                        gpgcheck={int(repo.gpgcheck)}
                         enabled={int(repo.enabled)}
                         autorefresh=1
                         keeppackages=1
                         """
                     )
                 )
+
+                if repo.priority is not None:
+                    f.write(f"priority={repo.priority}\n")
 
                 for i, url in enumerate(repo.gpgurls):
                     f.write("gpgkey=" if i == 0 else len("gpgkey=") * " ")
@@ -103,17 +106,12 @@ def createrepo_zypper(context: Context) -> None:
     run(["createrepo_c", context.packages],
         sandbox=context.sandbox(options=["--bind", context.packages, context.packages]))
 
-    (context.pkgmngr / "etc/zypp/repos.d").mkdir(parents=True, exist_ok=True)
-    (context.pkgmngr / "etc/zypp/repos.d/mkosi-packages.repo").write_text(
-        textwrap.dedent(
-            """\
-            [mkosi-packages]
-            name=mkosi-packages
-            gpgcheck=0
-            enabled=1
-            baseurl=file:///work/packages
-            autorefresh=0
-            priority=50
-            """
-        )
+
+def localrepo_zypper() -> RpmRepository:
+    return RpmRepository(
+        id="mkosi-packages",
+        url="baseurl=file:///work/packages",
+        gpgcheck=False,
+        gpgurls=(),
+        priority=50,
     )

@@ -12,7 +12,7 @@ from mkosi.distributions import (
     PackageType,
     join_mirror,
 )
-from mkosi.installer.dnf import createrepo_dnf, invoke_dnf, setup_dnf
+from mkosi.installer.dnf import createrepo_dnf, invoke_dnf, localrepo_dnf, setup_dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey
 from mkosi.log import complete_step, die
 from mkosi.tree import rmtree
@@ -60,7 +60,7 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def createrepo(cls, context: Context) -> None:
-        return createrepo_dnf(context)
+        createrepo_dnf(context)
 
     @classmethod
     def setup(cls, context: Context) -> None:
@@ -221,10 +221,14 @@ class Installer(DistributionInstaller):
     def repositories(cls, context: Context) -> Iterable[RpmRepository]:
         if context.config.local_mirror:
             yield from cls.repository_variants(context, "AppStream")
-        else:
-            yield from cls.repository_variants(context, "BaseOS")
-            yield from cls.repository_variants(context, "AppStream")
-            yield from cls.repository_variants(context, "extras")
+            return
+
+        if any(context.packages.iterdir()):
+            yield localrepo_dnf()
+
+        yield from cls.repository_variants(context, "BaseOS")
+        yield from cls.repository_variants(context, "AppStream")
+        yield from cls.repository_variants(context, "extras")
 
         if GenericVersion(context.config.release) >= 9:
             yield from cls.repository_variants(context, "CRB")

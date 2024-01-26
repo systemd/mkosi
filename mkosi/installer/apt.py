@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1+
 import textwrap
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
+from typing import NamedTuple, Optional
 
 from mkosi.context import Context
 from mkosi.installer import finalize_package_manager_mounts
@@ -11,7 +12,27 @@ from mkosi.types import PathString
 from mkosi.util import sort_packages, umask
 
 
-def setup_apt(context: Context, repos: Sequence[str]) -> None:
+class AptRepository(NamedTuple):
+    types: tuple[str, ...]
+    url: str
+    suite: str
+    components: tuple[str, ...]
+    signedby: Optional[str]
+
+    def __str__(self) -> str:
+        return textwrap.dedent(
+            f"""\
+            Types: {" ".join(self.types)}
+            URIs: {self.url}
+            Suites: {self.suite}
+            Components: {" ".join(self.components)}
+            {"Signed-By" if self.signedby else "Trusted"}: {self.signedby or "yes"}
+
+            """
+        )
+
+
+def setup_apt(context: Context, repos: Iterable[AptRepository]) -> None:
     (context.pkgmngr / "etc/apt").mkdir(exist_ok=True, parents=True)
     (context.pkgmngr / "etc/apt/apt.conf.d").mkdir(exist_ok=True, parents=True)
     (context.pkgmngr / "etc/apt/preferences.d").mkdir(exist_ok=True, parents=True)
@@ -39,11 +60,11 @@ def setup_apt(context: Context, repos: Sequence[str]) -> None:
             )
         )
 
-    sources = context.pkgmngr / "etc/apt/sources.list"
+    sources = context.pkgmngr / "etc/apt/sources.list.d/mkosi.sources"
     if not sources.exists():
         with sources.open("w") as f:
             for repo in repos:
-                f.write(f"{repo}\n")
+                f.write(str(repo))
 
 
 def apt_cmd(context: Context, command: str) -> list[PathString]:
@@ -133,14 +154,12 @@ def createrepo_apt(context: Context) -> None:
         run(["dpkg-scanpackages", context.packages],
             stdout=f, sandbox=context.sandbox(options=["--ro-bind", context.packages, context.packages]))
 
-    (context.pkgmngr / "etc/apt/sources.list.d").mkdir(parents=True, exist_ok=True)
-    (context.pkgmngr / "etc/apt/sources.list.d/mkosi-packages.sources").write_text(
-        f"""\
-        Enabled: yes
-        Types: deb
-        URIs: file:///work/packages
-        Suites: {context.config.release}
-        Components: main
-        Trusted: yes
-        """
+
+def localrepo_apt(context: Context) -> AptRepository:
+    return AptRepository(
+        types=("deb",),
+        url="file:///work/packages",
+        suite=context.config.release,
+        components=("main",),
+        signedby=None,
     )
