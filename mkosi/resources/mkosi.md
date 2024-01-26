@@ -1687,10 +1687,6 @@ distributions:
 
 * *Alma Linux*
 
-* *Gentoo* (**Gentoo is experimental and unsupported. We make no
-  guarantee that it will work at all and the core maintainers will
-  generally not fix gentoo specific issues**)
-
 * *None* (**Requires the user to provide a pre-built rootfs**)
 
 In theory, any distribution may be used on the host for building images
