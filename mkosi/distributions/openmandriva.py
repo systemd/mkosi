@@ -5,18 +5,13 @@ from collections.abc import Iterable, Sequence
 
 from mkosi.config import Architecture
 from mkosi.context import Context
-from mkosi.distributions import (
-    Distribution,
-    DistributionInstaller,
-    PackageType,
-    join_mirror,
-)
-from mkosi.installer.dnf import createrepo_dnf, invoke_dnf, localrepo_dnf, setup_dnf
+from mkosi.distributions import Distribution, fedora, join_mirror
+from mkosi.installer.dnf import localrepo_dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey
 from mkosi.log import die
 
 
-class Installer(DistributionInstaller):
+class Installer(fedora.Installer):
     @classmethod
     def pretty_name(cls) -> str:
         return "OpenMandriva"
@@ -24,10 +19,6 @@ class Installer(DistributionInstaller):
     @classmethod
     def filesystem(cls) -> str:
         return "ext4"
-
-    @classmethod
-    def package_type(cls) -> PackageType:
-        return PackageType.rpm
 
     @classmethod
     def default_release(cls) -> str:
@@ -38,20 +29,8 @@ class Installer(DistributionInstaller):
         return Distribution.openmandriva
 
     @classmethod
-    def createrepo(cls, context: Context) -> None:
-        createrepo_dnf(context)
-
-    @classmethod
-    def setup(cls, context: Context) -> None:
-        setup_dnf(context, cls.repositories(context))
-
-    @classmethod
-    def install(cls, context: Context) -> None:
-        cls.install_packages(context, ["filesystem"], apivfs=False)
-
-    @classmethod
     def install_packages(cls, context: Context, packages: Sequence[str], apivfs: bool = True) -> None:
-        invoke_dnf(context, "install", packages, apivfs=apivfs)
+        super().install_packages(context, packages, apivfs)
 
         for d in context.root.glob("boot/vmlinuz-*"):
             kver = d.name.removeprefix("vmlinuz-")
@@ -62,10 +41,6 @@ class Installer(DistributionInstaller):
                 vmlinuz.unlink()
             if not vmlinuz.exists():
                 shutil.copy2(d, vmlinuz)
-
-    @classmethod
-    def remove_packages(cls, context: Context, packages: Sequence[str]) -> None:
-        invoke_dnf(context, "remove", packages)
 
     @classmethod
     def repositories(cls, context: Context) -> Iterable[RpmRepository]:
