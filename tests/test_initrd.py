@@ -17,7 +17,7 @@ from mkosi.mounts import mount
 from mkosi.run import find_binary, run
 from mkosi.tree import copy_tree
 from mkosi.types import PathString
-from mkosi.util import INVOKING_USER
+from mkosi.user import INVOKING_USER
 from mkosi.versioncomp import GenericVersion
 
 from . import Image

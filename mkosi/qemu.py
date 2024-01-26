@@ -34,10 +34,11 @@ from mkosi.config import (
 )
 from mkosi.log import die
 from mkosi.partition import finalize_root, find_partitions
-from mkosi.run import AsyncioThread, become_root, find_binary, fork_and_wait, run, spawn
+from mkosi.run import AsyncioThread, find_binary, fork_and_wait, run, spawn
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
-from mkosi.util import INVOKING_USER, StrEnum
+from mkosi.user import INVOKING_USER, become_root
+from mkosi.util import StrEnum
 from mkosi.versioncomp import GenericVersion
 
 QEMU_KVM_DEVICE_VERSION = GenericVersion("9.0")

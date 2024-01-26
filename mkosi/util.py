@@ -11,7 +11,6 @@ import importlib.resources
 import itertools
 import logging
 import os
-import pwd
 import re
 import resource
 import stat
@@ -75,31 +74,6 @@ def sort_packages(packages: Iterable[str]) -> list[str]:
 def flatten(lists: Iterable[Iterable[T]]) -> list[T]:
     """Flatten a sequence of sequences into a single list."""
     return list(itertools.chain.from_iterable(lists))
-
-
-class INVOKING_USER:
-    uid = int(os.getenv("SUDO_UID") or os.getenv("PKEXEC_UID") or os.getuid())
-    gid = int(os.getenv("SUDO_GID") or os.getgid())
-
-    @classmethod
-    def init(cls) -> None:
-        name = cls.name()
-        home = cls.home()
-        logging.debug(f"Running as user '{name}' ({cls.uid}:{cls.gid}) with home {home}.")
-
-    @classmethod
-    def is_running_user(cls) -> bool:
-        return cls.uid == os.getuid()
-
-    @classmethod
-    @functools.lru_cache(maxsize=1)
-    def name(cls) -> str:
-        return pwd.getpwuid(cls.uid).pw_name
-
-    @classmethod
-    @functools.lru_cache(maxsize=1)
-    def home(cls) -> Path:
-        return Path(f"~{cls.name()}").expanduser()
 
 
 @contextlib.contextmanager

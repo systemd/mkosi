@@ -13,7 +13,7 @@ import pytest
 from mkosi.distributions import Distribution
 from mkosi.run import run
 from mkosi.types import _FILE, CompletedProcess, PathString
-from mkosi.util import INVOKING_USER
+from mkosi.user import INVOKING_USER
 
 
 class Image:

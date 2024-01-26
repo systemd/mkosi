@@ -34,8 +34,8 @@ from mkosi.pager import page
 from mkosi.run import find_binary, run
 from mkosi.sandbox import sandbox_cmd
 from mkosi.types import PathString, SupportsRead
+from mkosi.user import INVOKING_USER
 from mkosi.util import (
-    INVOKING_USER,
     StrEnum,
     chdir,
     flatten,

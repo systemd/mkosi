@@ -61,19 +61,16 @@ from mkosi.pager import page
 from mkosi.partition import Partition, finalize_root, finalize_roothash
 from mkosi.qemu import KernelType, copy_ephemeral, run_qemu, run_ssh
 from mkosi.run import (
-    CLONE_NEWNS,
-    become_root,
     find_binary,
     fork_and_wait,
     log_process_failure,
     run,
-    unshare,
 )
 from mkosi.sandbox import chroot_cmd, finalize_passwd_mounts
 from mkosi.tree import copy_tree, move_tree, rmtree
 from mkosi.types import PathString
+from mkosi.user import CLONE_NEWNS, INVOKING_USER, become_root, unshare
 from mkosi.util import (
-    INVOKING_USER,
     format_rlimit,
     make_executable,
     one_zero,

@@ -12,7 +12,8 @@ from mkosi import run_verb
 from mkosi.config import parse_config
 from mkosi.log import log_setup
 from mkosi.run import find_binary, run, uncaught_exception_handler
-from mkosi.util import INVOKING_USER, resource_path
+from mkosi.user import INVOKING_USER
+from mkosi.util import resource_path
 
 
 def onsigterm(signal: int, frame: Optional[FrameType]) -> None:
