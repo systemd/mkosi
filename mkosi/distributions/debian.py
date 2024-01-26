@@ -2,14 +2,14 @@
 
 import shutil
 import tempfile
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 
 from mkosi.archive import extract_tar
 from mkosi.config import Architecture
 from mkosi.context import Context
 from mkosi.distributions import Distribution, DistributionInstaller, PackageType
-from mkosi.installer.apt import createrepo_apt, invoke_apt, setup_apt
+from mkosi.installer.apt import AptRepository, createrepo_apt, invoke_apt, setup_apt
 from mkosi.log import die
 from mkosi.run import run
 from mkosi.sandbox import finalize_passwd_mounts
@@ -38,41 +38,61 @@ class Installer(DistributionInstaller):
         return Distribution.debian
 
     @staticmethod
-    def repositories(context: Context, local: bool = True) -> list[str]:
-        archives = ("deb", "deb-src")
-        components = ' '.join(("main", *context.config.repositories))
+    def repositories(context: Context, local: bool = True) -> Iterable[AptRepository]:
+        types = ("deb", "deb-src")
+        components = ("main", *context.config.repositories)
 
         if context.config.local_mirror and local:
-            return [f"deb [trusted=yes] {context.config.local_mirror} {context.config.release} {components}"]
+            yield AptRepository(
+                types=("deb",),
+                url=context.config.local_mirror,
+                suite=context.config.release,
+                components=("main",),
+                signedby=None,
+            )
+            return
 
         mirror = context.config.mirror or "http://deb.debian.org/debian"
-        signedby = "[signed-by=/usr/share/keyrings/debian-archive-keyring.gpg]"
+        signedby = "/usr/share/keyrings/debian-archive-keyring.gpg"
 
-        repos = [
-            f"{archive} {signedby} {mirror} {context.config.release} {components}"
-            for archive in archives
-        ]
+        yield AptRepository(
+            types=types,
+            url=mirror,
+            suite=context.config.release,
+            components=components,
+            signedby=signedby,
+        )
 
         # Debug repos are typically not mirrored.
         url = "http://deb.debian.org/debian-debug"
-        repos += [f"deb {signedby} {url} {context.config.release}-debug {components}"]
+
+        yield AptRepository(
+            types=types,
+            url=url,
+            suite=f"{context.config.release}-debug",
+            components=components,
+            signedby=signedby,
+        )
 
         if context.config.release in ("unstable", "sid"):
-            return repos
+            return
 
-        repos += [
-            f"{archive} {signedby} {mirror} {context.config.release}-updates {components}"
-            for archive in archives
-        ]
+        yield AptRepository(
+            types=types,
+            url=mirror,
+            suite=f"{context.config.release}-updates",
+            components=components,
+            signedby=signedby,
+        )
 
-        # Security updates repos are never mirrored.
-        url = "http://security.debian.org/debian-security "
-        repos += [
-            f"{archive} {signedby} {url} {context.config.release}-security {components}"
-            for archive in archives
-        ]
-
-        return repos
+        yield AptRepository(
+            types=types,
+            # Security updates repos are never mirrored.
+            url="http://security.debian.org/debian-security",
+            suite=f"{context.config.release}-security",
+            components=components,
+            signedby=signedby,
+        )
 
     @classmethod
     def setup(cls, context: Context) -> None:
@@ -217,12 +237,12 @@ class Installer(DistributionInstaller):
         return a
 
 
-def install_apt_sources(context: Context, repos: Sequence[str]) -> None:
+def install_apt_sources(context: Context, repos: Iterable[AptRepository]) -> None:
     if not (context.root / "usr/bin/apt").exists():
         return
 
-    sources = context.root / "etc/apt/sources.list"
+    sources = context.root / f"etc/apt/sources.list.d/{context.config.release}.sources"
     if not sources.exists():
         with sources.open("w") as f:
             for repo in repos:
-                f.write(f"{repo}\n")
+                f.write(str(repo))
