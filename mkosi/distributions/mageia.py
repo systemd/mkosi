@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import shutil
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 
 from mkosi.config import Architecture
 from mkosi.context import Context
@@ -43,32 +43,7 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def setup(cls, context: Context) -> None:
-        gpgurls = (
-            find_rpm_gpgkey(
-                context,
-                "RPM-GPG-KEY-Mageia",
-                "https://mirrors.kernel.org/mageia/distrib/$releasever/$basearch/media/core/release/media_info/pubkey",
-            ),
-        )
-
-        repos = []
-
-        if context.config.local_mirror:
-            repos += [RpmRepository("core-release", f"baseurl={context.config.local_mirror}", gpgurls)]
-        elif context.config.mirror:
-            url = f"baseurl={join_mirror(context.config.mirror, 'distrib/$releasever/$basearch/media/core/')}"
-            repos += [
-                RpmRepository("core-release", f"{url}/release", gpgurls),
-                RpmRepository("core-updates", f"{url}/updates/", gpgurls)
-            ]
-        else:
-            url = "mirrorlist=https://www.mageia.org/mirrorlist/?release=$releasever&arch=$basearch&section=core"
-            repos += [
-                RpmRepository("core-release", f"{url}&repo=release", gpgurls),
-                RpmRepository("core-updates", f"{url}&repo=updates", gpgurls)
-            ]
-
-        setup_dnf(context, repos)
+        setup_dnf(context, cls.repositories(context))
 
     @classmethod
     def install(cls, context: Context) -> None:
@@ -87,6 +62,27 @@ class Installer(DistributionInstaller):
     @classmethod
     def remove_packages(cls, context: Context, packages: Sequence[str]) -> None:
         invoke_dnf(context, "remove", packages)
+
+    @classmethod
+    def repositories(cls, context: Context) -> Iterable[RpmRepository]:
+        gpgurls = (
+            find_rpm_gpgkey(
+                context,
+                "RPM-GPG-KEY-Mageia",
+                "https://mirrors.kernel.org/mageia/distrib/$releasever/$basearch/media/core/release/media_info/pubkey",
+            ),
+        )
+
+        if context.config.local_mirror:
+            yield RpmRepository("core-release", f"baseurl={context.config.local_mirror}", gpgurls)
+        elif context.config.mirror:
+            url = f"baseurl={join_mirror(context.config.mirror, 'distrib/$releasever/$basearch/media/core/')}"
+            yield RpmRepository("core-release", f"{url}/release", gpgurls)
+            yield RpmRepository("core-updates", f"{url}/updates/", gpgurls)
+        else:
+            url = "mirrorlist=https://www.mageia.org/mirrorlist/?release=$releasever&arch=$basearch&section=core"
+            yield RpmRepository("core-release", f"{url}&repo=release", gpgurls)
+            yield RpmRepository("core-updates", f"{url}&repo=updates", gpgurls)
 
     @classmethod
     def architecture(cls, arch: Architecture) -> str:

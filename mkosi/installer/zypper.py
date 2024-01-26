@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1+
 import textwrap
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 
 from mkosi.config import yes_no
 from mkosi.context import Context
@@ -13,7 +13,7 @@ from mkosi.types import PathString
 from mkosi.util import sort_packages
 
 
-def setup_zypper(context: Context, repos: Sequence[RpmRepository]) -> None:
+def setup_zypper(context: Context, repos: Iterable[RpmRepository]) -> None:
     config = context.pkgmngr / "etc/zypp/zypp.conf"
     config.parent.mkdir(exist_ok=True, parents=True)
 

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import shutil
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 
 from mkosi.config import Architecture
 from mkosi.context import Context
@@ -43,28 +43,7 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def setup(cls, context: Context) -> None:
-        mirror = context.config.mirror or "http://mirror.openmandriva.org"
-
-        gpgurls = (
-            find_rpm_gpgkey(
-                context,
-                "RPM-GPG-KEY-OpenMandriva",
-                "https://raw.githubusercontent.com/OpenMandrivaAssociation/openmandriva-repos/master/RPM-GPG-KEY-OpenMandriva",
-            ),
-        )
-
-        repos = []
-
-        if context.config.local_mirror:
-            repos += [RpmRepository("main-release", f"baseurl={context.config.local_mirror}", gpgurls)]
-        else:
-            url = f"baseurl={join_mirror(mirror, '$releasever/repository/$basearch/main')}"
-            repos += [
-                RpmRepository("main-release", f"{url}/release", gpgurls),
-                RpmRepository("main-updates", f"{url}/updates", gpgurls),
-            ]
-
-        setup_dnf(context, repos)
+        setup_dnf(context, cls.repositories(context))
 
     @classmethod
     def install(cls, context: Context) -> None:
@@ -87,6 +66,25 @@ class Installer(DistributionInstaller):
     @classmethod
     def remove_packages(cls, context: Context, packages: Sequence[str]) -> None:
         invoke_dnf(context, "remove", packages)
+
+    @classmethod
+    def repositories(cls, context: Context) -> Iterable[RpmRepository]:
+        mirror = context.config.mirror or "http://mirror.openmandriva.org"
+
+        gpgurls = (
+            find_rpm_gpgkey(
+                context,
+                "RPM-GPG-KEY-OpenMandriva",
+                "https://raw.githubusercontent.com/OpenMandrivaAssociation/openmandriva-repos/master/RPM-GPG-KEY-OpenMandriva",
+            ),
+        )
+
+        if context.config.local_mirror:
+            yield RpmRepository("main-release", f"baseurl={context.config.local_mirror}", gpgurls)
+        else:
+            url = f"baseurl={join_mirror(mirror, '$releasever/repository/$basearch/main')}"
+            yield RpmRepository("main-release", f"{url}/release", gpgurls)
+            yield RpmRepository("main-updates", f"{url}/updates", gpgurls)
 
     @classmethod
     def architecture(cls, arch: Architecture) -> str:
