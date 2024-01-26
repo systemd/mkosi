@@ -1,13 +1,17 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
+import contextlib
 import os
+from collections.abc import Iterator
 from pathlib import Path
 
-from mkosi.config import ConfigFeature
+from mkosi.config import Config, ConfigFeature
 from mkosi.context import Context
+from mkosi.log import complete_step
 from mkosi.sandbox import apivfs_cmd, finalize_crypto_mounts
 from mkosi.tree import rmtree
 from mkosi.types import PathString
+from mkosi.user import INVOKING_USER
 from mkosi.util import flatten
 
 
@@ -74,16 +78,27 @@ def finalize_package_manager_mounts(context: Context) -> list[PathString]:
     ]
 
     mounts += flatten(
-        ["--bind", context.cache_dir / d, Path("/var") / d]
-        for d in (
-            "lib/apt",
-            "cache/apt",
-            f"cache/{dnf_subdir(context)}",
-            f"lib/{dnf_subdir(context)}",
-            "cache/pacman/pkg",
-            "cache/zypp",
-        )
-        if (context.cache_dir / d).exists()
+        ["--bind", context.config.package_cache_dir_or_default() / d, Path("/var/cache") / d]
+        for d in ("apt", dnf_subdir(context), "pacman/pkg", "zypp")
+        if (context.config.package_cache_dir_or_default() / d).exists()
+    )
+
+    mounts += flatten(
+        ["--bind", context.config.package_state_dir_or_default() / d, Path("/var/lib") / d]
+        for d in ("apt", dnf_subdir(context))
+        if (context.config.package_state_dir_or_default() / d).exists()
     )
 
     return mounts
+
+
+@contextlib.contextmanager
+def rchown_package_manager_cache_dirs(config: Config) -> Iterator[None]:
+    try:
+        yield
+    finally:
+        if INVOKING_USER.is_regular_user():
+            with complete_step("Fixing ownership of package manager cache directories"):
+                for p in ("apt", "dnf", "libdnf5", "pacman", "zypp"):
+                    for d in (config.package_cache_dir_or_default(), config.package_state_dir_or_default()):
+                        INVOKING_USER.rchown(d / p)
