@@ -67,7 +67,7 @@ class Installer(DistributionInstaller):
         if context.config.local_mirror:
             yield PacmanRepository("core", context.config.local_mirror)
         else:
-            if any(context.packages.iterdir()):
+            if context.want_local_repo():
                 yield localrepo_pacman()
 
             if context.config.architecture == Architecture.arm64:

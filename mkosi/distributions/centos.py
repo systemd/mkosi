@@ -223,7 +223,7 @@ class Installer(DistributionInstaller):
             yield from cls.repository_variants(context, "AppStream")
             return
 
-        if any(context.packages.iterdir()):
+        if context.want_local_repo():
             yield localrepo_dnf()
 
         yield from cls.repository_variants(context, "BaseOS")

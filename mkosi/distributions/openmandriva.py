@@ -58,7 +58,7 @@ class Installer(fedora.Installer):
             yield RpmRepository("main-release", f"baseurl={context.config.local_mirror}", gpgurls)
             return
 
-        if any(context.packages.iterdir()):
+        if context.want_local_repo():
             yield localrepo_dnf()
 
         url = f"baseurl={join_mirror(mirror, '$releasever/repository/$basearch/main')}"

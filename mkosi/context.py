@@ -93,3 +93,6 @@ class Context:
                 f"mount -t overlay -o lowerdir={self.pkgmngr / 'usr'}:/usr overlayfs /usr && exec $0 \"$@\"",
             ] if (self.pkgmngr / "usr").exists() else []
         )
+
+    def want_local_repo(self) -> bool:
+        return any(self.packages.iterdir())

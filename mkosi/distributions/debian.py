@@ -52,7 +52,7 @@ class Installer(DistributionInstaller):
             )
             return
 
-        if any(context.packages.iterdir()):
+        if context.want_local_repo():
             yield localrepo_apt(context)
 
         mirror = context.config.mirror or "http://deb.debian.org/debian"

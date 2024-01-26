@@ -74,7 +74,7 @@ class Installer(DistributionInstaller):
             yield RpmRepository("fedora", f"baseurl={context.config.local_mirror}", gpgurls)
             return
 
-        if any(context.packages.iterdir()):
+        if context.want_local_repo():
             yield localrepo_dnf()
 
         if context.config.release == "eln":
