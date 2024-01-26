@@ -1412,6 +1412,9 @@ def install_package_directories(context: Context) -> None:
         for d in context.config.package_directories:
             install_tree(context, d, context.packages)
 
+    if context.want_local_repo():
+        context.config.distribution.createrepo(context)
+
 
 def install_extra_trees(context: Context) -> None:
     if not context.config.extra_trees:
