@@ -1051,8 +1051,8 @@ def find_grub_bios_directory(context: Context) -> Optional[Path]:
 
 
 def find_grub_binary(binary: str, root: Path = Path("/")) -> Optional[Path]:
-    assert "grub" in binary and "grub2" not in binary
-    return find_binary(binary, binary.replace("grub", "grub2"), root=root)
+    assert "grub" not in binary
+    return find_binary(f"grub-{binary}", f"grub2-{binary}", root=root)
 
 
 def want_grub_efi(context: Context) -> bool:
@@ -1105,7 +1105,7 @@ def want_grub_bios(context: Context, partitions: Sequence[Partition] = ()) -> bo
 
     installed = True
 
-    for binary in ("grub-mkimage", "grub-bios-setup"):
+    for binary in ("mkimage", "bios-setup"):
         if find_grub_binary(binary, root=context.config.tools()):
             continue
 
@@ -1223,7 +1223,7 @@ def prepare_grub_bios(context: Context, partitions: Sequence[Partition]) -> None
     # so we're forced to reimplement its functionality. Luckily that's pretty simple, run grub-mkimage to
     # generate the required core.img and copy the relevant files to the ESP.
 
-    mkimage = find_grub_binary("grub-mkimage", root=context.config.tools())
+    mkimage = find_grub_binary("mkimage", root=context.config.tools())
     assert mkimage
 
     directory = find_grub_bios_directory(context)
@@ -1291,7 +1291,7 @@ def install_grub_bios(context: Context, partitions: Sequence[Partition]) -> None
     if not want_grub_bios(context, partitions):
         return
 
-    setup = find_grub_binary("grub-bios-setup", root=context.config.tools())
+    setup = find_grub_binary("bios-setup", root=context.config.tools())
     assert setup
 
     with (
