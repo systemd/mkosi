@@ -1,3 +1,10 @@
+---
+title: Building RPMs from source with mkosi
+category: Tutorials
+layout: default
+SPDX-License-Identifier: LGPL-2.1-or-later
+---
+
 # Building RPMs from source with mkosi
 
 If you want to build an RPM from source and install it within a mkosi

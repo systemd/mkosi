@@ -1,0 +1,7 @@
+[
+    { "category": "Project", "title": "Brand", "url": "https://brand.systemd.io/" },
+    { "category": "Project", "title": "Releases", "url": "https://github.com/systemd/mkosi/releases" },
+    { "category": "Project", "title": "GitHub Project Page", "url": "https://github.com/systemd/mkosi" },
+    { "category": "Project", "title": "Issues", "url": "https://github.com/systemd/mkosi/issues" },
+    { "category": "Project", "title": "Pull Requests", "url": "https://github.com/systemd/mkosi/pulls" }
+]

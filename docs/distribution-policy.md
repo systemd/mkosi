@@ -1,3 +1,10 @@
+---
+title: Adding new distributions
+category: Tutorials
+layout: default
+SPDX-License-Identifier: LGPL-2.1-or-later
+---
+
 # Adding new distributions
 
 Merging support for a new distribution in mkosi depends on a few
