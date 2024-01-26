@@ -9,6 +9,7 @@ from mkosi.installer.pacman import (
     PacmanRepository,
     createrepo_pacman,
     invoke_pacman,
+    localrepo_pacman,
     setup_pacman,
 )
 from mkosi.log import die
@@ -36,8 +37,8 @@ class Installer(DistributionInstaller):
         return Distribution.arch
 
     @classmethod
-    def createrepo(cls, context: "Context") -> None:
-        return createrepo_pacman(context)
+    def createrepo(cls, context: Context) -> None:
+        createrepo_pacman(context)
 
     @classmethod
     def setup(cls, context: Context) -> None:
@@ -66,6 +67,9 @@ class Installer(DistributionInstaller):
         if context.config.local_mirror:
             yield PacmanRepository("core", context.config.local_mirror)
         else:
+            if any(context.packages.iterdir()):
+                yield localrepo_pacman()
+
             if context.config.architecture == Architecture.arm64:
                 url = f"{context.config.mirror or 'http://mirror.archlinuxarm.org'}/$arch/$repo"
             else:

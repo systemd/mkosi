@@ -154,14 +154,12 @@ def createrepo_apt(context: Context) -> None:
         run(["dpkg-scanpackages", context.packages],
             stdout=f, sandbox=context.sandbox(options=["--ro-bind", context.packages, context.packages]))
 
-    (context.pkgmngr / "etc/apt/sources.list.d").mkdir(parents=True, exist_ok=True)
-    (context.pkgmngr / "etc/apt/sources.list.d/mkosi-packages.sources").write_text(
-        f"""\
-        Enabled: yes
-        Types: deb
-        URIs: file:///work/packages
-        Suites: {context.config.release}
-        Components: main
-        Trusted: yes
-        """
+
+def localrepo_apt(context: Context) -> AptRepository:
+    return AptRepository(
+        types=("deb",),
+        url="file:///work/packages",
+        suite=context.config.release,
+        components=("main",),
+        signedby=None,
     )

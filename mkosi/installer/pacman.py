@@ -111,7 +111,7 @@ def invoke_pacman(
         )
 
 
-def createrepo_pacman(context: Context) -> None:
+def createrepo_pacman(context: Context, *, force: bool = False) -> None:
     run(
         [
             "repo-add",
@@ -120,12 +120,6 @@ def createrepo_pacman(context: Context) -> None:
         ]
     )
 
-    with (context.pkgmngr / "etc/pacman.conf").open("a") as f:
-        f.write(
-            textwrap.dedent(
-                """\
-                [mkosi-packages]
-                Server = file:///work/packages
-                """
-            )
-        )
+
+def localrepo_pacman() -> PacmanRepository:
+    return PacmanRepository(id="mkosi-packages", url="file:///work/packages")

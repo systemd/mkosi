@@ -5,7 +5,7 @@ from collections.abc import Iterable
 from mkosi.config import Architecture
 from mkosi.context import Context
 from mkosi.distributions import debian
-from mkosi.installer.apt import AptRepository
+from mkosi.installer.apt import AptRepository, localrepo_apt
 
 
 class Installer(debian.Installer):
@@ -35,6 +35,9 @@ class Installer(debian.Installer):
                 signedby=None,
             )
             return
+
+        if any(context.packages.iterdir()):
+            yield localrepo_apt(context)
 
         if context.config.architecture in (Architecture.x86, Architecture.x86_64):
             mirror = context.config.mirror or "http://archive.ubuntu.com/ubuntu"

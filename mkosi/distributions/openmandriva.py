@@ -11,7 +11,7 @@ from mkosi.distributions import (
     PackageType,
     join_mirror,
 )
-from mkosi.installer.dnf import createrepo_dnf, invoke_dnf, setup_dnf
+from mkosi.installer.dnf import createrepo_dnf, invoke_dnf, localrepo_dnf, setup_dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey
 from mkosi.log import die
 
@@ -38,8 +38,8 @@ class Installer(DistributionInstaller):
         return Distribution.openmandriva
 
     @classmethod
-    def createrepo(cls, context: "Context") -> None:
-        return createrepo_dnf(context)
+    def createrepo(cls, context: Context) -> None:
+        createrepo_dnf(context)
 
     @classmethod
     def setup(cls, context: Context) -> None:
@@ -81,10 +81,14 @@ class Installer(DistributionInstaller):
 
         if context.config.local_mirror:
             yield RpmRepository("main-release", f"baseurl={context.config.local_mirror}", gpgurls)
-        else:
-            url = f"baseurl={join_mirror(mirror, '$releasever/repository/$basearch/main')}"
-            yield RpmRepository("main-release", f"{url}/release", gpgurls)
-            yield RpmRepository("main-updates", f"{url}/updates", gpgurls)
+            return
+
+        if any(context.packages.iterdir()):
+            yield localrepo_dnf()
+
+        url = f"baseurl={join_mirror(mirror, '$releasever/repository/$basearch/main')}"
+        yield RpmRepository("main-release", f"{url}/release", gpgurls)
+        yield RpmRepository("main-updates", f"{url}/updates", gpgurls)
 
     @classmethod
     def architecture(cls, arch: Architecture) -> str:

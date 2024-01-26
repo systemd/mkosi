@@ -54,11 +54,16 @@ def setup_dnf(context: Context, repositories: Iterable[RpmRepository], filelists
                         [{repo.id}]
                         name={repo.id}
                         {repo.url}
-                        gpgcheck=1
+                        gpgcheck={int(repo.gpgcheck)}
                         enabled={int(repo.enabled)}
                         """
                     )
                 )
+
+                if repo.metadata_expire is not None:
+                    f.write(f"metadata_expire={repo.metadata_expire}\n")
+                if repo.priority is not None:
+                    f.write(f"priority={repo.priority}\n")
 
                 if repo.sslcacert:
                     f.write(f"sslcacert={repo.sslcacert}\n")
@@ -156,17 +161,13 @@ def createrepo_dnf(context: Context) -> None:
     run(["createrepo_c", context.packages],
         sandbox=context.sandbox(options=["--bind", context.packages, context.packages]))
 
-    (context.pkgmngr / "etc/yum.repos.d").mkdir(parents=True, exist_ok=True)
-    (context.pkgmngr / "etc/yum.repos.d/mkosi-packages.repo").write_text(
-        textwrap.dedent(
-            """\
-            [mkosi-packages]
-            name=mkosi-packages
-            gpgcheck=0
-            enabled=1
-            baseurl=file:///work/packages
-            metadata_expire=0
-            priority=50
-            """
-        )
+
+def localrepo_dnf() -> RpmRepository:
+    return RpmRepository(
+        id="mkosi-packages",
+        url="baseurl=file:///work/packages",
+        gpgcheck=False,
+        gpgurls=(),
+        metadata_expire=0,
+        priority=50,
     )

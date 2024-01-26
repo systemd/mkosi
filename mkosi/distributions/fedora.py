@@ -10,7 +10,7 @@ from mkosi.distributions import (
     PackageType,
     join_mirror,
 )
-from mkosi.installer.dnf import createrepo_dnf, invoke_dnf, setup_dnf
+from mkosi.installer.dnf import createrepo_dnf, invoke_dnf, localrepo_dnf, setup_dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey
 from mkosi.log import die
 
@@ -42,7 +42,7 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def createrepo(cls, context: Context) -> None:
-        return createrepo_dnf(context)
+        createrepo_dnf(context)
 
     @classmethod
     def setup(cls, context: Context) -> None:
@@ -72,7 +72,12 @@ class Installer(DistributionInstaller):
 
         if context.config.local_mirror:
             yield RpmRepository("fedora", f"baseurl={context.config.local_mirror}", gpgurls)
-        elif context.config.release == "eln":
+            return
+
+        if any(context.packages.iterdir()):
+            yield localrepo_dnf()
+
+        if context.config.release == "eln":
             mirror = context.config.mirror or "https://odcs.fedoraproject.org/composes/production/latest-Fedora-ELN/compose"
             for repo in ("Appstream", "BaseOS", "Extras", "CRB"):
                 url = f"baseurl={join_mirror(mirror, repo)}"

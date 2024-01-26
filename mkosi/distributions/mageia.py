@@ -11,7 +11,7 @@ from mkosi.distributions import (
     PackageType,
     join_mirror,
 )
-from mkosi.installer.dnf import createrepo_dnf, invoke_dnf, setup_dnf
+from mkosi.installer.dnf import createrepo_dnf, invoke_dnf, localrepo_dnf, setup_dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey
 from mkosi.log import die
 
@@ -38,8 +38,8 @@ class Installer(DistributionInstaller):
         return Distribution.mageia
 
     @classmethod
-    def createrepo(cls, context: "Context") -> None:
-        return createrepo_dnf(context)
+    def createrepo(cls, context: Context) -> None:
+        createrepo_dnf(context)
 
     @classmethod
     def setup(cls, context: Context) -> None:
@@ -75,7 +75,12 @@ class Installer(DistributionInstaller):
 
         if context.config.local_mirror:
             yield RpmRepository("core-release", f"baseurl={context.config.local_mirror}", gpgurls)
-        elif context.config.mirror:
+            return
+
+        if any(context.packages.iterdir()):
+            yield localrepo_dnf()
+
+        if context.config.mirror:
             url = f"baseurl={join_mirror(context.config.mirror, 'distrib/$releasever/$basearch/media/core/')}"
             yield RpmRepository("core-release", f"{url}/release", gpgurls)
             yield RpmRepository("core-updates", f"{url}/updates/", gpgurls)

@@ -8,9 +8,9 @@ from pathlib import Path
 from mkosi.config import Architecture
 from mkosi.context import Context
 from mkosi.distributions import Distribution, DistributionInstaller, PackageType
-from mkosi.installer.dnf import createrepo_dnf, invoke_dnf, setup_dnf
+from mkosi.installer.dnf import createrepo_dnf, invoke_dnf, localrepo_dnf, setup_dnf
 from mkosi.installer.rpm import RpmRepository
-from mkosi.installer.zypper import createrepo_zypper, invoke_zypper, setup_zypper
+from mkosi.installer.zypper import createrepo_zypper, invoke_zypper, localrepo_zypper, setup_zypper
 from mkosi.log import die
 from mkosi.run import find_binary, run
 from mkosi.sandbox import finalize_crypto_mounts
@@ -42,7 +42,7 @@ class Installer(DistributionInstaller):
         return "grub2"
 
     @classmethod
-    def createrepo(cls, context: "Context") -> None:
+    def createrepo(cls, context: Context) -> None:
         if find_binary("zypper", root=context.config.tools()):
             createrepo_zypper(context)
         else:
@@ -81,6 +81,9 @@ class Installer(DistributionInstaller):
     @classmethod
     def repositories(cls, context: Context) -> Iterable[RpmRepository]:
         zypper = find_binary("zypper", root=context.config.tools())
+
+        if any(context.packages.iterdir()):
+            yield localrepo_zypper() if zypper else localrepo_dnf()
 
         release = context.config.release
         if release == "leap":

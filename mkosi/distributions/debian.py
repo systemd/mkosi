@@ -9,7 +9,7 @@ from mkosi.archive import extract_tar
 from mkosi.config import Architecture
 from mkosi.context import Context
 from mkosi.distributions import Distribution, DistributionInstaller, PackageType
-from mkosi.installer.apt import AptRepository, createrepo_apt, invoke_apt, setup_apt
+from mkosi.installer.apt import AptRepository, createrepo_apt, invoke_apt, localrepo_apt, setup_apt
 from mkosi.log import die
 from mkosi.run import run
 from mkosi.sandbox import finalize_passwd_mounts
@@ -51,6 +51,9 @@ class Installer(DistributionInstaller):
                 signedby=None,
             )
             return
+
+        if any(context.packages.iterdir()):
+            yield localrepo_apt(context)
 
         mirror = context.config.mirror or "http://deb.debian.org/debian"
         signedby = "/usr/share/keyrings/debian-archive-keyring.gpg"
@@ -99,8 +102,8 @@ class Installer(DistributionInstaller):
         setup_apt(context, cls.repositories(context))
 
     @classmethod
-    def createrepo(cls, context: "Context") -> None:
-        return createrepo_apt(context)
+    def createrepo(cls, context: Context) -> None:
+        createrepo_apt(context)
 
     @classmethod
     def install(cls, context: Context) -> None:
