@@ -52,7 +52,7 @@ class Installer(DistributionInstaller):
             )
             return
 
-        if any(context.packages.iterdir()):
+        if context.want_local_repo():
             yield localrepo_apt(context)
 
         mirror = context.config.mirror or "http://deb.debian.org/debian"
@@ -167,7 +167,7 @@ class Installer(DistributionInstaller):
             with (
                 # The deb paths will be in the form of "/var/cache/apt/<deb>" so we transform them to the corresponding
                 # path in mkosi's package cache directory.
-                open(context.cache_dir / Path(deb).relative_to("/var"), "rb") as i,
+                open(context.config.package_cache_dir_or_default() / Path(deb).relative_to("/var/cache"), "rb") as i,
                 tempfile.NamedTemporaryFile() as o
             ):
                 run(["dpkg-deb", "--fsys-tarfile", "/dev/stdin"], stdin=i, stdout=o, sandbox=context.sandbox())

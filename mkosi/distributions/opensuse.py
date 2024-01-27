@@ -82,7 +82,7 @@ class Installer(DistributionInstaller):
     def repositories(cls, context: Context) -> Iterable[RpmRepository]:
         zypper = find_binary("zypper", root=context.config.tools())
 
-        if any(context.packages.iterdir()):
+        if context.want_local_repo():
             yield localrepo_zypper() if zypper else localrepo_dnf()
 
         release = context.config.release

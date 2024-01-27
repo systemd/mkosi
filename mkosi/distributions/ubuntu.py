@@ -36,7 +36,7 @@ class Installer(debian.Installer):
             )
             return
 
-        if any(context.packages.iterdir()):
+        if context.want_local_repo():
             yield localrepo_apt(context)
 
         if context.config.architecture in (Architecture.x86, Architecture.x86_64):

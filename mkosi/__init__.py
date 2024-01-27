@@ -52,6 +52,7 @@ from mkosi.installer import (
     clean_package_manager_metadata,
     finalize_package_manager_mounts,
     package_manager_scripts,
+    rchown_package_manager_cache_dirs,
 )
 from mkosi.kmod import gen_required_kernel_modules, process_kernel_modules
 from mkosi.log import ARG_DEBUG, complete_step, die, log_notice, log_step
@@ -61,19 +62,16 @@ from mkosi.pager import page
 from mkosi.partition import Partition, finalize_root, finalize_roothash
 from mkosi.qemu import KernelType, copy_ephemeral, run_qemu, run_ssh
 from mkosi.run import (
-    CLONE_NEWNS,
-    become_root,
     find_binary,
     fork_and_wait,
     log_process_failure,
     run,
-    unshare,
 )
 from mkosi.sandbox import chroot_cmd, finalize_passwd_mounts
 from mkosi.tree import copy_tree, move_tree, rmtree
 from mkosi.types import PathString
+from mkosi.user import CLONE_NEWNS, INVOKING_USER, become_root, unshare
 from mkosi.util import (
-    INVOKING_USER,
     format_rlimit,
     make_executable,
     one_zero,
@@ -557,7 +555,7 @@ def run_build_scripts(context: Context) -> None:
                     ) + (chroot if script.suffix == ".chroot" else []),
                 )
 
-    if any(context.packages.iterdir()):
+    if context.want_local_repo():
         with complete_step("Rebuilding local package repository"):
             context.config.distribution.createrepo(context)
 
@@ -1051,8 +1049,8 @@ def find_grub_bios_directory(context: Context) -> Optional[Path]:
 
 
 def find_grub_binary(binary: str, root: Path = Path("/")) -> Optional[Path]:
-    assert "grub" in binary and "grub2" not in binary
-    return find_binary(binary, binary.replace("grub", "grub2"), root=root)
+    assert "grub" not in binary
+    return find_binary(f"grub-{binary}", f"grub2-{binary}", root=root)
 
 
 def want_grub_efi(context: Context) -> bool:
@@ -1105,7 +1103,7 @@ def want_grub_bios(context: Context, partitions: Sequence[Partition] = ()) -> bo
 
     installed = True
 
-    for binary in ("grub-mkimage", "grub-bios-setup"):
+    for binary in ("mkimage", "bios-setup"):
         if find_grub_binary(binary, root=context.config.tools()):
             continue
 
@@ -1223,7 +1221,7 @@ def prepare_grub_bios(context: Context, partitions: Sequence[Partition]) -> None
     # so we're forced to reimplement its functionality. Luckily that's pretty simple, run grub-mkimage to
     # generate the required core.img and copy the relevant files to the ESP.
 
-    mkimage = find_grub_binary("grub-mkimage", root=context.config.tools())
+    mkimage = find_grub_binary("mkimage", root=context.config.tools())
     assert mkimage
 
     directory = find_grub_bios_directory(context)
@@ -1291,7 +1289,7 @@ def install_grub_bios(context: Context, partitions: Sequence[Partition]) -> None
     if not want_grub_bios(context, partitions):
         return
 
-    setup = find_grub_binary("grub-bios-setup", root=context.config.tools())
+    setup = find_grub_binary("bios-setup", root=context.config.tools())
     assert setup
 
     with (
@@ -1415,6 +1413,9 @@ def install_package_directories(context: Context) -> None:
         for d in context.config.package_directories:
             install_tree(context, d, context.packages)
 
+    if context.want_local_repo():
+        context.config.distribution.createrepo(context)
+
 
 def install_extra_trees(context: Context) -> None:
     if not context.config.extra_trees:
@@ -1486,7 +1487,8 @@ def build_initrd(context: Context) -> Path:
         "--cache-only", str(context.config.cache_only),
         "--output-dir", str(context.workspace / "initrd"),
         *(["--workspace-dir", str(context.config.workspace_dir)] if context.config.workspace_dir else []),
-        "--cache-dir", str(context.cache_dir),
+        *(["--cache-dir", str(context.config.cache_dir)] if context.config.cache_dir else []),
+        *(["--package-cache-dir", str(context.config.package_cache_dir)] if context.config.package_cache_dir else []),
         *(["--local-mirror", str(context.config.local_mirror)] if context.config.local_mirror else []),
         "--incremental", str(context.config.incremental),
         "--acl", str(context.config.acl),
@@ -3415,6 +3417,7 @@ def finalize_default_tools(args: Args, config: Config, *, resources: Path) -> Co
         *(["--output-dir", str(config.output_dir)] if config.output_dir else []),
         *(["--workspace-dir", str(config.workspace_dir)] if config.workspace_dir else []),
         *(["--cache-dir", str(config.cache_dir)] if config.cache_dir else []),
+        *(["--package-cache-dir", str(config.package_cache_dir)] if config.package_cache_dir else []),
         "--incremental", str(config.incremental),
         "--acl", str(config.acl),
         *([f"--package={package}" for package in config.tools_tree_packages]),
@@ -3496,11 +3499,16 @@ def run_clean(args: Args, config: Config) -> None:
             with complete_step(f"Clearing out build directory of {config.name()} image…"):
                 rmtree(*config.build_dir.iterdir())
 
-    if remove_package_cache and config.cache_dir and config.cache_dir.exists() and any(config.cache_dir.iterdir()):
+    if (
+        remove_package_cache and
+        config.package_cache_dir and
+        config.package_cache_dir.exists() and
+        any(config.package_cache_dir.iterdir())
+    ):
         with complete_step(f"Clearing out package cache of {config.name()} image…"):
             rmtree(
                 *(
-                    config.cache_dir / p / d
+                    config.package_cache_dir / p / d
                     for p in ("cache", "lib")
                     for d in ("apt", "dnf", "libdnf5", "pacman", "zypp")
                 ),
@@ -3521,25 +3529,26 @@ def run_build(args: Args, config: Config, *, resources: Path) -> None:
         if Path(d).exists():
             run(["mount", "--rbind", d, d, "--options", "ro"])
 
+    # Create these as the invoking user to make sure they're owned by the user running mkosi.
+    for p in (
+        config.output_dir,
+        config.cache_dir,
+        config.package_cache_dir_or_default(),
+        config.package_state_dir_or_default(),
+        config.build_dir,
+        config.workspace_dir,
+    ):
+        if p:
+            INVOKING_USER.mkdir(p)
+
     with (
         complete_step(f"Building {config.name()} image"),
         prepend_to_environ_path(config),
+        acl_toggle_build(config, INVOKING_USER.uid),
+        rchown_package_manager_cache_dirs(config),
     ):
-        # After tools have been mounted, check if we have what we need
         check_tools(config, Verb.build)
-
-        # Create these as the invoking user to make sure they're owned by the user running mkosi.
-        for p in (
-            config.output_dir,
-            config.cache_dir,
-            config.build_dir,
-            config.workspace_dir,
-        ):
-            if p:
-                run(["mkdir", "--parents", p], user=INVOKING_USER.uid, group=INVOKING_USER.gid)
-
-        with acl_toggle_build(config, INVOKING_USER.uid):
-            build_image(args, config, resources=resources)
+        build_image(args, config, resources=resources)
 
 
 def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:

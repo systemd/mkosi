@@ -52,7 +52,7 @@ class Installer(fedora.Installer):
             yield RpmRepository("core-release", f"baseurl={context.config.local_mirror}", gpgurls)
             return
 
-        if any(context.packages.iterdir()):
+        if context.want_local_repo():
             yield localrepo_dnf()
 
         if context.config.mirror:

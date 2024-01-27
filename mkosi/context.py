@@ -37,7 +37,6 @@ class Context:
         self.pkgmngr.mkdir()
         self.packages.mkdir()
         self.install_dir.mkdir(exist_ok=True)
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
 
     @property
     def root(self) -> Path:
@@ -54,10 +53,6 @@ class Context:
     @property
     def packages(self) -> Path:
         return self.workspace / "packages"
-
-    @property
-    def cache_dir(self) -> Path:
-        return self.config.cache_dir or (self.workspace / "cache")
 
     @property
     def install_dir(self) -> Path:
@@ -93,3 +88,6 @@ class Context:
                 f"mount -t overlay -o lowerdir={self.pkgmngr / 'usr'}:/usr overlayfs /usr && exec $0 \"$@\"",
             ] if (self.pkgmngr / "usr").exists() else []
         )
+
+    def want_local_repo(self) -> bool:
+        return any(self.packages.iterdir())

@@ -8,7 +8,8 @@ from pathlib import Path
 from typing import Optional
 
 from mkosi.types import PathString
-from mkosi.util import INVOKING_USER, flatten, one_zero
+from mkosi.user import INVOKING_USER
+from mkosi.util import flatten, one_zero
 
 
 # https://github.com/torvalds/linux/blob/master/include/uapi/linux/capability.h

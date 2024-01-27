@@ -34,8 +34,8 @@ from mkosi.pager import page
 from mkosi.run import find_binary, run
 from mkosi.sandbox import sandbox_cmd
 from mkosi.types import PathString, SupportsRead
+from mkosi.user import INVOKING_USER
 from mkosi.util import (
-    INVOKING_USER,
     StrEnum,
     chdir,
     flatten,
@@ -1171,6 +1171,7 @@ class Config:
     output_dir: Optional[Path]
     workspace_dir: Optional[Path]
     cache_dir: Optional[Path]
+    package_cache_dir: Optional[Path]
     build_dir: Optional[Path]
     image_id: Optional[str]
     image_version: Optional[str]
@@ -1296,23 +1297,16 @@ class Config:
         if self.workspace_dir:
             return self.workspace_dir
 
-        if (cache := os.getenv("XDG_CACHE_HOME")) and Path(cache).exists():
-            return Path(cache)
-
-        # If we're running from /home and there's a cache or output directory in /home, we want to use a workspace
-        # directory in /home as well as /home might be on a separate partition or subvolume which means that to take
-        # advantage of reflinks and such, the workspace directory has to be on the same partition/subvolume.
-        if (
-            Path.cwd().is_relative_to(INVOKING_USER.home()) and
-            (INVOKING_USER.home() / ".cache").exists() and
-            (
-                self.cache_dir and self.cache_dir.is_relative_to(INVOKING_USER.home()) or
-                self.output_dir and self.output_dir.is_relative_to(INVOKING_USER.home())
-            )
-        ):
-            return INVOKING_USER.home() / ".cache"
+        if (cache := INVOKING_USER.cache_dir()) and cache != Path("/var/cache"):
+            return cache
 
         return Path("/var/tmp")
+
+    def package_cache_dir_or_default(self) -> Path:
+        return self.package_cache_dir or INVOKING_USER.cache_dir()
+
+    def package_state_dir_or_default(self) -> Path:
+        return self.package_cache_dir or INVOKING_USER.state_dir()
 
     def tools(self) -> Path:
         return self.tools_tree or Path("/")
@@ -1737,7 +1731,15 @@ SETTINGS = (
         section="Output",
         parse=config_make_path_parser(required=False),
         paths=("mkosi.cache",),
-        help="Package cache path",
+        help="Incremental cache directory",
+    ),
+    ConfigSetting(
+        dest="package_cache_dir",
+        metavar="PATH",
+        name="PackageCacheDirectory",
+        section="Output",
+        parse=config_make_path_parser(required=False),
+        help="Package cache directory",
     ),
     ConfigSetting(
         dest="build_dir",
@@ -3433,6 +3435,7 @@ def summary(config: Config) -> str:
                    Output Directory: {config.output_dir_or_cwd()}
                 Workspace Directory: {config.workspace_dir_or_default()}
                     Cache Directory: {none_to_none(config.cache_dir)}
+            Package Cache Directory: {none_to_default(config.package_cache_dir)}
                     Build Directory: {none_to_none(config.build_dir)}
                            Image ID: {config.image_id}
                       Image Version: {config.image_version}

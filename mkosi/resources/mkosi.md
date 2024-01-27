@@ -695,10 +695,17 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `CacheDirectory=`, `--cache-dir=`
 
-: Takes a path to a directory to use as package cache for the
-  distribution package manager used. If this option is not used, but a
-  `mkosi.cache/` directory is found in the local directory it is
-  automatically used for this purpose.
+: Takes a path to a directory to use as the incremental cache directory
+  for the incremental images produced when the `Incremental=` option is
+  enabled. If this option is not used, but a `mkosi.cache/` directory is
+  found in the local directory it is automatically used for this
+  purpose.
+
+`PackageCacheDirectory=`, `--package-cache-dir`
+
+: Takes a path to a directory to use as the package cache directory for
+  the distribution package manager used. If unset, a suitable directory
+  in the user's home directory or system is used.
 
 `BuildDirectory=`, `--build-dir=`
 
@@ -1686,10 +1693,6 @@ distributions:
 * *Rocky Linux*
 
 * *Alma Linux*
-
-* *Gentoo* (**Gentoo is experimental and unsupported. We make no
-  guarantee that it will work at all and the core maintainers will
-  generally not fix gentoo specific issues**)
 
 * *None* (**Requires the user to provide a pre-built rootfs**)
 
