@@ -10,7 +10,6 @@ from mkosi.mounts import finalize_ephemeral_source_mounts
 from mkosi.run import run
 from mkosi.sandbox import apivfs_cmd
 from mkosi.types import PathString
-from mkosi.user import INVOKING_USER
 from mkosi.util import sort_packages
 
 
@@ -18,7 +17,7 @@ def setup_zypper(context: Context, repos: Iterable[RpmRepository]) -> None:
     config = context.pkgmngr / "etc/zypp/zypp.conf"
     config.parent.mkdir(exist_ok=True, parents=True)
 
-    INVOKING_USER.mkdir(context.config.package_cache_dir_or_default() / "zypp")
+    (context.cache_dir / "cache/zypp").mkdir(exist_ok=True, parents=True)
 
     # rpm.install.excludedocs can only be configured in zypp.conf so we append
     # to any user provided config file. Let's also bump the refresh delay to

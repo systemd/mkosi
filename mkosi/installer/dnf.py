@@ -10,7 +10,6 @@ from mkosi.mounts import finalize_ephemeral_source_mounts
 from mkosi.run import find_binary, run
 from mkosi.sandbox import apivfs_cmd
 from mkosi.types import PathString
-from mkosi.user import INVOKING_USER
 from mkosi.util import sort_packages
 
 
@@ -31,8 +30,8 @@ def setup_dnf(context: Context, repositories: Iterable[RpmRepository], filelists
     (context.pkgmngr / "etc/dnf/vars").mkdir(exist_ok=True, parents=True)
     (context.pkgmngr / "etc/yum.repos.d").mkdir(exist_ok=True, parents=True)
 
-    INVOKING_USER.mkdir(context.config.package_cache_dir_or_default() / dnf_subdir(context))
-    INVOKING_USER.mkdir(context.config.package_state_dir_or_default() / dnf_subdir(context))
+    (context.cache_dir / "cache" / dnf_subdir(context)).mkdir(exist_ok=True, parents=True)
+    (context.cache_dir / "lib" / dnf_subdir(context)).mkdir(exist_ok=True, parents=True)
 
     config = context.pkgmngr / "etc/dnf/dnf.conf"
 

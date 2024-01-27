@@ -10,7 +10,6 @@ from mkosi.mounts import finalize_ephemeral_source_mounts
 from mkosi.run import run
 from mkosi.sandbox import apivfs_cmd
 from mkosi.types import PathString
-from mkosi.user import INVOKING_USER
 from mkosi.util import sort_packages, umask
 from mkosi.versioncomp import GenericVersion
 
@@ -32,7 +31,7 @@ def setup_pacman(context: Context, repositories: Iterable[PacmanRepository]) -> 
     with umask(~0o755):
         (context.root / "var/lib/pacman").mkdir(exist_ok=True, parents=True)
 
-    INVOKING_USER.mkdir(context.config.package_cache_dir_or_default() / "pacman/pkg")
+    (context.cache_dir / "cache/pacman/pkg").mkdir(parents=True, exist_ok=True)
 
     config = context.pkgmngr / "etc/pacman.conf"
     if config.exists():
