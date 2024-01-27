@@ -9,7 +9,6 @@ from mkosi.mounts import finalize_ephemeral_source_mounts
 from mkosi.run import find_binary, run
 from mkosi.sandbox import apivfs_cmd
 from mkosi.types import PathString
-from mkosi.user import INVOKING_USER
 from mkosi.util import sort_packages, umask
 
 
@@ -44,8 +43,8 @@ def setup_apt(context: Context, repos: Iterable[AptRepository]) -> None:
         (context.root / "var/lib/dpkg").mkdir(parents=True, exist_ok=True)
         (context.root / "var/lib/dpkg/status").touch()
 
-    INVOKING_USER.mkdir(context.config.package_cache_dir_or_default() / "apt")
-    INVOKING_USER.mkdir(context.config.package_state_dir_or_default() / "apt")
+    (context.cache_dir / "lib/apt").mkdir(exist_ok=True, parents=True)
+    (context.cache_dir / "cache/apt").mkdir(exist_ok=True, parents=True)
 
     # We have a special apt.conf outside of pkgmngr dir that only configures "Dir::Etc" that we pass to APT_CONFIG to
     # tell apt it should read config files from /etc/apt in case this is overridden by distributions. This is required

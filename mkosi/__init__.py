@@ -52,7 +52,6 @@ from mkosi.installer import (
     clean_package_manager_metadata,
     finalize_package_manager_mounts,
     package_manager_scripts,
-    rchown_package_manager_cache_dirs,
 )
 from mkosi.kmod import gen_required_kernel_modules, process_kernel_modules
 from mkosi.log import ARG_DEBUG, complete_step, die, log_notice, log_step
@@ -1487,8 +1486,7 @@ def build_initrd(context: Context) -> Path:
         "--cache-only", str(context.config.cache_only),
         "--output-dir", str(context.workspace / "initrd"),
         *(["--workspace-dir", str(context.config.workspace_dir)] if context.config.workspace_dir else []),
-        *(["--cache-dir", str(context.config.cache_dir)] if context.config.cache_dir else []),
-        *(["--package-cache-dir", str(context.config.package_cache_dir)] if context.config.package_cache_dir else []),
+        "--cache-dir", str(context.cache_dir),
         *(["--local-mirror", str(context.config.local_mirror)] if context.config.local_mirror else []),
         "--incremental", str(context.config.incremental),
         "--acl", str(context.config.acl),
@@ -3417,7 +3415,6 @@ def finalize_default_tools(args: Args, config: Config, *, resources: Path) -> Co
         *(["--output-dir", str(config.output_dir)] if config.output_dir else []),
         *(["--workspace-dir", str(config.workspace_dir)] if config.workspace_dir else []),
         *(["--cache-dir", str(config.cache_dir)] if config.cache_dir else []),
-        *(["--package-cache-dir", str(config.package_cache_dir)] if config.package_cache_dir else []),
         "--incremental", str(config.incremental),
         "--acl", str(config.acl),
         *([f"--package={package}" for package in config.tools_tree_packages]),
@@ -3499,16 +3496,11 @@ def run_clean(args: Args, config: Config) -> None:
             with complete_step(f"Clearing out build directory of {config.name()} image…"):
                 rmtree(*config.build_dir.iterdir())
 
-    if (
-        remove_package_cache and
-        config.package_cache_dir and
-        config.package_cache_dir.exists() and
-        any(config.package_cache_dir.iterdir())
-    ):
+    if remove_package_cache and config.cache_dir and config.cache_dir.exists() and any(config.cache_dir.iterdir()):
         with complete_step(f"Clearing out package cache of {config.name()} image…"):
             rmtree(
                 *(
-                    config.package_cache_dir / p / d
+                    config.cache_dir / p / d
                     for p in ("cache", "lib")
                     for d in ("apt", "dnf", "libdnf5", "pacman", "zypp")
                 ),
@@ -3529,26 +3521,25 @@ def run_build(args: Args, config: Config, *, resources: Path) -> None:
         if Path(d).exists():
             run(["mount", "--rbind", d, d, "--options", "ro"])
 
-    # Create these as the invoking user to make sure they're owned by the user running mkosi.
-    for p in (
-        config.output_dir,
-        config.cache_dir,
-        config.package_cache_dir_or_default(),
-        config.package_state_dir_or_default(),
-        config.build_dir,
-        config.workspace_dir,
-    ):
-        if p:
-            INVOKING_USER.mkdir(p)
-
     with (
         complete_step(f"Building {config.name()} image"),
         prepend_to_environ_path(config),
-        acl_toggle_build(config, INVOKING_USER.uid),
-        rchown_package_manager_cache_dirs(config),
     ):
+        # After tools have been mounted, check if we have what we need
         check_tools(config, Verb.build)
-        build_image(args, config, resources=resources)
+
+        # Create these as the invoking user to make sure they're owned by the user running mkosi.
+        for p in (
+            config.output_dir,
+            config.cache_dir,
+            config.build_dir,
+            config.workspace_dir,
+        ):
+            if p:
+                run(["mkdir", "--parents", p], user=INVOKING_USER.uid, group=INVOKING_USER.gid)
+
+        with acl_toggle_build(config, INVOKING_USER.uid):
+            build_image(args, config, resources=resources)
 
 
 def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
