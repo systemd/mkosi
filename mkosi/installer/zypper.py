@@ -65,6 +65,8 @@ def setup_zypper(context: Context, repos: Iterable[RpmRepository]) -> None:
                     f.write("gpgkey=" if i == 0 else len("gpgkey=") * " ")
                     f.write(f"{url}\n")
 
+                f.write("\n")
+
     setup_rpm(context)
 
 
