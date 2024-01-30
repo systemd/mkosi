@@ -2931,13 +2931,13 @@ def build_image(context: Context) -> None:
     manifest = Manifest(context.config) if context.config.manifest_format else None
 
     install_package_manager_trees(context)
-    install_package_directories(context)
 
     with mount_base_trees(context):
         install_base_trees(context)
         cached = reuse_cache(context)
 
         context.config.distribution.setup(context)
+        install_package_directories(context)
 
         if not cached:
             with mount_cache_overlay(context):
