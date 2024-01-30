@@ -9,7 +9,7 @@ from mkosi.config import Architecture
 from mkosi.context import Context
 from mkosi.distributions import Distribution, DistributionInstaller, PackageType
 from mkosi.installer.dnf import createrepo_dnf, invoke_dnf, localrepo_dnf, setup_dnf
-from mkosi.installer.rpm import RpmRepository
+from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey
 from mkosi.installer.zypper import createrepo_zypper, invoke_zypper, localrepo_zypper, setup_zypper
 from mkosi.log import die
 from mkosi.run import find_binary, run
@@ -99,12 +99,18 @@ class Installer(DistributionInstaller):
         if release.isdigit() or release == "tumbleweed":
             release_url = f"{mirror}/tumbleweed/repo/oss/"
             updates_url = f"{mirror}/update/tumbleweed/"
+            gpgurls = (
+                *([p] if (p := find_rpm_gpgkey(context, key="RPM-GPG-KEY-openSUSE-Tumbleweed")) else []),
+                *([p] if (p := find_rpm_gpgkey(context, key="RPM-GPG-KEY-openSUSE")) else []),
+            )
         elif release in ("current", "stable"):
             release_url = f"{mirror}/distribution/openSUSE-{release}/repo/oss/"
             updates_url = f"{mirror}/update/openSUSE-{release}/"
+            gpgurls=()
         else:
             release_url = f"{mirror}/distribution/leap/{release}/repo/oss/"
             updates_url = f"{mirror}/update/leap/{release}/oss/"
+            gpgurls=()
 
         if context.config.local_mirror:
             yield RpmRepository(id="local-mirror", url=f"baseurl={context.config.local_mirror}", gpgurls=())
@@ -112,13 +118,13 @@ class Installer(DistributionInstaller):
             yield RpmRepository(
                 id="repo-oss",
                 url=f"baseurl={release_url}",
-                gpgurls=fetch_gpgurls(context, release_url) if not zypper else (),
+                gpgurls=gpgurls or (fetch_gpgurls(context, release_url) if not zypper else ()),
             )
             if updates_url is not None:
                 yield RpmRepository(
                     id="repo-update",
                     url=f"baseurl={updates_url}",
-                    gpgurls=fetch_gpgurls(context, updates_url) if not zypper else (),
+                    gpgurls=gpgurls or (fetch_gpgurls(context, updates_url) if not zypper else ()),
                 )
 
     @classmethod

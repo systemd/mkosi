@@ -66,8 +66,7 @@ class Installer(DistributionInstaller):
             find_rpm_gpgkey(
                 context,
                 key=f"RPM-GPG-KEY-fedora-{context.config.release}-primary",
-                url="https://fedoraproject.org/fedora.gpg",
-            ),
+            ) or "https://fedoraproject.org/fedora.gpg",
         )
 
         if context.config.local_mirror:

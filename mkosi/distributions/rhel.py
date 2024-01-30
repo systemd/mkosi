@@ -23,8 +23,7 @@ class Installer(centos.Installer):
             find_rpm_gpgkey(
                 context,
                 f"RPM-GPG-KEY-redhat{major}-release",
-                "https://access.redhat.com/security/data/fd431d51.txt",
-            ),
+            ) or "https://access.redhat.com/security/data/fd431d51.txt",
         )
 
     @staticmethod

@@ -16,8 +16,7 @@ class Installer(centos.Installer):
             find_rpm_gpgkey(
                 context,
                 f"RPM-GPG-KEY-Rocky-{context.config.release}",
-                f"https://download.rockylinux.org/pub/rocky/RPM-GPG-KEY-Rocky-{context.config.release}",
-            ),
+            ) or f"https://download.rockylinux.org/pub/rocky/RPM-GPG-KEY-Rocky-{context.config.release}",
         )
 
     @classmethod

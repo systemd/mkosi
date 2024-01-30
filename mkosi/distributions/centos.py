@@ -104,7 +104,7 @@ class Installer(DistributionInstaller):
     @staticmethod
     def gpgurls(context: Context) -> tuple[str, ...]:
         keys = ("RPM-GPG-KEY-CentOS-Official", "RPM-GPG-KEY-CentOS-SIG-Extras")
-        return tuple(find_rpm_gpgkey(context, key, f"https://www.centos.org/keys/{key}") for key in keys)
+        return tuple(find_rpm_gpgkey(context, key) or f"https://www.centos.org/keys/{key}" for key in keys)
 
     @classmethod
     def repository_variants(cls, context: Context, repo: str) -> Iterable[RpmRepository]:
@@ -244,8 +244,7 @@ class Installer(DistributionInstaller):
             find_rpm_gpgkey(
                 context,
                 f"RPM-GPG-KEY-EPEL-{context.config.release}",
-                f"https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{context.config.release}",
-            ),
+            ) or f"https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{context.config.release}",
         )
 
         if context.config.local_mirror:
@@ -344,7 +343,7 @@ class Installer(DistributionInstaller):
         )
 
         for sig, components, keys in sigs:
-            gpgurls = tuple(find_rpm_gpgkey(context, key, f"https://www.centos.org/keys/{key}") for key in keys)
+            gpgurls = tuple(find_rpm_gpgkey(context, key) or f"https://www.centos.org/keys/{key}" for key in keys)
 
             for c in components:
                 if mirror := context.config.mirror:

@@ -44,8 +44,7 @@ class Installer(fedora.Installer):
             find_rpm_gpgkey(
                 context,
                 "RPM-GPG-KEY-Mageia",
-                "https://mirrors.kernel.org/mageia/distrib/$releasever/$basearch/media/core/release/media_info/pubkey",
-            ),
+            ) or "https://mirrors.kernel.org/mageia/distrib/$releasever/$basearch/media/core/release/media_info/pubkey",
         )
 
         if context.config.local_mirror:
