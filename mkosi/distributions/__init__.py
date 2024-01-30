@@ -10,8 +10,9 @@ from typing import TYPE_CHECKING, Optional, cast
 from mkosi.util import StrEnum, read_os_release
 
 if TYPE_CHECKING:
-    from mkosi.config import Architecture
+    from mkosi.config import Architecture, Config
     from mkosi.context import Context
+    from mkosi.installer import PackageManager
 
 
 class PackageType(StrEnum):
@@ -25,6 +26,10 @@ class PackageType(StrEnum):
 class DistributionInstaller:
     @classmethod
     def pretty_name(cls) -> str:
+        raise NotImplementedError
+
+    @classmethod
+    def package_manager(cls, config: "Config") -> type["PackageManager"]:
         raise NotImplementedError
 
     @classmethod
@@ -115,6 +120,9 @@ class Distribution(StrEnum):
 
     def pretty_name(self) -> str:
         return self.installer().pretty_name()
+
+    def package_manager(self, config: "Config") -> type["PackageManager"]:
+        return self.installer().package_manager(config)
 
     def setup(self, context: "Context") -> None:
         return self.installer().setup(context)

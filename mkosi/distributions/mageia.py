@@ -6,7 +6,7 @@ from collections.abc import Iterable, Sequence
 from mkosi.config import Architecture
 from mkosi.context import Context
 from mkosi.distributions import Distribution, fedora, join_mirror
-from mkosi.installer.dnf import localrepo_dnf
+from mkosi.installer.dnf import Dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey
 from mkosi.log import die
 
@@ -52,7 +52,7 @@ class Installer(fedora.Installer):
             return
 
         if context.want_local_repo():
-            yield localrepo_dnf()
+            yield Dnf.localrepo()
 
         if context.config.mirror:
             url = f"baseurl={join_mirror(context.config.mirror, 'distrib/$releasever/$basearch/media/core/')}"

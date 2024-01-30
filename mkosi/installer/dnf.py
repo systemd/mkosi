@@ -3,9 +3,10 @@ import textwrap
 from collections.abc import Iterable
 from pathlib import Path
 
+from mkosi.config import Config
 from mkosi.context import Context
-from mkosi.installer import finalize_package_manager_mounts
-from mkosi.installer.rpm import RpmRepository, fixup_rpmdb_location, setup_rpm
+from mkosi.installer import PackageManager, finalize_package_manager_mounts
+from mkosi.installer.rpm import RpmRepository, fixup_rpmdb_location, rpm_cmd, setup_rpm
 from mkosi.log import ARG_DEBUG
 from mkosi.mounts import finalize_ephemeral_source_mounts
 from mkosi.run import find_binary, run
@@ -14,166 +15,174 @@ from mkosi.types import PathString
 from mkosi.util import sort_packages
 
 
-def dnf_executable(context: Context) -> str:
-    # Allow the user to override autodetection with an environment variable
-    dnf = context.config.environment.get("MKOSI_DNF")
-    root = context.config.tools()
+class Dnf(PackageManager):
+    @classmethod
+    def executable(cls, config: Config) -> str:
+        # Allow the user to override autodetection with an environment variable
+        dnf = config.environment.get("MKOSI_DNF")
+        root = config.tools()
 
-    return Path(dnf or find_binary("dnf5", root=root) or find_binary("dnf", root=root) or "yum").name
+        return Path(dnf or find_binary("dnf5", root=root) or find_binary("dnf", root=root) or "yum").name
 
+    @classmethod
+    def subdir(cls, config: Config) -> Path:
+        return Path("libdnf5" if cls.executable(config) == "dnf5" else "dnf")
 
-def dnf_subdir(context: Context) -> str:
-    dnf = dnf_executable(context)
-    return "libdnf5" if dnf.endswith("dnf5") else "dnf"
+    @classmethod
+    def scripts(cls, context: Context) -> dict[str, list[PathString]]:
+        return {
+            "dnf": apivfs_cmd(context.root) + cls.cmd(context),
+            "rpm": apivfs_cmd(context.root) + rpm_cmd(context),
+        }
 
+    @classmethod
+    def setup(cls, context: Context, repositories: Iterable[RpmRepository], filelists: bool = True) -> None:
+        (context.pkgmngr / "etc/dnf/vars").mkdir(exist_ok=True, parents=True)
+        (context.pkgmngr / "etc/yum.repos.d").mkdir(exist_ok=True, parents=True)
 
-def setup_dnf(context: Context, repositories: Iterable[RpmRepository], filelists: bool = True) -> None:
-    (context.pkgmngr / "etc/dnf/vars").mkdir(exist_ok=True, parents=True)
-    (context.pkgmngr / "etc/yum.repos.d").mkdir(exist_ok=True, parents=True)
+        (context.cache_dir / "cache" / cls.subdir(context.config)).mkdir(exist_ok=True, parents=True)
+        (context.cache_dir / "lib" / cls.subdir(context.config)).mkdir(exist_ok=True, parents=True)
 
-    (context.cache_dir / "cache" / dnf_subdir(context)).mkdir(exist_ok=True, parents=True)
-    (context.cache_dir / "lib" / dnf_subdir(context)).mkdir(exist_ok=True, parents=True)
+        config = context.pkgmngr / "etc/dnf/dnf.conf"
 
-    config = context.pkgmngr / "etc/dnf/dnf.conf"
+        if not config.exists():
+            config.parent.mkdir(exist_ok=True, parents=True)
+            with config.open("w") as f:
+                # Make sure we download filelists so all dependencies can be resolved.
+                # See https://bugzilla.redhat.com/show_bug.cgi?id=2180842
+                if cls.executable(context.config).endswith("dnf5") and filelists:
+                    f.write("[main]\noptional_metadata_types=filelists\n")
 
-    if not config.exists():
-        config.parent.mkdir(exist_ok=True, parents=True)
-        with config.open("w") as f:
-            # Make sure we download filelists so all dependencies can be resolved.
-            # See https://bugzilla.redhat.com/show_bug.cgi?id=2180842
-            if dnf_executable(context).endswith("dnf5") and filelists:
-                f.write("[main]\noptional_metadata_types=filelists\n")
-
-    repofile = context.pkgmngr / "etc/yum.repos.d/mkosi.repo"
-    if not repofile.exists():
-        repofile.parent.mkdir(exist_ok=True, parents=True)
-        with repofile.open("w") as f:
-            for repo in repositories:
-                f.write(
-                    textwrap.dedent(
-                        f"""\
-                        [{repo.id}]
-                        name={repo.id}
-                        {repo.url}
-                        gpgcheck={int(repo.gpgcheck)}
-                        enabled={int(repo.enabled)}
-                        """
+        repofile = context.pkgmngr / "etc/yum.repos.d/mkosi.repo"
+        if not repofile.exists():
+            repofile.parent.mkdir(exist_ok=True, parents=True)
+            with repofile.open("w") as f:
+                for repo in repositories:
+                    f.write(
+                        textwrap.dedent(
+                            f"""\
+                            [{repo.id}]
+                            name={repo.id}
+                            {repo.url}
+                            gpgcheck={int(repo.gpgcheck)}
+                            enabled={int(repo.enabled)}
+                            """
+                        )
                     )
-                )
 
-                if repo.metadata_expire is not None:
-                    f.write(f"metadata_expire={repo.metadata_expire}\n")
-                if repo.priority is not None:
-                    f.write(f"priority={repo.priority}\n")
+                    if repo.metadata_expire is not None:
+                        f.write(f"metadata_expire={repo.metadata_expire}\n")
+                    if repo.priority is not None:
+                        f.write(f"priority={repo.priority}\n")
 
-                if repo.sslcacert:
-                    f.write(f"sslcacert={repo.sslcacert}\n")
-                if repo.sslclientcert:
-                    f.write(f"sslclientcert={repo.sslclientcert}\n")
-                if repo.sslclientkey:
-                    f.write(f"sslclientkey={repo.sslclientkey}\n")
+                    if repo.sslcacert:
+                        f.write(f"sslcacert={repo.sslcacert}\n")
+                    if repo.sslclientcert:
+                        f.write(f"sslclientcert={repo.sslclientcert}\n")
+                    if repo.sslclientkey:
+                        f.write(f"sslclientkey={repo.sslclientkey}\n")
 
-                for i, url in enumerate(repo.gpgurls):
-                    f.write("gpgkey=" if i == 0 else len("gpgkey=") * " ")
-                    f.write(f"{url}\n")
+                    for i, url in enumerate(repo.gpgurls):
+                        f.write("gpgkey=" if i == 0 else len("gpgkey=") * " ")
+                        f.write(f"{url}\n")
 
-                f.write("\n")
+                    f.write("\n")
 
-    setup_rpm(context)
+        setup_rpm(context)
 
+    @classmethod
+    def cmd(cls, context: Context) -> list[PathString]:
+        dnf = cls.executable(context.config)
 
-def dnf_cmd(context: Context) -> list[PathString]:
-    dnf = dnf_executable(context)
-
-    cmdline: list[PathString] = [
-        "env",
-        "HOME=/", # Make sure rpm doesn't pick up ~/.rpmmacros and ~/.rpmrc.
-        dnf,
-        "--assumeyes",
-        "--best",
-        f"--releasever={context.config.release}",
-        f"--installroot={context.root}",
-        "--setopt=keepcache=1",
-        "--setopt=logdir=/var/log",
-        f"--setopt=cachedir=/var/cache/{dnf_subdir(context)}",
-        f"--setopt=persistdir=/var/lib/{dnf_subdir(context)}",
-        f"--setopt=install_weak_deps={int(context.config.with_recommends)}",
-        "--setopt=check_config_file_age=0",
-        "--disable-plugin=*" if dnf.endswith("dnf5") else "--disableplugin=*",
-        "--enable-plugin=builddep" if dnf.endswith("dnf5") else "--enableplugin=builddep",
-    ]
-
-    if ARG_DEBUG.get():
-        cmdline += ["--setopt=debuglevel=10"]
-
-    if not context.config.repository_key_check:
-        cmdline += ["--nogpgcheck"]
-
-    if context.config.repositories:
-        opt = "--enable-repo" if dnf.endswith("dnf5") else "--enablerepo"
-        cmdline += [f"{opt}={repo}" for repo in context.config.repositories]
-
-    # TODO: this breaks with a local, offline repository created with 'createrepo'
-    if context.config.cache_only and not context.config.local_mirror:
-        cmdline += ["--cacheonly"]
-
-    if not context.config.architecture.is_native():
-        cmdline += [f"--forcearch={context.config.distribution.architecture(context.config.architecture)}"]
-
-    if not context.config.with_docs:
-        cmdline += ["--no-docs" if dnf.endswith("dnf5") else "--nodocs"]
-
-    if dnf.endswith("dnf5"):
-        cmdline += ["--use-host-config"]
-    else:
-        cmdline += [
-            "--config=/etc/dnf/dnf.conf",
-            "--setopt=reposdir=/etc/yum.repos.d",
-            "--setopt=varsdir=/etc/dnf/vars",
+        cmdline: list[PathString] = [
+            "env",
+            "HOME=/", # Make sure rpm doesn't pick up ~/.rpmmacros and ~/.rpmrc.
+            dnf,
+            "--assumeyes",
+            "--best",
+            f"--releasever={context.config.release}",
+            f"--installroot={context.root}",
+            "--setopt=keepcache=1",
+            "--setopt=logdir=/var/log",
+            f"--setopt=cachedir=/var/cache/{cls.subdir(context.config)}",
+            f"--setopt=persistdir=/var/lib/{cls.subdir(context.config)}",
+            f"--setopt=install_weak_deps={int(context.config.with_recommends)}",
+            "--setopt=check_config_file_age=0",
+            "--disable-plugin=*" if dnf.endswith("dnf5") else "--disableplugin=*",
+            "--enable-plugin=builddep" if dnf.endswith("dnf5") else "--enableplugin=builddep",
         ]
 
-    return cmdline
+        if ARG_DEBUG.get():
+            cmdline += ["--setopt=debuglevel=10"]
 
+        if not context.config.repository_key_check:
+            cmdline += ["--nogpgcheck"]
 
-def invoke_dnf(context: Context, operation: str, packages: Iterable[str], apivfs: bool = True) -> None:
-    with finalize_ephemeral_source_mounts(context.config) as sources:
-        run(
-            dnf_cmd(context) + [operation, *sort_packages(packages)],
-            sandbox=(
-                context.sandbox(
-                    network=True,
-                    options=[
-                        "--bind", context.root, context.root,
-                        *finalize_package_manager_mounts(context),
-                        *sources,
-                        "--chdir", "/work/src",
-                    ],
-                ) + (apivfs_cmd(context.root) if apivfs else [])
-            ),
-            env=context.config.environment,
+        if context.config.repositories:
+            opt = "--enable-repo" if dnf.endswith("dnf5") else "--enablerepo"
+            cmdline += [f"{opt}={repo}" for repo in context.config.repositories]
+
+        # TODO: this breaks with a local, offline repository created with 'createrepo'
+        if context.config.cache_only and not context.config.local_mirror:
+            cmdline += ["--cacheonly"]
+
+        if not context.config.architecture.is_native():
+            cmdline += [f"--forcearch={context.config.distribution.architecture(context.config.architecture)}"]
+
+        if not context.config.with_docs:
+            cmdline += ["--no-docs" if dnf.endswith("dnf5") else "--nodocs"]
+
+        if dnf.endswith("dnf5"):
+            cmdline += ["--use-host-config"]
+        else:
+            cmdline += [
+                "--config=/etc/dnf/dnf.conf",
+                "--setopt=reposdir=/etc/yum.repos.d",
+                "--setopt=varsdir=/etc/dnf/vars",
+            ]
+
+        return cmdline
+
+    @classmethod
+    def invoke(cls, context: Context, operation: str, packages: Iterable[str], apivfs: bool = True) -> None:
+        with finalize_ephemeral_source_mounts(context.config) as sources:
+            run(
+                cls.cmd(context) + [operation, *sort_packages(packages)],
+                sandbox=(
+                    context.sandbox(
+                        network=True,
+                        options=[
+                            "--bind", context.root, context.root,
+                            *finalize_package_manager_mounts(context),
+                            *sources,
+                            "--chdir", "/work/src",
+                        ],
+                    ) + (apivfs_cmd(context.root) if apivfs else [])
+                ),
+                env=context.config.environment,
+            )
+
+        fixup_rpmdb_location(context)
+
+        # dnf interprets the log directory relative to the install root so there's nothing we can do but to remove the
+        # log files from the install root afterwards.
+        if (context.root / "var/log").exists():
+            for p in (context.root / "var/log").iterdir():
+                if any(p.name.startswith(prefix) for prefix in ("dnf", "hawkey", "yum")):
+                    p.unlink()
+
+    @classmethod
+    def createrepo(cls, context: Context) -> None:
+        run(["createrepo_c", context.packages],
+            sandbox=context.sandbox(options=["--bind", context.packages, context.packages]))
+
+    @classmethod
+    def localrepo(cls) -> RpmRepository:
+        return RpmRepository(
+            id="mkosi-packages",
+            url="baseurl=file:///work/packages",
+            gpgcheck=False,
+            gpgurls=(),
+            metadata_expire=0,
+            priority=50,
         )
-
-    fixup_rpmdb_location(context)
-
-    # dnf interprets the log directory relative to the install root so there's nothing we can do but to remove the log
-    # files from the install root afterwards.
-    if (context.root / "var/log").exists():
-        for p in (context.root / "var/log").iterdir():
-            if any(p.name.startswith(prefix) for prefix in ("dnf", "hawkey", "yum")):
-                p.unlink()
-
-
-def createrepo_dnf(context: Context) -> None:
-    run(["createrepo_c", context.packages],
-        sandbox=context.sandbox(options=["--bind", context.packages, context.packages]))
-
-
-def localrepo_dnf() -> RpmRepository:
-    return RpmRepository(
-        id="mkosi-packages",
-        url="baseurl=file:///work/packages",
-        gpgcheck=False,
-        gpgurls=(),
-        metadata_expire=0,
-        priority=50,
-    )

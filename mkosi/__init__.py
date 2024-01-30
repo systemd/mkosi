@@ -48,11 +48,7 @@ from mkosi.config import (
 )
 from mkosi.context import Context
 from mkosi.distributions import Distribution
-from mkosi.installer import (
-    clean_package_manager_metadata,
-    finalize_package_manager_mounts,
-    package_manager_scripts,
-)
+from mkosi.installer import clean_package_manager_metadata, finalize_package_manager_mounts
 from mkosi.kmod import gen_required_kernel_modules, process_kernel_modules
 from mkosi.log import ARG_DEBUG, complete_step, die, log_notice, log_step
 from mkosi.manifest import Manifest
@@ -394,7 +390,9 @@ def finalize_host_scripts(
     for binary in ("useradd", "groupadd"):
         if find_binary(binary, root=context.config.tools()):
             scripts[binary] = (binary, "--root", context.root)
-    return finalize_scripts(scripts | dict(helpers) | package_manager_scripts(context))
+    return finalize_scripts(
+        scripts | dict(helpers) | context.config.distribution.package_manager(context.config).scripts(context)
+    )
 
 
 def finalize_chroot_scripts(context: Context) -> contextlib.AbstractContextManager[Path]:

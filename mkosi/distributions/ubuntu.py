@@ -5,7 +5,7 @@ from collections.abc import Iterable
 from mkosi.config import Architecture
 from mkosi.context import Context
 from mkosi.distributions import debian
-from mkosi.installer.apt import AptRepository, localrepo_apt
+from mkosi.installer.apt import Apt
 
 
 class Installer(debian.Installer):
@@ -18,7 +18,7 @@ class Installer(debian.Installer):
         return "lunar"
 
     @staticmethod
-    def repositories(context: Context, local: bool = True) -> Iterable[AptRepository]:
+    def repositories(context: Context, local: bool = True) -> Iterable[Apt.Repository]:
         types = ("deb", "deb-src")
 
         # From kinetic onwards, the usr-is-merged package is available in universe and is required by
@@ -27,7 +27,7 @@ class Installer(debian.Installer):
         components = (*components, *context.config.repositories)
 
         if context.config.local_mirror and local:
-            yield AptRepository(
+            yield Apt.Repository(
                 types=("deb",),
                 url=context.config.local_mirror,
                 suite=context.config.release,
@@ -37,7 +37,7 @@ class Installer(debian.Installer):
             return
 
         if context.want_local_repo():
-            yield localrepo_apt(context)
+            yield Apt.localrepo(context)
 
         if context.config.architecture in (Architecture.x86, Architecture.x86_64):
             mirror = context.config.mirror or "http://archive.ubuntu.com/ubuntu"
@@ -46,7 +46,7 @@ class Installer(debian.Installer):
 
         signedby = "/usr/share/keyrings/ubuntu-archive-keyring.gpg"
 
-        yield AptRepository(
+        yield Apt.Repository(
             types=types,
             url=mirror,
             suite=context.config.release,
@@ -54,7 +54,7 @@ class Installer(debian.Installer):
             signedby=signedby,
         )
 
-        yield AptRepository(
+        yield Apt.Repository(
             types=types,
             url=mirror,
             suite=f"{context.config.release}-updates",
@@ -68,7 +68,7 @@ class Installer(debian.Installer):
         else:
             mirror = "http://ports.ubuntu.com/"
 
-        yield AptRepository(
+        yield Apt.Repository(
             types=types,
             url=mirror,
             suite=f"{context.config.release}-security",

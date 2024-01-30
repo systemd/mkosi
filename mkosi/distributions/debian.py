@@ -6,10 +6,11 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 
 from mkosi.archive import extract_tar
-from mkosi.config import Architecture
+from mkosi.config import Architecture, Config
 from mkosi.context import Context
 from mkosi.distributions import Distribution, DistributionInstaller, PackageType
-from mkosi.installer.apt import AptRepository, createrepo_apt, invoke_apt, localrepo_apt, setup_apt
+from mkosi.installer import PackageManager
+from mkosi.installer.apt import Apt
 from mkosi.log import die
 from mkosi.run import run
 from mkosi.sandbox import finalize_passwd_mounts
@@ -37,13 +38,17 @@ class Installer(DistributionInstaller):
     def default_tools_tree_distribution(cls) -> Distribution:
         return Distribution.debian
 
+    @classmethod
+    def package_manager(cls, config: Config) -> type[PackageManager]:
+        return Apt
+
     @staticmethod
-    def repositories(context: Context, local: bool = True) -> Iterable[AptRepository]:
+    def repositories(context: Context, local: bool = True) -> Iterable[Apt.Repository]:
         types = ("deb", "deb-src")
         components = ("main", *context.config.repositories)
 
         if context.config.local_mirror and local:
-            yield AptRepository(
+            yield Apt.Repository(
                 types=("deb",),
                 url=context.config.local_mirror,
                 suite=context.config.release,
@@ -53,12 +58,12 @@ class Installer(DistributionInstaller):
             return
 
         if context.want_local_repo():
-            yield localrepo_apt(context)
+            yield Apt.localrepo(context)
 
         mirror = context.config.mirror or "http://deb.debian.org/debian"
         signedby = "/usr/share/keyrings/debian-archive-keyring.gpg"
 
-        yield AptRepository(
+        yield Apt.Repository(
             types=types,
             url=mirror,
             suite=context.config.release,
@@ -69,7 +74,7 @@ class Installer(DistributionInstaller):
         # Debug repos are typically not mirrored.
         url = "http://deb.debian.org/debian-debug"
 
-        yield AptRepository(
+        yield Apt.Repository(
             types=types,
             url=url,
             suite=f"{context.config.release}-debug",
@@ -80,7 +85,7 @@ class Installer(DistributionInstaller):
         if context.config.release in ("unstable", "sid"):
             return
 
-        yield AptRepository(
+        yield Apt.Repository(
             types=types,
             url=mirror,
             suite=f"{context.config.release}-updates",
@@ -88,7 +93,7 @@ class Installer(DistributionInstaller):
             signedby=signedby,
         )
 
-        yield AptRepository(
+        yield Apt.Repository(
             types=types,
             # Security updates repos are never mirrored.
             url="http://security.debian.org/debian-security",
@@ -99,11 +104,11 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def setup(cls, context: Context) -> None:
-        setup_apt(context, cls.repositories(context))
+        Apt.setup(context, cls.repositories(context))
 
     @classmethod
     def createrepo(cls, context: Context) -> None:
-        createrepo_apt(context)
+        Apt.createrepo(context)
 
     @classmethod
     def install(cls, context: Context) -> None:
@@ -137,7 +142,7 @@ class Installer(DistributionInstaller):
                 (context.root / d).symlink_to(f"usr/{d}")
                 (context.root / f"usr/{d}").mkdir(parents=True, exist_ok=True)
 
-        invoke_apt(context, "update", apivfs=False)
+        Apt.invoke(context, "update", apivfs=False)
 
         # Next, we invoke apt-get install to download all the essential packages. With DPkg::Pre-Install-Pkgs,
         # we specify a shell command that will receive the list of packages that will be installed on stdin.
@@ -145,7 +150,7 @@ class Installer(DistributionInstaller):
         # all it does is download the essential debs and tell us their full in the apt cache without actually
         # installing them.
         with tempfile.NamedTemporaryFile(mode="r") as f:
-            invoke_apt(
+            Apt.invoke(
                 context,
                 "install",
                 [
@@ -196,8 +201,8 @@ class Installer(DistributionInstaller):
         with umask(~0o644):
             policyrcd.write_text("#!/bin/sh\nexit 101\n")
 
-        invoke_apt(context, "update", apivfs=False)
-        invoke_apt(context, "install", packages, apivfs=apivfs)
+        Apt.invoke(context, "update", apivfs=False)
+        Apt.invoke(context, "install", packages, apivfs=apivfs)
         install_apt_sources(context, cls.repositories(context, local=False))
 
         policyrcd.unlink()
@@ -211,7 +216,7 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def remove_packages(cls, context: Context, packages: Sequence[str]) -> None:
-        invoke_apt(context, "purge", packages)
+        Apt.invoke(context, "purge", packages)
 
     @classmethod
     def architecture(cls, arch: Architecture) -> str:
@@ -239,7 +244,7 @@ class Installer(DistributionInstaller):
         return a
 
 
-def install_apt_sources(context: Context, repos: Iterable[AptRepository]) -> None:
+def install_apt_sources(context: Context, repos: Iterable[Apt.Repository]) -> None:
     if not (context.root / "usr/bin/apt").exists():
         return
 

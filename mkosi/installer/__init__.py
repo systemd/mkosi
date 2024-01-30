@@ -5,10 +5,16 @@ from pathlib import Path
 from mkosi.config import ConfigFeature
 from mkosi.context import Context
 from mkosi.run import find_binary
-from mkosi.sandbox import apivfs_cmd, finalize_crypto_mounts
+from mkosi.sandbox import finalize_crypto_mounts
 from mkosi.tree import rmtree
 from mkosi.types import PathString
 from mkosi.util import flatten
+
+
+class PackageManager:
+    @classmethod
+    def scripts(cls, context: Context) -> dict[str, list[PathString]]:
+        raise NotImplementedError
 
 
 def clean_package_manager_metadata(context: Context) -> None:
@@ -33,35 +39,8 @@ def clean_package_manager_metadata(context: Context) -> None:
                    sandbox=context.sandbox(options=["--bind", context.root, context.root]))
 
 
-def package_manager_scripts(context: Context) -> dict[str, list[PathString]]:
-    from mkosi.installer.apt import apt_cmd
-    from mkosi.installer.dnf import dnf_cmd
-    from mkosi.installer.pacman import pacman_cmd
-    from mkosi.installer.rpm import rpm_cmd
-    from mkosi.installer.zypper import zypper_cmd
-
-    return {
-        "pacman": apivfs_cmd(context.root) + pacman_cmd(context),
-        "zypper": apivfs_cmd(context.root) + zypper_cmd(context),
-        "dnf"   : apivfs_cmd(context.root) + dnf_cmd(context),
-        "rpm"   : apivfs_cmd(context.root) + rpm_cmd(context),
-    } | {
-        command: apivfs_cmd(context.root) + apt_cmd(context, command) for command in (
-            "apt",
-            "apt-cache",
-            "apt-cdrom",
-            "apt-config",
-            "apt-extracttemplates",
-            "apt-get",
-            "apt-key",
-            "apt-mark",
-            "apt-sortpkgs",
-        )
-    }
-
-
 def finalize_package_manager_mounts(context: Context) -> list[PathString]:
-    from mkosi.installer.dnf import dnf_subdir
+    from mkosi.installer.dnf import Dnf
 
     mounts: list[PathString] = [
         *(["--ro-bind", m, m] if (m := context.config.local_mirror) else []),
@@ -74,8 +53,8 @@ def finalize_package_manager_mounts(context: Context) -> list[PathString]:
         for d in (
             "lib/apt",
             "cache/apt",
-            f"cache/{dnf_subdir(context)}",
-            f"lib/{dnf_subdir(context)}",
+            f"cache/{Dnf.subdir(context.config)}",
+            f"lib/{Dnf.subdir(context.config)}",
             "cache/pacman/pkg",
             "cache/zypp",
         )

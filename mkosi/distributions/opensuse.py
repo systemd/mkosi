@@ -5,12 +5,13 @@ import xml.etree.ElementTree as ElementTree
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 
-from mkosi.config import Architecture
+from mkosi.config import Architecture, Config
 from mkosi.context import Context
 from mkosi.distributions import Distribution, DistributionInstaller, PackageType
-from mkosi.installer.dnf import createrepo_dnf, invoke_dnf, localrepo_dnf, setup_dnf
+from mkosi.installer import PackageManager
+from mkosi.installer.dnf import Dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey
-from mkosi.installer.zypper import createrepo_zypper, invoke_zypper, localrepo_zypper, setup_zypper
+from mkosi.installer.zypper import Zypper
 from mkosi.log import die
 from mkosi.run import find_binary, run
 from mkosi.sandbox import finalize_crypto_mounts
@@ -42,19 +43,26 @@ class Installer(DistributionInstaller):
         return "grub2"
 
     @classmethod
+    def package_manager(cls, config: Config) -> type[PackageManager]:
+        if find_binary("zypper", root=config.tools()):
+            return Zypper
+        else:
+            return Dnf
+
+    @classmethod
     def createrepo(cls, context: Context) -> None:
         if find_binary("zypper", root=context.config.tools()):
-            createrepo_zypper(context)
+            Zypper.createrepo(context)
         else:
-            createrepo_dnf(context)
+            Dnf.createrepo(context)
 
     @classmethod
     def setup(cls, context: Context) -> None:
         zypper = find_binary("zypper", root=context.config.tools())
         if zypper:
-            setup_zypper(context, cls.repositories(context))
+            Zypper.setup(context, cls.repositories(context))
         else:
-            setup_dnf(context, cls.repositories(context))
+            Dnf.setup(context, cls.repositories(context))
 
     @classmethod
     def install(cls, context: Context) -> None:
@@ -67,23 +75,23 @@ class Installer(DistributionInstaller):
                 "--download", "in-advance",
                 "--recommends" if context.config.with_recommends else "--no-recommends",
             ]
-            invoke_zypper(context, "install", packages, options=options, apivfs=apivfs)
+            Zypper.invoke(context, "install", packages, options=options, apivfs=apivfs)
         else:
-            invoke_dnf(context, "install", packages, apivfs=apivfs)
+            Dnf.invoke(context, "install", packages, apivfs=apivfs)
 
     @classmethod
     def remove_packages(cls, context: Context, packages: Sequence[str]) -> None:
         if find_binary("zypper", root=context.config.tools()):
-            invoke_zypper(context, "remove", packages, options=["--clean-deps"])
+            Zypper.invoke(context, "remove", packages, options=["--clean-deps"])
         else:
-            invoke_dnf(context, "remove", packages)
+            Dnf.invoke(context, "remove", packages)
 
     @classmethod
     def repositories(cls, context: Context) -> Iterable[RpmRepository]:
         zypper = find_binary("zypper", root=context.config.tools())
 
         if context.want_local_repo():
-            yield localrepo_zypper() if zypper else localrepo_dnf()
+            yield Zypper.localrepo() if zypper else Dnf.localrepo()
 
         release = context.config.release
         if release == "leap":
