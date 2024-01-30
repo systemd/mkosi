@@ -1457,6 +1457,19 @@ def gen_kernel_images(context: Context) -> Iterator[tuple[str, Path]]:
                 break
 
 
+def want_initrd(context: Context) -> bool:
+    if context.config.bootable == ConfigFeature.disabled:
+        return False
+
+    if context.config.output_format not in (OutputFormat.disk, OutputFormat.directory):
+        return False
+
+    if not any(gen_kernel_images(context)):
+        return False
+
+    return True
+
+
 def build_initrd(context: Context) -> Path:
     if context.config.distribution == Distribution.custom:
         die("Building a default initrd is not supported for custom distributions")
@@ -2012,13 +2025,7 @@ def copy_nspawn_settings(context: Context) -> None:
 
 
 def copy_initrd(context: Context) -> None:
-    if (context.staging / context.config.output_split_initrd).exists():
-        return
-
-    if context.config.bootable == ConfigFeature.disabled:
-        return
-
-    if context.config.output_format not in (OutputFormat.disk, OutputFormat.directory):
+    if not want_initrd(context):
         return
 
     for kver, _ in gen_kernel_images(context):
