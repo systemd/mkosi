@@ -1296,21 +1296,8 @@ class Config:
         if self.workspace_dir:
             return self.workspace_dir
 
-        if (cache := os.getenv("XDG_CACHE_HOME")) and Path(cache).exists():
-            return Path(cache)
-
-        # If we're running from /home and there's a cache or output directory in /home, we want to use a workspace
-        # directory in /home as well as /home might be on a separate partition or subvolume which means that to take
-        # advantage of reflinks and such, the workspace directory has to be on the same partition/subvolume.
-        if (
-            Path.cwd().is_relative_to(INVOKING_USER.home()) and
-            (INVOKING_USER.home() / ".cache").exists() and
-            (
-                self.cache_dir and self.cache_dir.is_relative_to(INVOKING_USER.home()) or
-                self.output_dir and self.output_dir.is_relative_to(INVOKING_USER.home())
-            )
-        ):
-            return INVOKING_USER.home() / ".cache"
+        if (cache := INVOKING_USER.cache_dir()) and cache != Path("/var/cache/mkosi"):
+            return cache
 
         return Path("/var/tmp")
 
