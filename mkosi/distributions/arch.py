@@ -76,19 +76,19 @@ class Installer(DistributionInstaller):
                 url = f"{context.config.mirror or 'https://geo.mirror.pkgbuild.com'}/$repo/os/$arch"
 
             # Testing repositories have to go before regular ones to to take precedence.
-            for id in (
-                "core-testing",
-                "core-testing-debug",
-                "extra-testing",
-                "extra-testing-debug",
-                "core-debug",
-                "extra-debug",
-            ):
-                if id in context.config.repositories:
-                    yield PacmanRepository(id, url)
+            repos = [
+                repo for repo in (
+                    "core-testing",
+                    "core-testing-debug",
+                    "extra-testing",
+                    "extra-testing-debug",
+                    "core-debug",
+                    "extra-debug",
+                ) if repo in context.config.repositories
+            ] + ["core", "extra"]
 
-            for id in ("core", "extra"):
-                yield PacmanRepository(id, url)
+            for repo in repos:
+                yield PacmanRepository(repo, url)
 
     @classmethod
     def architecture(cls, arch: Architecture) -> str:
