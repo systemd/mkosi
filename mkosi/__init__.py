@@ -3538,15 +3538,14 @@ def run_build(args: Args, config: Config, *, resources: Path) -> None:
     ):
         check_tools(config, Verb.build)
 
-        # Create these as the invoking user to make sure they're owned by the user running mkosi.
         for p in (
             config.output_dir,
             config.cache_dir,
             config.build_dir,
             config.workspace_dir,
         ):
-            if p:
-                run(["mkdir", "--parents", p], user=INVOKING_USER.uid, group=INVOKING_USER.gid)
+            if p and not p.exists():
+                INVOKING_USER.mkdir(p)
 
         with (
             acl_toggle_build(config, INVOKING_USER.uid),

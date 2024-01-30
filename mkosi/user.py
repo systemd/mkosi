@@ -9,7 +9,7 @@ import pwd
 from pathlib import Path
 
 from mkosi.log import die
-from mkosi.run import spawn
+from mkosi.run import run, spawn
 from mkosi.util import flock
 
 SUBRANGE = 65536
@@ -54,6 +54,13 @@ class INVOKING_USER:
             cache = Path("/var/cache")
 
         return cache / "mkosi"
+
+    @classmethod
+    def mkdir(cls, path: Path) -> Path:
+        user = cls.uid if cls.is_regular_user() and path.is_relative_to(cls.home()) else os.getuid()
+        group = cls.gid if cls.is_regular_user() and path.is_relative_to(cls.home()) else os.getgid()
+        run(["mkdir", "--parents", path], user=user, group=group)
+        return path
 
 
 def read_subrange(path: Path) -> int:
