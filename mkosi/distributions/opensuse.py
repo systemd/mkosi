@@ -67,14 +67,14 @@ class Installer(DistributionInstaller):
                 "--download", "in-advance",
                 "--recommends" if context.config.with_recommends else "--no-recommends",
             ]
-            invoke_zypper(context, "install", packages, options, apivfs=apivfs)
+            invoke_zypper(context, "install", packages, options=options, apivfs=apivfs)
         else:
             invoke_dnf(context, "install", packages, apivfs=apivfs)
 
     @classmethod
     def remove_packages(cls, context: Context, packages: Sequence[str]) -> None:
         if find_binary("zypper", root=context.config.tools()):
-            invoke_zypper(context, "remove", packages, ["--clean-deps"])
+            invoke_zypper(context, "remove", packages, options=["--clean-deps"])
         else:
             invoke_dnf(context, "remove", packages)
 

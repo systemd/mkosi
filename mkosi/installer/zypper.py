@@ -78,7 +78,8 @@ def zypper_cmd(context: Context) -> list[PathString]:
 def invoke_zypper(
     context: Context,
     verb: str,
-    packages: Sequence[str],
+    packages: Sequence[str] = (),
+    *,
     options: Sequence[str] = (),
     apivfs: bool = True,
 ) -> None:
