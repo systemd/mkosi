@@ -2565,17 +2565,17 @@ def save_cache(context: Context) -> None:
         )
 
 
-def reuse_cache(context: Context) -> bool:
-    if not context.config.incremental or context.config.overlay:
+def have_cache(config: Config) -> bool:
+    if not config.incremental or config.overlay:
         return False
 
-    final, build, manifest = cache_tree_paths(context.config)
-    if not final.exists() or (need_build_overlay(context.config) and not build.exists()):
+    final, build, manifest = cache_tree_paths(config)
+    if not final.exists() or (need_build_overlay(config) and not build.exists()):
         return False
 
     if manifest.exists():
         prev = json.loads(manifest.read_text())
-        if prev != json.loads(json.dumps(context.config.cache_manifest(), cls=JsonEncoder)):
+        if prev != json.loads(json.dumps(config.cache_manifest(), cls=JsonEncoder)):
             return False
     else:
         return False
@@ -2586,6 +2586,15 @@ def reuse_cache(context: Context) -> bool:
     for p in (final, build):
         if p.exists() and p.stat().st_uid != 0:
             return False
+
+    return True
+
+
+def reuse_cache(context: Context) -> bool:
+    if not have_cache(context.config):
+        return False
+
+    final, build, _ = cache_tree_paths(context.config)
 
     with complete_step("Copying cached trees"):
         install_tree(context, final, context.root)
