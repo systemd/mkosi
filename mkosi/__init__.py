@@ -1539,8 +1539,11 @@ def build_initrd(context: Context) -> Path:
         with complete_step(f"Removing cache entries of {config.name()} image…"):
             rmtree(*(p for p in cache_tree_paths(config) if p.exists()))
 
-    with complete_step("Building default initrd"):
-        build_image(args, config, resources=context.resources)
+    with (
+        complete_step("Building default initrd"),
+        setup_workspace(args, config) as workspace,
+    ):
+        build_image(Context(args, config, workspace=workspace, resources=context.resources))
 
     return config.output_dir / config.output
 
@@ -2924,140 +2927,138 @@ def setup_workspace(args: Args, config: Config) -> Iterator[Path]:
                 raise
 
 
-def build_image(args: Args, config: Config, *, resources: Path) -> None:
-    manifest = Manifest(config) if config.manifest_format else None
+def build_image(context: Context) -> None:
+    manifest = Manifest(context.config) if context.config.manifest_format else None
 
-    with setup_workspace(args, config) as workspace:
-        context = Context(args, config, workspace=workspace, resources=resources)
-        install_package_manager_trees(context)
-        install_package_directories(context)
+    install_package_manager_trees(context)
+    install_package_directories(context)
 
-        with mount_base_trees(context):
-            install_base_trees(context)
-            cached = reuse_cache(context)
+    with mount_base_trees(context):
+        install_base_trees(context)
+        cached = reuse_cache(context)
 
-            context.config.distribution.setup(context)
+        context.config.distribution.setup(context)
 
-            if not cached:
-                with mount_cache_overlay(context):
-                    install_skeleton_trees(context)
-                    install_distribution(context)
-                    run_prepare_scripts(context, build=False)
-                    install_build_packages(context)
-                    run_prepare_scripts(context, build=True)
-                    run_depmod(context, force=True)
+        if not cached:
+            with mount_cache_overlay(context):
+                install_skeleton_trees(context)
+                install_distribution(context)
+                run_prepare_scripts(context, build=False)
+                install_build_packages(context)
+                run_prepare_scripts(context, build=True)
+                run_depmod(context, force=True)
 
-                save_cache(context)
-                reuse_cache(context)
+            save_cache(context)
+            reuse_cache(context)
 
-            check_root_populated(context)
-            run_build_scripts(context)
+        check_root_populated(context)
+        run_build_scripts(context)
 
-            if context.config.output_format == OutputFormat.none:
-                # Touch an empty file to indicate the image was built.
-                (context.staging / context.config.output).touch()
-                finalize_staging(context)
-                return
+        if context.config.output_format == OutputFormat.none:
+            # Touch an empty file to indicate the image was built.
+            (context.staging / context.config.output).touch()
+            finalize_staging(context)
+            return
 
-            install_build_dest(context)
-            install_extra_trees(context)
-            run_postinst_scripts(context)
+        install_build_dest(context)
+        install_extra_trees(context)
+        run_postinst_scripts(context)
 
-            configure_autologin(context)
-            configure_os_release(context)
-            configure_extension_release(context)
-            configure_initrd(context)
-            configure_ssh(context)
-            configure_clock(context)
+        configure_autologin(context)
+        configure_os_release(context)
+        configure_extension_release(context)
+        configure_initrd(context)
+        configure_ssh(context)
+        configure_clock(context)
 
-            install_systemd_boot(context)
-            install_shim(context)
-            run_sysusers(context)
-            run_tmpfiles(context)
-            run_preset(context)
-            run_depmod(context)
-            run_firstboot(context)
-            run_hwdb(context)
+        install_systemd_boot(context)
+        install_shim(context)
+        run_sysusers(context)
+        run_tmpfiles(context)
+        run_preset(context)
+        run_depmod(context)
+        run_firstboot(context)
+        run_hwdb(context)
 
-            # These might be removed by the next steps,
-            # so let's save them for later if needed.
-            stub, kver, kimg = save_uki_components(context)
+        # These might be removed by the next steps,
+        # so let's save them for later if needed.
+        stub, kver, kimg = save_uki_components(context)
 
-            remove_packages(context)
+        remove_packages(context)
 
-            if manifest:
-                with complete_step("Recording packages in manifest…"):
-                    manifest.record_packages(context.root)
+        if manifest:
+            with complete_step("Recording packages in manifest…"):
+                manifest.record_packages(context.root)
 
-            clean_package_manager_metadata(context)
-            remove_files(context)
-            run_selinux_relabel(context)
-            run_finalize_scripts(context)
+        clean_package_manager_metadata(context)
+        remove_files(context)
+        run_selinux_relabel(context)
+        run_finalize_scripts(context)
 
-        normalize_mtime(context.root, context.config.source_date_epoch)
-        partitions = make_disk(context, skip=("esp", "xbootldr"), msg="Generating disk image")
-        install_uki(context, partitions)
-        prepare_grub_efi(context)
-        prepare_grub_bios(context, partitions)
-        normalize_mtime(context.root, context.config.source_date_epoch, directory=Path("boot"))
-        normalize_mtime(context.root, context.config.source_date_epoch, directory=Path("efi"))
-        partitions = make_disk(context, msg="Formatting ESP/XBOOTLDR partitions")
-        install_grub_bios(context, partitions)
+    normalize_mtime(context.root, context.config.source_date_epoch)
+    partitions = make_disk(context, skip=("esp", "xbootldr"), msg="Generating disk image")
+    install_uki(context, partitions)
+    prepare_grub_efi(context)
+    prepare_grub_bios(context, partitions)
+    normalize_mtime(context.root, context.config.source_date_epoch, directory=Path("boot"))
+    normalize_mtime(context.root, context.config.source_date_epoch, directory=Path("efi"))
+    partitions = make_disk(context, msg="Formatting ESP/XBOOTLDR partitions")
+    install_grub_bios(context, partitions)
 
-        if context.config.split_artifacts:
-            make_disk(context, split=True, msg="Extracting partitions")
+    if context.config.split_artifacts:
+        make_disk(context, split=True, msg="Extracting partitions")
 
-        copy_nspawn_settings(context)
-        copy_vmlinuz(context)
-        copy_initrd(context)
+    copy_nspawn_settings(context)
+    copy_vmlinuz(context)
+    copy_initrd(context)
 
-        if context.config.output_format == OutputFormat.tar:
-            make_tar(
-                context.root, context.staging / context.config.output_with_format,
-                tools=context.config.tools(),
-                # Make sure tar uses user/group information from the root directory instead of the host.
-                sandbox=context.sandbox(
-                    options=["--ro-bind", context.root, context.root, *finalize_passwd_mounts(context.root)],
-                ),
-            )
-        elif context.config.output_format == OutputFormat.cpio:
-            make_cpio(
-                context.root, context.staging / context.config.output_with_format,
-                tools=context.config.tools(),
-                # Make sure cpio uses user/group information from the root directory instead of the host.
-                sandbox=context.sandbox(
-                    options=["--ro-bind", context.root, context.root, *finalize_passwd_mounts(context.root)],
-                ),
-            )
-        elif context.config.output_format == OutputFormat.uki:
-            assert stub and kver and kimg
-            make_uki(context, stub, kver, kimg, context.staging / context.config.output_with_format)
-        elif context.config.output_format == OutputFormat.esp:
-            assert stub and kver and kimg
-            make_uki(context, stub, kver, kimg, context.staging / context.config.output_split_uki)
-            make_esp(context, context.staging / context.config.output_split_uki)
-        elif context.config.output_format.is_extension_image():
-            make_extension_image(context, context.staging / context.config.output_with_format)
-        elif context.config.output_format == OutputFormat.directory:
-            context.root.rename(context.staging / context.config.output_with_format)
+    if context.config.output_format == OutputFormat.tar:
+        make_tar(
+            context.root, context.staging / context.config.output_with_format,
+            tools=context.config.tools(),
+            # Make sure tar uses user/group information from the root directory instead of the host.
+            sandbox=context.sandbox(
+                options=["--ro-bind", context.root, context.root, *finalize_passwd_mounts(context.root)],
+            ),
+        )
+    elif context.config.output_format == OutputFormat.cpio:
+        make_cpio(
+            context.root, context.staging / context.config.output_with_format,
+            tools=context.config.tools(),
+            # Make sure cpio uses user/group information from the root directory instead of the host.
+            sandbox=context.sandbox(
+                options=["--ro-bind", context.root, context.root, *finalize_passwd_mounts(context.root)],
+            ),
+        )
+    elif context.config.output_format == OutputFormat.uki:
+        assert stub and kver and kimg
+        make_uki(context, stub, kver, kimg, context.staging / context.config.output_with_format)
+    elif context.config.output_format == OutputFormat.esp:
+        assert stub and kver and kimg
+        make_uki(context, stub, kver, kimg, context.staging / context.config.output_split_uki)
+        make_esp(context, context.staging / context.config.output_split_uki)
+    elif context.config.output_format.is_extension_image():
+        make_extension_image(context, context.staging / context.config.output_with_format)
+    elif context.config.output_format == OutputFormat.directory:
+        context.root.rename(context.staging / context.config.output_with_format)
 
-        if config.output_format not in (OutputFormat.uki, OutputFormat.esp):
-            maybe_compress(context, context.config.compress_output,
-                           context.staging / context.config.output_with_format,
-                           context.staging / context.config.output_with_compression)
+    if context.config.output_format not in (OutputFormat.uki, OutputFormat.esp):
+        maybe_compress(context, context.config.compress_output,
+                        context.staging / context.config.output_with_format,
+                        context.staging / context.config.output_with_compression)
 
-        calculate_sha256sum(context)
-        calculate_signature(context)
-        save_manifest(context, manifest)
+    calculate_sha256sum(context)
+    calculate_signature(context)
+    save_manifest(context, manifest)
 
-        output_base = context.staging / context.config.output
-        if not output_base.exists() or output_base.is_symlink():
-            output_base.unlink(missing_ok=True)
-            output_base.symlink_to(context.config.output_with_compression)
+    output_base = context.staging / context.config.output
+    if not output_base.exists() or output_base.is_symlink():
+        output_base.unlink(missing_ok=True)
+        output_base.symlink_to(context.config.output_with_compression)
 
-        finalize_staging(context)
+    finalize_staging(context)
 
-    print_output_size(config.output_dir_or_cwd() / config.output_with_compression)
+    print_output_size(context.config.output_dir_or_cwd() / context.config.output_with_compression)
 
 
 def setfacl(config: Config, root: Path, uid: int, allow: bool) -> None:
@@ -3548,8 +3549,11 @@ def run_build(args: Args, config: Config, *, resources: Path) -> None:
             if p:
                 run(["mkdir", "--parents", p], user=INVOKING_USER.uid, group=INVOKING_USER.gid)
 
-        with acl_toggle_build(config, INVOKING_USER.uid):
-            build_image(args, config, resources=resources)
+        with (
+            acl_toggle_build(config, INVOKING_USER.uid),
+            setup_workspace(args, config) as workspace,
+        ):
+            build_image(Context(args, config, workspace=workspace, resources=resources))
 
 
 def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
