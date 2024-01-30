@@ -46,11 +46,11 @@ def setup_apt(context: Context, repos: Iterable[AptRepository]) -> None:
     (context.cache_dir / "lib/apt").mkdir(exist_ok=True, parents=True)
     (context.cache_dir / "cache/apt").mkdir(exist_ok=True, parents=True)
 
-    # We have a special apt.conf outside of pkgmngr dir that only configures "Dir::Etc" that we pass to APT_CONFIG to
-    # tell apt it should read config files from /etc/apt in case this is overridden by distributions. This is required
+    # We have a special apt.conf outside of /etc/apt that only configures "Dir::Etc" that we pass to APT_CONFIG to tell
+    # apt it should read config files from /etc/apt in case this is overridden by distributions. This is required
     # because apt parses CLI configuration options after parsing its configuration files and as such we can't use CLI
     # options to tell apt where to look for configuration files.
-    config = context.workspace / "apt.conf"
+    config = context.pkgmngr / "etc/apt.conf"
     if not config.exists():
         config.write_text(
             textwrap.dedent(
@@ -72,7 +72,7 @@ def apt_cmd(context: Context, command: str) -> list[PathString]:
 
     cmdline: list[PathString] = [
         "env",
-        f"APT_CONFIG={context.workspace / 'apt.conf'}",
+        "APT_CONFIG=/etc/apt.conf",
         "DEBIAN_FRONTEND=noninteractive",
         "DEBCONF_INTERACTIVE_SEEN=true",
         "INITRD=No",

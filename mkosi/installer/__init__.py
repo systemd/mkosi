@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-import os
 from pathlib import Path
 
 from mkosi.config import ConfigFeature
@@ -66,7 +65,6 @@ def finalize_package_manager_mounts(context: Context) -> list[PathString]:
 
     mounts: list[PathString] = [
         *(["--ro-bind", m, m] if (m := context.config.local_mirror) else []),
-        *(["--ro-bind", os.fspath(p), os.fspath(p)] if (p := context.workspace / "apt.conf").exists() else []),
         *finalize_crypto_mounts(tools=context.config.tools()),
         "--bind", context.packages, "/work/packages",
     ]
