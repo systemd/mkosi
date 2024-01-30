@@ -2,10 +2,11 @@
 import hashlib
 import textwrap
 from collections.abc import Iterable, Sequence
+from pathlib import Path
 
-from mkosi.config import yes_no
+from mkosi.config import Config, yes_no
 from mkosi.context import Context
-from mkosi.installer import PackageManager, finalize_package_manager_mounts
+from mkosi.installer import PackageManager
 from mkosi.installer.rpm import RpmRepository, fixup_rpmdb_location, rpm_cmd, setup_rpm
 from mkosi.mounts import finalize_ephemeral_source_mounts
 from mkosi.run import run
@@ -15,6 +16,14 @@ from mkosi.util import sort_packages
 
 
 class Zypper(PackageManager):
+    @classmethod
+    def subdir(cls, config: Config) -> Path:
+        return Path("zypp")
+
+    @classmethod
+    def cache_subdirs(cls, cache: Path) -> list[Path]:
+        return [cache / "packages"]
+
     @classmethod
     def scripts(cls, context: Context) -> dict[str, list[PathString]]:
         return {
@@ -26,8 +35,6 @@ class Zypper(PackageManager):
     def setup(cls, context: Context, repos: Iterable[RpmRepository]) -> None:
         config = context.pkgmngr / "etc/zypp/zypp.conf"
         config.parent.mkdir(exist_ok=True, parents=True)
-
-        (context.cache_dir / "cache/zypp").mkdir(exist_ok=True, parents=True)
 
         # rpm.install.excludedocs can only be configured in zypp.conf so we append
         # to any user provided config file. Let's also bump the refresh delay to
@@ -59,16 +66,13 @@ class Zypper(PackageManager):
                             [{repo.id}-{key}]
                             name={repo.id}
                             {repo.url}
-                            gpgcheck={int(repo.gpgcheck)}
+                            gpgcheck=1
                             enabled={int(repo.enabled)}
-                            autorefresh=1
+                            autorefresh=0
                             keeppackages=1
                             """
                         )
                     )
-
-                    if repo.priority is not None:
-                        f.write(f"priority={repo.priority}\n")
 
                     for i, url in enumerate(repo.gpgurls):
                         f.write("gpgkey=" if i == 0 else len("gpgkey=") * " ")
@@ -89,6 +93,7 @@ class Zypper(PackageManager):
             "--cache-dir=/var/cache/zypp",
             "--gpg-auto-import-keys" if context.config.repository_key_check else "--no-gpg-checks",
             "--non-interactive",
+            "--no-refresh",
         ]
 
     @classmethod
@@ -109,7 +114,7 @@ class Zypper(PackageManager):
                         network=True,
                         options=[
                             "--bind", context.root, context.root,
-                            *finalize_package_manager_mounts(context),
+                            *cls.mounts(context),
                             *sources,
                             "--chdir", "/work/src",
                         ],
@@ -121,16 +126,26 @@ class Zypper(PackageManager):
         fixup_rpmdb_location(context)
 
     @classmethod
+    def sync(cls, context: Context) -> None:
+        cls.invoke(context, "refresh", apivfs=False)
+
+    @classmethod
     def createrepo(cls, context: Context) -> None:
         run(["createrepo_c", context.packages],
             sandbox=context.sandbox(options=["--bind", context.packages, context.packages]))
 
-    @classmethod
-    def localrepo(cls) -> RpmRepository:
-        return RpmRepository(
-            id="mkosi-packages",
-            url="baseurl=file:///work/packages",
-            gpgcheck=False,
-            gpgurls=(),
-            priority=50,
+        (context.pkgmngr / "etc/zypp/repos.d/mkosi-local.repo").write_text(
+            textwrap.dedent(
+                """\
+                [mkosi]
+                name=mkosi
+                baseurl=file:///work/packages
+                gpgcheck=0
+                autorefresh=0
+                keeppackages=0
+                priority=50
+                """
+            )
         )
+
+        cls.invoke(context, "refresh", ["mkosi"], apivfs=False)

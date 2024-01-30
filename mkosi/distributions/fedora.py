@@ -54,6 +54,10 @@ class Installer(DistributionInstaller):
         Dnf.setup(context, cls.repositories(context), filelists=False)
 
     @classmethod
+    def sync(cls, context: Context) -> None:
+        Dnf.sync(context)
+
+    @classmethod
     def install(cls, context: Context) -> None:
         cls.install_packages(context, ["filesystem"], apivfs=False)
 
@@ -77,9 +81,6 @@ class Installer(DistributionInstaller):
         if context.config.local_mirror:
             yield RpmRepository("fedora", f"baseurl={context.config.local_mirror}", gpgurls)
             return
-
-        if context.want_local_repo():
-            yield Dnf.localrepo()
 
         if context.config.release == "eln":
             mirror = context.config.mirror or "https://odcs.fedoraproject.org/composes/production/latest-Fedora-ELN/compose"

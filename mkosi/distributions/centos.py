@@ -76,6 +76,10 @@ class Installer(DistributionInstaller):
         (context.pkgmngr / "etc/dnf/vars/stream").write_text(f"{context.config.release}-stream\n")
 
     @classmethod
+    def sync(cls, context: Context) -> None:
+        Dnf.sync(context)
+
+    @classmethod
     def install(cls, context: Context) -> None:
         # Make sure glibc-minimal-langpack is installed instead of glibc-all-langpacks.
         cls.install_packages(context, ["filesystem", "glibc-minimal-langpack"], apivfs=False)
@@ -227,9 +231,6 @@ class Installer(DistributionInstaller):
         if context.config.local_mirror:
             yield from cls.repository_variants(context, "AppStream")
             return
-
-        if context.want_local_repo():
-            yield Dnf.localrepo()
 
         yield from cls.repository_variants(context, "BaseOS")
         yield from cls.repository_variants(context, "AppStream")

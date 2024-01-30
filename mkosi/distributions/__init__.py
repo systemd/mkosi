@@ -76,6 +76,10 @@ class DistributionInstaller:
     def createrepo(cls, context: "Context") -> None:
         raise NotImplementedError
 
+    @classmethod
+    def sync(cls, context: "Context") -> None:
+        raise NotImplementedError
+
 
 class Distribution(StrEnum):
     # Please consult docs/distribution-policy.md and contact one
@@ -156,6 +160,9 @@ class Distribution(StrEnum):
 
     def createrepo(self, context: "Context") -> None:
         return self.installer().createrepo(context)
+
+    def sync(self, context: "Context") -> None:
+        return self.installer().sync(context)
 
     def installer(self) -> type[DistributionInstaller]:
         modname = str(self).replace('-', '_')

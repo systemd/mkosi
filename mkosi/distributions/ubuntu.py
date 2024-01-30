@@ -36,9 +36,6 @@ class Installer(debian.Installer):
             )
             return
 
-        if context.want_local_repo():
-            yield Apt.localrepo(context)
-
         if context.config.architecture in (Architecture.x86, Architecture.x86_64):
             mirror = context.config.mirror or "http://archive.ubuntu.com/ubuntu"
         else:

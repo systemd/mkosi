@@ -1,10 +1,12 @@
 # SPDX-License-Identifier: LGPL-2.1+
 import textwrap
 from collections.abc import Iterable, Sequence
+from pathlib import Path
 from typing import NamedTuple, Optional
 
+from mkosi.config import Config
 from mkosi.context import Context
-from mkosi.installer import PackageManager, finalize_package_manager_mounts
+from mkosi.installer import PackageManager
 from mkosi.mounts import finalize_ephemeral_source_mounts
 from mkosi.run import find_binary, run
 from mkosi.sandbox import apivfs_cmd
@@ -33,6 +35,14 @@ class Apt(PackageManager):
             )
 
     @classmethod
+    def subdir(cls, config: Config) -> Path:
+        return Path("apt")
+
+    @classmethod
+    def cache_subdirs(cls, cache: Path) -> list[Path]:
+        return [cache / "archives"]
+
+    @classmethod
     def scripts(cls, context: Context) -> dict[str, list[PathString]]:
         return {
             command: apivfs_cmd(context.root) + cls.cmd(context, command) for command in (
@@ -55,13 +65,12 @@ class Apt(PackageManager):
         (context.pkgmngr / "etc/apt/preferences.d").mkdir(exist_ok=True, parents=True)
         (context.pkgmngr / "etc/apt/sources.list.d").mkdir(exist_ok=True, parents=True)
 
-        # TODO: Drop once apt 2.5.4 is widely available.
         with umask(~0o755):
+            # TODO: Drop once apt 2.5.4 is widely available.
             (context.root / "var/lib/dpkg").mkdir(parents=True, exist_ok=True)
             (context.root / "var/lib/dpkg/status").touch()
 
-        (context.cache_dir / "lib/apt").mkdir(exist_ok=True, parents=True)
-        (context.cache_dir / "cache/apt").mkdir(exist_ok=True, parents=True)
+            (context.package_cache_dir / "lib/apt/lists/partial").mkdir(parents=True, exist_ok=True)
 
         # We have a special apt.conf outside of pkgmngr dir that only configures "Dir::Etc" that we pass to APT_CONFIG
         # to tell apt it should read config files from /etc/apt in case this is overridden by distributions. This is
@@ -144,18 +153,19 @@ class Apt(PackageManager):
         operation: str,
         packages: Sequence[str] = (),
         *,
+        options: Sequence[str] = (),
         apivfs: bool = True,
         mounts: Sequence[PathString] = (),
     ) -> None:
         with finalize_ephemeral_source_mounts(context.config) as sources:
             run(
-                cls.cmd(context, "apt-get") + [operation, *sort_packages(packages)],
+                cls.cmd(context, "apt-get") + [operation, *options, *sort_packages(packages)],
                 sandbox=(
                     context.sandbox(
                         network=True,
                         options=[
                             "--bind", context.root, context.root,
-                            *finalize_package_manager_mounts(context),
+                            *cls.mounts(context),
                             *sources,
                             *mounts,
                             "--chdir", "/work/src",
@@ -165,20 +175,44 @@ class Apt(PackageManager):
                 env=context.config.environment,
             )
 
+    @classmethod
+    def sync(cls, context: Context) -> None:
+        cls.invoke(context, "update")
 
     @classmethod
     def createrepo(cls, context: Context) -> None:
         with (context.packages / "Packages").open("wb") as f:
-            run(["dpkg-scanpackages", context.packages],
-                stdout=f, sandbox=context.sandbox(options=["--ro-bind", context.packages, context.packages]))
+            run(
+                ["dpkg-scanpackages", "."],
+                stdout=f,
+                sandbox=context.sandbox(
+                    options=[
+                        "--ro-bind", context.packages, context.packages,
+                        "--chdir", context.packages,
+                    ],
+                ),
+            )
 
+        (context.pkgmngr / "etc/apt/sources.list.d").mkdir(parents=True, exist_ok=True)
+        (context.pkgmngr / "etc/apt/sources.list.d/mkosi-local.sources").write_text(
+            textwrap.dedent(
+                """\
+                Enabled: yes
+                Types: deb
+                URIs: file:///work/packages
+                Suites: ./
+                Trusted: yes
+                """
+            )
+        )
 
-    @classmethod
-    def localrepo(cls, context: Context) -> Repository:
-        return cls.Repository(
-            types=("deb",),
-            url="file:///work/packages",
-            suite=context.config.release,
-            components=("main",),
-            signedby=None,
+        cls.invoke(
+            context,
+            "update",
+            options=[
+                "-o", "Dir::Etc::sourcelist=sources.list.d/mkosi-local.sources",
+                "-o", "Dir::Etc::sourceparts=-",
+                "-o", "APT::Get::List-Cleanup=0",
+            ],
+            apivfs=False,
         )

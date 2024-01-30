@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: LGPL-2.1+
 import textwrap
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 
 from mkosi.config import Config
 from mkosi.context import Context
-from mkosi.installer import PackageManager, finalize_package_manager_mounts
+from mkosi.installer import PackageManager
 from mkosi.installer.rpm import RpmRepository, fixup_rpmdb_location, rpm_cmd, setup_rpm
 from mkosi.log import ARG_DEBUG
 from mkosi.mounts import finalize_ephemeral_source_mounts
@@ -29,6 +29,14 @@ class Dnf(PackageManager):
         return Path("libdnf5" if cls.executable(config) == "dnf5" else "dnf")
 
     @classmethod
+    def cache_subdirs(cls, cache: Path) -> list[Path]:
+        return [
+            p / "packages"
+            for p in cache.iterdir()
+            if p.is_dir() and "-" in p.name and "mkosi" not in p.name
+        ]
+
+    @classmethod
     def scripts(cls, context: Context) -> dict[str, list[PathString]]:
         return {
             "dnf": apivfs_cmd(context.root) + cls.cmd(context),
@@ -37,11 +45,8 @@ class Dnf(PackageManager):
 
     @classmethod
     def setup(cls, context: Context, repositories: Iterable[RpmRepository], filelists: bool = True) -> None:
-        (context.pkgmngr / "etc/dnf/vars").mkdir(exist_ok=True, parents=True)
-        (context.pkgmngr / "etc/yum.repos.d").mkdir(exist_ok=True, parents=True)
-
-        (context.cache_dir / "cache" / cls.subdir(context.config)).mkdir(exist_ok=True, parents=True)
-        (context.cache_dir / "lib" / cls.subdir(context.config)).mkdir(exist_ok=True, parents=True)
+        (context.pkgmngr / "etc/dnf/vars").mkdir(parents=True, exist_ok=True)
+        (context.pkgmngr / "etc/yum.repos.d").mkdir(parents=True, exist_ok=True)
 
         config = context.pkgmngr / "etc/dnf/dnf.conf"
 
@@ -64,16 +69,11 @@ class Dnf(PackageManager):
                             [{repo.id}]
                             name={repo.id}
                             {repo.url}
-                            gpgcheck={int(repo.gpgcheck)}
+                            gpgcheck=1
                             enabled={int(repo.enabled)}
                             """
                         )
                     )
-
-                    if repo.metadata_expire is not None:
-                        f.write(f"metadata_expire={repo.metadata_expire}\n")
-                    if repo.priority is not None:
-                        f.write(f"priority={repo.priority}\n")
 
                     if repo.sslcacert:
                         f.write(f"sslcacert={repo.sslcacert}\n")
@@ -122,9 +122,12 @@ class Dnf(PackageManager):
             opt = "--enable-repo" if dnf.endswith("dnf5") else "--enablerepo"
             cmdline += [f"{opt}={repo}" for repo in context.config.repositories]
 
-        # TODO: this breaks with a local, offline repository created with 'createrepo'
-        if context.config.cache_only and not context.config.local_mirror:
+        if context.config.cache_only:
             cmdline += ["--cacheonly"]
+        else:
+            cmdline += ["--setopt=metadata_expire=never"]
+            if dnf == "dnf5":
+                cmdline += ["--setopt=cacheonly=metadata"]
 
         if not context.config.architecture.is_native():
             cmdline += [f"--forcearch={context.config.distribution.architecture(context.config.architecture)}"]
@@ -144,16 +147,23 @@ class Dnf(PackageManager):
         return cmdline
 
     @classmethod
-    def invoke(cls, context: Context, operation: str, packages: Iterable[str], apivfs: bool = True) -> None:
+    def invoke(
+        cls,
+        context: Context,
+        operation: str,
+        packages: Iterable[str] = (),
+        options: Sequence[str] = (),
+        apivfs: bool = True,
+    ) -> None:
         with finalize_ephemeral_source_mounts(context.config) as sources:
             run(
-                cls.cmd(context) + [operation, *sort_packages(packages)],
+                cls.cmd(context) + [operation, *options, *sort_packages(packages)],
                 sandbox=(
                     context.sandbox(
                         network=True,
                         options=[
                             "--bind", context.root, context.root,
-                            *finalize_package_manager_mounts(context),
+                            *cls.mounts(context),
                             *sources,
                             "--chdir", "/work/src",
                         ],
@@ -172,17 +182,34 @@ class Dnf(PackageManager):
                     p.unlink()
 
     @classmethod
+    def sync(cls, context: Context, options: Sequence[str] = ()) -> None:
+        cls.invoke(
+            context,
+            "makecache",
+            options=[
+                "--refresh",
+                *(["--setopt=cacheonly=none"] if cls.executable(context.config) == "dnf5" else []),
+                *options,
+            ],
+            apivfs=False,
+        )
+
+    @classmethod
     def createrepo(cls, context: Context) -> None:
         run(["createrepo_c", context.packages],
             sandbox=context.sandbox(options=["--bind", context.packages, context.packages]))
 
-    @classmethod
-    def localrepo(cls) -> RpmRepository:
-        return RpmRepository(
-            id="mkosi-packages",
-            url="baseurl=file:///work/packages",
-            gpgcheck=False,
-            gpgurls=(),
-            metadata_expire=0,
-            priority=50,
+        (context.pkgmngr / "etc/yum.repos.d/mkosi-local.repo").write_text(
+            textwrap.dedent(
+                """\
+                [mkosi]
+                name=mkosi
+                baseurl=file:///work/packages
+                gpgcheck=0
+                metadata_expire=never
+                priority=50
+                """
+            )
         )
+
+        cls.sync(context, options=["--disablerepo=*", "--enablerepo=mkosi"])

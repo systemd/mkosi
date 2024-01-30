@@ -14,11 +14,20 @@ from mkosi.util import flatten, umask
 class Context:
     """State related properties."""
 
-    def __init__(self, args: Args, config: Config, *, workspace: Path, resources: Path) -> None:
+    def __init__(
+        self,
+        args: Args,
+        config: Config,
+        *,
+        workspace: Path,
+        resources: Path,
+        package_cache_dir: Optional[Path] = None,
+    ) -> None:
         self.args = args
         self.config = config
         self.workspace = workspace
         self.resources = resources
+        self.package_cache_dir = package_cache_dir or (self.root / "mkosi")
 
         with umask(~0o755):
             # Using a btrfs subvolume as the upperdir in an overlayfs results in EXDEV so make sure we create
@@ -38,7 +47,6 @@ class Context:
         (self.pkgmngr / "var/log").mkdir(parents=True)
         self.packages.mkdir()
         self.install_dir.mkdir(exist_ok=True)
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
 
     @property
     def root(self) -> Path:
@@ -55,10 +63,6 @@ class Context:
     @property
     def packages(self) -> Path:
         return self.workspace / "packages"
-
-    @property
-    def cache_dir(self) -> Path:
-        return self.config.cache_dir or (self.workspace / "cache")
 
     @property
     def install_dir(self) -> Path:

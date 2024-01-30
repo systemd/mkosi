@@ -57,9 +57,6 @@ class Installer(DistributionInstaller):
             )
             return
 
-        if context.want_local_repo():
-            yield Apt.localrepo(context)
-
         mirror = context.config.mirror or "http://deb.debian.org/debian"
         signedby = "/usr/share/keyrings/debian-archive-keyring.gpg"
 
@@ -111,6 +108,10 @@ class Installer(DistributionInstaller):
         Apt.createrepo(context)
 
     @classmethod
+    def sync(cls, context: Context) -> None:
+        Apt.sync(context)
+
+    @classmethod
     def install(cls, context: Context) -> None:
         # Instead of using debootstrap, we replicate its core functionality here. Because dpkg does not have
         # an option to delay running pre-install maintainer scripts when it installs a package, it's
@@ -142,8 +143,6 @@ class Installer(DistributionInstaller):
                 (context.root / d).symlink_to(f"usr/{d}")
                 (context.root / f"usr/{d}").mkdir(parents=True, exist_ok=True)
 
-        Apt.invoke(context, "update", apivfs=False)
-
         # Next, we invoke apt-get install to download all the essential packages. With DPkg::Pre-Install-Pkgs,
         # we specify a shell command that will receive the list of packages that will be installed on stdin.
         # By configuring Debug::pkgDpkgPm=1, apt-get install will not actually execute any dpkg commands, so
@@ -168,12 +167,17 @@ class Installer(DistributionInstaller):
         # then extracting the tar file into the chroot.
 
         for deb in essential:
-            with (
-                # The deb paths will be in the form of "/var/cache/apt/<deb>" so we transform them to the corresponding
-                # path in mkosi's package cache directory.
-                open(context.cache_dir / Path(deb).relative_to("/var"), "rb") as i,
-                tempfile.NamedTemporaryFile() as o
-            ):
+            # If a deb path is in the form of "/var/cache/apt/<deb>", we transform it to the corresponding path in
+            # mkosi's package cache directory. If it's relative to /work/packages, we transform it to the corresponding
+            # path in mkosi's local package repository. Otherwise, we use the path as is.
+            if Path(deb).is_relative_to("/var/cache"):
+                path = context.config.package_cache_dir_or_default() / Path(deb).relative_to("/var")
+            elif Path(deb).is_relative_to("/work/packages"):
+                path = context.packages / Path(deb).relative_to("/work/packages")
+            else:
+                path = Path(deb)
+
+            with open(path, "rb") as i, tempfile.NamedTemporaryFile() as o:
                 run(["dpkg-deb", "--fsys-tarfile", "/dev/stdin"], stdin=i, stdout=o, sandbox=context.sandbox())
                 extract_tar(
                     Path(o.name), context.root,
@@ -201,7 +205,6 @@ class Installer(DistributionInstaller):
         with umask(~0o644):
             policyrcd.write_text("#!/bin/sh\nexit 101\n")
 
-        Apt.invoke(context, "update", apivfs=False)
         Apt.invoke(context, "install", packages, apivfs=apivfs)
         install_apt_sources(context, cls.repositories(context, local=False))
 

@@ -16,13 +16,10 @@ class RpmRepository(NamedTuple):
     id: str
     url: str
     gpgurls: tuple[str, ...]
-    gpgcheck: bool = True
     enabled: bool = True
     sslcacert: Optional[Path] = None
     sslclientkey: Optional[Path] = None
     sslclientcert: Optional[Path] = None
-    metadata_expire: Optional[int] = None
-    priority: Optional[int] = None
 
 
 def find_rpm_gpgkey(context: Context, key: str) -> Optional[str]:

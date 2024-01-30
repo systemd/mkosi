@@ -48,7 +48,7 @@ from mkosi.config import (
 )
 from mkosi.context import Context
 from mkosi.distributions import Distribution
-from mkosi.installer import clean_package_manager_metadata, finalize_package_manager_mounts
+from mkosi.installer import clean_package_manager_metadata
 from mkosi.kmod import gen_required_kernel_modules, process_kernel_modules
 from mkosi.log import ARG_DEBUG, complete_step, die, log_notice, log_step
 from mkosi.manifest import Manifest
@@ -67,6 +67,8 @@ from mkosi.tree import copy_tree, move_tree, rmtree
 from mkosi.types import PathString
 from mkosi.user import CLONE_NEWNS, INVOKING_USER, become_root, unshare
 from mkosi.util import (
+    flatten,
+    flock,
     format_rlimit,
     make_executable,
     one_zero,
@@ -463,7 +465,7 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
                             "--ro-bind", script, "/work/prepare",
                             "--ro-bind", cd, "/work/scripts",
                             "--bind", context.root, context.root,
-                            *finalize_package_manager_mounts(context),
+                            *context.config.distribution.package_manager(context.config).mounts(context),
                             "--chdir", "/work/src",
                         ],
                         scripts=hd,
@@ -545,7 +547,7 @@ def run_build_scripts(context: Context) -> None:
                                 if context.config.build_dir
                                 else []
                             ),
-                            *finalize_package_manager_mounts(context),
+                            *context.config.distribution.package_manager(context.config).mounts(context),
                             "--chdir", "/work/src",
                         ],
                         scripts=hd,
@@ -610,7 +612,7 @@ def run_postinst_scripts(context: Context) -> None:
                             "--ro-bind", cd, "/work/scripts",
                             "--bind", context.root, context.root,
                             "--bind", context.staging, "/work/out",
-                            *finalize_package_manager_mounts(context),
+                            *context.config.distribution.package_manager(context.config).mounts(context),
                             "--chdir", "/work/src",
                         ],
                         scripts=hd,
@@ -671,7 +673,7 @@ def run_finalize_scripts(context: Context) -> None:
                             "--ro-bind", cd, "/work/scripts",
                             "--bind", context.root, context.root,
                             "--bind", context.staging, "/work/out",
-                            *finalize_package_manager_mounts(context),
+                            *context.config.distribution.package_manager(context.config).mounts(context),
                             "--chdir", "/work/src",
                         ],
                         scripts=hd,
@@ -1498,7 +1500,8 @@ def build_default_initrd(context: Context) -> Path:
         "--cache-only", str(context.config.cache_only),
         "--output-dir", str(context.workspace / "initrd"),
         *(["--workspace-dir", str(context.config.workspace_dir)] if context.config.workspace_dir else []),
-        "--cache-dir", str(context.cache_dir),
+        *(["--cache-dir", str(context.config.cache_dir)] if context.config.cache_dir else []),
+        *(["--package-cache-dir", str(context.config.package_cache_dir)] if context.config.package_cache_dir else []),
         *(["--local-mirror", str(context.config.local_mirror)] if context.config.local_mirror else []),
         "--incremental", str(context.config.incremental),
         "--acl", str(context.config.acl),
@@ -1554,7 +1557,16 @@ def build_default_initrd(context: Context) -> Path:
         complete_step("Building default initrd"),
         setup_workspace(args, config) as workspace,
     ):
-        build_image(Context(args, config, workspace=workspace, resources=context.resources))
+        build_image(
+            Context(
+                args,
+                config,
+                workspace=workspace,
+                resources=context.resources,
+                # Re-use the repository metadata snapshot from the main image for the initrd.
+                package_cache_dir=context.package_cache_dir,
+            )
+        )
 
     return config.output_dir / config.output
 
@@ -2932,6 +2944,41 @@ def setup_workspace(args: Args, config: Config) -> Iterator[Path]:
                 raise
 
 
+def copy_package_manager_state(context: Context) -> None:
+    if have_cache(context.config) or context.config.base_trees:
+        return
+
+    subdir = context.config.distribution.package_manager(context.config).subdir(context.config)
+
+    for d in ("cache", "lib"):
+        src = context.config.package_cache_dir_or_default() / d / subdir
+        if not src.exists():
+            continue
+
+        caches = context.config.distribution.package_manager(context.config).cache_subdirs(src) if d == "cache" else []
+
+        with tempfile.TemporaryDirectory() as tmp:
+            os.chmod(tmp, 0o755)
+
+            # cp doesn't support excluding directories but we can imitate it by bind mounting an empty directory over
+            # the directories we want to exclude.
+            exclude = flatten(["--ro-bind", tmp, os.fspath(p)] for p in caches)
+
+            dst = context.root / "mkosi" / d / subdir
+            with umask(~0o755):
+                dst.mkdir(parents=True, exist_ok=True)
+
+            with flock(src):
+                copy_tree(
+                    src, dst,
+                    tools=context.config.tools(),
+                    preserve=False,
+                    sandbox=context.sandbox(
+                        options=["--ro-bind", src, src, "--bind", dst.parent, dst.parent, *exclude]
+                    ),
+                )
+
+
 def build_image(context: Context) -> None:
     manifest = Manifest(context.config) if context.config.manifest_format else None
 
@@ -2940,6 +2987,11 @@ def build_image(context: Context) -> None:
     with mount_base_trees(context):
         install_base_trees(context)
         cached = reuse_cache(context)
+
+        # The repository metadata is copied into the image root directory to ensure it remains static and available
+        # when using the image to build system extensions. This has to be ordered after setup() as cache keys might
+        # depend on config files created by the distribution's setup() method.
+        copy_package_manager_state(context)
 
         context.config.distribution.setup(context)
         install_package_directories(context)
@@ -3431,6 +3483,7 @@ def finalize_default_tools(args: Args, config: Config, *, resources: Path) -> Co
         *(["--output-dir", str(config.output_dir)] if config.output_dir else []),
         *(["--workspace-dir", str(config.workspace_dir)] if config.workspace_dir else []),
         *(["--cache-dir", str(config.cache_dir)] if config.cache_dir else []),
+        *(["--package-cache-dir", str(config.package_cache_dir)] if config.package_cache_dir else []),
         "--incremental", str(config.incremental),
         "--acl", str(config.acl),
         *([f"--package={package}" for package in config.tools_tree_packages]),
@@ -3513,15 +3566,61 @@ def run_clean(args: Args, config: Config) -> None:
             with complete_step(f"Clearing out build directory of {config.name()} image…"):
                 rmtree(*config.build_dir.iterdir())
 
-    if remove_package_cache and config.cache_dir and config.cache_dir.exists() and any(config.cache_dir.iterdir()):
+    if (
+        remove_package_cache and
+        config.package_cache_dir and
+        config.package_cache_dir.exists() and
+        any(config.package_cache_dir.iterdir())
+    ):
         with complete_step(f"Clearing out package cache of {config.name()} image…"):
             rmtree(
                 *(
-                    config.cache_dir / p / d
-                    for p in ("cache", "lib")
-                    for d in ("apt", "dnf", "libdnf5", "pacman", "zypp")
+                    config.package_cache_dir / d / config.distribution.package_manager(config).subdir(config)
+                    for d in ("cache", "lib")
                 ),
             )
+
+
+@contextlib.contextmanager
+def rchown_package_manager_dirs(config: Config) -> Iterator[None]:
+    try:
+        yield
+    finally:
+        if INVOKING_USER.is_regular_user():
+            with complete_step("Fixing ownership of package manager cache directory"):
+                subdir = config.distribution.package_manager(config).subdir(config)
+                for d in ("cache", "lib"):
+                    INVOKING_USER.rchown(config.package_cache_dir_or_default() / d / subdir)
+
+
+def sync_repository_metadata(args: Args, config: Config, *, resources: Path) -> None:
+    if have_cache(config) or config.cache_only or config.base_trees:
+        return
+
+    with (
+        complete_step(f"Syncing package manager metadata for {config.name()} image"),
+        prepend_to_environ_path(config),
+        rchown_package_manager_dirs(config),
+        setup_workspace(args, config) as workspace,
+    ):
+        context = Context(
+            args,
+            config,
+            workspace=workspace,
+            resources=resources,
+            package_cache_dir=config.package_cache_dir_or_default(),
+        )
+
+        install_package_manager_trees(context)
+        context.config.distribution.setup(context)
+
+        subdir = context.config.distribution.package_manager(config).subdir(config)
+
+        with (
+            flock(context.config.package_cache_dir_or_default() / "cache" / subdir),
+            flock(context.config.package_cache_dir_or_default() / "lib" / subdir),
+        ):
+            context.config.distribution.sync(context)
 
 
 def run_build(args: Args, config: Config, *, resources: Path) -> None:
@@ -3547,14 +3646,28 @@ def run_build(args: Args, config: Config, *, resources: Path) -> None:
         for p in (
             config.output_dir,
             config.cache_dir,
+            config.package_cache_dir_or_default(),
             config.build_dir,
             config.workspace_dir,
         ):
             if p and not p.exists():
                 INVOKING_USER.mkdir(p)
 
+        subdir = config.distribution.package_manager(config).subdir(config)
+
+        for d in ("cache", "lib"):
+            src = config.package_cache_dir_or_default() / d / subdir
+            INVOKING_USER.mkdir(src)
+
+        sync_repository_metadata(args, config, resources=resources)
+
+        src = config.package_cache_dir_or_default() / "cache" / subdir
+        for p in config.distribution.package_manager(config).cache_subdirs(src):
+            INVOKING_USER.mkdir(p)
+
         with (
             acl_toggle_build(config, INVOKING_USER.uid),
+            rchown_package_manager_dirs(config),
             setup_workspace(args, config) as workspace,
         ):
             build_image(Context(args, config, workspace=workspace, resources=resources))

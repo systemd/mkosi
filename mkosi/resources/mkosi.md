@@ -695,10 +695,17 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `CacheDirectory=`, `--cache-dir=`
 
-: Takes a path to a directory to use as package cache for the
-  distribution package manager used. If this option is not used, but a
-  `mkosi.cache/` directory is found in the local directory it is
-  automatically used for this purpose.
+: Takes a path to a directory to use as the incremental cache directory
+  for the incremental images produced when the `Incremental=` option is
+  enabled. If this option is not used, but a `mkosi.cache/` directory is
+  found in the local directory it is automatically used for this
+  purpose.
+
+`PackageCacheDirectory=`, `--package-cache-dir`
+
+: Takes a path to a directory to use as the package cache directory for
+  the distribution package manager used. If unset, a suitable directory
+  in the user's home directory or system is used.
 
 `BuildDirectory=`, `--build-dir=`
 
@@ -911,8 +918,8 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   distribution instead of installing the distribution from scratch. Only
   extra packages are installed on top of the ones already installed in
   the base trees. Note that for this to work properly, the base image
-  still needs to contain the package manager metadata (see
-  `CleanPackageMetadata=`).
+  still needs to contain the package manager metadata by setting
+  `CleanPackageMetadata=no` (see `CleanPackageMetadata=`).
 
 : Instead of a directory, a tar file or a disk image may be provided. In
   this case it is unpacked into the OS tree. This mode of operation
@@ -975,11 +982,19 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `CleanPackageMetadata=`, `--clean-package-metadata=`
 
-: Enable/disable removal of package manager databases at the end of
-  installation. Can be specified as `true`, `false`, or `auto` (the
-  default). With `auto`, files will be removed if the respective
-  package manager executable is *not* present at the end of the
-  installation.
+: Enable/disable removal of package manager databases and repository
+  metadata in `/mkosi` at the end of installation. Can be specified as
+  `true`, `false`, or `auto` (the default). With `auto`, package manager
+  databases will be removed if the respective package manager executable
+  is *not* present at the end of the installation.
+
+: Note that when not building a tar or directory image, the repository
+  metadata in `/mkosi` is always removed, regardless of this setting as
+  it is only useful for building extensions using `BaseTrees=`.
+
+: Note that when set to `auto`, repository metadata in `/mkosi` is
+  removed regardless of whether the respective package manager
+  executable is present or not.
 
 `PrepareScripts=`, `--prepare-script=`
 

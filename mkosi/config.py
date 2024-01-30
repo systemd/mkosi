@@ -1171,6 +1171,7 @@ class Config:
     output_dir: Optional[Path]
     workspace_dir: Optional[Path]
     cache_dir: Optional[Path]
+    package_cache_dir: Optional[Path]
     build_dir: Optional[Path]
     image_id: Optional[str]
     image_version: Optional[str]
@@ -1300,6 +1301,12 @@ class Config:
             return cache
 
         return Path("/var/tmp")
+
+    def package_cache_dir_or_default(self) -> Path:
+        return (
+            self.package_cache_dir or
+            (INVOKING_USER.cache_dir() / f"{self.distribution}~{self.release}~{self.architecture}")
+        )
 
     def tools(self) -> Path:
         return self.tools_tree or Path("/")
@@ -1724,7 +1731,15 @@ SETTINGS = (
         section="Output",
         parse=config_make_path_parser(required=False),
         paths=("mkosi.cache",),
-        help="Package cache path",
+        help="Incremental cache directory",
+    ),
+    ConfigSetting(
+        dest="package_cache_dir",
+        metavar="PATH",
+        name="PackageCacheDirectory",
+        section="Output",
+        parse=config_make_path_parser(required=False),
+        help="Package cache directory",
     ),
     ConfigSetting(
         dest="build_dir",
@@ -3420,6 +3435,7 @@ def summary(config: Config) -> str:
                    Output Directory: {config.output_dir_or_cwd()}
                 Workspace Directory: {config.workspace_dir_or_default()}
                     Cache Directory: {none_to_none(config.cache_dir)}
+            Package Cache Directory: {none_to_default(config.package_cache_dir)}
                     Build Directory: {none_to_none(config.build_dir)}
                            Image ID: {config.image_id}
                       Image Version: {config.image_version}

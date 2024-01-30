@@ -65,6 +65,13 @@ class Installer(DistributionInstaller):
             Dnf.setup(context, cls.repositories(context))
 
     @classmethod
+    def sync(cls, context: Context) -> None:
+        if find_binary("zypper", root=context.config.tools()):
+            Zypper.sync(context)
+        else:
+            Dnf.sync(context)
+
+    @classmethod
     def install(cls, context: Context) -> None:
         cls.install_packages(context, ["filesystem", "distribution-release"], apivfs=False)
 
@@ -89,9 +96,6 @@ class Installer(DistributionInstaller):
     @classmethod
     def repositories(cls, context: Context) -> Iterable[RpmRepository]:
         zypper = find_binary("zypper", root=context.config.tools())
-
-        if context.want_local_repo():
-            yield Zypper.localrepo() if zypper else Dnf.localrepo()
 
         release = context.config.release
         if release == "leap":

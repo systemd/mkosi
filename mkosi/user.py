@@ -62,6 +62,11 @@ class INVOKING_USER:
         run(["mkdir", "--parents", path], user=user, group=group)
         return path
 
+    @classmethod
+    def rchown(cls, path: Path) -> None:
+        if cls.is_regular_user() and path.is_relative_to(INVOKING_USER.home()) and path.exists():
+            run(["chown", "--recursive", f"{INVOKING_USER.uid}:{INVOKING_USER.gid}", path])
+
 
 def read_subrange(path: Path) -> int:
     uid = str(os.getuid())

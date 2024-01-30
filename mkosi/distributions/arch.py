@@ -44,6 +44,10 @@ class Installer(DistributionInstaller):
         Pacman.setup(context, cls.repositories(context))
 
     @classmethod
+    def sync(cls, context: Context) -> None:
+        Pacman.sync(context)
+
+    @classmethod
     def install(cls, context: Context) -> None:
         cls.install_packages(context, ["filesystem"], apivfs=False)
 
@@ -52,7 +56,7 @@ class Installer(DistributionInstaller):
         Pacman.invoke(
             context,
             "--sync",
-            ["--refresh", "--needed", "--assume-installed", "initramfs"],
+            ["--needed", "--assume-installed", "initramfs"],
             packages,
             apivfs=apivfs,
         )
@@ -66,9 +70,6 @@ class Installer(DistributionInstaller):
         if context.config.local_mirror:
             yield Pacman.Repository("core", context.config.local_mirror)
         else:
-            if context.want_local_repo():
-                yield Pacman.localrepo()
-
             if context.config.architecture == Architecture.arm64:
                 url = f"{context.config.mirror or 'http://mirror.archlinuxarm.org'}/$arch/$repo"
             else:

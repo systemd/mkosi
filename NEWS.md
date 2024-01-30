@@ -1,6 +1,6 @@
 # mkosi Changelog
 
-## v20.3
+## v21
 
 - We now handle unmerged-usr systems correctly
 - Builtin configs (`mkosi-initrd`, `mkosi-tools`) can now be included
@@ -18,6 +18,18 @@
 - Added `MicrocodeHost=` setting to only include the CPU specific
   microcode for the current host system.
 - The kernel-install plugin now only includes the CPU specific microcode
+- Introduced `PackageCacheDirectory=` to set the directory for package
+  manager caches. This setting defaults to a suitable location in the
+  system or user directory depending on how mkosi is invoked.
+  `CacheDirectory=` is only used for incremental cached images now.
+- Repository metadata is now synced once at the start of each image
+  build and never during an image build. Each image includes a snapshot
+  of the repository metadata in `/mkosi` so that incremental images and
+  extension images can reuse the same snapshot. When building an image
+  intended to be used with `BaseTrees=`, disable `CleanPackageMetadata=`
+  to make sure the repository metadata in `/mkosi` is not cleaned up,
+  otherwise any extension images using this image as their base tree
+  will not be able to install additional packages.
 
 ## v20.2
 
