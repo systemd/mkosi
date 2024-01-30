@@ -6,6 +6,7 @@ from pathlib import Path
 from mkosi.context import Context
 from mkosi.installer import finalize_package_manager_mounts
 from mkosi.installer.rpm import RpmRepository, fixup_rpmdb_location, setup_rpm
+from mkosi.log import ARG_DEBUG
 from mkosi.mounts import finalize_ephemeral_source_mounts
 from mkosi.run import find_binary, run
 from mkosi.sandbox import apivfs_cmd
@@ -93,6 +94,7 @@ def dnf_cmd(context: Context) -> list[PathString]:
         f"--releasever={context.config.release}",
         f"--installroot={context.root}",
         "--setopt=keepcache=1",
+        "--setopt=logdir=/var/log",
         f"--setopt=cachedir=/var/cache/{dnf_subdir(context)}",
         f"--setopt=persistdir=/var/lib/{dnf_subdir(context)}",
         f"--setopt=install_weak_deps={int(context.config.with_recommends)}",
@@ -100,6 +102,9 @@ def dnf_cmd(context: Context) -> list[PathString]:
         "--disable-plugin=*" if dnf.endswith("dnf5") else "--disableplugin=*",
         "--enable-plugin=builddep" if dnf.endswith("dnf5") else "--enableplugin=builddep",
     ]
+
+    if ARG_DEBUG.get():
+        cmdline += ["--setopt=debuglevel=10"]
 
     if not context.config.repository_key_check:
         cmdline += ["--nogpgcheck"]
@@ -150,11 +155,12 @@ def invoke_dnf(context: Context, command: str, packages: Iterable[str], apivfs: 
 
     fixup_rpmdb_location(context)
 
-    # The log directory is always interpreted relative to the install root so there's nothing we can do but
-    # to remove the log files from the install root afterwards.
-    for p in (context.root / "var/log").iterdir():
-        if any(p.name.startswith(prefix) for prefix in ("dnf", "hawkey", "yum")):
-            p.unlink()
+    # dnf interprets the log directory relative to the install root so there's nothing we can do but to remove the log
+    # files from the install root afterwards.
+    if (context.root / "var/log").exists():
+        for p in (context.root / "var/log").iterdir():
+            if any(p.name.startswith(prefix) for prefix in ("dnf", "hawkey", "yum")):
+                p.unlink()
 
 
 def createrepo_dnf(context: Context) -> None:

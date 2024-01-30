@@ -35,6 +35,7 @@ class Context:
 
         self.staging.mkdir()
         self.pkgmngr.mkdir()
+        (self.pkgmngr / "var/log").mkdir(parents=True)
         self.packages.mkdir()
         self.install_dir.mkdir(exist_ok=True)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
@@ -84,6 +85,7 @@ class Context:
                     for p in (self.pkgmngr / "etc").iterdir()
                 ),
                 *options,
+                "--bind", self.pkgmngr / "var/log", "/var/log",
                 *(["--ro-bind", os.fspath(p), os.fspath(p)] if (p := self.pkgmngr / "usr").exists() else []),
             ],
         ) + (
