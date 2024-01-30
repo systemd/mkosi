@@ -1413,7 +1413,8 @@ def install_package_directories(context: Context) -> None:
             install_tree(context, d, context.packages)
 
     if context.want_local_repo():
-        context.config.distribution.createrepo(context)
+        with complete_step("Building local package repository"):
+            context.config.distribution.createrepo(context)
 
 
 def install_extra_trees(context: Context) -> None:
