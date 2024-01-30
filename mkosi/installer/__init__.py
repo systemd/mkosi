@@ -5,6 +5,7 @@ from pathlib import Path
 
 from mkosi.config import ConfigFeature
 from mkosi.context import Context
+from mkosi.run import find_binary
 from mkosi.sandbox import apivfs_cmd, finalize_crypto_mounts
 from mkosi.tree import rmtree
 from mkosi.types import PathString
@@ -28,10 +29,7 @@ def clean_package_manager_metadata(context: Context) -> None:
                         ("dnf5",   ["usr/lib/sysimage/libdnf5"]),
                         ("dpkg",   ["var/lib/dpkg"]),
                         ("pacman", ["var/lib/pacman"])):
-        for bin in ("bin", "sbin"):
-            if not always and os.access(context.root / "usr" / bin / tool, mode=os.F_OK, follow_symlinks=False):
-                break
-        else:
+        if always or not find_binary(tool, root=context.root):
             rmtree(*(context.root / p for p in paths),
                    sandbox=context.sandbox(options=["--bind", context.root, context.root]))
 
