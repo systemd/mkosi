@@ -85,7 +85,7 @@ def zypper_cmd(context: Context) -> list[PathString]:
 
 def invoke_zypper(
     context: Context,
-    verb: str,
+    operation: str,
     packages: Sequence[str] = (),
     *,
     options: Sequence[str] = (),
@@ -93,7 +93,7 @@ def invoke_zypper(
 ) -> None:
     with finalize_ephemeral_source_mounts(context.config) as sources:
         run(
-            zypper_cmd(context) + [verb, *options, *sort_packages(packages)],
+            zypper_cmd(context) + [operation, *options, *sort_packages(packages)],
             sandbox=(
                 context.sandbox(
                     network=True,

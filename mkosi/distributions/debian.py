@@ -137,7 +137,7 @@ class Installer(DistributionInstaller):
                 (context.root / d).symlink_to(f"usr/{d}")
                 (context.root / f"usr/{d}").mkdir(parents=True, exist_ok=True)
 
-        invoke_apt(context, "apt-get", "update", apivfs=False)
+        invoke_apt(context, "update", apivfs=False)
 
         # Next, we invoke apt-get install to download all the essential packages. With DPkg::Pre-Install-Pkgs,
         # we specify a shell command that will receive the list of packages that will be installed on stdin.
@@ -147,7 +147,6 @@ class Installer(DistributionInstaller):
         with tempfile.NamedTemporaryFile(mode="r") as f:
             invoke_apt(
                 context,
-                "apt-get",
                 "install",
                 [
                     "-oDebug::pkgDPkgPm=1",
@@ -197,8 +196,8 @@ class Installer(DistributionInstaller):
         with umask(~0o644):
             policyrcd.write_text("#!/bin/sh\nexit 101\n")
 
-        invoke_apt(context, "apt-get", "update", apivfs=False)
-        invoke_apt(context, "apt-get", "install", packages, apivfs=apivfs)
+        invoke_apt(context, "update", apivfs=False)
+        invoke_apt(context, "install", packages, apivfs=apivfs)
         install_apt_sources(context, cls.repositories(context, local=False))
 
         policyrcd.unlink()
@@ -212,7 +211,7 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def remove_packages(cls, context: Context, packages: Sequence[str]) -> None:
-        invoke_apt(context, "apt-get", "purge", packages)
+        invoke_apt(context, "purge", packages)
 
     @classmethod
     def architecture(cls, arch: Architecture) -> str:

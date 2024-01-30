@@ -123,7 +123,6 @@ def apt_cmd(context: Context, command: str) -> list[PathString]:
 
 def invoke_apt(
     context: Context,
-    command: str,
     operation: str,
     packages: Sequence[str] = (),
     *,
@@ -132,7 +131,7 @@ def invoke_apt(
 ) -> None:
     with finalize_ephemeral_source_mounts(context.config) as sources:
         run(
-            apt_cmd(context, command) + [operation, *sort_packages(packages)],
+            apt_cmd(context, "apt-get") + [operation, *sort_packages(packages)],
             sandbox=(
                 context.sandbox(
                     network=True,

@@ -135,10 +135,10 @@ def dnf_cmd(context: Context) -> list[PathString]:
     return cmdline
 
 
-def invoke_dnf(context: Context, command: str, packages: Iterable[str], apivfs: bool = True) -> None:
+def invoke_dnf(context: Context, operation: str, packages: Iterable[str], apivfs: bool = True) -> None:
     with finalize_ephemeral_source_mounts(context.config) as sources:
         run(
-            dnf_cmd(context) + [command, *sort_packages(packages)],
+            dnf_cmd(context) + [operation, *sort_packages(packages)],
             sandbox=(
                 context.sandbox(
                     network=True,
