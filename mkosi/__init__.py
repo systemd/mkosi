@@ -1193,7 +1193,7 @@ def prepare_grub_bios(context: Context, partitions: Sequence[Partition]) -> None
                 initrds = [Path(shutil.copy2(microcode, kdst / "microcode"))] if microcode else []
                 initrds += [
                     Path(shutil.copy2(initrd, dst / initrd.name))
-                    for initrd in (context.config.initrds or [build_initrd(context)])
+                    for initrd in (context.config.initrds or [build_default_initrd(context)])
                 ]
                 initrds += [Path(shutil.copy2(kmods, kdst / "kmods"))]
 
@@ -1470,7 +1470,7 @@ def want_initrd(context: Context) -> bool:
     return True
 
 
-def build_initrd(context: Context) -> Path:
+def build_default_initrd(context: Context) -> Path:
     if context.config.distribution == Distribution.custom:
         die("Building a default initrd is not supported for custom distributions")
 
@@ -1910,7 +1910,7 @@ def install_uki(context: Context, partitions: Sequence[Partition]) -> None:
         microcode = build_microcode_initrd(context)
 
         initrds = [microcode] if microcode else []
-        initrds += context.config.initrds or [build_initrd(context)]
+        initrds += context.config.initrds or [build_default_initrd(context)]
 
         if context.config.kernel_modules_initrd:
             initrds += [build_kernel_modules_initrd(context, kver)]
@@ -2031,7 +2031,7 @@ def copy_initrd(context: Context) -> None:
     for kver, _ in gen_kernel_images(context):
         microcode = build_microcode_initrd(context)
         initrds = [microcode] if microcode else []
-        initrds += context.config.initrds or [build_initrd(context)]
+        initrds += context.config.initrds or [build_default_initrd(context)]
         if context.config.kernel_modules_initrd:
             kver = next(gen_kernel_images(context))[0]
             initrds += [build_kernel_modules_initrd(context, kver)]
