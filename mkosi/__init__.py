@@ -3536,7 +3536,6 @@ def run_build(args: Args, config: Config, *, resources: Path) -> None:
         complete_step(f"Building {config.name()} image"),
         prepend_to_environ_path(config),
     ):
-        # After tools have been mounted, check if we have what we need
         check_tools(config, Verb.build)
 
         # Create these as the invoking user to make sure they're owned by the user running mkosi.
