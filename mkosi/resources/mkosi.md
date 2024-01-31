@@ -1479,7 +1479,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   be used to specify a size in kilobytes, megabytes and gigabytes
   respectively. `directory` optionally specifies the directory in which
   to create the file backing the drive. `options` optionally specifies
-  extra comma-delimited properties which are passed verbatime to qemu's
+  extra comma-delimited properties which are passed verbatim to qemu's
   `-drive` option.
 
 `QemuArgs=`
