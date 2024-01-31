@@ -4,7 +4,7 @@ import os
 import shutil
 from collections.abc import Iterable, Sequence
 
-from mkosi.config import Architecture
+from mkosi.config import Architecture, Config
 from mkosi.context import Context
 from mkosi.distributions import (
     Distribution,
@@ -12,7 +12,8 @@ from mkosi.distributions import (
     PackageType,
     join_mirror,
 )
-from mkosi.installer.dnf import createrepo_dnf, invoke_dnf, localrepo_dnf, setup_dnf
+from mkosi.installer import PackageManager
+from mkosi.installer.dnf import Dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey
 from mkosi.log import complete_step, die
 from mkosi.tree import rmtree
@@ -55,20 +56,28 @@ class Installer(DistributionInstaller):
         return Distribution.fedora
 
     @classmethod
+    def package_manager(cls, config: "Config") -> type[PackageManager]:
+        return Dnf
+
+    @classmethod
     def grub_prefix(cls) -> str:
         return "grub2"
 
     @classmethod
     def createrepo(cls, context: Context) -> None:
-        createrepo_dnf(context)
+        Dnf.createrepo(context)
 
     @classmethod
     def setup(cls, context: Context) -> None:
         if GenericVersion(context.config.release) <= 7:
             die(f"{cls.pretty_name()} 7 or earlier variants are not supported")
 
-        setup_dnf(context, cls.repositories(context))
+        Dnf.setup(context, cls.repositories(context))
         (context.pkgmngr / "etc/dnf/vars/stream").write_text(f"{context.config.release}-stream\n")
+
+    @classmethod
+    def sync(cls, context: Context) -> None:
+        Dnf.sync(context)
 
     @classmethod
     def install(cls, context: Context) -> None:
@@ -81,11 +90,11 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def install_packages(cls, context: Context, packages: Sequence[str], apivfs: bool = True) -> None:
-        invoke_dnf(context, "install", packages, apivfs=apivfs)
+        Dnf.invoke(context, "install", packages, apivfs=apivfs)
 
     @classmethod
     def remove_packages(cls, context: Context, packages: Sequence[str]) -> None:
-        invoke_dnf(context, "remove", packages)
+        Dnf.invoke(context, "remove", packages)
 
     @classmethod
     def architecture(cls, arch: Architecture) -> str:
@@ -104,7 +113,7 @@ class Installer(DistributionInstaller):
     @staticmethod
     def gpgurls(context: Context) -> tuple[str, ...]:
         keys = ("RPM-GPG-KEY-CentOS-Official", "RPM-GPG-KEY-CentOS-SIG-Extras")
-        return tuple(find_rpm_gpgkey(context, key, f"https://www.centos.org/keys/{key}") for key in keys)
+        return tuple(find_rpm_gpgkey(context, key) or f"https://www.centos.org/keys/{key}" for key in keys)
 
     @classmethod
     def repository_variants(cls, context: Context, repo: str) -> Iterable[RpmRepository]:
@@ -223,9 +232,6 @@ class Installer(DistributionInstaller):
             yield from cls.repository_variants(context, "AppStream")
             return
 
-        if context.want_local_repo():
-            yield localrepo_dnf()
-
         yield from cls.repository_variants(context, "BaseOS")
         yield from cls.repository_variants(context, "AppStream")
         yield from cls.repository_variants(context, "extras")
@@ -244,8 +250,7 @@ class Installer(DistributionInstaller):
             find_rpm_gpgkey(
                 context,
                 f"RPM-GPG-KEY-EPEL-{context.config.release}",
-                f"https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{context.config.release}",
-            ),
+            ) or f"https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{context.config.release}",
         )
 
         if context.config.local_mirror:
@@ -344,7 +349,7 @@ class Installer(DistributionInstaller):
         )
 
         for sig, components, keys in sigs:
-            gpgurls = tuple(find_rpm_gpgkey(context, key, f"https://www.centos.org/keys/{key}") for key in keys)
+            gpgurls = tuple(find_rpm_gpgkey(context, key) or f"https://www.centos.org/keys/{key}" for key in keys)
 
             for c in components:
                 if mirror := context.config.mirror:

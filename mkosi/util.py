@@ -102,7 +102,9 @@ def flock(path: Path) -> Iterator[int]:
     fd = os.open(path, os.O_CLOEXEC|os.O_RDONLY)
     try:
         fcntl.fcntl(fd, fcntl.FD_CLOEXEC)
+        logging.debug(f"Acquiring lock on {path}")
         fcntl.flock(fd, fcntl.LOCK_EX)
+        logging.debug(f"Acquired lock on {path}")
         yield fd
     finally:
         os.close(fd)

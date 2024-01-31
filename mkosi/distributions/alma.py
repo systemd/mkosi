@@ -16,8 +16,7 @@ class Installer(centos.Installer):
             find_rpm_gpgkey(
                 context,
                 f"RPM-GPG-KEY-AlmaLinux-{context.config.release}",
-                f"https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux-{context.config.release}",
-            ),
+            ) or f"https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux-{context.config.release}",
         )
 
     @classmethod

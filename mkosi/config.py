@@ -227,6 +227,12 @@ class ShimBootloader(StrEnum):
     unsigned = enum.auto()
 
 
+class Cacheonly(StrEnum):
+    always = enum.auto()
+    none = enum.auto()
+    metadata = enum.auto()
+
+
 class QemuFirmware(StrEnum):
     auto   = enum.auto()
     linux  = enum.auto()
@@ -620,8 +626,8 @@ def config_default_kernel_command_line(namespace: argparse.Namespace) -> list[st
     return [f"console={namespace.architecture.default_serial_tty()}"]
 
 
-def make_enum_parser(type: type[enum.Enum]) -> Callable[[str], enum.Enum]:
-    def parse_enum(value: str) -> enum.Enum:
+def make_enum_parser(type: type[StrEnum]) -> Callable[[str], StrEnum]:
+    def parse_enum(value: str) -> StrEnum:
         try:
             return type(value)
         except ValueError:
@@ -630,15 +636,28 @@ def make_enum_parser(type: type[enum.Enum]) -> Callable[[str], enum.Enum]:
     return parse_enum
 
 
-def config_make_enum_parser(type: type[enum.Enum]) -> ConfigParseCallback:
-    def config_parse_enum(value: Optional[str], old: Optional[enum.Enum]) -> Optional[enum.Enum]:
+def config_make_enum_parser(type: type[StrEnum]) -> ConfigParseCallback:
+    def config_parse_enum(value: Optional[str], old: Optional[StrEnum]) -> Optional[StrEnum]:
         return make_enum_parser(type)(value) if value else None
 
     return config_parse_enum
 
 
-def config_make_enum_matcher(type: type[enum.Enum]) -> ConfigMatchCallback:
-    def config_match_enum(match: str, value: enum.Enum) -> bool:
+def config_make_enum_parser_with_boolean(type: type[StrEnum], *, yes: StrEnum, no: StrEnum) -> ConfigParseCallback:
+    def config_parse_enum(value: Optional[str], old: Optional[StrEnum]) -> Optional[StrEnum]:
+        if not value:
+            return None
+
+        if value in type.values():
+            return type(value)
+
+        return yes if parse_boolean(value) else no
+
+    return config_parse_enum
+
+
+def config_make_enum_matcher(type: type[StrEnum]) -> ConfigMatchCallback:
+    def config_match_enum(match: str, value: StrEnum) -> bool:
         return make_enum_parser(type)(match) == value
 
     return config_match_enum
@@ -1160,7 +1179,7 @@ class Config:
     local_mirror: Optional[str]
     repository_key_check: bool
     repositories: list[str]
-    cache_only: bool
+    cacheonly: Cacheonly
     package_manager_trees: list[ConfigTree]
 
     output_format: OutputFormat
@@ -1171,6 +1190,7 @@ class Config:
     output_dir: Optional[Path]
     workspace_dir: Optional[Path]
     cache_dir: Optional[Path]
+    package_cache_dir: Optional[Path]
     build_dir: Optional[Path]
     image_id: Optional[str]
     image_version: Optional[str]
@@ -1296,23 +1316,16 @@ class Config:
         if self.workspace_dir:
             return self.workspace_dir
 
-        if (cache := os.getenv("XDG_CACHE_HOME")) and Path(cache).exists():
-            return Path(cache)
-
-        # If we're running from /home and there's a cache or output directory in /home, we want to use a workspace
-        # directory in /home as well as /home might be on a separate partition or subvolume which means that to take
-        # advantage of reflinks and such, the workspace directory has to be on the same partition/subvolume.
-        if (
-            Path.cwd().is_relative_to(INVOKING_USER.home()) and
-            (INVOKING_USER.home() / ".cache").exists() and
-            (
-                self.cache_dir and self.cache_dir.is_relative_to(INVOKING_USER.home()) or
-                self.output_dir and self.output_dir.is_relative_to(INVOKING_USER.home())
-            )
-        ):
-            return INVOKING_USER.home() / ".cache"
+        if (cache := INVOKING_USER.cache_dir()) and cache != Path("/var/cache/mkosi") and os.access(cache, os.W_OK):
+            return cache
 
         return Path("/var/tmp")
+
+    def package_cache_dir_or_default(self) -> Path:
+        return (
+            self.package_cache_dir or
+            (INVOKING_USER.cache_dir() / f"{self.distribution}~{self.release}~{self.architecture}")
+        )
 
     def tools(self) -> Path:
         return self.tools_tree or Path("/")
@@ -1644,10 +1657,13 @@ SETTINGS = (
         help="Repositories to use",
     ),
     ConfigSetting(
-        dest="cache_only",
-        metavar="BOOL",
+        dest="cacheonly",
+        long="--cache-only",
+        name="CacheOnly",
+        metavar="CACHEONLY",
         section="Distribution",
-        parse=config_parse_boolean,
+        parse=config_make_enum_parser_with_boolean(Cacheonly, yes=Cacheonly.always, no=Cacheonly.none),
+        default=Cacheonly.none,
         help="Only use the package cache when installing packages",
     ),
     ConfigSetting(
@@ -1737,7 +1753,15 @@ SETTINGS = (
         section="Output",
         parse=config_make_path_parser(required=False),
         paths=("mkosi.cache",),
-        help="Package cache path",
+        help="Incremental cache directory",
+    ),
+    ConfigSetting(
+        dest="package_cache_dir",
+        metavar="PATH",
+        name="PackageCacheDirectory",
+        section="Output",
+        parse=config_make_path_parser(required=False),
+        help="Package cache directory",
     ),
     ConfigSetting(
         dest="build_dir",
@@ -3421,7 +3445,7 @@ def summary(config: Config) -> str:
                Local Mirror (build): {none_to_none(config.local_mirror)}
            Repo Signature/Key check: {yes_no(config.repository_key_check)}
                        Repositories: {line_join_list(config.repositories)}
-             Use Only Package Cache: {yes_no(config.cache_only)}
+             Use Only Package Cache: {config.cacheonly}
               Package Manager Trees: {line_join_tree_list(config.package_manager_trees)}
 
     {bold("OUTPUT")}:
@@ -3433,6 +3457,7 @@ def summary(config: Config) -> str:
                    Output Directory: {config.output_dir_or_cwd()}
                 Workspace Directory: {config.workspace_dir_or_default()}
                     Cache Directory: {none_to_none(config.cache_dir)}
+            Package Cache Directory: {none_to_default(config.package_cache_dir)}
                     Build Directory: {none_to_none(config.build_dir)}
                            Image ID: {config.image_id}
                       Image Version: {config.image_version}
@@ -3673,6 +3698,7 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         DocFormat: enum_transformer,
         list[QemuDrive]: config_drive_transformer,
         GenericVersion: generic_version_transformer,
+        Cacheonly: enum_transformer,
     }
 
     def json_transformer(key: str, val: Any) -> Any:

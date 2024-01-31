@@ -9,7 +9,7 @@ import pwd
 from pathlib import Path
 
 from mkosi.log import die
-from mkosi.run import spawn
+from mkosi.run import run, spawn
 from mkosi.util import flock
 
 SUBRANGE = 65536
@@ -18,6 +18,7 @@ SUBRANGE = 65536
 class INVOKING_USER:
     uid = int(os.getenv("SUDO_UID") or os.getenv("PKEXEC_UID") or os.getuid())
     gid = int(os.getenv("SUDO_GID") or os.getgid())
+    invoked_as_root = uid == 0
 
     @classmethod
     def init(cls) -> None:
@@ -38,6 +39,33 @@ class INVOKING_USER:
     @functools.lru_cache(maxsize=1)
     def home(cls) -> Path:
         return Path(f"~{cls.name()}").expanduser()
+
+    @classmethod
+    def is_regular_user(cls) -> bool:
+        return cls.uid >= 1000
+
+    @classmethod
+    def cache_dir(cls) -> Path:
+        if (env := os.getenv("XDG_CACHE_HOME")) or (env := os.getenv("CACHE_DIRECTORY")):
+            cache = Path(env)
+        elif cls.is_regular_user() and (Path.cwd().is_relative_to(INVOKING_USER.home()) or not cls.invoked_as_root):
+            cache = INVOKING_USER.home() / ".cache"
+        else:
+            cache = Path("/var/cache")
+
+        return cache / "mkosi"
+
+    @classmethod
+    def mkdir(cls, path: Path) -> Path:
+        user = cls.uid if cls.is_regular_user() and path.is_relative_to(cls.home()) else os.getuid()
+        group = cls.gid if cls.is_regular_user() and path.is_relative_to(cls.home()) else os.getgid()
+        run(["mkdir", "--parents", path], user=user, group=group)
+        return path
+
+    @classmethod
+    def rchown(cls, path: Path) -> None:
+        if cls.is_regular_user() and path.is_relative_to(INVOKING_USER.home()) and path.exists():
+            run(["chown", "--recursive", f"{INVOKING_USER.uid}:{INVOKING_USER.gid}", path])
 
 
 def read_subrange(path: Path) -> int:

@@ -6,7 +6,6 @@ from collections.abc import Iterable, Sequence
 from mkosi.config import Architecture
 from mkosi.context import Context
 from mkosi.distributions import Distribution, fedora, join_mirror
-from mkosi.installer.dnf import localrepo_dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey
 from mkosi.log import die
 
@@ -44,16 +43,12 @@ class Installer(fedora.Installer):
             find_rpm_gpgkey(
                 context,
                 "RPM-GPG-KEY-Mageia",
-                "https://mirrors.kernel.org/mageia/distrib/$releasever/$basearch/media/core/release/media_info/pubkey",
-            ),
+            ) or "https://mirrors.kernel.org/mageia/distrib/$releasever/$basearch/media/core/release/media_info/pubkey",
         )
 
         if context.config.local_mirror:
             yield RpmRepository("core-release", f"baseurl={context.config.local_mirror}", gpgurls)
             return
-
-        if context.want_local_repo():
-            yield localrepo_dnf()
 
         if context.config.mirror:
             url = f"baseurl={join_mirror(context.config.mirror, 'distrib/$releasever/$basearch/media/core/')}"

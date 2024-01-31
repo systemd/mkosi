@@ -2,16 +2,11 @@
 
 from collections.abc import Iterable, Sequence
 
-from mkosi.config import Architecture
+from mkosi.config import Architecture, Config
 from mkosi.context import Context
 from mkosi.distributions import Distribution, DistributionInstaller, PackageType
-from mkosi.installer.pacman import (
-    PacmanRepository,
-    createrepo_pacman,
-    invoke_pacman,
-    localrepo_pacman,
-    setup_pacman,
-)
+from mkosi.installer import PackageManager
+from mkosi.installer.pacman import Pacman
 from mkosi.log import die
 
 
@@ -37,12 +32,20 @@ class Installer(DistributionInstaller):
         return Distribution.arch
 
     @classmethod
+    def package_manager(cls, config: "Config") -> type[PackageManager]:
+        return Pacman
+
+    @classmethod
     def createrepo(cls, context: Context) -> None:
-        createrepo_pacman(context)
+        Pacman.createrepo(context)
 
     @classmethod
     def setup(cls, context: Context) -> None:
-        setup_pacman(context, cls.repositories(context))
+        Pacman.setup(context, cls.repositories(context))
+
+    @classmethod
+    def sync(cls, context: Context) -> None:
+        Pacman.sync(context)
 
     @classmethod
     def install(cls, context: Context) -> None:
@@ -50,45 +53,42 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def install_packages(cls, context: Context, packages: Sequence[str], apivfs: bool = True) -> None:
-        invoke_pacman(
+        Pacman.invoke(
             context,
             "--sync",
-            ["--refresh", "--needed", "--assume-installed", "initramfs"],
+            ["--needed", "--assume-installed", "initramfs"],
             packages,
             apivfs=apivfs,
         )
 
     @classmethod
     def remove_packages(cls, context: Context, packages: Sequence[str]) -> None:
-        invoke_pacman(context, "--remove", ["--nosave", "--recursive"], packages)
+        Pacman.invoke(context, "--remove", ["--nosave", "--recursive"], packages)
 
     @classmethod
-    def repositories(cls, context: Context) -> Iterable[PacmanRepository]:
+    def repositories(cls, context: Context) -> Iterable[Pacman.Repository]:
         if context.config.local_mirror:
-            yield PacmanRepository("core", context.config.local_mirror)
+            yield Pacman.Repository("core", context.config.local_mirror)
         else:
-            if context.want_local_repo():
-                yield localrepo_pacman()
-
             if context.config.architecture == Architecture.arm64:
                 url = f"{context.config.mirror or 'http://mirror.archlinuxarm.org'}/$arch/$repo"
             else:
                 url = f"{context.config.mirror or 'https://geo.mirror.pkgbuild.com'}/$repo/os/$arch"
 
             # Testing repositories have to go before regular ones to to take precedence.
-            for id in (
-                "core-testing",
-                "core-testing-debug",
-                "extra-testing",
-                "extra-testing-debug",
-                "core-debug",
-                "extra-debug",
-            ):
-                if id in context.config.repositories:
-                    yield PacmanRepository(id, url)
+            repos = [
+                repo for repo in (
+                    "core-testing",
+                    "core-testing-debug",
+                    "extra-testing",
+                    "extra-testing-debug",
+                    "core-debug",
+                    "extra-debug",
+                ) if repo in context.config.repositories
+            ] + ["core", "extra"]
 
-            for id in ("core", "extra"):
-                yield PacmanRepository(id, url)
+            for repo in repos:
+                yield Pacman.Repository(repo, url)
 
     @classmethod
     def architecture(cls, arch: Architecture) -> str:
