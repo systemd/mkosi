@@ -3475,6 +3475,7 @@ def check_workspace_directory(config: Config) -> None:
 
 def needs_clean(args: Args, config: Config) -> bool:
     return (
+        args.verb == Verb.clean or
         args.force > 0 or
         not (config.output_dir_or_cwd() / config.output_with_compression).exists() or
         # When the output is a directory, its name is the same as the symlink we create that points to the actual
