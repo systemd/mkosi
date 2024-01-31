@@ -1751,10 +1751,13 @@ in consecutive runs with data from the cached one.
 Then, for each image, we execute the following steps:
 
 1. Copy package manager trees into the workspace
+1. Sync the package manager repository metadata
 1. Copy base trees (`--base-tree=`) into the image
+1. Reuse a cached image if one is available
+1. Copy a snapshot of the package manager repository metadata into the
+   image
 1. Copy skeleton trees (`mkosi.skeleton`) into image
-1. Install distribution and packages into image or use cache tree if
-   available
+1. Install distribution and packages into image
 1. Run prepare scripts on image with the `final` argument (`mkosi.prepare`)
 1. Install build packages in overlay if any build scripts are configured
 1. Run prepare scripts on overlay with the `build` argument if any build
