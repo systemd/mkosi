@@ -15,15 +15,15 @@ from mkosi.util import flatten
 class PackageManager:
     @classmethod
     def subdir(cls, config: Config) -> Path:
-        raise NotImplementedError
+        return Path("custom")
 
     @classmethod
     def cache_subdirs(cls, cache: Path) -> list[Path]:
-        raise NotImplementedError
+        return []
 
     @classmethod
     def scripts(cls, context: Context) -> dict[str, list[PathString]]:
-        raise NotImplementedError
+        return {}
 
     @classmethod
     def mounts(cls, context: Context) -> list[PathString]:
