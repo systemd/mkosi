@@ -3,7 +3,7 @@ import textwrap
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 
-from mkosi.config import Config
+from mkosi.config import Cacheonly, Config
 from mkosi.context import Context
 from mkosi.installer import PackageManager
 from mkosi.installer.rpm import RpmRepository, fixup_rpmdb_location, rpm_cmd, setup_rpm
@@ -122,7 +122,7 @@ class Dnf(PackageManager):
             opt = "--enable-repo" if dnf.endswith("dnf5") else "--enablerepo"
             cmdline += [f"{opt}={repo}" for repo in context.config.repositories]
 
-        if context.config.cache_only:
+        if context.config.cacheonly == Cacheonly.always:
             cmdline += ["--cacheonly"]
         else:
             cmdline += ["--setopt=metadata_expire=never"]

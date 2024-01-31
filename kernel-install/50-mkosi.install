@@ -134,6 +134,7 @@ def main() -> None:
         "--output", output,
         "--workspace-dir=/var/tmp",
         "--package-cache-dir=/var",
+        "--cache-only=metadata",
         "--output-dir", context.staging_area,
         "--extra-tree", f"/usr/lib/modules/{context.kernel_version}:/usr/lib/modules/{context.kernel_version}",
         "--extra-tree=/usr/lib/firmware:/usr/lib/firmware",

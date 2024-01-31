@@ -227,6 +227,12 @@ class ShimBootloader(StrEnum):
     unsigned = enum.auto()
 
 
+class Cacheonly(StrEnum):
+    always = enum.auto()
+    none = enum.auto()
+    metadata = enum.auto()
+
+
 class QemuFirmware(StrEnum):
     auto   = enum.auto()
     linux  = enum.auto()
@@ -620,8 +626,8 @@ def config_default_kernel_command_line(namespace: argparse.Namespace) -> list[st
     return [f"console={namespace.architecture.default_serial_tty()}"]
 
 
-def make_enum_parser(type: type[enum.Enum]) -> Callable[[str], enum.Enum]:
-    def parse_enum(value: str) -> enum.Enum:
+def make_enum_parser(type: type[StrEnum]) -> Callable[[str], StrEnum]:
+    def parse_enum(value: str) -> StrEnum:
         try:
             return type(value)
         except ValueError:
@@ -630,15 +636,28 @@ def make_enum_parser(type: type[enum.Enum]) -> Callable[[str], enum.Enum]:
     return parse_enum
 
 
-def config_make_enum_parser(type: type[enum.Enum]) -> ConfigParseCallback:
-    def config_parse_enum(value: Optional[str], old: Optional[enum.Enum]) -> Optional[enum.Enum]:
+def config_make_enum_parser(type: type[StrEnum]) -> ConfigParseCallback:
+    def config_parse_enum(value: Optional[str], old: Optional[StrEnum]) -> Optional[StrEnum]:
         return make_enum_parser(type)(value) if value else None
 
     return config_parse_enum
 
 
-def config_make_enum_matcher(type: type[enum.Enum]) -> ConfigMatchCallback:
-    def config_match_enum(match: str, value: enum.Enum) -> bool:
+def config_make_enum_parser_with_boolean(type: type[StrEnum], *, yes: StrEnum, no: StrEnum) -> ConfigParseCallback:
+    def config_parse_enum(value: Optional[str], old: Optional[StrEnum]) -> Optional[StrEnum]:
+        if not value:
+            return None
+
+        if value in type.values():
+            return type(value)
+
+        return yes if parse_boolean(value) else no
+
+    return config_parse_enum
+
+
+def config_make_enum_matcher(type: type[StrEnum]) -> ConfigMatchCallback:
+    def config_match_enum(match: str, value: StrEnum) -> bool:
         return make_enum_parser(type)(match) == value
 
     return config_match_enum
@@ -1160,7 +1179,7 @@ class Config:
     local_mirror: Optional[str]
     repository_key_check: bool
     repositories: list[str]
-    cache_only: bool
+    cacheonly: Cacheonly
     package_manager_trees: list[ConfigTree]
 
     output_format: OutputFormat
@@ -1638,10 +1657,13 @@ SETTINGS = (
         help="Repositories to use",
     ),
     ConfigSetting(
-        dest="cache_only",
-        metavar="BOOL",
+        dest="cacheonly",
+        long="--cache-only",
+        name="CacheOnly",
+        metavar="CACHEONLY",
         section="Distribution",
-        parse=config_parse_boolean,
+        parse=config_make_enum_parser_with_boolean(Cacheonly, yes=Cacheonly.always, no=Cacheonly.none),
+        default=Cacheonly.none,
         help="Only use the package cache when installing packages",
     ),
     ConfigSetting(
@@ -3423,7 +3445,7 @@ def summary(config: Config) -> str:
                Local Mirror (build): {none_to_none(config.local_mirror)}
            Repo Signature/Key check: {yes_no(config.repository_key_check)}
                        Repositories: {line_join_list(config.repositories)}
-             Use Only Package Cache: {yes_no(config.cache_only)}
+             Use Only Package Cache: {config.cacheonly}
               Package Manager Trees: {line_join_tree_list(config.package_manager_trees)}
 
     {bold("OUTPUT")}:
@@ -3676,6 +3698,7 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         DocFormat: enum_transformer,
         list[QemuDrive]: config_drive_transformer,
         GenericVersion: generic_version_transformer,
+        Cacheonly: enum_transformer,
     }
 
     def json_transformer(key: str, val: Any) -> Any:

@@ -589,10 +589,13 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `CacheOnly=`, `--cache-only=`
 
-: If specified, the package manager is instructed not to contact the
-  network for updating package data. This provides a minimal level of
-  reproducibility, as long as the package cache is already fully
-  populated.
+: Takes one of `none`, `metadata` or `always`. If `always`, the package
+  manager is instructed not to contact the network. This provides a
+  minimal level of reproducibility, as long as the package cache is
+  already fully populated. If set to `metadata`, the package manager can
+  still download packages, but we won't sync the repository metadata. If
+  set to `none`, the repository metadata is synced and packages can be
+  downloaded during the build.
 
 `PackageManagerTrees=`, `--package-manager-tree=`
 

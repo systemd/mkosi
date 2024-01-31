@@ -30,6 +30,8 @@
   to make sure the repository metadata in `/mkosi` is not cleaned up,
   otherwise any extension images using this image as their base tree
   will not be able to install additional packages.
+- Implemented `CacheOnly=metadata`. Note that in the JSON output, the
+  value of `CacheOnly=` will now be a string instead of a boolean.
 
 ## v20.2
 

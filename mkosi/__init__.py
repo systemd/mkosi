@@ -28,6 +28,7 @@ from mkosi.config import (
     Args,
     BiosBootloader,
     Bootloader,
+    Cacheonly,
     Compression,
     Config,
     ConfigFeature,
@@ -1497,7 +1498,7 @@ def build_default_initrd(context: Context) -> Path:
         *(["--compress-output", str(context.config.compress_output)] if context.config.compress_output else []),
         "--compress-level", str(context.config.compress_level),
         "--with-network", str(context.config.with_network),
-        "--cache-only", str(context.config.cache_only),
+        "--cache-only", str(context.config.cacheonly),
         "--output-dir", str(context.workspace / "initrd"),
         *(["--workspace-dir", str(context.config.workspace_dir)] if context.config.workspace_dir else []),
         *(["--cache-dir", str(context.config.cache_dir)] if context.config.cache_dir else []),
@@ -3479,7 +3480,7 @@ def finalize_default_tools(args: Args, config: Config, *, resources: Path) -> Co
         *(["--release", config.tools_tree_release] if config.tools_tree_release else []),
         *(["--mirror", config.tools_tree_mirror] if config.tools_tree_mirror else []),
         "--repository-key-check", str(config.repository_key_check),
-        "--cache-only", str(config.cache_only),
+        "--cache-only", str(config.cacheonly),
         *(["--output-dir", str(config.output_dir)] if config.output_dir else []),
         *(["--workspace-dir", str(config.workspace_dir)] if config.workspace_dir else []),
         *(["--cache-dir", str(config.cache_dir)] if config.cache_dir else []),
@@ -3594,7 +3595,7 @@ def rchown_package_manager_dirs(config: Config) -> Iterator[None]:
 
 
 def sync_repository_metadata(args: Args, config: Config, *, resources: Path) -> None:
-    if have_cache(config) or config.cache_only or config.base_trees:
+    if have_cache(config) or config.cacheonly != Cacheonly.none or config.base_trees:
         return
 
     with (
