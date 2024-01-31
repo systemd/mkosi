@@ -13,7 +13,7 @@ from mkosi import identify_cpu
 from mkosi.archive import make_cpio
 from mkosi.config import OutputFormat, __version__
 from mkosi.log import die, log_setup
-from mkosi.run import run, uncaught_exception_handler
+from mkosi.run import find_binary, run, uncaught_exception_handler
 from mkosi.tree import copy_tree
 from mkosi.types import PathString
 from mkosi.util import umask
@@ -179,7 +179,9 @@ def main() -> None:
 
         logging.info(f"Building {output}")
 
-        run(cmdline)
+        # Prefer dnf as dnf5 has not yet officially replaced it and there's a much bigger chance that there will be a
+        # populated dnf cache directory.
+        run(cmdline, env={"MKOSI_DNF": dnf.name} if (dnf := find_binary("dnf", "dnf5")) else {})
 
     (context.staging_area / output).unlink()
 
