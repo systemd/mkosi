@@ -2949,6 +2949,9 @@ def copy_package_manager_state(context: Context) -> None:
     if have_cache(context.config) or context.config.base_trees:
         return
 
+    if context.package_cache_dir.exists() and any(context.package_cache_dir.iterdir()):
+        return
+
     subdir = context.config.distribution.package_manager(context.config).subdir(context.config)
 
     for d in ("cache", "lib"):
