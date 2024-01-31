@@ -29,7 +29,7 @@ def make_tree(
     use_subvolumes: ConfigFeature = ConfigFeature.disabled,
     tools: Path = Path("/"),
     sandbox: Sequence[PathString] = (),
-) -> None:
+) -> Path:
     if use_subvolumes == ConfigFeature.enabled and not find_binary("btrfs", root=tools):
         die("Subvolumes requested but the btrfs command was not found")
 
@@ -38,7 +38,7 @@ def make_tree(
             die(f"Subvolumes requested but {path} is not located on a btrfs filesystem")
 
         path.mkdir()
-        return
+        return path
 
     if use_subvolumes != ConfigFeature.disabled and find_binary("btrfs", root=tools) is not None:
         result = run(["btrfs", "subvolume", "create", path],
@@ -48,6 +48,8 @@ def make_tree(
 
     if result != 0:
         path.mkdir()
+
+    return path
 
 
 @contextlib.contextmanager
@@ -74,7 +76,7 @@ def copy_tree(
     use_subvolumes: ConfigFeature = ConfigFeature.disabled,
     tools: Path = Path("/"),
     sandbox: Sequence[PathString] = (),
-) -> None:
+) -> Path:
     subvolume = (use_subvolumes == ConfigFeature.enabled or
                  use_subvolumes == ConfigFeature.auto and find_binary("btrfs", root=tools) is not None)
 
@@ -110,7 +112,7 @@ def copy_tree(
             else contextlib.nullcontext()
         ):
             run(copy, sandbox=sandbox)
-        return
+        return dst
 
     # btrfs can't snapshot to an existing directory so make sure the destination does not exist.
     if dst.exists():
@@ -126,6 +128,8 @@ def copy_tree(
         ):
             run(copy, sandbox=sandbox)
 
+    return dst
+
 
 def rmtree(*paths: Path, sandbox: Sequence[PathString] = ()) -> None:
     if paths:
@@ -139,9 +143,9 @@ def move_tree(
     use_subvolumes: ConfigFeature = ConfigFeature.disabled,
     tools: Path = Path("/"),
     sandbox: Sequence[PathString] = (),
-) -> None:
+) -> Path:
     if src == dst:
-        return
+        return dst
 
     if dst.is_dir():
         dst = dst / src.name
@@ -154,3 +158,5 @@ def move_tree(
 
         copy_tree(src, dst, use_subvolumes=use_subvolumes, tools=tools, sandbox=sandbox)
         rmtree(src, sandbox=sandbox)
+
+    return dst
