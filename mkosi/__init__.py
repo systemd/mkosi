@@ -2992,10 +2992,9 @@ def build_image(context: Context) -> None:
         install_base_trees(context)
         cached = reuse_cache(context)
 
-        # The repository metadata is copied into the image root directory to ensure it remains static and available
-        # when using the image to build system extensions. This has to be ordered after setup() as cache keys might
-        # depend on config files created by the distribution's setup() method.
-        copy_package_manager_state(context)
+        if not cached:
+            with mount_cache_overlay(context):
+                copy_package_manager_state(context)
 
         context.config.distribution.setup(context)
         install_package_directories(context)
