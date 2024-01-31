@@ -2968,7 +2968,7 @@ def copy_repository_metadata(context: Context) -> None:
             # the directories we want to exclude.
             exclude = flatten(["--ro-bind", tmp, os.fspath(p)] for p in caches)
 
-            dst = context.root / "mkosi" / d / subdir
+            dst = context.package_cache_dir / d / subdir
             with umask(~0o755):
                 dst.mkdir(parents=True, exist_ok=True)
 
