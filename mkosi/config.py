@@ -1296,7 +1296,7 @@ class Config:
         if self.workspace_dir:
             return self.workspace_dir
 
-        if (cache := INVOKING_USER.cache_dir()) and cache != Path("/var/cache/mkosi"):
+        if (cache := INVOKING_USER.cache_dir()) and cache != Path("/var/cache/mkosi") and os.access(cache, os.W_OK):
             return cache
 
         return Path("/var/tmp")
