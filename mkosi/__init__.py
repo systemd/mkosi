@@ -2945,7 +2945,7 @@ def setup_workspace(args: Args, config: Config) -> Iterator[Path]:
                 raise
 
 
-def copy_package_manager_state(context: Context) -> None:
+def copy_repository_metadata(context: Context) -> None:
     if have_cache(context.config) or context.config.base_trees:
         return
 
@@ -2994,7 +2994,7 @@ def build_image(context: Context) -> None:
 
         if not cached:
             with mount_cache_overlay(context):
-                copy_package_manager_state(context)
+                copy_repository_metadata(context)
 
         context.config.distribution.setup(context)
         install_package_directories(context)
