@@ -1482,6 +1482,16 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   extra comma-delimited properties which are passed verbatim to qemu's
   `-drive` option.
 
+: Example usage:
+
+  ```conf
+  [Host]
+  QemuDrives=btrfs:10G
+             ext4:20G
+  QemuArgs=-device nvme,serial=btrfs,drive=btrfs
+           -device nvme,serial=ext4,drive=ext4
+  ```
+
 `QemuArgs=`
 
 : Space-delimited list of additional arguments to pass when invoking
