@@ -22,6 +22,10 @@ class Pacman(PackageManager):
         url: str
 
     @classmethod
+    def executable(cls, config: Config) -> str:
+        return "pacman"
+
+    @classmethod
     def subdir(cls, config: Config) -> Path:
         return Path("pacman")
 

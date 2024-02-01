@@ -27,7 +27,7 @@ class Context:
         self.config = config
         self.workspace = workspace
         self.resources = resources
-        self.package_cache_dir = package_cache_dir or (self.root / "mkosi")
+        self.package_cache_dir = package_cache_dir or (self.root / "var")
 
         with umask(~0o755):
             # Using a btrfs subvolume as the upperdir in an overlayfs results in EXDEV so make sure we create
