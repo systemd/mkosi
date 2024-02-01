@@ -2946,7 +2946,7 @@ def setup_workspace(args: Args, config: Config) -> Iterator[Path]:
 
 
 def copy_repository_metadata(context: Context) -> None:
-    if have_cache(context.config) or context.config.base_trees:
+    if have_cache(context.config):
         return
 
     subdir = context.config.distribution.package_manager(context.config).subdir(context.config)
@@ -3601,7 +3601,7 @@ def rchown_package_manager_dirs(config: Config) -> Iterator[None]:
 
 
 def sync_repository_metadata(args: Args, config: Config, *, resources: Path) -> None:
-    if have_cache(config) or config.cacheonly != Cacheonly.none or config.base_trees:
+    if have_cache(config) or config.cacheonly != Cacheonly.none:
         return
 
     with (
