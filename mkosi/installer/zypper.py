@@ -17,6 +17,10 @@ from mkosi.util import sort_packages
 
 class Zypper(PackageManager):
     @classmethod
+    def executable(cls, config: Config) -> str:
+        return "zypper"
+
+    @classmethod
     def subdir(cls, config: Config) -> Path:
         return Path("zypp")
 

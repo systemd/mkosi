@@ -35,6 +35,10 @@ class Apt(PackageManager):
             )
 
     @classmethod
+    def executable(cls, config: Config) -> str:
+        return "apt"
+
+    @classmethod
     def subdir(cls, config: Config) -> Path:
         return Path("apt")
 
@@ -69,8 +73,6 @@ class Apt(PackageManager):
             # TODO: Drop once apt 2.5.4 is widely available.
             (context.root / "var/lib/dpkg").mkdir(parents=True, exist_ok=True)
             (context.root / "var/lib/dpkg/status").touch()
-
-            (context.package_cache_dir / "lib/apt/lists/partial").mkdir(parents=True, exist_ok=True)
 
         # We have a special apt.conf outside of pkgmngr dir that only configures "Dir::Etc" that we pass to APT_CONFIG
         # to tell apt it should read config files from /etc/apt in case this is overridden by distributions. This is

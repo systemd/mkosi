@@ -2946,13 +2946,17 @@ def setup_workspace(args: Args, config: Config) -> Iterator[Path]:
 
 
 def copy_repository_metadata(context: Context) -> None:
-    if have_cache(context.config) or context.config.base_trees:
-        return
-
-    if context.package_cache_dir.exists() and any(context.package_cache_dir.iterdir()):
+    if have_cache(context.config):
         return
 
     subdir = context.config.distribution.package_manager(context.config).subdir(context.config)
+
+    # Don't copy anything if the repository metadata directories are already populated.
+    if (
+        any((context.package_cache_dir / "cache" / subdir).glob("*")) or
+        any((context.package_cache_dir / "lib" / subdir).glob("*"))
+    ):
+        return
 
     for d in ("cache", "lib"):
         src = context.config.package_cache_dir_or_default() / d / subdir
@@ -3597,7 +3601,7 @@ def rchown_package_manager_dirs(config: Config) -> Iterator[None]:
 
 
 def sync_repository_metadata(args: Args, config: Config, *, resources: Path) -> None:
-    if have_cache(config) or config.cacheonly != Cacheonly.none or config.base_trees:
+    if have_cache(config) or config.cacheonly != Cacheonly.none:
         return
 
     with (

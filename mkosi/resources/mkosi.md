@@ -986,18 +986,11 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `CleanPackageMetadata=`, `--clean-package-metadata=`
 
 : Enable/disable removal of package manager databases and repository
-  metadata in `/mkosi` at the end of installation. Can be specified as
-  `true`, `false`, or `auto` (the default). With `auto`, package manager
-  databases will be removed if the respective package manager executable
-  is *not* present at the end of the installation.
-
-: Note that when not building a tar or directory image, the repository
-  metadata in `/mkosi` is always removed, regardless of this setting as
-  it is only useful for building extensions using `BaseTrees=`.
-
-: Note that when set to `auto`, repository metadata in `/mkosi` is
-  removed regardless of whether the respective package manager
-  executable is present or not.
+  metadata at the end of installation. Can be specified as `true`,
+  `false`, or `auto` (the default). With `auto`, package manager
+  databases and repository metadata will be removed if the respective
+  package manager executable is *not* present at the end of the
+  installation.
 
 `PrepareScripts=`, `--prepare-script=`
 

@@ -7,12 +7,16 @@ from mkosi.config import Config, ConfigFeature, OutputFormat
 from mkosi.context import Context
 from mkosi.run import find_binary
 from mkosi.sandbox import finalize_crypto_mounts
-from mkosi.tree import move_tree, rmtree
+from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
 from mkosi.util import flatten
 
 
 class PackageManager:
+    @classmethod
+    def executable(cls, config: Config) -> str:
+        return "custom"
+
     @classmethod
     def subdir(cls, config: Config) -> Path:
         return Path("custom")
@@ -73,26 +77,31 @@ def clean_package_manager_metadata(context: Context) -> None:
     ):
         # Instead of removing the package cache directory from the image, we move it to the workspace so it stays
         # available for later steps and is automatically removed along with the workspace when the build finishes.
-        context.package_cache_dir = move_tree(
-            context.package_cache_dir, context.workspace / "package-cache-dir",
-            tools=context.config.tools(),
-            sandbox=context.sandbox(
-                options=[
-                    "--bind", context.package_cache_dir.parent, context.package_cache_dir.parent,
-                    "--bind", context.workspace, context.workspace,
-                ],
-            ),
-        )
+        subdir = context.config.distribution.package_manager(context.config).subdir(context.config)
+
+        for d in ("cache", "lib"):
+            src = context.package_cache_dir / d / subdir
+            if not src.exists():
+                continue
+
+            dst = context.workspace / "package-cache-dir" / d / subdir
+            dst.mkdir(parents=True, exist_ok=True)
+
+            copy_tree(src, dst, sandbox=context.sandbox(options=["--ro-bind", src, src, "--bind", dst, dst]))
+
+        context.package_cache_dir = context.workspace / "package-cache-dir"
 
     if context.config.clean_package_metadata == ConfigFeature.disabled:
         return
 
     always = context.config.clean_package_metadata == ConfigFeature.enabled
+    executable = context.config.distribution.package_manager(context.config).executable(context.config)
+    subdir = context.config.distribution.package_manager(context.config).subdir(context.config)
 
-    for tool, paths in (("rpm",    ["var/lib/rpm", "usr/lib/sysimage/rpm"]),
-                        ("dnf5",   ["usr/lib/sysimage/libdnf5"]),
-                        ("dpkg",   ["var/lib/dpkg"]),
-                        ("pacman", ["var/lib/pacman"])):
+    for tool, paths in (("rpm",      ["var/lib/rpm", "usr/lib/sysimage/rpm"]),
+                        ("dnf5",     ["usr/lib/sysimage/libdnf5"]),
+                        ("dpkg",     ["var/lib/dpkg"]),
+                        (executable, [f"var/lib/{subdir}", f"var/cache/{subdir}"])):
         if always or not find_binary(tool, root=context.root):
             rmtree(*(context.root / p for p in paths),
                    sandbox=context.sandbox(options=["--bind", context.root, context.root]))
