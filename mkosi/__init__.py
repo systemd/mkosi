@@ -2945,8 +2945,11 @@ def setup_workspace(args: Args, config: Config) -> Iterator[Path]:
                 raise
 
 
-def copy_package_manager_state(context: Context) -> None:
+def copy_repository_metadata(context: Context) -> None:
     if have_cache(context.config) or context.config.base_trees:
+        return
+
+    if context.package_cache_dir.exists() and any(context.package_cache_dir.iterdir()):
         return
 
     subdir = context.config.distribution.package_manager(context.config).subdir(context.config)
@@ -2965,7 +2968,7 @@ def copy_package_manager_state(context: Context) -> None:
             # the directories we want to exclude.
             exclude = flatten(["--ro-bind", tmp, os.fspath(p)] for p in caches)
 
-            dst = context.root / "mkosi" / d / subdir
+            dst = context.package_cache_dir / d / subdir
             with umask(~0o755):
                 dst.mkdir(parents=True, exist_ok=True)
 
@@ -2989,10 +2992,9 @@ def build_image(context: Context) -> None:
         install_base_trees(context)
         cached = reuse_cache(context)
 
-        # The repository metadata is copied into the image root directory to ensure it remains static and available
-        # when using the image to build system extensions. This has to be ordered after setup() as cache keys might
-        # depend on config files created by the distribution's setup() method.
-        copy_package_manager_state(context)
+        if not cached:
+            with mount_cache_overlay(context):
+                copy_repository_metadata(context)
 
         context.config.distribution.setup(context)
         install_package_directories(context)
