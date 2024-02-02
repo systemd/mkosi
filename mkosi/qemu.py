@@ -30,6 +30,7 @@ from mkosi.config import (
     QemuFirmware,
     QemuVsockCID,
     format_bytes,
+    systemd_tool_version,
     want_selinux_relabel,
 )
 from mkosi.log import die
@@ -139,8 +140,15 @@ class KernelType(StrEnum):
 
     @classmethod
     def identify(cls, config: Config, path: Path) -> "KernelType":
-        type = run(["bootctl", "kernel-identify", path],
-                   stdout=subprocess.PIPE, sandbox=config.sandbox(options=["--ro-bind", path, path])).stdout.strip()
+        if systemd_tool_version(config, "bootctl") < 253:
+            logging.warning("bootctl doesn't know kernel-identify verb, assuming 'unknown' kernel type")
+            return KernelType.unknown
+
+        type = run(
+            ["bootctl", "kernel-identify", path],
+            stdout=subprocess.PIPE,
+            sandbox=config.sandbox(options=["--ro-bind", path, path]),
+        ).stdout.strip()
 
         try:
             return cls(type)
