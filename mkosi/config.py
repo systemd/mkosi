@@ -3763,3 +3763,9 @@ def want_selinux_relabel(config: Config, root: Path, fatal: bool = True) -> Opti
     binpolicy = sorted(policies, key=lambda p: GenericVersion(p.name), reverse=True)[0]
 
     return policy, fc, binpolicy
+
+
+def systemd_tool_version(config: Config, tool: PathString) -> GenericVersion:
+    return GenericVersion(
+        run([tool, "--version"], stdout=subprocess.PIPE, sandbox=config.sandbox()).stdout.split()[2].strip("()")
+    )

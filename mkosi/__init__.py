@@ -44,6 +44,7 @@ from mkosi.config import (
     format_tree,
     parse_config,
     summary,
+    systemd_tool_version,
     want_selinux_relabel,
     yes_no,
 )
@@ -2218,12 +2219,6 @@ def check_outputs(config: Config) -> None:
     ):
         if f and (config.output_dir_or_cwd() / f).exists():
             die(f"Output path {f} exists already. (Consider invocation with --force.)")
-
-
-def systemd_tool_version(config: Config, tool: PathString) -> GenericVersion:
-    return GenericVersion(
-        run([tool, "--version"], stdout=subprocess.PIPE, sandbox=config.sandbox()).stdout.split()[2].strip("()")
-    )
 
 
 def check_tool(config: Config, *tools: PathString, reason: str, hint: Optional[str] = None) -> Path:
