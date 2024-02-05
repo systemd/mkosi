@@ -2385,7 +2385,7 @@ def run_depmod(context: Context, *, force: bool = False) -> None:
 
 def run_sysusers(context: Context) -> None:
     if not find_binary("systemd-sysusers", root=context.config.tools()):
-        logging.info("systemd-sysusers is not installed, not generating system users")
+        logging.warning("systemd-sysusers is not installed, not generating system users")
         return
 
     with complete_step("Generating system users"):
@@ -2395,7 +2395,7 @@ def run_sysusers(context: Context) -> None:
 
 def run_tmpfiles(context: Context) -> None:
     if not find_binary("systemd-tmpfiles", root=context.config.tools()):
-        logging.info("systemd-tmpfiles is not installed, not generating volatile files")
+        logging.warning("systemd-tmpfiles is not installed, not generating volatile files")
         return
 
     with complete_step("Generating volatile files"):
@@ -2431,7 +2431,7 @@ def run_tmpfiles(context: Context) -> None:
 
 def run_preset(context: Context) -> None:
     if not find_binary("systemctl", root=context.config.tools()):
-        logging.info("systemctl is not installed, not applying presets")
+        logging.warning("systemctl is not installed, not applying presets")
         return
 
     with complete_step("Applying presets…"):
@@ -2446,7 +2446,7 @@ def run_hwdb(context: Context) -> None:
         return
 
     if not find_binary("systemd-hwdb", root=context.config.tools()):
-        logging.info("systemd-hwdb is not installed, not generating hwdb")
+        logging.warning("systemd-hwdb is not installed, not generating hwdb")
         return
 
     with complete_step("Generating hardware database"):
@@ -2462,7 +2462,7 @@ def run_firstboot(context: Context) -> None:
         return
 
     if not find_binary("systemd-firstboot", root=context.config.tools()):
-        logging.info("systemd-firstboot is not installed, not applying first boot settings")
+        logging.warning("systemd-firstboot is not installed, not applying first boot settings")
         return
 
     password, hashed = context.config.root_password or (None, False)
