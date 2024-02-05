@@ -91,7 +91,7 @@ class QemuDeviceNode(StrEnum):
 
 
 def hash_output(config: Config) -> "hashlib._Hash":
-    p = os.fspath(config.output_dir_or_cwd() / config.output_with_compression)
+    p = os.fspath(config.output_dir_or_cwd() / config.output)
     return hashlib.sha256(p.encode())
 
 
