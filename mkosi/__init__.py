@@ -2461,6 +2461,10 @@ def run_firstboot(context: Context) -> None:
     if context.config.overlay or context.config.output_format.is_extension_image():
         return
 
+    if not find_binary("systemd-firstboot", root=context.config.tools()):
+        logging.info("systemd-firstboot is not installed, not applying first boot settings")
+        return
+
     password, hashed = context.config.root_password or (None, False)
     if password and not hashed:
         password = run(["openssl", "passwd", "-stdin", "-6"],
