@@ -21,6 +21,7 @@ class Image:
         distribution: Distribution
         release: str
         tools_tree_distribution: Optional[Distribution]
+        debug_shell: bool
 
     def __init__(self, config: Config, options: Sequence[PathString] = []) -> None:
         self.options = options
@@ -86,7 +87,7 @@ class Image:
     def build(self, options: Sequence[str] = (), args: Sequence[str] = ()) -> CompletedProcess:
         return self.mkosi(
             "build",
-            [*options, "--debug", "--force"],
+            [*options, "--debug", "--force", *(["--debug-shell"] if self.config.debug_shell else [])],
             args,
             stdin=sys.stdin if sys.stdin.isatty() else None,
             user=INVOKING_USER.uid,

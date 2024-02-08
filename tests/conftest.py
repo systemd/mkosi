@@ -33,6 +33,11 @@ def pytest_addoption(parser: Any) -> None:
         type=Distribution,
         choices=[Distribution(d) for d in Distribution.values()],
     )
+    parser.addoption(
+        "--debug-shell",
+        help="Pass --debug-shell when running mkosi",
+        action="store_true",
+    )
 
 
 @pytest.fixture(scope="session")
@@ -43,4 +48,5 @@ def config(request: Any) -> Image.Config:
         distribution=distribution,
         release=release,
         tools_tree_distribution=cast(Distribution, request.config.getoption("--tools-tree-distribution")),
+        debug_shell=request.config.getoption("--debug-shell"),
     )
