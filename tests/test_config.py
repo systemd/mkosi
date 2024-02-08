@@ -84,8 +84,8 @@ def test_parse_ini(tmp_path: Path) -> None:
     assert next(g) == ("MySection", "Value", "abc")
     assert next(g) == ("MySection", "Other", "def")
     assert next(g) == ("MySection", "ALLCAPS", "txt")
-    assert next(g) == ("", "", "")
-    assert next(g) == ("", "", "")
+    assert next(g) == ("MySection", "", "")
+    assert next(g) == ("EmptySection", "", "")
     assert next(g) == ("AnotherSection", "EmptyValue", "")
     assert next(g) == ("AnotherSection", "Multiline", "abc\ndef\nqed\nord")
 
@@ -385,6 +385,105 @@ def test_match_multiple(tmp_path: Path) -> None:
         # Both sections are matched, so image ID should be "abcde".
         _, [config] = parse_config(["--format", "disk", "--architecture", "x86-64"])
         assert config.image_id == "abcde"
+
+        Path("mkosi.conf").write_text(
+            """\
+            [TriggerMatch]
+            Format=disk
+            Architecture=x86-64
+
+            [TriggerMatch]
+            Format=directory
+            Architecture=arm64
+
+            [Output]
+            ImageId=abcde
+            """
+        )
+
+        # Both sections are not matched, so image ID should not be "abcde".
+        _, [config] = parse_config(["--format", "tar", "--architecture", "s390x"])
+        assert config.image_id != "abcde"
+
+        # The first section is matched, so image ID should be "abcde".
+        _, [config] = parse_config(["--format", "disk", "--architecture", "x86-64"])
+        assert config.image_id == "abcde"
+
+        # The second section is matched, so image ID should be "abcde".
+        _, [config] = parse_config(["--format", "directory", "--architecture", "arm64"])
+        assert config.image_id == "abcde"
+
+        # Parts of all section are matched, but none is matched fully, so image ID should not be "abcde".
+        _, [config] = parse_config(["--format", "disk", "--architecture", "arm64"])
+        assert config.image_id != "abcde"
+
+        Path("mkosi.conf").write_text(
+            """\
+            [TriggerMatch]
+            Format=|disk
+            Format=|directory
+
+            [TriggerMatch]
+            Format=directory
+            Architecture=arm64
+
+            [Output]
+            ImageId=abcde
+            """
+        )
+
+        # The first section is matched, so image ID should be "abcde".
+        _, [config] = parse_config(["--format", "disk"])
+        assert config.image_id == "abcde"
+
+        Path("mkosi.conf").write_text(
+            """\
+            [TriggerMatch]
+            Format=|disk
+            Format=|directory
+            Architecture=x86-64
+
+            [TriggerMatch]
+            Format=directory
+            Architecture=arm64
+
+            [Output]
+            ImageId=abcde
+            """
+        )
+
+        # No sections are matched, so image ID should be not "abcde".
+        _, [config] = parse_config(["--format", "disk", "--architecture=arm64"])
+        assert config.image_id != "abcde"
+
+        # Mixing both [Match] and [TriggerMatch]
+        Path("mkosi.conf").write_text(
+            """\
+            [Match]
+            Format=disk
+
+            [TriggerMatch]
+            Architecture=arm64
+
+            [TriggerMatch]
+            Architecture=x86-64
+
+            [Output]
+            ImageId=abcde
+            """
+        )
+
+        # Match and first TriggerMatch sections match
+        _, [config] = parse_config(["--format", "disk", "--architecture=arm64"])
+        assert config.image_id == "abcde"
+
+        # Match section matches, but no TriggerMatch section matches
+        _, [config] = parse_config(["--format", "disk", "--architecture=s390x"])
+        assert config.image_id != "abcde"
+
+        # Second TriggerMatch section matches, but the Match section does not
+        _, [config] = parse_config(["--format", "tar", "--architecture=x86-64"])
+        assert config.image_id != "abcde"
 
 
 @pytest.mark.parametrize("dist1,dist2", itertools.combinations_with_replacement(Distribution, 2))

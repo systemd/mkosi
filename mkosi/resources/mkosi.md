@@ -313,15 +313,17 @@ configuration files that can still be overridden by specifying the
 setting explicitly via the CLI.
 
 To conditionally include configuration files, the `[Match]` section can
-be used. Matches can use a pipe symbol (`|`) after the equals sign
-(`…=|…`), which causes the match to become a triggering match. The
-config file will be included if the logical AND of all non-triggering
-matches and the logical OR of all triggering matches is satisfied. To
-negate the result of a match, prefix the argument with an exclamation
-mark. If an argument is prefixed with the pipe symbol and an exclamation
-mark, the pipe symbol must be passed first, and the exclamation second.
+be used. A `[Match]` section consists of invididual conditions.
+Conditions can use a pipe symbol (`|`) after the equals sign (`…=|…`),
+which causes the condition to become a triggering condition. The config
+file will be included if the logical AND of all non-triggering
+conditions and the logical OR of all triggering conditions is satisfied.
+To negate the result of a condition, prefix the argument with an
+exclamation mark. If an argument is prefixed with the pipe symbol and an
+exclamation mark, the pipe symbol must be passed first, and the
+exclamation second.
 
-Note that `[Match]` settings match against the current values of
+Note that `[Match]` conditions compare against the current values of
 specific settings, and do not take into account changes made to the
 setting in configuration files that have not been parsed yet. Also note
 that matching against a setting and then changing its value afterwards
@@ -334,11 +336,11 @@ and `mkosi.local.conf` only apply to the file itself.
 
 If there are multiple `[Match]` sections in the same configuration file,
 each of them has to be satisfied in order for the configuration file to
-be included. Specifically, triggering matches only apply to the current
-`[Match]` section and are reset between multiple `[Match]` sections. As
-an example, the following will only match if the output format is one
-of `disk` or `directory` and the architecture is one of `x86-64` or
-`arm64`:
+be included. Specifically, triggering conditions only apply to the
+current `[Match]` section and are reset between multiple `[Match]`
+sections. As an example, the following will only match if the output
+format is one of `disk` or `directory` and the architecture is one of
+`x86-64` or `arm64`:
 
 ```conf
 [Match]
@@ -348,6 +350,34 @@ Format=|directory
 [Match]
 Architecture=|x86-64
 Architecture=|arm64
+```
+
+The `[TriggerMatch]` section can be used to indicate triggering match
+sections. These are identical to triggering conditions except they apply
+to the entire match section instead of just a single condition. As an
+example, the following will match if the distribution is `debian` and
+the release is `bookworm` or if the distribution is `ubuntu` and the
+release is `focal`.
+
+```conf
+[TriggerMatch]
+Distribution=debian
+Release=bookworm
+
+[TriggerMatch]
+Distribution=ubuntu
+Release=focal
+```
+
+The semantics of conditions in `[TriggerMatch]` sections is the same as
+in `[Match]`, i.e. all normal conditions are joined by a logical AND and
+all triggering conditions are joined by a logical OR. When mixing
+`[Match]` and `[TriggerMatch]` sections, a match is achieved when all
+`[Match]` sections match and at least one `[TriggerMatch]` section
+matches. No match sections are valued as true. Logically this means:
+
+```
+(⋀ᵢ Matchᵢ) ∧ (⋁ᵢ TriggerMatchᵢ)
 ```
 
 Command line options that take no argument are shown without `=` in
