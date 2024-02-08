@@ -1522,9 +1522,9 @@ def parse_ini(path: Path, only_sections: Collection[str] = ()) -> Iterator[tuple
             if line[-1] != ']':
                 die(f"{line} is not a valid section")
 
-            # Yield 3 empty strings to indicate we've finished the current section.
+            # Yield the section name with an empty key and value to indicate we've finished the current section.
             if section:
-                yield "", "", ""
+                yield section, "", ""
 
             section = line[1:-1].strip()
             if not section:
@@ -2939,19 +2939,28 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
         return default
 
     def match_config(path: Path, namespace: argparse.Namespace, defaults: argparse.Namespace) -> bool:
-        triggered: Optional[bool] = None
+        condition_triggered: Optional[bool] = None
+        match_triggered: Optional[bool] = None
+        skip = False
 
         # If the config file does not exist, we assume it matches so that we look at the other files in the
         # directory as well (mkosi.conf.d/ and extra files).
         if not path.exists():
             return True
 
-        for section, k, v in parse_ini(path, only_sections=["Match"]):
-            if not section:
-                if triggered is False:
+        for section, k, v in parse_ini(path, only_sections=["Match", "TriggerMatch"]):
+            if not k and not v:
+                if section == "Match" and condition_triggered is False:
                     return False
 
-                triggered = None
+                if section == "TriggerMatch":
+                    match_triggered = bool(match_triggered) or condition_triggered is not False
+
+                condition_triggered = None
+                skip = False
+                continue
+
+            if skip:
                 continue
 
             trigger = v.startswith("|")
@@ -2964,14 +2973,13 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
 
             if s := SETTINGS_LOOKUP_BY_NAME.get(k):
                 if not s.match:
-                    die(f"{k} cannot be used in [Match]")
+                    die(f"{k} cannot be used in [{section}]")
 
                 if k != s.name:
                     logging.warning(f"Setting {k} is deprecated, please use {s.name} instead.")
 
-                # If we encounter a setting in [Match] that has not been explicitly configured yet,
-                # we assign the default value first so that we can [Match] on default values for
-                # settings.
+                # If we encounter a setting that has not been explicitly configured yet, we assign the default value
+                # first so that we can match on default values for settings.
                 if finalize_default(s, namespace, defaults) is None:
                     result = False
                 else:
@@ -2980,16 +2988,21 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
             elif m := MATCH_LOOKUP.get(k):
                 result = m.match(v)
             else:
-                die(f"{k} cannot be used in [Match]")
+                die(f"{k} cannot be used in [{section}]")
 
             if negate:
                 result = not result
             if not trigger and not result:
+                if section == "TriggerMatch":
+                    skip = True
+                    condition_triggered = False
+                    continue
+
                 return False
             if trigger:
-                triggered = bool(triggered) or result
+                condition_triggered = bool(condition_triggered) or result
 
-        return triggered is not False
+        return match_triggered is not False
 
     def parse_config_one(
         path: Path,
@@ -3032,7 +3045,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
             logging.debug(f"Including configuration file {Path.cwd() / path}")
 
             for section, k, v in parse_ini(path, only_sections={s.section for s in SETTINGS} | {"Preset"}):
-                if not section:
+                if not k and not v:
                     continue
 
                 name = k.removeprefix("@")
