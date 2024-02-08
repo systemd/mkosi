@@ -130,6 +130,11 @@ jobs:
     - uses: actions/checkout@v3
     - uses: ./
 
+    - name: Free disk space
+      run: |
+        sudo rm -rf /usr/local
+        sudo rm -rf /opt/hostedtoolcache
+
     - name: Install
       run: |
         sudo apt-get update
