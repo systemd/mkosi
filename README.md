@@ -107,6 +107,9 @@ tests locally as well.
 * [Building RHEL and RHEL UBI images with mkosi](https://fedoramagazine.org/create-images-directly-from-rhel-and-rhel-ubi-package-using-mkosi/) an article in Fedora Magazine (2023)
 * [Building USIs with mkosi](https://overhead.neocities.org/blog/build-usi-mkosi/)
 * [Constellation 💖 mkosi — Minimal TCB, tailor-made for measured boot](https://www.edgeless.systems/blog/constellation-mkosi-minimal-tcb-tailor-made-for-measured-boot/)
+* [Streamlining kernel hacking with mkosi-kernel](https://video.fosdem.org/2024/ub5132/fosdem-2024-2209-streamlining-kernel-hacking-with-mkosi-kernel.av1.webm)
+* [mkosi-initrd: Building initrds out of distribution packages](https://video.fosdem.org/2024/ua2118/fosdem-2024-2888-mkosi-initrd-building-initrds-out-of-distribution-packages.av1.webm)
+* [Running systemd integration tests with mkosi](https://video.fosdem.org/2024/ud2208/fosdem-2024-3431-running-systemd-integration-tests-with-mkosi.av1.webm)
 
 ## Community
 
