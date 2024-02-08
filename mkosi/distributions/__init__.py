@@ -21,6 +21,7 @@ class PackageType(StrEnum):
     deb    = enum.auto()
     pkg    = enum.auto()
     ebuild = enum.auto()
+    moss   = enum.auto()
 
 
 class DistributionInstaller:
@@ -93,6 +94,7 @@ class Distribution(StrEnum):
     centos       = enum.auto()
     rhel         = enum.auto()
     rhel_ubi     = enum.auto()
+    serpentos    = enum.auto()
     openmandriva = enum.auto()
     rocky        = enum.auto()
     alma         = enum.auto()
