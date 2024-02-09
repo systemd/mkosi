@@ -41,14 +41,15 @@ class Pacman(PackageManager):
     def mounts(cls, context: Context) -> list[PathString]:
         return [
             *super().mounts(context),
-            # pacman reuses the same directory for the sync databases and the local database containing the list of
-            # installed packages. The format should go in the cache directory, the latter should go in the image, so we
-            # bind mount the local directory from the image to make sure that happens.
-            "--bind", context.root / "var/lib/pacman/local", "/var/lib/pacman/local",
             # pacman writes downloaded packages to the first writable cache directory. We don't want it to write to our
             # local repository directory so we expose it as a read-only directory to pacman.
             "--ro-bind", context.packages, "/var/cache/pacman/mkosi",
-        ]
+        ] + ([
+            # pacman reuses the same directory for the sync databases and the local database containing the list of
+            # installed packages. The former should go in the cache directory, the latter should go in the image,
+            # so we bind mount the local directory from the image to make sure that happens.
+            "--bind", context.root / "var/lib/pacman/local", "/var/lib/pacman/local",
+        ] if (context.root / "var/lib/pacman/local").exists() else [])
 
     @classmethod
     def setup(cls, context: Context, repositories: Iterable[Repository]) -> None:
