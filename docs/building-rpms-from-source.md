@@ -148,6 +148,13 @@ env --chdir=mkosi \
     ${BUILDDIR:+--define} \
     ${BUILDDIR:+"_vpath_builddir $BUILDDIR"} \
     --define "_build_name_fmt %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm" \
+    --define "_binary_payload w.ufdio" \
+    --define "debug_package %{nil}" \
+    --define "__brp_strip %{nil}" \
+    --define "__brp_compress %{nil}" \
+    --define "__brp_mangle_shebangs %{nil}" \
+    --define "__brp_strip_comment_note %{nil}" \
+    --define "__brp_strip_static_archive %{nil}" \
     rpm/mkosi.spec
 ```
 
@@ -156,6 +163,12 @@ artifacts for build systems that support out-of-tree builds (CMake,
 Meson) so we set it to mkosi's out-of-tree build directory in
 `$BUILDDIR` if one is provided. This will make subsequent RPM builds
 much faster as CMake or Meson will be able to do an incremental build.
+
+Setting `_binary_payload` to `w.ufdio` disables compression to speed up
+the build. We also disable debug package generation using
+`debug_package` and various rpm build root policy scripts to speed up
+the build. Note that the build root policy macros we use here are
+CentOS/Fedora specific.
 
 After the build script finishes, the produced rpms will be located in
 `$OUTPUTDIR`. We can now install them from the `mkosi.postinst`
