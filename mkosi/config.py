@@ -2784,7 +2784,7 @@ def create_argument_parser(action: type[argparse.Action]) -> argparse.ArgumentPa
     return parser
 
 
-def resolve_deps(images: Sequence[Config], include: Sequence[str]) -> list[Config]:
+def resolve_deps(images: Sequence[argparse.Namespace], include: Sequence[str]) -> list[argparse.Namespace]:
     graph = {config.image: config.dependencies for config in images}
 
     if include:
@@ -3197,8 +3197,8 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
     if not images:
         die("No images defined in mkosi.images/")
 
-    images = [load_config(args, ns) for ns in images]
     images = resolve_deps(images, include)
+    images = [load_config(args, ns) for ns in images]
 
     return args, tuple(images)
 
