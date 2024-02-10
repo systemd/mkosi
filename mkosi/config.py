@@ -3174,8 +3174,10 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
         finalize_defaults(namespace, defaults)
         images = [namespace]
 
+    cli_valid = dict({key: getattr(cli_ns, key) for key in vars(cli_ns)})
     for s in vars(cli_ns):
         if s not in SETTINGS_LOOKUP_BY_DEST:
+            del cli_valid[s]
             continue
 
         if getattr(cli_ns, s) is None:
@@ -3193,6 +3195,14 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
             f"{setting}={a} was specified on the command line but is not allowed to be configured by any images.",
             hint="Prefix the setting with '@' in the image configuration file to allow overriding it from the command line.", # noqa: E501
         )
+
+    commandline=""
+    for key in cli_valid:
+        value = cli_valid[key]
+        commandline+=f" --{key}={value}"
+
+    if len(commandline) > 0:
+        logging.info(f"CLI: {commandline}")
 
     if not images:
         die("No images defined in mkosi.images/")
