@@ -1538,6 +1538,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
   |                         | Fedora | CentOS | Debian | Ubuntu | Arch | openSUSE |
   |-------------------------|--------|--------|--------|--------|------|----------|
+  | `acl`                   | X      | X      | X      | X      | X    | X        |
   | `apt`                   | X      | X      | X      | X      | X    |          |
   | `archlinux-keyring`     | X      |        | X      | X      | X    |          |
   | `bash`                  | X      | X      | X      | X      | X    | X        |
