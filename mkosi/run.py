@@ -167,6 +167,9 @@ def run(
     if ARG_DEBUG.get():
         env["SYSTEMD_LOG_LEVEL"] = "debug"
 
+    if "HOME" not in env:
+        env["HOME"] = "/"
+
     if input is not None:
         assert stdin is None  # stdin and input cannot be specified together
     elif stdin is None:
