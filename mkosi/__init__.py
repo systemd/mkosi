@@ -33,6 +33,7 @@ from mkosi.config import (
     ConfigFeature,
     DocFormat,
     JsonEncoder,
+    KeySource,
     ManifestFormat,
     Network,
     OutputFormat,
@@ -858,22 +859,28 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> None:
         find_binary("sbsign", root=context.config.tools()) is not None
     ):
         with open(output, "wb") as f:
+            cmd: list[PathString] = [
+                "sbsign",
+                "--key", context.config.secure_boot_key,
+                "--cert", context.config.secure_boot_certificate,
+                "--output", "/dev/stdout",
+            ]
+            options: list[PathString] = [
+                "--ro-bind", context.config.secure_boot_certificate, context.config.secure_boot_certificate,
+                "--ro-bind", input, input,
+            ]
+            if context.config.secure_boot_key_source.type == KeySource.Type.engine:
+                cmd += ["--engine", context.config.secure_boot_key_source.source]
+            if context.config.secure_boot_key.exists():
+                options += ["--ro-bind", context.config.secure_boot_key, context.config.secure_boot_key]
+            cmd += [input]
             run(
-                [
-                    "sbsign",
-                    "--key", context.config.secure_boot_key,
-                    "--cert", context.config.secure_boot_certificate,
-                    "--output", "/dev/stdout",
-                    input,
-                ],
+                cmd,
                 stdout=f,
                 sandbox=context.sandbox(
-                    options=[
-                        "--ro-bind", context.config.secure_boot_key, context.config.secure_boot_key,
-                        "--ro-bind", context.config.secure_boot_certificate, context.config.secure_boot_certificate,
-                        "--ro-bind", input, input,
-                    ]
-                ),
+                    options=options,
+                    devices=context.config.secure_boot_key_source.type != KeySource.Type.file,
+                )
             )
     elif (
         context.config.secure_boot_sign_tool == SecureBootSignTool.pesign or
@@ -991,26 +998,31 @@ def install_systemd_boot(context: Context) -> None:
             # We reuse the key for all secure boot databases to keep things simple.
             for db in ["PK", "KEK", "db"]:
                 with umask(~0o600), open(keys / f"{db}.auth", "wb") as f:
+                    cmd: list[PathString] = [
+                        "sbvarsign",
+                        "--attr",
+                            "NON_VOLATILE,BOOTSERVICE_ACCESS,RUNTIME_ACCESS,TIME_BASED_AUTHENTICATED_WRITE_ACCESS",
+                        "--key", context.config.secure_boot_key,
+                        "--cert", context.config.secure_boot_certificate,
+                        "--output", "/dev/stdout",
+                    ]
+                    options: list[PathString] = [
+                        "--ro-bind",
+                        context.config.secure_boot_certificate,
+                        context.config.secure_boot_certificate,
+                        "--ro-bind", context.workspace / "mkosi.esl", context.workspace / "mkosi.esl",
+                    ]
+                    if context.config.secure_boot_key_source.type == KeySource.Type.engine:
+                        cmd += ["--engine", context.config.secure_boot_key_source.source]
+                    if context.config.secure_boot_key.exists():
+                        options += ["--ro-bind", context.config.secure_boot_key, context.config.secure_boot_key]
+                    cmd += [db, context.workspace / "mkosi.esl"]
                     run(
-                        [
-                            "sbvarsign",
-                            "--attr",
-                                "NON_VOLATILE,BOOTSERVICE_ACCESS,RUNTIME_ACCESS,TIME_BASED_AUTHENTICATED_WRITE_ACCESS",
-                            "--key", context.config.secure_boot_key,
-                            "--cert", context.config.secure_boot_certificate,
-                            "--output", "/dev/stdout",
-                            db,
-                            context.workspace / "mkosi.esl",
-                        ],
+                        cmd,
                         stdout=f,
                         sandbox=context.sandbox(
-                            options=[
-                                "--ro-bind", context.config.secure_boot_key, context.config.secure_boot_key,
-                                "--ro-bind",
-                                context.config.secure_boot_certificate,
-                                context.config.secure_boot_certificate,
-                                "--ro-bind", context.workspace / "mkosi.esl", context.workspace / "mkosi.esl",
-                            ],
+                            options=options,
+                            devices=context.config.secure_boot_key_source.type != KeySource.Type.file,
                         ),
                     )
 
@@ -1887,9 +1899,12 @@ def build_uki(
                 context.config.secure_boot_certificate,
             ]
             options += [
-                "--ro-bind", context.config.secure_boot_key, context.config.secure_boot_key,
                 "--ro-bind", context.config.secure_boot_certificate, context.config.secure_boot_certificate,
             ]
+            if context.config.secure_boot_key_source.type == KeySource.Type.engine:
+                cmd += ["--signing-engine", context.config.secure_boot_key_source.source]
+            if context.config.secure_boot_key.exists():
+                options += ["--ro-bind", context.config.secure_boot_key, context.config.secure_boot_key]
         else:
             pesign_prepare(context)
             cmd += [
@@ -1924,7 +1939,13 @@ def build_uki(
         options += ["--ro-bind", initrd, initrd]
 
     with complete_step(f"Generating unified kernel image for kernel version {kver}"):
-        run(cmd, sandbox=context.sandbox(options=options))
+        run(
+            cmd,
+            sandbox=context.sandbox(
+                options=options,
+                devices=context.config.secure_boot_key_source.type != KeySource.Type.file,
+            ),
+        )
 
 
 def want_efi(config: Config) -> bool:
