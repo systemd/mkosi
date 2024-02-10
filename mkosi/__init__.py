@@ -3521,7 +3521,7 @@ def check_workspace_directory(config: Config) -> None:
     wd = config.workspace_dir_or_default()
 
     if wd.is_relative_to(Path.cwd()):
-        die(f"The workspace directory ({wd}) cannot be located in the current working directory ({Path.cwd()})",
+        die(f"The workspace directory ({wd}) must be located outside the current working directory ({Path.cwd()})",
             hint="Use WorkspaceDirectory= to configure a different workspace directory")
 
     for tree in config.build_sources:
