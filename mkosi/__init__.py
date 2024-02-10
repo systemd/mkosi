@@ -2811,7 +2811,10 @@ def make_image(
         options += ["--ro-bind", context.config.passphrase, context.config.passphrase]
     if context.config.verity_key:
         cmdline += ["--private-key", context.config.verity_key]
-        options += ["--ro-bind", context.config.verity_key, context.config.verity_key]
+        if context.config.verity_key_source.type != KeySource.Type.file:
+            cmdline += ["--private-key-source", str(context.config.verity_key_source)]
+        if context.config.verity_key.exists():
+            options += ["--ro-bind", context.config.verity_key, context.config.verity_key]
     if context.config.verity_certificate:
         cmdline += ["--certificate", context.config.verity_certificate]
         options += ["--ro-bind", context.config.verity_certificate, context.config.verity_certificate]
@@ -2837,7 +2840,13 @@ def make_image(
                 cmdline,
                 stdout=subprocess.PIPE,
                 env=context.config.environment,
-                sandbox=context.sandbox(devices=not context.config.repart_offline, options=options),
+                sandbox=context.sandbox(
+                    devices=(
+                        not context.config.repart_offline or
+                        context.config.verity_key_source.type != KeySource.Type.file
+                    ),
+                    options=options,
+                ),
             ).stdout
         )
 
@@ -2989,7 +2998,10 @@ def make_extension_image(context: Context, output: Path) -> None:
         options += ["--ro-bind", context.config.passphrase, context.config.passphrase]
     if context.config.verity_key:
         cmdline += ["--private-key", context.config.verity_key]
-        options += ["--ro-bind", context.config.verity_key, context.config.verity_key]
+        if context.config.verity_key_source.type != KeySource.Type.file:
+            cmdline += ["--private-key-source", str(context.config.verity_key_source)]
+        if context.config.verity_key.exists():
+            options += ["--ro-bind", context.config.verity_key, context.config.verity_key]
     if context.config.verity_certificate:
         cmdline += ["--certificate", context.config.verity_certificate]
         options += ["--ro-bind", context.config.verity_certificate, context.config.verity_certificate]
@@ -3008,7 +3020,13 @@ def make_extension_image(context: Context, output: Path) -> None:
         run(
             cmdline + ["--definitions", r],
             env=env,
-            sandbox=context.sandbox(devices=not context.config.repart_offline, options=options),
+            sandbox=context.sandbox(
+                devices=(
+                    not context.config.repart_offline or
+                    context.config.verity_key_source.type != KeySource.Type.file
+                ),
+                options=options,
+            ),
         )
 
 

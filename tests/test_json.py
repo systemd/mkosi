@@ -306,6 +306,10 @@ def test_config() -> None:
             "UseSubvolumes": "auto",
             "VerityCertificate": "/path/to/cert",
             "VerityKey": null,
+            "VerityKeySource": {
+                "source": "",
+                "type": "file"
+            },
             "WithDocs": true,
             "WithNetwork": false,
             "WithRecommends": true,
@@ -441,6 +445,7 @@ def test_config() -> None:
         use_subvolumes = ConfigFeature.auto,
         verity_certificate = Path("/path/to/cert"),
         verity_key = None,
+        verity_key_source = KeySource(type=KeySource.Type.file),
         with_docs = True,
         with_network = False,
         with_recommends = True,

@@ -1327,6 +1327,7 @@ class Config:
     secure_boot_certificate: Optional[Path]
     secure_boot_sign_tool: SecureBootSignTool
     verity_key: Optional[Path]
+    verity_key_source: KeySource
     verity_certificate: Optional[Path]
     sign_expected_pcr: ConfigFeature
     passphrase: Optional[Path]
@@ -2376,11 +2377,19 @@ SETTINGS = (
     ),
     ConfigSetting(
         dest="verity_key",
-        metavar="PATH",
+        metavar="KEY",
         section="Validation",
-        parse=config_make_path_parser(secret=True),
+        parse=config_parse_key,
         paths=("mkosi.key",),
-        help="Private key for signing verity signature in PEM format",
+        help="Private key for signing verity signature",
+    ),
+    ConfigSetting(
+        dest="verity_key_source",
+        section="Validation",
+        metavar="SOURCE[:ENGINE]",
+        parse=config_parse_key_source,
+        default=KeySource(type=KeySource.Type.file),
+        help="The source to use to retrieve the verity signing key",
     ),
     ConfigSetting(
         dest="verity_certificate",
@@ -3649,6 +3658,7 @@ def summary(config: Config) -> str:
              SecureBoot Certificate: {none_to_none(config.secure_boot_certificate)}
                SecureBoot Sign Tool: {config.secure_boot_sign_tool}
                  Verity Signing Key: {none_to_none(config.verity_key)}
+          Verity Signing Key Source: {config.verity_key_source}
                  Verity Certificate: {none_to_none(config.verity_certificate)}
                  Sign Expected PCRs: {config.sign_expected_pcr}
                          Passphrase: {none_to_none(config.passphrase)}
