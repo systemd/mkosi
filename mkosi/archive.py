@@ -8,6 +8,7 @@ from typing import Optional
 from mkosi.log import log_step
 from mkosi.run import find_binary, run
 from mkosi.sandbox import SandboxProtocol, finalize_passwd_mounts, nosandbox
+from mkosi.util import umask
 
 
 def tar_binary(*, tools: Path = Path("/")) -> str:
@@ -75,6 +76,9 @@ def extract_tar(
     if log:
         log_step(f"Extracting tar archive {src}…")
 
+    with umask(~0o755):
+        dst.mkdir(exist_ok=True)
+
     with src.open("rb") as f:
         run(
             [
@@ -96,7 +100,7 @@ def extract_tar(
             stdin=f,
             sandbox=sandbox(
                 # Make sure tar uses user/group information from the root directory instead of the host.
-                options=["--ro-bind", src, src, "--bind", dst.parent, dst.parent, *finalize_passwd_mounts(dst)]
+                options=["--ro-bind", src, src, "--bind", dst, dst, *finalize_passwd_mounts(dst)]
             ),
         )
 
