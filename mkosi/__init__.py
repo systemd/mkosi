@@ -108,7 +108,7 @@ def mount_base_trees(context: Context) -> Iterator[None]:
                 extract_tar(
                     path, d,
                     tools=context.config.tools(),
-                    sandbox=context.sandbox(options=["--bind", d, d]),
+                    sandbox=context.sandbox(options=["--ro-bind", path, path, "--bind", d.parent, d.parent]),
                 )
                 bases += [d]
             elif path.suffix == ".raw":
