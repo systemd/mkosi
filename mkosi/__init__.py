@@ -1929,7 +1929,16 @@ def build_uki(
                 "--pcr-private-key", context.config.secure_boot_key,
                 "--pcr-banks", "sha1,sha256",
             ]
-            options += ["--ro-bind", context.config.secure_boot_key, context.config.secure_boot_key]
+            if context.config.secure_boot_key.exists():
+                options += ["--ro-bind", context.config.secure_boot_key, context.config.secure_boot_key]
+            if context.config.secure_boot_key_source.type == KeySource.Type.engine:
+                cmd += [
+                    "--signing-engine", context.config.secure_boot_key_source.source,
+                    "--pcr-public-key", context.config.secure_boot_certificate,
+                ]
+                options += [
+                    "--ro-bind", context.config.secure_boot_certificate, context.config.secure_boot_certificate,
+                ]
 
     cmd += ["build", "--linux", kimg]
     options += ["--ro-bind", kimg, kimg]
