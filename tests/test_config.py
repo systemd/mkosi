@@ -896,7 +896,7 @@ def test_output_id_version(tmp_path: Path) -> None:
     with chdir(d):
         _, [config] = parse_config()
 
-    assert config.output == "output-1.2.3"
+    assert config.output == "output_1.2.3"
 
 
 def test_deterministic() -> None:
