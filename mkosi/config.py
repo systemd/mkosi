@@ -588,7 +588,7 @@ def config_default_output(namespace: argparse.Namespace) -> str:
     output = namespace.image_id or namespace.image or "image"
 
     if namespace.image_version:
-        output += f"-{namespace.image_version}"
+        output += f"_{namespace.image_version}"
 
     return output
 
