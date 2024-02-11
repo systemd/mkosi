@@ -87,7 +87,7 @@ def clean_package_manager_metadata(context: Context) -> None:
             dst = context.workspace / "package-cache-dir" / d / subdir
             dst.mkdir(parents=True, exist_ok=True)
 
-            copy_tree(src, dst, sandbox=context.sandbox(options=["--ro-bind", src, src, "--bind", dst, dst]))
+            copy_tree(src, dst, sandbox=context.sandbox)
 
         context.package_cache_dir = context.workspace / "package-cache-dir"
 
@@ -103,5 +103,4 @@ def clean_package_manager_metadata(context: Context) -> None:
                         ("dpkg",     ["var/lib/dpkg"]),
                         (executable, [f"var/lib/{subdir}", f"var/cache/{subdir}"])):
         if always or not find_binary(tool, root=context.root):
-            rmtree(*(context.root / p for p in paths),
-                   sandbox=context.sandbox(options=["--bind", context.root, context.root]))
+            rmtree(*(context.root / p for p in paths), sandbox=context.sandbox)

@@ -39,7 +39,7 @@ class Context:
                     self.root,
                     use_subvolumes=self.config.use_subvolumes,
                     tools=config.tools(),
-                    sandbox=config.sandbox(options=["--bind", self.workspace, self.workspace]),
+                    sandbox=config.sandbox,
                 )
 
         self.staging.mkdir()

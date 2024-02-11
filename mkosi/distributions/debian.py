@@ -13,7 +13,6 @@ from mkosi.installer import PackageManager
 from mkosi.installer.apt import Apt
 from mkosi.log import die
 from mkosi.run import run
-from mkosi.sandbox import finalize_passwd_mounts
 from mkosi.util import umask
 
 
@@ -183,10 +182,7 @@ class Installer(DistributionInstaller):
                     Path(o.name), context.root,
                     log=False,
                     tools=context.config.tools(),
-                    # Make sure tar uses user/group information from the root directory instead of the host.
-                    sandbox=context.sandbox(
-                        options=["--bind", context.root, context.root, *finalize_passwd_mounts(context.root)],
-                    ),
+                    sandbox=context.sandbox,
                 )
 
         # Finally, run apt to properly install packages in the chroot without having to worry that maintainer

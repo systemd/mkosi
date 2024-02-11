@@ -27,7 +27,7 @@ def move_rpm_db(context: Context) -> None:
 
     if newdb.exists() and not newdb.is_symlink():
         with complete_step("Moving rpm database /usr/lib/sysimage/rpm → /var/lib/rpm"):
-            rmtree(olddb, sandbox=context.sandbox(options=["--bind", olddb.parent, olddb.parent]))
+            rmtree(olddb, sandbox=context.sandbox)
             shutil.move(newdb, olddb)
 
             newdb.symlink_to(os.path.relpath(olddb, start=newdb.parent))

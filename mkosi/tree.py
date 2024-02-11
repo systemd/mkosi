@@ -5,21 +5,23 @@ import errno
 import shutil
 import subprocess
 import tempfile
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator
 from pathlib import Path
 
 from mkosi.config import ConfigFeature
 from mkosi.log import die
 from mkosi.run import find_binary, run
+from mkosi.sandbox import SandboxProtocol, nosandbox
 from mkosi.types import PathString
+from mkosi.util import flatten
 
 
-def statfs(path: Path, *, sandbox: Sequence[PathString] = ()) -> str:
+def statfs(path: Path, *, sandbox: SandboxProtocol = nosandbox) -> str:
     return run(["stat", "--file-system", "--format", "%T", path],
-               sandbox=sandbox, stdout=subprocess.PIPE).stdout.strip()
+               sandbox=sandbox(options=["--ro-bind", path, path]), stdout=subprocess.PIPE).stdout.strip()
 
 
-def is_subvolume(path: Path, *, sandbox: Sequence[PathString] = ()) -> bool:
+def is_subvolume(path: Path, *, sandbox: SandboxProtocol = nosandbox) -> bool:
     return path.is_dir() and statfs(path, sandbox=sandbox) == "btrfs" and path.stat().st_ino == 256
 
 
@@ -28,7 +30,7 @@ def make_tree(
     *,
     use_subvolumes: ConfigFeature = ConfigFeature.disabled,
     tools: Path = Path("/"),
-    sandbox: Sequence[PathString] = (),
+    sandbox: SandboxProtocol = nosandbox,
 ) -> Path:
     if use_subvolumes == ConfigFeature.enabled and not find_binary("btrfs", root=tools):
         die("Subvolumes requested but the btrfs command was not found")
@@ -42,7 +44,8 @@ def make_tree(
 
     if use_subvolumes != ConfigFeature.disabled and find_binary("btrfs", root=tools) is not None:
         result = run(["btrfs", "subvolume", "create", path],
-                     sandbox=sandbox, check=use_subvolumes == ConfigFeature.enabled).returncode
+                     sandbox=sandbox(options=["--bind", path.parent, path.parent]),
+                     check=use_subvolumes == ConfigFeature.enabled).returncode
     else:
         result = 1
 
@@ -75,7 +78,7 @@ def copy_tree(
     dereference: bool = False,
     use_subvolumes: ConfigFeature = ConfigFeature.disabled,
     tools: Path = Path("/"),
-    sandbox: Sequence[PathString] = (),
+    sandbox: SandboxProtocol = nosandbox,
 ) -> Path:
     subvolume = (use_subvolumes == ConfigFeature.enabled or
                  use_subvolumes == ConfigFeature.auto and find_binary("btrfs", root=tools) is not None)
@@ -91,6 +94,7 @@ def copy_tree(
         "--reflink=auto",
         src, dst,
     ]
+    options: list[PathString] = ["--ro-bind", src, src, "--bind", dst.parent, dst.parent]
 
     # If the source and destination are both directories, we want to merge the source directory with the
     # destination directory. If the source if a file and the destination is a directory, we want to copy
@@ -111,7 +115,7 @@ def copy_tree(
             if not preserve
             else contextlib.nullcontext()
         ):
-            run(copy, sandbox=sandbox)
+            run(copy, sandbox=sandbox(options=options))
         return dst
 
     # btrfs can't snapshot to an existing directory so make sure the destination does not exist.
@@ -119,21 +123,22 @@ def copy_tree(
         dst.rmdir()
 
     result = run(["btrfs", "subvolume", "snapshot", src, dst],
-                 check=use_subvolumes == ConfigFeature.enabled, sandbox=sandbox).returncode
+                 check=use_subvolumes == ConfigFeature.enabled, sandbox=sandbox(options=options)).returncode
     if result != 0:
         with (
             preserve_target_directories_stat(src, dst)
             if not preserve
             else contextlib.nullcontext()
         ):
-            run(copy, sandbox=sandbox)
+            run(copy, sandbox=sandbox(options=options))
 
     return dst
 
 
-def rmtree(*paths: Path, sandbox: Sequence[PathString] = ()) -> None:
+def rmtree(*paths: Path, sandbox: SandboxProtocol = nosandbox) -> None:
     if paths:
-        run(["rm", "-rf", "--", *paths], sandbox=sandbox)
+        run(["rm", "-rf", "--", *paths],
+            sandbox=sandbox(options=flatten(["--bind", p.parent, p.parent] for p in paths)))
 
 
 def move_tree(
@@ -142,7 +147,7 @@ def move_tree(
     *,
     use_subvolumes: ConfigFeature = ConfigFeature.disabled,
     tools: Path = Path("/"),
-    sandbox: Sequence[PathString] = (),
+    sandbox: SandboxProtocol = nosandbox
 ) -> Path:
     if src == dst:
         return dst

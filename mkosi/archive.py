@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import os
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Optional
 
 from mkosi.log import log_step
 from mkosi.run import find_binary, run
-from mkosi.types import PathString
+from mkosi.sandbox import SandboxProtocol, finalize_passwd_mounts, nosandbox
 
 
 def tar_binary(*, tools: Path = Path("/")) -> str:
@@ -36,7 +36,7 @@ def tar_exclude_apivfs_tmp() -> list[str]:
     ]
 
 
-def make_tar(src: Path, dst: Path, *, tools: Path = Path("/"), sandbox: Sequence[PathString] = ()) -> None:
+def make_tar(src: Path, dst: Path, *, tools: Path = Path("/"), sandbox: SandboxProtocol = nosandbox) -> None:
     log_step(f"Creating tar archive {dst}…")
 
     with dst.open("wb") as f:
@@ -59,7 +59,8 @@ def make_tar(src: Path, dst: Path, *, tools: Path = Path("/"), sandbox: Sequence
                 ".",
             ],
             stdout=f,
-            sandbox=sandbox,
+            # Make sure tar uses user/group information from the root directory instead of the host.
+            sandbox=sandbox(options=["--ro-bind", src, src, *finalize_passwd_mounts(src)]),
         )
 
 
@@ -69,7 +70,7 @@ def extract_tar(
     *,
     log: bool = True,
     tools: Path = Path("/"),
-    sandbox: Sequence[PathString] = (),
+    sandbox: SandboxProtocol = nosandbox,
 ) -> None:
     if log:
         log_step(f"Extracting tar archive {src}…")
@@ -93,7 +94,10 @@ def extract_tar(
                 *tar_exclude_apivfs_tmp(),
             ],
             stdin=f,
-            sandbox=sandbox,
+            sandbox=sandbox(
+                # Make sure tar uses user/group information from the root directory instead of the host.
+                options=["--ro-bind", src, src, "--bind", dst.parent, dst.parent, *finalize_passwd_mounts(dst)]
+            ),
         )
 
 
@@ -103,7 +107,7 @@ def make_cpio(
     *,
     files: Optional[Iterable[Path]] = None,
     tools: Path = Path("/"),
-    sandbox: Sequence[PathString] = (),
+    sandbox: SandboxProtocol = nosandbox,
 ) -> None:
     if not files:
         files = src.rglob("*")
@@ -124,6 +128,5 @@ def make_cpio(
             ],
             input="\0".join(os.fspath(f.relative_to(src)) for f in files),
             stdout=f,
-            # Make sure cpio uses user/group information from the root directory instead of the host.
-            sandbox=sandbox,
+            sandbox=sandbox(options=["--ro-bind", src, src, *finalize_passwd_mounts(src)]),
         )

@@ -60,7 +60,7 @@ def fixup_rpmdb_location(context: Context) -> None:
     rpmdb = context.root / "usr/lib/sysimage/rpm"
     if not rpmdb.exists():
         rpmdb = context.root / "var/lib/rpm"
-    rmtree(rpmdb, sandbox=context.sandbox(options=["--bind", rpmdb.parent, rpmdb.parent]))
+    rmtree(rpmdb, sandbox=context.sandbox)
     shutil.move(rpmdb_home, rpmdb)
     rpmdb_home.symlink_to(os.path.relpath(rpmdb, start=rpmdb_home.parent))
 
