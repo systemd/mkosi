@@ -2927,11 +2927,13 @@ def copy_repository_metadata(context: Context) -> None:
         any((context.package_cache_dir / "cache" / subdir).glob("*")) or
         any((context.package_cache_dir / "lib" / subdir).glob("*"))
     ):
+        logging.debug(f"Found repository metadata in {context.package_cache_dir}, not copying repository metadata")
         return
 
     for d in ("cache", "lib"):
         src = context.config.package_cache_dir_or_default() / d / subdir
         if not src.exists():
+            logging.debug(f"{src} does not exist, not copying repository metadata from it")
             continue
 
         caches = context.config.distribution.package_manager(context.config).cache_subdirs(src) if d == "cache" else []
