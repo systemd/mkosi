@@ -103,4 +103,4 @@ def clean_package_manager_metadata(context: Context) -> None:
                         ("dpkg",     ["var/lib/dpkg"]),
                         (executable, [f"var/lib/{subdir}", f"var/cache/{subdir}"])):
         if always or not find_binary(tool, root=context.root):
-            rmtree(*(context.root / p for p in paths), sandbox=context.sandbox)
+            rmtree(*(context.root / p for p in paths if (context.root / p).exists()), sandbox=context.sandbox)
