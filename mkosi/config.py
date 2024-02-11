@@ -588,7 +588,13 @@ def config_default_output(namespace: argparse.Namespace) -> str:
     output = namespace.image_id or namespace.image or "image"
 
     if namespace.image_version:
-        output += f"_{namespace.image_version}"
+        # Discoverable Disk Image (DDI) compatible separator
+        separator = "_"
+        if namespace.output_format == OutputFormat.directory:
+            # systemd-machined compatible separator
+            separator = "-"
+
+        output += f"{separator}{namespace.image_version}"
 
     return output
 
