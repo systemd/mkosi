@@ -2968,6 +2968,8 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
             negate = v.startswith("!")
             v = v.removeprefix("!")
 
+            v = expand_specifiers(v, namespace, defaults)
+
             if not v:
                 die("Match value cannot be empty")
 
@@ -3590,6 +3592,7 @@ def summary(config: Config) -> str:
                     QEMU Use CD-ROM: {yes_no(config.qemu_cdrom)}
                       QEMU Firmware: {config.qemu_firmware}
             QEMU Firmware Variables: {none_to_none(config.qemu_firmware_variables)}
+                        QEMU Kernel: {none_to_none(config.qemu_kernel)}
                QEMU Extra Arguments: {line_join_list(config.qemu_args)}
 """
 
