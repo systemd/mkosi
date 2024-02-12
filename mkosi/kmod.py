@@ -9,7 +9,7 @@ from pathlib import Path
 
 from mkosi.log import complete_step, log_step
 from mkosi.run import run
-from mkosi.types import PathString
+from mkosi.sandbox import SandboxProtocol, nosandbox
 
 
 def loaded_modules() -> list[str]:
@@ -62,7 +62,7 @@ def resolve_module_dependencies(
     kver: str,
     modules: Sequence[str],
     *,
-    sandbox: Sequence[PathString] = (),
+    sandbox: SandboxProtocol = nosandbox,
 ) -> tuple[set[Path], set[Path]]:
     """
     Returns a tuple of lists containing the paths to the module and firmware dependencies of the given list
@@ -84,8 +84,11 @@ def resolve_module_dependencies(
     info = ""
     for i in range(0, len(nametofile.keys()), 8500):
         chunk = list(nametofile.keys())[i:i+8500]
-        info += run(["modinfo", "--basedir", root, "--set-version", kver, "--null", *chunk],
-                    stdout=subprocess.PIPE, sandbox=sandbox).stdout.strip()
+        info += run(
+            ["modinfo", "--basedir", root, "--set-version", kver, "--null", *chunk],
+            stdout=subprocess.PIPE,
+            sandbox=sandbox(options=["--ro-bind", root, root])
+        ).stdout.strip()
 
     log_step("Calculating required kernel modules and firmware")
 
@@ -149,7 +152,7 @@ def gen_required_kernel_modules(
     include: Sequence[str],
     exclude: Sequence[str],
     host: bool,
-    sandbox: Sequence[PathString] = (),
+    sandbox: SandboxProtocol = nosandbox,
 ) -> Iterator[Path]:
     modulesd = root / "usr/lib/modules" / kver
     modules = filter_kernel_modules(root, kver, include=include, exclude=exclude, host=host)
@@ -187,7 +190,7 @@ def process_kernel_modules(
     include: Sequence[str],
     exclude: Sequence[str],
     host: bool,
-    sandbox: Sequence[PathString] = (),
+    sandbox: SandboxProtocol = nosandbox,
 ) -> None:
     if not include and not exclude:
         return

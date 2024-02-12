@@ -105,11 +105,7 @@ def mount_base_trees(context: Context) -> Iterator[None]:
             if path.is_dir():
                 bases += [path]
             elif path.suffix == ".tar":
-                extract_tar(
-                    path, d,
-                    tools=context.config.tools(),
-                    sandbox=context.sandbox(options=["--ro-bind", path, path, "--bind", d.parent, d.parent]),
-                )
+                extract_tar(path, d, tools=context.config.tools(), sandbox=context.sandbox)
                 bases += [d]
             elif path.suffix == ".raw":
                 run(["systemd-dissect", "-M", path, d])
@@ -131,8 +127,7 @@ def remove_files(context: Context) -> None:
 
     with complete_step("Removing files…"):
         for pattern in context.config.remove_files:
-            rmtree(*context.root.glob(pattern.lstrip("/")),
-                   sandbox=context.sandbox(options=["--bind", context.root, context.root]))
+            rmtree(*context.root.glob(pattern.lstrip("/")), sandbox=context.sandbox)
 
 
 def install_distribution(context: Context) -> None:
@@ -1346,18 +1341,13 @@ def install_tree(
             preserve=preserve,
             use_subvolumes=context.config.use_subvolumes,
             tools=context.config.tools(),
-            sandbox=context.sandbox(options=["--ro-bind", src, src, "--bind", t.parent, t.parent]),
+            sandbox=context.sandbox,
         )
 
     if src.is_dir() or (src.is_file() and target):
         copy()
     elif src.suffix == ".tar":
-        extract_tar(
-            src, t,
-            tools=context.config.tools(),
-            # Make sure tar uses user/group information from the root directory instead of the host.
-            sandbox=context.sandbox(options=["--bind", dst, dst, *finalize_passwd_mounts(dst)]),
-        )
+        extract_tar(src, t, tools=context.config.tools(), sandbox=context.sandbox)
     elif src.suffix == ".raw":
         run(
             ["systemd-dissect", "--copy-from", src, "/", t],
@@ -1412,7 +1402,12 @@ def install_package_directories(context: Context) -> None:
 
     with complete_step("Copying in extra packages…"):
         for d in context.config.package_directories:
-            install_tree(context, d, context.packages)
+            copy_tree(
+                d, context.packages,
+                use_subvolumes=context.config.use_subvolumes,
+                tools=context.config.tools(),
+                sandbox=context.sandbox,
+            )
 
     if context.want_local_repo():
         with complete_step("Building local package repository"):
@@ -1433,7 +1428,12 @@ def install_build_dest(context: Context) -> None:
         return
 
     with complete_step("Copying in build tree…"):
-        install_tree(context, context.install_dir, context.root)
+        copy_tree(
+            context.install_dir, context.root,
+            use_subvolumes=context.config.use_subvolumes,
+            tools=context.config.tools(),
+            sandbox=context.sandbox,
+        )
 
 
 def gzip_binary(context: Context) -> str:
@@ -1553,7 +1553,7 @@ def build_default_initrd(context: Context) -> Path:
 
     if args.force > 1 and config.cache_dir:
         with complete_step(f"Removing cache entries of {config.name()} image…"):
-            rmtree(*(p for p in cache_tree_paths(config) if p.exists()))
+            rmtree(*(p for p in cache_tree_paths(config) if p.exists()), sandbox=context.sandbox)
 
     with (
         complete_step("Building default initrd"),
@@ -1655,11 +1655,7 @@ def build_microcode_initrd(context: Context) -> Optional[Path]:
                 for p in intel.iterdir():
                     f.write(p.read_bytes())
 
-    make_cpio(
-        root, microcode,
-        tools=context.config.tools(),
-        sandbox=context.sandbox(options=["--ro-bind", root, root]),
-    )
+    make_cpio(root, microcode, tools=context.config.tools(), sandbox=context.sandbox)
 
     return microcode
 
@@ -1676,10 +1672,10 @@ def build_kernel_modules_initrd(context: Context, kver: str) -> Path:
             include=context.config.kernel_modules_initrd_include,
             exclude=context.config.kernel_modules_initrd_exclude,
             host=context.config.kernel_modules_initrd_include_host,
-            sandbox=context.sandbox(options=["--ro-bind", context.root, context.root]),
+            sandbox=context.sandbox,
         ),
         tools=context.config.tools(),
-        sandbox=context.sandbox(options=["--ro-bind", context.root, context.root]),
+        sandbox=context.sandbox,
     )
 
     # Debian/Ubuntu do not compress their kernel modules, so we compress the initramfs instead. Note that
@@ -1966,14 +1962,7 @@ def install_uki(context: Context, partitions: Sequence[Partition]) -> None:
 
 def make_uki(context: Context, stub: Path, kver: str, kimg: Path, output: Path) -> None:
     microcode = build_microcode_initrd(context)
-    make_cpio(
-        context.root, context.workspace / "initrd",
-        tools=context.config.tools(),
-        sandbox=context.sandbox(
-            # Make sure cpio uses user/group information from the root directory instead of the host.
-            options=["--ro-bind", context.root, context.root, *finalize_passwd_mounts(context.root)],
-        ),
-    )
+    make_cpio(context.root, context.workspace / "initrd", tools=context.config.tools(), sandbox=context.sandbox)
     maybe_compress(context, context.config.compress_output, context.workspace / "initrd", context.workspace / "initrd")
 
     initrds = [microcode] if microcode else []
@@ -2004,7 +1993,7 @@ def maybe_compress(context: Context, compression: Compression, src: Path, dst: O
                 src, dst,
                 use_subvolumes=context.config.use_subvolumes,
                 tools=context.config.tools(),
-                sandbox=context.sandbox(options=["--bind", src.parent, src.parent, "--bind", dst.parent, dst.parent]),
+                sandbox=context.sandbox,
             )
         return
 
@@ -2375,7 +2364,7 @@ def run_depmod(context: Context, *, force: bool = False) -> None:
             include=context.config.kernel_modules_include,
             exclude=context.config.kernel_modules_exclude,
             host=context.config.kernel_modules_include_host,
-            sandbox=context.sandbox(options=["--ro-bind", context.root, context.root]),
+            sandbox=context.sandbox,
         )
 
         with complete_step(f"Running depmod for {kver}"):
@@ -2534,7 +2523,7 @@ def save_cache(context: Context) -> None:
     final, build, manifest = cache_tree_paths(context.config)
 
     with complete_step("Installing cache copies"):
-        rmtree(final, sandbox=context.sandbox(options=["--bind", final.parent, final.parent]))
+        rmtree(final, sandbox=context.sandbox)
 
         # We only use the cache-overlay directory for caching if we have a base tree, otherwise we just
         # cache the root directory.
@@ -2543,37 +2532,22 @@ def save_cache(context: Context) -> None:
                 context.workspace / "cache-overlay", final,
                 use_subvolumes=context.config.use_subvolumes,
                 tools=context.config.tools(),
-                sandbox=context.sandbox(
-                    options=[
-                        "--bind", context.workspace, context.workspace,
-                        "--bind", final.parent, final.parent,
-                    ],
-                ),
+                sandbox=context.sandbox,
             )
         else:
             move_tree(
                 context.root, final,
                 use_subvolumes=context.config.use_subvolumes,
-                sandbox=context.sandbox(
-                    options=[
-                        "--bind", context.root.parent, context.root.parent,
-                        "--bind", final.parent, final.parent,
-                    ],
-                ),
+                sandbox=context.sandbox,
             )
 
         if need_build_overlay(context.config) and (context.workspace / "build-overlay").exists():
-            rmtree(build, sandbox=context.sandbox(options=["--bind", build.parent, build.parent]))
+            rmtree(build, sandbox=context.sandbox)
             move_tree(
                 context.workspace / "build-overlay", build,
                 use_subvolumes=context.config.use_subvolumes,
                 tools=context.config.tools(),
-                sandbox=context.sandbox(
-                    options=[
-                        "--bind", context.workspace, context.workspace,
-                        "--bind", build.parent, build.parent,
-                    ],
-                ),
+                sandbox=context.sandbox,
             )
 
         manifest.write_text(
@@ -2618,7 +2592,13 @@ def reuse_cache(context: Context) -> bool:
     final, build, _ = cache_tree_paths(context.config)
 
     with complete_step("Copying cached trees"):
-        install_tree(context, final, context.root)
+        copy_tree(
+            final, context.root,
+            use_subvolumes=context.config.use_subvolumes,
+            tools=context.config.tools(),
+            sandbox=context.sandbox,
+        )
+
         if need_build_overlay(context.config):
             (context.workspace / "build-overlay").symlink_to(build)
 
@@ -2898,12 +2878,7 @@ def finalize_staging(context: Context) -> None:
             f, context.config.output_dir_or_cwd(),
             use_subvolumes=context.config.use_subvolumes,
             tools=context.config.tools(),
-            sandbox=context.sandbox(
-                options=[
-                    "--bind", context.staging, context.staging,
-                    "--bind", context.config.output_dir_or_cwd(), context.config.output_dir_or_cwd(),
-                ],
-            ),
+            sandbox=context.sandbox,
         )
 
 
@@ -2926,10 +2901,7 @@ def normalize_mtime(root: Path, mtime: Optional[int], directory: Optional[Path] 
 def setup_workspace(args: Args, config: Config) -> Iterator[Path]:
     with contextlib.ExitStack() as stack:
         workspace = Path(tempfile.mkdtemp(dir=config.workspace_dir_or_default(), prefix="mkosi-workspace"))
-        sandbox = config.sandbox(
-            options=["--bind", config.workspace_dir_or_default(), config.workspace_dir_or_default()],
-        )
-        stack.callback(lambda: rmtree(workspace, sandbox=sandbox))
+        stack.callback(lambda: rmtree(workspace, sandbox=config.sandbox))
         (workspace / "tmp").mkdir(mode=0o1777)
 
         with scopedenv({"TMPDIR" : os.fspath(workspace / "tmp")}):
@@ -2955,11 +2927,13 @@ def copy_repository_metadata(context: Context) -> None:
         any((context.package_cache_dir / "cache" / subdir).glob("*")) or
         any((context.package_cache_dir / "lib" / subdir).glob("*"))
     ):
+        logging.debug(f"Found repository metadata in {context.package_cache_dir}, not copying repository metadata")
         return
 
     for d in ("cache", "lib"):
         src = context.config.package_cache_dir_or_default() / d / subdir
         if not src.exists():
+            logging.debug(f"{src} does not exist, not copying repository metadata from it")
             continue
 
         caches = context.config.distribution.package_manager(context.config).cache_subdirs(src) if d == "cache" else []
@@ -2975,14 +2949,15 @@ def copy_repository_metadata(context: Context) -> None:
             with umask(~0o755):
                 dst.mkdir(parents=True, exist_ok=True)
 
+            def sandbox(*, options: Sequence[PathString]) -> list[PathString]:
+                return context.sandbox(options=[*options, *exclude])
+
             with flock(src):
                 copy_tree(
                     src, dst,
                     tools=context.config.tools(),
                     preserve=False,
-                    sandbox=context.sandbox(
-                        options=["--ro-bind", src, src, "--bind", dst.parent, dst.parent, *exclude]
-                    ),
+                    sandbox=sandbox,
                 )
 
 
@@ -3079,19 +3054,13 @@ def build_image(context: Context) -> None:
         make_tar(
             context.root, context.staging / context.config.output_with_format,
             tools=context.config.tools(),
-            # Make sure tar uses user/group information from the root directory instead of the host.
-            sandbox=context.sandbox(
-                options=["--ro-bind", context.root, context.root, *finalize_passwd_mounts(context.root)],
-            ),
+            sandbox=context.sandbox,
         )
     elif context.config.output_format == OutputFormat.cpio:
         make_cpio(
             context.root, context.staging / context.config.output_with_format,
             tools=context.config.tools(),
-            # Make sure cpio uses user/group information from the root directory instead of the host.
-            sandbox=context.sandbox(
-                options=["--ro-bind", context.root, context.root, *finalize_passwd_mounts(context.root)],
-            ),
+            sandbox=context.sandbox,
         )
     elif context.config.output_format == OutputFormat.uki:
         assert stub and kver and kimg

@@ -451,7 +451,7 @@ def copy_ephemeral(config: Config, src: Path) -> Iterator[Path]:
                 preserve=config.output_format == OutputFormat.directory,
                 use_subvolumes=config.use_subvolumes,
                 tools=config.tools(),
-                sandbox=config.sandbox(options=["--ro-bind", src, src, "--bind", tmp.parent, tmp.parent]),
+                sandbox=config.sandbox,
             )
 
         fork_and_wait(copy)
@@ -461,7 +461,7 @@ def copy_ephemeral(config: Config, src: Path) -> Iterator[Path]:
             if config.output_format == OutputFormat.directory:
                 become_root()
 
-            rmtree(tmp, sandbox=config.sandbox(options=["--ro-bind", src, src, "--bind", tmp.parent, tmp.parent]))
+            rmtree(tmp, sandbox=config.sandbox)
 
         fork_and_wait(rm)
 
@@ -724,9 +724,7 @@ def run_qemu(args: Args, config: Config) -> None:
             elif config.output_format == OutputFormat.disk:
                 # We can't rely on gpt-auto-generator when direct kernel booting so synthesize a root=
                 # kernel argument instead.
-                root = finalize_root(
-                    find_partitions(fname, sandbox=config.sandbox(options=["--ro-bind", fname, fname]))
-                )
+                root = finalize_root(find_partitions(fname, sandbox=config.sandbox))
                 if not root:
                     die("Cannot perform a direct kernel boot without a root or usr partition")
 

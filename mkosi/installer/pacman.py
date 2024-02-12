@@ -35,21 +35,35 @@ class Pacman(PackageManager):
 
     @classmethod
     def scripts(cls, context: Context) -> dict[str, list[PathString]]:
-        return {"pacman": apivfs_cmd(context.root) + cls.cmd(context)}
+        return {
+            "pacman": apivfs_cmd(context.root) + cls.cmd(context),
+            "mkosi-install": apivfs_cmd(context.root) + cls.cmd(context) + ["--sync", "--needed"],
+            "mkosi-upgrade": apivfs_cmd(context.root) + cls.cmd(context) + ["--sync", "--sysupgrade", "--needed"],
+            "mkosi-remove" : apivfs_cmd(context.root) + cls.cmd(context) + ["--remove", "--recursive", "--nosave"],
+        }
 
     @classmethod
     def mounts(cls, context: Context) -> list[PathString]:
-        return [
+        mounts: list[PathString] = [
             *super().mounts(context),
             # pacman writes downloaded packages to the first writable cache directory. We don't want it to write to our
             # local repository directory so we expose it as a read-only directory to pacman.
             "--ro-bind", context.packages, "/var/cache/pacman/mkosi",
-        ] + ([
+        ]
+
+        if (context.root / "var/lib/pacman/local").exists():
             # pacman reuses the same directory for the sync databases and the local database containing the list of
-            # installed packages. The former should go in the cache directory, the latter should go in the image,
-            # so we bind mount the local directory from the image to make sure that happens.
-            "--bind", context.root / "var/lib/pacman/local", "/var/lib/pacman/local",
-        ] if (context.root / "var/lib/pacman/local").exists() else [])
+            # installed packages. The former should go in the cache directory, the latter should go in the image, so we
+            # bind mount the local directory from the image to make sure that happens.
+            mounts += ["--bind", context.root / "var/lib/pacman/local", "/var/lib/pacman/local"]
+
+        if (
+            (context.config.tools() / "etc/makepkg.conf").exists() and
+            not (context.pkgmngr / "etc/makepkg.conf").exists()
+        ):
+            mounts += ["--ro-bind", context.config.tools() / "etc/makepkg.conf", "/etc/makepkg.conf"]
+
+        return mounts
 
     @classmethod
     def setup(cls, context: Context, repositories: Iterable[Repository]) -> None:

@@ -1988,6 +1988,10 @@ available via `$PATH` to simplify common usecases.
   the host system. This means that from a script, you can do e.g. `dnf
   install vim` to install vim into the image.
 
+  Additionally, `mkosi-install`, `mkosi-upgrade` and `mkosi-remove` will
+  invoke the corresponding operation of the package manager being used
+  to built the image.
+
 * `mkosi-as-caller`: This script uses `setpriv` to switch from
   the user `root` in the user namespace used for various build steps
   back to the original user that called mkosi. This is useful when

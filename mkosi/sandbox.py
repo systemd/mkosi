@@ -5,11 +5,19 @@ import os
 import uuid
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Protocol
 
 from mkosi.types import PathString
 from mkosi.user import INVOKING_USER
 from mkosi.util import flatten, one_zero
+
+
+class SandboxProtocol(Protocol):
+    def __call__(self, *, options: Sequence[PathString]) -> list[PathString]: ...
+
+
+def nosandbox(*, options: Sequence[PathString]) -> list[PathString]:
+    return []
 
 
 # https://github.com/torvalds/linux/blob/master/include/uapi/linux/capability.h

@@ -60,6 +60,10 @@ class Apt(PackageManager):
                 "apt-mark",
                 "apt-sortpkgs",
             )
+        } | {
+            "mkosi-install": apivfs_cmd(context.root) + cls.cmd(context, "get") + ["install"],
+            "mkosi-upgrade": apivfs_cmd(context.root) + cls.cmd(context, "get") + ["upgrade"],
+            "mkosi-remove" : apivfs_cmd(context.root) + cls.cmd(context, "get") + ["purge"],
         }
 
     @classmethod
