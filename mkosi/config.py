@@ -3590,6 +3590,7 @@ def summary(config: Config) -> str:
                     QEMU Use CD-ROM: {yes_no(config.qemu_cdrom)}
                       QEMU Firmware: {config.qemu_firmware}
             QEMU Firmware Variables: {none_to_none(config.qemu_firmware_variables)}
+                        QEMU Kernel: {none_to_none(config.qemu_kernel)}
                QEMU Extra Arguments: {line_join_list(config.qemu_args)}
 """
 
