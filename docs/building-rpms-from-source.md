@@ -11,11 +11,10 @@ If you want to build an RPM from source and install it within a mkosi
 image, you can do that with mkosi itself without using `mock`. The steps
 required are as follows:
 
-1. Install `Requires` dependencies in the image
-2. Install `BuildRequires` dependencies in the build overlay
-3. Install dynamic `BuildRequires` dependencies in the build overlay
-4. Build the RPM with `rpmbuild`
-5. Install the built rpms in the image
+1. Install `BuildRequires` dependencies in the build overlay
+1. Install dynamic `BuildRequires` dependencies in the build overlay
+1. Build the RPM with `rpmbuild`
+1. Install the built rpms in the image
 
 In the following examples, we'll use mkosi itself and its Fedora RPM
 spec as an example.
@@ -62,62 +61,77 @@ The prepare script `mkosi.prepare` then looks as follows:
 #!/bin/sh
 set -e
 
-if [ "$1" = "build" ]; then
-    DEPS="--buildrequires"
-else
-    DEPS="--requires"
+if [ "$1" = "final" ]; then
+    exit 0
 fi
 
 mkosi-chroot \
+    env --chdir=mkosi \
     rpmspec \
     --query \
-    "$DEPS" \
+    --buildrequires \
     --define "_topdir /var/tmp" \
-    --define "_sourcedir mkosi/rpm" \
-    mkosi/rpm/mkosi.spec |
-        grep -E -v mkosi |
-        xargs -d '\n' dnf install
+    --define "_sourcedir rpm" \
+    rpm/mkosi.spec |
+        sort --unique |
+        tee /tmp/buildrequires |
+        xargs --delimiter '\n' mkosi-install
 
-if [ "$1" = "build" ]; then
-    until mkosi-chroot \
-        env --chdir=mkosi \
-        rpmbuild \
-        -bd \
-        --build-in-place \
-        --define "_topdir /var/tmp" \
-        --define "_sourcedir rpm" \
-        --define "_build_name_fmt %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm" \
-        rpm/mkosi.spec
-    do
-        EXIT_STATUS=$?
-        if [ $EXIT_STATUS -ne 11 ]; then
-            exit $EXIT_STATUS
-        fi
+until mkosi-chroot \
+    env --chdir=mkosi \
+    rpmbuild \
+    -bd \
+    --build-in-place \
+    --define "_topdir /var/tmp" \
+    --define "_sourcedir rpm" \
+    --define "_build_name_fmt %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm" \
+    rpm/mkosi.spec
+do
+    EXIT_STATUS=$?
+    if [ $EXIT_STATUS -ne 11 ]; then
+        exit $EXIT_STATUS
+    fi
 
-        dnf builddep /var/tmp/SRPMS/mkosi-*.buildreqs.nosrc.rpm
-    done
-fi
+    mkosi-chroot \
+        rpm \
+        --query \
+        --package \
+        --requires \
+        /var/tmp/SRPMS/mkosi-*.buildreqs.nosrc.rpm |
+            grep --invert-match '^rpmlib(' |
+            sort --unique >/tmp/dynamic-buildrequires
+
+    sort /tmp/buildrequires /tmp/dynamic-buildrequires |
+        uniq --unique |
+        tee --append /tmp/buildrequires |
+        xargs --delimiter '\n' mkosi-install
+done
 ```
 
 To install non-dynamic dependencies, we use `rpmspec`. What's important
 is to set `_sourcedir` to the directory containing the RPM sources for
 the RPM spec that we want to build. We run `rpmspec` inside the image to
 make sure all the RPM macros have their expected values and then run
-`dnf` outside the image to install the required dependencies.
+`mkosi-install` outside the image to install the required dependencies.
+`mkosi-install` will invoke the package manager that's being used to
+build the image to install the given packages.
 
 We always set `_topdir` to `/var/tmp` to avoid polluting the image with
 `rpmbuild` artifacts.
 
-Subpackages from the same RPM might depend on each other. We need to
-filter out those dependencies using `grep -E -v <package-name>`.
-
-After installing non-dynamic `Requires` and `BuildRequires`
-dependencies, we have to install the dynamic `BuildRequires` by running
-`rpmbuild -bd` until it succeeds or fails with an exit code that's not
-`11`. After each run of `rpmbuild -bd` that exits with exit code `11`,
-there will be an SRPM in the `SRPMS` subdirectory of the upstream
-sources directory of which the `BuildRequires` have to be installed for
-which we use `dnf builddep`.
+After installing non-dynamic `BuildRequires` dependencies, we have to
+install the dynamic `BuildRequires` dependencies by running `rpmbuild
+-bd` until it succeeds or fails with an exit code that's not `11`. After
+each run of `rpmbuild -bd` that exits with exit code `11`, there will be
+an SRPM in the `SRPMS` subdirectory of the rpm working directory
+(`_topdir`) of which the `BuildRequires` dependencies have to be
+installed. We retrieve the list of `BuildRequires` dependencies with
+`rpm` this time (because we're operating on a package instead of a
+spec), remove all `rpmlib` style dependencies which can't be installed
+and store them in a temporary file after filtering duplicates. Because
+the `BuildRequires` dependencies from the SRPM will also contain the
+non-dynamic `BuildRequires` dependencies, we have to filter those out as
+well.
 
 Now we have an image and build overlay with all the necessary
 dependencies installed to be able to build the RPM.
