@@ -17,6 +17,7 @@ from mkosi.installer.dnf import Dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey
 from mkosi.log import complete_step, die
 from mkosi.tree import rmtree
+from mkosi.util import listify
 from mkosi.versioncomp import GenericVersion
 
 
@@ -227,6 +228,7 @@ class Installer(DistributionInstaller):
                     )
 
     @classmethod
+    @listify
     def repositories(cls, context: Context) -> Iterable[RpmRepository]:
         if context.config.local_mirror:
             yield from cls.repository_variants(context, "AppStream")

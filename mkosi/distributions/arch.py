@@ -8,6 +8,7 @@ from mkosi.distributions import Distribution, DistributionInstaller, PackageType
 from mkosi.installer import PackageManager
 from mkosi.installer.pacman import Pacman
 from mkosi.log import die
+from mkosi.util import listify
 
 
 class Installer(DistributionInstaller):
@@ -66,6 +67,7 @@ class Installer(DistributionInstaller):
         Pacman.invoke(context, "--remove", ["--nosave", "--recursive"], packages)
 
     @classmethod
+    @listify
     def repositories(cls, context: Context) -> Iterable[Pacman.Repository]:
         if context.config.local_mirror:
             yield Pacman.Repository("core", context.config.local_mirror)

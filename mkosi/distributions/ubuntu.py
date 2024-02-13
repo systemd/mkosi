@@ -1,11 +1,13 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 from collections.abc import Iterable
+from pathlib import Path
 
 from mkosi.config import Architecture
 from mkosi.context import Context
 from mkosi.distributions import debian
 from mkosi.installer.apt import Apt
+from mkosi.util import listify
 
 
 class Installer(debian.Installer):
@@ -18,6 +20,7 @@ class Installer(debian.Installer):
         return "lunar"
 
     @staticmethod
+    @listify
     def repositories(context: Context, local: bool = True) -> Iterable[Apt.Repository]:
         types = ("deb", "deb-src")
 
@@ -41,7 +44,7 @@ class Installer(debian.Installer):
         else:
             mirror = context.config.mirror or "http://ports.ubuntu.com"
 
-        signedby = "/usr/share/keyrings/ubuntu-archive-keyring.gpg"
+        signedby = Path("/usr/share/keyrings/ubuntu-archive-keyring.gpg")
 
         yield Apt.Repository(
             types=types,

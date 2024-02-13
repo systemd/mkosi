@@ -7,6 +7,7 @@ from typing import NamedTuple, Optional
 from mkosi.config import Config
 from mkosi.context import Context
 from mkosi.installer import PackageManager
+from mkosi.log import die
 from mkosi.mounts import finalize_ephemeral_source_mounts
 from mkosi.run import find_binary, run
 from mkosi.sandbox import apivfs_cmd
@@ -20,7 +21,7 @@ class Apt(PackageManager):
         url: str
         suite: str
         components: tuple[str, ...]
-        signedby: Optional[str]
+        signedby: Optional[Path]
 
         def __str__(self) -> str:
             return textwrap.dedent(
@@ -94,6 +95,14 @@ class Apt(PackageManager):
 
         sources = context.pkgmngr / "etc/apt/sources.list.d/mkosi.sources"
         if not sources.exists():
+            for repo in repos:
+                if repo.signedby and not repo.signedby.exists():
+                    die(
+                        f"Keyring for repo {repo.url} not found at {repo.signedby}",
+                        hint="Make sure the right keyring package (e.g. debian-archive-keyring or ubuntu-keyring) is "
+                             "installed",
+                    )
+
             with sources.open("w") as f:
                 for repo in repos:
                     f.write(str(repo))
