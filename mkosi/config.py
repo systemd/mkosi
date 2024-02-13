@@ -576,7 +576,10 @@ def config_parse_compress_level(value: Optional[str], old: Optional[int]) -> Opt
 
 def config_default_compression(namespace: argparse.Namespace) -> Compression:
     if namespace.output_format in (OutputFormat.tar, OutputFormat.cpio, OutputFormat.uki, OutputFormat.esp):
-        if namespace.distribution.is_centos_variant() and int(namespace.release) <= 8:
+        if (
+            (namespace.distribution.is_centos_variant() and int(namespace.release) <= 8) or
+            (namespace.distribution == Distribution.ubuntu and namespace.release == "focal")
+        ):
             return Compression.xz
         else:
             return Compression.zstd
