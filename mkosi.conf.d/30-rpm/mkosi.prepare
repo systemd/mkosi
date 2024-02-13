@@ -2,37 +2,42 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 set -e
 
-if [ "$1" = "build" ]; then
-    DEPS="--buildrequires"
-else
-    DEPS="--requires"
-fi
-
 mkosi-chroot \
     rpmspec \
     --query \
-    "$DEPS" \
+    --buildrequires \
     --define "_topdir /var/tmp" \
     --define "_sourcedir rpm" \
     rpm/mkosi.spec |
-        grep -E -v mkosi |
-        xargs -d '\n' dnf install
+        sort --unique |
+        tee /tmp/buildrequires |
+        xargs --delimiter '\n' mkosi-install
 
-if [ "$1" = "build" ]; then
-    until mkosi-chroot \
-        rpmbuild \
-        -bd \
-        --build-in-place \
-        --define "_topdir /var/tmp" \
-        --define "_sourcedir rpm" \
-        --define "_build_name_fmt %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm" \
-        rpm/mkosi.spec
-    do
-        EXIT_STATUS=$?
-        if [ $EXIT_STATUS -ne 11 ]; then
-            exit $EXIT_STATUS
-        fi
+until mkosi-chroot \
+    rpmbuild \
+    -bd \
+    --build-in-place \
+    --define "_topdir /var/tmp" \
+    --define "_sourcedir rpm" \
+    --define "_build_name_fmt %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm" \
+    rpm/mkosi.spec
+do
+    EXIT_STATUS=$?
+    if [ $EXIT_STATUS -ne 11 ]; then
+        exit $EXIT_STATUS
+    fi
 
-        dnf builddep /var/tmp/SRPMS/mkosi-*.buildreqs.nosrc.rpm
-    done
-fi
+    mkosi-chroot \
+        rpm \
+        --query \
+        --package \
+        --requires \
+        /var/tmp/SRPMS/mkosi-*.buildreqs.nosrc.rpm |
+            grep --invert-match '^rpmlib(' |
+            sort --unique >/tmp/dynamic-buildrequires
+
+    sort /tmp/buildrequires /tmp/dynamic-buildrequires |
+        uniq --unique |
+        tee --append /tmp/buildrequires |
+        xargs --delimiter '\n' mkosi-install
+done
