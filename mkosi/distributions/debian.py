@@ -13,7 +13,7 @@ from mkosi.installer import PackageManager
 from mkosi.installer.apt import Apt
 from mkosi.log import die
 from mkosi.run import run
-from mkosi.util import umask
+from mkosi.util import listify, umask
 
 
 class Installer(DistributionInstaller):
@@ -42,6 +42,7 @@ class Installer(DistributionInstaller):
         return Apt
 
     @staticmethod
+    @listify
     def repositories(context: Context, local: bool = True) -> Iterable[Apt.Repository]:
         types = ("deb", "deb-src")
         components = ("main", *context.config.repositories)
@@ -57,7 +58,7 @@ class Installer(DistributionInstaller):
             return
 
         mirror = context.config.mirror or "http://deb.debian.org/debian"
-        signedby = "/usr/share/keyrings/debian-archive-keyring.gpg"
+        signedby = Path("/usr/share/keyrings/debian-archive-keyring.gpg")
 
         yield Apt.Repository(
             types=types,

@@ -8,6 +8,7 @@ from mkosi.context import Context
 from mkosi.distributions import Distribution, fedora, join_mirror
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey
 from mkosi.log import die
+from mkosi.util import listify
 
 
 class Installer(fedora.Installer):
@@ -42,6 +43,7 @@ class Installer(fedora.Installer):
                 shutil.copy2(d, vmlinuz)
 
     @classmethod
+    @listify
     def repositories(cls, context: Context) -> Iterable[RpmRepository]:
         mirror = context.config.mirror or "http://mirror.openmandriva.org"
 

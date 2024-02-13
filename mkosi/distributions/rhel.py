@@ -8,6 +8,7 @@ from mkosi.context import Context
 from mkosi.distributions import centos, join_mirror
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey
 from mkosi.log import die
+from mkosi.util import listify
 
 
 class Installer(centos.Installer):
@@ -107,6 +108,7 @@ class Installer(centos.Installer):
             )
 
     @classmethod
+    @listify
     def repositories(cls, context: Context) -> Iterable[RpmRepository]:
         yield from cls.repository_variants(context, "baseos")
         yield from cls.repository_variants(context, "appstream")

@@ -14,6 +14,7 @@ from mkosi.installer import PackageManager
 from mkosi.installer.dnf import Dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey
 from mkosi.log import die
+from mkosi.util import listify
 
 
 class Installer(DistributionInstaller):
@@ -70,6 +71,7 @@ class Installer(DistributionInstaller):
         Dnf.invoke(context, "remove", packages)
 
     @classmethod
+    @listify
     def repositories(cls, context: Context) -> Iterable[RpmRepository]:
         gpgurls = (
             find_rpm_gpgkey(

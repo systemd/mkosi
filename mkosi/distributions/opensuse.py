@@ -15,6 +15,7 @@ from mkosi.installer.zypper import Zypper
 from mkosi.log import die
 from mkosi.run import find_binary, run
 from mkosi.sandbox import finalize_crypto_mounts
+from mkosi.util import listify
 
 
 class Installer(DistributionInstaller):
@@ -94,6 +95,7 @@ class Installer(DistributionInstaller):
             Dnf.invoke(context, "remove", packages)
 
     @classmethod
+    @listify
     def repositories(cls, context: Context) -> Iterable[RpmRepository]:
         zypper = find_binary("zypper", root=context.config.tools())
 
