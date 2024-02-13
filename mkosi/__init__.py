@@ -1678,11 +1678,20 @@ def build_kernel_modules_initrd(context: Context, kver: str) -> Path:
         sandbox=context.sandbox,
     )
 
-    # Debian/Ubuntu do not compress their kernel modules, so we compress the initramfs instead. Note that
-    # this is not ideal since the compressed kernel modules will all be decompressed on boot which
-    # requires significant memory.
+
     if context.config.distribution.is_apt_distribution():
-        maybe_compress(context, Compression.zstd, kmods, kmods)
+        # Ubuntu Focal's kernel does not support zstd-compressed initrds so use xz instead.
+        if context.config.distribution == Distribution.ubuntu and context.config.release == "focal":
+            compression = Compression.xz
+        # Older Debian and Ubuntu releases do not compress their kernel modules, so we compress the initramfs instead.
+        # Note that this is not ideal since the compressed kernel modules will all be decompressed on boot which
+        # requires significant memory.
+        elif context.config.distribution == Distribution.debian and context.config.release in ("sid", "testing"):
+            compression = Compression.none
+        else:
+            compression = Compression.zstd
+
+        maybe_compress(context, compression, kmods, kmods)
 
     return kmods
 
