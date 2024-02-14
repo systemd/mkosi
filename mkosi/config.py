@@ -1402,6 +1402,7 @@ class Config:
             "release": self.release,
             "mirror": self.mirror,
             "architecture": self.architecture,
+            "package_manager": self.distribution.package_manager(self).executable(self),
             "packages": self.packages,
             "build_packages": self.build_packages,
             "repositories": self.repositories,
