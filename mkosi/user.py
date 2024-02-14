@@ -6,6 +6,7 @@ import functools
 import logging
 import os
 import pwd
+import tempfile
 from pathlib import Path
 
 from mkosi.log import die
@@ -125,39 +126,42 @@ def become_root() -> None:
 
     pid = os.getpid()
 
-    # We map the private UID range configured in /etc/subuid and /etc/subgid into the container using
-    # newuidmap and newgidmap. On top of that, we also make sure to map in the user running mkosi so that
-    # we can run still chown stuff to that user or run stuff as that user which will make sure any
-    # generated files are owned by that user. We don't map to the last user in the range as the last user
-    # is sometimes used in tests as a default value and mapping to that user might break those tests.
-    newuidmap = [
-        "flock", "--exclusive", "--no-fork", "/etc/subuid", "newuidmap", pid,
-        0, subuid, SUBRANGE - 100,
-        SUBRANGE - 100, os.getuid(), 1,
-        SUBRANGE - 100 + 1, subuid + SUBRANGE - 100 + 1, 99
-    ]
+    with tempfile.NamedTemporaryFile(prefix="mkosi-uidmap-lock") as lockfile:
+        lock = Path(lockfile.name)
 
-    newgidmap = [
-        "flock", "--exclusive", "--no-fork", "/etc/subuid", "newgidmap", pid,
-        0, subgid, SUBRANGE - 100,
-        SUBRANGE - 100, os.getgid(), 1,
-        SUBRANGE - 100 + 1, subgid + SUBRANGE - 100 + 1, 99
-    ]
+        # We map the private UID range configured in /etc/subuid and /etc/subgid into the container using
+        # newuidmap and newgidmap. On top of that, we also make sure to map in the user running mkosi so that
+        # we can run still chown stuff to that user or run stuff as that user which will make sure any
+        # generated files are owned by that user. We don't map to the last user in the range as the last user
+        # is sometimes used in tests as a default value and mapping to that user might break those tests.
+        newuidmap = [
+            "flock", "--exclusive", "--no-fork", lock, "newuidmap", pid,
+            0, subuid, SUBRANGE - 100,
+            SUBRANGE - 100, os.getuid(), 1,
+            SUBRANGE - 100 + 1, subuid + SUBRANGE - 100 + 1, 99
+        ]
 
-    newuidmap = [str(x) for x in newuidmap]
-    newgidmap = [str(x) for x in newgidmap]
+        newgidmap = [
+            "flock", "--exclusive", "--no-fork", lock, "newgidmap", pid,
+            0, subgid, SUBRANGE - 100,
+            SUBRANGE - 100, os.getgid(), 1,
+            SUBRANGE - 100 + 1, subgid + SUBRANGE - 100 + 1, 99
+        ]
 
-    # newuidmap and newgidmap have to run from outside the user namespace to be able to assign a uid mapping
-    # to the process in the user namespace. The mapping can only be assigned after the user namespace has
-    # been unshared. To make this work, we first lock /etc/subuid, then spawn the newuidmap and newgidmap
-    # processes, which we execute using flock so they don't execute before they can get a lock on /etc/subuid,
-    # then we unshare the user namespace and finally we unlock /etc/subuid, which allows the newuidmap and
-    # newgidmap processes to execute. we then wait for the processes to finish before continuing.
-    with flock(Path("/etc/subuid")) as fd, spawn(newuidmap) as uidmap, spawn(newgidmap) as gidmap:
-        unshare(CLONE_NEWUSER)
-        fcntl.flock(fd, fcntl.LOCK_UN)
-        uidmap.wait()
-        gidmap.wait()
+        newuidmap = [str(x) for x in newuidmap]
+        newgidmap = [str(x) for x in newgidmap]
+
+        # newuidmap and newgidmap have to run from outside the user namespace to be able to assign a uid mapping to the
+        # process in the user namespace. The mapping can only be assigned after the user namespace has been unshared.
+        # To make this work, we first lock a temporary file, then spawn the newuidmap and newgidmap processes, which we
+        # execute using flock so they don't execute before they can get a lock on the same temporary file, then we
+        # unshare the user namespace and finally we unlock the temporary file, which allows the newuidmap and newgidmap
+        # processes to execute. we then wait for the processes to finish before continuing.
+        with flock(lock) as fd, spawn(newuidmap) as uidmap, spawn(newgidmap) as gidmap:
+            unshare(CLONE_NEWUSER)
+            fcntl.flock(fd, fcntl.LOCK_UN)
+            uidmap.wait()
+            gidmap.wait()
 
     # By default, we're root in the user namespace because if we were our current user by default, we
     # wouldn't be able to chown stuff to be owned by root while the reverse is possible.
