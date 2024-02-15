@@ -10,7 +10,7 @@ from mkosi.context import Context
 from mkosi.distributions import Distribution, DistributionInstaller, PackageType
 from mkosi.installer import PackageManager
 from mkosi.installer.dnf import Dnf
-from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey, fixup_rpmdb_location
+from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey, setup_rpm
 from mkosi.installer.zypper import Zypper
 from mkosi.log import die
 from mkosi.run import find_binary, run
@@ -65,6 +65,8 @@ class Installer(DistributionInstaller):
         else:
             Dnf.setup(context, cls.repositories(context))
 
+        setup_rpm(context)
+
     @classmethod
     def sync(cls, context: Context) -> None:
         if find_binary("zypper", root=context.config.tools()):
@@ -75,7 +77,6 @@ class Installer(DistributionInstaller):
     @classmethod
     def install(cls, context: Context) -> None:
         cls.install_packages(context, ["filesystem", "distribution-release"], apivfs=False)
-        fixup_rpmdb_location(context)
 
     @classmethod
     def install_packages(cls, context: Context, packages: Sequence[str], apivfs: bool = True) -> None:

@@ -12,7 +12,7 @@ from mkosi.distributions import (
 )
 from mkosi.installer import PackageManager
 from mkosi.installer.dnf import Dnf
-from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey, fixup_rpmdb_location
+from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey, setup_rpm
 from mkosi.log import die
 from mkosi.util import listify
 
@@ -53,6 +53,7 @@ class Installer(DistributionInstaller):
     @classmethod
     def setup(cls, context: Context) -> None:
         Dnf.setup(context, cls.repositories(context), filelists=False)
+        setup_rpm(context)
 
     @classmethod
     def sync(cls, context: Context) -> None:
@@ -61,7 +62,6 @@ class Installer(DistributionInstaller):
     @classmethod
     def install(cls, context: Context) -> None:
         cls.install_packages(context, ["filesystem"], apivfs=False)
-        fixup_rpmdb_location(context)
 
     @classmethod
     def install_packages(cls, context: Context, packages: Sequence[str], apivfs: bool = True) -> None:

@@ -7,7 +7,7 @@ from pathlib import Path
 from mkosi.config import Config, yes_no
 from mkosi.context import Context
 from mkosi.installer import PackageManager
-from mkosi.installer.rpm import RpmRepository, rpm_cmd, setup_rpm
+from mkosi.installer.rpm import RpmRepository, rpm_cmd
 from mkosi.mounts import finalize_ephemeral_source_mounts
 from mkosi.run import run
 from mkosi.sandbox import apivfs_cmd
@@ -92,8 +92,6 @@ class Zypper(PackageManager):
                         f.write(f"{url}\n")
 
                     f.write("\n")
-
-        setup_rpm(context)
 
     @classmethod
     def cmd(cls, context: Context) -> list[PathString]:

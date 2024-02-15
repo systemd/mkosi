@@ -1,7 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-import os
-import shutil
 from collections.abc import Iterable, Sequence
 
 from mkosi.config import Architecture, Config
@@ -14,25 +12,10 @@ from mkosi.distributions import (
 )
 from mkosi.installer import PackageManager
 from mkosi.installer.dnf import Dnf
-from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey, fixup_rpmdb_location
-from mkosi.log import complete_step, die
-from mkosi.tree import rmtree
+from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey, setup_rpm
+from mkosi.log import die
 from mkosi.util import listify
 from mkosi.versioncomp import GenericVersion
-
-
-def move_rpm_db(context: Context) -> None:
-    """Link /var/lib/rpm to /usr/lib/sysimage/rpm for compat with old rpm"""
-    olddb = context.root / "var/lib/rpm"
-    newdb = context.root / "usr/lib/sysimage/rpm"
-
-    if newdb.exists() and not newdb.is_symlink():
-        with complete_step("Moving rpm database /usr/lib/sysimage/rpm → /var/lib/rpm"):
-            rmtree(olddb, sandbox=context.sandbox)
-            shutil.move(newdb, olddb)
-
-            newdb.symlink_to(os.path.relpath(olddb, start=newdb.parent))
-
 
 
 class Installer(DistributionInstaller):
@@ -69,12 +52,27 @@ class Installer(DistributionInstaller):
         Dnf.createrepo(context)
 
     @classmethod
+    def dbpath(cls, context: Context) -> str:
+        if GenericVersion(context.config.release) < 9:
+            return "/var/lib/rpm"
+
+        # The Hyperscale SIG uses /usr/lib/sysimage/rpm from C9S onwards already.
+        if (
+            GenericVersion(context.config.release) == 9 and
+            not any("hyperscale" in repo for repo in context.config.repositories)
+        ):
+            return "/var/lib/rpm"
+
+        return "/usr/lib/sysimage/rpm"
+
+    @classmethod
     def setup(cls, context: Context) -> None:
         if GenericVersion(context.config.release) <= 7:
             die(f"{cls.pretty_name()} 7 or earlier variants are not supported")
 
         Dnf.setup(context, cls.repositories(context))
         (context.pkgmngr / "etc/dnf/vars/stream").write_text(f"{context.config.release}-stream\n")
+        setup_rpm(context, dbpath=cls.dbpath(context))
 
     @classmethod
     def sync(cls, context: Context) -> None:
@@ -84,11 +82,6 @@ class Installer(DistributionInstaller):
     def install(cls, context: Context) -> None:
         # Make sure glibc-minimal-langpack is installed instead of glibc-all-langpacks.
         cls.install_packages(context, ["filesystem", "glibc-minimal-langpack"], apivfs=False)
-        fixup_rpmdb_location(context)
-
-        # On Fedora, the default rpmdb has moved to /usr/lib/sysimage/rpm so if that's the case we
-        # need to move it back to /var/lib/rpm on CentOS.
-        move_rpm_db(context)
 
     @classmethod
     def install_packages(cls, context: Context, packages: Sequence[str], apivfs: bool = True) -> None:

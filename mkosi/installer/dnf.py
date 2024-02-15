@@ -6,7 +6,7 @@ from pathlib import Path
 from mkosi.config import Cacheonly, Config
 from mkosi.context import Context
 from mkosi.installer import PackageManager
-from mkosi.installer.rpm import RpmRepository, rpm_cmd, setup_rpm
+from mkosi.installer.rpm import RpmRepository, rpm_cmd
 from mkosi.log import ARG_DEBUG
 from mkosi.mounts import finalize_ephemeral_source_mounts
 from mkosi.run import find_binary, run
@@ -90,8 +90,6 @@ class Dnf(PackageManager):
                         f.write(f"{url}\n")
 
                     f.write("\n")
-
-        setup_rpm(context)
 
     @classmethod
     def cmd(cls, context: Context) -> list[PathString]:
