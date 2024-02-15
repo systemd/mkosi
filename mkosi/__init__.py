@@ -3085,8 +3085,8 @@ def build_image(context: Context) -> None:
 
     if context.config.output_format not in (OutputFormat.uki, OutputFormat.esp):
         maybe_compress(context, context.config.compress_output,
-                        context.staging / context.config.output_with_format,
-                        context.staging / context.config.output_with_compression)
+                       context.staging / context.config.output_with_format,
+                       context.staging / context.config.output_with_compression)
 
     calculate_sha256sum(context)
     calculate_signature(context)
