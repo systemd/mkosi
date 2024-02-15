@@ -7,11 +7,11 @@ from pathlib import Path
 from mkosi.config import Config, yes_no
 from mkosi.context import Context
 from mkosi.installer import PackageManager
-from mkosi.installer.rpm import RpmRepository, fixup_rpmdb_location, rpm_cmd, setup_rpm
+from mkosi.installer.rpm import RpmRepository, rpm_cmd, setup_rpm
 from mkosi.mounts import finalize_ephemeral_source_mounts
 from mkosi.run import run
 from mkosi.sandbox import apivfs_cmd
-from mkosi.types import PathString
+from mkosi.types import CompletedProcess, PathString
 from mkosi.util import sort_packages
 
 
@@ -119,9 +119,9 @@ class Zypper(PackageManager):
         *,
         options: Sequence[str] = (),
         apivfs: bool = True,
-    ) -> None:
+    ) -> CompletedProcess:
         with finalize_ephemeral_source_mounts(context.config) as sources:
-            run(
+            return run(
                 cls.cmd(context) + [operation, *options, *sort_packages(packages)],
                 sandbox=(
                     context.sandbox(
@@ -136,8 +136,6 @@ class Zypper(PackageManager):
                 ),
                 env=context.config.environment,
             )
-
-        fixup_rpmdb_location(context)
 
     @classmethod
     def sync(cls, context: Context) -> None:

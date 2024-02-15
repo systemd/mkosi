@@ -11,7 +11,7 @@ from mkosi.log import die
 from mkosi.mounts import finalize_ephemeral_source_mounts
 from mkosi.run import find_binary, run
 from mkosi.sandbox import apivfs_cmd
-from mkosi.types import PathString
+from mkosi.types import CompletedProcess, PathString
 from mkosi.util import sort_packages, umask
 
 
@@ -172,9 +172,9 @@ class Apt(PackageManager):
         options: Sequence[str] = (),
         apivfs: bool = True,
         mounts: Sequence[PathString] = (),
-    ) -> None:
+    ) -> CompletedProcess:
         with finalize_ephemeral_source_mounts(context.config) as sources:
-            run(
+            return run(
                 cls.cmd(context, "apt-get") + [operation, *options, *sort_packages(packages)],
                 sandbox=(
                     context.sandbox(

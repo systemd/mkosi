@@ -14,7 +14,7 @@ from mkosi.distributions import (
 )
 from mkosi.installer import PackageManager
 from mkosi.installer.dnf import Dnf
-from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey
+from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey, fixup_rpmdb_location
 from mkosi.log import complete_step, die
 from mkosi.tree import rmtree
 from mkosi.util import listify
@@ -84,6 +84,7 @@ class Installer(DistributionInstaller):
     def install(cls, context: Context) -> None:
         # Make sure glibc-minimal-langpack is installed instead of glibc-all-langpacks.
         cls.install_packages(context, ["filesystem", "glibc-minimal-langpack"], apivfs=False)
+        fixup_rpmdb_location(context)
 
         # On Fedora, the default rpmdb has moved to /usr/lib/sysimage/rpm so if that's the case we
         # need to move it back to /var/lib/rpm on CentOS.

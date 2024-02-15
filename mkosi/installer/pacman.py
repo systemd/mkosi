@@ -11,7 +11,7 @@ from mkosi.installer import PackageManager
 from mkosi.mounts import finalize_ephemeral_source_mounts
 from mkosi.run import run
 from mkosi.sandbox import apivfs_cmd
-from mkosi.types import PathString
+from mkosi.types import CompletedProcess, PathString
 from mkosi.util import sort_packages, umask
 from mkosi.versioncomp import GenericVersion
 
@@ -148,9 +148,9 @@ class Pacman(PackageManager):
         options: Sequence[str] = (),
         packages: Sequence[str] = (),
         apivfs: bool = True,
-    ) -> None:
+    ) -> CompletedProcess:
         with finalize_ephemeral_source_mounts(context.config) as sources:
-            run(
+            return run(
                 cls.cmd(context) + [operation, *options, *sort_packages(packages)],
                 sandbox=(
                     context.sandbox(
