@@ -2970,7 +2970,7 @@ def copy_repository_metadata(context: Context) -> None:
 
 
 def build_image(context: Context) -> None:
-    manifest = Manifest(context.config) if context.config.manifest_format else None
+    manifest = Manifest(context) if context.config.manifest_format else None
 
     install_package_manager_trees(context)
 
@@ -3033,8 +3033,7 @@ def build_image(context: Context) -> None:
         remove_packages(context)
 
         if manifest:
-            with complete_step("Recording packages in manifest…"):
-                manifest.record_packages(context.root)
+            manifest.record_packages()
 
         clean_package_manager_metadata(context)
         remove_files(context)

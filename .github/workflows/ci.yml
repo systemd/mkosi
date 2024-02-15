@@ -146,6 +146,9 @@ jobs:
     - name: Configure
       run: |
         tee mkosi.local.conf <<EOF
+        [Output]
+        ManifestFormat=json
+
         [Content]
         KernelCommandLine=systemd.default_device_timeout_sec=180
         Environment=SYSTEMD_REPART_MKFS_OPTIONS_EROFS="--quiet"
