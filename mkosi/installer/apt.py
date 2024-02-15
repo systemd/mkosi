@@ -11,7 +11,7 @@ from mkosi.log import die
 from mkosi.mounts import finalize_ephemeral_source_mounts
 from mkosi.run import find_binary, run
 from mkosi.sandbox import apivfs_cmd
-from mkosi.types import CompletedProcess, PathString
+from mkosi.types import _FILE, CompletedProcess, PathString
 from mkosi.util import umask
 
 
@@ -172,6 +172,7 @@ class Apt(PackageManager):
         *,
         apivfs: bool = False,
         mounts: Sequence[PathString] = (),
+        stdout: _FILE = None,
     ) -> CompletedProcess:
         with finalize_ephemeral_source_mounts(context.config) as sources:
             return run(
@@ -189,6 +190,7 @@ class Apt(PackageManager):
                     ) + (apivfs_cmd(context.root) if apivfs else [])
                 ),
                 env=context.config.environment,
+                stdout=stdout,
             )
 
     @classmethod
