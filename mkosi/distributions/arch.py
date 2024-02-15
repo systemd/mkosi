@@ -64,7 +64,7 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def remove_packages(cls, context: Context, packages: Sequence[str]) -> None:
-        Pacman.invoke(context, "--remove", ["--nosave", "--recursive"], packages)
+        Pacman.invoke(context, "--remove", ["--nosave", "--recursive"], packages, apivfs=True)
 
     @classmethod
     @listify

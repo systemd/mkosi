@@ -170,7 +170,7 @@ class Apt(PackageManager):
         packages: Sequence[str] = (),
         *,
         options: Sequence[str] = (),
-        apivfs: bool = True,
+        apivfs: bool = False,
         mounts: Sequence[PathString] = (),
     ) -> CompletedProcess:
         with finalize_ephemeral_source_mounts(context.config) as sources:
@@ -230,5 +230,4 @@ class Apt(PackageManager):
                 "-o", "Dir::Etc::sourceparts=-",
                 "-o", "APT::Get::List-Cleanup=0",
             ],
-            apivfs=False,
         )

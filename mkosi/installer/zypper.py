@@ -118,7 +118,7 @@ class Zypper(PackageManager):
         packages: Sequence[str] = (),
         *,
         options: Sequence[str] = (),
-        apivfs: bool = True,
+        apivfs: bool = False,
     ) -> CompletedProcess:
         with finalize_ephemeral_source_mounts(context.config) as sources:
             return run(
@@ -139,7 +139,7 @@ class Zypper(PackageManager):
 
     @classmethod
     def sync(cls, context: Context) -> None:
-        cls.invoke(context, "refresh", apivfs=False)
+        cls.invoke(context, "refresh")
 
     @classmethod
     def createrepo(cls, context: Context) -> None:
@@ -160,4 +160,4 @@ class Zypper(PackageManager):
             )
         )
 
-        cls.invoke(context, "refresh", ["mkosi"], apivfs=False)
+        cls.invoke(context, "refresh", ["mkosi"])

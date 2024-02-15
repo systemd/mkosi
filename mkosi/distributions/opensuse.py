@@ -91,9 +91,9 @@ class Installer(DistributionInstaller):
     @classmethod
     def remove_packages(cls, context: Context, packages: Sequence[str]) -> None:
         if find_binary("zypper", root=context.config.tools()):
-            Zypper.invoke(context, "remove", packages, options=["--clean-deps"])
+            Zypper.invoke(context, "remove", packages, options=["--clean-deps"], apivfs=True)
         else:
-            Dnf.invoke(context, "remove", packages)
+            Dnf.invoke(context, "remove", packages, apivfs=True)
 
     @classmethod
     @listify

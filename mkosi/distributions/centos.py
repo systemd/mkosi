@@ -96,7 +96,7 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def remove_packages(cls, context: Context, packages: Sequence[str]) -> None:
-        Dnf.invoke(context, "remove", packages)
+        Dnf.invoke(context, "remove", packages, apivfs=True)
 
     @classmethod
     def architecture(cls, arch: Architecture) -> str:

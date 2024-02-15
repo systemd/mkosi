@@ -157,7 +157,7 @@ class Dnf(PackageManager):
         operation: str,
         packages: Iterable[str] = (),
         options: Sequence[str] = (),
-        apivfs: bool = True,
+        apivfs: bool = False,
     ) -> CompletedProcess:
         try:
             with finalize_ephemeral_source_mounts(context.config) as sources:
@@ -194,7 +194,6 @@ class Dnf(PackageManager):
                 *(["--setopt=cacheonly=none"] if cls.executable(context.config) == "dnf5" else []),
                 *options,
             ],
-            apivfs=False,
         )
 
     @classmethod
