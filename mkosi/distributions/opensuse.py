@@ -15,7 +15,7 @@ from mkosi.installer.zypper import Zypper
 from mkosi.log import die
 from mkosi.run import find_binary, run
 from mkosi.sandbox import finalize_crypto_mounts
-from mkosi.util import listify
+from mkosi.util import listify, sort_packages
 
 
 class Installer(DistributionInstaller):
@@ -80,18 +80,22 @@ class Installer(DistributionInstaller):
     @classmethod
     def install_packages(cls, context: Context, packages: Sequence[str], apivfs: bool = True) -> None:
         if find_binary("zypper", root=context.config.tools()):
-            options = [
-                "--download", "in-advance",
-                "--recommends" if context.config.with_recommends else "--no-recommends",
-            ]
-            Zypper.invoke(context, "install", packages, options=options, apivfs=apivfs)
+            Zypper.invoke(
+                context,
+                "install",
+                [
+                    "--download", "in-advance",
+                    "--recommends" if context.config.with_recommends else "--no-recommends",
+                    *sort_packages(packages),
+                ],
+                apivfs=apivfs)
         else:
-            Dnf.invoke(context, "install", packages, apivfs=apivfs)
+            Dnf.invoke(context, "install", sort_packages(packages), apivfs=apivfs)
 
     @classmethod
     def remove_packages(cls, context: Context, packages: Sequence[str]) -> None:
         if find_binary("zypper", root=context.config.tools()):
-            Zypper.invoke(context, "remove", packages, options=["--clean-deps"], apivfs=True)
+            Zypper.invoke(context, "remove", ["--clean-deps", *sort_packages(packages)], apivfs=True)
         else:
             Dnf.invoke(context, "remove", packages, apivfs=True)
 

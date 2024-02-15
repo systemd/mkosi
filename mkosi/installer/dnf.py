@@ -12,7 +12,6 @@ from mkosi.mounts import finalize_ephemeral_source_mounts
 from mkosi.run import find_binary, run
 from mkosi.sandbox import apivfs_cmd
 from mkosi.types import CompletedProcess, PathString
-from mkosi.util import sort_packages
 
 
 class Dnf(PackageManager):
@@ -155,14 +154,14 @@ class Dnf(PackageManager):
         cls,
         context: Context,
         operation: str,
-        packages: Iterable[str] = (),
-        options: Sequence[str] = (),
+        arguments: Sequence[str] = (),
+        *,
         apivfs: bool = False,
     ) -> CompletedProcess:
         try:
             with finalize_ephemeral_source_mounts(context.config) as sources:
                 return run(
-                    cls.cmd(context) + [operation, *options, *sort_packages(packages)],
+                    cls.cmd(context) + [operation,*arguments],
                     sandbox=(
                         context.sandbox(
                             network=True,
@@ -189,7 +188,7 @@ class Dnf(PackageManager):
         cls.invoke(
             context,
             "makecache",
-            options=[
+            arguments=[
                 "--refresh",
                 *(["--setopt=cacheonly=none"] if cls.executable(context.config) == "dnf5" else []),
                 *options,

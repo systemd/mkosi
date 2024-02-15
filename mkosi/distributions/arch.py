@@ -8,7 +8,7 @@ from mkosi.distributions import Distribution, DistributionInstaller, PackageType
 from mkosi.installer import PackageManager
 from mkosi.installer.pacman import Pacman
 from mkosi.log import die
-from mkosi.util import listify
+from mkosi.util import listify, sort_packages
 
 
 class Installer(DistributionInstaller):
@@ -57,14 +57,13 @@ class Installer(DistributionInstaller):
         Pacman.invoke(
             context,
             "--sync",
-            ["--needed", "--assume-installed", "initramfs"],
-            packages,
+            ["--needed", "--assume-installed", "initramfs", *sort_packages(packages)],
             apivfs=apivfs,
         )
 
     @classmethod
     def remove_packages(cls, context: Context, packages: Sequence[str]) -> None:
-        Pacman.invoke(context, "--remove", ["--nosave", "--recursive"], packages, apivfs=True)
+        Pacman.invoke(context, "--remove", ["--nosave", "--recursive", *packages], apivfs=True)
 
     @classmethod
     @listify

@@ -12,7 +12,7 @@ from mkosi.mounts import finalize_ephemeral_source_mounts
 from mkosi.run import find_binary, run
 from mkosi.sandbox import apivfs_cmd
 from mkosi.types import CompletedProcess, PathString
-from mkosi.util import sort_packages, umask
+from mkosi.util import umask
 
 
 class Apt(PackageManager):
@@ -167,15 +167,14 @@ class Apt(PackageManager):
         cls,
         context: Context,
         operation: str,
-        packages: Sequence[str] = (),
+        arguments: Sequence[str] = (),
         *,
-        options: Sequence[str] = (),
         apivfs: bool = False,
         mounts: Sequence[PathString] = (),
     ) -> CompletedProcess:
         with finalize_ephemeral_source_mounts(context.config) as sources:
             return run(
-                cls.cmd(context, "apt-get") + [operation, *options, *sort_packages(packages)],
+                cls.cmd(context, "apt-get") + [operation, *arguments],
                 sandbox=(
                     context.sandbox(
                         network=True,
@@ -225,7 +224,7 @@ class Apt(PackageManager):
         cls.invoke(
             context,
             "update",
-            options=[
+            arguments=[
                 "-o", "Dir::Etc::sourcelist=sources.list.d/mkosi-local.sources",
                 "-o", "Dir::Etc::sourceparts=-",
                 "-o", "APT::Get::List-Cleanup=0",
