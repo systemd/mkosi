@@ -39,9 +39,10 @@ class Zypper(PackageManager):
         return {
             "zypper": apivfs_cmd(context.root) + cls.cmd(context),
             "rpm"   : apivfs_cmd(context.root) + rpm_cmd(context),
-            "mkosi-install": apivfs_cmd(context.root) + cls.cmd(context) + install,
-            "mkosi-upgrade": apivfs_cmd(context.root) + cls.cmd(context) + ["update"],
-            "mkosi-remove" : apivfs_cmd(context.root) + cls.cmd(context) + ["remove", "--clean-deps"],
+            "mkosi-install"  : apivfs_cmd(context.root) + cls.cmd(context) + install,
+            "mkosi-upgrade"  : apivfs_cmd(context.root) + cls.cmd(context) + ["update"],
+            "mkosi-remove"   : apivfs_cmd(context.root) + cls.cmd(context) + ["remove", "--clean-deps"],
+            "mkosi-reinstall": apivfs_cmd(context.root) + cls.cmd(context) + install + ["--force"],
         }
 
     @classmethod

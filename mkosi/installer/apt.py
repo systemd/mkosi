@@ -62,9 +62,10 @@ class Apt(PackageManager):
                 "apt-sortpkgs",
             )
         } | {
-            "mkosi-install": apivfs_cmd(context.root) + cls.cmd(context, "get") + ["install"],
-            "mkosi-upgrade": apivfs_cmd(context.root) + cls.cmd(context, "get") + ["upgrade"],
-            "mkosi-remove" : apivfs_cmd(context.root) + cls.cmd(context, "get") + ["purge"],
+            "mkosi-install"  : apivfs_cmd(context.root) + cls.cmd(context, "get") + ["install"],
+            "mkosi-upgrade"  : apivfs_cmd(context.root) + cls.cmd(context, "get") + ["upgrade"],
+            "mkosi-remove"   : apivfs_cmd(context.root) + cls.cmd(context, "get") + ["purge"],
+            "mkosi-reinstall": apivfs_cmd(context.root) + cls.cmd(context, "get") + ["install", "--reinstall"],
         }
 
     @classmethod
