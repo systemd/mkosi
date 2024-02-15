@@ -89,7 +89,7 @@ class Apt(PackageManager):
             config.write_text(
                 textwrap.dedent(
                     """\
-                    Dir::Etc "etc/apt";
+                    Dir::Etc "/etc/apt";
                     """
                 )
             )
@@ -130,6 +130,7 @@ class Apt(PackageManager):
             "-o", "APT::Sandbox::User=root",
             "-o", "Dir::Cache=/var/cache/apt",
             "-o", "Dir::State=/var/lib/apt",
+            "-o", "Dir::Log=/var/log/apt",
             "-o", f"Dir::State::Status={context.root / 'var/lib/dpkg/status'}",
             "-o", f"Dir::Log={context.workspace}",
             "-o", f"Dir::Bin::DPkg={find_binary('dpkg', root=context.config.tools())}",
