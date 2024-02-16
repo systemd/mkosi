@@ -11,8 +11,8 @@ from mkosi.log import die
 from mkosi.mounts import finalize_ephemeral_source_mounts
 from mkosi.run import find_binary, run
 from mkosi.sandbox import apivfs_cmd
-from mkosi.types import PathString
-from mkosi.util import sort_packages, umask
+from mkosi.types import _FILE, CompletedProcess, PathString
+from mkosi.util import umask
 
 
 class Apt(PackageManager):
@@ -62,10 +62,10 @@ class Apt(PackageManager):
                 "apt-sortpkgs",
             )
         } | {
-            "mkosi-install"  : apivfs_cmd(context.root) + cls.cmd(context, "get") + ["install"],
-            "mkosi-upgrade"  : apivfs_cmd(context.root) + cls.cmd(context, "get") + ["upgrade"],
-            "mkosi-remove"   : apivfs_cmd(context.root) + cls.cmd(context, "get") + ["purge"],
-            "mkosi-reinstall": apivfs_cmd(context.root) + cls.cmd(context, "get") + ["install", "--reinstall"],
+            "mkosi-install"  : apivfs_cmd(context.root) + cls.cmd(context, "apt-get") + ["install"],
+            "mkosi-upgrade"  : apivfs_cmd(context.root) + cls.cmd(context, "apt-get") + ["upgrade"],
+            "mkosi-remove"   : apivfs_cmd(context.root) + cls.cmd(context, "apt-get") + ["purge"],
+            "mkosi-reinstall": apivfs_cmd(context.root) + cls.cmd(context, "apt-get") + ["install", "--reinstall"],
         }
 
     @classmethod
@@ -89,7 +89,7 @@ class Apt(PackageManager):
             config.write_text(
                 textwrap.dedent(
                     """\
-                    Dir::Etc "etc/apt";
+                    Dir::Etc "/etc/apt";
                     """
                 )
             )
@@ -130,6 +130,7 @@ class Apt(PackageManager):
             "-o", "APT::Sandbox::User=root",
             "-o", "Dir::Cache=/var/cache/apt",
             "-o", "Dir::State=/var/lib/apt",
+            "-o", "Dir::Log=/var/log/apt",
             "-o", f"Dir::State::Status={context.root / 'var/lib/dpkg/status'}",
             "-o", f"Dir::Log={context.workspace}",
             "-o", f"Dir::Bin::DPkg={find_binary('dpkg', root=context.config.tools())}",
@@ -167,15 +168,15 @@ class Apt(PackageManager):
         cls,
         context: Context,
         operation: str,
-        packages: Sequence[str] = (),
+        arguments: Sequence[str] = (),
         *,
-        options: Sequence[str] = (),
-        apivfs: bool = True,
+        apivfs: bool = False,
         mounts: Sequence[PathString] = (),
-    ) -> None:
+        stdout: _FILE = None,
+    ) -> CompletedProcess:
         with finalize_ephemeral_source_mounts(context.config) as sources:
-            run(
-                cls.cmd(context, "apt-get") + [operation, *options, *sort_packages(packages)],
+            return run(
+                cls.cmd(context, "apt-get") + [operation, *arguments],
                 sandbox=(
                     context.sandbox(
                         network=True,
@@ -189,6 +190,7 @@ class Apt(PackageManager):
                     ) + (apivfs_cmd(context.root) if apivfs else [])
                 ),
                 env=context.config.environment,
+                stdout=stdout,
             )
 
     @classmethod
@@ -225,10 +227,9 @@ class Apt(PackageManager):
         cls.invoke(
             context,
             "update",
-            options=[
+            arguments=[
                 "-o", "Dir::Etc::sourcelist=sources.list.d/mkosi-local.sources",
                 "-o", "Dir::Etc::sourceparts=-",
                 "-o", "APT::Get::List-Cleanup=0",
             ],
-            apivfs=False,
         )

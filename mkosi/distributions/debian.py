@@ -157,7 +157,6 @@ class Installer(DistributionInstaller):
                     f"-oDPkg::Pre-Install-Pkgs::=cat >{f.name}",
                     "?essential", "?exact-name(usr-is-merged)",
                 ],
-                apivfs=False,
                 mounts=("--bind", f.name, f.name),
             )
 
@@ -216,7 +215,7 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def remove_packages(cls, context: Context, packages: Sequence[str]) -> None:
-        Apt.invoke(context, "purge", packages)
+        Apt.invoke(context, "purge", packages, apivfs=True)
 
     @classmethod
     def architecture(cls, arch: Architecture) -> str:

@@ -3,14 +3,16 @@
 import dataclasses
 import datetime
 import json
-import logging
 import subprocess
 import textwrap
 from pathlib import Path
 from typing import IO, Any, Optional
 
-from mkosi.config import Config, ManifestFormat
-from mkosi.distributions import Distribution, PackageType
+from mkosi.config import ManifestFormat
+from mkosi.context import Context
+from mkosi.distributions import PackageType
+from mkosi.installer.apt import Apt
+from mkosi.log import complete_step
 from mkosi.run import run
 
 
@@ -80,41 +82,35 @@ def parse_pkg_desc(f: Path) -> tuple[str, str, str, str]:
 
 @dataclasses.dataclass
 class Manifest:
-    config: Config
+    context: Context
     packages: list[PackageManifest] = dataclasses.field(default_factory=list)
     source_packages: dict[str, SourcePackageManifest] = dataclasses.field(default_factory=dict)
 
     _init_timestamp: datetime.datetime = dataclasses.field(init=False, default_factory=datetime.datetime.now)
 
     def need_source_info(self) -> bool:
-        return ManifestFormat.changelog in self.config.manifest_format
+        return ManifestFormat.changelog in self.context.config.manifest_format
 
-    def record_packages(self, root: Path) -> None:
-        if self.config.distribution.package_type() == PackageType.rpm:
-            self.record_rpm_packages(root)
-        if self.config.distribution.package_type() == PackageType.deb:
-            self.record_deb_packages(root)
-        if self.config.distribution.package_type() == PackageType.pkg:
-            self.record_pkg_packages(root)
+    def record_packages(self) -> None:
+        with complete_step("Recording packages in manifest…"):
+            if self.context.config.distribution.package_type() == PackageType.rpm:
+                self.record_rpm_packages()
+            if self.context.config.distribution.package_type() == PackageType.deb:
+                self.record_deb_packages()
+            if self.context.config.distribution.package_type() == PackageType.pkg:
+                self.record_pkg_packages()
 
-    def record_rpm_packages(self, root: Path) -> None:
-        # On Debian, rpm/dnf ship with a patch to store the rpmdb under ~/ so rpm
-        # has to be told to use the location the rpmdb was moved to.
-        # Otherwise the rpmdb will appear empty. See: https://bugs.debian.org/1004863
-        dbpath = "/usr/lib/sysimage/rpm"
-        if not (root / dbpath).exists():
-            dbpath = "/var/lib/rpm"
-
+    def record_rpm_packages(self) -> None:
         c = run(
             [
                 "rpm",
-                f"--root={root}",
-                f"--dbpath={dbpath}",
-                "-qa",
-                "--qf", r"%{NEVRA}\t%{SOURCERPM}\t%{NAME}\t%{ARCH}\t%{LONGSIZE}\t%{INSTALLTIME}\n",
+                f"--root={self.context.root}",
+                "--query",
+                "--all",
+                "--queryformat", r"%{NEVRA}\t%{SOURCERPM}\t%{NAME}\t%{ARCH}\t%{LONGSIZE}\t%{INSTALLTIME}\n",
             ],
             stdout=subprocess.PIPE,
-            sandbox=self.config.sandbox(),
+            sandbox=self.context.sandbox(options=["--ro-bind", self.context.root, self.context.root]),
         )
 
         packages = sorted(c.stdout.splitlines())
@@ -139,7 +135,7 @@ class Manifest:
             # If we are creating a layer based on a BaseImage=, e.g. a sysext, filter by
             # packages that were installed in this execution of mkosi. We assume that the
             # upper layer is put together in one go, which currently is always true.
-            if self.config.base_trees and installtime < self._init_timestamp:
+            if self.context.config.base_trees and installtime < self._init_timestamp:
                 continue
 
             manifest = PackageManifest("rpm", name, evr, arch, size)
@@ -153,15 +149,14 @@ class Manifest:
                 c = run(
                     [
                         "rpm",
-                        f"--root={root}",
-                        f"--dbpath={dbpath}",
-                        "-q",
+                        f"--root={self.context.root}",
+                        "--query",
                         "--changelog",
                         nevra,
                     ],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.DEVNULL,
-                    sandbox=self.config.sandbox(),
+                    sandbox=self.context.sandbox(options=["--ro-bind", self.context.root, self.context.root]),
                 )
                 changelog = c.stdout.strip()
                 source = SourcePackageManifest(srpm, changelog)
@@ -169,17 +164,17 @@ class Manifest:
 
             source.add(manifest)
 
-    def record_deb_packages(self, root: Path) -> None:
+    def record_deb_packages(self) -> None:
         c = run(
             [
                 "dpkg-query",
-                f"--admindir={root}/var/lib/dpkg",
+                f"--admindir={self.context.root / 'var/lib/dpkg'}",
                 "--show",
                 "--showformat",
                     r'${Package}\t${source:Package}\t${Version}\t${Architecture}\t${Installed-Size}\t${db-fsys:Last-Modified}\n',
             ],
             stdout=subprocess.PIPE,
-            sandbox=self.config.sandbox(),
+            sandbox=self.context.sandbox(options=["--ro-bind", self.context.root, self.context.root]),
         )
 
         packages = sorted(c.stdout.splitlines())
@@ -197,7 +192,7 @@ class Manifest:
             # If we are creating a layer based on a BaseImage=, e.g. a sysext, filter by
             # packages that were installed in this execution of mkosi. We assume that the
             # upper layer is put together in one go, which currently is always true.
-            if self.config.base_trees and installtime < self._init_timestamp:
+            if self.context.config.base_trees and installtime < self._init_timestamp:
                 continue
 
             manifest = PackageManifest("deb", name, version, arch, size)
@@ -208,45 +203,23 @@ class Manifest:
 
             source_package = self.source_packages.get(source)
             if source_package is None:
-                # Yes, --quiet is specified twice, to avoid output about download stats.
-                # Note that the argument of the 'changelog' verb is the binary package name,
-                # not the source package name.
-                cmd = [
-                    "apt-get",
-                    "--quiet",
-                    "--quiet",
-                    "-o", f"Dir={root}",
-                    "-o", f"DPkg::Chroot-Directory={root}",
+                # Yes, --quiet is specified twice, to avoid output about download stats. Note that the argument of the
+                # 'changelog' verb is the binary package name, not the source package name. We also have to set "Dir"
+                # explicitly because apt has no separate option to configure the changelog directory. Apt.invoke()
+                # sets all options that are interpreted relative to Dir to absolute paths by default so this is afe.
+                result = Apt.invoke(
+                    self.context,
                     "changelog",
-                    name,
-                ]
-
-                # If we are building with docs then it's easy, as the changelogs are saved
-                # in the image, just fetch them. Otherwise they will be downloaded from the network.
-                if self.config.with_docs:
-                    # By default apt drops privileges and runs as the 'apt' user, but that means it
-                    # loses access to the build directory, which is 700.
-                    cmd += ["--option", "Acquire::Changelogs::AlwaysOnline=false",
-                            "--option", "Debug::NoDropPrivs=true"]
-                else:
-                    # Override the URL to avoid HTTPS, so that we don't need to install
-                    # ca-certificates to make it work.
-                    if self.config.distribution == Distribution.ubuntu:
-                        cmd += ["--option", "Acquire::Changelogs::URI::Override::Origin::Ubuntu=http://changelogs.ubuntu.com/changelogs/pool/@CHANGEPATH@/changelog"]
-                    else:
-                        cmd += ["--option", "Acquire::Changelogs::URI::Override::Origin::Debian=http://metadata.ftp-master.debian.org/changelogs/@CHANGEPATH@_changelog"]
-
-                # We have to run from the root, because if we use the RootDir option to make
-                # apt from the host look at the repositories in the image, it will also pick
-                # the 'methods' executables from there, but the ABI might not be compatible.
-                result = run(cmd, stdout=subprocess.PIPE, sandbox=self.config.sandbox())
+                    ["--quiet", "--quiet", "-o", f"Dir={self.context.root}", name],
+                    stdout=subprocess.PIPE,
+                )
                 source_package = SourcePackageManifest(source, result.stdout.strip())
                 self.source_packages[source] = source_package
 
             source_package.add(manifest)
 
-    def record_pkg_packages(self, root: Path) -> None:
-        packages = sorted((root / "var/lib/pacman/local").glob("*/desc"))
+    def record_pkg_packages(self) -> None:
+        packages = sorted((self.context.root / "var/lib/pacman/local").glob("*/desc"))
 
         for desc in packages:
             name, version, source, arch = parse_pkg_desc(desc)
@@ -265,14 +238,14 @@ class Manifest:
 
     def as_dict(self) -> dict[str, Any]:
         config = {
-            "name": self.config.image_id or "image",
-            "distribution": str(self.config.distribution),
-            "architecture": str(self.config.architecture),
+            "name": self.context.config.image_id or "image",
+            "distribution": str(self.context.config.distribution),
+            "architecture": str(self.context.config.architecture),
         }
-        if self.config.image_version is not None:
-            config["version"] = self.config.image_version
-        if self.config.release is not None:
-            config["release"] = self.config.release
+        if self.context.config.image_version is not None:
+            config["version"] = self.context.config.image_version
+        if self.context.config.release is not None:
+            config["release"] = self.context.config.release
 
         return {
             # Bump this when incompatible changes are made to the manifest format.
@@ -294,9 +267,9 @@ class Manifest:
         packages, and includes the changelogs. A diff between two such
         reports shows what changed *in* the packages quite nicely.
         """
-        logging.info(f"Packages: {len(self.packages)}")
-        logging.info(f"Size:     {sum(p.size for p in self.packages)}")
+        out.write(f"Packages: {len(self.packages)}\n")
+        out.write(f"Size:     {sum(p.size for p in self.packages)}")
 
         for package in self.source_packages.values():
-            logging.info(f"\n{80*'-'}\n")
+            out.write(f"\n{80*'-'}\n")
             out.write(package.report())

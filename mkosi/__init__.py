@@ -24,7 +24,6 @@ from typing import Optional, TextIO, Union, cast
 from mkosi.archive import extract_tar, make_cpio, make_tar
 from mkosi.burn import run_burn
 from mkosi.config import (
-    Architecture,
     Args,
     BiosBootloader,
     Bootloader,
@@ -1617,7 +1616,7 @@ def identify_cpu(root: Path) -> tuple[Optional[Path], Optional[Path]]:
 
 
 def build_microcode_initrd(context: Context) -> Optional[Path]:
-    if context.config.architecture not in (Architecture.x86, Architecture.x86_64):
+    if not context.config.architecture.is_x86_variant():
         return None
 
     microcode = context.workspace / "initrd-microcode.img"
@@ -2971,7 +2970,7 @@ def copy_repository_metadata(context: Context) -> None:
 
 
 def build_image(context: Context) -> None:
-    manifest = Manifest(context.config) if context.config.manifest_format else None
+    manifest = Manifest(context) if context.config.manifest_format else None
 
     install_package_manager_trees(context)
 
@@ -3034,8 +3033,7 @@ def build_image(context: Context) -> None:
         remove_packages(context)
 
         if manifest:
-            with complete_step("Recording packages in manifest…"):
-                manifest.record_packages(context.root)
+            manifest.record_packages()
 
         clean_package_manager_metadata(context)
         remove_files(context)
@@ -3085,8 +3083,8 @@ def build_image(context: Context) -> None:
 
     if context.config.output_format not in (OutputFormat.uki, OutputFormat.esp):
         maybe_compress(context, context.config.compress_output,
-                        context.staging / context.config.output_with_format,
-                        context.staging / context.config.output_with_compression)
+                       context.staging / context.config.output_with_format,
+                       context.staging / context.config.output_with_compression)
 
     calculate_sha256sum(context)
     calculate_signature(context)

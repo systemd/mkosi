@@ -1,14 +1,11 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-import os
-import shutil
 import subprocess
 from pathlib import Path
 from typing import NamedTuple, Optional
 
 from mkosi.context import Context
 from mkosi.run import run
-from mkosi.tree import rmtree
 from mkosi.types import PathString
 
 
@@ -34,11 +31,14 @@ def find_rpm_gpgkey(context: Context, key: str) -> Optional[str]:
     return None
 
 
-def setup_rpm(context: Context) -> None:
+def setup_rpm(context: Context, *, dbpath: str = "/usr/lib/sysimage/rpm") -> None:
     confdir = context.pkgmngr / "etc/rpm"
     confdir.mkdir(parents=True, exist_ok=True)
     if not (confdir / "macros.lang").exists() and context.config.locale:
         (confdir / "macros.lang").write_text(f"%_install_langs {context.config.locale}")
+
+    if not (confdir / "macros.dbpath").exists():
+        (confdir / "macros.dbpath").write_text(f"%_dbpath {dbpath}")
 
     plugindir = Path(run(["rpm", "--eval", "%{__plugindir}"],
                          sandbox=context.sandbox(), stdout=subprocess.PIPE).stdout.strip())
@@ -46,23 +46,6 @@ def setup_rpm(context: Context) -> None:
         with (confdir / "macros.disable-plugins").open("w") as f:
             for plugin in plugindir.iterdir():
                 f.write(f"%__transaction_{plugin.stem} %{{nil}}\n")
-
-
-def fixup_rpmdb_location(context: Context) -> None:
-    # On Debian, rpm/dnf ship with a patch to store the rpmdb under ~/ so it needs to be copied back in the
-    # right location, otherwise the rpmdb will be broken. See: https://bugs.debian.org/1004863. We also
-    # replace it with a symlink so that any further rpm operations immediately use the correct location.
-    rpmdb_home = context.root / "root/.rpmdb"
-    if not rpmdb_home.exists() or rpmdb_home.is_symlink():
-        return
-
-    # Take into account the new location in F36
-    rpmdb = context.root / "usr/lib/sysimage/rpm"
-    if not rpmdb.exists():
-        rpmdb = context.root / "var/lib/rpm"
-    rmtree(rpmdb, sandbox=context.sandbox)
-    shutil.move(rpmdb_home, rpmdb)
-    rpmdb_home.symlink_to(os.path.relpath(rpmdb, start=rpmdb_home.parent))
 
 
 def rpm_cmd(context: Context) -> list[PathString]:

@@ -8,7 +8,7 @@ from mkosi.distributions import Distribution, DistributionInstaller, PackageType
 from mkosi.installer import PackageManager
 from mkosi.installer.pacman import Pacman
 from mkosi.log import die
-from mkosi.util import listify
+from mkosi.util import listify, sort_packages
 
 
 class Installer(DistributionInstaller):
@@ -57,14 +57,13 @@ class Installer(DistributionInstaller):
         Pacman.invoke(
             context,
             "--sync",
-            ["--needed", "--assume-installed", "initramfs"],
-            packages,
+            ["--needed", "--assume-installed", "initramfs", *sort_packages(packages)],
             apivfs=apivfs,
         )
 
     @classmethod
     def remove_packages(cls, context: Context, packages: Sequence[str]) -> None:
-        Pacman.invoke(context, "--remove", ["--nosave", "--recursive"], packages)
+        Pacman.invoke(context, "--remove", ["--nosave", "--recursive", *packages], apivfs=True)
 
     @classmethod
     @listify
@@ -72,7 +71,7 @@ class Installer(DistributionInstaller):
         if context.config.local_mirror:
             yield Pacman.Repository("core", context.config.local_mirror)
         else:
-            if context.config.architecture == Architecture.arm64:
+            if context.config.architecture.is_arm_variant():
                 url = f"{context.config.mirror or 'http://mirror.archlinuxarm.org'}/$arch/$repo"
             else:
                 url = f"{context.config.mirror or 'https://geo.mirror.pkgbuild.com'}/$repo/os/$arch"
@@ -97,6 +96,7 @@ class Installer(DistributionInstaller):
         a = {
             Architecture.x86_64 : "x86_64",
             Architecture.arm64  : "aarch64",
+            Architecture.arm    : "armv7h",
         }.get(arch)
 
         if not a:

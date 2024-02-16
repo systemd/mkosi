@@ -7,12 +7,11 @@ from pathlib import Path
 from mkosi.config import Config, yes_no
 from mkosi.context import Context
 from mkosi.installer import PackageManager
-from mkosi.installer.rpm import RpmRepository, fixup_rpmdb_location, rpm_cmd, setup_rpm
+from mkosi.installer.rpm import RpmRepository, rpm_cmd
 from mkosi.mounts import finalize_ephemeral_source_mounts
 from mkosi.run import run
 from mkosi.sandbox import apivfs_cmd
-from mkosi.types import PathString
-from mkosi.util import sort_packages
+from mkosi.types import _FILE, CompletedProcess, PathString
 
 
 class Zypper(PackageManager):
@@ -94,8 +93,6 @@ class Zypper(PackageManager):
 
                     f.write("\n")
 
-        setup_rpm(context)
-
     @classmethod
     def cmd(cls, context: Context) -> list[PathString]:
         return [
@@ -115,14 +112,14 @@ class Zypper(PackageManager):
         cls,
         context: Context,
         operation: str,
-        packages: Sequence[str] = (),
+        arguments: Sequence[str] = (),
         *,
-        options: Sequence[str] = (),
-        apivfs: bool = True,
-    ) -> None:
+        apivfs: bool = False,
+        stdout: _FILE = None,
+    ) -> CompletedProcess:
         with finalize_ephemeral_source_mounts(context.config) as sources:
-            run(
-                cls.cmd(context) + [operation, *options, *sort_packages(packages)],
+            return run(
+                cls.cmd(context) + [operation, *arguments],
                 sandbox=(
                     context.sandbox(
                         network=True,
@@ -135,13 +132,12 @@ class Zypper(PackageManager):
                     ) + (apivfs_cmd(context.root) if apivfs else [])
                 ),
                 env=context.config.environment,
+                stdout=stdout,
             )
-
-        fixup_rpmdb_location(context)
 
     @classmethod
     def sync(cls, context: Context) -> None:
-        cls.invoke(context, "refresh", apivfs=False)
+        cls.invoke(context, "refresh")
 
     @classmethod
     def createrepo(cls, context: Context) -> None:
@@ -162,4 +158,4 @@ class Zypper(PackageManager):
             )
         )
 
-        cls.invoke(context, "refresh", ["mkosi"], apivfs=False)
+        cls.invoke(context, "refresh", ["mkosi"])
