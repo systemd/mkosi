@@ -14,7 +14,20 @@ from mkosi.installer import PackageManager
 from mkosi.installer.dnf import Dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey, setup_rpm
 from mkosi.log import die
-from mkosi.util import listify
+from mkosi.util import listify, tuplify
+
+
+@tuplify
+def find_fedora_rpm_gpgkeys(context: Context) -> Iterable[str]:
+    key1 = find_rpm_gpgkey(context, key=f"RPM-GPG-KEY-fedora-{context.config.release}-primary")
+    key2 = find_rpm_gpgkey(context, key=f"RPM-GPG-KEY-fedora-{context.config.release}-secondary")
+
+    if key1:
+        yield key1
+    if key2:
+        yield key2
+    if not key1 and not key2:
+        yield "https://fedoraproject.org/fedora.gpg"
 
 
 class Installer(DistributionInstaller):
@@ -74,12 +87,7 @@ class Installer(DistributionInstaller):
     @classmethod
     @listify
     def repositories(cls, context: Context) -> Iterable[RpmRepository]:
-        gpgurls = (
-            find_rpm_gpgkey(
-                context,
-                key=f"RPM-GPG-KEY-fedora-{context.config.release}-primary",
-            ) or "https://fedoraproject.org/fedora.gpg",
-        )
+        gpgurls = find_fedora_rpm_gpgkeys(context)
 
         if context.config.local_mirror:
             yield RpmRepository("fedora", f"baseurl={context.config.local_mirror}", gpgurls)
