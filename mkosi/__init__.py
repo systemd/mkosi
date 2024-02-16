@@ -24,7 +24,6 @@ from typing import Optional, TextIO, Union, cast
 from mkosi.archive import extract_tar, make_cpio, make_tar
 from mkosi.burn import run_burn
 from mkosi.config import (
-    Architecture,
     Args,
     BiosBootloader,
     Bootloader,
@@ -1617,7 +1616,7 @@ def identify_cpu(root: Path) -> tuple[Optional[Path], Optional[Path]]:
 
 
 def build_microcode_initrd(context: Context) -> Optional[Path]:
-    if context.config.architecture not in (Architecture.x86, Architecture.x86_64):
+    if not context.config.architecture.is_x86_variant():
         return None
 
     microcode = context.workspace / "initrd-microcode.img"

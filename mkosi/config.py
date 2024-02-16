@@ -360,16 +360,16 @@ class Architecture(StrEnum):
         }.get(self, "ttyS0")
 
     def supports_smbios(self, firmware: QemuFirmware) -> bool:
-        if self in (Architecture.x86, Architecture.x86_64):
+        if self.is_x86_variant():
             return True
 
-        return self in (Architecture.arm, Architecture.arm64) and firmware == QemuFirmware.uefi
+        return self.is_arm_variant() and firmware == QemuFirmware.uefi
 
     def supports_fw_cfg(self) -> bool:
-        return self in (Architecture.x86, Architecture.x86_64, Architecture.arm, Architecture.arm64)
+        return self.is_x86_variant() or self.is_arm_variant()
 
     def supports_smm(self) -> bool:
-        return self in (Architecture.x86, Architecture.x86_64)
+        return self.is_x86_variant()
 
     def default_qemu_machine(self) -> str:
         m = {
@@ -397,6 +397,12 @@ class Architecture(StrEnum):
 
     def is_native(self) -> bool:
         return self == self.native()
+
+    def is_x86_variant(self) -> bool:
+        return self in (Architecture.x86, Architecture.x86_64)
+
+    def is_arm_variant(self) -> bool:
+        return self in (Architecture.arm, Architecture.arm64)
 
     @classmethod
     def native(cls) -> "Architecture":

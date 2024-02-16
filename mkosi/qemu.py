@@ -802,9 +802,9 @@ def run_qemu(args: Args, config: Config) -> None:
             cmdline += ["-chardev", f"socket,id=chrtpm,path={sock}",
                         "-tpmdev", "emulator,id=tpm0,chardev=chrtpm"]
 
-            if config.architecture == Architecture.x86_64:
+            if config.architecture.is_x86_variant():
                 cmdline += ["-device", "tpm-tis,tpmdev=tpm0"]
-            elif config.architecture == Architecture.arm64:
+            elif config.architecture.is_arm_variant():
                 cmdline += ["-device", "tpm-tis-device,tpmdev=tpm0"]
 
         if QemuDeviceNode.vhost_vsock in qemu_device_fds and config.architecture.supports_smbios(firmware):

@@ -3,7 +3,6 @@
 from collections.abc import Iterable
 from pathlib import Path
 
-from mkosi.config import Architecture
 from mkosi.context import Context
 from mkosi.distributions import debian
 from mkosi.installer.apt import Apt
@@ -39,7 +38,7 @@ class Installer(debian.Installer):
             )
             return
 
-        if context.config.architecture in (Architecture.x86, Architecture.x86_64):
+        if context.config.architecture.is_x86_variant():
             mirror = context.config.mirror or "http://archive.ubuntu.com/ubuntu"
         else:
             mirror = context.config.mirror or "http://ports.ubuntu.com"
@@ -63,7 +62,7 @@ class Installer(debian.Installer):
         )
 
         # Security updates repos are never mirrored. But !x86 are on the ports server.
-        if context.config.architecture in [Architecture.x86, Architecture.x86_64]:
+        if context.config.architecture.is_x86_variant():
             mirror = "http://security.ubuntu.com/ubuntu/"
         else:
             mirror = "http://ports.ubuntu.com/"

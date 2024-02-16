@@ -71,7 +71,7 @@ class Installer(DistributionInstaller):
         if context.config.local_mirror:
             yield Pacman.Repository("core", context.config.local_mirror)
         else:
-            if context.config.architecture == Architecture.arm64:
+            if context.config.architecture.is_arm_variant():
                 url = f"{context.config.mirror or 'http://mirror.archlinuxarm.org'}/$arch/$repo"
             else:
                 url = f"{context.config.mirror or 'https://geo.mirror.pkgbuild.com'}/$repo/os/$arch"
@@ -96,6 +96,7 @@ class Installer(DistributionInstaller):
         a = {
             Architecture.x86_64 : "x86_64",
             Architecture.arm64  : "aarch64",
+            Architecture.arm    : "armv7h",
         }.get(arch)
 
         if not a:
