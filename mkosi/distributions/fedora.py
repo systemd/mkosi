@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
+import re
 from collections.abc import Iterable, Sequence
+from pathlib import Path
 
 from mkosi.config import Architecture, Config
 from mkosi.context import Context
@@ -14,7 +16,33 @@ from mkosi.installer import PackageManager
 from mkosi.installer.dnf import Dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey, setup_rpm
 from mkosi.log import die
-from mkosi.util import listify
+from mkosi.util import listify, tuplify
+
+
+@tuplify
+def find_fedora_rpm_gpgkeys(context: Context) -> Iterable[str]:
+    key1 = find_rpm_gpgkey(context, key=f"RPM-GPG-KEY-fedora-{context.config.release}-primary")
+    key2 = find_rpm_gpgkey(context, key=f"RPM-GPG-KEY-fedora-{context.config.release}-secondary")
+
+    if key1:
+        # During branching, there is always a kerfuffle with the key transition.
+        # For Rawhide, try to load the N+1 key, just in case our local configuration
+        # still indicates that Rawhide==N, but really Rawhide==N+1.
+        if context.config.release == "rawhide" and key1.startswith("file://"):
+            path = Path(key1.removeprefix("file://")).resolve()
+            if m := re.match(r"RPM-GPG-KEY-fedora-(\d+)-(primary|secondary)", path.name):
+                version = int(m.group(1))
+                if key3 := find_rpm_gpgkey(context, key=f"RPM-GPG-KEY-fedora-{version + 1}-primary"):
+                    # We yield the resolved path for key1, to make it clear that it's
+                    # for version N, and the other key is for version N+1.
+                    key1 = path.as_uri()
+                    yield key3
+
+        yield key1
+    if key2:
+        yield key2
+    if not key1 and not key2:
+        yield "https://fedoraproject.org/fedora.gpg"
 
 
 class Installer(DistributionInstaller):
@@ -74,12 +102,7 @@ class Installer(DistributionInstaller):
     @classmethod
     @listify
     def repositories(cls, context: Context) -> Iterable[RpmRepository]:
-        gpgurls = (
-            find_rpm_gpgkey(
-                context,
-                key=f"RPM-GPG-KEY-fedora-{context.config.release}-primary",
-            ) or "https://fedoraproject.org/fedora.gpg",
-        )
+        gpgurls = find_fedora_rpm_gpgkeys(context)
 
         if context.config.local_mirror:
             yield RpmRepository("fedora", f"baseurl={context.config.local_mirror}", gpgurls)

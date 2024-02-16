@@ -40,6 +40,13 @@ def listify(f: Callable[..., Iterable[T]]) -> Callable[..., list[T]]:
     return functools.update_wrapper(wrapper, f)
 
 
+def tuplify(f: Callable[..., Iterable[T]]) -> Callable[..., tuple[T, ...]]:
+    def wrapper(*args: Any, **kwargs: Any) -> tuple[T, ...]:
+        return tuple(f(*args, **kwargs))
+
+    return functools.update_wrapper(wrapper, f)
+
+
 @dictify
 def read_env_file(path: Path) -> Iterator[tuple[str, str]]:
     with path.open() as f:
