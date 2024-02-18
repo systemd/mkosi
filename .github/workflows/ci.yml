@@ -115,12 +115,6 @@ jobs:
             tools: opensuse
           - distro: ubuntu
             tools: opensuse
-          # rpm in Debian is currently missing
-          # https://github.com/rpm-software-management/rpm/commit/ea3187cfcf9cac87e5bc5e7db79b0338da9e355e
-          - distro: fedora
-            tools: debian
-          - distro: centos
-            tools: debian
           # This combination results in rpm failing because of SIGPIPE.
           # TODO: Try again once Arch gets a new rpm release.
           - distro: centos
