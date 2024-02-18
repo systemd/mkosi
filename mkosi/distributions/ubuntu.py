@@ -16,7 +16,7 @@ class Installer(debian.Installer):
 
     @classmethod
     def default_release(cls) -> str:
-        return "lunar"
+        return "noble"
 
     @staticmethod
     @listify

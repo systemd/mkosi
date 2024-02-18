@@ -142,8 +142,8 @@ def test_initrd_luks(initrd: Image, passphrase: Path) -> None:
                 Format=vfat
                 CopyFiles=/boot:/
                 CopyFiles=/efi:/
-                SizeMinBytes=512M
-                SizeMaxBytes=512M
+                SizeMinBytes=1G
+                SizeMaxBytes=1G
                 """
             )
         )

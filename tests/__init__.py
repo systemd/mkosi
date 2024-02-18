@@ -117,10 +117,7 @@ class Image:
             check=False,
         )
 
-        if self.config.distribution == Distribution.ubuntu or self.config.distribution.is_centos_variant():
-            rc = 0
-        else:
-            rc = 123
+        rc = 0 if self.config.distribution.is_centos_variant() else 123
 
         if result.returncode != rc:
             raise subprocess.CalledProcessError(result.returncode, result.args, result.stdout, result.stderr)

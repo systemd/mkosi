@@ -105,7 +105,8 @@ jobs:
           - debian
           - fedora
           - opensuse
-          # TODO: Add Ubuntu and CentOS once they have systemd v254 or newer.
+          - ubuntu
+          # TODO: Add CentOS once they have systemd v254 or newer.
         exclude:
           # pacman and archlinux-keyring are not packaged in OpenSUSE.
           - distro: arch
