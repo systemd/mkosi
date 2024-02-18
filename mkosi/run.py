@@ -210,7 +210,7 @@ def run(
             log_process_failure(cmdline, e.returncode)
         if ARG_DEBUG_SHELL.get():
             subprocess.run(
-                [*sandbox, "sh"],
+                [*sandbox, "bash"],
                 check=False,
                 stdin=sys.stdin,
                 text=True,
