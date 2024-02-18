@@ -56,6 +56,7 @@ class PackageManager:
                         Path("/var") / d / subdir / p.relative_to(src),
                     ]
                     for p in caches
+                    if (context.config.package_cache_dir_or_default() / d / subdir / p.relative_to(src)).exists()
                 )
 
         return mounts
