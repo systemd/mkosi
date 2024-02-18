@@ -1902,6 +1902,9 @@ def install_uki(context: Context, partitions: Sequence[Partition]) -> None:
     if not stub.exists() and context.config.bootable == ConfigFeature.auto:
         return
 
+    if context.config.bootable == ConfigFeature.enabled and not gen_kernel_images(context):
+        die("A bootable image was requested but no kernel was found")
+
     roothash = finalize_roothash(partitions)
 
     for kver, kimg in gen_kernel_images(context):
@@ -1944,28 +1947,10 @@ def install_uki(context: Context, partitions: Sequence[Partition]) -> None:
 
         build_uki(context, stub, kver, context.root / kimg, initrds, cmdline, boot_binary, roothash=roothash)
 
-        if not (context.staging / context.config.output_split_initrd).exists():
-            # Extract the combined initrds from the UKI so we can use it to direct kernel boot with qemu
-            # if needed.
-            extract_pe_section(context, boot_binary, ".initrd", context.staging / context.config.output_split_initrd)
-
-        if not (context.staging / context.config.output_split_uki).exists():
-            shutil.copy(boot_binary, context.staging / context.config.output_split_uki)
-
-            # ukify will have signed the kernel image as well. Let's make sure we put the signed kernel
-            # image in the output directory instead of the unsigned one by reading it from the UKI.
-            extract_pe_section(context, boot_binary, ".linux", context.staging / context.config.output_split_kernel)
-
         print_output_size(boot_binary)
 
         if context.config.bootloader == Bootloader.uki:
             break
-
-    if (
-        context.config.bootable == ConfigFeature.enabled and
-        not (context.staging / context.config.output_split_uki).exists()
-    ):
-        die("A bootable image was requested but no kernel was found")
 
 
 def make_uki(context: Context, stub: Path, kver: str, kimg: Path, output: Path) -> None:
@@ -2016,6 +2001,41 @@ def maybe_compress(context: Context, compression: Compression, src: Path, dst: O
                 run(compressor_command(context, compression), stdin=i, stdout=o, sandbox=context.sandbox())
 
 
+def copy_uki(context: Context) -> None:
+    if (context.staging / context.config.output_split_uki).exists():
+        return
+
+    ukis = sorted(
+        (context.root / "boot/EFI/Linux").glob("*.efi"),
+        key=lambda p: GenericVersion(p.name),
+        reverse=True,
+    )
+
+    if (
+        (uki := context.root / efi_boot_binary(context)).exists() and
+        KernelType.identify(context.config, uki) == KernelType.uki
+    ):
+        pass
+    elif (
+        (uki := context.root / shim_second_stage_binary(context)).exists() and
+        KernelType.identify(context.config, uki) == KernelType.uki
+    ):
+        pass
+    elif ukis:
+        uki = ukis[0]
+    else:
+        return
+
+    shutil.copy(uki, context.staging / context.config.output_split_uki)
+
+    # Extract the combined initrds from the UKI so we can use it to direct kernel boot with qemu if needed.
+    extract_pe_section(context, uki, ".initrd", context.staging / context.config.output_split_initrd)
+
+    # ukify will have signed the kernel image as well. Let's make sure we put the signed kernel image in the output
+    # directory instead of the unsigned one by reading it from the UKI.
+    extract_pe_section(context, uki, ".linux", context.staging / context.config.output_split_kernel)
+
+
 def copy_vmlinuz(context: Context) -> None:
     if (context.staging / context.config.output_split_kernel).exists():
         return
@@ -2035,6 +2055,9 @@ def copy_nspawn_settings(context: Context) -> None:
 
 def copy_initrd(context: Context) -> None:
     if not want_initrd(context):
+        return
+
+    if (context.staging / context.config.output_split_initrd).exists():
         return
 
     for kver, _ in gen_kernel_images(context):
@@ -3061,6 +3084,7 @@ def build_image(context: Context) -> None:
         make_disk(context, split=True, msg="Extracting partitions")
 
     copy_nspawn_settings(context)
+    copy_uki(context)
     copy_vmlinuz(context)
     copy_initrd(context)
 
