@@ -164,6 +164,9 @@ def gen_required_kernel_modules(
     yield modulesd
     yield modulesd / "kernel"
 
+    if (root / "usr/lib/firmware").exists():
+        yield root / "usr/lib/firmware"
+
     for d in (modulesd, root / "usr/lib/firmware"):
         for p in (root / d).rglob("*"):
             if p.is_dir():
