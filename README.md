@@ -81,7 +81,7 @@ mkosi binary and is not to be considered a public API.
 ## kernel-install plugin
 
 mkosi can also be used as a kernel-install plugin to build initrds. To
-enable this feature, install `kernel-install/50-mkosi-initrd.install`
+enable this feature, install `kernel-install/50-mkosi.install`
 into `/usr/lib/kernel/install.d`. Extra distro configuration for the
 initrd can be configured in `/usr/lib/mkosi-initrd`. Users can add their
 own customizations in `/etc/mkosi-initrd`.
