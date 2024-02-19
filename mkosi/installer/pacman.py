@@ -174,8 +174,15 @@ class Pacman(PackageManager):
 
     @classmethod
     def createrepo(cls, context: Context) -> None:
-        run(["repo-add", "--quiet", context.packages / "mkosi.db.tar",
-            *sorted(context.packages.glob("*.pkg.tar*"), key=lambda p: GenericVersion(Path(p).name))])
+        run(
+            [
+                "repo-add",
+                "--quiet",
+                context.packages / "mkosi.db.tar",
+                *sorted(context.packages.glob("*.pkg.tar*"), key=lambda p: GenericVersion(Path(p).name))
+            ],
+            sandbox=context.sandbox(options=["--bind", context.packages, context.packages]),
+        )
 
         (context.pkgmngr / "etc/mkosi-local.conf").write_text(
             textwrap.dedent(
