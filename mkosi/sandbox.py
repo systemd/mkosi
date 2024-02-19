@@ -211,7 +211,7 @@ def apivfs_cmd(root: Path) -> list[PathString]:
 
 
 def chroot_cmd(root: Path, *, resolve: bool = False, options: Sequence[PathString] = ()) -> list[PathString]:
-    cmdline: list[PathString] = [
+    return apivfs_cmd(root) + [
         "sh", "-c",
         f"trap 'rm -rf {root / 'work'}' EXIT && "
         # /etc/resolv.conf can be a dangling symlink to /run/systemd/resolve/stub-resolv.conf. Bubblewrap tries to call
@@ -226,11 +226,9 @@ def chroot_cmd(root: Path, *, resolve: bool = False, options: Sequence[PathStrin
         "--setenv", "container", "mkosi",
         "--setenv", "HOME", "/",
         "--setenv", "PATH", "/work/scripts:/usr/bin:/usr/sbin",
+        *(["--ro-bind-try", "/etc/resolv.conf", "/etc/resolv.conf"] if resolve else []),
+        *options,
+        # Start an interactive bash shell if we're not given any arguments.
+        "sh", "-c", '[ "$0" = "sh" ] && [ $# -eq 0 ] && exec bash -i || exec $0 "$@"',
     ]
 
-    if resolve:
-        cmdline += ["--ro-bind-try", "/etc/resolv.conf", "/etc/resolv.conf"]
-
-    cmdline += options
-
-    return apivfs_cmd(root) + cmdline

@@ -363,11 +363,7 @@ def finalize_scripts(scripts: Mapping[str, Sequence[PathString]] = {}) -> Iterat
                     DIR="$(cd "$(dirname "$0")" && pwd)"
                     PATH="$(echo "$PATH" | tr ':' '\\n' | grep -v "$DIR" | tr '\\n' ':')"
                     export PATH
-                    if [ $# -gt 0 ]; then
-                        exec {shlex.join(str(s) for s in script)} "$@"
-                    else
-                        exec {shlex.join(str(s) for s in script)} sh -i
-                    fi
+                    exec {shlex.join(str(s) for s in script)} "$@"
                     """
                 )
             )
