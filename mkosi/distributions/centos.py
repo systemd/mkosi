@@ -58,10 +58,11 @@ class Installer(DistributionInstaller):
         if GenericVersion(context.config.release) < 9:
             return "/var/lib/rpm"
 
-        # The Hyperscale SIG uses /usr/lib/sysimage/rpm from C9S onwards already.
+        # The Hyperscale SIG uses /usr/lib/sysimage/rpm in its rebuild of rpm for C9S that's shipped in the
+        # hyperscale-packages-experimental repository.
         if (
             GenericVersion(context.config.release) == 9 and
-            not any("hyperscale" in repo for repo in context.config.repositories)
+            "hyperscale-packages-experimental" not in context.config.repositories
         ):
             return "/var/lib/rpm"
 
