@@ -17,6 +17,7 @@ class RpmRepository(NamedTuple):
     sslcacert: Optional[Path] = None
     sslclientkey: Optional[Path] = None
     sslclientcert: Optional[Path] = None
+    priority: Optional[int] = None
 
 
 def find_rpm_gpgkey(context: Context, key: str) -> Optional[str]:

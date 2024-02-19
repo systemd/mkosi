@@ -212,6 +212,11 @@ class Installer(DistributionInstaller):
             if not vmlinuz.exists():
                 shutil.copy2(d, vmlinuz)
 
+        # systemd-gpt-auto-generator is disabled by default in Ubuntu:
+        # https://git.launchpad.net/ubuntu/+source/systemd/tree/debian/systemd.links?h=ubuntu/noble-proposed.
+        # Let's make sure it is enabled by default in our images.
+        (context.root / "etc/systemd/system-generators/systemd-gpt-auto-generator").unlink(missing_ok=True)
+
 
     @classmethod
     def remove_packages(cls, context: Context, packages: Sequence[str]) -> None:

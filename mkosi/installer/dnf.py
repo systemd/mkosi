@@ -84,6 +84,8 @@ class Dnf(PackageManager):
                         f.write(f"sslclientcert={repo.sslclientcert}\n")
                     if repo.sslclientkey:
                         f.write(f"sslclientkey={repo.sslclientkey}\n")
+                    if repo.priority:
+                        f.write(f"priority={repo.priority}\n")
 
                     for i, url in enumerate(repo.gpgurls):
                         f.write("gpgkey=" if i == 0 else len("gpgkey=") * " ")

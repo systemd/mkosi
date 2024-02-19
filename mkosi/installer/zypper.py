@@ -87,6 +87,9 @@ class Zypper(PackageManager):
                         )
                     )
 
+                    if repo.priority:
+                        f.write(f"priority={repo.priority}\n")
+
                     for i, url in enumerate(repo.gpgurls):
                         f.write("gpgkey=" if i == 0 else len("gpgkey=") * " ")
                         f.write(f"{url}\n")
