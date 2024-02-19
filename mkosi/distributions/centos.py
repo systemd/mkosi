@@ -17,6 +17,8 @@ from mkosi.log import die
 from mkosi.util import listify
 from mkosi.versioncomp import GenericVersion
 
+CENTOS_SIG_REPO_PRIORITY = 50
+
 
 class Installer(DistributionInstaller):
     @classmethod
@@ -355,18 +357,21 @@ class Installer(DistributionInstaller):
                             f"baseurl={join_mirror(mirror, f'centos/$stream/{sig}/$basearch/{c}')}",
                             gpgurls,
                             enabled=False,
+                            priority=CENTOS_SIG_REPO_PRIORITY,
                         )
                         yield RpmRepository(
                             f"{sig}-{c}-debuginfo",
                             f"baseurl={join_mirror(mirror, f'centos-debuginfo/$stream/{sig}/$basearch')}",
                             gpgurls,
                             enabled=False,
+                            priority=CENTOS_SIG_REPO_PRIORITY,
                         )
                         yield RpmRepository(
                             f"{sig}-{c}-source",
                             f"baseurl={join_mirror(mirror, f'centos/$stream/{sig}/Source')}",
                             gpgurls,
                             enabled=False,
+                            priority=CENTOS_SIG_REPO_PRIORITY,
                         )
                     else:
                         yield RpmRepository(
@@ -374,18 +379,21 @@ class Installer(DistributionInstaller):
                             f"baseurl={join_mirror(mirror, f'centos-stream/SIGs/$stream/{sig}/$basearch/{c}')}",
                             gpgurls,
                             enabled=False,
+                            priority=CENTOS_SIG_REPO_PRIORITY,
                         )
                         yield RpmRepository(
                             f"{sig}-{c}-debuginfo",
                             f"baseurl={join_mirror(mirror, f'centos-stream/SIGs/$stream/{sig}/$basearch/{c}/debug')}",
                             gpgurls,
                             enabled=False,
+                            priority=CENTOS_SIG_REPO_PRIORITY,
                         )
                         yield RpmRepository(
                             f"{sig}-{c}-source",
                             f"baseurl={join_mirror(mirror, f'centos-stream/SIGs/$stream/{sig}/source/{c}')}",
                             gpgurls,
                             enabled=False,
+                            priority=CENTOS_SIG_REPO_PRIORITY,
                         )
                 else:
                     if GenericVersion(context.config.release) <= 8:
@@ -394,6 +402,7 @@ class Installer(DistributionInstaller):
                             f"mirrorlist=http://mirrorlist.centos.org/?release=$stream&arch=$basearch&repo={sig}-{c}",
                             gpgurls,
                             enabled=False,
+                            priority=CENTOS_SIG_REPO_PRIORITY,
                         )
                         # These can't be retrieved from the mirrorlist.
                         yield RpmRepository(
@@ -401,12 +410,14 @@ class Installer(DistributionInstaller):
                             f"baseurl=http://debuginfo.centos.org/centos/$stream/{sig}/$basearch",
                             gpgurls,
                             enabled=False,
+                            priority=CENTOS_SIG_REPO_PRIORITY,
                         )
                         yield RpmRepository(
                             f"{sig}-{c}-source",
                             f"baseurl=https://vault.centos.org/$stream/{sig}/Source/{c}",
                             gpgurls,
                             enabled=False,
+                            priority=CENTOS_SIG_REPO_PRIORITY,
                         )
                     else:
                         url = "metalink=https://mirrors.centos.org/metalink"
@@ -415,18 +426,21 @@ class Installer(DistributionInstaller):
                             f"{url}?arch=$basearch&repo=centos-{sig}-sig-{c}-$stream",
                             gpgurls,
                             enabled=False,
+                            priority=CENTOS_SIG_REPO_PRIORITY,
                         )
                         yield RpmRepository(
                             f"{sig}-{c}-debuginfo",
                             f"{url}?arch=$basearch&repo=centos-{sig}-sig-{c}-debug-$stream",
                             gpgurls,
                             enabled=False,
+                            priority=CENTOS_SIG_REPO_PRIORITY,
                         )
                         yield RpmRepository(
                             f"{sig}-{c}-source",
                             f"{url}?arch=source&repo=centos-{sig}-sig-{c}-source-$stream",
                             gpgurls,
                             enabled=False,
+                            priority=CENTOS_SIG_REPO_PRIORITY,
                         )
 
                     yield RpmRepository(
@@ -434,6 +448,7 @@ class Installer(DistributionInstaller):
                         f"baseurl=https://buildlogs.centos.org/centos/$stream/{sig}/$basearch/{c}",
                         gpgurls,
                         enabled=False,
+                        priority=CENTOS_SIG_REPO_PRIORITY,
                     )
 
                     if GenericVersion(context.config.release) >= 9:
@@ -442,4 +457,5 @@ class Installer(DistributionInstaller):
                             f"baseurl=https://buildlogs.centos.org/centos/$stream/{sig}/$basearch/{c}",
                             gpgurls,
                             enabled=False,
+                            priority=CENTOS_SIG_REPO_PRIORITY,
                         )
