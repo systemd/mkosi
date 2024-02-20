@@ -1966,7 +1966,7 @@ def compressor_command(context: Context, compression: Compression) -> list[PathS
     """Returns a command suitable for compressing archives."""
 
     if compression == Compression.gz:
-        return [gzip_binary(context), f"-{context.config.compress_level}" "--stdout", "-"]
+        return [gzip_binary(context), f"-{context.config.compress_level}", "--stdout", "-"]
     elif compression == Compression.xz:
         return ["xz", "--check=crc32", f"-{context.config.compress_level}", "-T0", "--stdout", "-"]
     elif compression == Compression.zstd:
