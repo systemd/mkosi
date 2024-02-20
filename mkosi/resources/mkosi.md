@@ -1589,12 +1589,15 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   | `e2fsprogs`             | X      | X      | X      | X      | X    | X        |
   | `edk2-ovmf`             | X      | X      | X      | X      | X    | X        |
   | `erofs-utils`           | X      |        | X      | X      | X    | X        |
+  | `findutils`             | X      | X      | X      | X      | X    | X        |
+  | `grep`                  | X      | X      | X      | X      | X    | X        |
   | `kmod`                  | X      | X      | X      | X      | X    | X        |
   | `less`                  | X      | X      | X      | X      | X    | X        |
   | `mtools`                | X      | X      | X      | X      | X    | X        |
   | `nano`                  | X      | X      | X      | X      | X    | X        |
   | `openssh`               | X      | X      | X      | X      | X    | X        |
   | `openssl`               | X      | X      | X      | X      | X    | X        |
+  | `sed`                   | X      | X      | X      | X      | X    | X        |
   | `pacman`                | X      |        | X      | X      | X    |          |
   | `pesign`                | X      | X      | X      | X      | X    | X        |
   | `policycoreutils`       | X      | X      | X      | X      |      | X        |
