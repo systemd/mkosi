@@ -310,7 +310,7 @@ class Architecture(StrEnum):
         }.get(s)
 
         if not a:
-            die(f"Architecture {a} is not supported")
+            die(f"Architecture {s} is not supported")
 
         return a
 
