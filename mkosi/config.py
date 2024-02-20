@@ -2885,7 +2885,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
                     continue
 
                 if any(p == Path(c) for c in BUILTIN_CONFIGS):
-                    _, [config] = parse_config(["--include", os.fspath(path)])
+                    _, [config] = parse_config(["--directory", "", "--include", os.fspath(path)])
                     make_executable(
                         *config.prepare_scripts,
                         *config.postinst_scripts,
