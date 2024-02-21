@@ -1404,6 +1404,16 @@ def install_package_manager_trees(context: Context) -> None:
     if Path("/etc/static").is_symlink():
         (context.pkgmngr / "etc/static").symlink_to(Path("/etc/static").readlink())
 
+    (context.pkgmngr / "var/log").mkdir(parents=True)
+
+    with (context.pkgmngr / "etc/passwd").open("w") as passwd:
+        passwd.write("root:x:0:0:root:/root:/bin/sh\n")
+        if INVOKING_USER.uid != 0:
+            name = INVOKING_USER.name()
+            home = INVOKING_USER.home()
+            passwd.write(f"{name}:x:{INVOKING_USER.uid}:{INVOKING_USER.gid}:{name}:{home}:/bin/sh\n")
+        os.fchown(passwd.fileno(), INVOKING_USER.uid, INVOKING_USER.gid)
+
     if not context.config.package_manager_trees:
         return
 
