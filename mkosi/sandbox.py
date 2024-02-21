@@ -154,7 +154,7 @@ def sandbox_cmd(
     path = "/usr/bin:/usr/sbin" if tools != Path("/") else os.environ["PATH"]
 
     cmdline += [
-        "--setenv", "PATH", f"{scripts or ''}:{path}",
+        "--setenv", "PATH", f"/scripts:{path}",
         *options,
     ]
 
@@ -170,7 +170,7 @@ def sandbox_cmd(
         cmdline += ["--ro-bind", tools / "etc/alternatives", "/etc/alternatives"]
 
     if scripts:
-        cmdline += ["--ro-bind", scripts, scripts]
+        cmdline += ["--ro-bind", scripts, "/scripts"]
 
     if network and not relaxed:
         cmdline += ["--bind", "/etc/resolv.conf", "/etc/resolv.conf"]

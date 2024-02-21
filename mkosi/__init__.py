@@ -81,12 +81,6 @@ from mkosi.util import (
 )
 from mkosi.versioncomp import GenericVersion
 
-MKOSI_AS_CALLER = (
-    "setpriv",
-    f"--reuid={INVOKING_USER.uid}",
-    f"--regid={INVOKING_USER.gid}",
-    "--clear-groups",
-)
 
 @contextlib.contextmanager
 def mount_base_trees(context: Context) -> Iterator[None]:
@@ -351,47 +345,70 @@ def mount_build_overlay(context: Context, volatile: bool = False) -> Iterator[Pa
 
 
 @contextlib.contextmanager
-def finalize_scripts(scripts: Mapping[str, Sequence[PathString]] = {}) -> Iterator[Path]:
+def finalize_scripts(scripts: Mapping[str, Sequence[PathString]], root: Path) -> Iterator[Path]:
     with tempfile.TemporaryDirectory(prefix="mkosi-scripts") as d:
+        # Make sure than when mkosi-as-caller is used the scripts can still be accessed.
+        os.chmod(d, 0o755)
+
         for name, script in scripts.items():
             # Make sure we don't end up in a recursive loop when we name a script after the binary it execs
             # by removing the scripts directory from the PATH when we execute a script.
-            (Path(d) / name).write_text(
-                textwrap.dedent(
-                    f"""\
-                    #!/bin/sh
-                    DIR="$(cd "$(dirname "$0")" && pwd)"
-                    PATH="$(echo "$PATH" | tr ':' '\\n' | grep -v "$DIR" | tr '\\n' ':')"
-                    export PATH
-                    exec {shlex.join(str(s) for s in script)} "$@"
-                    """
-                )
-            )
+            with (Path(d) / name).open("w") as f:
+                f.write("#!/bin/sh\n")
+
+                if find_binary(name, root=root):
+                    f.write(
+                        textwrap.dedent(
+                            """\
+                            DIR="$(cd "$(dirname "$0")" && pwd)"
+                            PATH="$(echo "$PATH" | tr ':' '\\n' | grep -v "$DIR" | tr '\\n' ':')"
+                            export PATH
+                            """
+                        )
+                    )
+
+                f.write(f'exec {shlex.join(str(s) for s in script)} "$@"\n')
 
             make_executable(Path(d) / name)
+            os.chmod(Path(d) / name, 0o755)
             os.utime(Path(d) / name, (0, 0))
 
         yield Path(d)
 
 
-def finalize_host_scripts(
-    context: Context,
-    helpers: Mapping[str, Sequence[PathString]],
-) -> contextlib.AbstractContextManager[Path]:
-    scripts: dict[str, Sequence[PathString]] = {}
-    if find_binary("git", root=context.config.tools()):
-        scripts["git"] = ("git", "-c", "safe.directory=*")
-    for binary in ("useradd", "groupadd"):
-        if find_binary(binary, root=context.config.tools()):
-            scripts[binary] = (binary, "--root", context.root)
-    return finalize_scripts(
-        scripts | dict(helpers) | context.config.distribution.package_manager(context.config).scripts(context)
+GIT_COMMAND = (
+    "git",
+    "-c", "safe.directory=*",
+)
+
+
+def mkosi_as_caller() -> tuple[str, ...]:
+    return (
+        "setpriv",
+        f"--reuid={INVOKING_USER.uid}",
+        f"--regid={INVOKING_USER.gid}",
+        "--clear-groups",
     )
 
 
+def finalize_host_scripts(
+    context: Context,
+    helpers: Mapping[str, Sequence[PathString]] = {},
+) -> contextlib.AbstractContextManager[Path]:
+    scripts: dict[str, Sequence[PathString]] = {}
+    if find_binary("git", root=context.config.tools()):
+        scripts["git"] = GIT_COMMAND
+    for binary in ("useradd", "groupadd"):
+        if find_binary(binary, root=context.config.tools()):
+            scripts[binary] = (binary, "--root", context.root)
+    return finalize_scripts(scripts | dict(helpers), root=context.config.tools())
+
+
 def finalize_chroot_scripts(context: Context) -> contextlib.AbstractContextManager[Path]:
-    git = {"git": ("git", "-c", "safe.directory=*")} if find_binary("git", root=context.root) else {}
-    return finalize_scripts(git)
+    scripts: dict[str, Sequence[PathString]] = {}
+    if find_binary("git", root=context.config.tools()):
+        scripts["git"] = GIT_COMMAND
+    return finalize_scripts(scripts, root=context.root)
 
 
 def run_prepare_scripts(context: Context, build: bool) -> None:
@@ -438,9 +455,10 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
                 ],
             )
 
-            helpers: dict[str, Sequence[PathString]] = {
+            helpers = {
                 "mkosi-chroot": chroot,
-                "mkosi-as-caller" : MKOSI_AS_CALLER,
+                "mkosi-as-caller": mkosi_as_caller(),
+                **context.config.distribution.package_manager(context.config).scripts(context),
             }
 
             with (
@@ -513,7 +531,8 @@ def run_build_scripts(context: Context) -> None:
 
             helpers = {
                 "mkosi-chroot": chroot,
-                "mkosi-as-caller": MKOSI_AS_CALLER,
+                "mkosi-as-caller": mkosi_as_caller(),
+                **context.config.distribution.package_manager(context.config).scripts(context),
             }
 
             cmdline = context.args.cmdline if context.args.verb == Verb.build else []
@@ -586,7 +605,8 @@ def run_postinst_scripts(context: Context) -> None:
 
             helpers = {
                 "mkosi-chroot": chroot,
-                "mkosi-as-caller": MKOSI_AS_CALLER,
+                "mkosi-as-caller": mkosi_as_caller(),
+                **context.config.distribution.package_manager(context.config).scripts(context),
             }
 
             with (
@@ -647,7 +667,8 @@ def run_finalize_scripts(context: Context) -> None:
 
             helpers = {
                 "mkosi-chroot": chroot,
-                "mkosi-as-caller": MKOSI_AS_CALLER,
+                "mkosi-as-caller": mkosi_as_caller(),
+                **context.config.distribution.package_manager(context.config).scripts(context),
             }
 
             with (
