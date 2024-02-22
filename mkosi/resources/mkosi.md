@@ -1032,6 +1032,12 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   package manager executable is *not* present at the end of the
   installation.
 
+`SyncScripts=`, `--sync-script=`
+
+: Takes a comma-separated list of paths to executables that are used as
+  the sync scripts for this image. See the **Scripts** section for
+  more information.
+
 `PrepareScripts=`, `--prepare-script=`
 
 : Takes a comma-separated list of paths to executables that are used as
@@ -1072,7 +1078,8 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 : Takes a boolean. Disabled by default. Configures whether changes to
   source directories (The working directory and configured using
   `BuildSources=`) are persisted. If enabled, all source directories
-  will be reset to their original state after scripts finish executing.
+  will be reset to their original state after scripts (except sync
+  scripts) finish executing.
 
 `Environment=`, `--environment=`
 
@@ -1841,6 +1848,14 @@ image. For each script, the configured build sources (`BuildSources=`)
 are mounted into the current working directory before running the script
 in the current working directory. `$SRCDIR` is set to point to the
 current working directory. The following scripts are supported:
+
+* If **`mkosi.sync`** (`SyncScripts=`) exists, it is executed before the
+  image is built. This script may be used to update various sources that
+  are used to build the image. One use case is to run `git pull` on
+  various source repositories before building the image. Specifically,
+  the `BuildSourcesEphemeral=` setting does not apply to sync scripts,
+  which means sync scripts can be used to update build sources even if
+  `BuildSourcesEphemeral=` is enabled.
 
 * If **`mkosi.prepare`** (`PrepareScripts=`) exists, it is first called
   with the `final` argument, right after the software packages are

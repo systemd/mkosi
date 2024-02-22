@@ -154,7 +154,7 @@ def sandbox_cmd(
     path = "/usr/bin:/usr/sbin" if tools != Path("/") else os.environ["PATH"]
 
     cmdline += [
-        "--setenv", "PATH", f"{scripts or ''}:{path}",
+        "--setenv", "PATH", f"/scripts:{path}",
         *options,
     ]
 
@@ -170,16 +170,20 @@ def sandbox_cmd(
         cmdline += ["--ro-bind", tools / "etc/alternatives", "/etc/alternatives"]
 
     if scripts:
-        cmdline += ["--ro-bind", scripts, scripts]
+        cmdline += ["--ro-bind", scripts, "/scripts"]
 
     if network and not relaxed:
         cmdline += ["--bind", "/etc/resolv.conf", "/etc/resolv.conf"]
 
     # bubblewrap creates everything with a restricted mode so relax stuff as needed.
     ops = []
-    if not devices:
+    if not devices and not relaxed:
         ops += ["chmod 1777 /dev/shm"]
-    if not relaxed:
+    if relaxed and INVOKING_USER.home().exists() and len(INVOKING_USER.home().parents) > 1:
+        # We might mount a subdirectory of /home so /home will be created with the wrong permissions by bubblewrap so
+        # we need to fix up the permissions.
+        ops += [f"chmod 755 {list(INVOKING_USER.home().parents)[-1]}"]
+    else:
         ops += ["chmod 755 /etc"]
     ops += ["exec $0 \"$@\""]
 

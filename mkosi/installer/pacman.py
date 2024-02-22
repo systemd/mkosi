@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1+
+import os
 import shutil
 import textwrap
 from collections.abc import Iterable, Sequence
@@ -8,7 +9,7 @@ from typing import NamedTuple
 from mkosi.config import Config
 from mkosi.context import Context
 from mkosi.installer import PackageManager
-from mkosi.mounts import finalize_ephemeral_source_mounts
+from mkosi.mounts import finalize_source_mounts
 from mkosi.run import run
 from mkosi.sandbox import apivfs_cmd
 from mkosi.types import _FILE, CompletedProcess, PathString
@@ -150,7 +151,10 @@ class Pacman(PackageManager):
         apivfs: bool = False,
         stdout: _FILE = None,
     ) -> CompletedProcess:
-        with finalize_ephemeral_source_mounts(context.config) as sources:
+        with finalize_source_mounts(
+            context.config,
+            ephemeral=os.getuid() == 0 and context.config.build_sources_ephemeral,
+        ) as sources:
             return run(
                 cls.cmd(context) + [operation, *arguments],
                 sandbox=(
@@ -161,6 +165,9 @@ class Pacman(PackageManager):
                             *cls.mounts(context),
                             *sources,
                             "--chdir", "/work/src",
+                            # pacman will fail unless invoked as root so make sure we're uid/gid 0 in the sandbox.
+                            "--uid", "0",
+                            "--gid", "0",
                         ],
                     ) + (apivfs_cmd(context.root) if apivfs else [])
                 ),

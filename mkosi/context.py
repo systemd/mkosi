@@ -44,7 +44,6 @@ class Context:
 
         self.staging.mkdir()
         self.pkgmngr.mkdir()
-        (self.pkgmngr / "var/log").mkdir(parents=True)
         self.packages.mkdir()
         self.install_dir.mkdir(exist_ok=True)
 

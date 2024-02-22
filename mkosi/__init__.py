@@ -53,7 +53,7 @@ from mkosi.installer import clean_package_manager_metadata
 from mkosi.kmod import gen_required_kernel_modules, process_kernel_modules
 from mkosi.log import ARG_DEBUG, complete_step, die, log_notice, log_step
 from mkosi.manifest import Manifest
-from mkosi.mounts import finalize_ephemeral_source_mounts, mount_overlay
+from mkosi.mounts import finalize_source_mounts, mount_overlay
 from mkosi.pager import page
 from mkosi.partition import Partition, finalize_root, finalize_roothash
 from mkosi.qemu import KernelType, copy_ephemeral, run_qemu, run_ssh
@@ -82,12 +82,6 @@ from mkosi.util import (
 from mkosi.versioncomp import GenericVersion
 from mkosi.vmspawn import run_vmspawn
 
-MKOSI_AS_CALLER = (
-    "setpriv",
-    f"--reuid={INVOKING_USER.uid}",
-    f"--regid={INVOKING_USER.gid}",
-    "--clear-groups",
-)
 
 @contextlib.contextmanager
 def mount_base_trees(context: Context) -> Iterator[None]:
@@ -352,47 +346,116 @@ def mount_build_overlay(context: Context, volatile: bool = False) -> Iterator[Pa
 
 
 @contextlib.contextmanager
-def finalize_scripts(scripts: Mapping[str, Sequence[PathString]] = {}) -> Iterator[Path]:
+def finalize_scripts(scripts: Mapping[str, Sequence[PathString]], root: Path) -> Iterator[Path]:
     with tempfile.TemporaryDirectory(prefix="mkosi-scripts") as d:
+        # Make sure than when mkosi-as-caller is used the scripts can still be accessed.
+        os.chmod(d, 0o755)
+
         for name, script in scripts.items():
             # Make sure we don't end up in a recursive loop when we name a script after the binary it execs
             # by removing the scripts directory from the PATH when we execute a script.
-            (Path(d) / name).write_text(
-                textwrap.dedent(
-                    f"""\
-                    #!/bin/sh
-                    DIR="$(cd "$(dirname "$0")" && pwd)"
-                    PATH="$(echo "$PATH" | tr ':' '\\n' | grep -v "$DIR" | tr '\\n' ':')"
-                    export PATH
-                    exec {shlex.join(str(s) for s in script)} "$@"
-                    """
-                )
-            )
+            with (Path(d) / name).open("w") as f:
+                f.write("#!/bin/sh\n")
+
+                if find_binary(name, root=root):
+                    f.write(
+                        textwrap.dedent(
+                            """\
+                            DIR="$(cd "$(dirname "$0")" && pwd)"
+                            PATH="$(echo "$PATH" | tr ':' '\\n' | grep -v "$DIR" | tr '\\n' ':')"
+                            export PATH
+                            """
+                        )
+                    )
+
+                f.write(f'exec {shlex.join(str(s) for s in script)} "$@"\n')
 
             make_executable(Path(d) / name)
+            os.chmod(Path(d) / name, 0o755)
             os.utime(Path(d) / name, (0, 0))
 
         yield Path(d)
 
 
-def finalize_host_scripts(
-    context: Context,
-    helpers: Mapping[str, Sequence[PathString]],
-) -> contextlib.AbstractContextManager[Path]:
-    scripts: dict[str, Sequence[PathString]] = {}
-    if find_binary("git", root=context.config.tools()):
-        scripts["git"] = ("git", "-c", "safe.directory=*")
-    for binary in ("useradd", "groupadd"):
-        if find_binary(binary, root=context.config.tools()):
-            scripts[binary] = (binary, "--root", context.root)
-    return finalize_scripts(
-        scripts | dict(helpers) | context.config.distribution.package_manager(context.config).scripts(context)
+GIT_COMMAND = (
+    "git",
+    "-c", "safe.directory=*",
+)
+
+
+def mkosi_as_caller() -> tuple[str, ...]:
+    return (
+        "setpriv",
+        f"--reuid={INVOKING_USER.uid}",
+        f"--regid={INVOKING_USER.gid}",
+        "--clear-groups",
     )
 
 
+def finalize_host_scripts(
+    context: Context,
+    helpers: Mapping[str, Sequence[PathString]] = {},
+) -> contextlib.AbstractContextManager[Path]:
+    scripts: dict[str, Sequence[PathString]] = {}
+    if find_binary("git", root=context.config.tools()):
+        scripts["git"] = GIT_COMMAND
+    for binary in ("useradd", "groupadd"):
+        if find_binary(binary, root=context.config.tools()):
+            scripts[binary] = (binary, "--root", context.root)
+    return finalize_scripts(scripts | dict(helpers), root=context.config.tools())
+
+
 def finalize_chroot_scripts(context: Context) -> contextlib.AbstractContextManager[Path]:
-    git = {"git": ("git", "-c", "safe.directory=*")} if find_binary("git", root=context.root) else {}
-    return finalize_scripts(git)
+    scripts: dict[str, Sequence[PathString]] = {}
+    if find_binary("git", root=context.config.tools()):
+        scripts["git"] = GIT_COMMAND
+    return finalize_scripts(scripts, root=context.root)
+
+
+def run_sync_scripts(context: Context) -> None:
+    if not context.config.sync_scripts:
+        return
+
+    env = dict(
+        ARCHITECTURE=str(context.config.architecture),
+        SRCDIR="/work/src",
+        MKOSI_UID=str(INVOKING_USER.uid),
+        MKOSI_GID=str(INVOKING_USER.gid),
+        CACHED=one_zero(have_cache(context.config)),
+    )
+
+    # We make sure to mount everything in to make ssh work since syncing might involve git which could invoke ssh.
+    if agent := os.getenv("SSH_AUTH_SOCK"):
+        env["SSH_AUTH_SOCK"] = agent
+
+    with (
+        finalize_source_mounts(context.config, ephemeral=False) as sources,
+        finalize_host_scripts(context) as hd,
+    ):
+        for script in context.config.sync_scripts:
+            options = [
+                *sources,
+                "--ro-bind", script, "/work/sync",
+                "--chdir", "/work/src",
+            ]
+
+            if (p := INVOKING_USER.home()).exists():
+                options += ["--ro-bind", p, p]
+            if (p := Path(f"/run/user/{INVOKING_USER.uid}")).exists():
+                options += ["--ro-bind", p, p]
+
+            with complete_step(f"Running sync script {script}…"):
+                run(
+                    ["/work/sync", "final"],
+                    env=env | context.config.environment,
+                    stdin=sys.stdin,
+                    sandbox=context.sandbox(network=True, options=options, scripts=hd),
+                    # Make sure we run as the invoking user when we're running as root so that files are owned by the
+                    # right user. bubblewrap will automatically map the running user to root in the user namespace it
+                    # creates.
+                    user=INVOKING_USER.uid,
+                    group=INVOKING_USER.gid,
+                )
 
 
 def run_prepare_scripts(context: Context, build: bool) -> None:
@@ -419,7 +482,7 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
     with (
         mount_build_overlay(context) if build else contextlib.nullcontext(),
         finalize_chroot_scripts(context) as cd,
-        finalize_ephemeral_source_mounts(context.config) as sources,
+        finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources,
     ):
         if build:
             step_msg = "Running prepare script {} in build overlay…"
@@ -439,9 +502,10 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
                 ],
             )
 
-            helpers: dict[str, Sequence[PathString]] = {
+            helpers = {
                 "mkosi-chroot": chroot,
-                "mkosi-as-caller" : MKOSI_AS_CALLER,
+                "mkosi-as-caller": mkosi_as_caller(),
+                **context.config.distribution.package_manager(context.config).scripts(context),
             }
 
             with (
@@ -498,7 +562,7 @@ def run_build_scripts(context: Context) -> None:
     with (
         mount_build_overlay(context, volatile=True),
         finalize_chroot_scripts(context) as cd,
-        finalize_ephemeral_source_mounts(context.config) as sources,
+        finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources,
     ):
         for script in context.config.build_scripts:
             chroot = chroot_cmd(
@@ -514,7 +578,8 @@ def run_build_scripts(context: Context) -> None:
 
             helpers = {
                 "mkosi-chroot": chroot,
-                "mkosi-as-caller": MKOSI_AS_CALLER,
+                "mkosi-as-caller": mkosi_as_caller(),
+                **context.config.distribution.package_manager(context.config).scripts(context),
             }
 
             cmdline = context.args.cmdline if context.args.verb == Verb.build else []
@@ -572,7 +637,7 @@ def run_postinst_scripts(context: Context) -> None:
 
     with (
         finalize_chroot_scripts(context) as cd,
-        finalize_ephemeral_source_mounts(context.config) as sources,
+        finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources,
     ):
         for script in context.config.postinst_scripts:
             chroot = chroot_cmd(
@@ -587,7 +652,8 @@ def run_postinst_scripts(context: Context) -> None:
 
             helpers = {
                 "mkosi-chroot": chroot,
-                "mkosi-as-caller": MKOSI_AS_CALLER,
+                "mkosi-as-caller": mkosi_as_caller(),
+                **context.config.distribution.package_manager(context.config).scripts(context),
             }
 
             with (
@@ -633,7 +699,7 @@ def run_finalize_scripts(context: Context) -> None:
 
     with (
         finalize_chroot_scripts(context) as cd,
-        finalize_ephemeral_source_mounts(context.config) as sources,
+        finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources,
     ):
         for script in context.config.finalize_scripts:
             chroot = chroot_cmd(
@@ -648,7 +714,8 @@ def run_finalize_scripts(context: Context) -> None:
 
             helpers = {
                 "mkosi-chroot": chroot,
-                "mkosi-as-caller": MKOSI_AS_CALLER,
+                "mkosi-as-caller": mkosi_as_caller(),
+                **context.config.distribution.package_manager(context.config).scripts(context),
             }
 
             with (
@@ -1383,6 +1450,16 @@ def install_package_manager_trees(context: Context) -> None:
     # Required to be able to access certificates in the sandbox when running from nix.
     if Path("/etc/static").is_symlink():
         (context.pkgmngr / "etc/static").symlink_to(Path("/etc/static").readlink())
+
+    (context.pkgmngr / "var/log").mkdir(parents=True)
+
+    with (context.pkgmngr / "etc/passwd").open("w") as passwd:
+        passwd.write("root:x:0:0:root:/root:/bin/sh\n")
+        if INVOKING_USER.uid != 0:
+            name = INVOKING_USER.name()
+            home = INVOKING_USER.home()
+            passwd.write(f"{name}:x:{INVOKING_USER.uid}:{INVOKING_USER.gid}:{name}:{home}:/bin/sh\n")
+        os.fchown(passwd.fileno(), INVOKING_USER.uid, INVOKING_USER.gid)
 
     if not context.config.package_manager_trees:
         return
@@ -2222,7 +2299,13 @@ def check_inputs(config: Config) -> None:
             if not p.is_file():
                 die(f"Initrd {p} is not a file")
 
-    for script in config.prepare_scripts + config.build_scripts + config.postinst_scripts + config.finalize_scripts:
+    for script in itertools.chain(
+        config.sync_scripts,
+        config.prepare_scripts,
+        config.build_scripts,
+        config.postinst_scripts,
+        config.finalize_scripts,
+    ):
         if not os.access(script, os.X_OK):
             die(f"{script} is not executable")
 
@@ -2610,7 +2693,7 @@ def have_cache(config: Config) -> bool:
     # namespace and we'll think the cache is owned by root. However, if we're running as root and the cache was
     # generated by an unprivileged build, the cache will not be owned by root and we should not use it.
     for p in (final, build):
-        if p.exists() and p.stat().st_uid != 0:
+        if p.exists() and os.getuid() == 0 and p.stat().st_uid != 0:
             return False
 
     return True
@@ -3606,9 +3689,29 @@ def rchown_package_manager_dirs(config: Config) -> Iterator[None]:
                     INVOKING_USER.rchown(config.package_cache_dir_or_default() / d / subdir)
 
 
-def sync_repository_metadata(args: Args, config: Config, *, resources: Path) -> None:
-    if have_cache(config) or config.cacheonly != Cacheonly.none:
+def sync_repository_metadata(context: Context) -> None:
+    if have_cache(context.config) or context.config.cacheonly != Cacheonly.none:
         return
+
+    with complete_step(f"Syncing package manager metadata for {context.config.name()} image"):
+        subdir = context.config.distribution.package_manager(context.config).subdir(context.config)
+
+        with (
+            flock(context.config.package_cache_dir_or_default() / "cache" / subdir),
+            flock(context.config.package_cache_dir_or_default() / "lib" / subdir),
+        ):
+            context.config.distribution.sync(context)
+
+
+def run_sync(args: Args, config: Config, *, resources: Path) -> None:
+    if not (p := config.package_cache_dir_or_default()).exists():
+        INVOKING_USER.mkdir(p)
+
+    subdir = config.distribution.package_manager(config).subdir(config)
+
+    for d in ("cache", "lib"):
+        src = config.package_cache_dir_or_default() / d / subdir
+        INVOKING_USER.mkdir(src)
 
     with (
         complete_step(f"Syncing package manager metadata for {config.name()} image"),
@@ -3627,13 +3730,13 @@ def sync_repository_metadata(args: Args, config: Config, *, resources: Path) -> 
         install_package_manager_trees(context)
         context.config.distribution.setup(context)
 
-        subdir = context.config.distribution.package_manager(config).subdir(config)
+        sync_repository_metadata(context)
 
-        with (
-            flock(context.config.package_cache_dir_or_default() / "cache" / subdir),
-            flock(context.config.package_cache_dir_or_default() / "lib" / subdir),
-        ):
-            context.config.distribution.sync(context)
+        src = config.package_cache_dir_or_default() / "cache" / subdir
+        for p in config.distribution.package_manager(config).cache_subdirs(src):
+            INVOKING_USER.mkdir(p)
+
+        run_sync_scripts(context)
 
 
 def run_build(args: Args, config: Config, *, resources: Path) -> None:
@@ -3665,18 +3768,6 @@ def run_build(args: Args, config: Config, *, resources: Path) -> None:
         ):
             if p and not p.exists():
                 INVOKING_USER.mkdir(p)
-
-        subdir = config.distribution.package_manager(config).subdir(config)
-
-        for d in ("cache", "lib"):
-            src = config.package_cache_dir_or_default() / d / subdir
-            INVOKING_USER.mkdir(src)
-
-        sync_repository_metadata(args, config, resources=resources)
-
-        src = config.package_cache_dir_or_default() / "cache" / subdir
-        for p in config.distribution.package_manager(config).cache_subdirs(src):
-            INVOKING_USER.mkdir(p)
 
         with (
             acl_toggle_build(config, INVOKING_USER.uid),
@@ -3769,11 +3860,13 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         )
 
         if tools and not (tools.output_dir_or_cwd() / tools.output_with_compression).exists():
+            run_sync(args, tools, resources=resources)
             fork_and_wait(run_build, args, tools, resources=resources)
 
         if (config.output_dir_or_cwd() / config.output_with_compression).exists():
             continue
 
+        run_sync(args, config, resources=resources)
         fork_and_wait(run_build, args, config, resources=resources)
 
         build = True
