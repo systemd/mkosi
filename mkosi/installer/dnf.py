@@ -8,7 +8,7 @@ from mkosi.context import Context
 from mkosi.installer import PackageManager
 from mkosi.installer.rpm import RpmRepository, rpm_cmd
 from mkosi.log import ARG_DEBUG
-from mkosi.mounts import finalize_ephemeral_source_mounts
+from mkosi.mounts import finalize_source_mounts
 from mkosi.run import find_binary, run
 from mkosi.sandbox import apivfs_cmd
 from mkosi.types import _FILE, CompletedProcess, PathString
@@ -160,7 +160,7 @@ class Dnf(PackageManager):
         stdout: _FILE = None,
     ) -> CompletedProcess:
         try:
-            with finalize_ephemeral_source_mounts(context.config) as sources:
+            with finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources:
                 return run(
                     cls.cmd(context) + [operation,*arguments],
                     sandbox=(

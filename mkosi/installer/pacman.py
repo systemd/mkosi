@@ -8,7 +8,7 @@ from typing import NamedTuple
 from mkosi.config import Config
 from mkosi.context import Context
 from mkosi.installer import PackageManager
-from mkosi.mounts import finalize_ephemeral_source_mounts
+from mkosi.mounts import finalize_source_mounts
 from mkosi.run import run
 from mkosi.sandbox import apivfs_cmd
 from mkosi.types import _FILE, CompletedProcess, PathString
@@ -150,7 +150,7 @@ class Pacman(PackageManager):
         apivfs: bool = False,
         stdout: _FILE = None,
     ) -> CompletedProcess:
-        with finalize_ephemeral_source_mounts(context.config) as sources:
+        with finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources:
             return run(
                 cls.cmd(context) + [operation, *arguments],
                 sandbox=(

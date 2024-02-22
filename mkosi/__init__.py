@@ -53,7 +53,7 @@ from mkosi.installer import clean_package_manager_metadata
 from mkosi.kmod import gen_required_kernel_modules, process_kernel_modules
 from mkosi.log import ARG_DEBUG, complete_step, die, log_notice, log_step
 from mkosi.manifest import Manifest
-from mkosi.mounts import finalize_ephemeral_source_mounts, mount_overlay
+from mkosi.mounts import finalize_source_mounts, mount_overlay
 from mkosi.pager import page
 from mkosi.partition import Partition, finalize_root, finalize_roothash
 from mkosi.qemu import KernelType, copy_ephemeral, run_qemu, run_ssh
@@ -435,7 +435,7 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
     with (
         mount_build_overlay(context) if build else contextlib.nullcontext(),
         finalize_chroot_scripts(context) as cd,
-        finalize_ephemeral_source_mounts(context.config) as sources,
+        finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources,
     ):
         if build:
             step_msg = "Running prepare script {} in build overlay…"
@@ -515,7 +515,7 @@ def run_build_scripts(context: Context) -> None:
     with (
         mount_build_overlay(context, volatile=True),
         finalize_chroot_scripts(context) as cd,
-        finalize_ephemeral_source_mounts(context.config) as sources,
+        finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources,
     ):
         for script in context.config.build_scripts:
             chroot = chroot_cmd(
@@ -590,7 +590,7 @@ def run_postinst_scripts(context: Context) -> None:
 
     with (
         finalize_chroot_scripts(context) as cd,
-        finalize_ephemeral_source_mounts(context.config) as sources,
+        finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources,
     ):
         for script in context.config.postinst_scripts:
             chroot = chroot_cmd(
@@ -652,7 +652,7 @@ def run_finalize_scripts(context: Context) -> None:
 
     with (
         finalize_chroot_scripts(context) as cd,
-        finalize_ephemeral_source_mounts(context.config) as sources,
+        finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources,
     ):
         for script in context.config.finalize_scripts:
             chroot = chroot_cmd(

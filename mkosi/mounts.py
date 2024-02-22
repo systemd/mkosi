@@ -123,10 +123,10 @@ def mount_overlay(
 
 
 @contextlib.contextmanager
-def finalize_ephemeral_source_mounts(config: Config) -> Iterator[list[PathString]]:
+def finalize_source_mounts(config: Config, *, ephemeral: bool) -> Iterator[list[PathString]]:
     with contextlib.ExitStack() as stack:
         mounts = (
-            (stack.enter_context(mount_overlay([source])) if config.build_sources_ephemeral else source, target)
+            (stack.enter_context(mount_overlay([source])) if ephemeral else source, target)
             for source, target
             in {t.with_prefix(Path("/work/src")) for t in config.build_sources}
         )
