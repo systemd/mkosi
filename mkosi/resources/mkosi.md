@@ -1607,6 +1607,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   | `edk2-ovmf`             | X      | X      | X      | X      | X    | X        |
   | `erofs-utils`           | X      |        | X      | X      | X    | X        |
   | `findutils`             | X      | X      | X      | X      | X    | X        |
+  | `git`                   | X      | X      | X      | X      | X    | X        |
   | `grep`                  | X      | X      | X      | X      | X    | X        |
   | `kmod`                  | X      | X      | X      | X      | X    | X        |
   | `less`                  | X      | X      | X      | X      | X    | X        |
