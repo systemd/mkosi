@@ -411,6 +411,52 @@ def finalize_chroot_scripts(context: Context) -> contextlib.AbstractContextManag
     return finalize_scripts(scripts, root=context.root)
 
 
+def run_sync_scripts(context: Context) -> None:
+    if not context.config.sync_scripts:
+        return
+
+    env = dict(
+        ARCHITECTURE=str(context.config.architecture),
+        SRCDIR="/work/src",
+        MKOSI_UID=str(INVOKING_USER.uid),
+        MKOSI_GID=str(INVOKING_USER.gid),
+        CACHED=one_zero(have_cache(context.config)),
+    )
+
+    # We make sure to mount everything in to make ssh work since syncing might involve git which could invoke ssh.
+    if agent := os.getenv("SSH_AUTH_SOCK"):
+        env["SSH_AUTH_SOCK"] = agent
+
+    with (
+        finalize_source_mounts(context.config, ephemeral=False) as sources,
+        finalize_host_scripts(context) as hd,
+    ):
+        for script in context.config.sync_scripts:
+            options = [
+                *sources,
+                "--ro-bind", script, "/work/sync",
+                "--chdir", "/work/src",
+            ]
+
+            if (p := INVOKING_USER.home()).exists():
+                options += ["--ro-bind", p, p]
+            if (p := Path(f"/run/user/{INVOKING_USER.uid}")).exists():
+                options += ["--ro-bind", p, p]
+
+            with complete_step(f"Running sync script {script}…"):
+                run(
+                    ["/work/sync", "final"],
+                    env=env | context.config.environment,
+                    stdin=sys.stdin,
+                    sandbox=context.sandbox(network=True, options=options, scripts=hd),
+                    # Make sure we run as the invoking user when we're running as root so that files are owned by the
+                    # right user. bubblewrap will automatically map the running user to root in the user namespace it
+                    # creates.
+                    user=INVOKING_USER.uid,
+                    group=INVOKING_USER.gid,
+                )
+
+
 def run_prepare_scripts(context: Context, build: bool) -> None:
     if not context.config.prepare_scripts:
         return
@@ -2252,7 +2298,13 @@ def check_inputs(config: Config) -> None:
             if not p.is_file():
                 die(f"Initrd {p} is not a file")
 
-    for script in config.prepare_scripts + config.build_scripts + config.postinst_scripts + config.finalize_scripts:
+    for script in itertools.chain(
+        config.sync_scripts,
+        config.prepare_scripts,
+        config.build_scripts,
+        config.postinst_scripts,
+        config.finalize_scripts,
+    ):
         if not os.access(script, os.X_OK):
             die(f"{script} is not executable")
 
@@ -3679,6 +3731,8 @@ def run_sync(args: Args, config: Config, *, resources: Path) -> None:
         src = config.package_cache_dir_or_default() / "cache" / subdir
         for p in config.distribution.package_manager(config).cache_subdirs(src):
             INVOKING_USER.mkdir(p)
+
+        run_sync_scripts(context)
 
 
 def run_build(args: Args, config: Config, *, resources: Path) -> None:

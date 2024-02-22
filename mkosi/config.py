@@ -1226,6 +1226,7 @@ class Config:
     clean_package_metadata: ConfigFeature
     source_date_epoch: Optional[int]
 
+    sync_scripts: list[Path]
     prepare_scripts: list[Path]
     build_scripts: list[Path]
     postinst_scripts: list[Path]
@@ -1954,6 +1955,15 @@ SETTINGS = (
         default_factory=config_default_source_date_epoch,
         default_factory_depends=("environment",),
         help="Set the $SOURCE_DATE_EPOCH timestamp",
+    ),
+    ConfigSetting(
+        dest="sync_scripts",
+        long="--sync-script",
+        metavar="PATH",
+        section="Content",
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        paths=("mkosi.sync",),
+        help="Sync script to run before starting the build",
     ),
     ConfigSetting(
         dest="prepare_scripts",
@@ -3509,6 +3519,7 @@ def summary(config: Config) -> str:
      Clean Package Manager Metadata: {config.clean_package_metadata}
                   Source Date Epoch: {none_to_none(config.source_date_epoch)}
 
+                       Sync Scripts: {line_join_list(config.sync_scripts)}
                     Prepare Scripts: {line_join_list(config.prepare_scripts)}
                       Build Scripts: {line_join_list(config.build_scripts)}
                 Postinstall Scripts: {line_join_list(config.postinst_scripts)}
