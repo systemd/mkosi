@@ -3633,9 +3633,29 @@ def rchown_package_manager_dirs(config: Config) -> Iterator[None]:
                     INVOKING_USER.rchown(config.package_cache_dir_or_default() / d / subdir)
 
 
-def sync_repository_metadata(args: Args, config: Config, *, resources: Path) -> None:
-    if have_cache(config) or config.cacheonly != Cacheonly.none:
+def sync_repository_metadata(context: Context) -> None:
+    if have_cache(context.config) or context.config.cacheonly != Cacheonly.none:
         return
+
+    with complete_step(f"Syncing package manager metadata for {context.config.name()} image"):
+        subdir = context.config.distribution.package_manager(context.config).subdir(context.config)
+
+        with (
+            flock(context.config.package_cache_dir_or_default() / "cache" / subdir),
+            flock(context.config.package_cache_dir_or_default() / "lib" / subdir),
+        ):
+            context.config.distribution.sync(context)
+
+
+def run_sync(args: Args, config: Config, *, resources: Path) -> None:
+    if not (p := config.package_cache_dir_or_default()).exists():
+        INVOKING_USER.mkdir(p)
+
+    subdir = config.distribution.package_manager(config).subdir(config)
+
+    for d in ("cache", "lib"):
+        src = config.package_cache_dir_or_default() / d / subdir
+        INVOKING_USER.mkdir(src)
 
     with (
         complete_step(f"Syncing package manager metadata for {config.name()} image"),
@@ -3654,13 +3674,11 @@ def sync_repository_metadata(args: Args, config: Config, *, resources: Path) -> 
         install_package_manager_trees(context)
         context.config.distribution.setup(context)
 
-        subdir = context.config.distribution.package_manager(config).subdir(config)
+        sync_repository_metadata(context)
 
-        with (
-            flock(context.config.package_cache_dir_or_default() / "cache" / subdir),
-            flock(context.config.package_cache_dir_or_default() / "lib" / subdir),
-        ):
-            context.config.distribution.sync(context)
+        src = config.package_cache_dir_or_default() / "cache" / subdir
+        for p in config.distribution.package_manager(config).cache_subdirs(src):
+            INVOKING_USER.mkdir(p)
 
 
 def run_build(args: Args, config: Config, *, resources: Path) -> None:
@@ -3692,18 +3710,6 @@ def run_build(args: Args, config: Config, *, resources: Path) -> None:
         ):
             if p and not p.exists():
                 INVOKING_USER.mkdir(p)
-
-        subdir = config.distribution.package_manager(config).subdir(config)
-
-        for d in ("cache", "lib"):
-            src = config.package_cache_dir_or_default() / d / subdir
-            INVOKING_USER.mkdir(src)
-
-        sync_repository_metadata(args, config, resources=resources)
-
-        src = config.package_cache_dir_or_default() / "cache" / subdir
-        for p in config.distribution.package_manager(config).cache_subdirs(src):
-            INVOKING_USER.mkdir(p)
 
         with (
             acl_toggle_build(config, INVOKING_USER.uid),
@@ -3796,11 +3802,13 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         )
 
         if tools and not (tools.output_dir_or_cwd() / tools.output_with_compression).exists():
+            run_sync(args, tools, resources=resources)
             fork_and_wait(run_build, args, tools, resources=resources)
 
         if (config.output_dir_or_cwd() / config.output_with_compression).exists():
             continue
 
+        run_sync(args, config, resources=resources)
         fork_and_wait(run_build, args, config, resources=resources)
 
         build = True
