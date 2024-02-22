@@ -3,7 +3,7 @@ import os
 import textwrap
 from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import NamedTuple, Optional
+from typing import NamedTuple, Optional, cast
 
 from mkosi.config import Config
 from mkosi.context import Context
@@ -62,12 +62,12 @@ class Apt(PackageManager):
                 "apt-mark",
                 "apt-sortpkgs",
             )
-        } | {
-            "mkosi-install"  : apivfs_cmd(context.root) + cls.cmd(context, "apt-get") + ["install"],
-            "mkosi-upgrade"  : apivfs_cmd(context.root) + cls.cmd(context, "apt-get") + ["upgrade"],
-            "mkosi-remove"   : apivfs_cmd(context.root) + cls.cmd(context, "apt-get") + ["purge"],
-            "mkosi-reinstall": apivfs_cmd(context.root) + cls.cmd(context, "apt-get") + ["install", "--reinstall"],
-        }
+        } | cast(dict[str, list[PathString]], {
+            "mkosi-install"  : ["apt-get", "install"],
+            "mkosi-upgrade"  : ["apt-get", "upgrade"],
+            "mkosi-remove"   : ["apt-get", "purge"],
+            "mkosi-reinstall": ["apt-get", "install", "--reinstall"],
+        })
 
     @classmethod
     def setup(cls, context: Context, repos: Iterable[Repository]) -> None:
