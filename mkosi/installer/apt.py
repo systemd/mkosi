@@ -3,7 +3,7 @@ import os
 import textwrap
 from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import NamedTuple, Optional, cast
+from typing import NamedTuple, Optional
 
 from mkosi.config import Config
 from mkosi.context import Context
@@ -51,23 +51,24 @@ class Apt(PackageManager):
     @classmethod
     def scripts(cls, context: Context) -> dict[str, list[PathString]]:
         return {
-            command: apivfs_cmd(context.root) + cls.cmd(context, command) for command in (
-                "apt",
-                "apt-cache",
-                "apt-cdrom",
-                "apt-config",
-                "apt-extracttemplates",
-                "apt-get",
-                "apt-key",
-                "apt-mark",
-                "apt-sortpkgs",
-            )
-        } | cast(dict[str, list[PathString]], {
+            **{
+                command: apivfs_cmd(context.root) + cls.cmd(context, command) for command in (
+                    "apt",
+                    "apt-cache",
+                    "apt-cdrom",
+                    "apt-config",
+                    "apt-extracttemplates",
+                    "apt-get",
+                    "apt-key",
+                    "apt-mark",
+                    "apt-sortpkgs",
+                )
+            },
             "mkosi-install"  : ["apt-get", "install"],
             "mkosi-upgrade"  : ["apt-get", "upgrade"],
             "mkosi-remove"   : ["apt-get", "purge"],
             "mkosi-reinstall": ["apt-get", "install", "--reinstall"],
-        })
+        }
 
     @classmethod
     def setup(cls, context: Context, repos: Iterable[Repository]) -> None:
