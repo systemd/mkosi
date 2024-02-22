@@ -63,7 +63,7 @@ from mkosi.run import (
     log_process_failure,
     run,
 )
-from mkosi.sandbox import chroot_cmd, finalize_passwd_mounts
+from mkosi.sandbox import chroot_cmd, finalize_crypto_mounts, finalize_passwd_mounts
 from mkosi.tree import copy_tree, move_tree, rmtree
 from mkosi.types import PathString
 from mkosi.user import CLONE_NEWNS, INVOKING_USER, become_root, unshare
@@ -435,6 +435,7 @@ def run_sync_scripts(context: Context) -> None:
         for script in context.config.sync_scripts:
             options = [
                 *sources,
+                *finalize_crypto_mounts(context.config.tools()),
                 "--ro-bind", script, "/work/sync",
                 "--chdir", "/work/src",
             ]
