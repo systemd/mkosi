@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1+
+import os
 import shutil
 import textwrap
 from collections.abc import Iterable, Sequence
@@ -150,7 +151,10 @@ class Pacman(PackageManager):
         apivfs: bool = False,
         stdout: _FILE = None,
     ) -> CompletedProcess:
-        with finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources:
+        with finalize_source_mounts(
+            context.config,
+            ephemeral=os.getuid() == 0 and context.config.build_sources_ephemeral,
+        ) as sources:
             return run(
                 cls.cmd(context) + [operation, *arguments],
                 sandbox=(
