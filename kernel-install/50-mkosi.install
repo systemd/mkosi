@@ -89,10 +89,12 @@ def main() -> None:
     parser.add_argument("entry_dir",
                         metavar="ENTRY_DIR",
                         type=Path,
+                        nargs="?",
                         help="Type#1 entry directory (ignored)")
     parser.add_argument("kernel_image",
                         metavar="KERNEL_IMAGE",
                         type=Path,
+                        nargs="?",
                         help="Kernel image")
     parser.add_argument("initrds",
                         metavar="INITRD…",
