@@ -38,10 +38,10 @@ class Pacman(PackageManager):
     def scripts(cls, context: Context) -> dict[str, list[PathString]]:
         return {
             "pacman": apivfs_cmd(context.root) + cls.cmd(context),
-            "mkosi-install"  : apivfs_cmd(context.root) + cls.cmd(context) + ["--sync", "--needed"],
-            "mkosi-upgrade"  : apivfs_cmd(context.root) + cls.cmd(context) + ["--sync", "--sysupgrade", "--needed"],
-            "mkosi-remove"   : apivfs_cmd(context.root) + cls.cmd(context) + ["--remove", "--recursive", "--nosave"],
-            "mkosi-reinstall": apivfs_cmd(context.root) + cls.cmd(context) + ["--sync"],
+            "mkosi-install"  : ["pacman", "--sync", "--needed"],
+            "mkosi-upgrade"  : ["pacman", "--sync", "--sysupgrade", "--needed"],
+            "mkosi-remove"   : ["pacman", "--remove", "--recursive", "--nosave"],
+            "mkosi-reinstall": ["pacman", "--sync"],
         }
 
     @classmethod

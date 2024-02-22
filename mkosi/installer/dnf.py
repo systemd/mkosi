@@ -41,10 +41,10 @@ class Dnf(PackageManager):
         return {
             "dnf": apivfs_cmd(context.root) + cls.cmd(context),
             "rpm": apivfs_cmd(context.root) + rpm_cmd(context),
-            "mkosi-install"  : apivfs_cmd(context.root) + cls.cmd(context) + ["install"],
-            "mkosi-upgrade"  : apivfs_cmd(context.root) + cls.cmd(context) + ["upgrade"],
-            "mkosi-remove"   : apivfs_cmd(context.root) + cls.cmd(context) + ["remove"],
-            "mkosi-reinstall": apivfs_cmd(context.root) + cls.cmd(context) + ["reinstall"],
+            "mkosi-install"  : ["dnf", "install"],
+            "mkosi-upgrade"  : ["dnf", "upgrade"],
+            "mkosi-remove"   : ["dnf", "remove"],
+            "mkosi-reinstall": ["dnf", "reinstall"],
         }
 
     @classmethod

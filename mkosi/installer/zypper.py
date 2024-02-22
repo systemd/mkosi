@@ -31,6 +31,7 @@ class Zypper(PackageManager):
     @classmethod
     def scripts(cls, context: Context) -> dict[str, list[PathString]]:
         install: list[PathString] = [
+            "zypper",
             "install",
             "--download", "in-advance",
             "--recommends" if context.config.with_recommends else "--no-recommends",
@@ -39,10 +40,10 @@ class Zypper(PackageManager):
         return {
             "zypper": apivfs_cmd(context.root) + cls.cmd(context),
             "rpm"   : apivfs_cmd(context.root) + rpm_cmd(context),
-            "mkosi-install"  : apivfs_cmd(context.root) + cls.cmd(context) + install,
-            "mkosi-upgrade"  : apivfs_cmd(context.root) + cls.cmd(context) + ["update"],
-            "mkosi-remove"   : apivfs_cmd(context.root) + cls.cmd(context) + ["remove", "--clean-deps"],
-            "mkosi-reinstall": apivfs_cmd(context.root) + cls.cmd(context) + install + ["--force"],
+            "mkosi-install"  : install,
+            "mkosi-upgrade"  : ["zypper", "update"],
+            "mkosi-remove"   : ["zypper", "remove", "--clean-deps"],
+            "mkosi-reinstall": install + ["--force"],
         }
 
     @classmethod
