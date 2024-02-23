@@ -417,6 +417,8 @@ def run_sync_scripts(context: Context) -> None:
         return
 
     env = dict(
+        DISTRIBUTION=str(context.config.distribution),
+        RELEASE=context.config.release,
         ARCHITECTURE=str(context.config.architecture),
         SRCDIR="/work/src",
         MKOSI_UID=str(INVOKING_USER.uid),
@@ -466,6 +468,8 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
         return
 
     env = dict(
+        DISTRIBUTION=str(context.config.distribution),
+        RELEASE=context.config.release,
         ARCHITECTURE=str(context.config.architecture),
         BUILDROOT=str(context.root),
         SRCDIR="/work/src",
@@ -536,6 +540,8 @@ def run_build_scripts(context: Context) -> None:
         return
 
     env = dict(
+        DISTRIBUTION=str(context.config.distribution),
+        RELEASE=context.config.release,
         ARCHITECTURE=str(context.config.architecture),
         BUILDROOT=str(context.root),
         DESTDIR="/work/dest",
@@ -623,6 +629,8 @@ def run_postinst_scripts(context: Context) -> None:
         return
 
     env = dict(
+        DISTRIBUTION=str(context.config.distribution),
+        RELEASE=context.config.release,
         ARCHITECTURE=str(context.config.architecture),
         BUILDROOT=str(context.root),
         OUTPUTDIR="/work/out",
@@ -685,6 +693,8 @@ def run_finalize_scripts(context: Context) -> None:
         return
 
     env = dict(
+        DISTRIBUTION=str(context.config.distribution),
+        RELEASE=context.config.release,
         ARCHITECTURE=str(context.config.architecture),
         BUILDROOT=str(context.root),
         OUTPUTDIR="/work/out",
