@@ -57,7 +57,6 @@ def finalize_crypto_mounts(tools: Path = Path("/")) -> list[PathString]:
         for subdir in (
             Path("etc/pki"),
             Path("etc/ssl"),
-            Path("etc/crypto-policies"),
             Path("etc/ca-certificates"),
             Path("etc/pacman.d/gnupg"),
             Path("var/lib/ca-certificates"),
