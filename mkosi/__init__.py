@@ -2367,7 +2367,7 @@ def check_tools(config: Config, verb: Verb) -> None:
         check_systemd_tool(config, "systemd-nspawn", version="254", reason="boot images")
 
     if verb == Verb.vmspawn:
-        check_systemd_tool(config, "systemd-vmspawn", version="256", reason="boot images with vmspawn")
+        check_systemd_tool(config, "systemd-vmspawn", version="256~devel", reason="boot images with vmspawn")
 
 
 def configure_ssh(context: Context) -> None:
