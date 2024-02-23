@@ -14,6 +14,7 @@ from mkosi.run import find_binary, run
 from mkosi.sandbox import SandboxProtocol, nosandbox
 from mkosi.types import PathString
 from mkosi.util import flatten
+from mkosi.versioncomp import GenericVersion
 
 
 def statfs(path: Path, *, sandbox: SandboxProtocol = nosandbox) -> str:
@@ -23,6 +24,10 @@ def statfs(path: Path, *, sandbox: SandboxProtocol = nosandbox) -> str:
 
 def is_subvolume(path: Path, *, sandbox: SandboxProtocol = nosandbox) -> bool:
     return path.is_dir() and statfs(path, sandbox=sandbox) == "btrfs" and path.stat().st_ino == 256
+
+
+def cp_version() -> GenericVersion:
+    return GenericVersion(run(["cp", "--version"], stdout=subprocess.PIPE).stdout.splitlines()[0].split()[3])
 
 
 def make_tree(
@@ -92,8 +97,12 @@ def copy_tree(
         "--dereference" if dereference else "--no-dereference",
         f"--preserve=mode,links{',timestamps,ownership,xattr' if preserve else ''}",
         "--reflink=auto",
+        "--copy-contents",
         src, dst,
     ]
+    if cp_version() >= "9.5":
+        copy += ["--keep-directory-symlink"]
+
     options: list[PathString] = ["--ro-bind", src, src, "--bind", dst.parent, dst.parent]
 
     # If the source and destination are both directories, we want to merge the source directory with the
