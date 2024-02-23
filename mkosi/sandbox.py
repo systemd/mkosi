@@ -202,6 +202,8 @@ def apivfs_cmd(root: Path) -> list[PathString]:
         "--dev", root / "dev",
         # Make sure /etc/machine-id is not overwritten by any package manager post install scripts.
         "--ro-bind-try", root / "etc/machine-id", root / "etc/machine-id",
+        # Nudge gpg to create its sockets in /run by making sure /run/user/0 exists.
+        "--dir", root / "run/user/0",
         *finalize_passwd_mounts(root),
         "sh", "-c",
         f"chmod 1777 {root / 'tmp'} {root / 'var/tmp'} {root / 'dev/shm'} && "
