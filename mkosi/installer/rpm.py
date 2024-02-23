@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import subprocess
+import textwrap
 from pathlib import Path
 from typing import NamedTuple, Optional
 
@@ -45,6 +46,25 @@ def setup_rpm(context: Context, *, dbpath: str = "/usr/lib/sysimage/rpm") -> Non
         with (confdir / "macros.disable-plugins").open("w") as f:
             for plugin in plugindir.iterdir():
                 f.write(f"%__transaction_{plugin.stem} %{{nil}}\n")
+
+    # Write an rpm sequoia policy that allows SHA1 as various distribution GPG keys (OpenSUSE) still use SHA1 for
+    # various things.
+    # TODO: Remove when all rpm distribution GPG keys have stopped using SHA1.
+    if not (p := context.pkgmngr / "etc/crypto-policies/back-ends/rpm-sequoia.config").exists():
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(
+            textwrap.dedent(
+                """
+                [hash_algorithms]
+                sha1.second_preimage_resistance = "always"
+                sha224 = "always"
+                sha256 = "always"
+                sha384 = "always"
+                sha512 = "always"
+                default_disposition = "never"
+                """
+            )
+        )
 
 
 def rpm_cmd(context: Context) -> list[PathString]:
