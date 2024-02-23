@@ -438,8 +438,9 @@ def vsock_notify_handler() -> Iterator[tuple[str, dict[str, str]]]:
 def copy_ephemeral(config: Config, src: Path) -> Iterator[Path]:
     src = src.resolve()
     # tempfile doesn't provide an API to get a random filename in an arbitrary directory so we do this
-    # instead.
-    tmp = src.parent / f"{src.name}-{uuid.uuid4().hex}"
+    # instead. Limit the size to 16 characters as the output name might be used in a unix socket path by vmspawn and
+    # needs to fit in 108 characters.
+    tmp = src.parent / f"{src.name}-{uuid.uuid4().hex[:16]}"
 
     try:
         def copy() -> None:
