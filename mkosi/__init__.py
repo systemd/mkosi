@@ -3741,7 +3741,8 @@ def run_sync(args: Args, config: Config, *, resources: Path) -> None:
         install_package_manager_trees(context)
         context.config.distribution.setup(context)
 
-        sync_repository_metadata(context)
+        with rchown_package_manager_dirs(config):
+            sync_repository_metadata(context)
 
         src = config.package_cache_dir_or_default() / "cache" / subdir
         for p in config.distribution.package_manager(config).cache_subdirs(src):
