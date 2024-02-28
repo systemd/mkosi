@@ -30,6 +30,8 @@ class Dnf(PackageManager):
 
     @classmethod
     def cache_subdirs(cls, cache: Path) -> list[Path]:
+        if not cache.exists():
+            return []
         return [
             p / "packages"
             for p in cache.iterdir()

@@ -41,7 +41,7 @@ class PackageManager:
 
         for d in ("cache", "lib"):
             src = context.package_cache_dir / d / subdir
-            mounts += ["--bind", src, Path("/var") / d / subdir]
+            mounts += ["--bind-try", src, Path("/var") / d / subdir]
 
             # If we're not operating on the configured package cache directory, we're operating on a snapshot of the
             # repository metadata in the image root directory. To make sure any downloaded packages are still cached in
