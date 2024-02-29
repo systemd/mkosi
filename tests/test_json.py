@@ -117,6 +117,7 @@ def test_config() -> None:
             "Dependencies": [
                 "dep1"
             ],
+            "Devicetree": "freescale/imx8mm-verdin-nonwifi-dev.dtb",
             "Distribution": "fedora",
             "Environment": {},
             "EnvironmentFiles": [],
@@ -320,6 +321,7 @@ def test_config() -> None:
         compress_output = Compression.bz2,
         credentials =  {"credkey": "credval"},
         dependencies = ("dep1",),
+        devicetree = Path("freescale/imx8mm-verdin-nonwifi-dev.dtb"),
         distribution = Distribution.fedora,
         environment = {},
         environment_files = [],

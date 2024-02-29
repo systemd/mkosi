@@ -1872,6 +1872,11 @@ def build_uki(
         "--ro-bind", stub, stub,
     ]
 
+    if context.config.devicetree:
+        dtb = context.root / f"usr/lib/linux-image-{kver}" / context.config.devicetree
+        cmd += ["--devicetree", dtb]
+        options += ["--ro-bind", dtb, dtb]
+
     if context.config.secure_boot:
         assert context.config.secure_boot_key
         assert context.config.secure_boot_certificate
