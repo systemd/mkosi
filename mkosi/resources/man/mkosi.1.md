@@ -996,6 +996,12 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   Similar to `VolatilePackages=`, except it applies to the default
     initrd.
 
+`Devicetree=`, `--devicetree=`
+:   When set, specifies a Devicetree blob to be used by the booting system,
+    instead of the one provided by firmware. **mkosi** will search for the
+    specified file relative to common paths where Linux distributions install
+    Devicetree files. It should typically have the format `<vendor>/<board>.dtb`.
+
 `MicrocodeHost=`, `--microcode-host=`
 :   When set to true only include microcode for the host's CPU in the image.
 
