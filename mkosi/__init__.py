@@ -1457,6 +1457,21 @@ def build_kernel_modules_initrd(context: Context, kver: str) -> Path:
     return kmods
 
 
+def find_devicetree(context: Context, kver: str) -> Path:
+    assert context.config.devicetree
+
+    for d in (
+        context.root / f"usr/lib/firmware/{kver}/device-tree",
+        context.root / f"usr/lib/linux-image-{kver}",
+        context.root / f"usr/lib/modules/{kver}/dtb",
+    ):
+        dtb = d / context.config.devicetree
+        if dtb.exists():
+            return dtb
+
+    die(f"Requested devicetree {context.config.devicetree} not found")
+
+
 def join_initrds(initrds: Sequence[Path], output: Path) -> Path:
     assert initrds
 
@@ -1605,6 +1620,11 @@ def build_uki(
         "--ro-bind", kimg, workdir(kimg),
         *flatten(["--ro-bind", os.fspath(profile), os.fspath(workdir(profile))] for profile in profiles),
     ]  # fmt: skip
+
+    if context.config.devicetree:
+        dtb = find_devicetree(context, kver)
+        arguments += ["--devicetree", workdir(dtb)]
+        options += ["--ro-bind", dtb, workdir(dtb)]
 
     if context.config.secure_boot:
         assert context.config.secure_boot_key
@@ -1811,6 +1831,12 @@ def install_type1(
 
     kmods = build_kernel_modules_initrd(context, kver)
 
+    dtb = None
+    if context.config.devicetree:
+        dtb = dst / context.config.devicetree
+        with umask(~0o700):
+            dtb.parent.mkdir(parents=True, exist_ok=True)
+
     with umask(~0o600):
         if (
             want_efi(context.config)
@@ -1828,6 +1854,9 @@ def install_type1(
         ]
         initrds += [Path(shutil.copy2(kmods, dst / "kernel-modules.initrd"))]
 
+        if dtb:
+            shutil.copy2(find_devicetree(context, kver), dtb)
+
         with entry.open("w") as f:
             f.write(
                 textwrap.dedent(
@@ -1842,6 +1871,9 @@ def install_type1(
 
             for initrd in initrds:
                 f.write(f"initrd /{initrd.relative_to(context.root / 'boot')}\n")
+
+            if dtb:
+                f.write(f"devicetree /{dtb.relative_to(context.root / 'boot')}\n")
 
     if want_grub_efi(context) or want_grub_bios(context, partitions):
         config = prepare_grub_config(context)

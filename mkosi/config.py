@@ -1807,6 +1807,7 @@ class Config:
     initrd_packages: list[str]
     initrd_volatile_packages: list[str]
     microcode_host: bool
+    devicetree: Optional[Path]
     kernel_command_line: list[str]
     kernel_modules_include: list[str]
     kernel_modules_exclude: list[str]
@@ -2775,6 +2776,12 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Content",
         parse=config_make_list_parser(delimiter=","),
         help="Packages to install in the initrd that are not cached",
+    ),
+    ConfigSetting(
+        dest="devicetree",
+        section="Content",
+        parse=config_parse_string,
+        help="Devicetree to be used by the booting kernel",
     ),
     ConfigSetting(
         dest="kernel_command_line",
@@ -4829,6 +4836,7 @@ def summary(config: Config) -> str:
                             Initrds: {line_join_list(config.initrds)}
                     Initrd Packages: {line_join_list(config.initrd_packages)}
            Initrd Volatile Packages: {line_join_list(config.initrd_volatile_packages)}
+                         Devicetree: {none_to_none(config.devicetree)}
                 Kernel Command Line: {line_join_list(config.kernel_command_line)}
              Kernel Modules Include: {line_join_list(config.kernel_modules_include)}
              Kernel Modules Exclude: {line_join_list(config.kernel_modules_exclude)}
