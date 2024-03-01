@@ -144,11 +144,17 @@ class KernelType(StrEnum):
             logging.warning("bootctl doesn't know kernel-identify verb, assuming 'unknown' kernel type")
             return KernelType.unknown
 
-        type = run(
-            ["bootctl", "kernel-identify", path],
-            stdout=subprocess.PIPE,
-            sandbox=config.sandbox(options=["--ro-bind", path, path]),
-        ).stdout.strip()
+        try:
+            type = run(
+                ["bootctl", "kernel-identify", path],
+                stdout=subprocess.PIPE,
+                sandbox=config.sandbox(options=["--ro-bind", path, path]),
+            ).stdout.strip()
+        except subprocess.CalledProcessError as e:
+            logging.warning(
+                f"'bootctl kernel-identify' returned a exit code '{e.returncode}' for '{path}', assume type 'unknown'"
+            )
+            return KernelType.unknown
 
         try:
             return cls(type)
