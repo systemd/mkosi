@@ -285,8 +285,17 @@ def test_config() -> None:
             "ToolsTree": null,
             "ToolsTreeDistribution": null,
             "ToolsTreeMirror": null,
+            "ToolsTreePackageManagerTrees": [
+                {
+                    "source": "/a/b/c",
+                    "target": "/"
+                }
+            ],
             "ToolsTreePackages": [],
             "ToolsTreeRelease": null,
+            "ToolsTreeRepositories": [
+                "abc"
+            ],
             "UseSubvolumes": "auto",
             "VerityCertificate": "/path/to/cert",
             "VerityKey": null,
@@ -416,8 +425,10 @@ def test_config() -> None:
         tools_tree = None,
         tools_tree_distribution = None,
         tools_tree_mirror = None,
+        tools_tree_package_manager_trees = [ConfigTree(Path("/a/b/c"), Path("/"))],
         tools_tree_packages = [],
         tools_tree_release = None,
+        tools_tree_repositories = ["abc"],
         use_subvolumes = ConfigFeature.auto,
         verity_certificate = Path("/path/to/cert"),
         verity_key = None,

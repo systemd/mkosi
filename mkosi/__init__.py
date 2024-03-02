@@ -40,7 +40,6 @@ from mkosi.config import (
     Verb,
     __version__,
     format_bytes,
-    format_tree,
     parse_config,
     summary,
     systemd_tool_version,
@@ -1577,7 +1576,7 @@ def build_default_initrd(context: Context) -> Path:
         *(["--mirror", context.config.mirror] if context.config.mirror else []),
         "--repository-key-check", str(context.config.repository_key_check),
         "--repositories", ",".join(context.config.repositories),
-        "--package-manager-tree", ",".join(format_tree(t) for t in context.config.package_manager_trees),
+        "--package-manager-tree", ",".join(str(t) for t in context.config.package_manager_trees),
         # Note that when compress_output == Compression.none == 0 we don't pass --compress-output which means the
         # default compression will get picked. This is exactly what we want so that initrds are always compressed.
         *(["--compress-output", str(context.config.compress_output)] if context.config.compress_output else []),
@@ -3588,6 +3587,8 @@ def finalize_default_tools(args: Args, config: Config, *, resources: Path) -> Co
         "--distribution", str(config.tools_tree_distribution),
         *(["--release", config.tools_tree_release] if config.tools_tree_release else []),
         *(["--mirror", config.tools_tree_mirror] if config.tools_tree_mirror else []),
+        "--repositories", ",".join(config.tools_tree_repositories),
+        "--package-manager-tree", ",".join(str(t) for t in config.tools_tree_package_manager_trees),
         "--repository-key-check", str(config.repository_key_check),
         "--cache-only", str(config.cacheonly),
         *(["--output-dir", str(config.output_dir)] if config.output_dir else []),

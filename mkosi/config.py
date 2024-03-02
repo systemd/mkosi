@@ -124,6 +124,9 @@ class ConfigTree:
     def with_prefix(self, prefix: Path = Path("/")) -> tuple[Path, Path]:
         return (self.source, prefix / os.fspath(self.target).lstrip("/") if self.target else prefix)
 
+    def __str__(self) -> str:
+        return f"{self.source}:{self.target}" if self.target else f"{self.source}"
+
 
 @dataclasses.dataclass(frozen=True)
 class QemuDrive:
@@ -1302,6 +1305,8 @@ class Config:
     tools_tree_distribution: Optional[Distribution]
     tools_tree_release: Optional[str]
     tools_tree_mirror: Optional[str]
+    tools_tree_repositories: list[str]
+    tools_tree_package_manager_trees: list[ConfigTree]
     tools_tree_packages: list[str]
     runtime_trees: list[ConfigTree]
     runtime_size: Optional[int]
@@ -2467,6 +2472,22 @@ SETTINGS = (
         help="Set the mirror to use for the default tools tree",
     ),
     ConfigSetting(
+        dest="tools_tree_repositories",
+        long="--tools-tree-repository",
+        metavar="REPOS",
+        section="Host",
+        parse=config_make_list_parser(delimiter=","),
+        help="Repositories to use for the default tools tree",
+    ),
+    ConfigSetting(
+        dest="tools_tree_package_manager_trees",
+        long="--tools-tree-package-manager-tree",
+        metavar="PATH",
+        section="Host",
+        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser()),
+        help="Package manager trees for the default tools tree",
+    ),
+    ConfigSetting(
         dest="tools_tree_packages",
         long="--tools-tree-package",
         metavar="PACKAGE",
@@ -3431,24 +3452,8 @@ def none_to_default(s: Optional[object]) -> str:
     return "default" if s is None else str(s)
 
 
-def line_join_list(array: Iterable[PathString]) -> str:
-    if not array:
-        return "none"
-
-    items = (str(none_to_none(cast(Path, item))) for item in array)
-    return "\n                                     ".join(items)
-
-
-def format_tree(tree: ConfigTree) -> str:
-    return f"{tree.source}:{tree.target}" if tree.target else f"{tree.source}"
-
-
-def line_join_tree_list(array: Sequence[ConfigTree]) -> str:
-    if not array:
-        return "none"
-
-    items = [format_tree(tree) for tree in array]
-    return "\n                                     ".join(items)
+def line_join_list(array: Iterable[object]) -> str:
+    return "\n                                     ".join(str(item) for item in array) if array else "none"
 
 
 def format_bytes(num_bytes: int) -> str:
@@ -3493,7 +3498,7 @@ def summary(config: Config) -> str:
            Repo Signature/Key check: {yes_no(config.repository_key_check)}
                        Repositories: {line_join_list(config.repositories)}
              Use Only Package Cache: {config.cacheonly}
-              Package Manager Trees: {line_join_tree_list(config.package_manager_trees)}
+              Package Manager Trees: {line_join_list(config.package_manager_trees)}
 
     {bold("OUTPUT")}:
                       Output Format: {config.output_format}
@@ -3522,8 +3527,8 @@ def summary(config: Config) -> str:
                  With Documentation: {yes_no(config.with_docs)}
 
                          Base Trees: {line_join_list(config.base_trees)}
-                     Skeleton Trees: {line_join_tree_list(config.skeleton_trees)}
-                        Extra Trees: {line_join_tree_list(config.extra_trees)}
+                     Skeleton Trees: {line_join_list(config.skeleton_trees)}
+                        Extra Trees: {line_join_list(config.extra_trees)}
 
                     Remove Packages: {line_join_list(config.remove_packages)}
                        Remove Files: {line_join_list(config.remove_files)}
@@ -3535,7 +3540,7 @@ def summary(config: Config) -> str:
                       Build Scripts: {line_join_list(config.build_scripts)}
                 Postinstall Scripts: {line_join_list(config.postinst_scripts)}
                    Finalize Scripts: {line_join_list(config.finalize_scripts)}
-                      Build Sources: {line_join_tree_list(config.build_sources)}
+                      Build Sources: {line_join_list(config.build_sources)}
             Build Sources Ephemeral: {yes_no(config.build_sources_ephemeral)}
                  Script Environment: {line_join_list(env)}
                   Environment Files: {line_join_list(config.environment_files)}
@@ -3608,8 +3613,10 @@ def summary(config: Config) -> str:
             Tools Tree Distribution: {none_to_none(config.tools_tree_distribution)}
                  Tools Tree Release: {none_to_none(config.tools_tree_release)}
                   Tools Tree Mirror: {none_to_default(config.tools_tree_mirror)}
+            Tools Tree Repositories: {line_join_list(config.tools_tree_repositories)}
+   Tools Tree Package Manager Trees: {line_join_list(config.tools_tree_package_manager_trees)}
                 Tools Tree Packages: {line_join_list(config.tools_tree_packages)}
-                      Runtime Trees: {line_join_tree_list(config.runtime_trees)}
+                      Runtime Trees: {line_join_list(config.runtime_trees)}
                        Runtime Size: {format_bytes_or_none(config.runtime_size)}
                     Runtime Scratch: {config.runtime_scratch}
                     SSH Signing Key: {none_to_none(config.ssh_key)}

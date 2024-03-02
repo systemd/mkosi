@@ -1654,6 +1654,14 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 : Set the mirror to use for the default tools tree. By default, the
   default mirror for the tools tree distribution is used.
 
+`ToolsTreeRepositories=`, `--tools-tree-repository`
+
+: Same as `Repositories=` but for the default tools tree.
+
+`ToolsTreePackageManagerTrees=`, `--tools-tree-package-manager-tree=`
+
+: Same as `PackageManagerTrees=` but for the default tools tree.
+
 `ToolsTreePackages=`, `--tools-tree-packages=`
 
 : Extra packages to install into the default tools tree. Takes a comma
