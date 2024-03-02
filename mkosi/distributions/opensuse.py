@@ -65,7 +65,7 @@ class Installer(DistributionInstaller):
         else:
             Dnf.setup(context, cls.repositories(context))
 
-        setup_rpm(context)
+        setup_rpm(context, dbbackend="ndb")
 
     @classmethod
     def sync(cls, context: Context) -> None:
