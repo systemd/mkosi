@@ -3856,13 +3856,6 @@ def load_config(args: Args, config: argparse.Namespace) -> Config:
             die("UEFI SecureBoot enabled, private key was found, but not the certificate.",
                 hint="Consider placing it in mkosi.crt")
 
-    if config.repositories and not (
-        config.distribution.is_dnf_distribution() or
-        config.distribution.is_apt_distribution() or
-        config.distribution == Distribution.arch
-    ):
-        die("Sorry, the --repositories option is only supported on pacman, dnf and apt based distributions")
-
     if config.overlay and not config.base_trees:
         die("--overlay can only be used with --base-tree")
 
