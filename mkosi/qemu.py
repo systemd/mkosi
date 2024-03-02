@@ -34,7 +34,7 @@ from mkosi.config import (
     systemd_tool_version,
     want_selinux_relabel,
 )
-from mkosi.log import die
+from mkosi.log import ARG_DEBUG, die
 from mkosi.partition import finalize_root, find_partitions
 from mkosi.run import AsyncioThread, find_binary, fork_and_wait, run, spawn
 from mkosi.tree import copy_tree, rmtree
@@ -286,6 +286,11 @@ def find_ovmf_vars(config: Config) -> Path:
 @contextlib.contextmanager
 def start_swtpm(config: Config) -> Iterator[Path]:
     with tempfile.TemporaryDirectory(prefix="mkosi-swtpm") as state:
+        # swtpm_setup is noisy and doesn't have a --quiet option so we pipe it's stdout to /dev/null.
+        run(["swtpm_setup", "--tpm-state", state, "--tpm2", "--pcr-banks", "sha256", "--config", "/dev/null"],
+            sandbox=config.sandbox(options=["--bind", state, state]),
+            stdout=None if ARG_DEBUG.get() else subprocess.DEVNULL)
+
         cmdline = ["swtpm", "socket", "--tpm2", "--tpmstate", f"dir={state}"]
 
         # We create the socket ourselves and pass the fd to swtpm to avoid race conditions where we start qemu before
