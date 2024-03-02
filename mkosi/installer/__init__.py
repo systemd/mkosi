@@ -61,6 +61,10 @@ class PackageManager:
 
         return mounts
 
+    @classmethod
+    def sync(cls, context: Context) -> None:
+        pass
+
 
 def clean_package_manager_metadata(context: Context) -> None:
     """

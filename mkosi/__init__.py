@@ -3711,7 +3711,7 @@ def sync_repository_metadata(context: Context) -> None:
             flock(context.config.package_cache_dir_or_default() / "cache" / subdir),
             flock(context.config.package_cache_dir_or_default() / "lib" / subdir),
         ):
-            context.config.distribution.sync(context)
+            context.config.distribution.package_manager(context.config).sync(context)
 
 
 def run_sync(args: Args, config: Config, *, resources: Path) -> None:

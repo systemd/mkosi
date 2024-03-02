@@ -84,10 +84,6 @@ class Installer(DistributionInstaller):
         setup_rpm(context)
 
     @classmethod
-    def sync(cls, context: Context) -> None:
-        Dnf.sync(context)
-
-    @classmethod
     def install(cls, context: Context) -> None:
         cls.install_packages(context, ["filesystem"], apivfs=False)
 
