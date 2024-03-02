@@ -47,6 +47,18 @@ def tuplify(f: Callable[..., Iterable[T]]) -> Callable[..., tuple[T, ...]]:
     return functools.update_wrapper(wrapper, f)
 
 
+def one_zero(b: bool) -> str:
+    return "1" if b else "0"
+
+
+def is_power_of_2(x: int) -> bool:
+    return x > 0 and (x & x - 1 == 0)
+
+
+def round_up(x: int, blocksize: int = 4096) -> int:
+    return (x + blocksize - 1) // blocksize * blocksize
+
+
 @dictify
 def read_env_file(path: Path) -> Iterator[tuple[str, str]]:
     with path.open() as f:
@@ -155,10 +167,6 @@ class StrEnum(enum.Enum):
         return list(map(str, cls))
 
 
-def one_zero(b: bool) -> str:
-    return "1" if b else "0"
-
-
 @contextlib.contextmanager
 def umask(mask: int) -> Iterator[None]:
     old = os.umask(mask)
@@ -166,10 +174,6 @@ def umask(mask: int) -> Iterator[None]:
         yield
     finally:
         os.umask(old)
-
-
-def is_power_of_2(x: int) -> bool:
-    return x > 0 and (x & x - 1 == 0)
 
 
 @contextlib.contextmanager
@@ -268,7 +272,3 @@ def resource_path(mod: ModuleType) -> Iterator[Path]:
     t = importlib.resources.files(mod)
     with as_file(t) as p:
         yield p
-
-
-def round_up(x: int, blocksize: int = 4096) -> int:
-    return (x + blocksize - 1) // blocksize * blocksize
