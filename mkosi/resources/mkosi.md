@@ -1588,6 +1588,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   | `acl`                   | X      | X      | X      | X      | X    | X        |
   | `apt`                   | X      | X      | X      | X      | X    |          |
   | `archlinux-keyring`     | X      |        | X      | X      | X    |          |
+  | `attr`                  | X      | X      | X      | X      | X    | X        |
   | `bash`                  | X      | X      | X      | X      | X    | X        |
   | `btrfs-progs`           | X      |        | X      | X      | X    | X        |
   | `bubblewrap`            | X      | X      | X      | X      | X    | X        |
@@ -1609,6 +1610,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   | `findutils`             | X      | X      | X      | X      | X    | X        |
   | `git`                   | X      | X      | X      | X      | X    | X        |
   | `grep`                  | X      | X      | X      | X      | X    | X        |
+  | `jq`                    | X      | X      | X      | X      | X    | X        |
   | `kmod`                  | X      | X      | X      | X      | X    | X        |
   | `less`                  | X      | X      | X      | X      | X    | X        |
   | `mtools`                | X      | X      | X      | X      | X    | X        |
