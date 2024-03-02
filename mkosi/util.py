@@ -18,7 +18,7 @@ import tempfile
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Callable, TypeVar, no_type_check
+from typing import Any, Callable, Optional, TypeVar, no_type_check
 
 from mkosi.types import PathString
 
@@ -57,6 +57,12 @@ def is_power_of_2(x: int) -> bool:
 
 def round_up(x: int, blocksize: int = 4096) -> int:
     return (x + blocksize - 1) // blocksize * blocksize
+
+
+def startswith(s: str, prefix: str) -> Optional[str]:
+    if s.startswith(prefix):
+        return s.removeprefix(prefix)
+    return None
 
 
 @dictify

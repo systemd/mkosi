@@ -41,6 +41,7 @@ from mkosi.util import (
     flatten,
     is_power_of_2,
     make_executable,
+    startswith,
 )
 from mkosi.versioncomp import GenericVersion
 
@@ -637,9 +638,11 @@ def config_default_release(namespace: argparse.Namespace) -> str:
 
 def config_default_source_date_epoch(namespace: argparse.Namespace) -> Optional[int]:
     for env in namespace.environment:
-        if env.startswith("SOURCE_DATE_EPOCH="):
-            return config_parse_source_date_epoch(env.removeprefix("SOURCE_DATE_EPOCH="), None)
-    return config_parse_source_date_epoch(os.environ.get("SOURCE_DATE_EPOCH"), None)
+        if s := startswith(env, "SOURCE_DATE_EPOCH="):
+            break
+    else:
+        s = os.environ.get("SOURCE_DATE_EPOCH")
+    return config_parse_source_date_epoch(s, None)
 
 
 def config_default_kernel_command_line(namespace: argparse.Namespace) -> list[str]:
@@ -723,9 +726,9 @@ def config_match_version(match: str, value: str) -> bool:
         ">": operator.gt,
         "<": operator.lt,
     }.items():
-        if match.startswith(sigil):
+        if (rhs := startswith(match, sigil)) is not None:
             op = opfunc
-            comp_version = GenericVersion(match[len(sigil):])
+            comp_version = GenericVersion(rhs)
             break
     else:
         # default to equality if no operation is specified

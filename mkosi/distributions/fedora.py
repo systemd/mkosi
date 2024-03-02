@@ -16,7 +16,7 @@ from mkosi.installer import PackageManager
 from mkosi.installer.dnf import Dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey, setup_rpm
 from mkosi.log import die
-from mkosi.util import listify, tuplify
+from mkosi.util import listify, startswith, tuplify
 
 
 @tuplify
@@ -28,8 +28,8 @@ def find_fedora_rpm_gpgkeys(context: Context) -> Iterable[str]:
         # During branching, there is always a kerfuffle with the key transition.
         # For Rawhide, try to load the N+1 key, just in case our local configuration
         # still indicates that Rawhide==N, but really Rawhide==N+1.
-        if context.config.release == "rawhide" and key1.startswith("file://"):
-            path = Path(key1.removeprefix("file://")).resolve()
+        if context.config.release == "rawhide" and (rhs := startswith(key1, "file://")):
+            path = Path(rhs).resolve()
             if m := re.match(r"RPM-GPG-KEY-fedora-(\d+)-(primary|secondary)", path.name):
                 version = int(m.group(1))
                 if key3 := find_rpm_gpgkey(context, key=f"RPM-GPG-KEY-fedora-{version + 1}-primary"):
