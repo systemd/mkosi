@@ -239,7 +239,7 @@ class Dnf(PackageManager):
                 baseurl=file:///work/packages
                 gpgcheck=0
                 metadata_expire=never
-                priority=50
+                priority=10
                 """
             )
         )

@@ -165,7 +165,7 @@ class Zypper(PackageManager):
                 gpgcheck=0
                 autorefresh=0
                 keeppackages=0
-                priority=50
+                priority=10
                 """
             )
         )
