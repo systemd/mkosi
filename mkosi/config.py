@@ -421,6 +421,7 @@ class Architecture(StrEnum):
 
 def parse_boolean(s: str) -> bool:
     "Parse 1/true/yes/y/t/on as true and 0/false/no/n/f/off/None as false"
+
     s_l = s.lower()
     if s_l in {"1", "true", "yes", "y", "t", "on", "always"}:
         return True
@@ -567,7 +568,7 @@ def config_parse_source_date_epoch(value: Optional[str], old: Optional[int]) -> 
     try:
         timestamp = int(value)
     except ValueError:
-        die(f"{value} is not a valid timestamp")
+        die(f"Timestamp {value!r} is not a valid integer")
 
     if timestamp < 0:
         die(f"Source date epoch timestamp cannot be negative (got {value})")
@@ -582,7 +583,7 @@ def config_parse_compress_level(value: Optional[str], old: Optional[int]) -> Opt
     try:
         level = int(value)
     except ValueError:
-        die(f"{value} is not a valid compression level")
+        die(f"Compression level {value!r} is not a valid integer")
 
     if level < 0:
         die(f"Compression level cannot be negative (got {value})")
