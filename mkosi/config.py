@@ -1305,6 +1305,8 @@ class Config:
     tools_tree_distribution: Optional[Distribution]
     tools_tree_release: Optional[str]
     tools_tree_mirror: Optional[str]
+    tools_tree_repositories: list[str]
+    tools_tree_package_manager_trees: list[ConfigTree]
     tools_tree_packages: list[str]
     runtime_trees: list[ConfigTree]
     runtime_size: Optional[int]
@@ -2470,6 +2472,22 @@ SETTINGS = (
         help="Set the mirror to use for the default tools tree",
     ),
     ConfigSetting(
+        dest="tools_tree_repositories",
+        long="--tools-tree-repository",
+        metavar="REPOS",
+        section="Host",
+        parse=config_make_list_parser(delimiter=","),
+        help="Repositories to use for the default tools tree",
+    ),
+    ConfigSetting(
+        dest="tools_tree_package_manager_trees",
+        long="--tools-tree-package-manager-tree",
+        metavar="PATH",
+        section="Host",
+        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser()),
+        help="Package manager trees for the default tools tree",
+    ),
+    ConfigSetting(
         dest="tools_tree_packages",
         long="--tools-tree-package",
         metavar="PACKAGE",
@@ -3595,6 +3613,8 @@ def summary(config: Config) -> str:
             Tools Tree Distribution: {none_to_none(config.tools_tree_distribution)}
                  Tools Tree Release: {none_to_none(config.tools_tree_release)}
                   Tools Tree Mirror: {none_to_default(config.tools_tree_mirror)}
+            Tools Tree Repositories: {line_join_list(config.tools_tree_repositories)}
+   Tools Tree Package Manager Trees: {line_join_list(config.tools_tree_package_manager_trees)}
                 Tools Tree Packages: {line_join_list(config.tools_tree_packages)}
                       Runtime Trees: {line_join_list(config.runtime_trees)}
                        Runtime Size: {format_bytes_or_none(config.runtime_size)}

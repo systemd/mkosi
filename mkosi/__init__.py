@@ -3584,6 +3584,8 @@ def finalize_default_tools(args: Args, config: Config, *, resources: Path) -> Co
         "--distribution", str(config.tools_tree_distribution),
         *(["--release", config.tools_tree_release] if config.tools_tree_release else []),
         *(["--mirror", config.tools_tree_mirror] if config.tools_tree_mirror else []),
+        "--repositories", ",".join(config.tools_tree_repositories),
+        "--package-manager-tree", ",".join(str(t) for t in config.tools_tree_package_manager_trees),
         "--repository-key-check", str(config.repository_key_check),
         "--cache-only", str(config.cacheonly),
         *(["--output-dir", str(config.output_dir)] if config.output_dir else []),
