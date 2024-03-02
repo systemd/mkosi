@@ -53,8 +53,12 @@ def filter_kernel_modules(
     return sorted(modules)
 
 
+def normalize_module_name(name: str) -> str:
+    return name.replace("_", "-")
+
+
 def module_path_to_name(path: Path) -> str:
-    return path.name.partition(".")[0]
+    return normalize_module_name(path.name.partition(".")[0])
 
 
 def resolve_module_dependencies(
@@ -103,7 +107,7 @@ def resolve_module_dependencies(
             key, sep, value = line.partition("=")
 
         if key in ("depends", "softdep"):
-            depends += [d for d in value.strip().split(",") if d]
+            depends += [normalize_module_name(d) for d in value.strip().split(",") if d]
 
         elif key == "firmware":
             fw = [f for f in (root / "usr/lib/firmware").glob(f"{value.strip()}*")]
@@ -116,7 +120,7 @@ def resolve_module_dependencies(
             # The file names use dashes, but the module names use underscores. We track the names
             # in terms of the file names, since the depends use dashes and therefore filenames as
             # well.
-            name = value.strip().replace("_", "-")
+            name = normalize_module_name(value.strip())
 
             moddep[name] = depends
             firmwaredep[name] = firmware
