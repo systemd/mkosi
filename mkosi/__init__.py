@@ -2090,6 +2090,9 @@ def copy_uki(context: Context) -> None:
     if (context.staging / context.config.output_split_uki).exists():
         return
 
+    if not want_efi(context.config):
+        return
+
     ukis = sorted(
         (context.root / "boot/EFI/Linux").glob("*.efi"),
         key=lambda p: GenericVersion(p.name),
