@@ -1708,11 +1708,12 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `RuntimeNetwork=`: `--runtime-network=`
 
-: Takes one of `user`, `interface` or `none`. Specifies the networking
-  to set up when booting the image. `user` sets up usermode networking.
-  `interface` sets up a virtual network connection between the host and
-  the image. This translates to a veth interface for `mkosi shell` and
-  `mkosi boot` and a tap interface for `mkosi qemu` and `mkosi vmspawn`.
+: Takes one of `user`, `interface` or `none`. Defaults to `user`.
+  Specifies the networking to set up when booting the image. `user` sets
+  up usermode networking. `interface` sets up a virtual network
+  connection between the host and the image. This translates to a veth
+  interface for `mkosi shell` and `mkosi boot` and a tap interface for
+  `mkosi qemu` and `mkosi vmspawn`.
 
 : Note that when using `interface`, mkosi does not automatically
   configure the host interface. It is expected that a recent version of
