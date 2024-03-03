@@ -253,6 +253,12 @@ class QemuFirmware(StrEnum):
     bios   = enum.auto()
 
 
+class Network(StrEnum):
+    interface = enum.auto()
+    user      = enum.auto()
+    none      = enum.auto()
+
+
 class Architecture(StrEnum):
     alpha       = enum.auto()
     arc         = enum.auto()
@@ -1311,6 +1317,7 @@ class Config:
     runtime_trees: list[ConfigTree]
     runtime_size: Optional[int]
     runtime_scratch: ConfigFeature
+    runtime_network: Network
     ssh_key: Optional[Path]
     ssh_certificate: Optional[Path]
 
@@ -2518,6 +2525,13 @@ SETTINGS = (
         help="Mount extra scratch space to /var/tmp",
     ),
     ConfigSetting(
+        dest="runtime_network",
+        metavar="NET",
+        section="Host",
+        parse=config_make_enum_parser(Network),
+        help="Set networking backend to use when booting the image",
+    ),
+    ConfigSetting(
         dest="ssh_key",
         metavar="PATH",
         section="Host",
@@ -3619,6 +3633,7 @@ def summary(config: Config) -> str:
                       Runtime Trees: {line_join_list(config.runtime_trees)}
                        Runtime Size: {format_bytes_or_none(config.runtime_size)}
                     Runtime Scratch: {config.runtime_scratch}
+                    Runtime Network: {config.runtime_network}
                     SSH Signing Key: {none_to_none(config.ssh_key)}
                     SSH Certificate: {none_to_none(config.ssh_certificate)}
 
@@ -3755,6 +3770,7 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         list[QemuDrive]: config_drive_transformer,
         GenericVersion: generic_version_transformer,
         Cacheonly: enum_transformer,
+        Network: enum_transformer,
     }
 
     def json_transformer(key: str, val: Any) -> Any:

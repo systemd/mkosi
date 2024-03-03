@@ -1706,6 +1706,19 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 : Note that using this feature with `mkosi qemu` requires systemd v254
   or newer in the guest.
 
+`RuntimeNetwork=`: `--runtime-network=`
+
+: Takes one of `user`, `interface` or `none`. Specifies the networking
+  to set up when booting the image. `user` sets up usermode networking.
+  `interface` sets up a virtual network connection between the host and
+  the image. This translates to a veth interface for `mkosi shell` and
+  `mkosi boot` and a tap interface for `mkosi qemu` and `mkosi vmspawn`.
+
+: Note that when using `interface`, mkosi does not automatically
+  configure the host interface. It is expected that a recent version of
+  `systemd-networkd` is running on the host which will automatically
+  configure the host interface of the link.
+
 `SshKey=`, `--ssh-key=`
 
 : Path to the X509 private key in PEM format to use to connect to a

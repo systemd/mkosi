@@ -26,6 +26,7 @@ from mkosi.config import (
     Args,
     Config,
     ConfigFeature,
+    Network,
     OutputFormat,
     QemuFirmware,
     QemuVsockCID,
@@ -597,7 +598,15 @@ def run_qemu(args: Args, config: Config) -> None:
         *shm,
     ]
 
-    cmdline += ["-nic", f"user,model={config.architecture.default_qemu_nic_model()}"]
+    if config.runtime_network == Network.user:
+        cmdline += ["-nic", f"user,model={config.architecture.default_qemu_nic_model()}"]
+    elif config.runtime_network == Network.interface:
+        if os.getuid() != 0:
+            die("RuntimeNetwork=interface requires root privileges")
+
+        cmdline += ["-nic", "tap,script=no,model=virtio-net-pci"]
+    elif config.runtime_network == Network.none:
+        cmdline += ["-nic", "none"]
 
     if config.qemu_kvm != ConfigFeature.disabled and have_kvm and config.architecture.is_native():
         accel = "kvm"

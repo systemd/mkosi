@@ -34,6 +34,7 @@ from mkosi.config import (
     DocFormat,
     JsonEncoder,
     ManifestFormat,
+    Network,
     OutputFormat,
     SecureBootSignTool,
     ShimBootloader,
@@ -3313,6 +3314,16 @@ def run_shell(args: Args, config: Config) -> None:
         die(f"Sorry, can't {opname} a compressed image.")
 
     cmdline: list[PathString] = ["systemd-nspawn", "--quiet", "--link-journal=no"]
+
+    if config.runtime_network == Network.user:
+        cmdline += ["--resolv-conf=auto"]
+    elif config.runtime_network == Network.interface:
+        if os.getuid() != 0:
+            die("RuntimeNetwork=interface requires root privileges")
+
+        cmdline += ["--private-network", "--network-veth"]
+    elif config.runtime_network == Network.none:
+        cmdline += ["--private-network"]
 
     # If we copied in a .nspawn file, make sure it's actually honoured
     if config.nspawn_settings:
