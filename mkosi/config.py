@@ -2530,6 +2530,7 @@ SETTINGS = (
         section="Host",
         parse=config_make_enum_parser(Network),
         help="Set networking backend to use when booting the image",
+        default=Network.user,
     ),
     ConfigSetting(
         dest="ssh_key",
