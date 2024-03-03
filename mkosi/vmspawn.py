@@ -8,6 +8,7 @@ from pathlib import Path
 from mkosi.config import (
     Args,
     Config,
+    Network,
     OutputFormat,
     QemuFirmware,
     yes_no,
@@ -55,6 +56,11 @@ def run_vmspawn(args: Args, config: Config) -> None:
         "--tpm", config.qemu_swtpm.to_tristate(),
         "--secure-boot", yes_no(config.secure_boot),
     ]
+
+    if config.runtime_network == Network.user:
+        cmdline += ["--network-user-mode"]
+    elif config.runtime_network == Network.interface:
+        cmdline += ["--network-tap"]
 
     if config.qemu_gui:
         cmdline += ["--qemu-gui"]
