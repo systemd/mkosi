@@ -19,6 +19,7 @@ from mkosi.config import (
     ConfigFeature,
     ConfigTree,
     DocFormat,
+    KeySource,
     ManifestFormat,
     Network,
     OutputFormat,
@@ -260,6 +261,10 @@ def test_config() -> None:
             "SecureBootAutoEnroll": true,
             "SecureBootCertificate": null,
             "SecureBootKey": "/path/to/keyfile",
+            "SecureBootKeySource": {
+                "source": "",
+                "type": "file"
+            },
             "SecureBootSignTool": "pesign",
             "Seed": "7496d7d8-7f08-4a2b-96c6-ec8c43791b60",
             "ShimBootloader": "none",
@@ -301,6 +306,10 @@ def test_config() -> None:
             "UseSubvolumes": "auto",
             "VerityCertificate": "/path/to/cert",
             "VerityKey": null,
+            "VerityKeySource": {
+                "source": "",
+                "type": "file"
+            },
             "WithDocs": true,
             "WithNetwork": false,
             "WithRecommends": true,
@@ -411,6 +420,7 @@ def test_config() -> None:
         secure_boot_auto_enroll = True,
         secure_boot_certificate = None,
         secure_boot_key = Path("/path/to/keyfile"),
+        secure_boot_key_source = KeySource(type=KeySource.Type.file),
         secure_boot_sign_tool = SecureBootSignTool.pesign,
         seed = uuid.UUID("7496d7d8-7f08-4a2b-96c6-ec8c43791b60"),
         selinux_relabel = ConfigFeature.disabled,
@@ -435,6 +445,7 @@ def test_config() -> None:
         use_subvolumes = ConfigFeature.auto,
         verity_certificate = Path("/path/to/cert"),
         verity_key = None,
+        verity_key_source = KeySource(type=KeySource.Type.file),
         with_docs = True,
         with_network = False,
         with_recommends = True,

@@ -482,6 +482,13 @@ def parse_path(value: str,
     return path
 
 
+def config_parse_key(value: Optional[str], old: Optional[str]) -> Optional[Path]:
+    if not value:
+        return None
+
+    return parse_path(value, secret=True) if Path(value).exists() else Path(value)
+
+
 def make_tree_parser(absolute: bool = True) -> Callable[[str], ConfigTree]:
     def parse_tree(value: str) -> ConfigTree:
         src, sep, tgt = value.partition(':')
@@ -995,6 +1002,32 @@ def config_parse_minimum_version(value: Optional[str], old: Optional[GenericVers
 
 
 @dataclasses.dataclass(frozen=True)
+class KeySource:
+    class Type(StrEnum):
+        file   = enum.auto()
+        engine = enum.auto()
+
+    type: Type
+    source: str = ""
+
+    def __str__(self) -> str:
+        return f"{self.type}:{self.source}" if self.source else str(self.type)
+
+
+def config_parse_key_source(value: Optional[str], old: Optional[KeySource]) -> Optional[KeySource]:
+    if not value:
+        return old
+
+    typ, _, source = value.partition(":")
+    try:
+        type = KeySource.Type(typ)
+    except ValueError:
+        die(f"'{value}' is not a valid key source")
+
+    return KeySource(type=type, source=source)
+
+
+@dataclasses.dataclass(frozen=True)
 class ConfigSetting:
     dest: str
     section: str
@@ -1290,9 +1323,11 @@ class Config:
     secure_boot: bool
     secure_boot_auto_enroll: bool
     secure_boot_key: Optional[Path]
+    secure_boot_key_source: KeySource
     secure_boot_certificate: Optional[Path]
     secure_boot_sign_tool: SecureBootSignTool
     verity_key: Optional[Path]
+    verity_key_source: KeySource
     verity_certificate: Optional[Path]
     sign_expected_pcr: ConfigFeature
     passphrase: Optional[Path]
@@ -2309,11 +2344,19 @@ SETTINGS = (
     ),
     ConfigSetting(
         dest="secure_boot_key",
-        metavar="PATH",
+        metavar="KEY",
         section="Validation",
-        parse=config_make_path_parser(secret=True),
+        parse=config_parse_key,
         paths=("mkosi.key",),
-        help="UEFI SecureBoot private key in PEM format",
+        help="UEFI SecureBoot private key",
+    ),
+    ConfigSetting(
+        dest="secure_boot_key_source",
+        section="Validation",
+        metavar="SOURCE[:ENGINE]",
+        parse=config_parse_key_source,
+        default=KeySource(type=KeySource.Type.file),
+        help="The source to use to retrieve the secure boot signing key",
     ),
     ConfigSetting(
         dest="secure_boot_certificate",
@@ -2334,11 +2377,19 @@ SETTINGS = (
     ),
     ConfigSetting(
         dest="verity_key",
-        metavar="PATH",
+        metavar="KEY",
         section="Validation",
-        parse=config_make_path_parser(secret=True),
+        parse=config_parse_key,
         paths=("mkosi.key",),
-        help="Private key for signing verity signature in PEM format",
+        help="Private key for signing verity signature",
+    ),
+    ConfigSetting(
+        dest="verity_key_source",
+        section="Validation",
+        metavar="SOURCE[:ENGINE]",
+        parse=config_parse_key_source,
+        default=KeySource(type=KeySource.Type.file),
+        help="The source to use to retrieve the verity signing key",
     ),
     ConfigSetting(
         dest="verity_certificate",
@@ -3603,9 +3654,11 @@ def summary(config: Config) -> str:
                     UEFI SecureBoot: {yes_no(config.secure_boot)}
          UEFI SecureBoot AutoEnroll: {yes_no(config.secure_boot_auto_enroll)}
              SecureBoot Signing Key: {none_to_none(config.secure_boot_key)}
+      SecureBoot Signing Key Source: {config.secure_boot_key_source}
              SecureBoot Certificate: {none_to_none(config.secure_boot_certificate)}
                SecureBoot Sign Tool: {config.secure_boot_sign_tool}
                  Verity Signing Key: {none_to_none(config.verity_key)}
+          Verity Signing Key Source: {config.verity_key_source}
                  Verity Certificate: {none_to_none(config.verity_certificate)}
                  Sign Expected PCRs: {config.sign_expected_pcr}
                          Passphrase: {none_to_none(config.passphrase)}
@@ -3746,6 +3799,10 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
     ) -> Optional[GenericVersion]:
         return GenericVersion(version) if version is not None else None
 
+    def key_source_transformer(keysource: dict[str, Any], fieldtype: type[KeySource]) -> KeySource:
+        assert "type" in keysource
+        return KeySource(type=KeySource.Type(keysource["type"]), source=keysource.get("source", ""))
+
     transformers = {
         Path: path_transformer,
         Optional[Path]: optional_path_transformer,
@@ -3772,6 +3829,7 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         GenericVersion: generic_version_transformer,
         Cacheonly: enum_transformer,
         Network: enum_transformer,
+        KeySource: key_source_transformer,
     }
 
     def json_transformer(key: str, val: Any) -> Any:

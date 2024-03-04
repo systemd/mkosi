@@ -1336,7 +1336,13 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `SecureBootKey=`, `--secure-boot-key=`
 
 : Path to the PEM file containing the secret key for signing the
-  UEFI kernel image, if `SecureBoot=` is used.
+  UEFI kernel image, if `SecureBoot=` is used. When `SecureBootKeySource=` is specified, the input
+  type depends on the source.
+
+`SecureBootKeySource=`, `--secure-boot-key-source=`
+
+: Source of `SecureBootKey=`, to support OpenSSL engines. E.g.:
+  `--secure-boot-key-source=engine:pkcs11`
 
 `SecureBootCertificate=`, `--secure-boot-certificate=`
 
@@ -1352,7 +1358,13 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `VerityKey=`, `--verity-key=`
 
 : Path to the PEM file containing the secret key for signing the verity signature, if a verity signature
-  partition is added with systemd-repart.
+  partition is added with systemd-repart. When `VerityKeySource=` is specified, the input type depends on
+  the source.
+
+`VerityKeySource=`, `--verity-key-source=`
+
+: Source of `VerityKey=`, to support OpenSSL engines. E.g.:
+  `--verity-key-source=engine:pkcs11`
 
 `VerityCertificate=`, `--verity-certificate=`
 
