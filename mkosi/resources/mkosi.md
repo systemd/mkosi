@@ -1927,6 +1927,12 @@ Scripts executed by mkosi receive the following environment variables:
   architecture of the host machine. See the documentation of
   `Architecture=` for possible values for this variable.
 
+* `$DISTRIBUTION` contains the distribution from the `Distribution=` setting.
+
+* `$RELEASE` contains the release from the `Release=` setting.
+
+* `$CACHED=` is set to `1` if a cached image is available, `0` otherwise.
+
 * `$CHROOT_SCRIPT` contains the path to the running script relative to
   the image root directory. The primary usecase for this variable is in
   combination with the `mkosi-chroot` script. See the description of
@@ -1990,25 +1996,28 @@ Scripts executed by mkosi receive the following environment variables:
 
 Consult this table for which script receives which environment variables:
 
-| Variable            | `mkosi.prepare` | `mkosi.build` | `mkosi.postinst` | `mkosi.finalize` |
-|---------------------|-----------------|---------------|------------------|------------------|
-| `$CHROOT_SCRIPT`    | X               | X             | X                | X                |
-| `$SRCDIR`           | X               | X             | X                | X                |
-| `CHROOT_SRCDIR`     | X               | X             | X                | X                |
-| `$BUILDDIR`         |                 | X             |                  |                  |
-| `CHROOT_BUILDDIR`   |                 | X             |                  |                  |
-| `DESTDIR`           |                 | X             |                  |                  |
-| `CHROOT_DESTDIR`    |                 | X             |                  |                  |
-| `$OUTPUTDIR`        |                 | X             | X                | X                |
-| `CHROOT_OUTPUTDIR`  |                 | X             | X                | X                |
-| `$BUILDROOT`        | X               | X             | X                | X                |
-| `WITH_DOCS`         | X               | X             |                  |                  |
-| `WITH_TESTS`        | X               | X             |                  |                  |
-| `WITH_NETWORK`      | X               | X             |                  |                  |
-| `SOURCE_DATE_EPOCH` | X               | X             | X                | X                |
-| `MKOSI_UID`         | X               | X             | X                | X                |
-| `MKOSI_GID`         | X               | X             | X                | X                |
-
+| Variable            | `mkosi.sync` | `mkosi.prepare` | `mkosi.build` | `mkosi.postinst` | `mkosi.finalize` |
+|---------------------|--------------|-----------------|---------------|------------------|------------------|
+| `ARCHITECTURE`      | X            | X               | X             | X                | X                |
+| `DISTRIBUTION`      | X            | X               | X             | X                | X                |
+| `RELEASE`           | X            | X               | X             | X                | X                |
+| `CACHED`            | X            |                 |               |                  |                  |
+| `CHROOT_SCRIPT`     |              | X               | X             | X                | X                |
+| `SRCDIR`            | X            | X               | X             | X                | X                |
+| `CHROOT_SRCDIR`     |              | X               | X             | X                | X                |
+| `BUILDDIR`          |              |                 | X             |                  |                  |
+| `CHROOT_BUILDDIR`   |              |                 | X             |                  |                  |
+| `DESTDIR`           |              |                 | X             |                  |                  |
+| `CHROOT_DESTDIR`    |              |                 | X             |                  |                  |
+| `OUTPUTDIR`         |              |                 | X             | X                | X                |
+| `CHROOT_OUTPUTDIR`  |              |                 | X             | X                | X                |
+| `BUILDROOT`         |              | X               | X             | X                | X                |
+| `WITH_DOCS`         |              | X               | X             |                  |                  |
+| `WITH_TESTS`        |              | X               | X             |                  |                  |
+| `WITH_NETWORK`      |              | X               | X             |                  |                  |
+| `SOURCE_DATE_EPOCH` |              | X               | X             | X                | X                |
+| `MKOSI_UID`         | X            | X               | X             | X                | X                |
+| `MKOSI_GID`         | X            | X               | X             | X                | X                |
 
 Additionally, when a script is executed, a few scripts are made
 available via `$PATH` to simplify common usecases.
