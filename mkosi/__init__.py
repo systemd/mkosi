@@ -1395,7 +1395,7 @@ def install_grub_bios(context: Context, partitions: Sequence[Partition]) -> None
 
 
 def install_tree(
-    context: Context,
+    config: Config,
     src: Path,
     dst: Path,
     *,
@@ -1413,19 +1413,19 @@ def install_tree(
         copy_tree(
             src, t,
             preserve=preserve,
-            use_subvolumes=context.config.use_subvolumes,
-            tools=context.config.tools(),
-            sandbox=context.sandbox,
+            use_subvolumes=config.use_subvolumes,
+            tools=config.tools(),
+            sandbox=config.sandbox,
         )
 
     if src.is_dir() or (src.is_file() and target):
         copy()
     elif src.suffix == ".tar":
-        extract_tar(src, t, tools=context.config.tools(), sandbox=context.sandbox)
+        extract_tar(src, t, tools=config.tools(), sandbox=config.sandbox)
     elif src.suffix == ".raw":
         run(
             ["systemd-dissect", "--copy-from", src, "/", t],
-            sandbox=context.sandbox(
+            sandbox=config.sandbox(
                 devices=True,
                 network=True,
                 options=["--ro-bind", src, src, "--bind", t.parent, t.parent],
@@ -1442,7 +1442,7 @@ def install_base_trees(context: Context) -> None:
 
     with complete_step("Copying in base trees…"):
         for path in context.config.base_trees:
-            install_tree(context, path, context.root)
+            install_tree(context.config, path, context.root)
 
 
 def install_skeleton_trees(context: Context) -> None:
@@ -1451,7 +1451,7 @@ def install_skeleton_trees(context: Context) -> None:
 
     with complete_step("Copying in skeleton file trees…"):
         for tree in context.config.skeleton_trees:
-            install_tree(context, tree.source, context.root, target=tree.target, preserve=False)
+            install_tree(context.config, tree.source, context.root, target=tree.target, preserve=False)
 
 
 def install_package_manager_trees(context: Context) -> None:
@@ -1477,7 +1477,7 @@ def install_package_manager_trees(context: Context) -> None:
 
     with complete_step("Copying in package manager file trees…"):
         for tree in context.config.package_manager_trees:
-            install_tree(context, tree.source, context.pkgmngr, target=tree.target, preserve=False)
+            install_tree(context.config, tree.source, context.pkgmngr, target=tree.target, preserve=False)
 
 
 def install_package_directories(context: Context) -> None:
@@ -1504,7 +1504,7 @@ def install_extra_trees(context: Context) -> None:
 
     with complete_step("Copying in extra file trees…"):
         for tree in context.config.extra_trees:
-            install_tree(context, tree.source, context.root, target=tree.target, preserve=False)
+            install_tree(context.config, tree.source, context.root, target=tree.target, preserve=False)
 
 
 def install_build_dest(context: Context) -> None:
