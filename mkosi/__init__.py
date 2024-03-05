@@ -2517,13 +2517,14 @@ def run_depmod(context: Context, *, cache: bool = False) -> None:
             if all(m.stat().st_mtime <= mtime for m in modulesd.rglob("*.ko*")):
                 continue
 
-        process_kernel_modules(
-            context.root, kver,
-            include=context.config.kernel_modules_include,
-            exclude=context.config.kernel_modules_exclude,
-            host=context.config.kernel_modules_include_host,
-            sandbox=context.sandbox,
-        )
+        if not cache:
+            process_kernel_modules(
+                context.root, kver,
+                include=context.config.kernel_modules_include,
+                exclude=context.config.kernel_modules_exclude,
+                host=context.config.kernel_modules_include_host,
+                sandbox=context.sandbox,
+            )
 
         with complete_step(f"Running depmod for {kver}"):
             run(["depmod", "--all", "--basedir", context.root, kver],
