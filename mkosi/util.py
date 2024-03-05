@@ -18,7 +18,7 @@ import tempfile
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Callable, TypeVar, no_type_check
+from typing import Any, Callable, Optional, TypeVar, no_type_check
 
 from mkosi.types import PathString
 
@@ -45,6 +45,24 @@ def tuplify(f: Callable[..., Iterable[T]]) -> Callable[..., tuple[T, ...]]:
         return tuple(f(*args, **kwargs))
 
     return functools.update_wrapper(wrapper, f)
+
+
+def one_zero(b: bool) -> str:
+    return "1" if b else "0"
+
+
+def is_power_of_2(x: int) -> bool:
+    return x > 0 and (x & x - 1 == 0)
+
+
+def round_up(x: int, blocksize: int = 4096) -> int:
+    return (x + blocksize - 1) // blocksize * blocksize
+
+
+def startswith(s: str, prefix: str) -> Optional[str]:
+    if s.startswith(prefix):
+        return s.removeprefix(prefix)
+    return None
 
 
 @dictify
@@ -155,10 +173,6 @@ class StrEnum(enum.Enum):
         return list(map(str, cls))
 
 
-def one_zero(b: bool) -> str:
-    return "1" if b else "0"
-
-
 @contextlib.contextmanager
 def umask(mask: int) -> Iterator[None]:
     old = os.umask(mask)
@@ -166,10 +180,6 @@ def umask(mask: int) -> Iterator[None]:
         yield
     finally:
         os.umask(old)
-
-
-def is_power_of_2(x: int) -> bool:
-    return x > 0 and (x & x - 1 == 0)
 
 
 @contextlib.contextmanager
@@ -276,7 +286,3 @@ def resource_path(mod: ModuleType) -> Iterator[Path]:
             p.parent.chmod(0o755)
 
         yield p
-
-
-def round_up(x: int, blocksize: int = 4096) -> int:
-    return (x + blocksize - 1) // blocksize * blocksize

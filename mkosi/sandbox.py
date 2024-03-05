@@ -9,7 +9,7 @@ from typing import Optional, Protocol
 
 from mkosi.types import PathString
 from mkosi.user import INVOKING_USER
-from mkosi.util import flatten, one_zero
+from mkosi.util import flatten, one_zero, startswith
 
 
 class SandboxProtocol(Protocol):
@@ -27,8 +27,8 @@ class Capability(enum.Enum):
 
 def have_effective_cap(capability: Capability) -> bool:
     for line in Path("/proc/self/status").read_text().splitlines():
-        if line.startswith("CapEff:"):
-            hexcap = line.removeprefix("CapEff:").strip()
+        if rhs := startswith(line, "CapEff:"):
+            hexcap = rhs.strip()
             break
     else:
         logging.warning(f"\"CapEff:\" not found in /proc/self/status, assuming we don't have {capability}")

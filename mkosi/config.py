@@ -41,6 +41,7 @@ from mkosi.util import (
     flatten,
     is_power_of_2,
     make_executable,
+    startswith,
 )
 from mkosi.versioncomp import GenericVersion
 
@@ -430,6 +431,7 @@ class Architecture(StrEnum):
 
 def parse_boolean(s: str) -> bool:
     "Parse 1/true/yes/y/t/on as true and 0/false/no/n/f/off/None as false"
+
     s_l = s.lower()
     if s_l in {"1", "true", "yes", "y", "t", "on", "always"}:
         return True
@@ -583,7 +585,7 @@ def config_parse_source_date_epoch(value: Optional[str], old: Optional[int]) -> 
     try:
         timestamp = int(value)
     except ValueError:
-        die(f"{value} is not a valid timestamp")
+        die(f"Timestamp {value!r} is not a valid integer")
 
     if timestamp < 0:
         die(f"Source date epoch timestamp cannot be negative (got {value})")
@@ -598,7 +600,7 @@ def config_parse_compress_level(value: Optional[str], old: Optional[int]) -> Opt
     try:
         level = int(value)
     except ValueError:
-        die(f"{value} is not a valid compression level")
+        die(f"Compression level {value!r} is not a valid integer")
 
     if level < 0:
         die(f"Compression level cannot be negative (got {value})")
@@ -652,9 +654,11 @@ def config_default_release(namespace: argparse.Namespace) -> str:
 
 def config_default_source_date_epoch(namespace: argparse.Namespace) -> Optional[int]:
     for env in namespace.environment:
-        if env.startswith("SOURCE_DATE_EPOCH="):
-            return config_parse_source_date_epoch(env.removeprefix("SOURCE_DATE_EPOCH="), None)
-    return config_parse_source_date_epoch(os.environ.get("SOURCE_DATE_EPOCH"), None)
+        if s := startswith(env, "SOURCE_DATE_EPOCH="):
+            break
+    else:
+        s = os.environ.get("SOURCE_DATE_EPOCH")
+    return config_parse_source_date_epoch(s, None)
 
 
 def config_default_kernel_command_line(namespace: argparse.Namespace) -> list[str]:
@@ -738,9 +742,9 @@ def config_match_version(match: str, value: str) -> bool:
         ">": operator.gt,
         "<": operator.lt,
     }.items():
-        if match.startswith(sigil):
+        if (rhs := startswith(match, sigil)) is not None:
             op = opfunc
-            comp_version = GenericVersion(match[len(sigil):])
+            comp_version = GenericVersion(rhs)
             break
     else:
         # default to equality if no operation is specified
