@@ -454,11 +454,6 @@ def run_sync_scripts(context: Context) -> None:
                     env=env | context.config.environment,
                     stdin=sys.stdin,
                     sandbox=context.sandbox(network=True, options=options, scripts=hd),
-                    # Make sure we run as the invoking user when we're running as root so that files are owned by the
-                    # right user. bubblewrap will automatically map the running user to root in the user namespace it
-                    # creates.
-                    user=INVOKING_USER.uid,
-                    group=INVOKING_USER.gid,
                 )
 
 
