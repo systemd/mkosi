@@ -96,6 +96,16 @@ def clean_package_manager_metadata(context: Context) -> None:
     if context.config.clean_package_metadata == ConfigFeature.disabled:
         return
 
+    if (
+        context.config.clean_package_metadata == ConfigFeature.auto and
+        context.config.output_format in (OutputFormat.directory, OutputFormat.tar)
+    ):
+        return
+
+    # If cleaning is not explicitly requested, keep the repository metadata if we're building a directory or tar image
+    # (which are often used as a base tree for extension images and thus should retain package manager metadata) or if
+    # the corresponding package manager is installed in the image.
+
     always = context.config.clean_package_metadata == ConfigFeature.enabled
     executable = context.config.distribution.package_manager(context.config).executable(context.config)
 
