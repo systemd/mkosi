@@ -96,6 +96,9 @@ def clean_package_manager_metadata(context: Context) -> None:
 
         context.package_cache_dir = context.workspace / "package-cache-dir"
 
+    if context.config.overlay:
+        return
+
     if context.config.clean_package_metadata == ConfigFeature.disabled:
         return
 
