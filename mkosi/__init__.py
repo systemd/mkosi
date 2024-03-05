@@ -1843,6 +1843,16 @@ def extract_pe_section(context: Context, binary: Path, section: str, output: Pat
         )
 
 
+def want_signed_pcrs(config: Config) -> bool:
+    return (
+        config.sign_expected_pcr == ConfigFeature.enabled or
+        (
+            config.sign_expected_pcr == ConfigFeature.auto and
+            find_binary("systemd-measure", "/usr/lib/systemd/systemd-measure", root=config.tools()) is not None
+        )
+    )
+
+
 def build_uki(
     context: Context,
     stub: Path,
@@ -1916,15 +1926,7 @@ def build_uki(
             ]
             options += ["--ro-bind", context.workspace / "pesign", context.workspace / "pesign"]
 
-        sign_expected_pcr = (
-            context.config.sign_expected_pcr == ConfigFeature.enabled or
-            (
-                context.config.sign_expected_pcr == ConfigFeature.auto and
-                find_binary("systemd-measure", "/usr/lib/systemd/systemd-measure", root=context.config.tools())
-            )
-        )
-
-        if sign_expected_pcr:
+        if want_signed_pcrs(context.config):
             cmd += [
                 "--pcr-private-key", context.config.secure_boot_key,
                 "--pcr-banks", "sha1,sha256",
@@ -2405,6 +2407,30 @@ def check_tools(config: Config, verb: Verb) -> None:
 
         if config.selinux_relabel == ConfigFeature.enabled:
             check_tool(config, "setfiles", reason="relabel files")
+
+        if config.secure_boot_key_source.type != KeySource.Type.file:
+            check_systemd_tool(
+                config,
+                "ukify", "/usr/lib/systemd/ukify",
+                version="256~devel",
+                reason="sign Unified Kernel Image with OpenSSL engine",
+            )
+
+            if want_signed_pcrs(config):
+                check_systemd_tool(
+                    config,
+                    "systemd-measure",
+                    version="256~devel",
+                    reason="sign PCR hashes with OpenSSL engine",
+                )
+
+        if config.verity_key_source.type != KeySource.Type.file:
+            check_systemd_tool(
+                config,
+                "systemd-repart",
+                version="256~devel",
+                reason="sign verity roothash signature with OpenSSL engine",
+            )
 
     if verb == Verb.boot:
         check_systemd_tool(config, "systemd-nspawn", version="254", reason="boot images")
