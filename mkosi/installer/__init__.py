@@ -73,17 +73,11 @@ def clean_package_manager_metadata(context: Context) -> None:
     Try them all regardless of the distro: metadata is only removed if
     the package manager is not present in the image.
     """
-    if (
-        context.package_cache_dir.is_relative_to(context.root) and
-        not context.config.overlay and (
-            context.config.clean_package_metadata != ConfigFeature.disabled or
-            context.config.output_format not in (OutputFormat.directory, OutputFormat.tar)
-        )
-    ):
-        # Instead of removing the package cache directory from the image, we move it to the workspace so it stays
-        # available for later steps and is automatically removed along with the workspace when the build finishes.
-        subdir = context.config.distribution.package_manager(context.config).subdir(context.config)
+    subdir = context.config.distribution.package_manager(context.config).subdir(context.config)
 
+    if context.package_cache_dir.is_relative_to(context.root):
+        # Copy the package manager repository metadata to the workspace so it stays available for later steps even if
+        # it is removed from the image by a later step.
         for d in ("cache", "lib"):
             src = context.package_cache_dir / d / subdir
             if not src.exists():
@@ -96,16 +90,27 @@ def clean_package_manager_metadata(context: Context) -> None:
 
         context.package_cache_dir = context.workspace / "package-cache-dir"
 
+    if context.config.overlay:
+        return
+
     if context.config.clean_package_metadata == ConfigFeature.disabled:
         return
 
-    always = context.config.clean_package_metadata == ConfigFeature.enabled
+    if (
+        context.config.clean_package_metadata == ConfigFeature.auto and
+        context.config.output_format in (OutputFormat.directory, OutputFormat.tar)
+    ):
+        return
+
+    # If cleaning is not explicitly requested, keep the repository metadata if we're building a directory or tar image
+    # (which are often used as a base tree for extension images and thus should retain package manager metadata) or if
+    # the corresponding package manager is installed in the image.
+
     executable = context.config.distribution.package_manager(context.config).executable(context.config)
-    subdir = context.config.distribution.package_manager(context.config).subdir(context.config)
 
     for tool, paths in (("rpm",      ["var/lib/rpm", "usr/lib/sysimage/rpm"]),
                         ("dnf5",     ["usr/lib/sysimage/libdnf5"]),
                         ("dpkg",     ["var/lib/dpkg"]),
                         (executable, [f"var/lib/{subdir}", f"var/cache/{subdir}"])):
-        if always or not find_binary(tool, root=context.root):
+        if context.config.clean_package_metadata == ConfigFeature.enabled or not find_binary(tool, root=context.root):
             rmtree(*(context.root / p for p in paths if (context.root / p).exists()), sandbox=context.sandbox)
