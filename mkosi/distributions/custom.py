@@ -23,10 +23,6 @@ class Installer(DistributionInstaller):
         pass
 
     @classmethod
-    def sync(cls, context: Context) -> None:
-        pass
-
-    @classmethod
     def install(cls, context: Context) -> None:
         pass
 

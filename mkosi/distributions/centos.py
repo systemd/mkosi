@@ -78,10 +78,6 @@ class Installer(DistributionInstaller):
         setup_rpm(context, dbpath=cls.dbpath(context))
 
     @classmethod
-    def sync(cls, context: Context) -> None:
-        Dnf.sync(context)
-
-    @classmethod
     def install(cls, context: Context) -> None:
         # Make sure glibc-minimal-langpack is installed instead of glibc-all-langpacks.
         cls.install_packages(context, ["filesystem", "glibc-minimal-langpack"], apivfs=False)

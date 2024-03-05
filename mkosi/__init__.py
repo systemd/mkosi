@@ -3775,18 +3775,22 @@ def sync_repository_metadata(context: Context) -> None:
             flock(context.config.package_cache_dir_or_default() / "cache" / subdir),
             flock(context.config.package_cache_dir_or_default() / "lib" / subdir),
         ):
-            context.config.distribution.sync(context)
+            context.config.distribution.package_manager(context.config).sync(context)
 
 
 def run_sync(args: Args, config: Config, *, resources: Path) -> None:
+    if os.getuid() == 0:
+        os.setgroups([INVOKING_USER.gid])
+        os.setgid(INVOKING_USER.gid)
+        os.setuid(INVOKING_USER.uid)
+
     if not (p := config.package_cache_dir_or_default()).exists():
-        INVOKING_USER.mkdir(p)
+        p.mkdir(parents=True, exist_ok=True)
 
     subdir = config.distribution.package_manager(config).subdir(config)
 
     for d in ("cache", "lib"):
-        src = config.package_cache_dir_or_default() / d / subdir
-        INVOKING_USER.mkdir(src)
+        (config.package_cache_dir_or_default() / d / subdir).mkdir(parents=True, exist_ok=True)
 
     with (
         complete_step(f"Syncing package manager metadata for {config.name()} image"),
@@ -3809,7 +3813,7 @@ def run_sync(args: Args, config: Config, *, resources: Path) -> None:
 
         src = config.package_cache_dir_or_default() / "cache" / subdir
         for p in config.distribution.package_manager(config).cache_subdirs(src):
-            INVOKING_USER.mkdir(p)
+            p.mkdir(parents=True, exist_ok=True)
 
         run_sync_scripts(context)
 
@@ -3935,13 +3939,13 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         )
 
         if tools and not (tools.output_dir_or_cwd() / tools.output_with_compression).exists():
-            run_sync(args, tools, resources=resources)
+            fork_and_wait(run_sync, args, tools, resources=resources)
             fork_and_wait(run_build, args, tools, resources=resources)
 
         if (config.output_dir_or_cwd() / config.output_with_compression).exists():
             continue
 
-        run_sync(args, config, resources=resources)
+        fork_and_wait(run_sync, args, config, resources=resources)
         fork_and_wait(run_build, args, config, resources=resources)
 
         build = True

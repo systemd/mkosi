@@ -267,6 +267,14 @@ def resource_path(mod: ModuleType) -> Iterator[Path]:
 
     t = importlib.resources.files(mod)
     with as_file(t) as p:
+        # Make sure any temporary directory that the resources are unpacked in is accessible to the invoking user so
+        # that any commands executed as the invoking user can access files within it.
+        if (
+            p.parent.parent == Path(os.getenv("TMPDIR", "/tmp")) and
+            stat.S_IMODE(p.parent.stat().st_mode) == 0o700
+        ):
+            p.parent.chmod(0o755)
+
         yield p
 
 

@@ -68,13 +68,6 @@ class Installer(DistributionInstaller):
         setup_rpm(context)
 
     @classmethod
-    def sync(cls, context: Context) -> None:
-        if find_binary("zypper", root=context.config.tools()):
-            Zypper.sync(context)
-        else:
-            Dnf.sync(context)
-
-    @classmethod
     def install(cls, context: Context) -> None:
         cls.install_packages(context, ["filesystem", "distribution-release"], apivfs=False)
 

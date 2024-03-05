@@ -45,10 +45,6 @@ class Installer(DistributionInstaller):
         Pacman.setup(context, cls.repositories(context))
 
     @classmethod
-    def sync(cls, context: Context) -> None:
-        Pacman.sync(context)
-
-    @classmethod
     def install(cls, context: Context) -> None:
         cls.install_packages(context, ["filesystem"], apivfs=False)
 
