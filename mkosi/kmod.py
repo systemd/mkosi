@@ -199,7 +199,7 @@ def process_kernel_modules(
     host: bool,
     sandbox: SandboxProtocol = nosandbox,
 ) -> None:
-    if not include and not exclude:
+    if not exclude:
         return
 
     with complete_step("Applying kernel module filters"):

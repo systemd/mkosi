@@ -2494,7 +2494,7 @@ def configure_clock(context: Context) -> None:
         (context.root / "usr/lib/clock-epoch").touch()
 
 
-def run_depmod(context: Context, *, force: bool = False) -> None:
+def run_depmod(context: Context, *, cache: bool = False) -> None:
     if context.config.overlay or context.config.output_format.is_extension_image():
         return
 
@@ -2509,7 +2509,7 @@ def run_depmod(context: Context, *, force: bool = False) -> None:
         modulesd = context.root / "usr/lib/modules" / kver
 
         if (
-            not force and
+            not cache and
             not context.config.kernel_modules_exclude and
             all((modulesd / o).exists() for o in outputs)
         ):
@@ -2517,13 +2517,14 @@ def run_depmod(context: Context, *, force: bool = False) -> None:
             if all(m.stat().st_mtime <= mtime for m in modulesd.rglob("*.ko*")):
                 continue
 
-        process_kernel_modules(
-            context.root, kver,
-            include=context.config.kernel_modules_include,
-            exclude=context.config.kernel_modules_exclude,
-            host=context.config.kernel_modules_include_host,
-            sandbox=context.sandbox,
-        )
+        if not cache:
+            process_kernel_modules(
+                context.root, kver,
+                include=context.config.kernel_modules_include,
+                exclude=context.config.kernel_modules_exclude,
+                host=context.config.kernel_modules_include_host,
+                sandbox=context.sandbox,
+            )
 
         with complete_step(f"Running depmod for {kver}"):
             run(["depmod", "--all", "--basedir", context.root, kver],
@@ -3167,7 +3168,7 @@ def build_image(context: Context) -> None:
                 run_prepare_scripts(context, build=False)
                 install_build_packages(context)
                 run_prepare_scripts(context, build=True)
-                run_depmod(context, force=True)
+                run_depmod(context, cache=True)
 
             save_cache(context)
             reuse_cache(context)
