@@ -33,6 +33,42 @@
   to install additional packages.
 - Implemented `CacheOnly=metadata`. Note that in the JSON output, the
   value of `CacheOnly=` will now be a string instead of a boolean.
+- Added `CompressLevel=` to set the compression level to use.
+- Dropped experimental Gentoo support.
+- Added `TriggerMatch=` to specify multiple match sections of which only
+  one should be satisfied.
+- Added `jq`, `attr`, `acl`, `git`, `sed`, `grep` and `findutils` to
+  the default tools tree.
+- Added `mkosi-install`, `mkosi-upgrade`, `mkosi-remove` and
+  `mkosi-reinstall` scripts which allow writing scripts that are
+  independent of the package manager being used to build the image.
+- We now expand specifiers in `Match` section values
+- Made GPG key handling for Fedora rawhide more robust
+- If systemd-repart 256 or newer is available, mkosi will instruct it
+  to generate `/etc/fstab` and `/etc/crypttab` for the image if any
+  partition definitions contain the corresponding settings
+  (`MountPoint=` and `EncryptedVolume=`).
+- `bash` is now started in the debug shell instead of `sh`.
+- The default release for Ubuntu is now `noble`.
+- Ubuntu is now used as the default tools tree distribution for Ubuntu
+  instead of Debian.
+- Added `mkosi vmspawn` which boots the image with `systemd-vmspawn`.
+  Note that `systemd-vmspawn` is experimental and its interface may
+  still change. As such `mkosi vmspawn` is also considered experimental.
+  Note that `systemd-vmspawn` version `256` or newer is required.
+- Added `SyncScripts=` which can be used to update various build sources
+  before starting the image build.
+- The `DISTRIBUTION=` and `RELEASE=` environment variables are now set
+  when running scripts.
+- Added `ToolsTreeRepositories=` and `ToolsTreePackageManagerTrees=`.
+- Added `RuntimeNetwork=` to configure the networking used when booting
+  the image.
+- Added `SecureBootKeySource=` and `VerityKeySource=` to support signing
+  images with OpenSSL engines. Note that these settings require various
+  systemd tools to be version `256` or newer.
+- We don't clean up package manager metadata anymore unless explicitly
+  requested with `CleanPackageManagerMetadata=yes` when building
+  `directory` and `tar` images.
 
 ## v20.2
 
