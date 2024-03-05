@@ -1336,8 +1336,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `SecureBootKey=`, `--secure-boot-key=`
 
 : Path to the PEM file containing the secret key for signing the
-  UEFI kernel image, if `SecureBoot=` is used. When `SecureBootKeySource=` is specified, the input
-  type depends on the source.
+  UEFI kernel image if `SecureBoot=` is used and PCR signatures when
+  `SignExpectedPcr=` is also used. When `SecureBootKeySource=` is specified,
+  the input type depends on the source.
 
 `SecureBootKeySource=`, `--secure-boot-key-source=`
 
@@ -1377,7 +1378,8 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   `systemd-measure` and embed the PCR signature into the unified kernel
   image. This option takes a boolean value or the special value `auto`,
   which is the default, which is equal to a true value if the
-  `systemd-measure` binary is in `PATH`.
+  `systemd-measure` binary is in `PATH`.  Depends on `SecureBoot=`
+  being enabled and key from `SecureBootKey=`.
 
 `Passphrase=`, `--passphrase`
 
