@@ -3626,7 +3626,7 @@ def summary(config: Config) -> str:
                 Kernel Command Line: {line_join_list(config.kernel_command_line)}
              Kernel Modules Include: {line_join_list(config.kernel_modules_include)}
              Kernel Modules Exclude: {line_join_list(config.kernel_modules_exclude)}
-        Kernel Modules Include Host: {yes_no(config.kernel_modules_initrd_include_host)}
+        Kernel Modules Include Host: {yes_no(config.kernel_modules_include_host)}
 
               Kernel Modules Initrd: {yes_no(config.kernel_modules_initrd)}
       Kernel Modules Initrd Include: {line_join_list(config.kernel_modules_initrd_include)}
