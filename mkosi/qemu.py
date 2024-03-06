@@ -141,6 +141,10 @@ class KernelType(StrEnum):
 
     @classmethod
     def identify(cls, config: Config, path: Path) -> "KernelType":
+        if not find_binary("bootctl", root=config.tools()):
+            logging.warning("bootctl is not installed, assuming 'unknown' kernel type")
+            return KernelType.unknown
+
         if systemd_tool_version(config, "bootctl") < 253:
             logging.warning("bootctl doesn't know kernel-identify verb, assuming 'unknown' kernel type")
             return KernelType.unknown
