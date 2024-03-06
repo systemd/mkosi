@@ -159,10 +159,18 @@ def gen_required_kernel_modules(
     sandbox: SandboxProtocol = nosandbox,
 ) -> Iterator[Path]:
     modulesd = root / "usr/lib/modules" / kver
-    modules = filter_kernel_modules(root, kver, include=include, exclude=exclude, host=host)
 
-    names = [module_path_to_name(m) for m in modules]
-    mods, firmware = resolve_module_dependencies(root, kver, names, sandbox=sandbox)
+    # There is firmware in /usr/lib/firmware that is not depended on by any modules so if any firmware was installed
+    # we have to take the slow path to make sure we don't copy firmware into the initrd that is not depended on by any
+    # kernel modules.
+    if exclude or not (root / "usr/lib/firmware").glob("*"):
+        modules = filter_kernel_modules(root, kver, include=include, exclude=exclude, host=host)
+        names = [module_path_to_name(m) for m in modules]
+        mods, firmware = resolve_module_dependencies(root, kver, names, sandbox=sandbox)
+    else:
+        logging.debug("No modules excluded and no firmware installed, using kernel modules generation fast path")
+        mods = set((modulesd / "kernel").rglob("*.ko*"))
+        firmware = set()
 
     yield modulesd.parent
     yield modulesd
