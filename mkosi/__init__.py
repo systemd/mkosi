@@ -1479,6 +1479,15 @@ def install_package_manager_trees(context: Context) -> None:
             passwd.write(f"{name}:x:{INVOKING_USER.uid}:{INVOKING_USER.gid}:{name}:{home}:/bin/sh\n")
         os.fchown(passwd.fileno(), INVOKING_USER.uid, INVOKING_USER.gid)
 
+    if (p := context.config.tools() / "etc/crypto-policies").exists():
+        copy_tree(
+            p, context.pkgmngr / "etc/crypto-policies",
+            preserve=False,
+            dereference=True,
+            tools=context.config.tools(),
+            sandbox=context.config.sandbox,
+        )
+
     if not context.config.package_manager_trees:
         return
 
