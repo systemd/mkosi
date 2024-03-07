@@ -3824,7 +3824,6 @@ def run_sync(args: Args, config: Config, *, resources: Path) -> None:
 
     with (
         prepend_to_environ_path(config),
-        rchown_package_manager_dirs(config),
         setup_workspace(args, config) as workspace,
     ):
         context = Context(
