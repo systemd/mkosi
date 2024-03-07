@@ -3789,14 +3789,14 @@ def run_clean(args: Args, config: Config, *, resources: Path) -> None:
 
     if (
         remove_package_cache and
-        config.package_cache_dir and
-        config.package_cache_dir.exists() and
-        any(config.package_cache_dir.iterdir())
+        any(config.package_cache_dir_or_default().glob("*"))
     ):
+        subdir = config.distribution.package_manager(config).subdir(config)
+
         with complete_step(f"Clearing out package cache of {config.name()} image…"):
             rmtree(
                 *(
-                    config.package_cache_dir / d / config.distribution.package_manager(config).subdir(config)
+                    config.package_cache_dir_or_default() / d / subdir
                     for d in ("cache", "lib")
                 ),
             )
