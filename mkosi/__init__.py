@@ -3823,9 +3823,7 @@ def run_sync(args: Args, config: Config, *, resources: Path) -> None:
         (config.package_cache_dir_or_default() / d / subdir).mkdir(parents=True, exist_ok=True)
 
     with (
-        complete_step(f"Syncing package manager metadata for {config.name()} image"),
         prepend_to_environ_path(config),
-        rchown_package_manager_dirs(config),
         setup_workspace(args, config) as workspace,
     ):
         context = Context(
