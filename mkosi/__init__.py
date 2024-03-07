@@ -1572,69 +1572,72 @@ def want_initrd(context: Context) -> bool:
     return True
 
 
-def build_default_initrd(context: Context) -> Path:
-    if context.config.distribution == Distribution.custom:
-        die("Building a default initrd is not supported for custom distributions")
-
-    # Default values are assigned via the parser so we go via the argument parser to construct
-    # the config for the initrd.
-
-    if context.config.root_password:
-        password, hashed = context.config.root_password
+def finalize_default_initrd(
+    args: Args,
+    config: Config,
+    *,
+    resources: Path,
+    output_dir: Optional[Path] = None,
+    package_dir: Optional[Path] = None,
+) -> Config:
+    if config.root_password:
+        password, hashed = config.root_password
         rootpwopt = f"hashed:{password}" if hashed else password
     else:
         rootpwopt = None
 
+    # Default values are assigned via the parser so we go via the argument parser to construct
+    # the config for the initrd.
     cmdline = [
         "--directory", "",
-        "--distribution", str(context.config.distribution),
-        "--release", context.config.release,
-        "--architecture", str(context.config.architecture),
-        *(["--mirror", context.config.mirror] if context.config.mirror else []),
-        "--repository-key-check", str(context.config.repository_key_check),
-        "--repositories", ",".join(context.config.repositories),
-        "--package-manager-tree", ",".join(str(t) for t in context.config.package_manager_trees),
+        "--distribution", str(config.distribution),
+        "--release", config.release,
+        "--architecture", str(config.architecture),
+        *(["--mirror", config.mirror] if config.mirror else []),
+        "--repository-key-check", str(config.repository_key_check),
+        "--repositories", ",".join(config.repositories),
+        "--package-manager-tree", ",".join(str(t) for t in config.package_manager_trees),
         # Note that when compress_output == Compression.none == 0 we don't pass --compress-output which means the
         # default compression will get picked. This is exactly what we want so that initrds are always compressed.
-        *(["--compress-output", str(context.config.compress_output)] if context.config.compress_output else []),
-        "--compress-level", str(context.config.compress_level),
-        "--with-network", str(context.config.with_network),
-        "--cache-only", str(context.config.cacheonly),
-        "--output-dir", str(context.workspace / "initrd"),
-        *(["--workspace-dir", str(context.config.workspace_dir)] if context.config.workspace_dir else []),
-        *(["--cache-dir", str(context.config.cache_dir)] if context.config.cache_dir else []),
-        *(["--package-cache-dir", str(context.config.package_cache_dir)] if context.config.package_cache_dir else []),
-        *(["--local-mirror", str(context.config.local_mirror)] if context.config.local_mirror else []),
-        "--incremental", str(context.config.incremental),
-        "--acl", str(context.config.acl),
-        *(f"--package={package}" for package in context.config.initrd_packages),
-        "--package-directory", str(context.packages),
-        "--output", f"{context.config.output}-initrd",
-        *(["--image-id", context.config.image_id] if context.config.image_id else []),
-        *(["--image-version", context.config.image_version] if context.config.image_version else []),
+        *(["--compress-output", str(config.compress_output)] if config.compress_output else []),
+        "--compress-level", str(config.compress_level),
+        "--with-network", str(config.with_network),
+        "--cache-only", str(config.cacheonly),
+        *(["--output-dir", str(output_dir)] if output_dir else []),
+        *(["--workspace-dir", str(config.workspace_dir)] if config.workspace_dir else []),
+        *(["--cache-dir", str(config.cache_dir)] if config.cache_dir else []),
+        *(["--package-cache-dir", str(config.package_cache_dir)] if config.package_cache_dir else []),
+        *(["--local-mirror", str(config.local_mirror)] if config.local_mirror else []),
+        "--incremental", str(config.incremental),
+        "--acl", str(config.acl),
+        *(f"--package={package}" for package in config.initrd_packages),
+        *(["--package-directory", str(package_dir)] if package_dir else []),
+        "--output", f"{config.output}-initrd",
+        *(["--image-id", config.image_id] if config.image_id else []),
+        *(["--image-version", config.image_version] if config.image_version else []),
         *(
-            ["--source-date-epoch", str(context.config.source_date_epoch)]
-            if context.config.source_date_epoch is not None else
+            ["--source-date-epoch", str(config.source_date_epoch)]
+            if config.source_date_epoch is not None else
             []
         ),
-        *(["--locale", context.config.locale] if context.config.locale else []),
-        *(["--locale-messages", context.config.locale_messages] if context.config.locale_messages else []),
-        *(["--keymap", context.config.keymap] if context.config.keymap else []),
-        *(["--timezone", context.config.timezone] if context.config.timezone else []),
-        *(["--hostname", context.config.hostname] if context.config.hostname else []),
+        *(["--locale", config.locale] if config.locale else []),
+        *(["--locale-messages", config.locale_messages] if config.locale_messages else []),
+        *(["--keymap", config.keymap] if config.keymap else []),
+        *(["--timezone", config.timezone] if config.timezone else []),
+        *(["--hostname", config.hostname] if config.hostname else []),
         *(["--root-password", rootpwopt] if rootpwopt else []),
-        *([f"--environment={k}='{v}'" for k, v in context.config.environment.items()]),
-        *(["--tools-tree", str(context.config.tools_tree)] if context.config.tools_tree else []),
-        *([f"--extra-search-path={p}" for p in context.config.extra_search_paths]),
-        *(["-f"] * context.args.force),
+        *([f"--environment={k}='{v}'" for k, v in config.environment.items()]),
+        *(["--tools-tree", str(config.tools_tree)] if config.tools_tree else []),
+        *([f"--extra-search-path={p}" for p in config.extra_search_paths]),
+        *(["-f"] * args.force),
     ]
 
-    cmdline += ["--include", os.fspath(context.resources / "mkosi-initrd")]
+    cmdline += ["--include", os.fspath(resources / "mkosi-initrd")]
 
-    for include in context.config.initrd_include:
+    for include in config.initrd_include:
         cmdline += ["--include", os.fspath(include)]
 
-    args, [config] = parse_config(cmdline + ["build"], resources=context.resources)
+    _, [config] = parse_config(cmdline + ["build"], resources=resources)
 
     make_executable(
         *config.prepare_scripts,
@@ -1643,7 +1646,21 @@ def build_default_initrd(context: Context) -> Path:
         *config.build_scripts,
     )
 
-    config = dataclasses.replace(config, image="default-initrd")
+    return dataclasses.replace(config, image="default-initrd")
+
+
+def build_default_initrd(context: Context) -> Path:
+    if context.config.distribution == Distribution.custom:
+        die("Building a default initrd is not supported for custom distributions")
+
+    config = finalize_default_initrd(
+        context.args,
+        context.config,
+        resources=context.resources,
+        output_dir=context.workspace / "initrd",
+        package_dir=context.packages,
+    )
+
     assert config.output_dir
 
     config.output_dir.mkdir(exist_ok=True)
@@ -1651,17 +1668,13 @@ def build_default_initrd(context: Context) -> Path:
     if (config.output_dir / config.output).exists():
         return config.output_dir / config.output
 
-    if args.force > 1 and config.cache_dir:
-        with complete_step(f"Removing cache entries of {config.name()} image…"):
-            rmtree(*(p for p in cache_tree_paths(config) if p.exists()), sandbox=context.sandbox)
-
     with (
         complete_step("Building default initrd"),
-        setup_workspace(args, config) as workspace,
+        setup_workspace(context.args, config) as workspace,
     ):
         build_image(
             Context(
-                args,
+                context.args,
                 config,
                 workspace=workspace,
                 resources=context.resources,
@@ -3737,7 +3750,7 @@ def needs_clean(args: Args, config: Config) -> bool:
     )
 
 
-def run_clean(args: Args, config: Config) -> None:
+def run_clean(args: Args, config: Config, *, resources: Path) -> None:
     if not needs_clean(args, config):
         return
 
@@ -3760,8 +3773,15 @@ def run_clean(args: Args, config: Config) -> None:
 
     if remove_build_cache:
         if config.cache_dir:
-            with complete_step(f"Removing cache entries of {config.name()} image…"):
-                rmtree(*(p for p in cache_tree_paths(config) if p.exists()))
+            initrd = (
+                cache_tree_paths(finalize_default_initrd(args, config, resources=resources))
+                if config.distribution != Distribution.custom
+                else []
+            )
+
+            if any(p.exists() for p in itertools.chain(cache_tree_paths(config), initrd)):
+                with complete_step(f"Removing cache entries of {config.name()} image…"):
+                    rmtree(*(p for p in itertools.chain(cache_tree_paths(config), initrd) if p.exists()))
 
         if config.build_dir and config.build_dir.exists() and any(config.build_dir.iterdir()):
             with complete_step(f"Clearing out build directory of {config.name()} image…"):
@@ -3936,9 +3956,14 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
     # image build could end up deleting the output generated by an earlier image build.
     for config in images:
         if config.tools_tree and config.tools_tree == Path("default"):
-            fork_and_wait(run_clean, args, finalize_default_tools(args, config, resources=resources))
+            fork_and_wait(
+                run_clean,
+                args,
+                finalize_default_tools(args, config, resources=resources),
+                resources=resources,
+            )
 
-        fork_and_wait(run_clean, args, config)
+        fork_and_wait(run_clean, args, config, resources=resources)
 
     if args.verb == Verb.clean:
         return
