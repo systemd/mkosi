@@ -2010,6 +2010,10 @@ Scripts executed by mkosi receive the following environment variables:
   with `setpriv` to run commands as the user that invoked mkosi (e.g.
   `setpriv --reuid=$MKOSI_UID --regid=$MKOSI_GID --clear-groups <command>`)
 
+* `$MKOSI_CONFIG` is a file containing a json summary of the settings of the
+  current image. This file can be parsed inside scripts to gain access to all
+  settings for the current image.
+
 Consult this table for which script receives which environment variables:
 
 | Variable            | `mkosi.sync` | `mkosi.prepare` | `mkosi.build` | `mkosi.postinst` | `mkosi.finalize` |
@@ -2034,6 +2038,7 @@ Consult this table for which script receives which environment variables:
 | `SOURCE_DATE_EPOCH` |              | X               | X             | X                | X                |
 | `MKOSI_UID`         | X            | X               | X             | X                | X                |
 | `MKOSI_GID`         | X            | X               | X             | X                | X                |
+| `MKOSI_CONFIG`      | X            | X               | X             | X                | X                |
 
 Additionally, when a script is executed, a few scripts are made
 available via `$PATH` to simplify common usecases.
