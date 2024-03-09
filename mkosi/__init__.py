@@ -424,6 +424,7 @@ def run_sync_scripts(context: Context) -> None:
         SRCDIR="/work/src",
         MKOSI_UID=str(INVOKING_USER.uid),
         MKOSI_GID=str(INVOKING_USER.gid),
+        MKOSI_CONFIG="/work/config.json",
         CACHED=one_zero(have_cache(context.config)),
     )
 
@@ -440,6 +441,7 @@ def run_sync_scripts(context: Context) -> None:
                 *sources,
                 *finalize_crypto_mounts(context.config.tools()),
                 "--ro-bind", script, "/work/sync",
+                "--ro-bind", context.workspace / "config.json", "/work/config.json",
                 "--chdir", "/work/src",
             ]
 
@@ -475,6 +477,7 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
         CHROOT_SCRIPT="/work/prepare",
         MKOSI_UID=str(INVOKING_USER.uid),
         MKOSI_GID=str(INVOKING_USER.gid),
+        MKOSI_CONFIG="/work/config.json",
         WITH_DOCS=one_zero(context.config.with_docs),
         WITH_NETWORK=one_zero(context.config.with_network),
         WITH_TESTS=one_zero(context.config.with_tests),
@@ -521,6 +524,7 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
                         network=True,
                         options=sources + [
                             "--ro-bind", script, "/work/prepare",
+                            "--ro-bind", context.workspace / "config.json", "/work/config.json",
                             "--ro-bind", cd, "/work/scripts",
                             "--bind", context.root, context.root,
                             *context.config.distribution.package_manager(context.config).mounts(context),
@@ -551,6 +555,7 @@ def run_build_scripts(context: Context) -> None:
         CHROOT_SCRIPT="/work/build-script",
         MKOSI_UID=str(INVOKING_USER.uid),
         MKOSI_GID=str(INVOKING_USER.gid),
+        MKOSI_CONFIG="/work/config.json",
         WITH_DOCS=one_zero(context.config.with_docs),
         WITH_NETWORK=one_zero(context.config.with_network),
         WITH_TESTS=one_zero(context.config.with_tests),
@@ -599,6 +604,7 @@ def run_build_scripts(context: Context) -> None:
                         network=context.config.with_network,
                         options=sources + [
                             "--ro-bind", script, "/work/build-script",
+                            "--ro-bind", context.workspace / "config.json", "/work/config.json",
                             "--ro-bind", cd, "/work/scripts",
                             "--bind", context.root, context.root,
                             "--bind", context.install_dir, "/work/dest",
@@ -638,6 +644,7 @@ def run_postinst_scripts(context: Context) -> None:
         PACKAGEDIR="/work/packages",
         MKOSI_UID=str(INVOKING_USER.uid),
         MKOSI_GID=str(INVOKING_USER.gid),
+        MKOSI_CONFIG="/work/config.json",
     )
 
     with (
@@ -673,6 +680,7 @@ def run_postinst_scripts(context: Context) -> None:
                         network=context.config.with_network,
                         options=sources + [
                             "--ro-bind", script, "/work/postinst",
+                            "--ro-bind", context.workspace / "config.json", "/work/config.json",
                             "--ro-bind", cd, "/work/scripts",
                             "--bind", context.root, context.root,
                             "--bind", context.staging, "/work/out",
@@ -702,6 +710,7 @@ def run_finalize_scripts(context: Context) -> None:
         CHROOT_SCRIPT="/work/finalize",
         MKOSI_UID=str(INVOKING_USER.uid),
         MKOSI_GID=str(INVOKING_USER.gid),
+        MKOSI_CONFIG="/work/config.json",
     )
 
     with (
@@ -737,6 +746,7 @@ def run_finalize_scripts(context: Context) -> None:
                         network=context.config.with_network,
                         options=sources + [
                             "--ro-bind", script, "/work/finalize",
+                            "--ro-bind", context.workspace / "config.json", "/work/config.json",
                             "--ro-bind", cd, "/work/scripts",
                             "--bind", context.root, context.root,
                             "--bind", context.staging, "/work/out",
@@ -3130,6 +3140,7 @@ def setup_workspace(args: Args, config: Config) -> Iterator[Path]:
         workspace = Path(tempfile.mkdtemp(dir=config.workspace_dir_or_default(), prefix="mkosi-workspace"))
         stack.callback(lambda: rmtree(workspace, sandbox=config.sandbox))
         (workspace / "tmp").mkdir(mode=0o1777)
+        (workspace / "config.json").write_text(config.to_json())
 
         with scopedenv({"TMPDIR" : os.fspath(workspace / "tmp")}):
             try:
