@@ -1870,6 +1870,7 @@ PACKAGE_GLOBS = (
     "*.pkg.tar*",
     "*.deb",
     "*.ddeb",
+    "*.apk",
 )
 
 

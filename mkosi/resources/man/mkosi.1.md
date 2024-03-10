@@ -2309,6 +2309,8 @@ distributions:
 
 * *Azure Linux*
 
+* *postmarketOS*
+
 * *None* (**Requires the user to provide a pre-built rootfs**)
 
 In theory, any distribution may be used on the host for building images
@@ -2894,63 +2896,63 @@ The following table shows for which distributions default tools tree
 packages are defined and which packages are included in those default
 tools trees:
 
-|                         | Fedora | CentOS | Debian | Kali | Ubuntu | Arch | openSUSE |
-|-------------------------|:------:|:------:|:------:|:----:|:------:|:----:|:--------:|
-| `acl`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `apt`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
-| `archlinux-keyring`     | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
-| `attr`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `bash`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `btrfs-progs`           | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `ca-certificates`       | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `coreutils`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `cpio`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `createrepo_c`          | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `curl`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `debian-keyring`        | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
-| `diffutils`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `distribution-gpg-keys` | ✓      | ✓      | ✓      | ✓    |        | ✓    | ✓        |
-| `dnf`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `dosfstools`            | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `e2fsprogs`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `edk2-ovmf`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `erofs-utils`           | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `findutils`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `git`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `grep`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `grub-tools`            | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
-| `jq`                    | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `kali-archive-keyring`  |        |        |        | ✓    |        |      |          |
-| `kmod`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `less`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `mtools`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `nano`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `opensc`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `openssh`               | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `openssl`               | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `pkcs11-provider`       | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `perf`                  | ✓      | ✓      | ✓      | ✓    |        | ✓    | ✓        |
-| `sed`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `pacman`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
-| `p11-kit`               | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `policycoreutils`       | ✓      | ✓      | ✓      | ✓    | ✓      |      | ✓        |
-| `qemu`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `sbsigntools`           | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `socat`                 | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `squashfs-tools`        | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `strace`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `swtpm`                 | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `systemd`               | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `ukify`                 | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `tar`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `ubuntu-keyring`        | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
-| `util-linux`            | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `virtiofsd`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `virt-firmware`         | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `xfsprogs`              | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `xz`                    | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `zstd`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-| `zypper`                | ✓      |        | ✓      | ✓    | ✓      | ✓    | ✓        |
+|                         | Fedora | CentOS | Debian | Kali | Ubuntu | Arch | openSUSE | postmarketOS |
+|-------------------------|:------:|:------:|:------:|:----:|:------:|:----:|:--------:|:------------:|
+| `acl`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `apt`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |              |
+| `archlinux-keyring`     | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |              |
+| `attr`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `bash`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `btrfs-progs`           | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `ca-certificates`       | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `coreutils`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `cpio`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `createrepo_c`          | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `curl`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `debian-keyring`        | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          | ✓            |
+| `diffutils`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `distribution-gpg-keys` | ✓      | ✓      | ✓      | ✓    |        | ✓    | ✓        | ✓            |
+| `dnf`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `dosfstools`            | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `e2fsprogs`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `edk2-ovmf`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `erofs-utils`           | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `findutils`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `git`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `grep`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `grub-tools`            | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |              |
+| `jq`                    | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `kali-archive-keyring`  |        |        |        | ✓    |        |      |          |              |
+| `kmod`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `less`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `mtools`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `nano`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `opensc`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `openssh`               | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `openssl`               | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `pkcs11-provider`       | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `perf`                  | ✓      | ✓      | ✓      | ✓    |        | ✓    | ✓        | ✓            |
+| `sed`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `pacman`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          | ✓            |
+| `p11-kit`               | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `policycoreutils`       | ✓      | ✓      | ✓      | ✓    | ✓      |      | ✓        | ✓            |
+| `qemu`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `sbsigntools`           | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `socat`                 | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `squashfs-tools`        | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `strace`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `swtpm`                 | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `systemd`               | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `ukify`                 | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `tar`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `ubuntu-keyring`        | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |              |
+| `util-linux`            | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `virtiofsd`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `virt-firmware`         | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `xfsprogs`              | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `xz`                    | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `zstd`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
+| `zypper`                | ✓      |        | ✓      | ✓    | ✓      | ✓    | ✓        |              |
 
 # BUILDING MULTIPLE IMAGES
 
@@ -3208,7 +3210,7 @@ In this scenario, the kernel is loaded from the ESP in the image by **systemd-bo
 # REQUIREMENTS
 
 mkosi is packaged for various distributions: Debian, Kali, Ubuntu, Arch
-Linux, Fedora Linux, OpenMandriva, Gentoo. Note that it has been a while
+Linux, Fedora Linux, OpenMandriva, Gentoo, postmarketOS. Note that it has been a while
 since the last release and the packages shipped by distributions are
 very out of date. We currently recommend running **mkosi** from git until a
 new release happens.

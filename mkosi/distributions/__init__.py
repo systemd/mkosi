@@ -20,6 +20,7 @@ class PackageType(StrEnum):
     rpm = enum.auto()
     deb = enum.auto()
     pkg = enum.auto()
+    apk = enum.auto()
 
 
 class DistributionInstaller:
@@ -79,6 +80,7 @@ class Distribution(StrEnum):
     debian = enum.auto()
     kali = enum.auto()
     ubuntu = enum.auto()
+    postmarketos = enum.auto()
     arch = enum.auto()
     opensuse = enum.auto()
     mageia = enum.auto()
