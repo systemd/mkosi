@@ -1612,7 +1612,7 @@ def finalize_default_initrd(
         "--acl", str(config.acl),
         *(f"--package={package}" for package in config.initrd_packages),
         *(["--package-directory", str(package_dir)] if package_dir else []),
-        "--output", f"{config.output}-initrd",
+        "--output", "initrd",
         *(["--image-id", config.image_id] if config.image_id else []),
         *(["--image-version", config.image_version] if config.image_version else []),
         *(
@@ -1657,7 +1657,7 @@ def build_default_initrd(context: Context) -> Path:
         context.args,
         context.config,
         resources=context.resources,
-        output_dir=context.workspace / "initrd",
+        output_dir=context.workspace,
         package_dir=context.packages,
     )
 
@@ -1733,7 +1733,7 @@ def build_microcode_initrd(context: Context) -> Optional[Path]:
     if not context.config.architecture.is_x86_variant():
         return None
 
-    microcode = context.workspace / "initrd-microcode.img"
+    microcode = context.workspace / "microcode.initrd"
     if microcode.exists():
         return microcode
 
@@ -1744,7 +1744,7 @@ def build_microcode_initrd(context: Context) -> Optional[Path]:
         logging.warning("/usr/lib/firmware/{amd-ucode,intel-ucode} not found, not adding microcode")
         return None
 
-    root = context.workspace / "initrd-microcode-root"
+    root = context.workspace / "microcode-root"
     destdir = root / "kernel/x86/microcode"
 
     with umask(~0o755):
@@ -1774,7 +1774,7 @@ def build_microcode_initrd(context: Context) -> Optional[Path]:
 
 
 def build_kernel_modules_initrd(context: Context, kver: str) -> Path:
-    kmods = context.workspace / f"initrd-kernel-modules-{kver}.img"
+    kmods = context.workspace / f"kernel-modules-{kver}.initrd"
     if kmods.exists():
         return kmods
 
