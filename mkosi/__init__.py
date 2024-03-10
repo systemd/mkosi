@@ -844,7 +844,7 @@ def shim_second_stage_binary(context: Context) -> Path:
         return Path(f"efi/EFI/BOOT/grub{arch}.EFI")
 
 
-def sign_efi_binary(context: Context, input: Path, output: Path) -> None:
+def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
     assert context.config.secure_boot_key
     assert context.config.secure_boot_certificate
 
@@ -904,6 +904,8 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> None:
             )
     else:
         die("One of sbsign or pesign is required to use SecureBoot=")
+
+    return output
 
 
 def install_systemd_boot(context: Context) -> None:
