@@ -1210,6 +1210,8 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `KernelCommandLine=`, `--kernel-command-line=`
 
 : Use the specified kernel command line when building images.
+  Defaults to `console=ttyS0`. For `arm`, `s390` and `ppc`, `ttyS0` is replaced
+  with `ttyAMA0`, `ttysclp0` or `hvc0`, respectively.
 
 `KernelModulesInclude=`, `--kernel-modules-include=`
 
