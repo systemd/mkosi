@@ -1298,6 +1298,7 @@ class Config:
     bootloader: Bootloader
     bios_bootloader: BiosBootloader
     shim_bootloader: ShimBootloader
+    unified_kernel_images: ConfigFeature
     initrds: list[Path]
     initrd_packages: list[str]
     microcode_host: bool
@@ -2159,6 +2160,13 @@ SETTINGS = (
         choices=ShimBootloader.values(),
         default=ShimBootloader.none,
         help="Specify whether to use shim",
+    ),
+    ConfigSetting(
+        dest="unified_kernel_images",
+        metavar="FEATURE",
+        section="Content",
+        parse=config_parse_feature,
+        help="Specify whether to use UKIs with grub/systemd-boot in UEFI mode",
     ),
     ConfigSetting(
         dest="initrds",

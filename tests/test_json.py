@@ -303,6 +303,7 @@ def test_config() -> None:
             "ToolsTreeRepositories": [
                 "abc"
             ],
+            "UnifiedKernelImages": "auto",
             "UseSubvolumes": "auto",
             "VerityCertificate": "/path/to/cert",
             "VerityKey": null,
@@ -442,6 +443,7 @@ def test_config() -> None:
         tools_tree_packages = [],
         tools_tree_release = None,
         tools_tree_repositories = ["abc"],
+        unified_kernel_images = ConfigFeature.auto,
         use_subvolumes = ConfigFeature.auto,
         verity_certificate = Path("/path/to/cert"),
         verity_key = None,

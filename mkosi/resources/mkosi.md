@@ -1190,6 +1190,17 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   on UEFI firmware is requested using other options
   (`Bootable=`, `Bootloader=`).
 
+`UnifiedKernelImages=`, `--unified-kernel-images=`
+
+: Specifies whether to use unified kernel images or not when
+  `Bootloader=` is set to `systemd-boot` or `grub`. Takes a boolean
+  value or `auto`. Defaults to `auto`. If enabled, unified kernel images
+  are always used and the build will fail if any components required to
+  build unified kernel images are missing. If set to `auto`, unified
+  kernel images will be used if all necessary components are available.
+  Otherwise Type 1 entries as defined by the Boot Loader Specification
+  will be used instead. If disabled, Type 1 entries will always be used.
+
 `Initrds=`, `--initrd`
 
 : Use user-provided initrd(s). Takes a comma separated list of paths to

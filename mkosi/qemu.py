@@ -800,7 +800,9 @@ def run_qemu(args: Args, config: Config) -> None:
         elif config.architecture.supports_smbios(firmware):
             cmdline += [
                 "-smbios",
-                f"type=11,value=io.systemd.stub.kernel-cmdline-extra={' '.join(kcl)}"
+                f"type=11,value=io.systemd.stub.kernel-cmdline-extra={' '.join(kcl)}",
+                "-smbios",
+                f"type=11,value=io.systemd.boot.kernel-cmdline-extra={' '.join(kcl)}",
             ]
 
         if config.output_format == OutputFormat.cpio:

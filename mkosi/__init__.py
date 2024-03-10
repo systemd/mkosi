@@ -854,7 +854,7 @@ def shim_second_stage_binary(context: Context) -> Path:
         return Path(f"efi/EFI/BOOT/grub{arch}.EFI")
 
 
-def sign_efi_binary(context: Context, input: Path, output: Path) -> None:
+def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
     assert context.config.secure_boot_key
     assert context.config.secure_boot_certificate
 
@@ -915,6 +915,8 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> None:
     else:
         die("One of sbsign or pesign is required to use SecureBoot=")
 
+    return output
+
 
 def install_systemd_boot(context: Context) -> None:
     if not want_efi(context.config):
@@ -947,7 +949,7 @@ def install_systemd_boot(context: Context) -> None:
     with complete_step("Installing systemd-boot…"):
         run(
             ["bootctl", "install", "--root", context.root, "--all-architectures", "--no-variables"],
-            env={"SYSTEMD_ESP_PATH": "/efi"},
+            env={"SYSTEMD_ESP_PATH": "/efi", "SYSTEMD_XBOOTLDR_PATH": "/boot"},
             sandbox=context.sandbox(options=["--bind", context.root, context.root]),
         )
 
@@ -1141,13 +1143,10 @@ def find_grub_binary(binary: str, root: Path = Path("/")) -> Optional[Path]:
 
 
 def want_grub_efi(context: Context) -> bool:
-    if context.config.bootable == ConfigFeature.disabled:
+    if not want_efi(context.config):
         return False
 
     if context.config.bootloader != Bootloader.grub:
-        return False
-
-    if context.config.overlay or context.config.output_format.is_extension_image():
         return False
 
     if not any((context.root / "efi").rglob("grub*.efi")):
@@ -1213,96 +1212,22 @@ def prepare_grub_config(context: Context) -> Optional[Path]:
         with umask(~0o600), config.open("w") as f:
             f.write("set timeout=0\n")
 
+    if want_grub_efi(context):
+        # Signed EFI grub shipped by distributions reads its configuration from /EFI/<distribution>/grub.cfg in
+        # the ESP so let's put a shim there to redirect to the actual configuration file.
+        earlyconfig = context.root / "efi/EFI" / context.config.distribution.name / "grub.cfg"
+        with umask(~0o700):
+            earlyconfig.parent.mkdir(parents=True, exist_ok=True)
+
+        # Read the actual config file from the root of the ESP.
+        earlyconfig.write_text(f"configfile /{context.config.distribution.grub_prefix()}/grub.cfg\n")
+
     return config
 
 
-def prepare_grub_efi(context: Context) -> None:
-    if not want_grub_efi(context):
-        return
-
-    # Signed EFI grub shipped by distributions reads its configuration from /EFI/<distribution>/grub.cfg in
-    # the ESP so let's put a shim there to redirect to the actual configuration file.
-    earlyconfig = context.root / "efi/EFI" / context.config.distribution.name / "grub.cfg"
-    with umask(~0o700):
-        earlyconfig.parent.mkdir(parents=True, exist_ok=True)
-
-    # Read the actual config file from the root of the ESP.
-    earlyconfig.write_text(f"configfile /{context.config.distribution.grub_prefix()}/grub.cfg\n")
-
-    config = prepare_grub_config(context)
-    assert config
-
-    with config.open("a") as f:
-        f.write('if [ "${grub_platform}" == "efi" ]; then\n')
-
-        for uki in (context.root / "boot/EFI/Linux").glob("*.efi"):
-            f.write(
-                textwrap.dedent(
-                    f"""\
-                    menuentry "{uki.stem}" {{
-                        chainloader /{uki.relative_to(context.root / "boot")}
-                    }}
-                    """
-                )
-            )
-
-        f.write("fi\n")
-
-
-def prepare_grub_bios(context: Context, partitions: Sequence[Partition]) -> None:
+def grub_bios_install(context: Context, partitions: Sequence[Partition]) -> None:
     if not want_grub_bios(context, partitions):
         return
-
-    config = prepare_grub_config(context)
-    assert config
-
-    root = finalize_root(partitions)
-    assert root
-
-    token = find_entry_token(context)
-
-    dst = context.root / "boot" / token
-    with umask(~0o700):
-        dst.mkdir(exist_ok=True)
-
-    with config.open("a") as f:
-        f.write('if [ "${grub_platform}" == "pc" ]; then\n')
-
-        for kver, kimg in gen_kernel_images(context):
-            kdst = dst / kver
-            with umask(~0o700):
-                kdst.mkdir(exist_ok=True)
-
-            microcode = build_microcode_initrd(context)
-            kmods = build_kernel_modules_initrd(context, kver)
-
-            with umask(~0o600):
-                kimg = Path(shutil.copy2(context.root / kimg, kdst / "vmlinuz"))
-                initrds = [Path(shutil.copy2(microcode, kdst / "microcode"))] if microcode else []
-                initrds += [
-                    Path(shutil.copy2(initrd, dst / initrd.name))
-                    for initrd in (context.config.initrds or [build_default_initrd(context)])
-                ]
-                initrds += [Path(shutil.copy2(kmods, kdst / "kmods"))]
-
-                image = Path("/") / kimg.relative_to(context.root / "boot")
-                cmdline = " ".join(context.config.kernel_command_line)
-                initrds = " ".join(
-                    [os.fspath(Path("/") / initrd.relative_to(context.root / "boot")) for initrd in initrds]
-                )
-
-                f.write(
-                    textwrap.dedent(
-                        f"""\
-                        menuentry "{token}-{kver}" {{
-                            linux {image} {root} {cmdline}
-                            initrd {initrds}
-                        }}
-                        """
-                    )
-                )
-
-        f.write('fi\n')
 
     # grub-install insists on opening the root partition device to probe it's filesystem which requires root
     # so we're forced to reimplement its functionality. Luckily that's pretty simple, run grub-mkimage to
@@ -1372,7 +1297,7 @@ def prepare_grub_bios(context: Context, partitions: Sequence[Partition]) -> None
             shutil.copy2(unicode, dst)
 
 
-def install_grub_bios(context: Context, partitions: Sequence[Partition]) -> None:
+def grub_bios_setup(context: Context, partitions: Sequence[Partition]) -> None:
     if not want_grub_bios(context, partitions):
         return
 
@@ -1622,7 +1547,7 @@ def finalize_default_initrd(
         "--acl", str(config.acl),
         *(f"--package={package}" for package in config.initrd_packages),
         *(["--package-directory", str(package_dir)] if package_dir else []),
-        "--output", f"{config.output}-initrd",
+        "--output", "initrd",
         *(["--image-id", config.image_id] if config.image_id else []),
         *(["--image-version", config.image_version] if config.image_version else []),
         *(
@@ -1667,7 +1592,7 @@ def build_default_initrd(context: Context) -> Path:
         context.args,
         context.config,
         resources=context.resources,
-        output_dir=context.workspace / "initrd",
+        output_dir=context.workspace,
         package_dir=context.packages,
     )
 
@@ -1743,7 +1668,7 @@ def build_microcode_initrd(context: Context) -> Optional[Path]:
     if not context.config.architecture.is_x86_variant():
         return None
 
-    microcode = context.workspace / "initrd-microcode.img"
+    microcode = context.workspace / "microcode.initrd"
     if microcode.exists():
         return microcode
 
@@ -1754,7 +1679,7 @@ def build_microcode_initrd(context: Context) -> Optional[Path]:
         logging.warning("/usr/lib/firmware/{amd-ucode,intel-ucode} not found, not adding microcode")
         return None
 
-    root = context.workspace / "initrd-microcode-root"
+    root = context.workspace / "microcode-root"
     destdir = root / "kernel/x86/microcode"
 
     with umask(~0o755):
@@ -1784,7 +1709,7 @@ def build_microcode_initrd(context: Context) -> Optional[Path]:
 
 
 def build_kernel_modules_initrd(context: Context, kver: str) -> Path:
-    kmods = context.workspace / f"initrd-kernel-modules-{kver}.img"
+    kmods = context.workspace / f"kernel-modules-{kver}.initrd"
     if kmods.exists():
         return kmods
 
@@ -1888,15 +1813,7 @@ def build_uki(
     initrds: Sequence[Path],
     cmdline: Sequence[str],
     output: Path,
-    roothash: Optional[str] = None,
 ) -> None:
-    cmdline = list(cmdline)
-
-    if roothash:
-        cmdline += [roothash]
-
-    cmdline += context.config.kernel_command_line
-
     # Older versions of systemd-stub expect the cmdline section to be null terminated. We can't embed
     # nul terminators in argv so let's communicate the cmdline via a file instead.
     (context.workspace / "cmdline").write_text(f"{' '.join(cmdline).strip()}\x00")
@@ -2016,6 +1933,20 @@ def want_efi(config: Config) -> bool:
     return True
 
 
+def systemd_stub_binary(context: Context) -> Path:
+    arch = context.config.architecture.to_efi()
+    stub = context.root / f"usr/lib/systemd/boot/efi/linux{arch}.efi.stub"
+    return stub
+
+
+def want_uki(context: Context) -> bool:
+    return want_efi(context.config) and (
+        context.config.bootloader == Bootloader.uki or
+        context.config.unified_kernel_images == ConfigFeature.enabled or
+        (context.config.unified_kernel_images == ConfigFeature.auto and systemd_stub_binary(context).exists())
+    )
+
+
 def find_entry_token(context: Context) -> str:
     if (
         "--version" not in run(["kernel-install", "--help"],
@@ -2026,72 +1957,205 @@ def find_entry_token(context: Context) -> str:
 
     output = json.loads(run(["kernel-install", "--root", context.root, "--json=pretty", "inspect"],
                             sandbox=context.sandbox(options=["--ro-bind", context.root, context.root]),
-                            stdout=subprocess.PIPE).stdout)
+                            stdout=subprocess.PIPE,
+                            env={"SYSTEMD_ESP_PATH": "/efi", "SYSTEMD_XBOOTLDR_PATH": "/boot"}).stdout)
     logging.debug(json.dumps(output, indent=4))
     return cast(str, output["EntryToken"])
 
 
-def install_uki(context: Context, partitions: Sequence[Partition]) -> None:
+def finalize_cmdline(context: Context, roothash: Optional[str]) -> list[str]:
+    if (context.root / "etc/kernel/cmdline").exists():
+        cmdline = [(context.root / "etc/kernel/cmdline").read_text().strip()]
+    elif (context.root / "usr/lib/kernel/cmdline").exists():
+        cmdline = [(context.root / "usr/lib/kernel/cmdline").read_text().strip()]
+    else:
+        cmdline = []
+
+    if roothash:
+        cmdline += [roothash]
+
+    return cmdline + context.config.kernel_command_line
+
+
+def install_type1(
+    context: Context,
+    kver: str,
+    kimg: Path,
+    token: str,
+    partitions: Sequence[Partition],
+) -> None:
+    dst = context.root / "boot" / token / kver
+    entry = context.root / f"boot/loader/entries/{token}-{kver}.conf"
+    with umask(~0o700):
+        dst.mkdir(parents=True, exist_ok=True)
+        entry.parent.mkdir(parents=True, exist_ok=True)
+
+    microcode = build_microcode_initrd(context)
+    kmods = build_kernel_modules_initrd(context, kver)
+    cmdline = finalize_cmdline(context, finalize_roothash(partitions))
+
+    with umask(~0o600):
+        if (
+            want_efi(context.config) and
+            context.config.secure_boot and
+            KernelType.identify(context.config, kimg) == KernelType.pe
+        ):
+            kimg = sign_efi_binary(context, kimg, dst / "vmlinuz")
+        else:
+            kimg = Path(shutil.copy2(context.root / kimg, dst / "vmlinuz"))
+
+        initrds = [Path(shutil.copy2(microcode, dst.parent / "microcode.initrd"))] if microcode else []
+        initrds += [
+            Path(shutil.copy2(initrd, dst.parent / initrd.name))
+            for initrd in (context.config.initrds or [build_default_initrd(context)])
+        ]
+        initrds += [Path(shutil.copy2(kmods, dst / "kernel-modules.initrd"))]
+
+        with entry.open("w") as f:
+            f.write(
+                textwrap.dedent(
+                    f"""\
+                    title {token} {kver}
+                    version {kver}
+                    linux /{kimg.relative_to(context.root / "boot")}
+                    options {" ".join(cmdline)}
+                    """
+                )
+            )
+
+            for initrd in initrds:
+                f.write(f'initrd /{initrd.relative_to(context.root / "boot")}\n')
+
+    if want_grub_efi(context) or want_grub_bios(context, partitions):
+        config = prepare_grub_config(context)
+        assert config
+
+        root = finalize_root(partitions)
+        assert root
+
+        with config.open("a") as f:
+            f.write("if ")
+
+            conditions = []
+            if want_grub_efi(context) and not want_uki(context):
+                conditions += ['[ "${grub_platform}" = efi ]']
+            if want_grub_bios(context, partitions):
+                conditions += ['[ "${grub_platform}" = pc ]']
+
+            f.write(" || ".join(conditions))
+            f.write("; then\n")
+
+            f.write(
+                textwrap.dedent(
+                    f"""\
+                    menuentry "{token}-{kver}" {{
+                        linux /{kimg.relative_to(context.root / "boot")} {root} {" ".join(cmdline)}
+                        initrd {" ".join(os.fspath(Path("/") / i.relative_to(context.root / "boot")) for i in initrds)}
+                    }}
+                    """
+                )
+            )
+
+            f.write("fi\n")
+
+
+def install_uki(context: Context, kver: str, kimg: Path, token: str, partitions: Sequence[Partition]) -> None:
+    roothash = finalize_roothash(partitions)
+
+    boot_count = ""
+    if (context.root / "etc/kernel/tries").exists():
+        boot_count = f'+{(context.root / "etc/kernel/tries").read_text().strip()}'
+
+    if context.config.bootloader == Bootloader.uki:
+        if context.config.shim_bootloader != ShimBootloader.none:
+            boot_binary = context.root / shim_second_stage_binary(context)
+        else:
+            boot_binary = context.root / efi_boot_binary(context)
+    else:
+        if roothash:
+            _, _, h = roothash.partition("=")
+            boot_binary = context.root / f"boot/EFI/Linux/{token}-{kver}-{h}{boot_count}.efi"
+        else:
+            boot_binary = context.root / f"boot/EFI/Linux/{token}-{kver}{boot_count}.efi"
+
+    microcode = build_microcode_initrd(context)
+
+    initrds = [microcode] if microcode else []
+    initrds += context.config.initrds or [build_default_initrd(context)]
+
+    if context.config.kernel_modules_initrd:
+        initrds += [build_kernel_modules_initrd(context, kver)]
+
+    # Make sure the parent directory where we'll be writing the UKI exists.
+    with umask(~0o700):
+        boot_binary.parent.mkdir(parents=True, exist_ok=True)
+
+    build_uki(
+        context,
+        systemd_stub_binary(context),
+        kver,
+        context.root / kimg,
+        initrds,
+        finalize_cmdline(context, roothash),
+        boot_binary,
+    )
+
+    print_output_size(boot_binary)
+
+    if want_grub_efi(context):
+        config = prepare_grub_config(context)
+        assert config
+
+        with config.open("a") as f:
+            f.write('if [ "${grub_platform}" = efi ]; then\n')
+
+            f.write(
+                textwrap.dedent(
+                    f"""\
+                    menuentry "{boot_binary.stem}" {{
+                        chainloader /{boot_binary.relative_to(context.root / "boot")}
+                    }}
+                    """
+                )
+            )
+
+            f.write("fi\n")
+
+
+def install_kernel(context: Context, partitions: Sequence[Partition]) -> None:
     # Iterates through all kernel versions included in the image and generates a combined
     # kernel+initrd+cmdline+osrelease EFI file from it and places it in the /EFI/Linux directory of the ESP.
     # sd-boot iterates through them and shows them in the menu. These "unified" single-file images have the
     # benefit that they can be signed like normal EFI binaries, and can encode everything necessary to boot a
     # specific root device, including the root hash.
 
-    if not want_efi(context.config) or context.config.output_format in (OutputFormat.uki, OutputFormat.esp):
+    if context.config.output_format in (OutputFormat.uki, OutputFormat.esp):
         return
 
-    arch = context.config.architecture.to_efi()
-    stub = context.root / f"usr/lib/systemd/boot/efi/linux{arch}.efi.stub"
-    if not stub.exists() and context.config.bootable == ConfigFeature.auto:
+    if context.config.bootable == ConfigFeature.disabled:
         return
+
+    if context.config.bootable == ConfigFeature.auto and (
+        context.config.output_format == OutputFormat.cpio or
+        context.config.output_format.is_extension_image() or
+        context.config.overlay
+    ):
+        return
+
+    stub = systemd_stub_binary(context)
+    if want_uki(context) and not stub.exists():
+        die(f"Unified kernel image(s) requested but systemd-stub not found at /{stub.relative_to(context.root)}")
 
     if context.config.bootable == ConfigFeature.enabled and not gen_kernel_images(context):
         die("A bootable image was requested but no kernel was found")
 
-    roothash = finalize_roothash(partitions)
+    token = find_entry_token(context)
 
     for kver, kimg in gen_kernel_images(context):
-        # See https://systemd.io/AUTOMATIC_BOOT_ASSESSMENT/#boot-counting
-        boot_count = ""
-        if (context.root / "etc/kernel/tries").exists():
-            boot_count = f'+{(context.root / "etc/kernel/tries").read_text().strip()}'
-
-        if context.config.bootloader == Bootloader.uki:
-            if context.config.shim_bootloader != ShimBootloader.none:
-                boot_binary = context.root / shim_second_stage_binary(context)
-            else:
-                boot_binary = context.root / efi_boot_binary(context)
-        else:
-            token = find_entry_token(context)
-            if roothash:
-                _, _, h = roothash.partition("=")
-                boot_binary = context.root / f"boot/EFI/Linux/{token}-{kver}-{h}{boot_count}.efi"
-            else:
-                boot_binary = context.root / f"boot/EFI/Linux/{token}-{kver}{boot_count}.efi"
-
-        microcode = build_microcode_initrd(context)
-
-        initrds = [microcode] if microcode else []
-        initrds += context.config.initrds or [build_default_initrd(context)]
-
-        if context.config.kernel_modules_initrd:
-            initrds += [build_kernel_modules_initrd(context, kver)]
-
-        # Make sure the parent directory where we'll be writing the UKI exists.
-        with umask(~0o700):
-            boot_binary.parent.mkdir(parents=True, exist_ok=True)
-
-        if (context.root / "etc/kernel/cmdline").exists():
-            cmdline = [(context.root / "etc/kernel/cmdline").read_text().strip()]
-        elif (context.root / "usr/lib/kernel/cmdline").exists():
-            cmdline = [(context.root / "usr/lib/kernel/cmdline").read_text().strip()]
-        else:
-            cmdline = []
-
-        build_uki(context, stub, kver, context.root / kimg, initrds, cmdline, boot_binary, roothash=roothash)
-
-        print_output_size(boot_binary)
+        if want_uki(context):
+            install_uki(context, kver, kimg, token, partitions)
+        if not want_uki(context) or want_grub_bios(context, partitions):
+            install_type1(context, kver, kimg, token, partitions)
 
         if context.config.bootloader == Bootloader.uki:
             break
@@ -2105,7 +2169,7 @@ def make_uki(context: Context, stub: Path, kver: str, kimg: Path, output: Path) 
     initrds = [microcode] if microcode else []
     initrds += [context.workspace / "initrd"]
 
-    build_uki(context, stub, kver, kimg, initrds, [], output)
+    build_uki(context, stub, kver, kimg, initrds, context.config.kernel_command_line, output)
     extract_pe_section(context, output, ".linux", context.staging / context.config.output_split_kernel)
     extract_pe_section(context, output, ".initrd", context.staging / context.config.output_split_initrd)
 
@@ -2149,7 +2213,7 @@ def copy_uki(context: Context) -> None:
     if (context.staging / context.config.output_split_uki).exists():
         return
 
-    if not want_efi(context.config):
+    if not want_efi(context.config) or context.config.unified_kernel_images == ConfigFeature.disabled:
         return
 
     ukis = sorted(
@@ -2419,7 +2483,7 @@ def check_systemd_tool(
 
 def check_tools(config: Config, verb: Verb) -> None:
     if verb == Verb.build:
-        if want_efi(config):
+        if want_efi(config) and config.unified_kernel_images == ConfigFeature.enabled:
             check_systemd_tool(
                 config,
                 "ukify", "/usr/lib/systemd/ukify",
@@ -2828,10 +2892,10 @@ def save_uki_components(context: Context) -> tuple[Optional[Path], Optional[str]
 
     kimg = shutil.copy2(context.root / kimg, context.workspace)
 
-    if not (arch := context.config.architecture.to_efi()):
+    if not context.config.architecture.to_efi():
         die(f"Architecture {context.config.architecture} does not support UEFI")
 
-    stub = context.root / f"usr/lib/systemd/boot/efi/linux{arch}.efi.stub"
+    stub = systemd_stub_binary(context)
     if not stub.exists():
         die(f"sd-stub not found at /{stub.relative_to(context.root)} in the image")
 
@@ -3272,13 +3336,12 @@ def build_image(context: Context) -> None:
 
     normalize_mtime(context.root, context.config.source_date_epoch)
     partitions = make_disk(context, skip=("esp", "xbootldr"), tabs=True, msg="Generating disk image")
-    install_uki(context, partitions)
-    prepare_grub_efi(context)
-    prepare_grub_bios(context, partitions)
+    install_kernel(context, partitions)
+    grub_bios_install(context, partitions)
     normalize_mtime(context.root, context.config.source_date_epoch, directory=Path("boot"))
     normalize_mtime(context.root, context.config.source_date_epoch, directory=Path("efi"))
     partitions = make_disk(context, msg="Formatting ESP/XBOOTLDR partitions")
-    install_grub_bios(context, partitions)
+    grub_bios_setup(context, partitions)
 
     if context.config.split_artifacts:
         make_disk(context, split=True, msg="Extracting partitions")
