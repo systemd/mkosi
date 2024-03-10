@@ -2016,7 +2016,8 @@ def find_entry_token(context: Context) -> str:
 
     output = json.loads(run(["kernel-install", "--root", context.root, "--json=pretty", "inspect"],
                             sandbox=context.sandbox(options=["--ro-bind", context.root, context.root]),
-                            stdout=subprocess.PIPE).stdout)
+                            stdout=subprocess.PIPE,
+                            env={"SYSTEMD_ESP_PATH": "/efi", "SYSTEMD_XBOOTLDR_PATH": "/boot"}).stdout)
     logging.debug(json.dumps(output, indent=4))
     return cast(str, output["EntryToken"])
 
