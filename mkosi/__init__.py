@@ -1210,6 +1210,7 @@ def install_sandbox_trees(config: Config, dst: Path) -> None:
         "etc/ssl",
         "etc/ca-certificates",
         "etc/pacman.d/gnupg",
+        "etc/apk/keys",
         "etc/alternatives",
     ):
         (dst / d).mkdir(parents=True, exist_ok=True)
