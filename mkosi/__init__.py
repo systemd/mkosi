@@ -12,6 +12,7 @@ import os
 import resource
 import shlex
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -863,7 +864,8 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
         context.config.secure_boot_sign_tool == SecureBootSignTool.auto and
         find_binary("sbsign", root=context.config.tools()) is not None
     ):
-        with open(output, "wb") as f:
+        with tempfile.NamedTemporaryFile(dir=output.parent, prefix=output.name) as f:
+            os.chmod(f.name, stat.S_IMODE(input.stat().st_mode))
             cmd: list[PathString] = [
                 "sbsign",
                 "--key", context.config.secure_boot_key,
@@ -887,13 +889,16 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
                     devices=context.config.secure_boot_key_source.type != KeySource.Type.file,
                 )
             )
+            output.unlink(missing_ok=True)
+            os.link(f.name, output)
     elif (
         context.config.secure_boot_sign_tool == SecureBootSignTool.pesign or
         context.config.secure_boot_sign_tool == SecureBootSignTool.auto and
         find_binary("pesign", root=context.config.tools()) is not None
     ):
         pesign_prepare(context)
-        with open(output, "wb") as f:
+        with tempfile.NamedTemporaryFile(dir=output.parent, prefix=output.name) as f:
+            os.chmod(f.name, stat.S_IMODE(input.stat().st_mode))
             run(
                 [
                     "pesign",
@@ -912,6 +917,8 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
                     ]
                 ),
             )
+            output.unlink(missing_ok=True)
+            os.link(f.name, output)
     else:
         die("One of sbsign or pesign is required to use SecureBoot=")
 
