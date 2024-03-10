@@ -937,7 +937,7 @@ def install_systemd_boot(context: Context) -> None:
     with complete_step("Installing systemd-boot…"):
         run(
             ["bootctl", "install", "--root", context.root, "--all-architectures", "--no-variables"],
-            env={"SYSTEMD_ESP_PATH": "/efi"},
+            env={"SYSTEMD_ESP_PATH": "/efi", "SYSTEMD_XBOOTLDR_PATH": "/boot"},
             sandbox=context.sandbox(options=["--bind", context.root, context.root]),
         )
 
