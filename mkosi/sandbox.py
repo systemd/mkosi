@@ -171,7 +171,7 @@ def sandbox_cmd(
     if scripts:
         cmdline += ["--ro-bind", scripts, "/scripts"]
 
-    if network and not relaxed:
+    if network and not relaxed and Path("/etc/resolv.conf").exists():
         cmdline += ["--bind", "/etc/resolv.conf", "/etc/resolv.conf"]
 
     # bubblewrap creates everything with a restricted mode so relax stuff as needed.
