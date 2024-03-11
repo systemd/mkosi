@@ -165,9 +165,6 @@ class Pacman(PackageManager):
                             *cls.mounts(context),
                             *sources,
                             "--chdir", "/work/src",
-                            # pacman will fail unless invoked as root so make sure we're uid/gid 0 in the sandbox.
-                            "--uid", "0",
-                            "--gid", "0",
                         ],
                     ) + (apivfs_cmd(context.root) if apivfs else [])
                 ),

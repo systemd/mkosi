@@ -80,6 +80,9 @@ class Context:
             devices=devices,
             scripts=scripts,
             options=[
+                "--uid", "0",
+                "--gid", "0",
+                "--cap-add", "ALL",
                 # These mounts are writable so bubblewrap can create extra directories or symlinks inside of it as
                 # needed. This isn't a problem as the package manager directory is created by mkosi and thrown away
                 # when the build finishes.
