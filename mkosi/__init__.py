@@ -3975,7 +3975,13 @@ def run_build(args: Args, config: Config, *, resources: Path) -> None:
         run(["mount", "--make-rslave", "/"])
 
     # For extra safety when running as root, remount a bunch of stuff read-only.
-    for d in ("/usr", "/etc", "/opt", "/boot", "/efi", "/media"):
+    # Because some build systems use output directories in /usr, we only remount
+    # /usr read-only if the output directory is not relative to it.
+    remount = ["/etc", "/opt", "/boot", "/efi", "/media"]
+    if not config.output_dir_or_cwd().is_relative_to("/usr"):
+        remount += ["/usr"]
+
+    for d in remount:
         if Path(d).exists():
             run(["mount", "--rbind", d, d, "--options", "ro"])
 
