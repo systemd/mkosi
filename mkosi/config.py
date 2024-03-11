@@ -249,10 +249,14 @@ class Cacheonly(StrEnum):
 
 
 class QemuFirmware(StrEnum):
-    auto   = enum.auto()
-    linux  = enum.auto()
-    uefi   = enum.auto()
-    bios   = enum.auto()
+    auto             = enum.auto()
+    linux            = enum.auto()
+    uefi             = enum.auto()
+    uefi_secure_boot = enum.auto()
+    bios             = enum.auto()
+
+    def is_uefi(self) -> bool:
+        return self in (QemuFirmware.uefi, QemuFirmware.uefi_secure_boot)
 
 
 class Network(StrEnum):
@@ -384,7 +388,7 @@ class Architecture(StrEnum):
         if self.is_x86_variant():
             return True
 
-        return self.is_arm_variant() and firmware == QemuFirmware.uefi
+        return self.is_arm_variant() and firmware.is_uefi()
 
     def supports_fw_cfg(self) -> bool:
         return self.is_x86_variant() or self.is_arm_variant()
@@ -2689,7 +2693,7 @@ SETTINGS = (
         dest="qemu_firmware_variables",
         metavar="PATH",
         section="Host",
-        parse=config_make_path_parser(),
+        parse=config_make_path_parser(constants=("custom", "microsoft")),
         help="Set the path to the qemu firmware variables file to use",
     ),
     ConfigSetting(

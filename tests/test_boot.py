@@ -79,7 +79,7 @@ def test_bootloader(config: Image.Config, bootloader: Bootloader) -> None:
     if config.distribution == Distribution.rhel_ubi:
         return
 
-    firmware = QemuFirmware.linux if bootloader == Bootloader.none else QemuFirmware.uefi
+    firmware = QemuFirmware.linux if bootloader == Bootloader.none else QemuFirmware.auto
 
     with Image(
         config,

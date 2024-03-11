@@ -1190,6 +1190,11 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   on UEFI firmware is requested using other options
   (`Bootable=`, `Bootloader=`).
 
+: Note that when this option is enabled, mkosi will only install already
+  signed bootloader binaries, kernel image files and unified kernel
+  images as self-signed binaries would not be accepted by the signed
+  version of shim.
+
 `UnifiedKernelImages=`, `--unified-kernel-images=`
 
 : Specifies whether to use unified kernel images or not when
@@ -1498,31 +1503,34 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `QemuFirmware=`, `--qemu-firmware=`
 
 : When used with the `qemu` verb, this option specifies which firmware
-  to use. Takes one of `uefi`, `bios`, `linux`, or `auto`. Defaults to
-  `auto`. When set to `uefi`, the OVMF firmware is used. When set to
+  to use. Takes one of `uefi`, `uefi-secure-boot`, `bios`, `linux`, or
+  `auto`. Defaults to `auto`. When set to `uefi`, the OVMF firmware
+  without secure boot support is used. When set to `uefi-secure-boot`,
+  the OVMF firmware with secure boot support is used. When set to
   `bios`, the default SeaBIOS firmware is used. When set to `linux`,
   direct kernel boot is used. See the `QemuKernel=` option for more
   details on which kernel image is used with direct kernel boot. When
-  set to `auto`, `linux` is used if a cpio image is being booted, `uefi`
+  set to `auto`, `uefi-secure-boot` is used if possible and `linux`
   otherwise.
 
 `QemuFirmwareVariables=`, `--qemu-firmware-variables=`
 
 : When used with the `qemu` verb, this option specifies the path to the
   the firmware variables file to use. Currently, this option is only
-  taken into account when the `uefi` firmware is used. If not specified,
-  mkosi will search for the default variables file and use that instead.
+  taken into account when the `uefi` or `uefi-secure-boot` firmware is
+  used. If not specified, mkosi will search for the default variables
+  file and use that instead.
+
+: When set to `microsoft`, a firmware variables file with the Microsoft
+  secure boot certificates already enrolled will be used.
+
+: When set to `custom`, the secure boot certificate from
+  `SecureBootCertificate=` will be enrolled into the default firmware
+  variables file.
 
 : `virt-fw-vars` from the
   [virt-firmware](https://gitlab.com/kraxel/virt-firmware) project can
   be used to customize OVMF variable files.
-
-: Some distributions also provide variable files which already have
-  Microsoft's certificates for secure boot enrolled. For Fedora
-  and Debian these are `OVMF_VARS.secboot.fd` and `OVMF_VARS_4M.ms.fd`
-  under `/usr/share/OVMF` respectively. You can use `locate` and look
-  under `/usr/share/qemu/firmware` for hints on where to find these
-  files if your distribution ships them.
 
 `QemuKernel=`, `--qemu-kernel=`
 
@@ -1660,6 +1668,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   | `ubuntu-keyring`        | X      | X      | X      | X      | X    |          |
   | `util-linux`            | X      | X      | X      | X      | X    | X        |
   | `virtiofsd`             | X      | X      |        |        | X    | X        |
+  | `virt-firmware`         | X      | X      |        |        | X    |          |
   | `xfsprogs`              | X      | X      | X      | X      | X    | X        |
   | `xz`                    | X      | X      | X      | X      | X    | X        |
   | `zstd`                  | X      | X      | X      | X      | X    | X        |

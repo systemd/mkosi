@@ -7,6 +7,7 @@ import enum
 import errno
 import fcntl
 import hashlib
+import json
 import logging
 import os
 import random
@@ -19,10 +20,9 @@ import tempfile
 import uuid
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Optional
+from typing import NamedTuple, Optional
 
 from mkosi.config import (
-    Architecture,
     Args,
     Config,
     ConfigFeature,
@@ -40,7 +40,7 @@ from mkosi.run import AsyncioThread, find_binary, fork_and_wait, run, spawn
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
 from mkosi.user import INVOKING_USER, become_root
-from mkosi.util import StrEnum
+from mkosi.util import StrEnum, flatten
 from mkosi.versioncomp import GenericVersion
 
 QEMU_KVM_DEVICE_VERSION = GenericVersion("9.0")
@@ -172,119 +172,80 @@ def find_qemu_binary(config: Config) -> str:
     die("Couldn't find QEMU/KVM binary")
 
 
-def find_ovmf_firmware(config: Config) -> tuple[Path, bool]:
-    FIRMWARE_LOCATIONS = {
-        Architecture.x86_64: [
-            "usr/share/ovmf/x64/OVMF_CODE.secboot.fd",
-            "usr/share/qemu/ovmf-x86_64.smm.bin",
-            "usr/share/edk2/x64/OVMF_CODE.secboot.4m.fd",
-            "usr/share/edk2/x64/OVMF_CODE.secboot.fd",
-        ],
-        Architecture.x86: [
-            "usr/share/edk2/ovmf-ia32/OVMF_CODE.secboot.fd",
-            "usr/share/OVMF/OVMF32_CODE_4M.secboot.fd",
-            "usr/share/edk2/ia32/OVMF_CODE.secboot.4m.fd",
-            "usr/share/edk2/ia32/OVMF_CODE.secboot.fd",
-        ],
-    }.get(config.architecture, [])
-
-    for firmware in FIRMWARE_LOCATIONS:
-        if (config.tools() / firmware).exists():
-            return Path("/") / firmware, True
-
-    FIRMWARE_LOCATIONS = {
-        Architecture.x86_64: [
-            "usr/share/ovmf/ovmf_code_x64.bin",
-            "usr/share/ovmf/x64/OVMF_CODE.fd",
-            "usr/share/qemu/ovmf-x86_64.bin",
-            "usr/share/edk2/x64/OVMF_CODE.4m.fd",
-            "usr/share/edk2/x64/OVMF_CODE.fd",
-        ],
-        Architecture.x86: [
-            "usr/share/ovmf/ovmf_code_ia32.bin",
-            "usr/share/edk2/ovmf-ia32/OVMF_CODE.fd",
-            "usr/share/edk2/ia32/OVMF_CODE.4m.fd",
-            "usr/share/edk2/ia32/OVMF_CODE.fd",
-        ],
-        Architecture.arm64: ["usr/share/AAVMF/AAVMF_CODE.fd"],
-        Architecture.arm: ["usr/share/AAVMF/AAVMF32_CODE.fd"],
-    }.get(config.architecture, [])
-
-    for firmware in FIRMWARE_LOCATIONS:
-        if (config.tools() / firmware).exists():
-            logging.warning("Couldn't find OVMF firmware blob with secure boot support, "
-                            "falling back to OVMF firmware blobs without secure boot support.")
-            return Path("/") / firmware, False
-
-    # If we can't find an architecture specific path, fall back to some generic paths that might also work.
-
-    FIRMWARE_LOCATIONS = [
-        "usr/share/edk2/ovmf/OVMF_CODE.secboot.fd",
-        "usr/share/edk2-ovmf/OVMF_CODE.secboot.fd",
-        "usr/share/qemu/OVMF_CODE.secboot.fd",
-        "usr/share/ovmf/OVMF.secboot.fd",
-        "usr/share/OVMF/OVMF_CODE_4M.secboot.fd",
-        "usr/share/OVMF/OVMF_CODE.secboot.fd",
-    ]
-
-    for firmware in FIRMWARE_LOCATIONS:
-        if (config.tools() / firmware).exists():
-            return Path("/") / firmware, True
-
-    FIRMWARE_LOCATIONS = [
-        "usr/share/edk2/ovmf/OVMF_CODE.fd",
-        "usr/share/edk2-ovmf/OVMF_CODE.fd",
-        "usr/share/qemu/OVMF_CODE.fd",
-        "usr/share/ovmf/OVMF.fd",
-        "usr/share/OVMF/OVMF_CODE_4M.fd",
-        "usr/share/OVMF/OVMF_CODE.fd",
-    ]
-
-    for firmware in FIRMWARE_LOCATIONS:
-        if (config.tools() / firmware).exists():
-            logging.warn("Couldn't find OVMF firmware blob with secure boot support, "
-                         "falling back to OVMF firmware blobs without secure boot support.")
-            return Path("/") / firmware, False
-
-    die("Couldn't find OVMF UEFI firmware blob.")
+class OvmfConfig(NamedTuple):
+    description: Path
+    firmware: Path
+    format: str
+    vars: Path
+    vars_format: str
 
 
-def find_ovmf_vars(config: Config) -> Path:
-    OVMF_VARS_LOCATIONS = []
+def find_ovmf_firmware(config: Config, firmware: QemuFirmware) -> Optional[OvmfConfig]:
+    if not firmware.is_uefi():
+        return None
 
-    if config.architecture == Architecture.x86_64:
-        OVMF_VARS_LOCATIONS += [
-            "usr/share/ovmf/x64/OVMF_VARS.fd",
-            "usr/share/qemu/ovmf-x86_64-vars.bin",
-            "usr/share/edk2/x64/OVMF_VARS.4m.fd",
-            "usr/share/edk2/x64/OVMF_VARS.fd",
-        ]
-    elif config.architecture == Architecture.x86:
-        OVMF_VARS_LOCATIONS += [
-            "usr/share/edk2/ovmf-ia32/OVMF_VARS.fd",
-            "usr/share/OVMF/OVMF32_VARS_4M.fd",
-            "usr/share/edk2/ia32/OVMF_VARS.4m.fd",
-            "usr/share/edk2/ia32/OVMF_VARS.fd",
-        ]
-    elif config.architecture == Architecture.arm:
-        OVMF_VARS_LOCATIONS += ["usr/share/AAVMF/AAVMF32_VARS.fd"]
-    elif config.architecture == Architecture.arm64:
-        OVMF_VARS_LOCATIONS += ["usr/share/AAVMF/AAVMF_VARS.fd"]
+    desc = flatten(
+        p.glob("*")
+        for p in (
+            config.tools() / "etc/qemu/firmware",
+            config.tools() / "usr/share/qemu/firmware",
+        )
+    )
 
-    OVMF_VARS_LOCATIONS += [
-        "usr/share/edk2/ovmf/OVMF_VARS.fd",
-        "usr/share/edk2-ovmf/OVMF_VARS.fd",
-        "usr/share/qemu/OVMF_VARS.fd",
-        "usr/share/ovmf/OVMF_VARS.fd",
-        "usr/share/OVMF/OVMF_VARS_4M.fd",
-        "usr/share/OVMF/OVMF_VARS.fd",
-    ]
+    arch = config.architecture.to_qemu()
+    machine = config.architecture.default_qemu_machine()
 
-    for location in OVMF_VARS_LOCATIONS:
-        if (config.tools() / location).exists():
-            return config.tools() / location
+    for p in sorted(desc):
+        if p.is_dir():
+            continue
 
-    die("Couldn't find OVMF UEFI variables file.")
+        j = json.loads(p.read_text())
+
+        if "uefi" not in j["interface-types"]:
+            logging.debug(f"{p.name} firmware description does not target UEFI, skipping")
+            continue
+
+        for target in j["targets"]:
+            if target["architecture"] != arch:
+                continue
+
+            # We cannot use fnmatch as for example our default machine for x86-64 is q35 and the firmware description
+            # lists "pc-q35-*" so we use a substring check instead.
+            if any(machine in glob for glob in target["machines"]):
+                break
+        else:
+            logging.debug(
+                f"{p.name} firmware description does not target architecture {arch} or machine {machine}, skipping"
+            )
+            continue
+
+        if firmware == QemuFirmware.uefi_secure_boot and "secure-boot" not in j["features"]:
+            logging.debug(f"{p.name} firmware description does not include secure boot, skipping")
+            continue
+
+        if firmware != QemuFirmware.uefi_secure_boot and "secure-boot" in j["features"]:
+            logging.debug(f"{p.name} firmware description includes secure boot, skipping")
+            continue
+
+        if config.qemu_firmware_variables == Path("microsoft") and "enrolled-keys" not in j["features"]:
+            logging.debug(f"{p.name} firmware description does not have enrolled Microsoft keys, skipping")
+            continue
+
+        if config.qemu_firmware_variables != Path("microsoft") and "enrolled-keys" in j["features"]:
+            logging.debug(f"{p.name} firmware description has enrolled Microsoft keys, skipping")
+            continue
+
+        logging.debug(f"Using {p.name} firmware description")
+
+        return OvmfConfig(
+            description=Path("/") / p.relative_to(config.tools()),
+            firmware=Path(j["mapping"]["executable"]["filename"]),
+            format=j["mapping"]["executable"]["format"],
+            vars=Path(j["mapping"]["nvram-template"]["filename"]),
+            vars_format=j["mapping"]["nvram-template"]["format"],
+        )
+
+    die("Couldn't find matching OVMF UEFI firmware description")
 
 
 @contextlib.contextmanager
@@ -493,7 +454,7 @@ def finalize_qemu_firmware(config: Config, kernel: Optional[Path]) -> QemuFirmwa
     if config.qemu_firmware == QemuFirmware.auto:
         if kernel:
             return (
-                QemuFirmware.uefi
+                QemuFirmware.uefi_secure_boot
                 if KernelType.identify(config, kernel) != KernelType.unknown
                 else QemuFirmware.linux
             )
@@ -503,9 +464,47 @@ def finalize_qemu_firmware(config: Config, kernel: Optional[Path]) -> QemuFirmwa
         ):
             return QemuFirmware.linux
         else:
-            return QemuFirmware.uefi
+            return QemuFirmware.uefi_secure_boot
     else:
         return config.qemu_firmware
+
+
+def finalize_firmware_variables(config: Config, ovmf: OvmfConfig, stack: contextlib.ExitStack) -> tuple[Path, str]:
+    ovmf_vars = stack.enter_context(tempfile.NamedTemporaryFile(prefix="mkosi-ovmf-vars"))
+    if config.qemu_firmware_variables in (None, Path("custom"), Path("microsoft")):
+        ovmf_vars_format = ovmf.vars_format
+    else:
+        ovmf_vars_format = "raw"
+
+    if config.qemu_firmware_variables == Path("custom"):
+        assert config.secure_boot_certificate
+        run(
+            [
+                "virt-fw-vars",
+                "--input", ovmf.vars,
+                "--output", ovmf_vars.name,
+                "--enroll-cert", config.secure_boot_certificate,
+                "--add-db", "OvmfEnrollDefaultKeys", config.secure_boot_certificate,
+                "--no-microsoft",
+                "--secure-boot",
+                "--loglevel", "WARNING",
+            ],
+            sandbox=config.sandbox(
+                options=[
+                    "--bind", ovmf_vars.name, ovmf_vars.name,
+                    "--ro-bind", config.secure_boot_certificate, config.secure_boot_certificate,
+                ],
+            ),
+        )
+    else:
+        vars = (
+            config.tools() / ovmf.vars.relative_to("/")
+            if config.qemu_firmware_variables == Path("microsoft") or not config.qemu_firmware_variables
+            else config.qemu_firmware_variables
+        )
+        shutil.copy2(vars, Path(ovmf_vars.name))
+
+    return Path(ovmf_vars.name), ovmf_vars_format
 
 
 def run_qemu(args: Args, config: Config) -> None:
@@ -520,7 +519,8 @@ def run_qemu(args: Args, config: Config) -> None:
 
     if (
         config.output_format in (OutputFormat.cpio, OutputFormat.uki, OutputFormat.esp) and
-        config.qemu_firmware not in (QemuFirmware.auto, QemuFirmware.linux, QemuFirmware.uefi)
+        config.qemu_firmware not in (QemuFirmware.auto, QemuFirmware.linux) and
+        not config.qemu_firmware.is_uefi()
     ):
         die(f"{config.output_format} images cannot be booted with the '{config.qemu_firmware}' firmware")
 
@@ -529,6 +529,9 @@ def run_qemu(args: Args, config: Config) -> None:
 
     if config.qemu_kvm == ConfigFeature.enabled and not config.architecture.is_native():
         die(f"KVM acceleration requested but {config.architecture} does not match the native host architecture")
+
+    if config.qemu_firmware_variables == Path("custom") and not config.secure_boot_certificate:
+        die("SecureBootCertificate= must be configured to use QemuFirmwareVariables=custom")
 
     # After we unshare the user namespace to sandbox qemu, we might not have access to /dev/kvm or related device nodes
     # anymore as access to these might be gated behind the kvm group and we won't be part of the kvm group anymore
@@ -573,7 +576,7 @@ def run_qemu(args: Args, config: Config) -> None:
             config.output_format in (OutputFormat.cpio, OutputFormat.directory, OutputFormat.uki)
         )
     ):
-        if firmware == QemuFirmware.uefi:
+        if firmware.is_uefi():
             name = config.output if config.output_format == OutputFormat.uki else config.output_split_uki
             kernel = config.output_dir_or_cwd() / name
         else:
@@ -584,7 +587,7 @@ def run_qemu(args: Args, config: Config) -> None:
                 "or provide a -kernel argument to mkosi qemu"
             )
 
-    ovmf, ovmf_supports_sb = find_ovmf_firmware(config) if firmware == QemuFirmware.uefi else (None, False)
+    ovmf = find_ovmf_firmware(config, firmware)
 
     # A shared memory backend might increase ram usage so only add one if actually necessary for virtiofsd.
     shm = []
@@ -592,8 +595,8 @@ def run_qemu(args: Args, config: Config) -> None:
         shm = ["-object", f"memory-backend-memfd,id=mem,size={config.qemu_mem},share=on"]
 
     machine = f"type={config.architecture.default_qemu_machine()}"
-    if firmware == QemuFirmware.uefi and config.architecture.supports_smm():
-        machine += f",smm={'on' if ovmf_supports_sb else 'off'}"
+    if firmware.is_uefi() and config.architecture.supports_smm():
+        machine += f",smm={'on' if firmware == QemuFirmware.uefi_secure_boot else 'off'}"
     if shm:
         machine += ",memory-backend=mem"
 
@@ -660,16 +663,18 @@ def run_qemu(args: Args, config: Config) -> None:
         ]
 
     # QEMU has built-in logic to look for the BIOS firmware so we don't need to do anything special for that.
-    if firmware == QemuFirmware.uefi:
-        cmdline += ["-drive", f"if=pflash,format=raw,readonly=on,file={ovmf}"]
+    if firmware.is_uefi():
+        assert ovmf
+        cmdline += ["-drive", f"if=pflash,format={ovmf.format},readonly=on,file={ovmf.firmware}"]
     notifications: dict[str, str] = {}
 
     with contextlib.ExitStack() as stack:
-        if firmware == QemuFirmware.uefi:
-            ovmf_vars = stack.enter_context(tempfile.NamedTemporaryFile(prefix="mkosi-ovmf-vars"))
-            shutil.copy2(config.qemu_firmware_variables or find_ovmf_vars(config), Path(ovmf_vars.name))
-            cmdline += ["-drive", f"file={ovmf_vars.name},if=pflash,format=raw"]
-            if ovmf_supports_sb:
+        if firmware.is_uefi():
+            assert ovmf
+            ovmf_vars, ovmf_vars_format = finalize_firmware_variables(config, ovmf, stack)
+
+            cmdline += ["-drive", f"file={ovmf_vars},if=pflash,format={ovmf_vars_format}"]
+            if firmware == QemuFirmware.uefi_secure_boot:
                 cmdline += [
                     "-global", "ICH9-LPC.disable_s3=1",
                     "-global", "driver=cfi.pflash01,property=secure,value=on",
@@ -819,7 +824,7 @@ def run_qemu(args: Args, config: Config) -> None:
                         "-device", f"scsi-{'cd' if config.qemu_cdrom else 'hd'},drive=mkosi,bootindex=1"]
 
         if (
-            firmware == QemuFirmware.uefi and
+            firmware.is_uefi() and
             config.qemu_swtpm != ConfigFeature.disabled and
             find_binary("swtpm", root=config.tools()) is not None
         ):

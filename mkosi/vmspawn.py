@@ -17,6 +17,7 @@ from mkosi.log import die
 from mkosi.qemu import (
     copy_ephemeral,
     finalize_qemu_firmware,
+    find_ovmf_firmware,
 )
 from mkosi.run import run
 from mkosi.types import PathString
@@ -31,6 +32,9 @@ def run_vmspawn(args: Args, config: Config) -> None:
 
     if config.qemu_cdrom:
         die("systemd-vmspawn does not support CD-ROM images")
+
+    if config.qemu_firmware_variables and config.qemu_firmware_variables != Path("microsoft"):
+        die("mkosi vmspawn does not support QemuFirmwareVariables=")
 
     kernel = config.qemu_kernel
 
@@ -49,10 +53,10 @@ def run_vmspawn(args: Args, config: Config) -> None:
 
     cmdline: list[PathString] = [
         "systemd-vmspawn",
-        "--qemu-smp", config.qemu_smp,
-        "--qemu-mem", config.qemu_mem,
-        "--qemu-kvm", config.qemu_kvm.to_tristate(),
-        "--qemu-vsock", config.qemu_vsock.to_tristate(),
+        "--cpus", config.qemu_smp,
+        "--ram", config.qemu_mem,
+        "--kvm", config.qemu_kvm.to_tristate(),
+        "--vsock", config.qemu_vsock.to_tristate(),
         "--tpm", config.qemu_swtpm.to_tristate(),
         "--secure-boot", yes_no(config.secure_boot),
     ]
@@ -63,7 +67,11 @@ def run_vmspawn(args: Args, config: Config) -> None:
         cmdline += ["--network-tap"]
 
     if config.qemu_gui:
-        cmdline += ["--qemu-gui"]
+        cmdline += ["--console=gui"]
+
+    ovmf = find_ovmf_firmware(config, firmware)
+    if ovmf:
+        cmdline += ["--firmware", ovmf.description]
 
     cmdline += [f"--set-credential={k}:{v}" for k, v in config.credentials.items()]
 
