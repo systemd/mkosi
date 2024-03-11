@@ -3189,6 +3189,12 @@ def finalize_staging(context: Context) -> None:
         # Make sure all build outputs that are not directories are owned by the user running mkosi.
         if not f.is_dir():
             os.chown(f, INVOKING_USER.uid, INVOKING_USER.gid, follow_symlinks=False)
+
+        if f.is_symlink():
+            (context.config.output_dir_or_cwd() / f.name).symlink_to(f.readlink())
+            os.chown(f, INVOKING_USER.uid, INVOKING_USER.gid, follow_symlinks=False)
+            continue
+
         move_tree(
             f, context.config.output_dir_or_cwd(),
             use_subvolumes=context.config.use_subvolumes,
