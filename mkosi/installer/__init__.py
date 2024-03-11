@@ -9,7 +9,7 @@ from mkosi.run import find_binary
 from mkosi.sandbox import finalize_crypto_mounts
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
-from mkosi.util import flatten
+from mkosi.util import flatten, startswith
 
 
 class PackageManager:
@@ -32,10 +32,12 @@ class PackageManager:
     @classmethod
     def mounts(cls, context: Context) -> list[PathString]:
         mounts: list[PathString] = [
-            *(["--ro-bind", m, m] if (m := context.config.local_mirror) else []),
             *finalize_crypto_mounts(tools=context.config.tools()),
             "--bind", context.packages, "/work/packages",
         ]
+
+        if context.config.local_mirror and (mirror := startswith(context.config.local_mirror, "file://")):
+            mounts += ["--ro-bind", mirror, mirror]
 
         subdir = context.config.distribution.package_manager(context.config).subdir(context.config)
 
