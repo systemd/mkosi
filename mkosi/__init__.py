@@ -414,19 +414,26 @@ def finalize_chroot_scripts(context: Context) -> contextlib.AbstractContextManag
     return finalize_scripts(scripts, root=context.root)
 
 
-def run_sync_scripts(context: Context) -> None:
-    if not context.config.sync_scripts:
+@contextlib.contextmanager
+def finalize_config_json(config: Config) -> Iterator[Path]:
+    with tempfile.NamedTemporaryFile(mode="w") as f:
+        f.write(config.to_json())
+        yield Path(f.name)
+
+
+def run_sync_scripts(config: Config) -> None:
+    if not config.sync_scripts:
         return
 
     env = dict(
-        DISTRIBUTION=str(context.config.distribution),
-        RELEASE=context.config.release,
-        ARCHITECTURE=str(context.config.architecture),
+        DISTRIBUTION=str(config.distribution),
+        RELEASE=config.release,
+        ARCHITECTURE=str(config.architecture),
         SRCDIR="/work/src",
         MKOSI_UID=str(INVOKING_USER.uid),
         MKOSI_GID=str(INVOKING_USER.gid),
         MKOSI_CONFIG="/work/config.json",
-        CACHED=one_zero(have_cache(context.config)),
+        CACHED=one_zero(have_cache(config)),
     )
 
     # We make sure to mount everything in to make ssh work since syncing might involve git which could invoke ssh.
@@ -434,29 +441,24 @@ def run_sync_scripts(context: Context) -> None:
         env["SSH_AUTH_SOCK"] = agent
 
     with (
-        finalize_source_mounts(context.config, ephemeral=False) as sources,
-        finalize_host_scripts(context) as hd,
+        finalize_source_mounts(config, ephemeral=False) as sources,
+        finalize_config_json(config) as json,
     ):
-        for script in context.config.sync_scripts:
+        for script in config.sync_scripts:
             options = [
                 *sources,
-                *finalize_crypto_mounts(context.config.tools()),
+                *finalize_crypto_mounts(config.tools()),
                 "--ro-bind", script, "/work/sync",
-                "--ro-bind", context.workspace / "config.json", "/work/config.json",
+                "--ro-bind", json, "/work/config.json",
                 "--chdir", "/work/src",
             ]
-
-            if (p := INVOKING_USER.home()).exists():
-                options += ["--ro-bind", p, p]
-            if (p := Path(f"/run/user/{INVOKING_USER.uid}")).exists():
-                options += ["--ro-bind", p, p]
 
             with complete_step(f"Running sync script {script}…"):
                 run(
                     ["/work/sync", "final"],
-                    env=env | context.config.environment,
+                    env=env | config.environment,
                     stdin=sys.stdin,
-                    sandbox=context.sandbox(network=True, options=options, scripts=hd),
+                    sandbox=config.sandbox(relaxed=True, options=options),
                 )
 
 
@@ -515,6 +517,7 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
 
             with (
                 finalize_host_scripts(context, helpers) as hd,
+                finalize_config_json(context.config) as json,
                 complete_step(step_msg.format(script)),
             ):
                 run(
@@ -525,7 +528,7 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
                         network=True,
                         options=sources + [
                             "--ro-bind", script, "/work/prepare",
-                            "--ro-bind", context.workspace / "config.json", "/work/config.json",
+                            "--ro-bind", json, "/work/config.json",
                             "--ro-bind", cd, "/work/scripts",
                             "--bind", context.root, context.root,
                             *context.config.distribution.package_manager(context.config).mounts(context),
@@ -595,6 +598,7 @@ def run_build_scripts(context: Context) -> None:
 
             with (
                 finalize_host_scripts(context, helpers) as hd,
+                finalize_config_json(context.config) as json,
                 complete_step(f"Running build script {script}…"),
             ):
                 run(
@@ -605,7 +609,7 @@ def run_build_scripts(context: Context) -> None:
                         network=context.config.with_network,
                         options=sources + [
                             "--ro-bind", script, "/work/build-script",
-                            "--ro-bind", context.workspace / "config.json", "/work/config.json",
+                            "--ro-bind", json, "/work/config.json",
                             "--ro-bind", cd, "/work/scripts",
                             "--bind", context.root, context.root,
                             "--bind", context.install_dir, "/work/dest",
@@ -671,6 +675,7 @@ def run_postinst_scripts(context: Context) -> None:
 
             with (
                 finalize_host_scripts(context, helpers) as hd,
+                finalize_config_json(context.config) as json,
                 complete_step(f"Running postinstall script {script}…"),
             ):
                 run(
@@ -681,7 +686,7 @@ def run_postinst_scripts(context: Context) -> None:
                         network=context.config.with_network,
                         options=sources + [
                             "--ro-bind", script, "/work/postinst",
-                            "--ro-bind", context.workspace / "config.json", "/work/config.json",
+                            "--ro-bind", json, "/work/config.json",
                             "--ro-bind", cd, "/work/scripts",
                             "--bind", context.root, context.root,
                             "--bind", context.staging, "/work/out",
@@ -737,6 +742,7 @@ def run_finalize_scripts(context: Context) -> None:
 
             with (
                 finalize_host_scripts(context, helpers) as hd,
+                finalize_config_json(context.config) as json,
                 complete_step(f"Running finalize script {script}…"),
             ):
                 run(
@@ -747,7 +753,7 @@ def run_finalize_scripts(context: Context) -> None:
                         network=context.config.with_network,
                         options=sources + [
                             "--ro-bind", script, "/work/finalize",
-                            "--ro-bind", context.workspace / "config.json", "/work/config.json",
+                            "--ro-bind", json, "/work/config.json",
                             "--ro-bind", cd, "/work/scripts",
                             "--bind", context.root, context.root,
                             "--bind", context.staging, "/work/out",
@@ -3218,7 +3224,6 @@ def setup_workspace(args: Args, config: Config) -> Iterator[Path]:
         workspace = Path(tempfile.mkdtemp(dir=config.workspace_dir_or_default(), prefix="mkosi-workspace"))
         stack.callback(lambda: rmtree(workspace, sandbox=config.sandbox))
         (workspace / "tmp").mkdir(mode=0o1777)
-        (workspace / "config.json").write_text(config.to_json())
 
         with scopedenv({"TMPDIR" : os.fspath(workspace / "tmp")}):
             try:
@@ -3951,7 +3956,7 @@ def run_sync(args: Args, config: Config, *, resources: Path) -> None:
         for p in config.distribution.package_manager(config).cache_subdirs(src):
             p.mkdir(parents=True, exist_ok=True)
 
-        run_sync_scripts(context)
+        run_sync_scripts(config)
 
 
 def run_build(args: Args, config: Config, *, resources: Path) -> None:
