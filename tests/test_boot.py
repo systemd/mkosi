@@ -5,7 +5,7 @@ import subprocess
 
 import pytest
 
-from mkosi.config import OutputFormat
+from mkosi.config import Bootloader, OutputFormat, QemuFirmware
 from mkosi.distributions import Distribution
 from mkosi.qemu import find_virtiofsd
 from mkosi.run import find_binary, run
@@ -25,7 +25,7 @@ def have_vmspawn() -> bool:
 
 
 @pytest.mark.parametrize("format", OutputFormat)
-def test_boot(config: Image.Config, format: OutputFormat) -> None:
+def test_format(config: Image.Config, format: OutputFormat) -> None:
     with Image(
         config,
         options=[
@@ -76,3 +76,27 @@ def test_boot(config: Image.Config, format: OutputFormat) -> None:
             return
 
         image.qemu(options=options + ["--qemu-firmware=bios"])
+
+
+@pytest.mark.parametrize("bootloader", Bootloader)
+def test_bootloader(config: Image.Config, bootloader: Bootloader) -> None:
+    if config.distribution == Distribution.rhel_ubi:
+        return
+
+    firmware = QemuFirmware.linux if bootloader == Bootloader.none else QemuFirmware.uefi
+
+    with Image(
+        config,
+        options=[
+            "--kernel-command-line=systemd.unit=mkosi-check-and-shutdown.service",
+            "--incremental",
+            "--ephemeral",
+            "--format=disk",
+            "--bootloader", str(bootloader),
+            "--qemu-firmware", str(firmware)
+        ],
+    ) as image:
+        image.summary()
+        image.genkey()
+        image.build()
+        image.qemu()

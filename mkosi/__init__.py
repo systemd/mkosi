@@ -12,6 +12,7 @@ import os
 import resource
 import shlex
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -863,7 +864,8 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
         context.config.secure_boot_sign_tool == SecureBootSignTool.auto and
         find_binary("sbsign", root=context.config.tools()) is not None
     ):
-        with open(output, "wb") as f:
+        with tempfile.NamedTemporaryFile(dir=output.parent, prefix=output.name) as f:
+            os.chmod(f.name, stat.S_IMODE(input.stat().st_mode))
             cmd: list[PathString] = [
                 "sbsign",
                 "--key", context.config.secure_boot_key,
@@ -887,13 +889,16 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
                     devices=context.config.secure_boot_key_source.type != KeySource.Type.file,
                 )
             )
+            output.unlink(missing_ok=True)
+            os.link(f.name, output)
     elif (
         context.config.secure_boot_sign_tool == SecureBootSignTool.pesign or
         context.config.secure_boot_sign_tool == SecureBootSignTool.auto and
         find_binary("pesign", root=context.config.tools()) is not None
     ):
         pesign_prepare(context)
-        with open(output, "wb") as f:
+        with tempfile.NamedTemporaryFile(dir=output.parent, prefix=output.name) as f:
+            os.chmod(f.name, stat.S_IMODE(input.stat().st_mode))
             run(
                 [
                     "pesign",
@@ -912,6 +917,8 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
                     ]
                 ),
             )
+            output.unlink(missing_ok=True)
+            os.link(f.name, output)
     else:
         die("One of sbsign or pesign is required to use SecureBoot=")
 
@@ -1129,9 +1136,9 @@ def install_shim(context: Context) -> None:
     find_and_install_shim_binary(context, "mok", signed, unsigned, dst.parent)
 
 
-def find_grub_bios_directory(context: Context) -> Optional[Path]:
-    for d in ("usr/lib/grub/i386-pc", "usr/share/grub2/i386-pc"):
-        if (p := context.root / d).exists() and any(p.iterdir()):
+def find_grub_directory(context: Context, *, target: str) -> Optional[Path]:
+    for d in ("usr/lib/grub", "usr/share/grub2"):
+        if (p := context.root / d / target).exists() and any(p.iterdir()):
             return p
 
     return None
@@ -1149,11 +1156,9 @@ def want_grub_efi(context: Context) -> bool:
     if context.config.bootloader != Bootloader.grub:
         return False
 
-    if not any((context.root / "efi").rglob("grub*.efi")):
-        if context.config.bootable == ConfigFeature.enabled:
-            die("A bootable EFI image with grub was requested but grub for EFI is not installed in /efi")
-
-        return False
+    have = find_grub_directory(context, target="x86_64-efi") is not None
+    if not have and context.config.bootable == ConfigFeature.enabled:
+        die("An EFI bootable image with grub was requested but grub for EFI is not installed")
 
     return True
 
@@ -1171,7 +1176,7 @@ def want_grub_bios(context: Context, partitions: Sequence[Partition] = ()) -> bo
     if context.config.overlay:
         return False
 
-    have = find_grub_bios_directory(context) is not None
+    have = find_grub_directory(context, target="i386-pc") is not None
     if not have and context.config.bootable == ConfigFeature.enabled:
         die("A BIOS bootable image with grub was requested but grub for BIOS is not installed")
 
@@ -1225,24 +1230,17 @@ def prepare_grub_config(context: Context) -> Optional[Path]:
     return config
 
 
-def grub_bios_install(context: Context, partitions: Sequence[Partition]) -> None:
-    if not want_grub_bios(context, partitions):
-        return
-
-    # grub-install insists on opening the root partition device to probe it's filesystem which requires root
-    # so we're forced to reimplement its functionality. Luckily that's pretty simple, run grub-mkimage to
-    # generate the required core.img and copy the relevant files to the ESP.
-
+def grub_mkimage(context: Context, *, target: str, modules: Sequence[str] = (), output: Optional[Path] = None) -> None:
     mkimage = find_grub_binary("mkimage", root=context.config.tools())
     assert mkimage
 
-    directory = find_grub_bios_directory(context)
+    directory = find_grub_directory(context, target=target)
     assert directory
 
-    dst = context.root / "efi" / context.config.distribution.grub_prefix() / "i386-pc"
-    dst.mkdir(parents=True, exist_ok=True)
-
-    with tempfile.NamedTemporaryFile("w", prefix="grub-early-config") as earlyconfig:
+    with (
+        complete_step(f"Generating grub image for {target}"),
+        tempfile.NamedTemporaryFile("w", prefix="grub-early-config") as earlyconfig
+    ):
         earlyconfig.write(
             textwrap.dedent(
                 f"""\
@@ -1260,15 +1258,16 @@ def grub_bios_install(context: Context, partitions: Sequence[Partition]) -> None
                 "--directory", directory,
                 "--config", earlyconfig.name,
                 "--prefix", f"/{context.config.distribution.grub_prefix()}",
-                "--output", dst / "core.img",
-                "--format", "i386-pc",
+                "--output", output or (directory / "core.img"),
+                "--format", target,
                 *(["--verbose"] if ARG_DEBUG.get() else []),
-                # Modules required to find and read from the XBOOTLDR partition which has all the other modules.
                 "fat",
                 "part_gpt",
-                "biosdisk",
                 "search",
                 "search_fs_file",
+                "normal",
+                "linux",
+                *modules,
             ],
             sandbox=context.sandbox(
                 options=[
@@ -1278,18 +1277,30 @@ def grub_bios_install(context: Context, partitions: Sequence[Partition]) -> None
             ),
         )
 
-    for p in directory.glob("*.mod"):
-        shutil.copy2(p, dst)
 
-    for p in directory.glob("*.lst"):
-        shutil.copy2(p, dst)
+def install_grub(context: Context) -> None:
+    if not want_grub_bios(context) and not want_grub_efi(context):
+        return
 
-    shutil.copy2(directory / "modinfo.sh", dst)
-    shutil.copy2(directory / "boot.img", dst)
+    if want_grub_bios(context):
+        grub_mkimage(context, target="i386-pc", modules=("biosdisk",))
+
+    if want_grub_efi(context):
+        if context.config.shim_bootloader != ShimBootloader.none:
+            output = context.root / shim_second_stage_binary(context)
+        else:
+            output = context.root / efi_boot_binary(context)
+
+        with umask(~0o700):
+            output.parent.mkdir(parents=True, exist_ok=True)
+
+        grub_mkimage(context, target="x86_64-efi", output=output, modules=("chain",))
+        if context.config.secure_boot:
+            sign_efi_binary(context, output, output)
 
     dst = context.root / "efi" / context.config.distribution.grub_prefix() / "fonts"
     with umask(~0o700):
-        dst.mkdir(exist_ok=True)
+        dst.mkdir(parents=True, exist_ok=True)
 
     for d in ("grub", "grub2"):
         unicode = context.root / "usr/share" / d / "unicode.pf2"
@@ -1304,8 +1315,11 @@ def grub_bios_setup(context: Context, partitions: Sequence[Partition]) -> None:
     setup = find_grub_binary("bios-setup", root=context.config.tools())
     assert setup
 
+    directory = find_grub_directory(context, target="i386-pc")
+    assert directory
+
     with (
-        complete_step("Installing grub boot loader…"),
+        complete_step("Installing grub boot loader for BIOS…"),
         tempfile.NamedTemporaryFile(mode="w") as mountinfo,
     ):
         # grub-bios-setup insists on being able to open the root device that --directory is located on, which
@@ -1322,7 +1336,7 @@ def grub_bios_setup(context: Context, partitions: Sequence[Partition]) -> None:
             [
                 "sh", "-c", f"mount --bind {mountinfo.name} /proc/$$/mountinfo && exec $0 \"$@\"",
                 setup,
-                "--directory", context.root / "efi" / context.config.distribution.grub_prefix() / "i386-pc",
+                "--directory", directory,
                 *(["--verbose"] if ARG_DEBUG.get() else []),
                 context.staging / context.config.output_with_format,
             ],
@@ -3312,6 +3326,7 @@ def build_image(context: Context) -> None:
         configure_clock(context)
 
         install_systemd_boot(context)
+        install_grub(context)
         install_shim(context)
         run_sysusers(context)
         run_tmpfiles(context)
@@ -3337,7 +3352,6 @@ def build_image(context: Context) -> None:
     normalize_mtime(context.root, context.config.source_date_epoch)
     partitions = make_disk(context, skip=("esp", "xbootldr"), tabs=True, msg="Generating disk image")
     install_kernel(context, partitions)
-    grub_bios_install(context, partitions)
     normalize_mtime(context.root, context.config.source_date_epoch, directory=Path("boot"))
     normalize_mtime(context.root, context.config.source_date_epoch, directory=Path("efi"))
     partitions = make_disk(context, msg="Formatting ESP/XBOOTLDR partitions")
