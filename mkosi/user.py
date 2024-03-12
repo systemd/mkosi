@@ -135,14 +135,14 @@ def become_root() -> None:
         # generated files are owned by that user. We don't map to the last user in the range as the last user
         # is sometimes used in tests as a default value and mapping to that user might break those tests.
         newuidmap = [
-            "flock", "--exclusive", "--no-fork", lock, "newuidmap", pid,
+            "flock", "--exclusive", "--close", lock, "newuidmap", pid,
             0, subuid, SUBRANGE - 100,
             SUBRANGE - 100, os.getuid(), 1,
             SUBRANGE - 100 + 1, subuid + SUBRANGE - 100 + 1, 99
         ]
 
         newgidmap = [
-            "flock", "--exclusive", "--no-fork", lock, "newgidmap", pid,
+            "flock", "--exclusive", "--close", lock, "newgidmap", pid,
             0, subgid, SUBRANGE - 100,
             SUBRANGE - 100, os.getgid(), 1,
             SUBRANGE - 100 + 1, subgid + SUBRANGE - 100 + 1, 99
