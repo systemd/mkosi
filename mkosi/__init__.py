@@ -53,7 +53,7 @@ from mkosi.context import Context
 from mkosi.distributions import Distribution
 from mkosi.installer import clean_package_manager_metadata
 from mkosi.kmod import gen_required_kernel_modules, process_kernel_modules
-from mkosi.log import ARG_DEBUG, complete_step, die, log_notice, log_step
+from mkosi.log import complete_step, die, log_notice, log_step
 from mkosi.manifest import Manifest
 from mkosi.mounts import finalize_source_mounts, mount_overlay
 from mkosi.pager import page
@@ -1266,7 +1266,6 @@ def grub_mkimage(context: Context, *, target: str, modules: Sequence[str] = (), 
                 "--prefix", f"/{context.config.distribution.grub_prefix()}",
                 "--output", output or (directory / "core.img"),
                 "--format", target,
-                *(["--verbose"] if ARG_DEBUG.get() else []),
                 "fat",
                 "part_gpt",
                 "search",
@@ -1343,7 +1342,6 @@ def grub_bios_setup(context: Context, partitions: Sequence[Partition]) -> None:
                 "sh", "-c", f"mount --bind {mountinfo.name} /proc/$$/mountinfo && exec $0 \"$@\"",
                 setup,
                 "--directory", directory,
-                *(["--verbose"] if ARG_DEBUG.get() else []),
                 context.staging / context.config.output_with_format,
             ],
             sandbox=context.sandbox(
