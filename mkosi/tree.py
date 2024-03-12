@@ -26,8 +26,10 @@ def is_subvolume(path: Path, *, sandbox: SandboxProtocol = nosandbox) -> bool:
     return path.is_dir() and statfs(path, sandbox=sandbox) == "btrfs" and path.stat().st_ino == 256
 
 
-def cp_version() -> GenericVersion:
-    return GenericVersion(run(["cp", "--version"], stdout=subprocess.PIPE).stdout.splitlines()[0].split()[3])
+def cp_version(*, sandbox: SandboxProtocol = nosandbox) -> GenericVersion:
+    return GenericVersion(
+        run(["cp", "--version"], sandbox=sandbox(), stdout=subprocess.PIPE).stdout.splitlines()[0].split()[3]
+    )
 
 
 def make_tree(
@@ -100,7 +102,7 @@ def copy_tree(
         "--copy-contents",
         src, dst,
     ]
-    if cp_version() >= "9.5":
+    if cp_version(sandbox=sandbox) >= "9.5":
         copy += ["--keep-directory-symlink"]
 
     options: list[PathString] = ["--ro-bind", src, src, "--bind", dst.parent, dst.parent]

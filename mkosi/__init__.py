@@ -3241,7 +3241,7 @@ def copy_repository_metadata(context: Context) -> None:
             with umask(~0o755):
                 dst.mkdir(parents=True, exist_ok=True)
 
-            def sandbox(*, options: Sequence[PathString]) -> list[PathString]:
+            def sandbox(*, options: Sequence[PathString] = ()) -> list[PathString]:
                 return context.sandbox(options=[*options, *exclude])
 
             with flock(src):

@@ -13,10 +13,10 @@ from mkosi.util import flatten, one_zero, startswith
 
 
 class SandboxProtocol(Protocol):
-    def __call__(self, *, options: Sequence[PathString]) -> list[PathString]: ...
+    def __call__(self, *, options: Sequence[PathString] = ()) -> list[PathString]: ...
 
 
-def nosandbox(*, options: Sequence[PathString]) -> list[PathString]:
+def nosandbox(*, options: Sequence[PathString] = ()) -> list[PathString]:
     return []
 
 
