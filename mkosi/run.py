@@ -164,9 +164,6 @@ def run(
     if "TMPDIR" in os.environ:
         env["TMPDIR"] = os.environ["TMPDIR"]
 
-    if ARG_DEBUG.get():
-        env["SYSTEMD_LOG_LEVEL"] = "debug"
-
     if "HOME" not in env:
         env["HOME"] = "/"
 
