@@ -51,12 +51,8 @@ def test_format(config: Image.Config, format: OutputFormat) -> None:
             args = ["systemd.mask=systemd-resolved.service"] if format == OutputFormat.directory else []
             image.boot(options=options, args=args)
 
-        if (
-            image.config.distribution == Distribution.ubuntu and
-            format in (OutputFormat.cpio, OutputFormat.uki, OutputFormat.esp)
-        ):
-            # https://bugs.launchpad.net/ubuntu/+source/linux-kvm/+bug/2045561
-            pytest.skip("Cannot boot Ubuntu UKI/cpio images in qemu until we switch back to linux-kvm")
+        if format in (OutputFormat.cpio, OutputFormat.uki, OutputFormat.esp):
+            pytest.skip("Default image is too large to be able to boot in CPIO/UKI/ESP format")
 
         if image.config.distribution == Distribution.rhel_ubi:
             return
