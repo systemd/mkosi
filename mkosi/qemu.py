@@ -73,10 +73,10 @@ class QemuDeviceNode(StrEnum):
         try:
             os.close(self.open())
         except OSError as e:
-            if e.errno not in (errno.ENOENT, errno.EPERM, errno.EACCES):
+            if e.errno not in (errno.ENOENT, errno.ENODEV, errno.EPERM, errno.EACCES):
                 raise e
 
-            if log and e.errno == errno.ENOENT:
+            if log and e.errno in (errno.ENOENT, errno.ENODEV):
                 logging.warning(f"{self.device()} not found. Not adding {self.description()} to the virtual machine.")
 
             if log and e.errno in (errno.EPERM, errno.EACCES):
