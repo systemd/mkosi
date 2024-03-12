@@ -2659,23 +2659,25 @@ def run_tmpfiles(context: Context) -> None:
             *(f"--exclude-prefix={d}" for d in ("/tmp", "/var/tmp", "/run", "/proc", "/sys", "/dev")),
         ]
 
+        sandbox = context.sandbox(
+            options=[
+                "--bind", context.root, context.root,
+                # systemd uses acl.h to parse ACLs in tmpfiles snippets which uses the host's passwd so we have to
+                # mount the image's passwd over it to make ACL parsing work.
+                *finalize_passwd_mounts(context.root)
+            ],
+        )
+
         result = run(
             cmdline,
-            sandbox=context.sandbox(
-                options=[
-                    "--bind", context.root, context.root,
-                    # systemd uses acl.h to parse ACLs in tmpfiles snippets which uses the host's passwd so we have to
-                    # mount the image's passwd over it to make ACL parsing work.
-                    *finalize_passwd_mounts(context.root)
-                ],
-            ),
+            sandbox=sandbox,
             env={"SYSTEMD_TMPFILES_FORCE_SUBVOL": "0"},
             check=False,
         )
         # systemd-tmpfiles can exit with DATAERR or CANTCREAT in some cases which are handled as success by the
         # systemd-tmpfiles service so we handle those as success as well.
         if result.returncode not in (0, 65, 73):
-            log_process_failure(cmdline, result.returncode)
+            log_process_failure([str(s) for s in sandbox], cmdline, result.returncode)
             raise subprocess.CalledProcessError(result.returncode, cmdline)
 
 

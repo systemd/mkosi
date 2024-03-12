@@ -120,11 +120,14 @@ def sigkill_to_sigterm() -> Iterator[None]:
         signal.SIGKILL = old
 
 
-def log_process_failure(cmdline: Sequence[str], returncode: int) -> None:
+def log_process_failure(sandbox: Sequence[str], cmdline: Sequence[str], returncode: int) -> None:
     if returncode < 0:
         logging.error(f"Interrupted by {signal.Signals(-returncode).name} signal")
     else:
-        logging.error(f"\"{shlex.join(cmdline)}\" returned non-zero exit code {returncode}.")
+        logging.error(
+            f"\"{shlex.join([*sandbox, *cmdline] if ARG_DEBUG.get() else cmdline)}\" returned non-zero exit code "
+            f" {returncode}."
+        )
 
 
 def run(
@@ -146,7 +149,7 @@ def run(
     cmdline = [os.fspath(x) for x in cmdline]
 
     if ARG_DEBUG.get():
-        logging.info(f"+ {shlex.join(sandbox + cmdline)}")
+        logging.info(f"+ {shlex.join(cmdline)}")
 
     if not stdout and not stderr:
         # Unless explicit redirection is done, print all subprocess
@@ -207,7 +210,7 @@ def run(
         die(f"{e.filename} not found.")
     except subprocess.CalledProcessError as e:
         if log:
-            log_process_failure(cmdline, e.returncode)
+            log_process_failure(sandbox, cmdline, e.returncode)
         if ARG_DEBUG_SHELL.get():
             subprocess.run(
                 [*sandbox, "bash"],
@@ -246,7 +249,7 @@ def spawn(
     cmdline = [os.fspath(x) for x in cmdline]
 
     if ARG_DEBUG.get():
-        logging.info(f"+ {shlex.join(sandbox + cmdline)}")
+        logging.info(f"+ {shlex.join(cmdline)}")
 
     if not stdout and not stderr:
         # Unless explicit redirection is done, print all subprocess
@@ -292,7 +295,7 @@ def spawn(
         die(f"{e.filename} not found.")
     except subprocess.CalledProcessError as e:
         if log:
-            log_process_failure(cmdline, e.returncode)
+            log_process_failure(sandbox, cmdline, e.returncode)
         raise e
     finally:
         if foreground:
