@@ -146,8 +146,10 @@ def copy_tree(
 
 def rmtree(*paths: Path, sandbox: SandboxProtocol = nosandbox) -> None:
     if paths:
+        parents = sorted(set(p.parent for p in paths))
+        parents = {p for p in parents if all(p == q or not p.is_relative_to(q) for q in parents)}
         run(["rm", "-rf", "--", *paths],
-            sandbox=sandbox(options=flatten(["--bind", p.parent, p.parent] for p in paths)))
+            sandbox=sandbox(options=flatten(["--bind", p, p] for p in parents)))
 
 
 def move_tree(
