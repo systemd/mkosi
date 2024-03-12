@@ -10,5 +10,3 @@ SuccessActionExitStatus=123
 [Service]
 Type=oneshot
 ExecStart=/usr/lib/systemd/mkosi-check-and-shutdown.sh
-StandardOutput=journal+console
-StandardError=journal+console
