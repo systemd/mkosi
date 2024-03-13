@@ -107,4 +107,4 @@ def run_vmspawn(args: Args, config: Config) -> None:
 
         cmdline += [*args.cmdline, *kcl]
 
-        run(cmdline, stdin=sys.stdin, stdout=sys.stdout, env=os.environ, log=False)
+        run(cmdline, stdin=sys.stdin, stdout=sys.stdout, env=os.environ | config.environment, log=False)

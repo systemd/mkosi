@@ -3569,7 +3569,7 @@ def run_shell(args: Args, config: Config) -> None:
             cmdline,
             stdin=sys.stdin,
             stdout=sys.stdout,
-            env=os.environ,
+            env=os.environ | config.environment,
             log=False,
             sandbox=config.sandbox(devices=True, network=True, relaxed=True),
         )
@@ -3601,7 +3601,7 @@ def run_systemd_tool(tool: str, args: Args, config: Config) -> None:
         ],
         stdin=sys.stdin,
         stdout=sys.stdout,
-        env=os.environ,
+        env=os.environ | config.environment,
         log=False,
         preexec_fn=become_root,
         sandbox=config.sandbox(network=True, devices=config.output_format == OutputFormat.disk, relaxed=True),

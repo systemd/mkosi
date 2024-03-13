@@ -856,7 +856,7 @@ def run_qemu(args: Args, config: Config) -> None:
             stdin=sys.stdin,
             stdout=sys.stdout,
             pass_fds=qemu_device_fds.values(),
-            env=os.environ,
+            env=os.environ | config.environment,
             log=False,
             foreground=True,
             sandbox=config.sandbox(network=True, devices=True, relaxed=True),
@@ -902,7 +902,7 @@ def run_ssh(args: Args, config: Config) -> None:
         cmd,
         stdin=sys.stdin,
         stdout=sys.stdout,
-        env=os.environ,
+        env=os.environ | config.environment,
         log=False,
         sandbox=config.sandbox(network=True, devices=True, relaxed=True),
     )
