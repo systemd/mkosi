@@ -1565,7 +1565,7 @@ class Config:
             relaxed=relaxed,
             scripts=scripts,
             tools=self.tools(),
-            options=[*options, *mounts],
+            options=[*mounts, *options],
         )
 
 
