@@ -620,7 +620,7 @@ def run_qemu(args: Args, config: Config) -> None:
     elif config.runtime_network == Network.none:
         cmdline += ["-nic", "none"]
 
-    if config.qemu_kvm != ConfigFeature.disabled and have_kvm and config.architecture.is_native():
+    if config.qemu_kvm != ConfigFeature.disabled and have_kvm and config.architecture.can_kvm():
         accel = "kvm"
         if qemu_version(config) >= QEMU_KVM_DEVICE_VERSION:
             cmdline += ["--add-fd", f"fd={qemu_device_fds[QemuDeviceNode.kvm]},set=1,opaque=/dev/kvm"]

@@ -396,6 +396,12 @@ class Architecture(StrEnum):
     def supports_smm(self) -> bool:
         return self.is_x86_variant()
 
+    def can_kvm(self) -> bool:
+        return (
+            self == Architecture.native() or
+            (Architecture.native() == Architecture.x86_64 and self == Architecture.x86)
+        )
+
     def default_qemu_machine(self) -> str:
         m = {
             Architecture.x86      : "q35",
