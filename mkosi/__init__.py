@@ -4023,7 +4023,7 @@ def sync_repository_metadata(context: Context) -> None:
 
 def run_sync(args: Args, config: Config, *, resources: Path) -> None:
     if os.getuid() == 0:
-        os.setgroups([INVOKING_USER.gid])
+        os.setgroups(os.getgrouplist(INVOKING_USER.name(), INVOKING_USER.gid))
         os.setgid(INVOKING_USER.gid)
         os.setuid(INVOKING_USER.uid)
 
