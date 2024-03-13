@@ -13,10 +13,10 @@ from mkosi.util import flatten, one_zero, startswith
 
 
 class SandboxProtocol(Protocol):
-    def __call__(self, *, options: Sequence[PathString]) -> list[PathString]: ...
+    def __call__(self, *, options: Sequence[PathString] = ()) -> list[PathString]: ...
 
 
-def nosandbox(*, options: Sequence[PathString]) -> list[PathString]:
+def nosandbox(*, options: Sequence[PathString] = ()) -> list[PathString]:
     return []
 
 
@@ -215,7 +215,7 @@ def apivfs_cmd(root: Path) -> list[PathString]:
     ]
 
 
-def chroot_cmd(root: Path, *, resolve: bool = False, options: Sequence[PathString] = ()) -> list[PathString]:
+def chroot_cmd(root: Path, *, resolve: bool = False) -> list[PathString]:
     return apivfs_cmd(root) + [
         "sh", "-c",
         f"trap 'rm -rf {root / 'work'}' EXIT && "
@@ -232,7 +232,9 @@ def chroot_cmd(root: Path, *, resolve: bool = False, options: Sequence[PathStrin
         "--setenv", "HOME", "/",
         "--setenv", "PATH", "/work/scripts:/usr/bin:/usr/sbin",
         *(["--ro-bind-try", "/etc/resolv.conf", "/etc/resolv.conf"] if resolve else []),
-        *options,
+        "--bind", "/work", "/work",
+        "--chdir", "/work/src",
+        "--setenv", "BUILDROOT", "/",
         # Start an interactive bash shell if we're not given any arguments.
         "sh", "-c", '[ "$0" = "sh" ] && [ $# -eq 0 ] && exec bash -i || exec $0 "$@"',
     ]

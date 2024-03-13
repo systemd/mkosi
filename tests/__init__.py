@@ -10,6 +10,7 @@ from typing import Any, NamedTuple, Optional
 
 import pytest
 
+from mkosi.config import Architecture, finalize_term
 from mkosi.distributions import Distribution
 from mkosi.run import run
 from mkosi.types import _FILE, CompletedProcess, PathString
@@ -52,13 +53,16 @@ class Image:
         check: bool = True,
     ) -> CompletedProcess:
         kcl = [
-            "console=ttyS0",
+            f"console={Architecture.native().default_serial_tty()}",
+            f"TERM={finalize_term()}",
+            "loglevel=6",
             "systemd.crash_shell",
             "systemd.log_level=debug",
             "udev.log_level=info",
             "systemd.log_ratelimit_kmsg=0",
+            "systemd.show_status=false",
             "systemd.journald.forward_to_console",
-            "systemd.journald.max_level_console=warning",
+            "systemd.journald.max_level_console=info",
             "printk.devkmsg=on",
             "systemd.early_core_pattern=/core",
         ]

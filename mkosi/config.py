@@ -21,6 +21,7 @@ import shlex
 import shutil
 import string
 import subprocess
+import sys
 import tempfile
 import textwrap
 import uuid
@@ -248,10 +249,14 @@ class Cacheonly(StrEnum):
 
 
 class QemuFirmware(StrEnum):
-    auto   = enum.auto()
-    linux  = enum.auto()
-    uefi   = enum.auto()
-    bios   = enum.auto()
+    auto             = enum.auto()
+    linux            = enum.auto()
+    uefi             = enum.auto()
+    uefi_secure_boot = enum.auto()
+    bios             = enum.auto()
+
+    def is_uefi(self) -> bool:
+        return self in (QemuFirmware.uefi, QemuFirmware.uefi_secure_boot)
 
 
 class Network(StrEnum):
@@ -383,7 +388,7 @@ class Architecture(StrEnum):
         if self.is_x86_variant():
             return True
 
-        return self.is_arm_variant() and firmware == QemuFirmware.uefi
+        return self.is_arm_variant() and firmware.is_uefi()
 
     def supports_fw_cfg(self) -> bool:
         return self.is_x86_variant() or self.is_arm_variant()
@@ -2688,7 +2693,7 @@ SETTINGS = (
         dest="qemu_firmware_variables",
         metavar="PATH",
         section="Host",
-        parse=config_make_path_parser(),
+        parse=config_make_path_parser(constants=("custom", "microsoft")),
         help="Set the path to the qemu firmware variables file to use",
     ),
     ConfigSetting(
@@ -3381,15 +3386,24 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
     return creds
 
 
+def finalize_term() -> str:
+    if not (term := os.getenv("TERM")) or term == "unknown":
+        term = "vt220" if sys.stderr.isatty() else "dumb"
+
+    return term
+
+
 def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
     tty = args.architecture.default_serial_tty()
     columns, lines = shutil.get_terminal_size()
+    term = finalize_term()
+
     cmdline = [
         # Make sure we set up networking in the VM/container.
         "systemd.wants=network.target",
         # Make sure we don't load vmw_vmci which messes with virtio vsock.
         "module_blacklist=vmw_vmci",
-        f"systemd.tty.term.{tty}={os.getenv('TERM', 'vt220')}",
+        f"systemd.tty.term.{tty}={term}",
         f"systemd.tty.columns.{tty}={columns}",
         f"systemd.tty.rows.{tty}={lines}",
     ]
@@ -3408,12 +3422,12 @@ def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
         cmdline += ["systemd.volatile=yes"]
 
     if not args.qemu_gui:
-        columns, lines = shutil.get_terminal_size()
         cmdline += [
-            f"systemd.tty.term.console={os.getenv('TERM', 'vt220')}",
+            f"systemd.tty.term.console={term}",
             f"systemd.tty.columns.console={columns}",
             f"systemd.tty.rows.console={lines}",
             f"console={tty}",
+            f"TERM={term}",
         ]
 
     for s in args.kernel_command_line_extra:
@@ -3430,6 +3444,7 @@ def load_environment(args: argparse.Namespace) -> dict[str, str]:
         "SYSTEMD_TMPFILES_FORCE_SUBVOL": "0",
         "KERNEL_INSTALL_BYPASS": "1",
         "SYSTEMD_HWDB_UPDATE_BYPASS": "1",
+        "TERM": finalize_term(),
     }
 
     if args.image_id is not None:

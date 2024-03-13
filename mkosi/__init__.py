@@ -53,7 +53,7 @@ from mkosi.context import Context
 from mkosi.distributions import Distribution
 from mkosi.installer import clean_package_manager_metadata
 from mkosi.kmod import gen_required_kernel_modules, process_kernel_modules
-from mkosi.log import ARG_DEBUG, complete_step, die, log_notice, log_step
+from mkosi.log import complete_step, die, log_notice, log_step
 from mkosi.manifest import Manifest
 from mkosi.mounts import finalize_source_mounts, mount_overlay
 from mkosi.pager import page
@@ -499,15 +499,7 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
             arg = "final"
 
         for script in context.config.prepare_scripts:
-            chroot = chroot_cmd(
-                context.root,
-                resolve=True,
-                options=[
-                    "--bind", "/work", "/work",
-                    "--chdir", "/work/src",
-                    "--setenv", "BUILDROOT", "/",
-                ],
-            )
+            chroot = chroot_cmd(context.root, resolve=True)
 
             helpers = {
                 "mkosi-chroot": chroot,
@@ -577,16 +569,7 @@ def run_build_scripts(context: Context) -> None:
         finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources,
     ):
         for script in context.config.build_scripts:
-            chroot = chroot_cmd(
-                context.root,
-                resolve=context.config.with_network,
-                options=[
-                    "--bind", "/work", "/work",
-                    "--chdir", "/work/src",
-                    "--setenv", "BUILDROOT", "/",
-                    *(["--setenv", "BUILDDIR", "/work/build"] if context.config.build_dir else []),
-                ],
-            )
+            chroot = chroot_cmd(context.root, resolve=context.config.with_network)
 
             helpers = {
                 "mkosi-chroot": chroot,
@@ -657,15 +640,7 @@ def run_postinst_scripts(context: Context) -> None:
         finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources,
     ):
         for script in context.config.postinst_scripts:
-            chroot = chroot_cmd(
-                context.root,
-                resolve=context.config.with_network,
-                options=[
-                    "--bind", "/work", "/work",
-                    "--chdir", "/work/src",
-                    "--setenv", "BUILDROOT", "/",
-                ],
-            )
+            chroot = chroot_cmd(context.root, resolve=context.config.with_network)
 
             helpers = {
                 "mkosi-chroot": chroot,
@@ -724,15 +699,7 @@ def run_finalize_scripts(context: Context) -> None:
         finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources,
     ):
         for script in context.config.finalize_scripts:
-            chroot = chroot_cmd(
-                context.root,
-                resolve=context.config.with_network,
-                options=[
-                    "--bind", "/work", "/work",
-                    "--chdir", "/work/src",
-                    "--setenv", "BUILDROOT", "/",
-                ],
-            )
+            chroot = chroot_cmd(context.root, resolve=context.config.with_network)
 
             helpers = {
                 "mkosi-chroot": chroot,
@@ -947,13 +914,14 @@ def install_systemd_boot(context: Context) -> None:
         return
 
     directory = context.root / "usr/lib/systemd/boot/efi"
-    if not directory.exists() or not any(directory.iterdir()):
+    signed = context.config.shim_bootloader == ShimBootloader.signed
+    if not directory.glob("*.efi.signed" if signed else "*.efi"):
         if context.config.bootable == ConfigFeature.enabled:
-            die("A EFI bootable image with systemd-boot was requested but systemd-boot was not found at "
-                f"{directory.relative_to(context.root)}")
+            die(f"An EFI bootable image with systemd-boot was requested but a {'signed ' if signed else ''}"
+                f"systemd-boot binary was not found at {directory.relative_to(context.root)}")
         return
 
-    if context.config.secure_boot:
+    if context.config.secure_boot and not signed:
         with complete_step("Signing systemd-boot binaries…"):
             for input in itertools.chain(directory.glob('*.efi'), directory.glob('*.EFI')):
                 output = directory / f"{input}.signed"
@@ -1162,9 +1130,10 @@ def want_grub_efi(context: Context) -> bool:
     if context.config.bootloader != Bootloader.grub:
         return False
 
-    have = find_grub_directory(context, target="x86_64-efi") is not None
-    if not have and context.config.bootable == ConfigFeature.enabled:
-        die("An EFI bootable image with grub was requested but grub for EFI is not installed")
+    if context.config.shim_bootloader != ShimBootloader.signed:
+        have = find_grub_directory(context, target="x86_64-efi") is not None
+        if not have and context.config.bootable == ConfigFeature.enabled:
+            die("An EFI bootable image with grub was requested but grub for EFI is not installed")
 
     return True
 
@@ -1224,9 +1193,13 @@ def prepare_grub_config(context: Context) -> Optional[Path]:
             f.write("set timeout=0\n")
 
     if want_grub_efi(context):
-        # Signed EFI grub shipped by distributions reads its configuration from /EFI/<distribution>/grub.cfg in
-        # the ESP so let's put a shim there to redirect to the actual configuration file.
-        earlyconfig = context.root / "efi/EFI" / context.config.distribution.name / "grub.cfg"
+        # Signed EFI grub shipped by distributions reads its configuration from /EFI/<distribution>/grub.cfg (except
+        # in OpenSUSE) in the ESP so let's put a shim there to redirect to the actual configuration file.
+        if context.config.distribution == Distribution.opensuse:
+            earlyconfig = context.root / "efi/EFI/BOOT/grub.cfg"
+        else:
+            earlyconfig = context.root / "efi/EFI" / context.config.distribution.name / "grub.cfg"
+
         with umask(~0o700):
             earlyconfig.parent.mkdir(parents=True, exist_ok=True)
 
@@ -1236,7 +1209,14 @@ def prepare_grub_config(context: Context) -> Optional[Path]:
     return config
 
 
-def grub_mkimage(context: Context, *, target: str, modules: Sequence[str] = (), output: Optional[Path] = None) -> None:
+def grub_mkimage(
+    context: Context,
+    *,
+    target: str,
+    modules: Sequence[str] = (),
+    output: Optional[Path] = None,
+    sbat: Optional[Path] = None,
+) -> None:
     mkimage = find_grub_binary("mkimage", root=context.config.tools())
     assert mkimage
 
@@ -1266,22 +1246,58 @@ def grub_mkimage(context: Context, *, target: str, modules: Sequence[str] = (), 
                 "--prefix", f"/{context.config.distribution.grub_prefix()}",
                 "--output", output or (directory / "core.img"),
                 "--format", target,
-                *(["--verbose"] if ARG_DEBUG.get() else []),
+                *(["--sbat", str(sbat)] if sbat else []),
+                *(["--disable-shim-lock"] if context.config.shim_bootloader == ShimBootloader.none else []),
+                "cat",
+                "cmp",
+                "div",
+                "echo",
                 "fat",
-                "part_gpt",
-                "search",
-                "search_fs_file",
-                "normal",
+                "hello",
+                "help",
+                "keylayouts",
                 "linux",
+                "loadenv",
+                "ls",
+                "normal",
+                "part_gpt",
+                "read",
+                "reboot",
+                "search_fs_file",
+                "search",
+                "sleep",
+                "test",
+                "tr",
+                "true",
                 *modules,
             ],
             sandbox=context.sandbox(
                 options=[
                     "--bind", context.root, context.root,
                     "--ro-bind", earlyconfig.name, earlyconfig.name,
+                    *(["--ro-bind", str(sbat), str(sbat)] if sbat else []),
                 ],
             ),
         )
+
+
+def find_signed_grub_image(context: Context) -> Optional[Path]:
+    arch = context.config.architecture.to_efi()
+
+    patterns = [
+        f"usr/lib/grub/*-signed/grub{arch}.efi.signed", # Debian/Ubuntu
+        f"boot/efi/EFI/*/grub{arch}.efi", # Fedora/CentOS
+        "usr/share/efi/*/grub.efi", # OpenSUSE
+    ]
+
+    for p in flatten(context.root.glob(pattern) for pattern in patterns):
+        if p.is_symlink() and p.readlink().is_absolute():
+            logging.warning(f"Ignoring signed grub EFI binary which is an absolute path to {p.readlink()}")
+            continue
+
+        return p
+
+    return None
 
 
 def install_grub(context: Context) -> None:
@@ -1300,9 +1316,28 @@ def install_grub(context: Context) -> None:
         with umask(~0o700):
             output.parent.mkdir(parents=True, exist_ok=True)
 
-        grub_mkimage(context, target="x86_64-efi", output=output, modules=("chain",))
-        if context.config.secure_boot:
-            sign_efi_binary(context, output, output)
+        if context.config.shim_bootloader == ShimBootloader.signed:
+            if not (signed := find_signed_grub_image(context)):
+                if context.config.bootable == ConfigFeature.enabled:
+                    die("Couldn't find a signed grub EFI binary installed in the image")
+
+                return
+
+            rel = output.relative_to(context.root)
+            log_step(f"Installing signed grub EFI binary from /{signed.relative_to(context.root)} to /{rel}")
+            shutil.copy2(signed, output)
+        else:
+            if context.config.secure_boot and context.config.shim_bootloader != ShimBootloader.none:
+                if not (signed := find_signed_grub_image(context)):
+                    die("Couldn't find a signed grub EFI binary installed in the image to extract SBAT from")
+
+                sbat = extract_pe_section(context, signed, ".sbat", context.workspace / "sbat")
+            else:
+                sbat = None
+
+            grub_mkimage(context, target="x86_64-efi", output=output, modules=("chain",), sbat=sbat)
+            if context.config.secure_boot:
+                sign_efi_binary(context, output, output)
 
     dst = context.root / "efi" / context.config.distribution.grub_prefix() / "fonts"
     with umask(~0o700):
@@ -1343,7 +1378,6 @@ def grub_bios_setup(context: Context, partitions: Sequence[Partition]) -> None:
                 "sh", "-c", f"mount --bind {mountinfo.name} /proc/$$/mountinfo && exec $0 \"$@\"",
                 setup,
                 "--directory", directory,
-                *(["--verbose"] if ARG_DEBUG.get() else []),
                 context.staging / context.config.output_with_format,
             ],
             sandbox=context.sandbox(
@@ -1789,7 +1823,7 @@ def python_binary(config: Config) -> str:
     return "python3" if config.tools_tree else os.getenv("MKOSI_INTERPRETER", "python3")
 
 
-def extract_pe_section(context: Context, binary: Path, section: str, output: Path) -> None:
+def extract_pe_section(context: Context, binary: Path, section: str, output: Path) -> Path:
     # When using a tools tree, we want to use the pefile module from the tools tree instead of requiring that
     # python-pefile is installed on the host. So we execute python as a subprocess to make sure we load
     # pefile from the tools tree if one is used.
@@ -1813,6 +1847,8 @@ def extract_pe_section(context: Context, binary: Path, section: str, output: Pat
             stdout=f,
             sandbox=context.sandbox(options=["--ro-bind", binary, binary])
         )
+
+    return output
 
 
 def want_signed_pcrs(config: Config) -> bool:
@@ -2018,6 +2054,7 @@ def install_type1(
         if (
             want_efi(context.config) and
             context.config.secure_boot and
+            context.config.shim_bootloader != ShimBootloader.signed and
             KernelType.identify(context.config, kimg) == KernelType.pe
         ):
             kimg = sign_efi_binary(context, kimg, dst / "vmlinuz")
@@ -2098,29 +2135,40 @@ def install_uki(context: Context, kver: str, kimg: Path, token: str, partitions:
         else:
             boot_binary = context.root / f"boot/EFI/Linux/{token}-{kver}{boot_count}.efi"
 
-    microcode = build_microcode_initrd(context)
-
-    initrds = [microcode] if microcode else []
-    initrds += context.config.initrds or [build_default_initrd(context)]
-
-    if context.config.kernel_modules_initrd:
-        initrds += [build_kernel_modules_initrd(context, kver)]
-
     # Make sure the parent directory where we'll be writing the UKI exists.
     with umask(~0o700):
         boot_binary.parent.mkdir(parents=True, exist_ok=True)
 
-    build_uki(
-        context,
-        systemd_stub_binary(context),
-        kver,
-        context.root / kimg,
-        initrds,
-        finalize_cmdline(context, roothash),
-        boot_binary,
-    )
+    if context.config.shim_bootloader == ShimBootloader.signed:
+        for p in (context.root / "usr/lib/modules" / kver).glob("*.efi"):
+            log_step(f"Installing prebuilt UKI at {p} to {boot_binary}")
+            shutil.copy2(p, boot_binary)
+            break
+        else:
+            if context.config.bootable == ConfigFeature.enabled:
+                die(f"Couldn't find a signed UKI binary installed at /usr/lib/modules/{kver} in the image")
 
-    print_output_size(boot_binary)
+            return
+    else:
+        microcode = build_microcode_initrd(context)
+
+        initrds = [microcode] if microcode else []
+        initrds += context.config.initrds or [build_default_initrd(context)]
+
+        if context.config.kernel_modules_initrd:
+            initrds += [build_kernel_modules_initrd(context, kver)]
+
+        build_uki(
+            context,
+            systemd_stub_binary(context),
+            kver,
+            context.root / kimg,
+            initrds,
+            finalize_cmdline(context, roothash),
+            boot_binary,
+        )
+
+        print_output_size(boot_binary)
 
     if want_grub_efi(context):
         config = prepare_grub_config(context)
@@ -2694,23 +2742,25 @@ def run_tmpfiles(context: Context) -> None:
             *(f"--exclude-prefix={d}" for d in ("/tmp", "/var/tmp", "/run", "/proc", "/sys", "/dev")),
         ]
 
+        sandbox = context.sandbox(
+            options=[
+                "--bind", context.root, context.root,
+                # systemd uses acl.h to parse ACLs in tmpfiles snippets which uses the host's passwd so we have to
+                # mount the image's passwd over it to make ACL parsing work.
+                *finalize_passwd_mounts(context.root)
+            ],
+        )
+
         result = run(
             cmdline,
-            sandbox=context.sandbox(
-                options=[
-                    "--bind", context.root, context.root,
-                    # systemd uses acl.h to parse ACLs in tmpfiles snippets which uses the host's passwd so we have to
-                    # mount the image's passwd over it to make ACL parsing work.
-                    *finalize_passwd_mounts(context.root)
-                ],
-            ),
+            sandbox=sandbox,
             env={"SYSTEMD_TMPFILES_FORCE_SUBVOL": "0"},
             check=False,
         )
         # systemd-tmpfiles can exit with DATAERR or CANTCREAT in some cases which are handled as success by the
         # systemd-tmpfiles service so we handle those as success as well.
         if result.returncode not in (0, 65, 73):
-            log_process_failure(cmdline, result.returncode)
+            log_process_failure([str(s) for s in sandbox], cmdline, result.returncode)
             raise subprocess.CalledProcessError(result.returncode, cmdline)
 
 
@@ -3276,7 +3326,7 @@ def copy_repository_metadata(context: Context) -> None:
             with umask(~0o755):
                 dst.mkdir(parents=True, exist_ok=True)
 
-            def sandbox(*, options: Sequence[PathString]) -> list[PathString]:
+            def sandbox(*, options: Sequence[PathString] = ()) -> list[PathString]:
                 return context.sandbox(options=[*options, *exclude])
 
             with flock(src):
@@ -3604,7 +3654,7 @@ def run_shell(args: Args, config: Config) -> None:
             cmdline,
             stdin=sys.stdin,
             stdout=sys.stdout,
-            env=os.environ,
+            env=os.environ | config.environment,
             log=False,
             sandbox=config.sandbox(devices=True, network=True, relaxed=True),
         )
@@ -3636,7 +3686,7 @@ def run_systemd_tool(tool: str, args: Args, config: Config) -> None:
         ],
         stdin=sys.stdin,
         stdout=sys.stdout,
-        env=os.environ,
+        env=os.environ | config.environment,
         log=False,
         preexec_fn=become_root,
         sandbox=config.sandbox(network=True, devices=config.output_format == OutputFormat.disk, relaxed=True),

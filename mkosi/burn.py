@@ -35,7 +35,7 @@ def run_burn(args: Args, config: Config) -> None:
             cmd,
             stdin=sys.stdin,
             stdout=sys.stdout,
-            env=os.environ,
+            env=os.environ | config.environment,
             log=False,
             sandbox=config.sandbox(devices=True, network=True, relaxed=True),
         )
