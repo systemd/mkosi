@@ -159,7 +159,7 @@ def run(
 
     env = {
         "PATH": os.environ["PATH"],
-        "TERM": env.get("TERM") or os.getenv("TERM", "vt220"),
+        "TERM": os.getenv("TERM", "vt220"),
         "LANG": "C.UTF-8",
         **env,
     }
@@ -259,7 +259,7 @@ def spawn(
 
     env = {
         "PATH": os.environ["PATH"],
-        "TERM": env.get("TERM") or os.getenv("TERM", "vt220"),
+        "TERM": os.getenv("TERM", "vt220"),
         "LANG": "C.UTF-8",
         **env,
     }
