@@ -433,7 +433,7 @@ def copy_ephemeral(config: Config, src: Path) -> Iterator[Path]:
             if config.output_format == OutputFormat.directory:
                 become_root()
 
-            rmtree(tmp, sandbox=config.sandbox)
+            rmtree(tmp, tools=config.tools(), sandbox=config.sandbox)
 
         fork_and_wait(rm)
 

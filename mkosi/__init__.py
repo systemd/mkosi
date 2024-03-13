@@ -123,7 +123,7 @@ def remove_files(context: Context) -> None:
 
     with complete_step("Removing files…"):
         for pattern in context.config.remove_files:
-            rmtree(*context.root.glob(pattern.lstrip("/")), sandbox=context.sandbox)
+            rmtree(*context.root.glob(pattern.lstrip("/")), tools=context.config.tools(), sandbox=context.sandbox)
 
 
 def install_distribution(context: Context) -> None:
@@ -2877,7 +2877,7 @@ def save_cache(context: Context) -> None:
     final, build, manifest = cache_tree_paths(context.config)
 
     with complete_step("Installing cache copies"):
-        rmtree(final, sandbox=context.sandbox)
+        rmtree(final, tools=context.config.tools(), sandbox=context.sandbox)
 
         # We only use the cache-overlay directory for caching if we have a base tree, otherwise we just
         # cache the root directory.
@@ -2896,7 +2896,7 @@ def save_cache(context: Context) -> None:
             )
 
         if need_build_overlay(context.config) and (context.workspace / "build-overlay").exists():
-            rmtree(build, sandbox=context.sandbox)
+            rmtree(build, tools=context.config.tools(), sandbox=context.sandbox)
             move_tree(
                 context.workspace / "build-overlay", build,
                 use_subvolumes=context.config.use_subvolumes,
@@ -3286,7 +3286,7 @@ def normalize_mtime(root: Path, mtime: Optional[int], directory: Optional[Path] 
 def setup_workspace(args: Args, config: Config) -> Iterator[Path]:
     with contextlib.ExitStack() as stack:
         workspace = Path(tempfile.mkdtemp(dir=config.workspace_dir_or_default(), prefix="mkosi-workspace"))
-        stack.callback(lambda: rmtree(workspace, sandbox=config.sandbox))
+        stack.callback(lambda: rmtree(workspace, tools=config.tools(), sandbox=config.sandbox))
         (workspace / "tmp").mkdir(mode=0o1777)
 
         with scopedenv({"TMPDIR" : os.fspath(workspace / "tmp")}):
