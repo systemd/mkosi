@@ -63,6 +63,8 @@ def test_initrd(initrd: Image) -> None:
             "--incremental",
             "--ephemeral",
             "--format=disk",
+            # TODO: Drop once https://bugs.launchpad.net/ubuntu/+source/linux/+bug/2038777 is fixed in Github Actions
+            "--qemu-firmware=uefi",
         ]
     ) as image:
         image.build()
@@ -185,6 +187,9 @@ def test_initrd_luks(initrd: Image, passphrase: Path) -> None:
                 "--incremental",
                 "--ephemeral",
                 "--format=disk",
+                # TODO: Drop once https://bugs.launchpad.net/ubuntu/+source/linux/+bug/2038777 is fixed in Github
+                # Actions.
+                "--qemu-firmware=uefi",
             ]
         ) as image:
             image.build()

@@ -32,6 +32,8 @@ def test_format(config: Image.Config, format: OutputFormat) -> None:
             "--kernel-command-line=systemd.unit=mkosi-check-and-shutdown.service",
             "--incremental",
             "--ephemeral",
+            # TODO: Drop once https://bugs.launchpad.net/ubuntu/+source/linux/+bug/2038777 is fixed in Github Actions
+            "--qemu-firmware=uefi" if format in (OutputFormat.disk, OutputFormat.uki) else "--qemu-firmware=auto",
         ],
     ) as image:
         if image.config.distribution == Distribution.rhel_ubi and format in (OutputFormat.esp, OutputFormat.uki):
@@ -79,7 +81,9 @@ def test_bootloader(config: Image.Config, bootloader: Bootloader) -> None:
     if config.distribution == Distribution.rhel_ubi:
         return
 
-    firmware = QemuFirmware.linux if bootloader == Bootloader.none else QemuFirmware.auto
+    # TODO: Use "auto" again instead of "uefi" once https://bugs.launchpad.net/ubuntu/+source/linux/+bug/2038777 is
+    # fixed in Github Actions.
+    firmware = QemuFirmware.linux if bootloader == Bootloader.none else QemuFirmware.uefi
 
     with Image(
         config,
