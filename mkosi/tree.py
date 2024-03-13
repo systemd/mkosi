@@ -23,7 +23,7 @@ def statfs(path: Path, *, sandbox: SandboxProtocol = nosandbox) -> str:
 
 
 def is_subvolume(path: Path, *, sandbox: SandboxProtocol = nosandbox) -> bool:
-    return path.is_dir() and statfs(path, sandbox=sandbox) == "btrfs" and path.stat().st_ino == 256
+    return path.is_dir() and path.stat().st_ino == 256 and statfs(path, sandbox=sandbox) == "btrfs"
 
 
 def cp_version(*, sandbox: SandboxProtocol = nosandbox) -> GenericVersion:
