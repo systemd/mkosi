@@ -149,7 +149,7 @@ jobs:
         Environment=SYSTEMD_REPART_MKFS_OPTIONS_EROFS="--quiet"
 
         [Host]
-        QemuKvm=no
+        QemuKvm=yes
         EOF
 
         # Work around for https://src.fedoraproject.org/rpms/grub2/pull-request/61 by disabling obsoletes.
