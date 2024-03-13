@@ -421,19 +421,19 @@ def finalize_config_json(config: Config) -> Iterator[Path]:
         yield Path(f.name)
 
 
-def run_sync_scripts(config: Config) -> None:
-    if not config.sync_scripts:
+def run_sync_scripts(context: Context) -> None:
+    if not context.config.sync_scripts:
         return
 
     env = dict(
-        DISTRIBUTION=str(config.distribution),
-        RELEASE=config.release,
-        ARCHITECTURE=str(config.architecture),
+        DISTRIBUTION=str(context.config.distribution),
+        RELEASE=context.config.release,
+        ARCHITECTURE=str(context.config.architecture),
         SRCDIR="/work/src",
         MKOSI_UID=str(INVOKING_USER.uid),
         MKOSI_GID=str(INVOKING_USER.gid),
         MKOSI_CONFIG="/work/config.json",
-        CACHED=one_zero(have_cache(config)),
+        CACHED=one_zero(have_cache(context.config)),
     )
 
     # We make sure to mount everything in to make ssh work since syncing might involve git which could invoke ssh.
@@ -441,24 +441,32 @@ def run_sync_scripts(config: Config) -> None:
         env["SSH_AUTH_SOCK"] = agent
 
     with (
-        finalize_source_mounts(config, ephemeral=False) as sources,
-        finalize_config_json(config) as json,
+        finalize_source_mounts(context.config, ephemeral=False) as sources,
+        finalize_config_json(context.config) as json,
     ):
-        for script in config.sync_scripts:
+        for script in context.config.sync_scripts:
             options = [
                 *sources,
-                *finalize_crypto_mounts(config.tools()),
+                *finalize_crypto_mounts(context.config.tools()),
                 "--ro-bind", script, "/work/sync",
                 "--ro-bind", json, "/work/config.json",
                 "--chdir", "/work/src",
             ]
 
+            if (p := INVOKING_USER.home()).exists():
+                # We use --bind here instead of --ro-bind to keep git worktrees working which encode absolute paths to
+                # the parent git repository and might need to modify the git config in the parent git repository when
+                # submodules are in use as well.
+                options += ["--bind", p, p]
+            if (p := Path(f"/run/user/{INVOKING_USER.uid}")).exists():
+                options += ["--ro-bind", p, p]
+
             with complete_step(f"Running sync script {script}…"):
                 run(
                     ["/work/sync", "final"],
-                    env=env | config.environment,
+                    env=env | context.config.environment,
                     stdin=sys.stdin,
-                    sandbox=config.sandbox(relaxed=True, options=options),
+                    sandbox=context.sandbox(network=True, options=options),
                 )
 
 
@@ -4012,7 +4020,7 @@ def run_sync(args: Args, config: Config, *, resources: Path) -> None:
         for p in config.distribution.package_manager(config).cache_subdirs(src):
             p.mkdir(parents=True, exist_ok=True)
 
-        run_sync_scripts(config)
+        run_sync_scripts(context)
 
 
 def run_build(args: Args, config: Config, *, resources: Path) -> None:
