@@ -9,7 +9,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 from mkosi.config import ConfigFeature
-from mkosi.log import die
+from mkosi.log import ARG_DEBUG, die
 from mkosi.run import find_binary, run
 from mkosi.sandbox import SandboxProtocol, nosandbox
 from mkosi.types import PathString
@@ -23,7 +23,7 @@ def statfs(path: Path, *, sandbox: SandboxProtocol = nosandbox) -> str:
 
 
 def is_subvolume(path: Path, *, sandbox: SandboxProtocol = nosandbox) -> bool:
-    return path.is_dir() and statfs(path, sandbox=sandbox) == "btrfs" and path.stat().st_ino == 256
+    return path.is_dir() and path.stat().st_ino == 256 and statfs(path, sandbox=sandbox) == "btrfs"
 
 
 def cp_version(*, sandbox: SandboxProtocol = nosandbox) -> GenericVersion:
@@ -146,10 +146,26 @@ def copy_tree(
     return dst
 
 
-def rmtree(*paths: Path, sandbox: SandboxProtocol = nosandbox) -> None:
+def rmtree(*paths: Path, tools: Path = Path("/"), sandbox: SandboxProtocol = nosandbox) -> None:
+    if not paths:
+        return
+
+    if find_binary("btrfs", root=tools) and (subvolumes := [p for p in paths if is_subvolume(p)]):
+        parents = sorted(set(p.parent for p in subvolumes))
+        parents = [p for p in parents if all(p == q or not p.is_relative_to(q) for q in parents)]
+
+        # Silence and ignore failures since when not running as root, this will fail with a permission error unless the
+        # btrfs filesystem is mounted with user_subvol_rm_allowed.
+        run(["btrfs", "subvolume", "delete", *subvolumes],
+            check=False,
+            sandbox=sandbox(options=flatten(["--bind", p, p] for p in parents)),
+            stdout=subprocess.DEVNULL if not ARG_DEBUG.get() else None,
+            stderr=subprocess.DEVNULL if not ARG_DEBUG.get() else None)
+
+    paths = tuple(p for p in paths if p.exists())
     if paths:
         parents = sorted(set(p.parent for p in paths))
-        parents = {p for p in parents if all(p == q or not p.is_relative_to(q) for q in parents)}
+        parents = [p for p in parents if all(p == q or not p.is_relative_to(q) for q in parents)]
         run(["rm", "-rf", "--", *paths],
             sandbox=sandbox(options=flatten(["--bind", p, p] for p in parents)))
 
@@ -175,6 +191,6 @@ def move_tree(
             raise e
 
         copy_tree(src, dst, use_subvolumes=use_subvolumes, tools=tools, sandbox=sandbox)
-        rmtree(src, sandbox=sandbox)
+        rmtree(src, tools=tools, sandbox=sandbox)
 
     return dst

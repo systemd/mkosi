@@ -24,7 +24,7 @@ def test_sysext(config: Image.Config) -> None:
             image.config,
             options=[
                 "--directory", "",
-                "--base-tree", Path(image.output_dir.name) / "image",
+                "--base-tree", Path(image.output_dir) / "image",
                 "--overlay",
                 "--package=dnsmasq",
                 "--format=disk",

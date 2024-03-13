@@ -58,9 +58,12 @@ class INVOKING_USER:
 
     @classmethod
     def mkdir(cls, path: Path) -> Path:
-        user = cls.uid if cls.is_regular_user() and path.is_relative_to(cls.home()) else os.getuid()
-        group = cls.gid if cls.is_regular_user() and path.is_relative_to(cls.home()) else os.getgid()
-        run(["mkdir", "--parents", path], user=user, group=group)
+        cond = not cls.invoked_as_root or (cls.is_regular_user() and path.is_relative_to(cls.home()))
+        run(
+            ["mkdir", "--parents", path],
+            user=cls.uid if cond else os.getuid(),
+            group=cls.gid if cond else os.getgid(),
+        )
         return path
 
     @classmethod

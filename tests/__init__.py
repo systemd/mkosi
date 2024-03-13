@@ -3,8 +3,9 @@
 import os
 import subprocess
 import sys
-import tempfile
+import uuid
 from collections.abc import Iterator, Sequence
+from pathlib import Path
 from types import TracebackType
 from typing import Any, NamedTuple, Optional
 
@@ -29,8 +30,7 @@ class Image:
         self.config = config
 
     def __enter__(self) -> "Image":
-        self.output_dir = tempfile.TemporaryDirectory(dir="/var/tmp")
-        os.chown(self.output_dir.name, INVOKING_USER.uid, INVOKING_USER.gid)
+        self.output_dir = Path(os.getenv("TMPDIR", "/var/tmp")) / uuid.uuid4().hex[:16]
 
         return self
 
@@ -79,8 +79,7 @@ class Image:
             ),
             *self.options,
             *options,
-            "--output-dir", self.output_dir.name,
-            "--cache-dir", "mkosi.cache",
+            "--output-dir", self.output_dir,
             *(f"--kernel-command-line={i}" for i in kcl),
             "--qemu-vsock=yes",
             verb,
