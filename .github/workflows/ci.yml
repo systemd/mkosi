@@ -148,7 +148,7 @@ jobs:
         mkfs.btrfs btrfs.raw
         sudo mkdir -p /mnt/mkosi
         LOOP="$(sudo losetup --find --show --direct-io=on btrfs.raw)"
-        sudo mount "$LOOP" /mnt/mkosi --options compress=zstd,user_subvol_rm_allowed
+        sudo mount "$LOOP" /mnt/mkosi --options compress=zstd:1,user_subvol_rm_allowed,noatime,discard=async,space_cache=v2
         sudo chown "$(id -u):$(id -g)" /mnt/mkosi
 
     - name: Configure
