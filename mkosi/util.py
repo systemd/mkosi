@@ -130,12 +130,12 @@ def make_executable(*paths: Path) -> None:
 
 
 @contextlib.contextmanager
-def flock(path: Path) -> Iterator[int]:
+def flock(path: Path, flags: int = fcntl.LOCK_EX) -> Iterator[int]:
     fd = os.open(path, os.O_CLOEXEC|os.O_RDONLY)
     try:
         fcntl.fcntl(fd, fcntl.FD_CLOEXEC)
         logging.debug(f"Acquiring lock on {path}")
-        fcntl.flock(fd, fcntl.LOCK_EX)
+        fcntl.flock(fd, flags)
         logging.debug(f"Acquired lock on {path}")
         yield fd
     finally:
