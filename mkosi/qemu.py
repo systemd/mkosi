@@ -40,7 +40,7 @@ from mkosi.run import AsyncioThread, find_binary, fork_and_wait, run, spawn
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
 from mkosi.user import INVOKING_USER, become_root
-from mkosi.util import StrEnum, flatten
+from mkosi.util import StrEnum, flatten, flock, flock_or_die
 from mkosi.versioncomp import GenericVersion
 
 QEMU_KVM_DEVICE_VERSION = GenericVersion("9.0")
@@ -426,7 +426,8 @@ def copy_ephemeral(config: Config, src: Path) -> Iterator[Path]:
                 sandbox=config.sandbox,
             )
 
-        fork_and_wait(copy)
+        with flock(src):
+            fork_and_wait(copy)
         yield tmp
     finally:
         def rm() -> None:
@@ -705,7 +706,7 @@ def run_qemu(args: Args, config: Config) -> None:
                 copy_ephemeral(config, config.output_dir_or_cwd() / config.output_with_compression)
             )
         else:
-            fname = config.output_dir_or_cwd() / config.output_with_compression
+            fname = stack.enter_context(flock_or_die(config.output_dir_or_cwd() / config.output_with_compression))
 
         if config.output_format == OutputFormat.disk and config.runtime_size:
             run(

@@ -72,6 +72,7 @@ from mkosi.user import CLONE_NEWNS, INVOKING_USER, become_root, unshare
 from mkosi.util import (
     flatten,
     flock,
+    flock_or_die,
     format_rlimit,
     make_executable,
     one_zero,
@@ -3316,6 +3317,18 @@ def setup_workspace(args: Args, config: Config) -> Iterator[Path]:
                 raise
 
 
+@contextlib.contextmanager
+def lock_repository_metadata(config: Config) -> Iterator[None]:
+    subdir = config.distribution.package_manager(config).subdir(config)
+
+    with contextlib.ExitStack() as stack:
+        for d in ("cache", "lib"):
+            if (src := config.package_cache_dir_or_default() / d / subdir).exists():
+                stack.enter_context(flock(src))
+
+        yield
+
+
 def copy_repository_metadata(context: Context) -> None:
     if have_cache(context.config):
         return
@@ -3330,29 +3343,32 @@ def copy_repository_metadata(context: Context) -> None:
         logging.debug(f"Found repository metadata in {context.package_cache_dir}, not copying repository metadata")
         return
 
-    for d in ("cache", "lib"):
-        src = context.config.package_cache_dir_or_default() / d / subdir
-        if not src.exists():
-            logging.debug(f"{src} does not exist, not copying repository metadata from it")
-            continue
+    with lock_repository_metadata(context.config):
+        for d in ("cache", "lib"):
+            src = context.config.package_cache_dir_or_default() / d / subdir
+            if not src.exists():
+                logging.debug(f"{src} does not exist, not copying repository metadata from it")
+                continue
 
-        caches = context.config.distribution.package_manager(context.config).cache_subdirs(src) if d == "cache" else []
+            if d == "cache":
+                caches = context.config.distribution.package_manager(context.config).cache_subdirs(src)
+            else:
+                caches = []
 
-        with tempfile.TemporaryDirectory() as tmp:
-            os.chmod(tmp, 0o755)
+            with tempfile.TemporaryDirectory() as tmp:
+                os.chmod(tmp, 0o755)
 
-            # cp doesn't support excluding directories but we can imitate it by bind mounting an empty directory over
-            # the directories we want to exclude.
-            exclude = flatten(["--ro-bind", tmp, os.fspath(p)] for p in caches)
+                # cp doesn't support excluding directories but we can imitate it by bind mounting an empty directory
+                # over the directories we want to exclude.
+                exclude = flatten(["--ro-bind", tmp, os.fspath(p)] for p in caches)
 
-            dst = context.package_cache_dir / d / subdir
-            with umask(~0o755):
-                dst.mkdir(parents=True, exist_ok=True)
+                dst = context.package_cache_dir / d / subdir
+                with umask(~0o755):
+                    dst.mkdir(parents=True, exist_ok=True)
 
-            def sandbox(*, options: Sequence[PathString] = ()) -> list[PathString]:
-                return context.sandbox(options=[*options, *exclude])
+                def sandbox(*, options: Sequence[PathString] = ()) -> list[PathString]:
+                    return context.sandbox(options=[*options, *exclude])
 
-            with flock(src):
                 copy_tree(
                     src, dst,
                     tools=context.config.tools(),
@@ -3618,7 +3634,7 @@ def run_shell(args: Args, config: Config) -> None:
         if config.ephemeral:
             fname = stack.enter_context(copy_ephemeral(config, config.output_dir_or_cwd() / config.output))
         else:
-            fname = config.output_dir_or_cwd() / config.output
+            fname = stack.enter_context(flock_or_die(config.output_dir_or_cwd() / config.output))
 
         if config.output_format == OutputFormat.disk and args.verb == Verb.boot:
             run(
@@ -3940,7 +3956,12 @@ def run_clean(args: Args, config: Config, *, resources: Path) -> None:
         remove_package_cache = args.force > 2
 
     if outputs := list(config.output_dir_or_cwd().glob(f"{config.output}*")):
-        with complete_step(f"Removing output files of {config.name()} image…"):
+        with (
+            complete_step(f"Removing output files of {config.name()} image…"),
+            flock_or_die(config.output_dir_or_cwd() / config.output)
+            if (config.output_dir_or_cwd() / config.output).exists()
+            else contextlib.nullcontext()
+        ):
             rmtree(*outputs)
 
     if remove_build_cache:
@@ -3965,7 +3986,10 @@ def run_clean(args: Args, config: Config, *, resources: Path) -> None:
     ):
         subdir = config.distribution.package_manager(config).subdir(config)
 
-        with complete_step(f"Clearing out package cache of {config.name()} image…"):
+        with (
+            complete_step(f"Clearing out package cache of {config.name()} image…"),
+            lock_repository_metadata(config),
+        ):
             rmtree(
                 *(
                     config.package_cache_dir_or_default() / d / subdir
@@ -3990,14 +4014,11 @@ def sync_repository_metadata(context: Context) -> None:
     if have_cache(context.config) or context.config.cacheonly != Cacheonly.none:
         return
 
-    with complete_step(f"Syncing package manager metadata for {context.config.name()} image"):
-        subdir = context.config.distribution.package_manager(context.config).subdir(context.config)
-
-        with (
-            flock(context.config.package_cache_dir_or_default() / "cache" / subdir),
-            flock(context.config.package_cache_dir_or_default() / "lib" / subdir),
-        ):
-            context.config.distribution.package_manager(context.config).sync(context)
+    with (
+        complete_step(f"Syncing package manager metadata for {context.config.name()} image"),
+        lock_repository_metadata(context.config),
+    ):
+        context.config.distribution.package_manager(context.config).sync(context)
 
 
 def run_sync(args: Args, config: Config, *, resources: Path) -> None:
