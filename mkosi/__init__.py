@@ -436,6 +436,9 @@ def run_sync_scripts(context: Context) -> None:
         CACHED=one_zero(have_cache(context.config)),
     )
 
+    if context.config.profile:
+        env["PROFILE"] = context.config.profile
+
     # We make sure to mount everything in to make ssh work since syncing might involve git which could invoke ssh.
     if agent := os.getenv("SSH_AUTH_SOCK"):
         env["SSH_AUTH_SOCK"] = agent
@@ -493,6 +496,9 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
         WITH_NETWORK=one_zero(context.config.with_network),
         WITH_TESTS=one_zero(context.config.with_tests),
     )
+
+    if context.config.profile:
+        env["PROFILE"] = context.config.profile
 
     with (
         mount_build_overlay(context) if build else contextlib.nullcontext(),
@@ -564,6 +570,9 @@ def run_build_scripts(context: Context) -> None:
         WITH_NETWORK=one_zero(context.config.with_network),
         WITH_TESTS=one_zero(context.config.with_tests),
     )
+
+    if context.config.profile:
+        env["PROFILE"] = context.config.profile
 
     if context.config.build_dir is not None:
         env |= dict(
@@ -643,6 +652,9 @@ def run_postinst_scripts(context: Context) -> None:
         MKOSI_CONFIG="/work/config.json",
     )
 
+    if context.config.profile:
+        env["PROFILE"] = context.config.profile
+
     with (
         finalize_chroot_scripts(context) as cd,
         finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources,
@@ -701,6 +713,9 @@ def run_finalize_scripts(context: Context) -> None:
         MKOSI_GID=str(INVOKING_USER.gid),
         MKOSI_CONFIG="/work/config.json",
     )
+
+    if context.config.profile:
+        env["PROFILE"] = context.config.profile
 
     with (
         finalize_chroot_scripts(context) as cd,
