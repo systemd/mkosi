@@ -142,25 +142,11 @@ jobs:
         sudo ln -svf $PWD/bin/mkosi /usr/bin/mkosi
       working-directory: ./
 
-    - name: Btrfs
-      run: |
-        truncate --size=20G btrfs.raw
-        mkfs.btrfs btrfs.raw
-        sudo mkdir -p /mnt/mkosi
-        LOOP="$(sudo losetup --find --show --direct-io=on btrfs.raw)"
-        sudo mount "$LOOP" /mnt/mkosi --options compress=zstd:1,user_subvol_rm_allowed,noatime,discard=async,space_cache=v2
-        sudo chown "$(id -u):$(id -g)" /mnt/mkosi
-
     - name: Configure
       run: |
         tee mkosi.local.conf <<EOF
         [Output]
         ManifestFormat=json
-        UseSubvolumes=yes
-
-        CacheDirectory=/mnt/mkosi/mkosi.cache
-        PackageCacheDirectory=/mnt/mkosi/mkosi.cache
-        WorkspaceDirectory=/mnt/mkosi
 
         [Content]
         KernelCommandLine=systemd.default_device_timeout_sec=180
@@ -188,8 +174,7 @@ jobs:
 
     - name: Run integration tests
       run: |
-        sudo TMPDIR=/mnt/mkosi \
-            timeout -k 30 1h python3 -m pytest \
+        sudo timeout -k 30 1h python3 -m pytest \
             --tb=no \
             --capture=no \
             --verbose \
