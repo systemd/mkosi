@@ -84,9 +84,30 @@ class TtyFormatter(logging.Formatter):
         return self.formatters[record.levelno].format(record)
 
 
+class GithubWorkflowFormatter(logging.Formatter):
+    def __init__(self, fmt: Optional[str] = None, *args: Any, **kwargs: Any) -> None:
+        fmt = fmt or "%(message)s"
+
+        self.formatters = {
+            logging.DEBUG:    logging.Formatter(f"::debug::‣ {fmt}"),
+            logging.INFO:     logging.Formatter(f"‣ {fmt}"),
+            logging.WARNING:  logging.Formatter(f"::warning::‣ {fmt}"),
+            logging.ERROR:    logging.Formatter(f"::error::‣ {fmt}"),
+            logging.CRITICAL: logging.Formatter(f"::error::‣ {fmt}"),
+        }
+
+        super().__init__(fmt, *args, **kwargs)
+
+    def format(self, record: logging.LogRecord) -> str:
+        return self.formatters[record.levelno].format(record)
+
+
 def log_setup() -> None:
     handler = logging.StreamHandler(stream=sys.stderr)
-    handler.setFormatter(TtyFormatter())
+    if os.getenv("GITHUB_ACTIONS"):
+        handler.setFormatter(GithubWorkflowFormatter())
+    else:
+        handler.setFormatter(TtyFormatter())
 
     logging.getLogger().addHandler(handler)
     logging.getLogger().setLevel(logging.getLevelName(os.getenv("SYSTEMD_LOG_LEVEL", "info").upper()))
