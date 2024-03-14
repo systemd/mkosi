@@ -4,6 +4,7 @@ import ast
 import contextlib
 import copy
 import enum
+import errno
 import fcntl
 import functools
 import importlib
@@ -20,6 +21,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, Callable, Optional, TypeVar, no_type_check
 
+from mkosi.log import die
 from mkosi.types import PathString
 
 T = TypeVar("T")
@@ -140,6 +142,19 @@ def flock(path: Path, flags: int = fcntl.LOCK_EX) -> Iterator[int]:
         yield fd
     finally:
         os.close(fd)
+
+
+@contextlib.contextmanager
+def flock_or_die(path: Path) -> Iterator[Path]:
+    try:
+        with flock(path, fcntl.LOCK_EX|fcntl.LOCK_NB):
+            yield path
+    except OSError as e:
+        if e.errno != errno.EWOULDBLOCK:
+            raise e
+
+        die(f"Cannot lock {path} as it is locked by another process",
+            hint="Maybe another mkosi process is still using it?")
 
 
 @contextlib.contextmanager

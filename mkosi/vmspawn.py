@@ -21,6 +21,7 @@ from mkosi.qemu import (
 )
 from mkosi.run import run
 from mkosi.types import PathString
+from mkosi.util import flock_or_die
 
 
 def run_vmspawn(args: Args, config: Config) -> None:
@@ -79,7 +80,7 @@ def run_vmspawn(args: Args, config: Config) -> None:
         if config.ephemeral:
             fname = stack.enter_context(copy_ephemeral(config, config.output_dir_or_cwd() / config.output))
         else:
-            fname = config.output_dir_or_cwd() / config.output
+            fname = stack.enter_context(flock_or_die(config.output_dir_or_cwd() / config.output))
 
         if config.output_format == OutputFormat.disk and config.runtime_size:
             run(

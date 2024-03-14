@@ -72,6 +72,7 @@ from mkosi.user import CLONE_NEWNS, INVOKING_USER, become_root, unshare
 from mkosi.util import (
     flatten,
     flock,
+    flock_or_die,
     format_rlimit,
     make_executable,
     one_zero,
@@ -3633,7 +3634,7 @@ def run_shell(args: Args, config: Config) -> None:
         if config.ephemeral:
             fname = stack.enter_context(copy_ephemeral(config, config.output_dir_or_cwd() / config.output))
         else:
-            fname = config.output_dir_or_cwd() / config.output
+            fname = stack.enter_context(flock_or_die(config.output_dir_or_cwd() / config.output))
 
         if config.output_format == OutputFormat.disk and args.verb == Verb.boot:
             run(
@@ -3955,7 +3956,12 @@ def run_clean(args: Args, config: Config, *, resources: Path) -> None:
         remove_package_cache = args.force > 2
 
     if outputs := list(config.output_dir_or_cwd().glob(f"{config.output}*")):
-        with complete_step(f"Removing output files of {config.name()} image…"):
+        with (
+            complete_step(f"Removing output files of {config.name()} image…"),
+            flock_or_die(config.output_dir_or_cwd() / config.output)
+            if (config.output_dir_or_cwd() / config.output).exists()
+            else contextlib.nullcontext()
+        ):
             rmtree(*outputs)
 
     if remove_build_cache:
