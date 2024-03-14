@@ -1250,6 +1250,7 @@ class Config:
 
     distribution: Distribution
     release: str
+    variant_id: str
     architecture: Architecture
     mirror: Optional[str]
     local_mirror: Optional[str]
@@ -1480,6 +1481,7 @@ class Config:
         return {
             "distribution": self.distribution,
             "release": self.release,
+            "variant_id": self.variant_id,
             "mirror": self.mirror,
             "architecture": self.architecture,
             "package_manager": self.distribution.package_manager(self).executable(self),

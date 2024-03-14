@@ -246,6 +246,8 @@ class Manifest:
             config["version"] = self.context.config.image_version
         if self.context.config.release is not None:
             config["release"] = self.context.config.release
+        if self.context.config.variant_id is not None:
+            config["variant_id"] = self.context.config.variant_id
 
         return {
             # Bump this when incompatible changes are made to the manifest format.

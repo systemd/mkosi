@@ -629,6 +629,7 @@ def run_postinst_scripts(context: Context) -> None:
     env = dict(
         DISTRIBUTION=str(context.config.distribution),
         RELEASE=context.config.release,
+        VARIANT_ID=context.config.variant_id,
         ARCHITECTURE=str(context.config.architecture),
         BUILDROOT=str(context.root),
         OUTPUTDIR="/work/out",
@@ -1589,6 +1590,7 @@ def finalize_default_initrd(
         "--directory", "",
         "--distribution", str(config.distribution),
         "--release", config.release,
+        "--variant-id", config.variant_id,
         "--architecture", str(config.architecture),
         *(["--mirror", config.mirror] if config.mirror else []),
         "--repository-key-check", str(config.repository_key_check),

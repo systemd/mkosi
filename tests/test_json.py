@@ -305,6 +305,7 @@ def test_config() -> None:
             ],
             "UnifiedKernelImages": "auto",
             "UseSubvolumes": "auto",
+            "VariantId": "test",
             "VerityCertificate": "/path/to/cert",
             "VerityKey": null,
             "VerityKeySource": {
@@ -445,6 +446,7 @@ def test_config() -> None:
         tools_tree_repositories = ["abc"],
         unified_kernel_images = ConfigFeature.auto,
         use_subvolumes = ConfigFeature.auto,
+        variant_id = "test",
         verity_certificate = Path("/path/to/cert"),
         verity_key = None,
         verity_key_source = KeySource(type=KeySource.Type.file),
