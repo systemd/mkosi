@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
+import contextlib
 import os
 import subprocess
 import sys
@@ -166,3 +167,15 @@ def suspend_capture_stdin(pytestconfig: Any) -> Iterator[None]:
 
     if pytestconfig.getoption("capture") == "no":
         capmanager.resume_global_capture()
+
+
+@contextlib.contextmanager
+def ci_group(s: str) -> Iterator[None]:
+    github_actions = os.getenv("GITHUB_ACTIONS")
+    if github_actions:
+        print(f"\n::group::{s}", flush=True)
+    try:
+        yield
+    finally:
+        if github_actions:
+            print("\n::endgroup::", flush=True)

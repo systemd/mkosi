@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1+
+from collections.abc import Iterator
 from typing import Any, cast
 
 import pytest
@@ -6,7 +7,7 @@ import pytest
 from mkosi.config import parse_config
 from mkosi.distributions import Distribution, detect_distribution
 
-from . import Image
+from . import Image, ci_group
 
 
 def pytest_addoption(parser: Any) -> None:
@@ -50,3 +51,9 @@ def config(request: Any) -> Image.Config:
         tools_tree_distribution=cast(Distribution, request.config.getoption("--tools-tree-distribution")),
         debug_shell=request.config.getoption("--debug-shell"),
     )
+
+
+@pytest.fixture(autouse=True)
+def ci_sections(request: Any) -> Iterator[None]:
+    with ci_group(request.node.name):
+        yield

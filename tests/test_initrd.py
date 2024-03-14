@@ -8,6 +8,7 @@ import textwrap
 import time
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -20,7 +21,7 @@ from mkosi.types import PathString
 from mkosi.user import INVOKING_USER
 from mkosi.versioncomp import GenericVersion
 
-from . import Image
+from . import Image, ci_group
 
 pytestmark = pytest.mark.integration
 
@@ -39,14 +40,17 @@ def passphrase() -> Iterator[Path]:
 
 
 @pytest.fixture(scope="module")
-def initrd(config: Image.Config) -> Iterator[Image]:
-    with Image(
-        config,
-        options=[
-            "--directory", "",
-            "--include=mkosi-initrd/",
-        ],
-    ) as initrd:
+def initrd(request: Any, config: Image.Config) -> Iterator[Image]:
+    with (
+        ci_group(f"Initrd image {config.distribution}/{config.release}"),
+        Image(
+            config,
+            options=[
+                "--directory", "",
+                "--include=mkosi-initrd/",
+            ],
+        ) as initrd
+    ):
         if initrd.config.distribution == Distribution.rhel_ubi:
             pytest.skip("Cannot build RHEL-UBI initrds")
 
