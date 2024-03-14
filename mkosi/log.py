@@ -66,7 +66,7 @@ def complete_step(text: str, text2: Optional[str] = None) -> Iterator[list[Any]]
         log_step(text2.format(*args))
 
 
-class Formatter(logging.Formatter):
+class TtyFormatter(logging.Formatter):
     def __init__(self, fmt: Optional[str] = None, *args: Any, **kwargs: Any) -> None:
         fmt = fmt or "%(message)s"
 
@@ -86,7 +86,7 @@ class Formatter(logging.Formatter):
 
 def log_setup() -> None:
     handler = logging.StreamHandler(stream=sys.stderr)
-    handler.setFormatter(Formatter())
+    handler.setFormatter(TtyFormatter())
 
     logging.getLogger().addHandler(handler)
     logging.getLogger().setLevel(logging.getLevelName(os.getenv("SYSTEMD_LOG_LEVEL", "info").upper()))
