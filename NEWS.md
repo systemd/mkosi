@@ -1,5 +1,36 @@
 # mkosi Changelog
 
+## v22
+
+- We'll now try to delete btrfs subvolumes with `btrfs subvolume delete`
+  first before falling back to recursively deleting the directory.
+- The invoking user is now always mapped to `root` when running sync
+  scripts. This fixes an issue where we would fail when a package
+  manager tree or skeleton tree contained a `/usr` directory as we would
+  not have permissions to run mount in the sandbox.
+- We now use qemu's official firmware descriptions to find EDK2/OVMF
+  UEFI firmware. Addititionally, `QemuFirmware=uefi` now boots without
+  SecureBoot support, and `QemuFirmware=uefi-secure-boot` was introduced
+  to boot with SecureBoot support. By default we will still boot with
+  SecureBoot support if `QemuFirmware=auto`.
+- Added support for `QemuFirmwareVariables=custom` and
+  `QemuFirmwareVariables=microsoft` to use OVMF/EDK2 variables with
+  either the user's custom keys enrolled or with the Microsoft keys
+  enrolled.
+- Added `UnifiedKernelImages=` to control whether we generate unified
+  kernel images or not.
+- `Bootloader=grub` will now generate a grub EFI image and install it.
+  If `SecureBoot=` is enabled and `ShimBootloader=` is not set to
+  `signed`, the grub EFI image will be signed for SecureBoot.
+- `ShimBootloader=signed` will now also instruct mkosi to look for and
+  install already signed grub, systemd-boot, kernel and UKI binaries.
+- We now build grub images with a fixed set of modules and don't copy
+  any grub modules to the ESP anymore.
+- The configuration is now made available as a JSON file to all mkosi
+  scripts via the `$MKOSI_CONFIG` environment variable.
+- `$PROFILE` is now set for all mkosi scripts containing the value of
+  `Profile=` if it is set.
+
 ## v21
 
 - We now handle unmerged-usr systems correctly
