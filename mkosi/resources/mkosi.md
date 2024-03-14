@@ -1967,6 +1967,8 @@ Scripts executed by mkosi receive the following environment variables:
 
 * `$RELEASE` contains the release from the `Release=` setting.
 
+* `$PROFILE` contains the profile from the `Profile=` setting.
+
 * `$CACHED=` is set to `1` if a cached image is available, `0` otherwise.
 
 * `$CHROOT_SCRIPT` contains the path to the running script relative to
@@ -2041,6 +2043,7 @@ Consult this table for which script receives which environment variables:
 | `ARCHITECTURE`      | X            | X               | X             | X                | X                |
 | `DISTRIBUTION`      | X            | X               | X             | X                | X                |
 | `RELEASE`           | X            | X               | X             | X                | X                |
+| `PROFILE`           | X            | X               | X             | X                | X                |
 | `CACHED`            | X            |                 |               |                  |                  |
 | `CHROOT_SCRIPT`     |              | X               | X             | X                | X                |
 | `SRCDIR`            | X            | X               | X             | X                | X                |
