@@ -49,21 +49,34 @@ def log_notice(text: str) -> None:
 
 
 @contextlib.contextmanager
+def log_group_marker(s: str) -> Iterator[None]:
+    github_actions = os.getenv("GITHUB_ACTIONS")
+    if github_actions:
+        print(f"\n::group::{s}", flush=True)
+    try:
+        yield
+    finally:
+        if github_actions:
+            print("\n::endgroup::", flush=True)
+
+
+@contextlib.contextmanager
 def complete_step(text: str, text2: Optional[str] = None) -> Iterator[list[Any]]:
     global LEVEL
 
-    log_step(text)
+    with log_group_marker(text):
+        log_step(text)
 
-    LEVEL += 1
-    try:
-        args: list[Any] = []
-        yield args
-    finally:
-        LEVEL -= 1
-        assert LEVEL >= 0
+        LEVEL += 1
+        try:
+            args: list[Any] = []
+            yield args
+        finally:
+            LEVEL -= 1
+            assert LEVEL >= 0
 
-    if text2 is not None:
-        log_step(text2.format(*args))
+        if text2 is not None:
+            log_step(text2.format(*args))
 
 
 class TtyFormatter(logging.Formatter):

@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 
 from mkosi.distributions import Distribution
-from mkosi.log import die
+from mkosi.log import die, log_group_marker
 from mkosi.mounts import mount
 from mkosi.run import find_binary, run
 from mkosi.tree import copy_tree
@@ -21,7 +21,7 @@ from mkosi.types import PathString
 from mkosi.user import INVOKING_USER
 from mkosi.versioncomp import GenericVersion
 
-from . import Image, ci_group
+from . import Image
 
 pytestmark = pytest.mark.integration
 
@@ -42,7 +42,7 @@ def passphrase() -> Iterator[Path]:
 @pytest.fixture(scope="module")
 def initrd(request: Any, config: Image.Config) -> Iterator[Image]:
     with (
-        ci_group(f"Initrd image {config.distribution}/{config.release}"),
+        log_group_marker(f"Initrd image {config.distribution}/{config.release}"),
         Image(
             config,
             options=[

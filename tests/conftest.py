@@ -6,8 +6,9 @@ import pytest
 
 from mkosi.config import parse_config
 from mkosi.distributions import Distribution, detect_distribution
+from mkosi.log import log_group_marker
 
-from . import Image, ci_group
+from . import Image
 
 
 def pytest_addoption(parser: Any) -> None:
@@ -55,5 +56,5 @@ def config(request: Any) -> Image.Config:
 
 @pytest.fixture(autouse=True)
 def ci_sections(request: Any) -> Iterator[None]:
-    with ci_group(request.node.name):
+    with log_group_marker(request.node.name):
         yield
