@@ -307,6 +307,7 @@ def start_virtiofsd(config: Config, directory: Path, *, uidmap: bool) -> Iterato
         "--no-announce-submounts",
         "--sandbox=chroot",
         "--cache=always",
+        f"--inode-file-handles={'mandatory' if os.getuid() == 0 and not uidmap else 'never'}",
     ]
 
     if not uidmap and want_selinux_relabel(config, directory, fatal=False):
