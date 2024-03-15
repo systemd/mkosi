@@ -25,7 +25,7 @@ def filter_kernel_modules(
     host: bool,
 ) -> list[Path]:
     modulesd = root / "usr/lib/modules" / kver
-    modules = {m for m in modulesd.rglob("*.ko*")}
+    modules = set((modulesd / "kernel").rglob("*.ko*"))
 
     if host:
         include = [*include, *loaded_modules()]
