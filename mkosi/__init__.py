@@ -404,7 +404,7 @@ def finalize_host_scripts(
         scripts["git"] = GIT_COMMAND
     for binary in ("useradd", "groupadd"):
         if find_binary(binary, root=context.config.tools()):
-            scripts[binary] = (binary, "--root", context.root)
+            scripts[binary] = (binary, "--root", "/buildroot")
     return finalize_scripts(scripts | dict(helpers), root=context.config.tools())
 
 
@@ -487,7 +487,7 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
         DISTRIBUTION=str(context.config.distribution),
         RELEASE=context.config.release,
         ARCHITECTURE=str(context.config.architecture),
-        BUILDROOT=str(context.root),
+        BUILDROOT="/buildroot",
         SRCDIR="/work/src",
         CHROOT_SRCDIR="/work/src",
         PACKAGEDIR="/work/packages",
@@ -517,7 +517,7 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
             arg = "final"
 
         for script in context.config.prepare_scripts:
-            chroot = chroot_cmd(context.root, resolve=True)
+            chroot = chroot_cmd(resolve=True)
 
             helpers = {
                 "mkosi-chroot": chroot,
@@ -541,7 +541,7 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
                             Mount(script, "/work/prepare", ro=True),
                             Mount(json, "/work/config.json", ro=True),
                             Mount(cd, "/work/scripts", ro=True),
-                            Mount(context.root, context.root),
+                            Mount(context.root, "/buildroot"),
                             *context.config.distribution.package_manager(context.config).mounts(context),
                         ],
                         options=["--dir", "/work/src", "--chdir", "/work/src"],
@@ -558,7 +558,7 @@ def run_build_scripts(context: Context) -> None:
         DISTRIBUTION=str(context.config.distribution),
         RELEASE=context.config.release,
         ARCHITECTURE=str(context.config.architecture),
-        BUILDROOT=str(context.root),
+        BUILDROOT="/buildroot",
         DESTDIR="/work/dest",
         CHROOT_DESTDIR="/work/dest",
         OUTPUTDIR="/work/out",
@@ -591,7 +591,7 @@ def run_build_scripts(context: Context) -> None:
         finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources,
     ):
         for script in context.config.build_scripts:
-            chroot = chroot_cmd(context.root, resolve=context.config.with_network)
+            chroot = chroot_cmd(resolve=context.config.with_network)
 
             helpers = {
                 "mkosi-chroot": chroot,
@@ -617,7 +617,7 @@ def run_build_scripts(context: Context) -> None:
                             Mount(script, "/work/build-script", ro=True),
                             Mount(json, "/work/config.json", ro=True),
                             Mount(cd, "/work/scripts", ro=True),
-                            Mount(context.root, context.root),
+                            Mount(context.root, "/buildroot"),
                             Mount(context.install_dir, "/work/dest"),
                             Mount(context.staging, "/work/out"),
                             *(
@@ -645,7 +645,7 @@ def run_postinst_scripts(context: Context) -> None:
         DISTRIBUTION=str(context.config.distribution),
         RELEASE=context.config.release,
         ARCHITECTURE=str(context.config.architecture),
-        BUILDROOT=str(context.root),
+        BUILDROOT="/buildroot",
         OUTPUTDIR="/work/out",
         CHROOT_OUTPUTDIR="/work/out",
         SCRIPT="/work/postinst",
@@ -666,7 +666,7 @@ def run_postinst_scripts(context: Context) -> None:
         finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources,
     ):
         for script in context.config.postinst_scripts:
-            chroot = chroot_cmd(context.root, resolve=context.config.with_network)
+            chroot = chroot_cmd(resolve=context.config.with_network)
 
             helpers = {
                 "mkosi-chroot": chroot,
@@ -690,7 +690,7 @@ def run_postinst_scripts(context: Context) -> None:
                             Mount(script, "/work/postinst", ro=True),
                             Mount(json, "/work/config.json", ro=True),
                             Mount(cd, "/work/scripts", ro=True),
-                            Mount(context.root, context.root),
+                            Mount(context.root, "/buildroot"),
                             Mount(context.staging, "/work/out"),
                             *context.config.distribution.package_manager(context.config).mounts(context),
                         ],
@@ -708,7 +708,7 @@ def run_finalize_scripts(context: Context) -> None:
         DISTRIBUTION=str(context.config.distribution),
         RELEASE=context.config.release,
         ARCHITECTURE=str(context.config.architecture),
-        BUILDROOT=str(context.root),
+        BUILDROOT="/buildroot",
         OUTPUTDIR="/work/out",
         CHROOT_OUTPUTDIR="/work/out",
         SRCDIR="/work/src",
@@ -729,7 +729,7 @@ def run_finalize_scripts(context: Context) -> None:
         finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources,
     ):
         for script in context.config.finalize_scripts:
-            chroot = chroot_cmd(context.root, resolve=context.config.with_network)
+            chroot = chroot_cmd(resolve=context.config.with_network)
 
             helpers = {
                 "mkosi-chroot": chroot,
@@ -753,7 +753,7 @@ def run_finalize_scripts(context: Context) -> None:
                             Mount(script, "/work/finalize", ro=True),
                             Mount(json, "/work/config.json", ro=True),
                             Mount(cd, "/work/scripts", ro=True),
-                            Mount(context.root, context.root),
+                            Mount(context.root, "/buildroot"),
                             Mount(context.staging, "/work/out"),
                             *context.config.distribution.package_manager(context.config).mounts(context),
                         ],
@@ -960,9 +960,9 @@ def install_systemd_boot(context: Context) -> None:
 
     with complete_step("Installing systemd-boot…"):
         run(
-            ["bootctl", "install", "--root", context.root, "--all-architectures", "--no-variables"],
+            ["bootctl", "install", "--root=/buildroot", "--all-architectures", "--no-variables"],
             env={"SYSTEMD_ESP_PATH": "/efi", "SYSTEMD_XBOOTLDR_PATH": "/boot"},
-            sandbox=context.sandbox(mounts=[Mount(context.root, context.root)]),
+            sandbox=context.sandbox(mounts=[Mount(context.root, "/buildroot")]),
         )
 
         if context.config.shim_bootloader != ShimBootloader.none:
@@ -1276,10 +1276,10 @@ def grub_mkimage(
         run(
             [
                 mkimage,
-                "--directory", directory,
+                "--directory", "/grub",
                 "--config", earlyconfig.name,
                 "--prefix", f"/{context.config.distribution.grub_prefix()}",
-                "--output", output or (directory / "core.img"),
+                "--output", output or ("/grub/core.img"),
                 "--format", target,
                 *(["--sbat", str(sbat)] if sbat else []),
                 *(["--disable-shim-lock"] if context.config.shim_bootloader == ShimBootloader.none else []),
@@ -1308,8 +1308,9 @@ def grub_mkimage(
             ],
             sandbox=context.sandbox(
                 mounts=[
-                    Mount(context.root, context.root),
+                    Mount(directory, "/grub"),
                     Mount(earlyconfig.name, earlyconfig.name, ro=True),
+                    *([Mount(output.parent, output.parent)] if output else []),
                     *([Mount(str(sbat), str(sbat), ro=True)] if sbat else []),
                 ],
             ),
@@ -1412,12 +1413,12 @@ def grub_bios_setup(context: Context, partitions: Sequence[Partition]) -> None:
             [
                 "sh", "-c", f"mount --bind {mountinfo.name} /proc/$$/mountinfo && exec $0 \"$@\"",
                 setup,
-                "--directory", directory,
+                "--directory", "/grub",
                 context.staging / context.config.output_with_format,
             ],
             sandbox=context.sandbox(
                 mounts=[
-                    Mount(context.root, context.root),
+                    Mount(directory, "/grub"),
                     Mount(context.staging, context.staging),
                     Mount(mountinfo.name, mountinfo.name),
                 ],
@@ -2046,8 +2047,8 @@ def find_entry_token(context: Context) -> str:
     ):
         return context.config.image_id or context.config.distribution.name
 
-    output = json.loads(run(["kernel-install", "--root", context.root, "--json=pretty", "inspect"],
-                            sandbox=context.sandbox(mounts=[Mount(context.root, context.root, ro=True)]),
+    output = json.loads(run(["kernel-install", "--root=/buildroot", "--json=pretty", "inspect"],
+                            sandbox=context.sandbox(mounts=[Mount(context.root, "/buildroot", ro=True)]),
                             stdout=subprocess.PIPE,
                             env={"SYSTEMD_ESP_PATH": "/efi", "SYSTEMD_XBOOTLDR_PATH": "/boot"}).stdout)
     logging.debug(json.dumps(output, indent=4))
@@ -2747,8 +2748,8 @@ def run_depmod(context: Context, *, cache: bool = False) -> None:
             )
 
         with complete_step(f"Running depmod for {kver}"):
-            run(["depmod", "--all", "--basedir", context.root, kver],
-                sandbox=context.sandbox(mounts=[Mount(context.root, context.root)]))
+            run(["depmod", "--all", "--basedir", "/buildroot", kver],
+                sandbox=context.sandbox(mounts=[Mount(context.root, "/buildroot")]))
 
 
 def run_sysusers(context: Context) -> None:
@@ -2757,8 +2758,8 @@ def run_sysusers(context: Context) -> None:
         return
 
     with complete_step("Generating system users"):
-        run(["systemd-sysusers", "--root", context.root],
-            sandbox=context.sandbox(mounts=[Mount(context.root, context.root)]))
+        run(["systemd-sysusers", "--root=/buildroot"],
+            sandbox=context.sandbox(mounts=[Mount(context.root, "/buildroot")]))
 
 
 def run_tmpfiles(context: Context) -> None:
@@ -2769,7 +2770,7 @@ def run_tmpfiles(context: Context) -> None:
     with complete_step("Generating volatile files"):
         cmdline = [
             "systemd-tmpfiles",
-            f"--root={context.root}",
+            "--root=/buildroot",
             "--boot",
             "--create",
             "--remove",
@@ -2779,7 +2780,7 @@ def run_tmpfiles(context: Context) -> None:
 
         sandbox = context.sandbox(
             mounts=[
-                Mount(context.root, context.root),
+                Mount(context.root, "/buildroot"),
                 # systemd uses acl.h to parse ACLs in tmpfiles snippets which uses the host's passwd so we have to
                 # mount the image's passwd over it to make ACL parsing work.
                 *finalize_passwd_mounts(context.root)
@@ -2805,10 +2806,10 @@ def run_preset(context: Context) -> None:
         return
 
     with complete_step("Applying presets…"):
-        run(["systemctl", "--root", context.root, "preset-all"],
-            sandbox=context.sandbox(mounts=[Mount(context.root, context.root)]))
-        run(["systemctl", "--root", context.root, "--global", "preset-all"],
-            sandbox=context.sandbox(mounts=[Mount(context.root, context.root)]))
+        run(["systemctl", "--root=/buildroot", "preset-all"],
+            sandbox=context.sandbox(mounts=[Mount(context.root, "/buildroot")]))
+        run(["systemctl", "--root=/buildroot", "--global", "preset-all"],
+            sandbox=context.sandbox(mounts=[Mount(context.root, "/buildroot")]))
 
 
 def run_hwdb(context: Context) -> None:
@@ -2820,8 +2821,8 @@ def run_hwdb(context: Context) -> None:
         return
 
     with complete_step("Generating hardware database"):
-        run(["systemd-hwdb", "--root", context.root, "--usr", "--strict", "update"],
-            sandbox=context.sandbox(mounts=[Mount(context.root, context.root)]))
+        run(["systemd-hwdb", "--root=/buildroot", "--usr", "--strict", "update"],
+            sandbox=context.sandbox(mounts=[Mount(context.root, "/buildroot")]))
 
     # Remove any existing hwdb in /etc in favor of the one we just put in /usr.
     (context.root / "etc/udev/hwdb.bin").unlink(missing_ok=True)
@@ -2867,8 +2868,8 @@ def run_firstboot(context: Context) -> None:
         return
 
     with complete_step("Applying first boot settings"):
-        run(["systemd-firstboot", "--root", context.root, "--force", *options],
-            sandbox=context.sandbox(mounts=[Mount(context.root, context.root)]))
+        run(["systemd-firstboot", "--root=/buildroot", "--force", *options],
+            sandbox=context.sandbox(mounts=[Mount(context.root, "/buildroot")]))
 
         # Initrds generally don't ship with only /usr so there's not much point in putting the credentials in
         # /usr/lib/credstore.
@@ -2888,8 +2889,8 @@ def run_selinux_relabel(context: Context) -> None:
     policy, fc, binpolicy = selinux
 
     with complete_step(f"Relabeling files using {policy} policy"):
-        run(["setfiles", "-mFr", context.root, "-c", binpolicy, fc, context.root],
-            sandbox=context.sandbox(mounts=[Mount(context.root, context.root)]),
+        run(["setfiles", "-mFr", "/buildroot", "-c", binpolicy, fc, "/buildroot"],
+            sandbox=context.sandbox(mounts=[Mount(context.root, "/buildroot")]),
             check=context.config.selinux_relabel == ConfigFeature.enabled)
 
 
@@ -3033,8 +3034,8 @@ def make_image(
     mounts = [Mount(context.staging, context.staging)]
 
     if root:
-        cmdline += ["--root", root]
-        mounts += [Mount(root, root)]
+        cmdline += ["--root=/buildroot"]
+        mounts += [Mount(root, "/buildroot")]
     if not context.config.architecture.is_native():
         cmdline += ["--architecture", str(context.config.architecture)]
     if not (context.staging / context.config.output_with_format).exists():
@@ -3210,7 +3211,7 @@ def make_esp(context: Context, uki: Path) -> list[Partition]:
 def make_extension_image(context: Context, output: Path) -> None:
     cmdline: list[PathString] = [
         "systemd-repart",
-        "--root", context.root,
+        "--root=/buildroot",
         "--dry-run=no",
         "--no-pager",
         f"--offline={yes_no(context.config.repart_offline)}",
@@ -3221,7 +3222,7 @@ def make_extension_image(context: Context, output: Path) -> None:
     ]
     mounts = [
         Mount(output.parent, output.parent),
-        Mount(context.root, context.root, ro=True),
+        Mount(context.root, "/buildroot", ro=True),
     ]
 
     if not context.config.architecture.is_native():

@@ -38,8 +38,8 @@ class Zypper(PackageManager):
         ]
 
         return {
-            "zypper": apivfs_cmd(context.root) + cls.cmd(context),
-            "rpm"   : apivfs_cmd(context.root) + rpm_cmd(context),
+            "zypper": apivfs_cmd() + cls.cmd(context),
+            "rpm"   : apivfs_cmd() + rpm_cmd(),
             "mkosi-install"  : install,
             "mkosi-upgrade"  : ["zypper", "update"],
             "mkosi-remove"   : ["zypper", "remove", "--clean-deps"],
@@ -105,7 +105,7 @@ class Zypper(PackageManager):
             "ZYPP_CONF=/etc/zypp/zypp.conf",
             "HOME=/",
             "zypper",
-            f"--installroot={context.root}",
+            "--installroot=/buildroot",
             "--cache-dir=/var/cache/zypp",
             "--gpg-auto-import-keys" if context.config.repository_key_check else "--no-gpg-checks",
             "--non-interactive",
@@ -131,9 +131,9 @@ class Zypper(PackageManager):
                 sandbox=(
                     context.sandbox(
                         network=True,
-                        mounts=[Mount(context.root, context.root), *cls.mounts(context), *sources],
+                        mounts=[Mount(context.root, "/buildroot"), *cls.mounts(context), *sources],
                         options=["--dir", "/work/src", "--chdir", "/work/src"],
-                    ) + (apivfs_cmd(context.root) if apivfs else [])
+                    ) + (apivfs_cmd() if apivfs else [])
                 ),
                 env=context.config.environment,
                 stdout=stdout,
