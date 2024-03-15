@@ -226,5 +226,8 @@ def process_kernel_modules(
             if fw in required:
                 continue
 
+            if any(fw.is_relative_to(root / "usr/lib/firmware" / d) for d in ("amd-ucode", "intel-ucode")):
+                continue
+
             logging.debug(f"Removing firmware {fw}")
             fw.unlink()
