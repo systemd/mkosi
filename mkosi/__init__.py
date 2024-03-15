@@ -2253,8 +2253,7 @@ def install_kernel(context: Context, partitions: Sequence[Partition]) -> None:
             break
 
 
-def make_uki(context: Context, stub: Path, kver: str, kimg: Path, output: Path) -> None:
-    microcode = build_microcode_initrd(context)
+def make_uki(context: Context, stub: Path, kver: str, kimg: Path, microcode: Optional[Path], output: Path) -> None:
     make_cpio(context.root, context.workspace / "initrd", tools=context.config.tools(), sandbox=context.sandbox)
     maybe_compress(context, context.config.compress_output, context.workspace / "initrd", context.workspace / "initrd")
 
@@ -2975,9 +2974,9 @@ def reuse_cache(context: Context) -> bool:
     return True
 
 
-def save_uki_components(context: Context) -> tuple[Optional[Path], Optional[str], Optional[Path]]:
+def save_uki_components(context: Context) -> tuple[Optional[Path], Optional[str], Optional[Path], Optional[Path]]:
     if context.config.output_format not in (OutputFormat.uki, OutputFormat.esp):
-        return None, None, None
+        return None, None, None, None
 
     try:
         kver, kimg = next(gen_kernel_images(context))
@@ -2994,8 +2993,9 @@ def save_uki_components(context: Context) -> tuple[Optional[Path], Optional[str]
         die(f"sd-stub not found at /{stub.relative_to(context.root)} in the image")
 
     stub = shutil.copy2(stub, context.workspace)
+    microcode = build_microcode_initrd(context)
 
-    return stub, kver, kimg
+    return stub, kver, kimg, microcode
 
 
 def make_image(
@@ -3435,9 +3435,8 @@ def build_image(context: Context) -> None:
         run_firstboot(context)
         run_hwdb(context)
 
-        # These might be removed by the next steps,
-        # so let's save them for later if needed.
-        stub, kver, kimg = save_uki_components(context)
+        # These might be removed by the next steps, so let's save them for later if needed.
+        stub, kver, kimg, microcode = save_uki_components(context)
 
         remove_packages(context)
 
@@ -3479,10 +3478,10 @@ def build_image(context: Context) -> None:
         )
     elif context.config.output_format == OutputFormat.uki:
         assert stub and kver and kimg
-        make_uki(context, stub, kver, kimg, context.staging / context.config.output_with_format)
+        make_uki(context, stub, kver, kimg, microcode, context.staging / context.config.output_with_format)
     elif context.config.output_format == OutputFormat.esp:
         assert stub and kver and kimg
-        make_uki(context, stub, kver, kimg, context.staging / context.config.output_split_uki)
+        make_uki(context, stub, kver, kimg, microcode, context.staging / context.config.output_split_uki)
         make_esp(context, context.staging / context.config.output_split_uki)
     elif context.config.output_format.is_extension_image():
         make_extension_image(context, context.staging / context.config.output_with_format)

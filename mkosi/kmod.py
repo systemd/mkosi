@@ -220,11 +220,14 @@ def process_kernel_modules(
                 continue
 
             logging.debug(f"Removing module {m}")
-            (root / m).unlink()
+            m.unlink()
 
         for fw in (m for m in (root / "usr/lib/firmware").rglob("*") if not m.is_dir()):
             if fw in required:
                 continue
 
+            if any(fw.is_relative_to(root / "usr/lib/firmware" / d) for d in ("amd-ucode", "intel-ucode")):
+                continue
+
             logging.debug(f"Removing firmware {fw}")
-            (root / fw).unlink()
+            fw.unlink()
