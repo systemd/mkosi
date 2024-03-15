@@ -1483,21 +1483,21 @@ class Config:
             "mirror": self.mirror,
             "architecture": self.architecture,
             "package_manager": self.distribution.package_manager(self).executable(self),
-            "packages": self.packages,
-            "build_packages": self.build_packages,
-            "repositories": self.repositories,
+            "packages": sorted(self.packages),
+            "build_packages": sorted(self.build_packages),
+            "repositories": sorted(self.repositories),
             "overlay": self.overlay,
-            "prepare_scripts": [
+            "prepare_scripts": sorted(
                 base64.b64encode(script.read_bytes()).decode()
                 for script in self.prepare_scripts
-            ],
+            ),
             # We don't use the full path here since tests will often use temporary directories for the output directory
             # which would trigger a rebuild every time.
             "tools_tree": self.tools_tree.name if self.tools_tree else None,
             "tools_tree_distribution": self.tools_tree_distribution,
             "tools_tree_release": self.tools_tree_release,
             "tools_tree_mirror": self.tools_tree_mirror,
-            "tools_tree_packages": self.tools_tree_packages,
+            "tools_tree_packages": sorted(self.tools_tree_packages),
         }
 
     def to_dict(self) -> dict[str, Any]:
