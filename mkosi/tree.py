@@ -150,23 +150,18 @@ def rmtree(*paths: Path, tools: Path = Path("/"), sandbox: SandboxProtocol = nos
         return
 
     if find_binary("btrfs", root=tools) and (subvolumes := [p for p in paths if is_subvolume(p)]):
-        parents = sorted(set(p.parent for p in subvolumes))
-        parents = [p for p in parents if all(p == q or not p.is_relative_to(q) for q in parents)]
-
         # Silence and ignore failures since when not running as root, this will fail with a permission error unless the
         # btrfs filesystem is mounted with user_subvol_rm_allowed.
         run(["btrfs", "subvolume", "delete", *subvolumes],
             check=False,
-            sandbox=sandbox(mounts=[Mount(p, p) for p in parents]),
+            sandbox=sandbox(mounts=[Mount(p.parent, p.parent) for p in subvolumes]),
             stdout=subprocess.DEVNULL if not ARG_DEBUG.get() else None,
             stderr=subprocess.DEVNULL if not ARG_DEBUG.get() else None)
 
     paths = tuple(p for p in paths if p.exists())
     if paths:
-        parents = sorted(set(p.parent for p in paths))
-        parents = [p for p in parents if all(p == q or not p.is_relative_to(q) for q in parents)]
         run(["rm", "-rf", "--", *paths],
-            sandbox=sandbox(mounts=[Mount(p, p) for p in parents]))
+            sandbox=sandbox(mounts=[Mount(p.parent, p.parent) for p in paths]))
 
 
 def move_tree(

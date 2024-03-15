@@ -96,6 +96,28 @@ def finalize_crypto_mounts(tools: Path = Path("/")) -> list[Mount]:
     ]
 
 
+def finalize_mounts(mounts: Sequence[Mount]) -> list[PathString]:
+    mounts = list(set(mounts))
+
+    mounts = [
+        m for m in mounts
+        if not any(
+            m != n and
+            m.devices == n.devices and
+            m.ro == n.ro and
+            m.required == n.required and
+            Path(m.src).is_relative_to(n.src) and
+            Path(m.dst).is_relative_to(n.dst) and
+            Path(m.src).relative_to(n.src) == Path(m.dst).relative_to(n.dst)
+            for n in mounts
+        )
+    ]
+
+    mounts = sorted(mounts, key=lambda m: (Path(m.dst), m.devices, not m.ro, m.required, Path(m.src)))
+
+    return flatten(m.options() for m in mounts)
+
+
 def sandbox_cmd(
     *,
     network: bool = False,
@@ -107,6 +129,7 @@ def sandbox_cmd(
     options: Sequence[PathString] = (),
 ) -> list[PathString]:
     cmdline: list[PathString] = []
+    mounts = list(mounts)
 
     if not relaxed:
         # We want to use an empty subdirectory in the host's temporary directory as the sandbox's /var/tmp. To make
@@ -126,10 +149,10 @@ def sandbox_cmd(
         # We mounted a subdirectory of TMPDIR to /var/tmp so we unset TMPDIR so that /tmp or /var/tmp are used instead.
         "--unsetenv", "TMPDIR",
     ]
-    allmounts = [Mount(tools / "usr", "/usr", ro=True)]
+    mounts += [Mount(tools / "usr", "/usr", ro=True)]
 
     if relaxed:
-        allmounts += [Mount("/tmp", "/tmp")]
+        mounts += [Mount("/tmp", "/tmp")]
     else:
         cmdline += [
             "--tmpfs", "/tmp",
@@ -137,10 +160,10 @@ def sandbox_cmd(
         ]
 
     if (tools / "nix/store").exists():
-        allmounts += [Mount(tools / "nix/store", "/nix/store")]
+        mounts += [Mount(tools / "nix/store", "/nix/store")]
 
     if devices or relaxed:
-        allmounts += [
+        mounts += [
             Mount("/sys", "/sys"),
             Mount("/run", "/run"),
             Mount("/dev", "/dev", devices=True),
@@ -153,7 +176,7 @@ def sandbox_cmd(
 
         for d in dirs:
             if Path(d).exists():
-                allmounts += [Mount(d, d)]
+                mounts += [Mount(d, d)]
 
         if len(Path.cwd().parents) >= 2:
             # `Path.parents` only supports slices and negative indexing from Python 3.10 onwards.
@@ -165,21 +188,20 @@ def sandbox_cmd(
             d = ""
 
         if d and d not in (*dirs, "/home", "/usr", "/nix", "/tmp"):
-            allmounts += [Mount(d, d)]
+            mounts += [Mount(d, d)]
 
     if vartmp:
-        allmounts += [Mount(vartmp, "/var/tmp")]
+        mounts += [Mount(vartmp, "/var/tmp")]
 
     for d in ("bin", "sbin", "lib", "lib32", "lib64"):
         if (p := tools / d).is_symlink():
             cmdline += ["--symlink", p.readlink(), Path("/") / p.relative_to(tools)]
         elif p.is_dir():
-            allmounts += [Mount(p, Path("/") / p.relative_to(tools), ro=True)]
+            mounts += [Mount(p, Path("/") / p.relative_to(tools), ro=True)]
 
     path = "/usr/bin:/usr/sbin" if tools != Path("/") else os.environ["PATH"]
 
     cmdline += ["--setenv", "PATH", f"/scripts:{path}", *options]
-    allmounts = [*allmounts, *mounts]
 
     if not relaxed:
         cmdline += ["--symlink", "../proc/self/mounts", "/etc/mtab"]
@@ -190,15 +212,15 @@ def sandbox_cmd(
     # already exists on the host as otherwise we'd modify the host's /etc by creating the mountpoint ourselves (or
     # fail when trying to create it).
     if (tools / "etc/alternatives").exists() and (not relaxed or Path("/etc/alternatives").exists()):
-        allmounts += [Mount(tools / "etc/alternatives", "/etc/alternatives", ro=True)]
+        mounts += [Mount(tools / "etc/alternatives", "/etc/alternatives", ro=True)]
 
     if scripts:
-        allmounts += [Mount(scripts, "/scripts", ro=True)]
+        mounts += [Mount(scripts, "/scripts", ro=True)]
 
     if network and not relaxed and Path("/etc/resolv.conf").exists():
-        allmounts += [Mount("/etc/resolv.conf", "/etc/resolv.conf")]
+        mounts += [Mount("/etc/resolv.conf", "/etc/resolv.conf")]
 
-    cmdline += flatten(mount.options() for mount in allmounts)
+    cmdline += finalize_mounts(mounts)
 
     # bubblewrap creates everything with a restricted mode so relax stuff as needed.
     ops = []
