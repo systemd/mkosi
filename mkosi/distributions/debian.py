@@ -13,6 +13,7 @@ from mkosi.installer import PackageManager
 from mkosi.installer.apt import Apt
 from mkosi.log import die
 from mkosi.run import run
+from mkosi.sandbox import Mount
 from mkosi.util import listify, umask
 
 
@@ -153,7 +154,7 @@ class Installer(DistributionInstaller):
                     f"-oDPkg::Pre-Install-Pkgs::=cat >{f.name}",
                     "?essential", "?exact-name(usr-is-merged)",
                 ],
-                mounts=("--bind", f.name, f.name),
+                mounts=[Mount(f.name, f.name)],
             )
 
             essential = f.read().strip().splitlines()

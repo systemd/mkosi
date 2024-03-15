@@ -11,7 +11,7 @@ from mkosi.installer import PackageManager
 from mkosi.installer.rpm import RpmRepository, rpm_cmd
 from mkosi.mounts import finalize_source_mounts
 from mkosi.run import run
-from mkosi.sandbox import apivfs_cmd
+from mkosi.sandbox import Mount, apivfs_cmd
 from mkosi.types import _FILE, CompletedProcess, PathString
 
 
@@ -131,12 +131,8 @@ class Zypper(PackageManager):
                 sandbox=(
                     context.sandbox(
                         network=True,
-                        options=[
-                            "--bind", context.root, context.root,
-                            *cls.mounts(context),
-                            *sources,
-                            "--chdir", "/work/src",
-                        ],
+                        mounts=[Mount(context.root, context.root), *cls.mounts(context), *sources],
+                        options=["--dir", "/work/src", "--chdir", "/work/src"],
                     ) + (apivfs_cmd(context.root) if apivfs else [])
                 ),
                 env=context.config.environment,
@@ -150,7 +146,7 @@ class Zypper(PackageManager):
     @classmethod
     def createrepo(cls, context: Context) -> None:
         run(["createrepo_c", context.packages],
-            sandbox=context.sandbox(options=["--bind", context.packages, context.packages]))
+            sandbox=context.sandbox(mounts=[Mount(context.packages, context.packages)]))
 
         (context.pkgmngr / "etc/zypp/repos.d/mkosi-local.repo").write_text(
             textwrap.dedent(

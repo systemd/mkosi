@@ -11,7 +11,7 @@ from mkosi.installer import PackageManager
 from mkosi.log import die
 from mkosi.mounts import finalize_source_mounts
 from mkosi.run import find_binary, run
-from mkosi.sandbox import apivfs_cmd
+from mkosi.sandbox import Mount, apivfs_cmd
 from mkosi.types import _FILE, CompletedProcess, PathString
 from mkosi.util import umask
 
@@ -173,7 +173,7 @@ class Apt(PackageManager):
         arguments: Sequence[str] = (),
         *,
         apivfs: bool = False,
-        mounts: Sequence[PathString] = (),
+        mounts: Sequence[Mount] = (),
         stdout: _FILE = None,
     ) -> CompletedProcess:
         with finalize_source_mounts(
@@ -185,13 +185,8 @@ class Apt(PackageManager):
                 sandbox=(
                     context.sandbox(
                         network=True,
-                        options=[
-                            "--bind", context.root, context.root,
-                            *cls.mounts(context),
-                            *sources,
-                            *mounts,
-                            "--chdir", "/work/src",
-                        ],
+                        mounts=[Mount(context.root, context.root), *cls.mounts(context), *sources, *mounts],
+                        options=["--dir", "/work/src", "--chdir", "/work/src"],
                     ) + (apivfs_cmd(context.root) if apivfs else [])
                 ),
                 env=context.config.environment,
@@ -209,10 +204,8 @@ class Apt(PackageManager):
                 ["dpkg-scanpackages", "."],
                 stdout=f,
                 sandbox=context.sandbox(
-                    options=[
-                        "--ro-bind", context.packages, context.packages,
-                        "--chdir", context.packages,
-                    ],
+                    mounts=[Mount(context.packages, context.packages, ro=True)],
+                    options=["--chdir", context.packages],
                 ),
             )
 

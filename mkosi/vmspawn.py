@@ -20,6 +20,7 @@ from mkosi.qemu import (
     find_ovmf_firmware,
 )
 from mkosi.run import run
+from mkosi.sandbox import Mount
 from mkosi.types import PathString
 from mkosi.util import flock_or_die
 
@@ -93,7 +94,7 @@ def run_vmspawn(args: Args, config: Config) -> None:
                     "--offline=yes",
                     fname,
                 ],
-                sandbox=config.sandbox(options=["--bind", fname, fname]),
+                sandbox=config.sandbox(mounts=[Mount(fname, fname)]),
             )
 
         kcl = config.kernel_command_line_extra

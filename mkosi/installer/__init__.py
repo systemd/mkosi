@@ -1,15 +1,14 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-import os
 from pathlib import Path
 
 from mkosi.config import Config, ConfigFeature, OutputFormat
 from mkosi.context import Context
 from mkosi.run import find_binary
-from mkosi.sandbox import finalize_crypto_mounts
+from mkosi.sandbox import Mount, finalize_crypto_mounts
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
-from mkosi.util import flatten, startswith
+from mkosi.util import startswith
 
 
 class PackageManager:
@@ -30,20 +29,20 @@ class PackageManager:
         return {}
 
     @classmethod
-    def mounts(cls, context: Context) -> list[PathString]:
-        mounts: list[PathString] = [
+    def mounts(cls, context: Context) -> list[Mount]:
+        mounts = [
             *finalize_crypto_mounts(tools=context.config.tools()),
-            "--bind", context.packages, "/work/packages",
+            Mount(context.packages, "/work/packages"),
         ]
 
         if context.config.local_mirror and (mirror := startswith(context.config.local_mirror, "file://")):
-            mounts += ["--ro-bind", mirror, mirror]
+            mounts += [Mount(mirror, mirror, ro=True)]
 
         subdir = context.config.distribution.package_manager(context.config).subdir(context.config)
 
         for d in ("cache", "lib"):
             src = context.package_cache_dir / d / subdir
-            mounts += ["--bind", src, Path("/var") / d / subdir]
+            mounts += [Mount(src, Path("/var") / d / subdir)]
 
             # If we're not operating on the configured package cache directory, we're operating on a snapshot of the
             # repository metadata in the image root directory. To make sure any downloaded packages are still cached in
@@ -51,15 +50,14 @@ class PackageManager:
             # configured package cache directory.
             if d == "cache" and context.package_cache_dir != context.config.package_cache_dir_or_default():
                 caches = context.config.distribution.package_manager(context.config).cache_subdirs(src)
-                mounts += flatten(
-                    [
-                        "--bind",
-                        os.fspath(context.config.package_cache_dir_or_default() / d / subdir / p.relative_to(src)),
+                mounts += [
+                    Mount(
+                        context.config.package_cache_dir_or_default() / d / subdir / p.relative_to(src),
                         Path("/var") / d / subdir / p.relative_to(src),
-                    ]
+                    )
                     for p in caches
                     if (context.config.package_cache_dir_or_default() / d / subdir / p.relative_to(src)).exists()
-                )
+                ]
 
         return mounts
 
