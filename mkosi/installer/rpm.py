@@ -67,5 +67,5 @@ def setup_rpm(context: Context, *, dbpath: str = "/usr/lib/sysimage/rpm") -> Non
         )
 
 
-def rpm_cmd(context: Context) -> list[PathString]:
-    return ["env", "HOME=/", "rpm", "--root", context.root]
+def rpm_cmd() -> list[PathString]:
+    return ["env", "HOME=/", "rpm", "--root=/buildroot"]

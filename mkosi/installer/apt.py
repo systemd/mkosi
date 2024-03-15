@@ -52,7 +52,7 @@ class Apt(PackageManager):
     def scripts(cls, context: Context) -> dict[str, list[PathString]]:
         return {
             **{
-                command: apivfs_cmd(context.root) + cls.cmd(context, command) for command in (
+                command: apivfs_cmd() + cls.cmd(context, command) for command in (
                     "apt",
                     "apt-cache",
                     "apt-cdrom",
@@ -133,11 +133,10 @@ class Apt(PackageManager):
             "-o", "Dir::Cache=/var/cache/apt",
             "-o", "Dir::State=/var/lib/apt",
             "-o", "Dir::Log=/var/log/apt",
-            "-o", f"Dir::State::Status={context.root / 'var/lib/dpkg/status'}",
-            "-o", f"Dir::Log={context.workspace}",
+            "-o", "Dir::State::Status=/buildroot/var/lib/dpkg/status",
             "-o", f"Dir::Bin::DPkg={find_binary('dpkg', root=context.config.tools())}",
             "-o", "Debug::NoLocking=true",
-            "-o", f"DPkg::Options::=--root={context.root}",
+            "-o", "DPkg::Options::=--root=/buildroot",
             "-o", "DPkg::Options::=--force-unsafe-io",
             "-o", "DPkg::Options::=--force-architecture",
             "-o", "DPkg::Options::=--force-depends",
@@ -185,9 +184,9 @@ class Apt(PackageManager):
                 sandbox=(
                     context.sandbox(
                         network=True,
-                        mounts=[Mount(context.root, context.root), *cls.mounts(context), *sources, *mounts],
+                        mounts=[Mount(context.root, "/buildroot"), *cls.mounts(context), *sources, *mounts],
                         options=["--dir", "/work/src", "--chdir", "/work/src"],
-                    ) + (apivfs_cmd(context.root) if apivfs else [])
+                    ) + (apivfs_cmd() if apivfs else [])
                 ),
                 env=context.config.environment,
                 stdout=stdout,

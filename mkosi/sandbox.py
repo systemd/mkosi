@@ -64,14 +64,14 @@ def have_effective_cap(capability: Capability) -> bool:
     return (int(hexcap, 16) & (1 << capability.value)) != 0
 
 
-def finalize_passwd_mounts(root: Path) -> list[Mount]:
+def finalize_passwd_mounts(root: PathString) -> list[Mount]:
     """
     If passwd or a related file exists in the apivfs directory, bind mount it over the host files while we
     run the command, to make sure that the command we run uses user/group information from the apivfs
     directory instead of from the host.
     """
     return [
-        Mount(root / "etc" / f, f"/etc/{f}", ro=True, required=False)
+        Mount(Path(root) / "etc" / f, f"/etc/{f}", ro=True, required=False)
         for f in ("passwd", "group", "shadow", "gshadow")
     ]
 
@@ -239,43 +239,52 @@ def sandbox_cmd(
     return cmdline
 
 
-def apivfs_cmd(root: Path) -> list[PathString]:
+def apivfs_cmd() -> list[PathString]:
     return [
         "bwrap",
         "--dev-bind", "/", "/",
-        "--tmpfs", root / "run",
-        "--tmpfs", root / "tmp",
-        "--bind", "/var/tmp", root / "var/tmp",
-        "--proc", root / "proc",
-        "--dev", root / "dev",
+        "--tmpfs", "/buildroot/run",
+        "--tmpfs", "/buildroot/tmp",
+        "--bind", "/var/tmp", "/buildroot/var/tmp",
+        "--proc", "/buildroot/proc",
+        "--dev", "/buildroot/dev",
         # Make sure /etc/machine-id is not overwritten by any package manager post install scripts.
-        "--ro-bind-try", root / "etc/machine-id", root / "etc/machine-id",
+        "--ro-bind-try", "/buildroot/etc/machine-id", "/buildroot/etc/machine-id",
         # Nudge gpg to create its sockets in /run by making sure /run/user/0 exists.
-        "--dir", root / "run/user/0",
-        *flatten(mount.options() for mount in finalize_passwd_mounts(root)),
+        "--dir", "/buildroot/run/user/0",
+        *flatten(mount.options() for mount in finalize_passwd_mounts("/buildroot")),
         "sh", "-c",
-        f"chmod 1777 {root / 'tmp'} {root / 'var/tmp'} {root / 'dev/shm'} && "
-        f"chmod 755 {root / 'run'} && "
-        # Make sure anything running in the root directory thinks it's in a container. $container can't always be
-        # accessed so we write /run/host/container-manager as well which is always accessible.
-        f"mkdir -m 755 {root}/run/host && echo mkosi >{root}/run/host/container-manager && "
-        "exec $0 \"$@\"",
+        " && ".join(
+            [
+                "chmod 1777 /buildroot/tmp /buildroot/var/tmp /buildroot/dev/shm",
+                "chmod 755 /buildroot/run",
+                # Make sure anything running in the root directory thinks it's in a container. $container can't always
+                # be accessed so we write /run/host/container-manager as well which is always accessible.
+                "mkdir -m 755 /buildroot/run/host",
+                "echo mkosi >/buildroot/run/host/container-manager",
+                "exec $0 \"$@\"",
+            ]
+        ),
     ]
 
 
-def chroot_cmd(root: Path, *, resolve: bool = False) -> list[PathString]:
-    return apivfs_cmd(root) + [
+def chroot_cmd(*, resolve: bool = False) -> list[PathString]:
+    return apivfs_cmd() + [
         "sh", "-c",
-        f"trap 'rm -rf {root / 'work'}' EXIT && "
-        # /etc/resolv.conf can be a dangling symlink to /run/systemd/resolve/stub-resolv.conf. Bubblewrap tries to call
-        # mkdir() on each component of the path which means it will try to call
-        # mkdir(/run/systemd/resolve/stub-resolv.conf) which will fail unless /run/systemd/resolve exists already so
-        # we make sure that it already exists.
-        f"mkdir -p -m 755 {root / 'work'} {root / 'run/systemd'} {root / 'run/systemd/resolve'} && "
-        # No exec here because we need to clean up the /work directory afterwards.
-        f"$0 \"$@\"",
+        " && ".join(
+            [
+                "trap 'rm -rf /buildroot/work' EXIT",
+                # /etc/resolv.conf can be a dangling symlink to /run/systemd/resolve/stub-resolv.conf. Bubblewrap tries
+                # to call mkdir() on each component of the path which means it will try to call
+                # mkdir(/run/systemd/resolve/stub-resolv.conf) which will fail unless /run/systemd/resolve exists
+                # already so we make sure that it already exists.
+                "mkdir -p -m 755 /buildroot/work /buildroot/run/systemd /buildroot/run/systemd/resolve",
+                # No exec here because we need to clean up the /work directory afterwards.
+                "$0 \"$@\"",
+            ]
+        ),
         "bwrap",
-        "--dev-bind", root, "/",
+        "--dev-bind", "/buildroot", "/",
         "--setenv", "container", "mkosi",
         "--setenv", "HOME", "/",
         "--setenv", "PATH", "/work/scripts:/usr/bin:/usr/sbin",

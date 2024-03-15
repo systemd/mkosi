@@ -37,7 +37,7 @@ class Pacman(PackageManager):
     @classmethod
     def scripts(cls, context: Context) -> dict[str, list[PathString]]:
         return {
-            "pacman": apivfs_cmd(context.root) + cls.cmd(context),
+            "pacman": apivfs_cmd() + cls.cmd(context),
             "mkosi-install"  : ["pacman", "--sync", "--needed"],
             "mkosi-upgrade"  : ["pacman", "--sync", "--sysupgrade", "--needed"],
             "mkosi-remove"   : ["pacman", "--remove", "--recursive", "--nosave"],
@@ -128,14 +128,14 @@ class Pacman(PackageManager):
     def cmd(cls, context: Context) -> list[PathString]:
         return [
             "pacman",
-            "--root", context.root,
+            "--root=/buildroot",
             "--logfile=/dev/null",
             "--dbpath=/var/lib/pacman",
             # Make sure pacman looks at our local repository first by putting it as the first cache directory. We mount
             # it read-only so the second directory will still be used for writing new cache entries.
             "--cachedir=/var/cache/pacman/mkosi",
             "--cachedir=/var/cache/pacman/pkg",
-            "--hookdir", context.root / "etc/pacman.d/hooks",
+            "--hookdir=/buildroot/etc/pacman.d/hooks",
             "--arch", context.config.distribution.architecture(context.config.architecture),
             "--color", "auto",
             "--noconfirm",
@@ -160,9 +160,9 @@ class Pacman(PackageManager):
                 sandbox=(
                     context.sandbox(
                         network=True,
-                        mounts=[Mount(context.root, context.root), *cls.mounts(context), *sources],
+                        mounts=[Mount(context.root, "/buildroot"), *cls.mounts(context), *sources],
                         options=["--dir", "/work/src", "--chdir", "/work/src"],
-                    ) + (apivfs_cmd(context.root) if apivfs else [])
+                    ) + (apivfs_cmd() if apivfs else [])
                 ),
                 env=context.config.environment,
                 stdout=stdout,

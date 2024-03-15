@@ -39,8 +39,8 @@ class Dnf(PackageManager):
     @classmethod
     def scripts(cls, context: Context) -> dict[str, list[PathString]]:
         return {
-            "dnf": apivfs_cmd(context.root) + cls.cmd(context),
-            "rpm": apivfs_cmd(context.root) + rpm_cmd(context),
+            "dnf": apivfs_cmd() + cls.cmd(context),
+            "rpm": apivfs_cmd() + rpm_cmd(),
             "mkosi-install"  : ["dnf", "install"],
             "mkosi-upgrade"  : ["dnf", "upgrade"],
             "mkosi-remove"   : ["dnf", "remove"],
@@ -105,7 +105,7 @@ class Dnf(PackageManager):
             "--assumeyes",
             "--best",
             f"--releasever={context.config.release}",
-            f"--installroot={context.root}",
+            "--installroot=/buildroot",
             "--setopt=keepcache=1",
             "--setopt=logdir=/var/log",
             f"--setopt=cachedir=/var/cache/{cls.subdir(context.config)}",
@@ -170,9 +170,9 @@ class Dnf(PackageManager):
                     sandbox=(
                         context.sandbox(
                             network=True,
-                            mounts=[Mount(context.root, context.root), *cls.mounts(context), *sources],
+                            mounts=[Mount(context.root, "/buildroot"), *cls.mounts(context), *sources],
                             options=["--dir", "/work/src", "--chdir", "/work/src"],
-                        ) + (apivfs_cmd(context.root) if apivfs else [])
+                        ) + (apivfs_cmd() if apivfs else [])
                     ),
                     env=context.config.environment,
                     stdout=stdout,

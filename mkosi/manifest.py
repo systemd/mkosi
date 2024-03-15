@@ -105,13 +105,13 @@ class Manifest:
         c = run(
             [
                 "rpm",
-                f"--root={self.context.root}",
+                "--root=/buildroot",
                 "--query",
                 "--all",
                 "--queryformat", r"%{NEVRA}\t%{SOURCERPM}\t%{NAME}\t%{ARCH}\t%{LONGSIZE}\t%{INSTALLTIME}\n",
             ],
             stdout=subprocess.PIPE,
-            sandbox=self.context.sandbox(mounts=[Mount(self.context.root, self.context.root)]),
+            sandbox=self.context.sandbox(mounts=[Mount(self.context.root, "/buildroot")]),
         )
 
         packages = sorted(c.stdout.splitlines())
@@ -150,14 +150,14 @@ class Manifest:
                 c = run(
                     [
                         "rpm",
-                        f"--root={self.context.root}",
+                        "--root=/buildroot",
                         "--query",
                         "--changelog",
                         nevra,
                     ],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.DEVNULL,
-                    sandbox=self.context.sandbox(mounts=[Mount(self.context.root, self.context.root, ro=True)]),
+                    sandbox=self.context.sandbox(mounts=[Mount(self.context.root, "/buildroot", ro=True)]),
                 )
                 changelog = c.stdout.strip()
                 source = SourcePackageManifest(srpm, changelog)
@@ -169,13 +169,13 @@ class Manifest:
         c = run(
             [
                 "dpkg-query",
-                f"--admindir={self.context.root / 'var/lib/dpkg'}",
+                "--admindir=/buildroot/var/lib/dpkg",
                 "--show",
                 "--showformat",
                     r'${Package}\t${source:Package}\t${Version}\t${Architecture}\t${Installed-Size}\t${db-fsys:Last-Modified}\n',
             ],
             stdout=subprocess.PIPE,
-            sandbox=self.context.sandbox(mounts=[Mount(self.context.root, self.context.root, ro=True)]),
+            sandbox=self.context.sandbox(mounts=[Mount(self.context.root, "/buildroot", ro=True)]),
         )
 
         packages = sorted(c.stdout.splitlines())
@@ -211,7 +211,7 @@ class Manifest:
                 result = Apt.invoke(
                     self.context,
                     "changelog",
-                    ["--quiet", "--quiet", "-o", f"Dir={self.context.root}", name],
+                    ["--quiet", "--quiet", "-o", "Dir=/buildroot", name],
                     stdout=subprocess.PIPE,
                 )
                 source_package = SourcePackageManifest(source, result.stdout.strip())
