@@ -134,7 +134,6 @@ class Apt(PackageManager):
             "-o", "Dir::State=/var/lib/apt",
             "-o", "Dir::Log=/var/log/apt",
             "-o", f"Dir::State::Status={context.root / 'var/lib/dpkg/status'}",
-            "-o", f"Dir::Log={context.workspace}",
             "-o", f"Dir::Bin::DPkg={find_binary('dpkg', root=context.config.tools())}",
             "-o", "Debug::NoLocking=true",
             "-o", f"DPkg::Options::=--root={context.root}",
