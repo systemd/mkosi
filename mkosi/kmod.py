@@ -9,7 +9,7 @@ from pathlib import Path
 
 from mkosi.log import complete_step, log_step
 from mkosi.run import run
-from mkosi.sandbox import SandboxProtocol, nosandbox
+from mkosi.sandbox import Mount, SandboxProtocol, nosandbox
 
 
 def loaded_modules() -> list[str]:
@@ -91,7 +91,7 @@ def resolve_module_dependencies(
         info += run(
             ["modinfo", "--basedir", root, "--set-version", kver, "--null", *chunk],
             stdout=subprocess.PIPE,
-            sandbox=sandbox(options=["--ro-bind", root, root])
+            sandbox=sandbox(mounts=[Mount(root, root, ro=True)]),
         ).stdout.strip()
 
     log_step("Calculating required kernel modules and firmware")

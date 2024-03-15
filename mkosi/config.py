@@ -33,7 +33,7 @@ from mkosi.distributions import Distribution, detect_distribution
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, Style, die
 from mkosi.pager import page
 from mkosi.run import find_binary, run
-from mkosi.sandbox import sandbox_cmd
+from mkosi.sandbox import Mount, sandbox_cmd
 from mkosi.types import PathString, SupportsRead
 from mkosi.user import INVOKING_USER
 from mkosi.util import (
@@ -1551,13 +1551,13 @@ class Config:
         devices: bool = False,
         relaxed: bool = False,
         scripts: Optional[Path] = None,
+        mounts: Sequence[Mount] = (),
         options: Sequence[PathString] = (),
     ) -> list[PathString]:
-        mounts: list[PathString] = (
-            flatten(("--ro-bind", d, d) for d in self.extra_search_paths)
-            if not relaxed and not self.tools_tree
-            else []
-        )
+        mounts = [
+            *[Mount(d, d, ro=True) for d in self.extra_search_paths if not relaxed and not self.tools_tree],
+            *mounts,
+        ]
 
         return sandbox_cmd(
             network=network,
@@ -1565,7 +1565,8 @@ class Config:
             relaxed=relaxed,
             scripts=scripts,
             tools=self.tools(),
-            options=[*mounts, *options],
+            mounts=mounts,
+            options=options,
         )
 
 
@@ -3895,7 +3896,7 @@ def want_selinux_relabel(config: Config, root: Path, fatal: bool = True) -> Opti
         return None
 
     policy = run(["sh", "-c", f". {selinux} && echo $SELINUXTYPE"],
-                 sandbox=config.sandbox(options=["--ro-bind", selinux, selinux]),
+                 sandbox=config.sandbox(mounts=[Mount(selinux, selinux, ro=True)]),
                  stdout=subprocess.PIPE).stdout.strip()
     if not policy:
         if fatal and config.selinux_relabel == ConfigFeature.enabled:

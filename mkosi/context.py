@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-import os
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Optional
 
 from mkosi.config import Args, Config
+from mkosi.sandbox import Mount
 from mkosi.tree import make_tree
 from mkosi.types import PathString
-from mkosi.util import flatten, umask
+from mkosi.util import umask
 
 
 class Context:
@@ -73,26 +73,30 @@ class Context:
         network: bool = False,
         devices: bool = False,
         scripts: Optional[Path] = None,
+        mounts: Sequence[Mount] = (),
         options: Sequence[PathString] = (),
     ) -> list[PathString]:
         return self.config.sandbox(
             network=network,
             devices=devices,
             scripts=scripts,
+            mounts=[
+                # These mounts are writable so bubblewrap can create extra directories or symlinks inside of it as
+                # needed. This isn't a problem as the package manager directory is created by mkosi and thrown away
+                # when the build finishes.
+                *[
+                    Mount(self.pkgmngr / "etc" / p.name, f"/etc/{p.name}")
+                    for p in (self.pkgmngr / "etc").iterdir()
+                ],
+                *mounts,
+                Mount(self.pkgmngr / "var/log", "/var/log"),
+                *([Mount(p, p, ro=True)] if (p := self.pkgmngr / "usr").exists() else []),
+            ],
             options=[
                 "--uid", "0",
                 "--gid", "0",
                 "--cap-add", "ALL",
-                # These mounts are writable so bubblewrap can create extra directories or symlinks inside of it as
-                # needed. This isn't a problem as the package manager directory is created by mkosi and thrown away
-                # when the build finishes.
-                *flatten(
-                    ["--bind", os.fspath(self.pkgmngr / "etc" / p.name), f"/etc/{p.name}"]
-                    for p in (self.pkgmngr / "etc").iterdir()
-                ),
                 *options,
-                "--bind", self.pkgmngr / "var/log", "/var/log",
-                *(["--ro-bind", os.fspath(p), os.fspath(p)] if (p := self.pkgmngr / "usr").exists() else []),
             ],
         ) + (
             [

@@ -65,7 +65,7 @@ from mkosi.run import (
     log_process_failure,
     run,
 )
-from mkosi.sandbox import chroot_cmd, finalize_crypto_mounts, finalize_passwd_mounts
+from mkosi.sandbox import Mount, chroot_cmd, finalize_crypto_mounts, finalize_passwd_mounts
 from mkosi.tree import copy_tree, move_tree, rmtree
 from mkosi.types import PathString
 from mkosi.user import CLONE_NEWNS, INVOKING_USER, become_root, unshare
@@ -449,28 +449,31 @@ def run_sync_scripts(context: Context) -> None:
         finalize_config_json(context.config) as json,
     ):
         for script in context.config.sync_scripts:
-            options = [
+            mounts = [
                 *sources,
                 *finalize_crypto_mounts(context.config.tools()),
-                "--ro-bind", script, "/work/sync",
-                "--ro-bind", json, "/work/config.json",
-                "--chdir", "/work/src",
+                Mount(script, "/work/sync", ro=True),
+                Mount(json, "/work/config.json", ro=True),
             ]
 
             if (p := INVOKING_USER.home()).exists():
-                # We use --bind here instead of --ro-bind to keep git worktrees working which encode absolute paths to
-                # the parent git repository and might need to modify the git config in the parent git repository when
-                # submodules are in use as well.
-                options += ["--bind", p, p]
+                # We use a writable mount here to keep git worktrees working which encode absolute paths to the parent
+                # git repository and might need to modify the git config in the parent git repository when submodules
+                # are in use as well.
+                mounts += [Mount(p, p)]
             if (p := Path(f"/run/user/{INVOKING_USER.uid}")).exists():
-                options += ["--ro-bind", p, p]
+                mounts += [Mount(p, p, ro=True)]
 
             with complete_step(f"Running sync script {script}…"):
                 run(
                     ["/work/sync", "final"],
                     env=env | context.config.environment,
                     stdin=sys.stdin,
-                    sandbox=context.sandbox(network=True, options=options),
+                    sandbox=context.sandbox(
+                        network=True,
+                        mounts=mounts,
+                        options=["--dir", "/work/src", "--chdir", "/work/src"]
+                    ),
                 )
 
 
@@ -533,14 +536,15 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
                     stdin=sys.stdin,
                     sandbox=context.sandbox(
                         network=True,
-                        options=sources + [
-                            "--ro-bind", script, "/work/prepare",
-                            "--ro-bind", json, "/work/config.json",
-                            "--ro-bind", cd, "/work/scripts",
-                            "--bind", context.root, context.root,
+                        mounts=[
+                            *sources,
+                            Mount(script, "/work/prepare", ro=True),
+                            Mount(json, "/work/config.json", ro=True),
+                            Mount(cd, "/work/scripts", ro=True),
+                            Mount(context.root, context.root),
                             *context.config.distribution.package_manager(context.config).mounts(context),
-                            "--chdir", "/work/src",
                         ],
+                        options=["--dir", "/work/src", "--chdir", "/work/src"],
                         scripts=hd,
                     ) + (chroot if script.suffix == ".chroot" else []),
                 )
@@ -608,21 +612,22 @@ def run_build_scripts(context: Context) -> None:
                     stdin=sys.stdin,
                     sandbox=context.sandbox(
                         network=context.config.with_network,
-                        options=sources + [
-                            "--ro-bind", script, "/work/build-script",
-                            "--ro-bind", json, "/work/config.json",
-                            "--ro-bind", cd, "/work/scripts",
-                            "--bind", context.root, context.root,
-                            "--bind", context.install_dir, "/work/dest",
-                            "--bind", context.staging, "/work/out",
+                        mounts=[
+                            *sources,
+                            Mount(script, "/work/build-script", ro=True),
+                            Mount(json, "/work/config.json", ro=True),
+                            Mount(cd, "/work/scripts", ro=True),
+                            Mount(context.root, context.root),
+                            Mount(context.install_dir, "/work/dest"),
+                            Mount(context.staging, "/work/out"),
                             *(
-                                ["--bind", os.fspath(context.config.build_dir), "/work/build"]
+                                [Mount(context.config.build_dir, "/work/build")]
                                 if context.config.build_dir
                                 else []
                             ),
                             *context.config.distribution.package_manager(context.config).mounts(context),
-                            "--chdir", "/work/src",
                         ],
+                        options=["--dir", "/work/src", "--chdir", "/work/src"],
                         scripts=hd,
                     ) + (chroot if script.suffix == ".chroot" else []),
                 )
@@ -680,15 +685,16 @@ def run_postinst_scripts(context: Context) -> None:
                     stdin=sys.stdin,
                     sandbox=context.sandbox(
                         network=context.config.with_network,
-                        options=sources + [
-                            "--ro-bind", script, "/work/postinst",
-                            "--ro-bind", json, "/work/config.json",
-                            "--ro-bind", cd, "/work/scripts",
-                            "--bind", context.root, context.root,
-                            "--bind", context.staging, "/work/out",
+                        mounts=[
+                            *sources,
+                            Mount(script, "/work/postinst", ro=True),
+                            Mount(json, "/work/config.json", ro=True),
+                            Mount(cd, "/work/scripts", ro=True),
+                            Mount(context.root, context.root),
+                            Mount(context.staging, "/work/out"),
                             *context.config.distribution.package_manager(context.config).mounts(context),
-                            "--chdir", "/work/src",
                         ],
+                        options=["--dir", "/work/src", "--chdir", "/work/src"],
                         scripts=hd,
                     ) + (chroot if script.suffix == ".chroot" else []),
                 )
@@ -742,15 +748,16 @@ def run_finalize_scripts(context: Context) -> None:
                     stdin=sys.stdin,
                     sandbox=context.sandbox(
                         network=context.config.with_network,
-                        options=sources + [
-                            "--ro-bind", script, "/work/finalize",
-                            "--ro-bind", json, "/work/config.json",
-                            "--ro-bind", cd, "/work/scripts",
-                            "--bind", context.root, context.root,
-                            "--bind", context.staging, "/work/out",
+                        mounts=[
+                            *sources,
+                            Mount(script, "/work/finalize", ro=True),
+                            Mount(json, "/work/config.json", ro=True),
+                            Mount(cd, "/work/scripts", ro=True),
+                            Mount(context.root, context.root),
+                            Mount(context.staging, "/work/out"),
                             *context.config.distribution.package_manager(context.config).mounts(context),
-                            "--chdir", "/work/src",
                         ],
+                        options=["--dir", "/work/src", "--chdir", "/work/src"],
                         scripts=hd,
                     ) + (chroot if script.suffix == ".chroot" else []),
                 )
@@ -767,7 +774,7 @@ def certificate_common_name(context: Context, certificate: Path) -> str:
             "-in", certificate,
         ],
         stdout=subprocess.PIPE,
-        sandbox=context.sandbox(options=["--ro-bind", certificate, certificate]),
+        sandbox=context.sandbox(mounts=[Mount(certificate, certificate, ro=True)]),
     ).stdout
 
     for line in output.splitlines():
@@ -811,9 +818,9 @@ def pesign_prepare(context: Context) -> None:
             ],
             stdout=f,
             sandbox=context.sandbox(
-                options=[
-                    "--ro-bind", context.config.secure_boot_key, context.config.secure_boot_key,
-                    "--ro-bind", context.config.secure_boot_certificate, context.config.secure_boot_certificate,
+                mounts=[
+                    Mount(context.config.secure_boot_key, context.config.secure_boot_key, ro=True),
+                    Mount(context.config.secure_boot_certificate, context.config.secure_boot_certificate, ro=True),
                 ],
             ),
         )
@@ -829,9 +836,9 @@ def pesign_prepare(context: Context) -> None:
             "-d", context.workspace / "pesign",
         ],
         sandbox=context.sandbox(
-            options=[
-                "--ro-bind", context.workspace / "secure-boot.p12", context.workspace / "secure-boot.p12",
-                "--bind", context.workspace / "pesign", context.workspace / "pesign",
+            mounts=[
+                Mount(context.workspace / "secure-boot.p12", context.workspace / "secure-boot.p12", ro=True),
+                Mount(context.workspace / "pesign", context.workspace / "pesign"),
             ],
         ),
     )
@@ -869,20 +876,20 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
                 "--cert", context.config.secure_boot_certificate,
                 "--output", "/dev/stdout",
             ]
-            options: list[PathString] = [
-                "--ro-bind", context.config.secure_boot_certificate, context.config.secure_boot_certificate,
-                "--ro-bind", input, input,
+            mounts = [
+                Mount(context.config.secure_boot_certificate, context.config.secure_boot_certificate, ro=True),
+                Mount(input, input, ro=True),
             ]
             if context.config.secure_boot_key_source.type == KeySource.Type.engine:
                 cmd += ["--engine", context.config.secure_boot_key_source.source]
             if context.config.secure_boot_key.exists():
-                options += ["--ro-bind", context.config.secure_boot_key, context.config.secure_boot_key]
+                mounts += [Mount(context.config.secure_boot_key, context.config.secure_boot_key, ro=True)]
             cmd += [input]
             run(
                 cmd,
                 stdout=f,
                 sandbox=context.sandbox(
-                    options=options,
+                    mounts=mounts,
                     devices=context.config.secure_boot_key_source.type != KeySource.Type.file,
                 )
             )
@@ -908,9 +915,9 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
                 ],
                 stdout=f,
                 sandbox=context.sandbox(
-                    options=[
-                        "--ro-bind", context.workspace / "pesign", context.workspace / "pesign",
-                        "--ro-bind", input, input,
+                    mounts=[
+                        Mount(context.workspace / "pesign", context.workspace / "pesign", ro=True),
+                        Mount(input, input, ro=True),
                     ]
                 ),
             )
@@ -955,7 +962,7 @@ def install_systemd_boot(context: Context) -> None:
         run(
             ["bootctl", "install", "--root", context.root, "--all-architectures", "--no-variables"],
             env={"SYSTEMD_ESP_PATH": "/efi", "SYSTEMD_XBOOTLDR_PATH": "/boot"},
-            sandbox=context.sandbox(options=["--bind", context.root, context.root]),
+            sandbox=context.sandbox(mounts=[Mount(context.root, context.root)]),
         )
 
         if context.config.shim_bootloader != ShimBootloader.none:
@@ -984,10 +991,12 @@ def install_systemd_boot(context: Context) -> None:
                     ],
                     stdout=f,
                     sandbox=context.sandbox(
-                        options=[
-                            "--ro-bind",
-                            context.config.secure_boot_certificate,
-                            context.config.secure_boot_certificate,
+                        mounts=[
+                            Mount(
+                                context.config.secure_boot_certificate,
+                                context.config.secure_boot_certificate,
+                                ro=True
+                            ),
                         ],
                     ),
                 )
@@ -1003,7 +1012,7 @@ def install_systemd_boot(context: Context) -> None:
                     ],
                     stdout=f,
                     sandbox=context.sandbox(
-                        options=["--ro-bind", context.workspace / "mkosi.der", context.workspace / "mkosi.der"]
+                        mounts=[Mount(context.workspace / "mkosi.der", context.workspace / "mkosi.der", ro=True)]
                     ),
                 )
 
@@ -1018,22 +1027,24 @@ def install_systemd_boot(context: Context) -> None:
                         "--cert", context.config.secure_boot_certificate,
                         "--output", "/dev/stdout",
                     ]
-                    options: list[PathString] = [
-                        "--ro-bind",
-                        context.config.secure_boot_certificate,
-                        context.config.secure_boot_certificate,
-                        "--ro-bind", context.workspace / "mkosi.esl", context.workspace / "mkosi.esl",
+                    mounts = [
+                        Mount(
+                            context.config.secure_boot_certificate,
+                            context.config.secure_boot_certificate,
+                            ro=True
+                        ),
+                        Mount(context.workspace / "mkosi.esl", context.workspace / "mkosi.esl", ro=True),
                     ]
                     if context.config.secure_boot_key_source.type == KeySource.Type.engine:
                         cmd += ["--engine", context.config.secure_boot_key_source.source]
                     if context.config.secure_boot_key.exists():
-                        options += ["--ro-bind", context.config.secure_boot_key, context.config.secure_boot_key]
+                        mounts += [Mount(context.config.secure_boot_key, context.config.secure_boot_key, ro=True)]
                     cmd += [db, context.workspace / "mkosi.esl"]
                     run(
                         cmd,
                         stdout=f,
                         sandbox=context.sandbox(
-                            options=options,
+                            mounts=mounts,
                             devices=context.config.secure_boot_key_source.type != KeySource.Type.file,
                         ),
                     )
@@ -1296,10 +1307,10 @@ def grub_mkimage(
                 *modules,
             ],
             sandbox=context.sandbox(
-                options=[
-                    "--bind", context.root, context.root,
-                    "--ro-bind", earlyconfig.name, earlyconfig.name,
-                    *(["--ro-bind", str(sbat), str(sbat)] if sbat else []),
+                mounts=[
+                    Mount(context.root, context.root),
+                    Mount(earlyconfig.name, earlyconfig.name, ro=True),
+                    *([Mount(str(sbat), str(sbat), ro=True)] if sbat else []),
                 ],
             ),
         )
@@ -1405,10 +1416,10 @@ def grub_bios_setup(context: Context, partitions: Sequence[Partition]) -> None:
                 context.staging / context.config.output_with_format,
             ],
             sandbox=context.sandbox(
-                options=[
-                    "--bind", context.root, context.root,
-                    "--bind", context.staging, context.staging,
-                    "--bind", mountinfo.name, mountinfo.name,
+                mounts=[
+                    Mount(context.root, context.root),
+                    Mount(context.staging, context.staging),
+                    Mount(mountinfo.name, mountinfo.name),
                 ],
             ),
         )
@@ -1448,7 +1459,7 @@ def install_tree(
             sandbox=config.sandbox(
                 devices=True,
                 network=True,
-                options=["--ro-bind", src, src, "--bind", t.parent, t.parent],
+                mounts=[Mount(src, src, ro=True), Mount(t.parent, t.parent)],
             ),
         )
     else:
@@ -1869,7 +1880,7 @@ def extract_pe_section(context: Context, binary: Path, section: str, output: Pat
             [python_binary(context.config)],
             input=pefile,
             stdout=f,
-            sandbox=context.sandbox(options=["--ro-bind", binary, binary])
+            sandbox=context.sandbox(mounts=[Mount(binary, binary, ro=True)])
         )
 
     return output
@@ -1911,11 +1922,11 @@ def build_uki(
         "--uname", kver,
     ]
 
-    options: list[PathString] = [
-        "--bind", output.parent, output.parent,
-        "--ro-bind", context.workspace / "cmdline", context.workspace / "cmdline",
-        "--ro-bind", context.root / "usr/lib/os-release", context.root / "usr/lib/os-release",
-        "--ro-bind", stub, stub,
+    mounts = [
+        Mount(output.parent, output.parent),
+        Mount(context.workspace / "cmdline", context.workspace / "cmdline", ro=True),
+        Mount(context.root / "usr/lib/os-release", context.root / "usr/lib/os-release", ro=True),
+        Mount(stub, stub, ro=True),
     ]
 
     if context.config.secure_boot:
@@ -1932,13 +1943,13 @@ def build_uki(
                 "--secureboot-certificate",
                 context.config.secure_boot_certificate,
             ]
-            options += [
-                "--ro-bind", context.config.secure_boot_certificate, context.config.secure_boot_certificate,
+            mounts += [
+                Mount(context.config.secure_boot_certificate, context.config.secure_boot_certificate, ro=True),
             ]
             if context.config.secure_boot_key_source.type == KeySource.Type.engine:
                 cmd += ["--signing-engine", context.config.secure_boot_key_source.source]
             if context.config.secure_boot_key.exists():
-                options += ["--ro-bind", context.config.secure_boot_key, context.config.secure_boot_key]
+                mounts += [Mount(context.config.secure_boot_key, context.config.secure_boot_key, ro=True)]
         else:
             pesign_prepare(context)
             cmd += [
@@ -1948,7 +1959,7 @@ def build_uki(
                 "--secureboot-certificate-name",
                 certificate_common_name(context, context.config.secure_boot_certificate),
             ]
-            options += ["--ro-bind", context.workspace / "pesign", context.workspace / "pesign"]
+            mounts += [Mount(context.workspace / "pesign", context.workspace / "pesign", ro=True)]
 
         if want_signed_pcrs(context.config):
             cmd += [
@@ -1956,28 +1967,28 @@ def build_uki(
                 "--pcr-banks", "sha1,sha256",
             ]
             if context.config.secure_boot_key.exists():
-                options += ["--ro-bind", context.config.secure_boot_key, context.config.secure_boot_key]
+                mounts += [Mount(context.config.secure_boot_key, context.config.secure_boot_key)]
             if context.config.secure_boot_key_source.type == KeySource.Type.engine:
                 cmd += [
                     "--signing-engine", context.config.secure_boot_key_source.source,
                     "--pcr-public-key", context.config.secure_boot_certificate,
                 ]
-                options += [
-                    "--ro-bind", context.config.secure_boot_certificate, context.config.secure_boot_certificate,
+                mounts += [
+                    Mount(context.config.secure_boot_certificate, context.config.secure_boot_certificate, ro=True),
                 ]
 
     cmd += ["build", "--linux", kimg]
-    options += ["--ro-bind", kimg, kimg]
+    mounts += [Mount(kimg, kimg, ro=True)]
 
     for initrd in initrds:
         cmd += ["--initrd", initrd]
-        options += ["--ro-bind", initrd, initrd]
+        mounts += [Mount(initrd, initrd, ro=True)]
 
     with complete_step(f"Generating unified kernel image for kernel version {kver}"):
         run(
             cmd,
             sandbox=context.sandbox(
-                options=options,
+                mounts=mounts,
                 devices=context.config.secure_boot_key_source.type != KeySource.Type.file,
             ),
         )
@@ -2036,7 +2047,7 @@ def find_entry_token(context: Context) -> str:
         return context.config.image_id or context.config.distribution.name
 
     output = json.loads(run(["kernel-install", "--root", context.root, "--json=pretty", "inspect"],
-                            sandbox=context.sandbox(options=["--ro-bind", context.root, context.root]),
+                            sandbox=context.sandbox(mounts=[Mount(context.root, context.root, ro=True)]),
                             stdout=subprocess.PIPE,
                             env={"SYSTEMD_ESP_PATH": "/efi", "SYSTEMD_XBOOTLDR_PATH": "/boot"}).stdout)
     logging.debug(json.dumps(output, indent=4))
@@ -2431,18 +2442,20 @@ def calculate_signature(context: Context) -> None:
     if sys.stderr.isatty():
         env |= dict(GPGTTY=os.ttyname(sys.stderr.fileno()))
 
-    options: list[PathString] = ["--perms", "755", "--dir", home, "--bind", home, home]
+    options: list[PathString] = ["--perms", "755", "--dir", home]
+    mounts = [Mount(home, home)]
 
     # gpg can communicate with smartcard readers via this socket so bind mount it in if it exists.
     if (p := Path("/run/pcscd/pcscd.comm")).exists():
-        options += ["--perms", "755", "--dir", p.parent, "--bind", p, p]
+        options += ["--perms", "755", "--dir", p.parent]
+        mounts += [Mount(p, p)]
 
     with (
         complete_step("Signing SHA256SUMS…"),
         open(context.staging / context.config.output_checksum, "rb") as i,
         open(context.staging / context.config.output_signature, "wb") as o,
     ):
-        run(cmdline, env=env, stdin=i, stdout=o, sandbox=context.sandbox(options=options))
+        run(cmdline, env=env, stdin=i, stdout=o, sandbox=context.sandbox(mounts=mounts, options=options))
 
 
 def dir_size(path: Union[Path, os.DirEntry[str]]) -> int:
@@ -2735,7 +2748,7 @@ def run_depmod(context: Context, *, cache: bool = False) -> None:
 
         with complete_step(f"Running depmod for {kver}"):
             run(["depmod", "--all", "--basedir", context.root, kver],
-                sandbox=context.sandbox(options=["--bind", context.root, context.root]))
+                sandbox=context.sandbox(mounts=[Mount(context.root, context.root)]))
 
 
 def run_sysusers(context: Context) -> None:
@@ -2745,7 +2758,7 @@ def run_sysusers(context: Context) -> None:
 
     with complete_step("Generating system users"):
         run(["systemd-sysusers", "--root", context.root],
-            sandbox=context.sandbox(options=["--bind", context.root, context.root]))
+            sandbox=context.sandbox(mounts=[Mount(context.root, context.root)]))
 
 
 def run_tmpfiles(context: Context) -> None:
@@ -2765,8 +2778,8 @@ def run_tmpfiles(context: Context) -> None:
         ]
 
         sandbox = context.sandbox(
-            options=[
-                "--bind", context.root, context.root,
+            mounts=[
+                Mount(context.root, context.root),
                 # systemd uses acl.h to parse ACLs in tmpfiles snippets which uses the host's passwd so we have to
                 # mount the image's passwd over it to make ACL parsing work.
                 *finalize_passwd_mounts(context.root)
@@ -2793,9 +2806,9 @@ def run_preset(context: Context) -> None:
 
     with complete_step("Applying presets…"):
         run(["systemctl", "--root", context.root, "preset-all"],
-            sandbox=context.sandbox(options=["--bind", context.root, context.root]))
+            sandbox=context.sandbox(mounts=[Mount(context.root, context.root)]))
         run(["systemctl", "--root", context.root, "--global", "preset-all"],
-            sandbox=context.sandbox(options=["--bind", context.root, context.root]))
+            sandbox=context.sandbox(mounts=[Mount(context.root, context.root)]))
 
 
 def run_hwdb(context: Context) -> None:
@@ -2808,7 +2821,7 @@ def run_hwdb(context: Context) -> None:
 
     with complete_step("Generating hardware database"):
         run(["systemd-hwdb", "--root", context.root, "--usr", "--strict", "update"],
-            sandbox=context.sandbox(options=["--bind", context.root, context.root]))
+            sandbox=context.sandbox(mounts=[Mount(context.root, context.root)]))
 
     # Remove any existing hwdb in /etc in favor of the one we just put in /usr.
     (context.root / "etc/udev/hwdb.bin").unlink(missing_ok=True)
@@ -2855,7 +2868,7 @@ def run_firstboot(context: Context) -> None:
 
     with complete_step("Applying first boot settings"):
         run(["systemd-firstboot", "--root", context.root, "--force", *options],
-            sandbox=context.sandbox(options=["--bind", context.root, context.root]))
+            sandbox=context.sandbox(mounts=[Mount(context.root, context.root)]))
 
         # Initrds generally don't ship with only /usr so there's not much point in putting the credentials in
         # /usr/lib/credstore.
@@ -2876,7 +2889,7 @@ def run_selinux_relabel(context: Context) -> None:
 
     with complete_step(f"Relabeling files using {policy} policy"):
         run(["setfiles", "-mFr", context.root, "-c", binpolicy, fc, context.root],
-            sandbox=context.sandbox(options=["--bind", context.root, context.root]),
+            sandbox=context.sandbox(mounts=[Mount(context.root, context.root)]),
             check=context.config.selinux_relabel == ConfigFeature.enabled)
 
 
@@ -3017,27 +3030,27 @@ def make_image(
         "--seed", str(context.config.seed),
         context.staging / context.config.output_with_format,
     ]
-    options: list[PathString] = ["--bind", context.staging, context.staging]
+    mounts = [Mount(context.staging, context.staging)]
 
     if root:
         cmdline += ["--root", root]
-        options += ["--bind", root, root]
+        mounts += [Mount(root, root)]
     if not context.config.architecture.is_native():
         cmdline += ["--architecture", str(context.config.architecture)]
     if not (context.staging / context.config.output_with_format).exists():
         cmdline += ["--empty=create"]
     if context.config.passphrase:
         cmdline += ["--key-file", context.config.passphrase]
-        options += ["--ro-bind", context.config.passphrase, context.config.passphrase]
+        mounts += [Mount(context.config.passphrase, context.config.passphrase, ro=True)]
     if context.config.verity_key:
         cmdline += ["--private-key", context.config.verity_key]
         if context.config.verity_key_source.type != KeySource.Type.file:
             cmdline += ["--private-key-source", str(context.config.verity_key_source)]
         if context.config.verity_key.exists():
-            options += ["--ro-bind", context.config.verity_key, context.config.verity_key]
+            mounts += [Mount(context.config.verity_key, context.config.verity_key, ro=True)]
     if context.config.verity_certificate:
         cmdline += ["--certificate", context.config.verity_certificate]
-        options += ["--ro-bind", context.config.verity_certificate, context.config.verity_certificate]
+        mounts += [Mount(context.config.verity_certificate, context.config.verity_certificate, ro=True)]
     if skip:
         cmdline += ["--defer-partitions", ",".join(skip)]
     if split:
@@ -3052,7 +3065,7 @@ def make_image(
 
     for d in definitions:
         cmdline += ["--definitions", d]
-        options += ["--ro-bind", d, d]
+        mounts += [Mount(d, d, ro=True)]
 
     with complete_step(msg):
         output = json.loads(
@@ -3065,7 +3078,7 @@ def make_image(
                         not context.config.repart_offline or
                         context.config.verity_key_source.type != KeySource.Type.file
                     ),
-                    options=options,
+                    mounts=mounts,
                 ),
             ).stdout
         )
@@ -3206,25 +3219,25 @@ def make_extension_image(context: Context, output: Path) -> None:
         "--size=auto",
         output,
     ]
-    options: list[PathString] = [
-        "--bind", output.parent, output.parent,
-        "--ro-bind", context.root, context.root,
+    mounts = [
+        Mount(output.parent, output.parent),
+        Mount(context.root, context.root, ro=True),
     ]
 
     if not context.config.architecture.is_native():
         cmdline += ["--architecture", str(context.config.architecture)]
     if context.config.passphrase:
         cmdline += ["--key-file", context.config.passphrase]
-        options += ["--ro-bind", context.config.passphrase, context.config.passphrase]
+        mounts += [Mount(context.config.passphrase, context.config.passphrase, ro=True)]
     if context.config.verity_key:
         cmdline += ["--private-key", context.config.verity_key]
         if context.config.verity_key_source.type != KeySource.Type.file:
             cmdline += ["--private-key-source", str(context.config.verity_key_source)]
         if context.config.verity_key.exists():
-            options += ["--ro-bind", context.config.verity_key, context.config.verity_key]
+            mounts += [Mount(context.config.verity_key, context.config.verity_key, ro=True)]
     if context.config.verity_certificate:
         cmdline += ["--certificate", context.config.verity_certificate]
-        options += ["--ro-bind", context.config.verity_certificate, context.config.verity_certificate]
+        mounts += [Mount(context.config.verity_certificate, context.config.verity_certificate, ro=True)]
     if context.config.sector_size:
         cmdline += ["--sector-size", str(context.config.sector_size)]
 
@@ -3236,7 +3249,7 @@ def make_extension_image(context: Context, output: Path) -> None:
 
     with complete_step(f"Building {context.config.output_format} extension image"):
         r = context.resources / f"repart/definitions/{context.config.output_format}.repart.d"
-        options += ["--ro-bind", r, r]
+        mounts += [Mount(r, r, ro=True)]
         run(
             cmdline + ["--definitions", r],
             env=env,
@@ -3245,7 +3258,7 @@ def make_extension_image(context: Context, output: Path) -> None:
                     not context.config.repart_offline or
                     context.config.verity_key_source.type != KeySource.Type.file
                 ),
-                options=options,
+                mounts=mounts,
             ),
         )
 
@@ -3359,14 +3372,14 @@ def copy_repository_metadata(context: Context) -> None:
 
                 # cp doesn't support excluding directories but we can imitate it by bind mounting an empty directory
                 # over the directories we want to exclude.
-                exclude = flatten(["--ro-bind", tmp, os.fspath(p)] for p in caches)
+                exclude = [Mount(tmp, p, ro=True) for p in caches]
 
                 dst = context.package_cache_dir / d / subdir
                 with umask(~0o755):
                     dst.mkdir(parents=True, exist_ok=True)
 
-                def sandbox(*, options: Sequence[PathString] = ()) -> list[PathString]:
-                    return context.sandbox(options=[*options, *exclude])
+                def sandbox(*, mounts: Sequence[Mount] = ()) -> list[PathString]:
+                    return context.sandbox(mounts=[*mounts, *exclude])
 
                 copy_tree(
                     src, dst,
@@ -3517,7 +3530,7 @@ def setfacl(config: Config, root: Path, uid: int, allow: bool) -> None:
         ],
         # Supply files via stdin so we don't clutter --debug run output too much
         input="\n".join([str(root), *(os.fspath(p) for p in root.rglob("*") if p.is_dir())]),
-        sandbox=config.sandbox(options=["--bind", root, root]),
+        sandbox=config.sandbox(mounts=[Mount(root, root)]),
     )
 
 
@@ -3529,7 +3542,7 @@ def acl_maybe_toggle(config: Config, root: Path, uid: int, *, always: bool) -> I
 
     # getfacl complains about absolute paths so make sure we pass a relative one.
     if root.exists():
-        sandbox = config.sandbox(options=["--bind", root, root, "--chdir", root])
+        sandbox = config.sandbox(mounts=[Mount(root, root)], options=["--chdir", root])
         has_acl = f"user:{uid}:rwx" in run(["getfacl", "-n", "."], sandbox=sandbox, stdout=subprocess.PIPE).stdout
 
         if not has_acl and not always:
@@ -3647,7 +3660,7 @@ def run_shell(args: Args, config: Config) -> None:
                 ],
                 stdin=sys.stdin,
                 env=config.environment,
-                sandbox=config.sandbox(network=True, devices=True, options=["--bind", fname, fname]),
+                sandbox=config.sandbox(network=True, devices=True, mounts=[Mount(fname, fname)]),
             )
 
         if config.output_format == OutputFormat.directory:

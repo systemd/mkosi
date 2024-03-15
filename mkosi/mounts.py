@@ -11,6 +11,7 @@ from typing import Optional
 
 from mkosi.config import Config
 from mkosi.run import run
+from mkosi.sandbox import Mount
 from mkosi.types import PathString
 from mkosi.util import umask
 from mkosi.versioncomp import GenericVersion
@@ -123,16 +124,12 @@ def mount_overlay(
 
 
 @contextlib.contextmanager
-def finalize_source_mounts(config: Config, *, ephemeral: bool) -> Iterator[list[PathString]]:
+def finalize_source_mounts(config: Config, *, ephemeral: bool) -> Iterator[list[Mount]]:
     with contextlib.ExitStack() as stack:
-        mounts = (
+        sources = (
             (stack.enter_context(mount_overlay([source])) if ephemeral else source, target)
             for source, target
             in {t.with_prefix(Path("/work/src")) for t in config.build_sources}
         )
 
-        options: list[PathString] = ["--dir", "/work/src"]
-        for src, target in sorted(mounts, key=lambda s: s[1]):
-            options += ["--bind", src, target]
-
-        yield options
+        yield [Mount(src, target) for src, target in sorted(sources, key=lambda s: s[1])]

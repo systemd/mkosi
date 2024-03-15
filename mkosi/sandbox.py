@@ -5,18 +5,45 @@ import os
 import uuid
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Optional, Protocol
+from typing import NamedTuple, Optional, Protocol
 
 from mkosi.types import PathString
 from mkosi.user import INVOKING_USER
 from mkosi.util import flatten, one_zero, startswith
 
 
+class Mount(NamedTuple):
+    src: PathString
+    dst: PathString
+    devices: bool = False
+    ro: bool = False
+    required: bool = True
+
+    def __hash__(self) -> int:
+        return hash((Path(self.src), Path(self.dst), self.devices, self.ro, self.required))
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Mount):
+            return False
+
+        return self.__hash__() == other.__hash__()
+
+    def options(self) -> list[str]:
+        if self.devices:
+            opt = "--dev-bind" if self.required else "--dev-bind-try"
+        elif self.ro:
+            opt = "--ro-bind" if self.required else "--ro-bind-try"
+        else:
+            opt = "--bind" if self.required else "--bind-try"
+
+        return [opt, os.fspath(self.src), os.fspath(self.dst)]
+
+
 class SandboxProtocol(Protocol):
-    def __call__(self, *, options: Sequence[PathString] = ()) -> list[PathString]: ...
+    def __call__(self, *, mounts: Sequence[Mount] = ()) -> list[PathString]: ...
 
 
-def nosandbox(*, options: Sequence[PathString] = ()) -> list[PathString]:
+def nosandbox(*, mounts: Sequence[Mount] = ()) -> list[PathString]:
     return []
 
 
@@ -37,21 +64,19 @@ def have_effective_cap(capability: Capability) -> bool:
     return (int(hexcap, 16) & (1 << capability.value)) != 0
 
 
-def finalize_passwd_mounts(root: Path) -> list[PathString]:
+def finalize_passwd_mounts(root: Path) -> list[Mount]:
     """
     If passwd or a related file exists in the apivfs directory, bind mount it over the host files while we
     run the command, to make sure that the command we run uses user/group information from the apivfs
     directory instead of from the host.
     """
-    options: list[PathString] = []
-
-    for f in ("passwd", "group", "shadow", "gshadow"):
-        options += ["--ro-bind-try", root / "etc" / f, f"/etc/{f}"]
-
-    return options
+    return [
+        Mount(root / "etc" / f, f"/etc/{f}", ro=True, required=False)
+        for f in ("passwd", "group", "shadow", "gshadow")
+    ]
 
 
-def finalize_crypto_mounts(tools: Path = Path("/")) -> list[PathString]:
+def finalize_crypto_mounts(tools: Path = Path("/")) -> list[Mount]:
     mounts = [
         (tools / subdir, Path("/") / subdir)
         for subdir in (
@@ -64,11 +89,33 @@ def finalize_crypto_mounts(tools: Path = Path("/")) -> list[PathString]:
         if (tools / subdir).exists()
     ]
 
-    return flatten(
-        ["--ro-bind", src, target]
+    return [
+        Mount(src, target, ro=True)
         for src, target
         in sorted(set(mounts), key=lambda s: s[1])
-    )
+    ]
+
+
+def finalize_mounts(mounts: Sequence[Mount]) -> list[PathString]:
+    mounts = list(set(mounts))
+
+    mounts = [
+        m for m in mounts
+        if not any(
+            m != n and
+            m.devices == n.devices and
+            m.ro == n.ro and
+            m.required == n.required and
+            Path(m.src).is_relative_to(n.src) and
+            Path(m.dst).is_relative_to(n.dst) and
+            Path(m.src).relative_to(n.src) == Path(m.dst).relative_to(n.dst)
+            for n in mounts
+        )
+    ]
+
+    mounts = sorted(mounts, key=lambda m: (Path(m.dst), m.devices, not m.ro, m.required, Path(m.src)))
+
+    return flatten(m.options() for m in mounts)
 
 
 def sandbox_cmd(
@@ -78,9 +125,11 @@ def sandbox_cmd(
     scripts: Optional[Path] = None,
     tools: Path = Path("/"),
     relaxed: bool = False,
+    mounts: Sequence[Mount] = (),
     options: Sequence[PathString] = (),
 ) -> list[PathString]:
     cmdline: list[PathString] = []
+    mounts = list(mounts)
 
     if not relaxed:
         # We want to use an empty subdirectory in the host's temporary directory as the sandbox's /var/tmp. To make
@@ -93,7 +142,6 @@ def sandbox_cmd(
 
     cmdline += [
         "bwrap",
-        "--ro-bind", tools / "usr", "/usr",
         *(["--unshare-net"] if not network and have_effective_cap(Capability.CAP_NET_ADMIN) else []),
         "--die-with-parent",
         "--proc", "/proc",
@@ -101,9 +149,10 @@ def sandbox_cmd(
         # We mounted a subdirectory of TMPDIR to /var/tmp so we unset TMPDIR so that /tmp or /var/tmp are used instead.
         "--unsetenv", "TMPDIR",
     ]
+    mounts += [Mount(tools / "usr", "/usr", ro=True)]
 
     if relaxed:
-        cmdline += ["--bind", "/tmp", "/tmp"]
+        mounts += [Mount("/tmp", "/tmp")]
     else:
         cmdline += [
             "--tmpfs", "/tmp",
@@ -111,13 +160,13 @@ def sandbox_cmd(
         ]
 
     if (tools / "nix/store").exists():
-        cmdline += ["--bind", tools / "nix/store", "/nix/store"]
+        mounts += [Mount(tools / "nix/store", "/nix/store")]
 
     if devices or relaxed:
-        cmdline += [
-            "--bind", "/sys", "/sys",
-            "--bind", "/run", "/run",
-            "--dev-bind", "/dev", "/dev",
+        mounts += [
+            Mount("/sys", "/sys"),
+            Mount("/run", "/run"),
+            Mount("/dev", "/dev", devices=True),
         ]
     else:
         cmdline += ["--dev", "/dev"]
@@ -127,7 +176,7 @@ def sandbox_cmd(
 
         for d in dirs:
             if Path(d).exists():
-                cmdline += ["--bind", d, d]
+                mounts += [Mount(d, d)]
 
         if len(Path.cwd().parents) >= 2:
             # `Path.parents` only supports slices and negative indexing from Python 3.10 onwards.
@@ -139,23 +188,20 @@ def sandbox_cmd(
             d = ""
 
         if d and d not in (*dirs, "/home", "/usr", "/nix", "/tmp"):
-            cmdline += ["--bind", d, d]
+            mounts += [Mount(d, d)]
 
     if vartmp:
-        cmdline += ["--bind", vartmp, "/var/tmp"]
+        mounts += [Mount(vartmp, "/var/tmp")]
 
     for d in ("bin", "sbin", "lib", "lib32", "lib64"):
         if (p := tools / d).is_symlink():
             cmdline += ["--symlink", p.readlink(), Path("/") / p.relative_to(tools)]
         elif p.is_dir():
-            cmdline += ["--ro-bind", p, Path("/") / p.relative_to(tools)]
+            mounts += [Mount(p, Path("/") / p.relative_to(tools), ro=True)]
 
     path = "/usr/bin:/usr/sbin" if tools != Path("/") else os.environ["PATH"]
 
-    cmdline += [
-        "--setenv", "PATH", f"/scripts:{path}",
-        *options,
-    ]
+    cmdline += ["--setenv", "PATH", f"/scripts:{path}", *options]
 
     if not relaxed:
         cmdline += ["--symlink", "../proc/self/mounts", "/etc/mtab"]
@@ -166,13 +212,15 @@ def sandbox_cmd(
     # already exists on the host as otherwise we'd modify the host's /etc by creating the mountpoint ourselves (or
     # fail when trying to create it).
     if (tools / "etc/alternatives").exists() and (not relaxed or Path("/etc/alternatives").exists()):
-        cmdline += ["--ro-bind", tools / "etc/alternatives", "/etc/alternatives"]
+        mounts += [Mount(tools / "etc/alternatives", "/etc/alternatives", ro=True)]
 
     if scripts:
-        cmdline += ["--ro-bind", scripts, "/scripts"]
+        mounts += [Mount(scripts, "/scripts", ro=True)]
 
     if network and not relaxed and Path("/etc/resolv.conf").exists():
-        cmdline += ["--bind", "/etc/resolv.conf", "/etc/resolv.conf"]
+        mounts += [Mount("/etc/resolv.conf", "/etc/resolv.conf")]
+
+    cmdline += finalize_mounts(mounts)
 
     # bubblewrap creates everything with a restricted mode so relax stuff as needed.
     ops = []
@@ -204,7 +252,7 @@ def apivfs_cmd(root: Path) -> list[PathString]:
         "--ro-bind-try", root / "etc/machine-id", root / "etc/machine-id",
         # Nudge gpg to create its sockets in /run by making sure /run/user/0 exists.
         "--dir", root / "run/user/0",
-        *finalize_passwd_mounts(root),
+        *flatten(mount.options() for mount in finalize_passwd_mounts(root)),
         "sh", "-c",
         f"chmod 1777 {root / 'tmp'} {root / 'var/tmp'} {root / 'dev/shm'} && "
         f"chmod 755 {root / 'run'} && "

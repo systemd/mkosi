@@ -14,6 +14,7 @@ from mkosi.distributions import PackageType
 from mkosi.installer.apt import Apt
 from mkosi.log import complete_step
 from mkosi.run import run
+from mkosi.sandbox import Mount
 
 
 @dataclasses.dataclass
@@ -110,7 +111,7 @@ class Manifest:
                 "--queryformat", r"%{NEVRA}\t%{SOURCERPM}\t%{NAME}\t%{ARCH}\t%{LONGSIZE}\t%{INSTALLTIME}\n",
             ],
             stdout=subprocess.PIPE,
-            sandbox=self.context.sandbox(options=["--ro-bind", self.context.root, self.context.root]),
+            sandbox=self.context.sandbox(mounts=[Mount(self.context.root, self.context.root)]),
         )
 
         packages = sorted(c.stdout.splitlines())
@@ -156,7 +157,7 @@ class Manifest:
                     ],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.DEVNULL,
-                    sandbox=self.context.sandbox(options=["--ro-bind", self.context.root, self.context.root]),
+                    sandbox=self.context.sandbox(mounts=[Mount(self.context.root, self.context.root, ro=True)]),
                 )
                 changelog = c.stdout.strip()
                 source = SourcePackageManifest(srpm, changelog)
@@ -174,7 +175,7 @@ class Manifest:
                     r'${Package}\t${source:Package}\t${Version}\t${Architecture}\t${Installed-Size}\t${db-fsys:Last-Modified}\n',
             ],
             stdout=subprocess.PIPE,
-            sandbox=self.context.sandbox(options=["--ro-bind", self.context.root, self.context.root]),
+            sandbox=self.context.sandbox(mounts=[Mount(self.context.root, self.context.root, ro=True)]),
         )
 
         packages = sorted(c.stdout.splitlines())

@@ -11,7 +11,7 @@ from mkosi.context import Context
 from mkosi.installer import PackageManager
 from mkosi.mounts import finalize_source_mounts
 from mkosi.run import run
-from mkosi.sandbox import apivfs_cmd
+from mkosi.sandbox import Mount, apivfs_cmd
 from mkosi.types import _FILE, CompletedProcess, PathString
 from mkosi.util import umask
 from mkosi.versioncomp import GenericVersion
@@ -45,25 +45,25 @@ class Pacman(PackageManager):
         }
 
     @classmethod
-    def mounts(cls, context: Context) -> list[PathString]:
-        mounts: list[PathString] = [
+    def mounts(cls, context: Context) -> list[Mount]:
+        mounts = [
             *super().mounts(context),
             # pacman writes downloaded packages to the first writable cache directory. We don't want it to write to our
             # local repository directory so we expose it as a read-only directory to pacman.
-            "--ro-bind", context.packages, "/var/cache/pacman/mkosi",
+            Mount(context.packages, "/var/cache/pacman/mkosi", ro=True),
         ]
 
         if (context.root / "var/lib/pacman/local").exists():
             # pacman reuses the same directory for the sync databases and the local database containing the list of
             # installed packages. The former should go in the cache directory, the latter should go in the image, so we
             # bind mount the local directory from the image to make sure that happens.
-            mounts += ["--bind", context.root / "var/lib/pacman/local", "/var/lib/pacman/local"]
+            mounts += [Mount(context.root / "var/lib/pacman/local", "/var/lib/pacman/local")]
 
         if (
             (context.config.tools() / "etc/makepkg.conf").exists() and
             not (context.pkgmngr / "etc/makepkg.conf").exists()
         ):
-            mounts += ["--ro-bind", context.config.tools() / "etc/makepkg.conf", "/etc/makepkg.conf"]
+            mounts += [Mount(context.config.tools() / "etc/makepkg.conf", "/etc/makepkg.conf", ro=True)]
 
         return mounts
 
@@ -160,12 +160,8 @@ class Pacman(PackageManager):
                 sandbox=(
                     context.sandbox(
                         network=True,
-                        options=[
-                            "--bind", context.root, context.root,
-                            *cls.mounts(context),
-                            *sources,
-                            "--chdir", "/work/src",
-                        ],
+                        mounts=[Mount(context.root, context.root), *cls.mounts(context), *sources],
+                        options=["--dir", "/work/src", "--chdir", "/work/src"],
                     ) + (apivfs_cmd(context.root) if apivfs else [])
                 ),
                 env=context.config.environment,
@@ -185,7 +181,7 @@ class Pacman(PackageManager):
                 context.packages / "mkosi.db.tar",
                 *sorted(context.packages.glob("*.pkg.tar*"), key=lambda p: GenericVersion(Path(p).name))
             ],
-            sandbox=context.sandbox(options=["--bind", context.packages, context.packages]),
+            sandbox=context.sandbox(mounts=[Mount(context.packages, context.packages)]),
         )
 
         (context.pkgmngr / "etc/mkosi-local.conf").write_text(

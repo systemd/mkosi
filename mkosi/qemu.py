@@ -37,6 +37,7 @@ from mkosi.config import (
 from mkosi.log import ARG_DEBUG, die
 from mkosi.partition import finalize_root, find_partitions
 from mkosi.run import AsyncioThread, find_binary, fork_and_wait, run, spawn
+from mkosi.sandbox import Mount
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
 from mkosi.user import INVOKING_USER, become_root
@@ -152,7 +153,7 @@ class KernelType(StrEnum):
         type = run(
             ["bootctl", "kernel-identify", path],
             stdout=subprocess.PIPE,
-            sandbox=config.sandbox(options=["--ro-bind", path, path]),
+            sandbox=config.sandbox(mounts=[Mount(path, path, ro=True)]),
         ).stdout.strip()
 
         try:
@@ -253,7 +254,7 @@ def start_swtpm(config: Config) -> Iterator[Path]:
     with tempfile.TemporaryDirectory(prefix="mkosi-swtpm") as state:
         # swtpm_setup is noisy and doesn't have a --quiet option so we pipe it's stdout to /dev/null.
         run(["swtpm_setup", "--tpm-state", state, "--tpm2", "--pcr-banks", "sha256", "--config", "/dev/null"],
-            sandbox=config.sandbox(options=["--bind", state, state]),
+            sandbox=config.sandbox(mounts=[Mount(state, state)]),
             stdout=None if ARG_DEBUG.get() else subprocess.DEVNULL)
 
         cmdline = ["swtpm", "socket", "--tpm2", "--tpmstate", f"dir={state}"]
@@ -270,7 +271,7 @@ def start_swtpm(config: Config) -> Iterator[Path]:
             with spawn(
                 cmdline,
                 pass_fds=(sock.fileno(),),
-                sandbox=config.sandbox(options=["--bind", state, state]),
+                sandbox=config.sandbox(mounts=[Mount(state, state)]),
             ) as proc:
                 try:
                     yield path
@@ -341,12 +342,8 @@ def start_virtiofsd(config: Config, directory: Path, *, uidmap: bool) -> Iterato
             group=INVOKING_USER.gid if uidmap else None,
             preexec_fn=become_root if not uidmap else None,
             sandbox=config.sandbox(
-                options=[
-                    "--uid", "0",
-                    "--gid", "0",
-                    "--cap-add", "all",
-                    "--bind", directory, directory,
-                ],
+                mounts=[Mount(directory, directory)],
+                options=["--uid", "0", "--gid", "0", "--cap-add", "all"],
             ),
         ) as proc:
             try:
@@ -491,9 +488,9 @@ def finalize_firmware_variables(config: Config, ovmf: OvmfConfig, stack: context
                 "--loglevel", "WARNING",
             ],
             sandbox=config.sandbox(
-                options=[
-                    "--bind", ovmf_vars.name, ovmf_vars.name,
-                    "--ro-bind", config.secure_boot_certificate, config.secure_boot_certificate,
+                mounts=[
+                    Mount(ovmf_vars.name, ovmf_vars.name),
+                    Mount(config.secure_boot_certificate, config.secure_boot_certificate, ro=True),
                 ],
             ),
         )
@@ -698,7 +695,7 @@ def run_qemu(args: Args, config: Config) -> None:
                     "--copy-from", src,
                     fname,
                 ],
-                sandbox=config.sandbox(options=["--bind", fname.parent, fname.parent, "--ro-bind", src, src]),
+                sandbox=config.sandbox(mounts=[Mount(fname.parent, fname.parent), Mount(src, src, ro=True)]),
             )
             stack.callback(lambda: fname.unlink())
         elif config.ephemeral and config.output_format not in (OutputFormat.cpio, OutputFormat.uki):
@@ -719,7 +716,7 @@ def run_qemu(args: Args, config: Config) -> None:
                     "--offline=yes",
                     fname,
                 ],
-                sandbox=config.sandbox(options=["--bind", fname, fname]),
+                sandbox=config.sandbox(mounts=[Mount(fname, fname)]),
             )
 
         if (
@@ -787,7 +784,7 @@ def run_qemu(args: Args, config: Config) -> None:
             run(
                 [f"mkfs.{fs}", "-L", "scratch", *extra.split(), scratch.name],
                 stdout=subprocess.DEVNULL,
-                sandbox=config.sandbox(options=["--bind", scratch.name, scratch.name]),
+                sandbox=config.sandbox(mounts=[Mount(scratch.name, scratch.name)]),
             )
             cmdline += [
                 "-drive", f"if=none,id=scratch,file={scratch.name},format=raw",
