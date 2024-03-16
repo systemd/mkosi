@@ -38,10 +38,6 @@ def run_vmspawn(args: Args, config: Config) -> None:
         die("mkosi vmspawn does not support QemuFirmwareVariables=")
 
     kernel = config.qemu_kernel
-
-    if kernel and not kernel.exists():
-        die(f"Kernel not found at {kernel}")
-
     firmware = finalize_qemu_firmware(config, kernel)
 
     if not kernel and firmware == QemuFirmware.linux:
