@@ -28,6 +28,7 @@ from mkosi.config import (
     ConfigFeature,
     Network,
     OutputFormat,
+    QemuDrive,
     QemuFirmware,
     QemuVsockCID,
     format_bytes,
@@ -529,6 +530,13 @@ def apply_runtime_size(config: Config, image: Path) -> None:
     )
 
 
+@contextlib.contextmanager
+def finalize_drive(drive: QemuDrive) -> Iterator[Path]:
+    with tempfile.NamedTemporaryFile(dir=drive.directory or "/var/tmp", prefix=f"mkosi-drive-{drive.id}") as file:
+        file.truncate(drive.size)
+        yield Path(file.name)
+
+
 def run_qemu(args: Args, config: Config) -> None:
     if config.output_format not in (
         OutputFormat.disk,
@@ -850,12 +858,9 @@ def run_qemu(args: Args, config: Config) -> None:
             cmdline += ["-smbios", f"type=11,value=io.systemd.credential:vmm.notify_socket={addr}"]
 
         for drive in config.qemu_drives:
-            file = stack.enter_context(
-                tempfile.NamedTemporaryFile(dir=drive.directory or "/var/tmp", prefix=f"mkosi-drive-{drive.id}")
-            )
-            file.truncate(drive.size)
+            file = stack.enter_context(finalize_drive(drive))
 
-            arg = f"if=none,id={drive.id},file={file.name},format=raw"
+            arg = f"if=none,id={drive.id},file={file},format=raw"
             if drive.options:
                 arg += f",{drive.options}"
 
