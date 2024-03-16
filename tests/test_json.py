@@ -29,6 +29,7 @@ from mkosi.config import (
     SecureBootSignTool,
     ShimBootloader,
     Verb,
+    Vmm,
 )
 from mkosi.distributions import Distribution
 from mkosi.versioncomp import GenericVersion
@@ -311,6 +312,7 @@ def test_config() -> None:
                 "source": "",
                 "type": "file"
             },
+            "VirtualMachineMonitor": "qemu",
             "WithDocs": true,
             "WithNetwork": false,
             "WithRecommends": true,
@@ -349,6 +351,7 @@ def test_config() -> None:
         extra_trees = [],
         finalize_scripts = [],
         hostname = None,
+        vmm = Vmm.qemu,
         image = "default",
         image_id = "myimage",
         image_version = "5",

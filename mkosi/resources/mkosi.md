@@ -18,8 +18,6 @@ mkosi — Build Bespoke OS Images
 
 `mkosi [options…] qemu [qemu parameters…]`
 
-`mkosi [options…] vmspawn [vmspawn settings…]`
-
 `mkosi [options…] ssh [command line…]`
 
 `mkosi [options…] journalctl [command line…]`
@@ -83,21 +81,12 @@ The following command line verbs are known:
 
 `qemu`
 
-: Similar to `boot`, but uses `qemu` to boot up the image, i.e. instead
-  of container virtualization virtual machine virtualization is used.
-  This verb is only supported for disk images that contain a boot loader
-  and cpio images in which a kernel was installed. For cpio images a
-  kernel can also be provided by passing the `-kernel` qemu argument to
-  the `qemu` verb. Any arguments specified after the `qemu` verb are
-  appended to the `qemu` invocation.
-
-`vmspawn`
-
-: Similar to `boot`, but uses `systemd-vmspawn` to boot up the image, i.e.
-  instead of container virtualization virtual machine virtualization is used.
-  This verb is only supported for disk and directory type images.
-  Any arguments specified after the `vmspawn` verb are appended to the
-  `systemd-vmspawn` invocation.
+: Similar to `boot`, but uses the configured virtual machine monitor (by
+  default `qemu`) to boot up the image, i.e. instead of container
+  virtualization virtual machine virtualization is used. How extra
+  command line arguments are interpreted depends on the configured
+  virtual machine monitor. See `VirtualMachineMonitor=` for more
+  information.
 
 `ssh`
 
@@ -1449,6 +1438,22 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 : List of colon-separated paths to look for tools in, before using the
   regular `$PATH` search path.
+
+`VirtualMachineMonitor=`, `--vmm=`
+
+: Configures the virtual machine monitor to use. Takes one of `qemu` or
+  `vmspawn`. Defaults to `qemu`.
+
+: When set to `qemu`, the image is booted with `qemu`. Most output
+  formats can be booted in `qemu`. Any arguments specified after the
+  verb are appended to the `qemu` invocation and are interpreted as
+  extra qemu command line arguments.
+
+: When set to `vmspawn`, `systemd-vmspawn` is used to boot up the image,
+  `vmspawn` only supports disk and directory type images. Any arguments
+  specified after the verb are appended to the `systemd-vmspawn`
+  invocation and are interpreted as extra vmspawn options and extra
+  kernel command line arguments.
 
 `QemuGui=`, `--qemu-gui=`
 
