@@ -455,6 +455,20 @@ def want_scratch(config: Config) -> bool:
     )
 
 
+@contextlib.contextmanager
+def generate_scratch_fs(config: Config) -> Iterator[Path]:
+    with tempfile.NamedTemporaryFile(dir="/var/tmp", prefix="mkosi-scratch") as scratch:
+        scratch.truncate(1024**4)
+        fs = config.distribution.filesystem()
+        extra = config.environment.get(f"SYSTEMD_REPART_MKFS_OPTIONS_{fs.upper()}", "")
+        run(
+            [f"mkfs.{fs}", "-L", "scratch", *extra.split(), scratch.name],
+            stdout=subprocess.DEVNULL,
+            sandbox=config.sandbox(mounts=[Mount(scratch.name, scratch.name)]),
+        )
+        yield Path(scratch.name)
+
+
 def finalize_qemu_firmware(config: Config, kernel: Optional[Path]) -> QemuFirmware:
     if config.qemu_firmware == QemuFirmware.auto:
         if kernel:
@@ -795,17 +809,9 @@ def run_qemu(args: Args, config: Config) -> None:
             cmdline += ["-device", "virtio-scsi-pci,id=scsi"]
 
         if want_scratch(config):
-            scratch = stack.enter_context(tempfile.NamedTemporaryFile(dir="/var/tmp", prefix="mkosi-scratch"))
-            scratch.truncate(1024**4)
-            fs = config.distribution.filesystem()
-            extra = config.environment.get(f"SYSTEMD_REPART_MKFS_OPTIONS_{fs.upper()}", "")
-            run(
-                [f"mkfs.{fs}", "-L", "scratch", *extra.split(), scratch.name],
-                stdout=subprocess.DEVNULL,
-                sandbox=config.sandbox(mounts=[Mount(scratch.name, scratch.name)]),
-            )
+            scratch = stack.enter_context(generate_scratch_fs(config))
             cmdline += [
-                "-drive", f"if=none,id=scratch,file={scratch.name},format=raw",
+                "-drive", f"if=none,id=scratch,file={scratch},format=raw",
                 "-device", "scsi-hd,drive=scratch",
             ]
             kcl += [f"systemd.mount-extra=LABEL=scratch:/var/tmp:{config.distribution.filesystem()}"]
