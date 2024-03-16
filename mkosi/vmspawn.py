@@ -15,6 +15,7 @@ from mkosi.config import (
 )
 from mkosi.log import die
 from mkosi.qemu import (
+    apply_runtime_size,
     copy_ephemeral,
     finalize_qemu_firmware,
     find_ovmf_firmware,
@@ -83,19 +84,7 @@ def run_vmspawn(args: Args, config: Config) -> None:
         else:
             fname = stack.enter_context(flock_or_die(config.output_dir_or_cwd() / config.output))
 
-        if config.output_format == OutputFormat.disk and config.runtime_size:
-            run(
-                [
-                    "systemd-repart",
-                    "--definitions", "",
-                    "--no-pager",
-                    f"--size={config.runtime_size}",
-                    "--pretty=no",
-                    "--offline=yes",
-                    fname,
-                ],
-                sandbox=config.sandbox(mounts=[Mount(fname, fname)]),
-            )
+        apply_runtime_size(config, fname)
 
         kcl = config.kernel_command_line_extra
 

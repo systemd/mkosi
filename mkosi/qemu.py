@@ -505,6 +505,24 @@ def finalize_firmware_variables(config: Config, ovmf: OvmfConfig, stack: context
     return Path(ovmf_vars.name), ovmf_vars_format
 
 
+def apply_runtime_size(config: Config, image: Path) -> None:
+    if config.output_format != OutputFormat.disk or not config.runtime_size:
+        return
+
+    run(
+        [
+            "systemd-repart",
+            "--definitions", "",
+            "--no-pager",
+            f"--size={config.runtime_size}",
+            "--pretty=no",
+            "--offline=yes",
+            image,
+        ],
+        sandbox=config.sandbox(mounts=[Mount(image, image)]),
+    )
+
+
 def run_qemu(args: Args, config: Config) -> None:
     if config.output_format not in (
         OutputFormat.disk,
@@ -705,19 +723,7 @@ def run_qemu(args: Args, config: Config) -> None:
         else:
             fname = stack.enter_context(flock_or_die(config.output_dir_or_cwd() / config.output_with_compression))
 
-        if config.output_format == OutputFormat.disk and config.runtime_size:
-            run(
-                [
-                    "systemd-repart",
-                    "--definitions", "",
-                    "--no-pager",
-                    f"--size={config.runtime_size}",
-                    "--pretty=no",
-                    "--offline=yes",
-                    fname,
-                ],
-                sandbox=config.sandbox(mounts=[Mount(fname, fname)]),
-            )
+        apply_runtime_size(config, fname)
 
         if (
             kernel and
