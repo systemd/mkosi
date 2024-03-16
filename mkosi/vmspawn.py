@@ -81,8 +81,6 @@ def run_vmspawn(args: Args, config: Config) -> None:
 
         apply_runtime_size(config, fname)
 
-        kcl = config.kernel_command_line_extra
-
         for tree in config.runtime_trees:
             target = Path("/root/src") / (tree.target or tree.source.name)
             cmdline += ["--bind", f"{tree.source}:{target}"]
@@ -99,6 +97,6 @@ def run_vmspawn(args: Args, config: Config) -> None:
         else:
             cmdline += ["--image", fname]
 
-        cmdline += [*args.cmdline, *kcl]
+        cmdline += [*args.cmdline, *config.kernel_command_line_extra]
 
         run(cmdline, stdin=sys.stdin, stdout=sys.stdout, env=os.environ | config.environment, log=False)
