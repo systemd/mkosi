@@ -404,6 +404,12 @@ def vsock_notify_handler() -> Iterator[tuple[str, dict[str, str]]]:
 
 @contextlib.contextmanager
 def copy_ephemeral(config: Config, src: Path) -> Iterator[Path]:
+    if not config.ephemeral or config.output_format in (OutputFormat.cpio, OutputFormat.uki):
+        with flock_or_die(src):
+            yield src
+
+        return
+
     src = src.resolve()
     # tempfile doesn't provide an API to get a random filename in an arbitrary directory so we do this
     # instead. Limit the size to 16 characters as the output name might be used in a unix socket path by vmspawn and
@@ -716,12 +722,10 @@ def run_qemu(args: Args, config: Config) -> None:
                 sandbox=config.sandbox(mounts=[Mount(fname.parent, fname.parent), Mount(src, src, ro=True)]),
             )
             stack.callback(lambda: fname.unlink())
-        elif config.ephemeral and config.output_format not in (OutputFormat.cpio, OutputFormat.uki):
+        else:
             fname = stack.enter_context(
                 copy_ephemeral(config, config.output_dir_or_cwd() / config.output_with_compression)
             )
-        else:
-            fname = stack.enter_context(flock_or_die(config.output_dir_or_cwd() / config.output_with_compression))
 
         apply_runtime_size(config, fname)
 
