@@ -651,6 +651,7 @@ def run_qemu(args: Args, config: Config) -> None:
         "-m", f"{config.qemu_mem // 1024**2}M",
         "-object", "rng-random,filename=/dev/urandom,id=rng0",
         "-device", "virtio-rng-pci,rng=rng0,id=rng-device0",
+        "-no-user-config",
         *shm,
     ]
 
