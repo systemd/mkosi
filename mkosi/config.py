@@ -933,6 +933,16 @@ def config_parse_bytes(value: Optional[str], old: Optional[int] = None) -> Optio
     return parse_bytes(value)
 
 
+def config_parse_number(value: Optional[str], old: Optional[int] = None) -> Optional[int]:
+    if not value:
+        return None
+
+    try:
+        return int(value)
+    except ValueError:
+        die(f"{value!r} is not a valid number")
+
+
 def config_parse_profile(value: Optional[str], old: Optional[int] = None) -> Optional[str]:
     if not value:
         return None
@@ -1377,8 +1387,8 @@ class Config:
 
     # QEMU-specific options
     qemu_gui: bool
-    qemu_smp: str
-    qemu_mem: str
+    qemu_smp: int
+    qemu_mem: int
     qemu_kvm: ConfigFeature
     qemu_vsock: ConfigFeature
     qemu_vsock_cid: int
@@ -2647,14 +2657,16 @@ SETTINGS = (
         dest="qemu_smp",
         metavar="SMP",
         section="Host",
-        default="1",
+        parse=config_parse_number,
+        default=1,
         help="Configure guest's SMP settings",
     ),
     ConfigSetting(
         dest="qemu_mem",
         metavar="MEM",
         section="Host",
-        default="2G",
+        parse=config_parse_bytes,
+        default=parse_bytes("2G"),
         help="Configure guest's RAM size",
     ),
     ConfigSetting(

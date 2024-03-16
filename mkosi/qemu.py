@@ -590,7 +590,7 @@ def run_qemu(args: Args, config: Config) -> None:
     # A shared memory backend might increase ram usage so only add one if actually necessary for virtiofsd.
     shm = []
     if config.runtime_trees or config.output_format == OutputFormat.directory:
-        shm = ["-object", f"memory-backend-memfd,id=mem,size={config.qemu_mem},share=on"]
+        shm = ["-object", f"memory-backend-memfd,id=mem,size={config.qemu_mem // 1024**2}M,share=on"]
 
     machine = f"type={config.architecture.default_qemu_machine()}"
     if firmware.is_uefi() and config.architecture.supports_smm():
@@ -601,8 +601,8 @@ def run_qemu(args: Args, config: Config) -> None:
     cmdline: list[PathString] = [
         find_qemu_binary(config),
         "-machine", machine,
-        "-smp", config.qemu_smp,
-        "-m", config.qemu_mem,
+        "-smp", str(config.qemu_smp),
+        "-m", f"{config.qemu_mem // 1024**2}M",
         "-object", "rng-random,filename=/dev/urandom,id=rng0",
         "-device", "virtio-rng-pci,rng=rng0,id=rng-device0",
         *shm,
