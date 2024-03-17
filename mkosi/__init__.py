@@ -41,6 +41,7 @@ from mkosi.config import (
     SecureBootSignTool,
     ShimBootloader,
     Verb,
+    Vmm,
     __version__,
     format_bytes,
     parse_config,
@@ -2033,9 +2034,12 @@ def systemd_stub_binary(context: Context) -> Path:
 
 def want_uki(context: Context) -> bool:
     return want_efi(context.config) and (
-        context.config.bootloader == Bootloader.uki or
-        context.config.unified_kernel_images == ConfigFeature.enabled or
-        (context.config.unified_kernel_images == ConfigFeature.auto and systemd_stub_binary(context).exists())
+            context.config.bootloader == Bootloader.uki or
+            context.config.unified_kernel_images == ConfigFeature.enabled or (
+                context.config.unified_kernel_images == ConfigFeature.auto and
+                systemd_stub_binary(context).exists() and
+                find_binary("ukify", "/usr/lib/systemd/ukify", root=context.config.tools()) is not None
+            )
     )
 
 
@@ -2630,7 +2634,7 @@ def check_tools(config: Config, verb: Verb) -> None:
     if verb == Verb.boot:
         check_systemd_tool(config, "systemd-nspawn", version="254", reason="boot images")
 
-    if verb == Verb.vmspawn:
+    if verb == Verb.qemu and config.vmm == Vmm.vmspawn:
         check_systemd_tool(config, "systemd-vmspawn", version="256~devel", reason="boot images with vmspawn")
 
 
@@ -4247,11 +4251,15 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
             if args.verb in (Verb.shell, Verb.boot)
             else contextlib.nullcontext()
         ):
+            run_vm = {
+                Vmm.qemu: run_qemu,
+                Vmm.vmspawn: run_vmspawn,
+            }[last.vmm]
+
             {
                 Verb.shell: run_shell,
                 Verb.boot: run_shell,
-                Verb.qemu: run_qemu,
+                Verb.qemu: run_vm,
                 Verb.serve: run_serve,
                 Verb.burn: run_burn,
-                Verb.vmspawn: run_vmspawn,
             }[args.verb](args, last)

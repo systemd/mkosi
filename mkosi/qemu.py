@@ -28,6 +28,7 @@ from mkosi.config import (
     ConfigFeature,
     Network,
     OutputFormat,
+    QemuDrive,
     QemuFirmware,
     QemuVsockCID,
     format_bytes,
@@ -406,6 +407,12 @@ def vsock_notify_handler() -> Iterator[tuple[str, dict[str, str]]]:
 
 @contextlib.contextmanager
 def copy_ephemeral(config: Config, src: Path) -> Iterator[Path]:
+    if not config.ephemeral or config.output_format in (OutputFormat.cpio, OutputFormat.uki):
+        with flock_or_die(src):
+            yield src
+
+        return
+
     src = src.resolve()
     # tempfile doesn't provide an API to get a random filename in an arbitrary directory so we do this
     # instead. Limit the size to 16 characters as the output name might be used in a unix socket path by vmspawn and
@@ -448,6 +455,20 @@ def want_scratch(config: Config) -> bool:
         config.runtime_scratch == ConfigFeature.auto and
         find_binary(f"mkfs.{config.distribution.filesystem()}", root=config.tools()) is not None
     )
+
+
+@contextlib.contextmanager
+def generate_scratch_fs(config: Config) -> Iterator[Path]:
+    with tempfile.NamedTemporaryFile(dir="/var/tmp", prefix="mkosi-scratch") as scratch:
+        scratch.truncate(1024**4)
+        fs = config.distribution.filesystem()
+        extra = config.environment.get(f"SYSTEMD_REPART_MKFS_OPTIONS_{fs.upper()}", "")
+        run(
+            [f"mkfs.{fs}", "-L", "scratch", *extra.split(), scratch.name],
+            stdout=subprocess.DEVNULL,
+            sandbox=config.sandbox(mounts=[Mount(scratch.name, scratch.name)]),
+        )
+        yield Path(scratch.name)
 
 
 def finalize_qemu_firmware(config: Config, kernel: Optional[Path]) -> QemuFirmware:
@@ -505,6 +526,31 @@ def finalize_firmware_variables(config: Config, ovmf: OvmfConfig, stack: context
         shutil.copy2(vars, Path(ovmf_vars.name))
 
     return Path(ovmf_vars.name), ovmf_vars_format
+
+
+def apply_runtime_size(config: Config, image: Path) -> None:
+    if config.output_format != OutputFormat.disk or not config.runtime_size:
+        return
+
+    run(
+        [
+            "systemd-repart",
+            "--definitions", "",
+            "--no-pager",
+            f"--size={config.runtime_size}",
+            "--pretty=no",
+            "--offline=yes",
+            image,
+        ],
+        sandbox=config.sandbox(mounts=[Mount(image, image)]),
+    )
+
+
+@contextlib.contextmanager
+def finalize_drive(drive: QemuDrive) -> Iterator[Path]:
+    with tempfile.NamedTemporaryFile(dir=drive.directory or "/var/tmp", prefix=f"mkosi-drive-{drive.id}") as file:
+        file.truncate(drive.size)
+        yield Path(file.name)
 
 
 def run_qemu(args: Args, config: Config) -> None:
@@ -592,7 +638,7 @@ def run_qemu(args: Args, config: Config) -> None:
     # A shared memory backend might increase ram usage so only add one if actually necessary for virtiofsd.
     shm = []
     if config.runtime_trees or config.output_format == OutputFormat.directory:
-        shm = ["-object", f"memory-backend-memfd,id=mem,size={config.qemu_mem},share=on"]
+        shm = ["-object", f"memory-backend-memfd,id=mem,size={config.qemu_mem // 1024**2}M,share=on"]
 
     machine = f"type={config.architecture.default_qemu_machine()}"
     if firmware.is_uefi() and config.architecture.supports_smm():
@@ -603,10 +649,11 @@ def run_qemu(args: Args, config: Config) -> None:
     cmdline: list[PathString] = [
         find_qemu_binary(config),
         "-machine", machine,
-        "-smp", config.qemu_smp,
-        "-m", config.qemu_mem,
+        "-smp", str(config.qemu_smp),
+        "-m", f"{config.qemu_mem // 1024**2}M",
         "-object", "rng-random,filename=/dev/urandom,id=rng0",
         "-device", "virtio-rng-pci,rng=rng0,id=rng-device0",
+        "-no-user-config",
         *shm,
     ]
 
@@ -700,26 +747,12 @@ def run_qemu(args: Args, config: Config) -> None:
                 sandbox=config.sandbox(mounts=[Mount(fname.parent, fname.parent), Mount(src, src, ro=True)]),
             )
             stack.callback(lambda: fname.unlink())
-        elif config.ephemeral and config.output_format not in (OutputFormat.cpio, OutputFormat.uki):
+        else:
             fname = stack.enter_context(
                 copy_ephemeral(config, config.output_dir_or_cwd() / config.output_with_compression)
             )
-        else:
-            fname = stack.enter_context(flock_or_die(config.output_dir_or_cwd() / config.output_with_compression))
 
-        if config.output_format == OutputFormat.disk and config.runtime_size:
-            run(
-                [
-                    "systemd-repart",
-                    "--definitions", "",
-                    "--no-pager",
-                    f"--size={config.runtime_size}",
-                    "--pretty=no",
-                    "--offline=yes",
-                    fname,
-                ],
-                sandbox=config.sandbox(mounts=[Mount(fname, fname)]),
-            )
+        apply_runtime_size(config, fname)
 
         if (
             kernel and
@@ -731,18 +764,6 @@ def run_qemu(args: Args, config: Config) -> None:
             kcl = config.kernel_command_line + config.kernel_command_line_extra
         else:
             kcl = config.kernel_command_line_extra
-
-        for k, v in config.credentials.items():
-            payload = base64.b64encode(v.encode()).decode()
-            if config.architecture.supports_smbios(firmware):
-                cmdline += ["-smbios", f"type=11,value=io.systemd.credential.binary:{k}={payload}"]
-            elif config.architecture.supports_fw_cfg():
-                f = stack.enter_context(tempfile.NamedTemporaryFile(prefix="mkosi-fw-cfg", mode="w"))
-                f.write(v)
-                f.flush()
-                cmdline += ["-fw_cfg", f"name=opt/io.systemd.credentials/{k},file={f.name}"]
-            elif kernel:
-                kcl += [f"systemd.set_credential_binary={k}:{payload}"]
 
         if kernel:
             cmdline += ["-kernel", kernel]
@@ -779,36 +800,12 @@ def run_qemu(args: Args, config: Config) -> None:
             cmdline += ["-device", "virtio-scsi-pci,id=scsi"]
 
         if want_scratch(config):
-            scratch = stack.enter_context(tempfile.NamedTemporaryFile(dir="/var/tmp", prefix="mkosi-scratch"))
-            scratch.truncate(1024**4)
-            fs = config.distribution.filesystem()
-            extra = config.environment.get(f"SYSTEMD_REPART_MKFS_OPTIONS_{fs.upper()}", "")
-            run(
-                [f"mkfs.{fs}", "-L", "scratch", *extra.split(), scratch.name],
-                stdout=subprocess.DEVNULL,
-                sandbox=config.sandbox(mounts=[Mount(scratch.name, scratch.name)]),
-            )
+            scratch = stack.enter_context(generate_scratch_fs(config))
             cmdline += [
-                "-drive", f"if=none,id=scratch,file={scratch.name},format=raw",
+                "-drive", f"if=none,id=scratch,file={scratch},format=raw",
                 "-device", "scsi-hd,drive=scratch",
             ]
             kcl += [f"systemd.mount-extra=LABEL=scratch:/var/tmp:{config.distribution.filesystem()}"]
-
-        if (
-            kernel and
-            (
-                KernelType.identify(config, kernel) != KernelType.uki or
-                not config.architecture.supports_smbios(firmware)
-            )
-        ):
-            cmdline += ["-append", " ".join(kcl)]
-        elif config.architecture.supports_smbios(firmware):
-            cmdline += [
-                "-smbios",
-                f"type=11,value=io.systemd.stub.kernel-cmdline-extra={' '.join(kcl)}",
-                "-smbios",
-                f"type=11,value=io.systemd.boot.kernel-cmdline-extra={' '.join(kcl)}",
-            ]
 
         if config.output_format == OutputFormat.cpio:
             cmdline += ["-initrd", fname]
@@ -837,17 +834,44 @@ def run_qemu(args: Args, config: Config) -> None:
             elif config.architecture.is_arm_variant():
                 cmdline += ["-device", "tpm-tis-device,tpmdev=tpm0"]
 
-        if QemuDeviceNode.vhost_vsock in qemu_device_fds and config.architecture.supports_smbios(firmware):
+        credentials = dict(config.credentials)
+
+        if QemuDeviceNode.vhost_vsock in qemu_device_fds:
             addr, notifications = stack.enter_context(vsock_notify_handler())
-            cmdline += ["-smbios", f"type=11,value=io.systemd.credential:vmm.notify_socket={addr}"]
+            credentials["vmm.notify_socket"] = addr
+
+        for k, v in credentials.items():
+            payload = base64.b64encode(v.encode()).decode()
+            if config.architecture.supports_smbios(firmware):
+                cmdline += ["-smbios", f"type=11,value=io.systemd.credential.binary:{k}={payload}"]
+            elif config.architecture.supports_fw_cfg():
+                f = stack.enter_context(tempfile.NamedTemporaryFile(prefix="mkosi-fw-cfg", mode="w"))
+                f.write(v)
+                f.flush()
+                cmdline += ["-fw_cfg", f"name=opt/io.systemd.credentials/{k},file={f.name}"]
+            elif kernel:
+                kcl += [f"systemd.set_credential_binary={k}:{payload}"]
+
+        if (
+            kernel and
+            (
+                KernelType.identify(config, kernel) != KernelType.uki or
+                not config.architecture.supports_smbios(firmware)
+            )
+        ):
+            cmdline += ["-append", " ".join(kcl)]
+        elif config.architecture.supports_smbios(firmware):
+            cmdline += [
+                "-smbios",
+                f"type=11,value=io.systemd.stub.kernel-cmdline-extra={' '.join(kcl)}",
+                "-smbios",
+                f"type=11,value=io.systemd.boot.kernel-cmdline-extra={' '.join(kcl)}",
+            ]
 
         for drive in config.qemu_drives:
-            file = stack.enter_context(
-                tempfile.NamedTemporaryFile(dir=drive.directory or "/var/tmp", prefix=f"mkosi-drive-{drive.id}")
-            )
-            file.truncate(drive.size)
+            file = stack.enter_context(finalize_drive(drive))
 
-            arg = f"if=none,id={drive.id},file={file.name},format=raw"
+            arg = f"if=none,id={drive.id},file={file},format=raw"
             if drive.options:
                 arg += f",{drive.options}"
 

@@ -72,7 +72,6 @@ class Verb(StrEnum):
     journalctl    = enum.auto()
     coredumpctl   = enum.auto()
     burn          = enum.auto()
-    vmspawn       = enum.auto()
 
     def supports_cmdline(self) -> bool:
         return self in (
@@ -84,7 +83,6 @@ class Verb(StrEnum):
             Verb.journalctl,
             Verb.coredumpctl,
             Verb.burn,
-            Verb.vmspawn,
         )
 
     def needs_build(self) -> bool:
@@ -95,7 +93,6 @@ class Verb(StrEnum):
             Verb.qemu,
             Verb.serve,
             Verb.burn,
-            Verb.vmspawn,
         )
 
     def needs_root(self) -> bool:
@@ -263,6 +260,11 @@ class Network(StrEnum):
     interface = enum.auto()
     user      = enum.auto()
     none      = enum.auto()
+
+
+class Vmm(StrEnum):
+    qemu    = enum.auto()
+    vmspawn = enum.auto()
 
 
 class Architecture(StrEnum):
@@ -931,6 +933,16 @@ def config_parse_bytes(value: Optional[str], old: Optional[int] = None) -> Optio
     return parse_bytes(value)
 
 
+def config_parse_number(value: Optional[str], old: Optional[int] = None) -> Optional[int]:
+    if not value:
+        return None
+
+    try:
+        return int(value)
+    except ValueError:
+        die(f"{value!r} is not a valid number")
+
+
 def config_parse_profile(value: Optional[str], old: Optional[int] = None) -> Optional[str]:
     if not value:
         return None
@@ -1371,11 +1383,12 @@ class Config:
     runtime_network: Network
     ssh_key: Optional[Path]
     ssh_certificate: Optional[Path]
+    vmm: Vmm
 
     # QEMU-specific options
     qemu_gui: bool
-    qemu_smp: str
-    qemu_mem: str
+    qemu_smp: int
+    qemu_mem: int
     qemu_kvm: ConfigFeature
     qemu_vsock: ConfigFeature
     qemu_vsock_cid: int
@@ -2532,6 +2545,7 @@ SETTINGS = (
         metavar="DISTRIBUTION",
         section="Host",
         parse=config_make_enum_parser(Distribution),
+        match=config_make_enum_matcher(Distribution),
         default_factory_depends=("distribution",),
         default_factory=lambda ns: ns.distribution.default_tools_tree_distribution(),
         help="Set the distribution to use for the default tools tree",
@@ -2624,6 +2638,15 @@ SETTINGS = (
         help="Certificate for use with mkosi ssh in X509 format",
     ),
     ConfigSetting(
+        dest="vmm",
+        name="VirtualMachineMonitor",
+        metavar="VMM",
+        section="Host",
+        parse=config_make_enum_parser(Vmm),
+        default=Vmm.qemu,
+        help="Set the virtual machine monitor to use for mkosi qemu",
+    ),
+    ConfigSetting(
         dest="qemu_gui",
         metavar="BOOL",
         nargs="?",
@@ -2635,14 +2658,16 @@ SETTINGS = (
         dest="qemu_smp",
         metavar="SMP",
         section="Host",
-        default="1",
+        parse=config_parse_number,
+        default=1,
         help="Configure guest's SMP settings",
     ),
     ConfigSetting(
         dest="qemu_mem",
         metavar="MEM",
         section="Host",
-        default="2G",
+        parse=config_parse_bytes,
+        default=parse_bytes("2G"),
         help="Configure guest's RAM size",
     ),
     ConfigSetting(
@@ -3725,6 +3750,7 @@ def summary(config: Config) -> str:
                     SSH Signing Key: {none_to_none(config.ssh_key)}
                     SSH Certificate: {none_to_none(config.ssh_certificate)}
 
+            Virtual Machine Monitor: {config.vmm}
                            QEMU GUI: {yes_no(config.qemu_gui)}
                      QEMU CPU Cores: {config.qemu_smp}
                         QEMU Memory: {config.qemu_mem}
@@ -3864,6 +3890,7 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         Cacheonly: enum_transformer,
         Network: enum_transformer,
         KeySource: key_source_transformer,
+        Vmm: enum_transformer,
     }
 
     def json_transformer(key: str, val: Any) -> Any:

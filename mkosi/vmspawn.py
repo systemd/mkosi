@@ -15,14 +15,13 @@ from mkosi.config import (
 )
 from mkosi.log import die
 from mkosi.qemu import (
+    apply_runtime_size,
     copy_ephemeral,
     finalize_qemu_firmware,
     find_ovmf_firmware,
 )
 from mkosi.run import run
-from mkosi.sandbox import Mount
 from mkosi.types import PathString
-from mkosi.util import flock_or_die
 
 
 def run_vmspawn(args: Args, config: Config) -> None:
@@ -39,10 +38,6 @@ def run_vmspawn(args: Args, config: Config) -> None:
         die("mkosi vmspawn does not support QemuFirmwareVariables=")
 
     kernel = config.qemu_kernel
-
-    if kernel and not kernel.exists():
-        die(f"Kernel not found at {kernel}")
-
     firmware = finalize_qemu_firmware(config, kernel)
 
     if not kernel and firmware == QemuFirmware.linux:
@@ -55,8 +50,8 @@ def run_vmspawn(args: Args, config: Config) -> None:
 
     cmdline: list[PathString] = [
         "systemd-vmspawn",
-        "--cpus", config.qemu_smp,
-        "--ram", config.qemu_mem,
+        "--cpus", str(config.qemu_smp),
+        "--ram", str(config.qemu_mem),
         "--kvm", config.qemu_kvm.to_tristate(),
         "--vsock", config.qemu_vsock.to_tristate(),
         "--tpm", config.qemu_swtpm.to_tristate(),
@@ -78,26 +73,9 @@ def run_vmspawn(args: Args, config: Config) -> None:
     cmdline += [f"--set-credential={k}:{v}" for k, v in config.credentials.items()]
 
     with contextlib.ExitStack() as stack:
-        if config.ephemeral:
-            fname = stack.enter_context(copy_ephemeral(config, config.output_dir_or_cwd() / config.output))
-        else:
-            fname = stack.enter_context(flock_or_die(config.output_dir_or_cwd() / config.output))
+        fname = stack.enter_context(copy_ephemeral(config, config.output_dir_or_cwd() / config.output))
 
-        if config.output_format == OutputFormat.disk and config.runtime_size:
-            run(
-                [
-                    "systemd-repart",
-                    "--definitions", "",
-                    "--no-pager",
-                    f"--size={config.runtime_size}",
-                    "--pretty=no",
-                    "--offline=yes",
-                    fname,
-                ],
-                sandbox=config.sandbox(mounts=[Mount(fname, fname)]),
-            )
-
-        kcl = config.kernel_command_line_extra
+        apply_runtime_size(config, fname)
 
         for tree in config.runtime_trees:
             target = Path("/root/src") / (tree.target or tree.source.name)
@@ -115,6 +93,6 @@ def run_vmspawn(args: Args, config: Config) -> None:
         else:
             cmdline += ["--image", fname]
 
-        cmdline += [*args.cmdline, *kcl]
+        cmdline += [*args.cmdline, *config.kernel_command_line_extra]
 
         run(cmdline, stdin=sys.stdin, stdout=sys.stdout, env=os.environ | config.environment, log=False)

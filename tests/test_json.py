@@ -29,6 +29,7 @@ from mkosi.config import (
     SecureBootSignTool,
     ShimBootloader,
     Verb,
+    Vmm,
 )
 from mkosi.distributions import Distribution
 from mkosi.versioncomp import GenericVersion
@@ -223,8 +224,8 @@ def test_config() -> None:
             "QemuGui": true,
             "QemuKernel": null,
             "QemuKvm": "auto",
-            "QemuMem": "",
-            "QemuSmp": "yes",
+            "QemuMem": 123,
+            "QemuSmp": 2,
             "QemuSwtpm": "auto",
             "QemuVsock": "enabled",
             "QemuVsockConnectionId": -2,
@@ -311,6 +312,7 @@ def test_config() -> None:
                 "source": "",
                 "type": "file"
             },
+            "VirtualMachineMonitor": "qemu",
             "WithDocs": true,
             "WithNetwork": false,
             "WithRecommends": true,
@@ -349,6 +351,7 @@ def test_config() -> None:
         extra_trees = [],
         finalize_scripts = [],
         hostname = None,
+        vmm = Vmm.qemu,
         image = "default",
         image_id = "myimage",
         image_version = "5",
@@ -398,8 +401,8 @@ def test_config() -> None:
         qemu_gui = True,
         qemu_kernel = None,
         qemu_kvm = ConfigFeature.auto,
-        qemu_mem = "",
-        qemu_smp = "yes",
+        qemu_mem = 123,
+        qemu_smp = 2,
         qemu_swtpm = ConfigFeature.auto,
         qemu_vsock = ConfigFeature.enabled,
         qemu_vsock_cid = QemuVsockCID.hash,
