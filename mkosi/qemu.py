@@ -763,18 +763,6 @@ def run_qemu(args: Args, config: Config) -> None:
         else:
             kcl = config.kernel_command_line_extra
 
-        for k, v in config.credentials.items():
-            payload = base64.b64encode(v.encode()).decode()
-            if config.architecture.supports_smbios(firmware):
-                cmdline += ["-smbios", f"type=11,value=io.systemd.credential.binary:{k}={payload}"]
-            elif config.architecture.supports_fw_cfg():
-                f = stack.enter_context(tempfile.NamedTemporaryFile(prefix="mkosi-fw-cfg", mode="w"))
-                f.write(v)
-                f.flush()
-                cmdline += ["-fw_cfg", f"name=opt/io.systemd.credentials/{k},file={f.name}"]
-            elif kernel:
-                kcl += [f"systemd.set_credential_binary={k}:{payload}"]
-
         if kernel:
             cmdline += ["-kernel", kernel]
 
@@ -817,22 +805,6 @@ def run_qemu(args: Args, config: Config) -> None:
             ]
             kcl += [f"systemd.mount-extra=LABEL=scratch:/var/tmp:{config.distribution.filesystem()}"]
 
-        if (
-            kernel and
-            (
-                KernelType.identify(config, kernel) != KernelType.uki or
-                not config.architecture.supports_smbios(firmware)
-            )
-        ):
-            cmdline += ["-append", " ".join(kcl)]
-        elif config.architecture.supports_smbios(firmware):
-            cmdline += [
-                "-smbios",
-                f"type=11,value=io.systemd.stub.kernel-cmdline-extra={' '.join(kcl)}",
-                "-smbios",
-                f"type=11,value=io.systemd.boot.kernel-cmdline-extra={' '.join(kcl)}",
-            ]
-
         if config.output_format == OutputFormat.cpio:
             cmdline += ["-initrd", fname]
         elif (
@@ -860,9 +832,39 @@ def run_qemu(args: Args, config: Config) -> None:
             elif config.architecture.is_arm_variant():
                 cmdline += ["-device", "tpm-tis-device,tpmdev=tpm0"]
 
-        if QemuDeviceNode.vhost_vsock in qemu_device_fds and config.architecture.supports_smbios(firmware):
+        credentials = dict(config.credentials)
+
+        if QemuDeviceNode.vhost_vsock in qemu_device_fds:
             addr, notifications = stack.enter_context(vsock_notify_handler())
-            cmdline += ["-smbios", f"type=11,value=io.systemd.credential:vmm.notify_socket={addr}"]
+            credentials["vmm.notify_socket"] = addr
+
+        for k, v in credentials.items():
+            payload = base64.b64encode(v.encode()).decode()
+            if config.architecture.supports_smbios(firmware):
+                cmdline += ["-smbios", f"type=11,value=io.systemd.credential.binary:{k}={payload}"]
+            elif config.architecture.supports_fw_cfg():
+                f = stack.enter_context(tempfile.NamedTemporaryFile(prefix="mkosi-fw-cfg", mode="w"))
+                f.write(v)
+                f.flush()
+                cmdline += ["-fw_cfg", f"name=opt/io.systemd.credentials/{k},file={f.name}"]
+            elif kernel:
+                kcl += [f"systemd.set_credential_binary={k}:{payload}"]
+
+        if (
+            kernel and
+            (
+                KernelType.identify(config, kernel) != KernelType.uki or
+                not config.architecture.supports_smbios(firmware)
+            )
+        ):
+            cmdline += ["-append", " ".join(kcl)]
+        elif config.architecture.supports_smbios(firmware):
+            cmdline += [
+                "-smbios",
+                f"type=11,value=io.systemd.stub.kernel-cmdline-extra={' '.join(kcl)}",
+                "-smbios",
+                f"type=11,value=io.systemd.boot.kernel-cmdline-extra={' '.join(kcl)}",
+            ]
 
         for drive in config.qemu_drives:
             file = stack.enter_context(finalize_drive(drive))
