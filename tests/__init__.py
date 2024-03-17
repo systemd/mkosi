@@ -81,6 +81,9 @@ class Image:
             *self.options,
             *options,
             "--output-dir", self.output_dir,
+            # Some tests ignore the default image config but we still want them to reuse the cache directory for the
+            # tools tree cache.
+            "--cache-dir", "mkosi.cache",
             *(f"--kernel-command-line={i}" for i in kcl),
             "--qemu-vsock=yes",
             verb,
