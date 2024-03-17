@@ -3392,14 +3392,17 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
 
     creds |= args.credentials
 
-    if "firstboot.timezone" not in creds and find_binary("timedatectl"):
-        tz = run(
-            ["timedatectl", "show", "-p", "Timezone", "--value"],
-            stdout=subprocess.PIPE,
-            check=False,
-        ).stdout.strip()
-        if tz:
-            creds["firstboot.timezone"] = tz
+    if "firstboot.timezone" not in creds:
+        if find_binary("timedatectl"):
+            tz = run(
+                ["timedatectl", "show", "-p", "Timezone", "--value"],
+                stdout=subprocess.PIPE,
+                check=False,
+            ).stdout.strip()
+        else:
+            tz = "UTC"
+
+        creds["firstboot.timezone"] = tz
 
     if "firstboot.locale" not in creds:
         creds["firstboot.locale"] = "C.UTF-8"
