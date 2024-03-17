@@ -2034,9 +2034,12 @@ def systemd_stub_binary(context: Context) -> Path:
 
 def want_uki(context: Context) -> bool:
     return want_efi(context.config) and (
-        context.config.bootloader == Bootloader.uki or
-        context.config.unified_kernel_images == ConfigFeature.enabled or
-        (context.config.unified_kernel_images == ConfigFeature.auto and systemd_stub_binary(context).exists())
+            context.config.bootloader == Bootloader.uki or
+            context.config.unified_kernel_images == ConfigFeature.enabled or (
+                context.config.unified_kernel_images == ConfigFeature.auto and
+                systemd_stub_binary(context).exists() and
+                find_binary("ukify", "/usr/lib/systemd/ukify", root=context.config.tools()) is not None
+            )
     )
 
 
