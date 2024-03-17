@@ -181,5 +181,7 @@ jobs:
             --verbose \
             -m integration \
             --distribution ${{ matrix.distro }} \
+            $([ "${{ matrix.distro }}" = "debian" ] && echo --release=unstable) \
+            $([ "${{ matrix.tools }}" = "debian" ] && echo --tools-tree-release=unstable) \
             --tools-tree-distribution ${{ matrix.tools }} \
             tests/

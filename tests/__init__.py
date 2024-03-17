@@ -24,6 +24,7 @@ class Image:
         distribution: Distribution
         release: str
         tools_tree_distribution: Optional[Distribution]
+        tools_tree_release: Optional[str]
         debug_shell: bool
 
     def __init__(self, config: Config, options: Sequence[PathString] = []) -> None:
@@ -78,6 +79,7 @@ class Image:
                 if self.config.tools_tree_distribution
                 else []
             ),
+            *(["--tools-tree-release", self.config.tools_tree_release] if self.config.tools_tree_release else []),
             *self.options,
             *options,
             "--output-dir", self.output_dir,
