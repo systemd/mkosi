@@ -467,20 +467,25 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 : Matches against the host's native architecture. See the
   `Architecture=` setting for a list of possible values.
 
-| Matcher             | Globs | Rich Comparisons | Default                 |
-|---------------------|-------|------------------|-------------------------|
-| `Profile=`          | no    | no               | match fails             |
-| `Distribution=`     | no    | no               | match host distribution |
-| `Release=`          | no    | no               | match host release      |
-| `Architecture=`     | no    | no               | match host architecture |
-| `PathExists=`       | no    | no               | n/a                     |
-| `ImageId=`          | yes   | no               | match fails             |
-| `ImageVersion=`     | no    | yes              | match fails             |
-| `Bootable=`         | no    | no               | match auto feature      |
-| `Format=`           | no    | no               | match default format    |
-| `SystemdVersion=`   | no    | yes              | n/a                     |
-| `BuildSources=`     | no    | no               | match fails             |
-| `HostArchitecture=` | no    | no               | n/a                     |
+`ToolsTreeDistribution=`
+
+: Matches against the configured tools tree distribution.
+
+| Matcher                  | Globs | Rich Comparisons | Default                               |
+|--------------------------|-------|------------------|---------------------------------------|
+| `Profile=`               | no    | no               | match fails                           |
+| `Distribution=`          | no    | no               | match host distribution               |
+| `Release=`               | no    | no               | match host release                    |
+| `Architecture=`          | no    | no               | match host architecture               |
+| `PathExists=`            | no    | no               | n/a                                   |
+| `ImageId=`               | yes   | no               | match fails                           |
+| `ImageVersion=`          | no    | yes              | match fails                           |
+| `Bootable=`              | no    | no               | match auto feature                    |
+| `Format=`                | no    | no               | match default format                  |
+| `SystemdVersion=`        | no    | yes              | n/a                                   |
+| `BuildSources=`          | no    | no               | match fails                           |
+| `HostArchitecture=`      | no    | no               | n/a                                   |
+| `ToolsTreeDistribution=` | no    | no               | match default tools tree distribution |
 
 ### [Config] Section
 

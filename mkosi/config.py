@@ -2545,6 +2545,7 @@ SETTINGS = (
         metavar="DISTRIBUTION",
         section="Host",
         parse=config_make_enum_parser(Distribution),
+        match=config_make_enum_matcher(Distribution),
         default_factory_depends=("distribution",),
         default_factory=lambda ns: ns.distribution.default_tools_tree_distribution(),
         help="Set the distribution to use for the default tools tree",
