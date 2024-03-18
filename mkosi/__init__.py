@@ -1505,6 +1505,12 @@ def install_package_manager_trees(context: Context) -> None:
             passwd.write(f"{name}:x:{INVOKING_USER.uid}:{INVOKING_USER.gid}:{name}:{home}:/bin/sh\n")
         os.fchown(passwd.fileno(), INVOKING_USER.uid, INVOKING_USER.gid)
 
+    with (context.pkgmngr / "etc/group").open("w") as group:
+        group.write("root:x:0:\n")
+        if INVOKING_USER.uid != 0:
+            group.write(f"{INVOKING_USER.name()}:x:{INVOKING_USER.gid}:\n")
+        os.fchown(group.fileno(), INVOKING_USER.uid, INVOKING_USER.gid)
+
     if (p := context.config.tools() / "etc/crypto-policies").exists():
         copy_tree(
             p, context.pkgmngr / "etc/crypto-policies",
