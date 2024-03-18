@@ -101,6 +101,9 @@ class Verb(StrEnum):
     def needs_credentials(self) -> bool:
         return self in (Verb.summary, Verb.qemu, Verb.boot, Verb.shell)
 
+    def needs_config(self) -> bool:
+        return self not in (Verb.help, Verb.genkey, Verb.documentation)
+
 
 class ConfigFeature(StrEnum):
     auto     = enum.auto()
@@ -3302,6 +3305,9 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
 
     if args.verb == Verb.help:
         PagerHelpAction.__call__(None, argparser, namespace)  # type: ignore
+
+    if not args.verb.needs_config():
+        return args, ()
 
     include = ()
 
