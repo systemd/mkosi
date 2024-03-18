@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
+import itertools
 import logging
 import os
 import re
@@ -149,6 +150,14 @@ def resolve_module_dependencies(
     return set(nametofile[m] for m in mods if m in nametofile), set(firmware)
 
 
+def parents_relative_to(path: Path, other: Path) -> Iterator[Path]:
+    for p in path.parents:
+        if p == other or not p.is_relative_to(other):
+            return
+
+        yield p
+
+
 def gen_required_kernel_modules(
     root: Path,
     kver: str,
@@ -179,12 +188,10 @@ def gen_required_kernel_modules(
     if (root / "usr/lib/firmware").exists():
         yield root / "usr/lib/firmware"
 
-    for d in (modulesd, root / "usr/lib/firmware"):
-        for p in (root / d).rglob("*"):
-            if p.is_dir():
-                yield p
+    yield from {p for m in sorted(mods) for p in parents_relative_to(m, modulesd / "kernel")}
+    yield from {p for f in sorted(firmware) for p in parents_relative_to(f, root / "usr/lib/firmware")}
 
-    for p in sorted(mods) + sorted(firmware):
+    for p in itertools.chain(sorted(mods), sorted(firmware)):
         yield p
 
     for p in (root / modulesd).iterdir():
