@@ -694,7 +694,8 @@ def run_qemu(args: Args, config: Config) -> None:
             f"vhost-vsock-pci,guest-cid={cid},vhostfd={qemu_device_fds[QemuDeviceNode.vhost_vsock]}"
         ]
 
-    cmdline += ["-cpu", "max"]
+    # TODO: Remove once Hyper-V bug is fixed and deployed to Github Actions.
+    cmdline += ["-cpu", "max,pcid=off"]
 
     if config.qemu_gui:
         cmdline += ["-vga", "virtio"]
