@@ -88,6 +88,9 @@ class Image:
             "--cache-dir", "mkosi.cache",
             *(f"--kernel-command-line={i}" for i in kcl),
             "--qemu-vsock=yes",
+            # TODO: Drop once both Hyper-V bugs are fixed in Github Actions.
+            "--qemu-args=-cpu max,pcid=off",
+            "--qemu-mem=2G",
             verb,
             *args,
         ], check=check, stdin=stdin, stdout=sys.stdout, user=user, group=group)
