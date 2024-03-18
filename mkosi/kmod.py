@@ -172,30 +172,22 @@ def gen_required_kernel_modules(
         mods = set((modulesd / "kernel").rglob("*.ko*"))
         firmware = set()
 
-    yield modulesd.parent
-    yield modulesd
-    yield modulesd / "kernel"
+    # We do not want to yield directories lower than /usr/lib, especially none outside of our root namespace.
+    # Therefore we disregard the lowest few parent directores.
+    # This also improves performance as fewer set memberships have to be checked.
+    prefix_length = len((root / "usr/lib").parts)
+    required_paths = mods | firmware | set(
+        parent
+        for file in mods | firmware
+        for parent in file.parents[:-prefix_length]
+    )
+    yield from sorted(required_paths)
 
-    if (root / "usr/lib/firmware").exists():
-        yield root / "usr/lib/firmware"
-
-    for d in (modulesd, root / "usr/lib/firmware"):
-        for p in (root / d).rglob("*"):
-            if p.is_dir():
-                yield p
-
-    for p in sorted(mods) + sorted(firmware):
-        yield p
-
-    for p in (root / modulesd).iterdir():
-        if p.name.startswith("modules"):
-            yield p
+    yield from (root / modulesd).glob("modules*")
 
     if (root / modulesd / "vdso").exists():
         yield modulesd / "vdso"
-
-        for p in (root / modulesd / "vdso").iterdir():
-            yield p
+        yield from (root / modulesd / "vdso").iterdir()
 
 
 def process_kernel_modules(
