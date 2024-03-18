@@ -150,12 +150,9 @@ def resolve_module_dependencies(
     return set(nametofile[m] for m in mods if m in nametofile), set(firmware)
 
 
-def parents_relative_to(path: Path, other: Path) -> Iterator[Path]:
-    for p in path.parents:
-        if p == other or not p.is_relative_to(other):
-            return
-
-        yield p
+def parents_below(path: Path, below: Path) -> list[Path]:
+    parents = list(path.parents)
+    return parents[:parents.index(below)]
 
 
 def gen_required_kernel_modules(
@@ -181,28 +178,21 @@ def gen_required_kernel_modules(
         mods = set((modulesd / "kernel").rglob("*.ko*"))
         firmware = set()
 
-    yield modulesd.parent
-    yield modulesd
-    yield modulesd / "kernel"
+    yield from sorted(
+        itertools.chain(
+            {p for f in mods | firmware for p in parents_below(f, root / "usr/lib")},
+            mods,
+            firmware,
+            modulesd.glob("modules*"),
+        )
+    )
 
-    if (root / "usr/lib/firmware").exists():
-        yield root / "usr/lib/firmware"
+    if (modulesd / "vdso").exists():
+        if not mods:
+            yield from parents_below(modulesd / "vdso", root / "usr/lib")
 
-    yield from {p for m in sorted(mods) for p in parents_relative_to(m, modulesd / "kernel")}
-    yield from {p for f in sorted(firmware) for p in parents_relative_to(f, root / "usr/lib/firmware")}
-
-    for p in itertools.chain(sorted(mods), sorted(firmware)):
-        yield p
-
-    for p in (root / modulesd).iterdir():
-        if p.name.startswith("modules"):
-            yield p
-
-    if (root / modulesd / "vdso").exists():
         yield modulesd / "vdso"
-
-        for p in (root / modulesd / "vdso").iterdir():
-            yield p
+        yield from sorted((modulesd / "vdso").iterdir())
 
 
 def process_kernel_modules(
