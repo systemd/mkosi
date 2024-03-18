@@ -222,19 +222,25 @@ def process_kernel_modules(
             gen_required_kernel_modules(root, kver, include=include, exclude=exclude, host=host, sandbox=sandbox)
         )
 
-        for m in (root / "usr/lib/modules" / kver).rglob("*.ko*"):
+        for m in sorted((root / "usr/lib/modules" / kver / "kernel").rglob("*"), reverse=True):
             if m in required:
                 continue
 
-            logging.debug(f"Removing module {m}")
-            m.unlink()
+            if m.is_file() or m.is_symlink():
+                logging.debug(f"Removing module {m}")
+                m.unlink()
+            else:
+                m.rmdir()
 
-        for fw in (m for m in (root / "usr/lib/firmware").rglob("*") if not m.is_dir()):
+        for fw in sorted((root / "usr/lib/firmware").rglob("*"), reverse=True):
             if fw in required:
                 continue
 
             if any(fw.is_relative_to(root / "usr/lib/firmware" / d) for d in ("amd-ucode", "intel-ucode")):
                 continue
 
-            logging.debug(f"Removing firmware {fw}")
-            fw.unlink()
+            if fw.is_file() or fw.is_symlink():
+                logging.debug(f"Removing firmware {fw}")
+                fw.unlink()
+            else:
+                fw.rmdir()
