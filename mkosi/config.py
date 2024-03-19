@@ -1670,6 +1670,7 @@ SETTINGS = (
     ConfigSetting(
         dest="profile",
         section="Config",
+        specifier="p",
         help="Build the specified profile",
         parse=config_parse_profile,
         match=config_make_string_matcher(),

@@ -1800,6 +1800,7 @@ use `%%`. The following specifiers are understood:
 | `OutputDirectory=` | `%O`      |
 | `ImageId=`         | `%i`      |
 | `ImageVersion=`    | `%v`      |
+| `Profile=`         | `%p`      |
 
 ## Supported distributions
 
