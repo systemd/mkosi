@@ -73,6 +73,7 @@ class INVOKING_USER:
             ["mkdir", "--parents", path],
             user=cls.uid if cond else os.getuid(),
             group=cls.gid if cond else os.getgid(),
+            extra_groups=cls.extra_groups() if cond else None,
         )
         return path
 
