@@ -74,9 +74,9 @@ def resolve_module_dependencies(
     of module names (including the given module paths themselves). The paths are returned relative to the
     root directory.
     """
-    modulesd = Path("usr/lib/modules") / kver
-    builtin = set(module_path_to_name(Path(m)) for m in (root / modulesd / "modules.builtin").read_text().splitlines())
-    allmodules = set((root / modulesd / "kernel").rglob("*.ko*"))
+    modulesd = root / "usr/lib/modules" / kver
+    builtin = set(module_path_to_name(Path(m)) for m in (modulesd / "modules.builtin").read_text().splitlines())
+    allmodules = set((modulesd / "kernel").rglob("*.ko*"))
     nametofile = {module_path_to_name(m): m for m in allmodules}
 
     log_step("Running modinfo to fetch kernel module dependencies")
