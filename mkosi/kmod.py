@@ -26,7 +26,7 @@ def filter_kernel_modules(
     host: bool,
 ) -> list[Path]:
     modulesd = root / "usr/lib/modules" / kver
-    modules = set((modulesd / "kernel").rglob("*.ko*"))
+    modules = set(modulesd.rglob("*.ko*"))
 
     if host:
         include = [*include, *loaded_modules()]
@@ -35,7 +35,7 @@ def filter_kernel_modules(
     if include:
         regex = re.compile("|".join(include))
         for m in modules:
-            rel = os.fspath(m.relative_to(modulesd / "kernel"))
+            rel = os.fspath(Path(*m.relative_to(modulesd).parts[1:]))
             if regex.search(rel):
                 logging.debug(f"Including module {rel}")
                 keep.add(rel)
@@ -44,7 +44,7 @@ def filter_kernel_modules(
         remove = set()
         regex = re.compile("|".join(exclude))
         for m in modules:
-            rel = os.fspath(m.relative_to(modulesd / "kernel"))
+            rel = os.fspath(Path(*m.relative_to(modulesd).parts[1:]))
             if rel not in keep and regex.search(rel):
                 logging.debug(f"Excluding module {rel}")
                 remove.add(m)
@@ -74,9 +74,9 @@ def resolve_module_dependencies(
     of module names (including the given module paths themselves). The paths are returned relative to the
     root directory.
     """
-    modulesd = Path("usr/lib/modules") / kver
-    builtin = set(module_path_to_name(Path(m)) for m in (root / modulesd / "modules.builtin").read_text().splitlines())
-    allmodules = set((root / modulesd / "kernel").rglob("*.ko*"))
+    modulesd = root / "usr/lib/modules" / kver
+    builtin = set(module_path_to_name(Path(m)) for m in (modulesd / "modules.builtin").read_text().splitlines())
+    allmodules = set(modulesd.rglob("*.ko*"))
     nametofile = {module_path_to_name(m): m for m in allmodules}
 
     log_step("Running modinfo to fetch kernel module dependencies")
@@ -175,7 +175,7 @@ def gen_required_kernel_modules(
         mods, firmware = resolve_module_dependencies(root, kver, names, sandbox=sandbox)
     else:
         logging.debug("No modules excluded and no firmware installed, using kernel modules generation fast path")
-        mods = set((modulesd / "kernel").rglob("*.ko*"))
+        mods = set(modulesd.rglob("*.ko*"))
         firmware = set()
 
     yield from sorted(
@@ -212,7 +212,7 @@ def process_kernel_modules(
             gen_required_kernel_modules(root, kver, include=include, exclude=exclude, host=host, sandbox=sandbox)
         )
 
-        for m in sorted((root / "usr/lib/modules" / kver / "kernel").rglob("*"), reverse=True):
+        for m in sorted((root / "usr/lib/modules" / kver).rglob("*.ko*"), reverse=True):
             if m in required:
                 continue
 
