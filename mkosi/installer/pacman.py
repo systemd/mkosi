@@ -127,6 +127,8 @@ class Pacman(PackageManager):
     @classmethod
     def cmd(cls, context: Context) -> list[PathString]:
         return [
+            "env",
+            *([f"{k}={v}" for k, v in cls.finalize_environment(context).items()]),
             "pacman",
             "--root=/buildroot",
             "--logfile=/dev/null",

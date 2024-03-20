@@ -5,7 +5,7 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import NamedTuple, Optional
 
-from mkosi.config import Config
+from mkosi.config import Config, ConfigFeature
 from mkosi.context import Context
 from mkosi.installer import PackageManager
 from mkosi.log import die
@@ -111,15 +111,25 @@ class Apt(PackageManager):
                     f.write(str(repo))
 
     @classmethod
+    def finalize_environment(cls, context: Context) -> dict[str, str]:
+        env = {
+            "APT_CONFIG": "/etc/apt.conf",
+            "DEBIAN_FRONTEND" : "noninteractive",
+            "DEBCONF_INTERACTIVE_SEEN": "true",
+        }
+
+        if "INITRD" not in context.config.environment and context.config.bootable != ConfigFeature.disabled:
+            env["INITRD"] = "No"
+
+        return super().finalize_environment(context) | env
+
+    @classmethod
     def cmd(cls, context: Context, command: str) -> list[PathString]:
         debarch = context.config.distribution.architecture(context.config.architecture)
 
         cmdline: list[PathString] = [
             "env",
-            "APT_CONFIG=/etc/apt.conf",
-            "DEBIAN_FRONTEND=noninteractive",
-            "DEBCONF_INTERACTIVE_SEEN=true",
-            "INITRD=No",
+            *([f"{k}={v}" for k, v in cls.finalize_environment(context).items()]),
             command,
             "-o", f"APT::Architecture={debarch}",
             "-o", f"APT::Architectures={debarch}",
