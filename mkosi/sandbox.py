@@ -203,9 +203,6 @@ def sandbox_cmd(
 
     cmdline += ["--setenv", "PATH", f"/scripts:{path}", *options]
 
-    if not relaxed:
-        cmdline += ["--symlink", "../proc/self/mounts", "/etc/mtab"]
-
     # If we're using /usr from a tools tree, we have to use /etc/alternatives from the tools tree as well if it
     # exists since that points directly back to /usr. Apply this after the options so the caller can mount
     # something else to /etc without overriding this mount. In relaxed mode, we only do this if /etc/alternatives
@@ -221,6 +218,9 @@ def sandbox_cmd(
         mounts += [Mount("/etc/resolv.conf", "/etc/resolv.conf")]
 
     cmdline += finalize_mounts(mounts)
+
+    if not any(Path(m.dst) == Path("/etc") for m in mounts):
+        cmdline += ["--symlink", "../proc/self/mounts", "/etc/mtab"]
 
     # bubblewrap creates everything with a restricted mode so relax stuff as needed.
     ops = []

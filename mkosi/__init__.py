@@ -1491,6 +1491,9 @@ def install_package_manager_trees(context: Context) -> None:
     # Ensure /etc exists in the package manager tree
     (context.pkgmngr / "etc").mkdir(exist_ok=True)
 
+    # Backwards compatibility symlink.
+    (context.pkgmngr / "etc/mtab").symlink_to("../proc/self/mounts")
+
     # Required to be able to access certificates in the sandbox when running from nix.
     if Path("/etc/static").is_symlink():
         (context.pkgmngr / "etc/static").symlink_to(Path("/etc/static").readlink())
