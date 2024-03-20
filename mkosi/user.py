@@ -7,6 +7,7 @@ import logging
 import os
 import pwd
 import tempfile
+from collections.abc import Sequence
 from pathlib import Path
 
 from mkosi.log import die
@@ -25,7 +26,11 @@ class INVOKING_USER:
     def init(cls) -> None:
         name = cls.name()
         home = cls.home()
-        logging.debug(f"Running as user '{name}' ({cls.uid}:{cls.gid}) with home {home}.")
+        extra_groups = cls.extra_groups()
+        logging.debug(
+            f"Running as user '{name}' ({cls.uid}:{cls.gid}) with home {home} "
+            f"and extra groups {extra_groups}."
+        )
 
     @classmethod
     def is_running_user(cls) -> bool:
@@ -40,6 +45,11 @@ class INVOKING_USER:
     @functools.lru_cache(maxsize=1)
     def home(cls) -> Path:
         return Path(f"~{cls.name()}").expanduser()
+
+    @classmethod
+    @functools.lru_cache(maxsize=1)
+    def extra_groups(cls) -> Sequence[int]:
+        return os.getgrouplist(cls.name(), cls.gid)
 
     @classmethod
     def is_regular_user(cls) -> bool:
@@ -58,17 +68,21 @@ class INVOKING_USER:
 
     @classmethod
     def mkdir(cls, path: Path) -> Path:
-        cond = not cls.invoked_as_root or (cls.is_regular_user() and path.is_relative_to(cls.home()))
+        cond = (
+            not cls.invoked_as_root or
+            (cls.is_regular_user() and any(p.exists() and p.stat().st_uid == cls.uid for p in path.parents))
+        )
         run(
             ["mkdir", "--parents", path],
             user=cls.uid if cond else os.getuid(),
             group=cls.gid if cond else os.getgid(),
+            extra_groups=cls.extra_groups() if cond else None,
         )
         return path
 
     @classmethod
     def rchown(cls, path: Path) -> None:
-        if cls.is_regular_user() and path.is_relative_to(INVOKING_USER.home()) and path.exists():
+        if cls.is_regular_user() and any(p.stat().st_uid == cls.uid for p in path.parents) and path.exists():
             run(["chown", "--recursive", f"{INVOKING_USER.uid}:{INVOKING_USER.gid}", path])
 
 
