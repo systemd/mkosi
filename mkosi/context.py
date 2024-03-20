@@ -81,16 +81,13 @@ class Context:
             devices=devices,
             scripts=scripts,
             mounts=[
-                # These mounts are writable so bubblewrap can create extra directories or symlinks inside of it as
-                # needed. This isn't a problem as the package manager directory is created by mkosi and thrown away
-                # when the build finishes.
-                *[
-                    Mount(self.pkgmngr / "etc" / p.name, f"/etc/{p.name}")
-                    for p in (self.pkgmngr / "etc").iterdir()
-                ],
-                *mounts,
+                # This mount is writable so bubblewrap can create extra directories or symlinks inside of it as needed.
+                # This isn't a problem as the package manager directory is created by mkosi and thrown away when the
+                # build finishes.
+                Mount(self.pkgmngr / "etc", "/etc"),
                 Mount(self.pkgmngr / "var/log", "/var/log"),
                 *([Mount(p, p, ro=True)] if (p := self.pkgmngr / "usr").exists() else []),
+                *mounts,
             ],
             options=[
                 "--uid", "0",
