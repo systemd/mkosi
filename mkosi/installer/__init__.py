@@ -29,6 +29,23 @@ class PackageManager:
         return {}
 
     @classmethod
+    def finalize_environment(cls, context: Context) -> dict[str, str]:
+        env = {
+            "HOME": "/", # Make sure rpm doesn't pick up ~/.rpmmacros and ~/.rpmrc.
+        }
+
+        if "SYSTEMD_HWDB_UPDATE_BYPASS" not in context.config.environment:
+            env["SYSTEMD_HWDB_UPDATE_BYPASS"] = "1"
+
+        if (
+            "KERNEL_INSTALL_BYPASS" not in context.config.environment and
+            context.config.bootable != ConfigFeature.disabled
+        ):
+            env["KERNEL_INSTALL_BYPASS"] = "1"
+
+        return env
+
+    @classmethod
     def mounts(cls, context: Context) -> list[Mount]:
         mounts = [
             *finalize_crypto_mounts(tools=context.config.tools()),

@@ -99,11 +99,14 @@ class Zypper(PackageManager):
                     f.write("\n")
 
     @classmethod
+    def finalize_environment(cls, context: Context) -> dict[str, str]:
+        return super().finalize_environment(context) | {"ZYPP_CONF": "/etc/zypp/zypp.conf"}
+
+    @classmethod
     def cmd(cls, context: Context) -> list[PathString]:
         return [
             "env",
-            "ZYPP_CONF=/etc/zypp/zypp.conf",
-            "HOME=/",
+            *([f"{k}={v}" for k, v in cls.finalize_environment(context).items()]),
             "zypper",
             "--installroot=/buildroot",
             "--cache-dir=/var/cache/zypp",

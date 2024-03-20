@@ -100,7 +100,7 @@ class Dnf(PackageManager):
 
         cmdline: list[PathString] = [
             "env",
-            "HOME=/", # Make sure rpm doesn't pick up ~/.rpmmacros and ~/.rpmrc.
+            *([f"{k}={v}" for k, v in cls.finalize_environment(context).items()]),
             dnf,
             "--assumeyes",
             "--best",
