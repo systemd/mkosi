@@ -462,6 +462,7 @@ def run_sync_scripts(context: Context) -> None:
                 # git repository and might need to modify the git config in the parent git repository when submodules
                 # are in use as well.
                 mounts += [Mount(p, p)]
+                env["HOME"] = os.fspath(p)
             if (p := Path(f"/run/user/{INVOKING_USER.uid}")).exists():
                 mounts += [Mount(p, p, ro=True)]
 
