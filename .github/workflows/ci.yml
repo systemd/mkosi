@@ -15,7 +15,7 @@ jobs:
       group: ${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: true
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633
 
     - name: Install
       run: |
@@ -122,7 +122,7 @@ jobs:
             tools: arch
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633
     - uses: ./
 
     # Freeing up disk space with rm -rf can take multiple minutes. Since we don't need the extra free space
