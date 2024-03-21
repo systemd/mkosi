@@ -1417,6 +1417,34 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 ### [Host] Section
 
+`ProxyUrl=`, `--proxy-url=`
+
+: Configure a proxy to be used for all outgoing network connections.
+  Various tools that mkosi invokes and for which the proxy can be
+  configured are configured to use this proxy. mkosi also sets various
+  well-known environment variables to specify the proxy to use for any
+  programs it invokes that may need internet access.
+
+`ProxyPeerCertificate=`, `--proxy-peer-certificate=`
+
+: Configure a file containing certificates used to verify the proxy.
+  Defaults to the system-wide certificate store. Note that not all
+  package managers that mkosi uses have support for specifying a proxy
+  peer certificate.
+
+`ProxyClientCertificate=`, `--proxy-client-certificate=`
+
+: Configure a file containing the certificate used to authenticate the
+  client with the proxy. Note that not all package managers that mkosi
+  uses have support for specifying a proxy client certificate.
+
+`ProxyClientKey=`, `--proxy-client-key=`
+
+: Configure a file containing the private key used to authenticate the
+  client with the proxy. Defaults to the proxy client certificate if one
+  is provided. Note that not all package managers that mkosi uses have
+  support for specifying a proxy client key.
+
 `Incremental=`, `--incremental=`, `-i`
 
 : Enable incremental build mode. In this mode, a copy of the OS image is

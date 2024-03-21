@@ -677,6 +677,21 @@ def config_default_source_date_epoch(namespace: argparse.Namespace) -> Optional[
     return config_parse_source_date_epoch(s, None)
 
 
+def config_default_proxy_url(namespace: argparse.Namespace) -> Optional[str]:
+    names = ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY")
+
+    for env in namespace.environment:
+        k, _, v = env.partition("=")
+        if k in names:
+            return cast(str, v)
+
+    for k, v in os.environ.items():
+        if k in names:
+            return cast(str, v)
+
+    return None
+
+
 def config_default_kernel_command_line(namespace: argparse.Namespace) -> list[str]:
     return [f"console={namespace.architecture.default_serial_tty()}"]
 
@@ -1366,6 +1381,10 @@ class Config:
     sign: bool
     key: Optional[str]
 
+    proxy_url: Optional[str]
+    proxy_peer_certificate: Optional[Path]
+    proxy_client_certificate: Optional[Path]
+    proxy_client_key: Optional[Path]
     incremental: bool
     nspawn_settings: Optional[Path]
     extra_search_paths: list[Path]
@@ -1572,6 +1591,9 @@ class Config:
     ) -> list[PathString]:
         mounts = [
             *[Mount(d, d, ro=True) for d in self.extra_search_paths if not relaxed and not self.tools_tree],
+            *([Mount(p, "/proxy.cacert", ro=True)] if (p := self.proxy_peer_certificate) else []),
+            *([Mount(p, "/proxy.clientcert", ro=True)] if (p := self.proxy_client_certificate) else []),
+            *([Mount(p, "/proxy.clientkey", ro=True)] if (p := self.proxy_client_key) else []),
             *mounts,
         ]
 
@@ -2477,6 +2499,38 @@ SETTINGS = (
         help="GPG key to use for signing",
     ),
 
+    ConfigSetting(
+        dest="proxy_url",
+        section="Host",
+        default_factory=config_default_proxy_url,
+        default_factory_depends=("environment",),
+        metavar="URL",
+        help="Set the proxy to use",
+    ),
+    ConfigSetting(
+        dest="proxy_peer_certificate",
+        section="Host",
+        parse=config_make_path_parser(),
+        paths=(
+            "/etc/pki/tls/certs/ca-bundle.crt",
+            "/etc/ssl/certs/ca-certificates.crt",
+        ),
+        help="Set the proxy peer certificate",
+    ),
+    ConfigSetting(
+        dest="proxy_client_certificate",
+        section="Host",
+        parse=config_make_path_parser(secret=True),
+        help="Set the proxy client certificate",
+    ),
+    ConfigSetting(
+        dest="proxy_client_key",
+        section="Host",
+        default_factory=lambda ns: ns.proxy_client_certificate,
+        default_factory_depends=("proxy_client_certificate",),
+        parse=config_make_path_parser(secret=True),
+        help="Set the proxy client key",
+    ),
     ConfigSetting(
         dest="incremental",
         short="-i",
@@ -3493,10 +3547,16 @@ def load_environment(args: argparse.Namespace) -> dict[str, str]:
         env["IMAGE_VERSION"] = args.image_version
     if args.source_date_epoch is not None:
         env["SOURCE_DATE_EPOCH"] = str(args.source_date_epoch)
-    if proxy := os.getenv("http_proxy"):
-        env["http_proxy"] = proxy
-    if proxy := os.getenv("https_proxy"):
-        env["https_proxy"] = proxy
+    if args.proxy_url is not None:
+        for e in ("http_proxy", "https_proxy"):
+            env[e] = args.proxy_url
+            env[e.upper()] = args.proxy_url
+    if args.proxy_peer_certificate:
+        env["GIT_PROXY_SSL_CAINFO"] = "/proxy.cacert"
+    if args.proxy_client_certificate:
+        env["GIT_PROXY_SSL_CERT"] = "/proxy.clientcert"
+    if args.proxy_client_key:
+        env["GIT_PROXY_SSL_KEY"] = "/proxy.clientkey"
     if dnf := os.getenv("MKOSI_DNF"):
         env["MKOSI_DNF"] = dnf
 
@@ -3737,6 +3797,10 @@ def summary(config: Config) -> str:
     summary += f"""\
 
     {bold("HOST CONFIGURATION")}:
+                          Proxy URL: {none_to_none(config.proxy_url)}
+             Proxy Peer Certificate: {none_to_none(config.proxy_peer_certificate)}
+           Proxy Client Certificate: {none_to_none(config.proxy_client_certificate)}
+                   Proxy Client Key: {none_to_none(config.proxy_client_key)}
                         Incremental: {yes_no(config.incremental)}
                     NSpawn Settings: {none_to_none(config.nspawn_settings)}
                  Extra Search Paths: {line_join_list(config.extra_search_paths)}

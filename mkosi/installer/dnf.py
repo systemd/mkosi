@@ -148,6 +148,15 @@ class Dnf(PackageManager):
                 "--setopt=varsdir=/etc/dnf/vars",
             ]
 
+        if context.config.proxy_url:
+            cmdline += [f"--setopt=proxy={context.config.proxy_url}"]
+        if context.config.proxy_peer_certificate:
+            cmdline += ["--setopt=proxy_sslcacert=/proxy.cacert"]
+        if context.config.proxy_client_certificate:
+            cmdline += ["--setopt=proxy_sslclientcert=/proxy.clientcert"]
+        if context.config.proxy_client_key:
+            cmdline += ["--setopt=proxy_sslclientkey=/proxy.clientkey"]
+
         return cmdline
 
     @classmethod

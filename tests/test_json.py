@@ -203,6 +203,10 @@ def test_config() -> None:
                 "/run/foo"
             ],
             "Profile": "profile",
+            "ProxyClientCertificate": "/my/client/cert",
+            "ProxyClientKey": "/my/client/key",
+            "ProxyPeerCertificate": "/my/peer/cert",
+            "ProxyUrl": "https://my/proxy",
             "QemuArgs": [],
             "QemuCdrom": false,
             "QemuDrives": [
@@ -393,6 +397,10 @@ def test_config() -> None:
         postinst_scripts = [Path("/bar/qux")],
         prepare_scripts = [Path("/run/foo")],
         profile = "profile",
+        proxy_client_certificate = Path("/my/client/cert"),
+        proxy_client_key = Path("/my/client/key"),
+        proxy_peer_certificate = Path("/my/peer/cert"),
+        proxy_url = "https://my/proxy",
         qemu_args = [],
         qemu_cdrom = False,
         qemu_drives = [QemuDrive("abc", 200, Path("/foo/bar"), "abc,qed"), QemuDrive("abc", 200, None, "")],

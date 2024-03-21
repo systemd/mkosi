@@ -172,6 +172,12 @@ class Apt(PackageManager):
                 "-o", "DPkg::Options::=--path-exclude=/usr/share/info/*",
             ]
 
+        if context.config.proxy_url:
+            cmdline += [
+                "-o", f"Acquire::http::Proxy={context.config.proxy_url}",
+                "-o", f"Acquire::https::Proxy={context.config.proxy_url}",
+            ]
+
         return cmdline
 
     @classmethod
