@@ -3350,7 +3350,8 @@ def normalize_mtime(root: Path, mtime: Optional[int], directory: Optional[Path] 
 def setup_workspace(args: Args, config: Config) -> Iterator[Path]:
     with contextlib.ExitStack() as stack:
         workspace = Path(tempfile.mkdtemp(dir=config.workspace_dir_or_default(), prefix="mkosi-workspace"))
-        os.chmod(workspace, 0o700)
+        # Discard setuid/setgid bits as these are inherited and can leak into the image.
+        workspace.chmod(stat.S_IMODE(workspace.stat().st_mode) & ~(stat.S_ISGID|stat.S_ISUID))
         stack.callback(lambda: rmtree(workspace, tools=config.tools(), sandbox=config.sandbox))
         (workspace / "tmp").mkdir(mode=0o1777)
 
@@ -4118,6 +4119,27 @@ def run_sync(args: Args, config: Config, *, resources: Path) -> None:
 def run_build(args: Args, config: Config, *, resources: Path) -> None:
     check_inputs(config)
 
+    for p in (
+        config.output_dir,
+        config.cache_dir,
+        config.package_cache_dir_or_default(),
+        config.build_dir,
+        config.workspace_dir,
+    ):
+        if not p or p.exists():
+            continue
+
+        p.mkdir()
+
+        # If we created the directory in a parent directory owned by the invoking user, make sure the directory itself
+        # is owned by the invoking user as well.
+        if INVOKING_USER.is_regular_user() and p.parent.stat().st_uid == INVOKING_USER.uid:
+            os.chown(p, INVOKING_USER.uid, INVOKING_USER.gid)
+
+    # Discard setuid/setgid bits as these are inherited and can leak into the image.
+    if config.build_dir:
+        config.build_dir.chmod(stat.S_IMODE(config.build_dir.stat().st_mode) & ~(stat.S_ISGID|stat.S_ISUID))
+
     if (uid := os.getuid()) != 0:
         become_root()
     unshare(CLONE_NEWNS)
@@ -4140,16 +4162,6 @@ def run_build(args: Args, config: Config, *, resources: Path) -> None:
         prepend_to_environ_path(config),
     ):
         check_tools(config, Verb.build)
-
-        for p in (
-            config.output_dir,
-            config.cache_dir,
-            config.package_cache_dir_or_default(),
-            config.build_dir,
-            config.workspace_dir,
-        ):
-            if p and not p.exists():
-                INVOKING_USER.mkdir(p)
 
         with (
             acl_toggle_build(config, INVOKING_USER.uid),
