@@ -1665,6 +1665,10 @@ def finalize_default_initrd(
         *([f"--environment={k}='{v}'" for k, v in config.environment.items()]),
         *(["--tools-tree", str(config.tools_tree)] if config.tools_tree else []),
         *([f"--extra-search-path={p}" for p in config.extra_search_paths]),
+        *(["--proxy-url", config.proxy_url] if config.proxy_url else []),
+        *(["--proxy-peer-certificate", str(p)] if (p := config.proxy_peer_certificate) else []),
+        *(["--proxy-client-certificate", str(p)] if (p := config.proxy_client_certificate) else []),
+        *(["--proxy-client-key", str(p)] if (p := config.proxy_client_key) else []),
         *(["-f"] * args.force),
     ]
 
@@ -3932,6 +3936,10 @@ def finalize_default_tools(args: Args, config: Config, *, resources: Path) -> Co
         *(["--source-date-epoch", str(config.source_date_epoch)] if config.source_date_epoch is not None else []),
         *([f"--environment={k}='{v}'" for k, v in config.environment.items()]),
         *([f"--extra-search-path={p}" for p in config.extra_search_paths]),
+        *(["--proxy-url", config.proxy_url] if config.proxy_url else []),
+        *(["--proxy-peer-certificate", str(p)] if (p := config.proxy_peer_certificate) else []),
+        *(["--proxy-client-certificate", str(p)] if (p := config.proxy_client_certificate) else []),
+        *(["--proxy-client-key", str(p)] if (p := config.proxy_client_key) else []),
         *(["-f"] * args.force),
     ]
 

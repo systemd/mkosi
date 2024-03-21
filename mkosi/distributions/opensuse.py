@@ -164,6 +164,10 @@ def fetch_gpgurls(context: Context, repourl: str) -> tuple[str, ...]:
                 "--remote-name",
                 "--no-progress-meter",
                 "--fail",
+                *(["--proxy", context.config.proxy_url] if context.config.proxy_url else []),
+                *(["--proxy-capath", "/proxy.cacert"] if context.config.proxy_peer_certificate else []),
+                *(["--proxy-cert", "/proxy.clientcert"] if context.config.proxy_client_certificate else []),
+                *(["--proxy-key", "/proxy.clientkey"] if context.config.proxy_client_key else []),
                 f"{repourl}/repodata/repomd.xml",
             ],
             sandbox=context.sandbox(
