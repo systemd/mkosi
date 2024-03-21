@@ -3346,6 +3346,7 @@ def normalize_mtime(root: Path, mtime: Optional[int], directory: Optional[Path] 
 def setup_workspace(args: Args, config: Config) -> Iterator[Path]:
     with contextlib.ExitStack() as stack:
         workspace = Path(tempfile.mkdtemp(dir=config.workspace_dir_or_default(), prefix="mkosi-workspace"))
+        os.chmod(workspace, 0o700)
         stack.callback(lambda: rmtree(workspace, tools=config.tools(), sandbox=config.sandbox))
         (workspace / "tmp").mkdir(mode=0o1777)
 
