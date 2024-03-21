@@ -67,20 +67,6 @@ class INVOKING_USER:
         return cache / "mkosi"
 
     @classmethod
-    def mkdir(cls, path: Path) -> Path:
-        cond = (
-            not cls.invoked_as_root or
-            (cls.is_regular_user() and any(p.exists() and p.stat().st_uid == cls.uid for p in path.parents))
-        )
-        run(
-            ["mkdir", "--parents", path],
-            user=cls.uid if cond else os.getuid(),
-            group=cls.gid if cond else os.getgid(),
-            extra_groups=cls.extra_groups() if cls.invoked_as_root and cond else None,
-        )
-        return path
-
-    @classmethod
     def rchown(cls, path: Path) -> None:
         if cls.is_regular_user() and any(p.stat().st_uid == cls.uid for p in path.parents) and path.exists():
             run(["chown", "--recursive", f"{INVOKING_USER.uid}:{INVOKING_USER.gid}", path])
