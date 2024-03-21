@@ -2645,6 +2645,10 @@ def check_tools(config: Config, verb: Verb) -> None:
                 reason="sign verity roothash signature with OpenSSL engine",
             )
 
+        if want_efi(config) and config.secure_boot and config.secure_boot_auto_enroll:
+            check_tool(config, "sbsiglist", reason="set up systemd-boot secure boot auto-enrollment")
+            check_tool(config, "sbvarsign", reason="set up systemd-boot secure boot auto-enrollment")
+
     if verb == Verb.boot:
         check_systemd_tool(config, "systemd-nspawn", version="254", reason="boot images")
 
