@@ -355,6 +355,28 @@ def test_compression(tmp_path: Path) -> None:
         assert config.compress_output == Compression.none
 
 
+def test_match_only(tmp_path: Path) -> None:
+    with chdir(tmp_path):
+        Path("mkosi.conf").write_text(
+            """\
+            [Match]
+            Format=|directory
+            Format=|disk
+            """
+        )
+
+        Path("mkosi.conf.d").mkdir()
+        Path("mkosi.conf.d/10-abc.conf").write_text(
+            """\
+            [Output]
+            ImageId=abcde
+            """
+        )
+
+        _, [config] = parse_config(["--format", "tar"])
+        assert config.image_id != "abcde"
+
+
 def test_match_multiple(tmp_path: Path) -> None:
     with chdir(tmp_path):
         Path("mkosi.conf").write_text(
