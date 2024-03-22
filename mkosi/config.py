@@ -1674,6 +1674,9 @@ def parse_ini(path: Path, only_sections: Collection[str] = ()) -> Iterator[tuple
     if section and setting and value is not None:
         yield section, setting, value
 
+    if section:
+        yield section, "", ""
+
 
 SETTINGS = (
     ConfigSetting(
