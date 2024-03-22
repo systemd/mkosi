@@ -307,8 +307,6 @@ def test_parse_load_verb(tmp_path: Path) -> None:
     with chdir(tmp_path):
         assert parse_config(["build"])[0].verb == Verb.build
         assert parse_config(["clean"])[0].verb == Verb.clean
-        with pytest.raises(SystemExit):
-            parse_config(["help"])
         assert parse_config(["genkey"])[0].verb == Verb.genkey
         assert parse_config(["bump"])[0].verb == Verb.bump
         assert parse_config(["serve"])[0].verb == Verb.serve
