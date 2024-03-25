@@ -142,7 +142,11 @@ def sandbox_cmd(
 
     cmdline += [
         "bwrap",
-        *(["--unshare-net"] if not network and have_effective_cap(Capability.CAP_NET_ADMIN) else []),
+        *(
+            ["--unshare-net"]
+            if not network and (os.getuid() != 0 or have_effective_cap(Capability.CAP_NET_ADMIN))
+            else []
+        ),
         "--die-with-parent",
         "--proc", "/proc",
         "--setenv", "SYSTEMD_OFFLINE", one_zero(network),

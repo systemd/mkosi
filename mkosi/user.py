@@ -44,6 +44,9 @@ class INVOKING_USER:
     @classmethod
     @functools.lru_cache(maxsize=1)
     def home(cls) -> Path:
+        if cls.invoked_as_root and Path.cwd().is_relative_to("/home") and len(Path.cwd().parents) > 2:
+            return list(Path.cwd().parents)[-3]
+
         return Path(f"~{cls.name()}").expanduser()
 
     @classmethod
