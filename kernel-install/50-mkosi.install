@@ -14,7 +14,6 @@ from mkosi.archive import make_cpio
 from mkosi.config import OutputFormat, __version__
 from mkosi.log import die, log_setup
 from mkosi.run import find_binary, run, uncaught_exception_handler
-from mkosi.tree import copy_tree
 from mkosi.types import PathString
 from mkosi.util import umask
 
@@ -176,7 +175,11 @@ def main() -> None:
                 continue
 
             (Path(d) / "etc" / p).parent.mkdir(parents=True, exist_ok=True)
-            copy_tree(Path("/etc") / p, Path(d) / "etc" / p, dereference=True)
+            if (Path("/etc") / p).resolve().is_file():
+                shutil.copy2(Path("/etc") / p, Path(d) / "etc" / p)
+            else:
+                shutil.copytree(Path("/etc") / p, Path(d) / "etc" / p,
+                                ignore=shutil.ignore_patterns("S.*"), dirs_exist_ok=True)
 
         cmdline += ["--package-manager-tree", d]
 
