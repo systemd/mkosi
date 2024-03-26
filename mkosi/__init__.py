@@ -9,6 +9,7 @@ import itertools
 import json
 import logging
 import os
+import re
 import resource
 import shlex
 import shutil
@@ -1846,20 +1847,20 @@ def identify_cpu(root: Path) -> tuple[Optional[Path], Optional[Path]]:
     return (Path(f"{vendor_id}.bin"), None)
 
 
-def build_microcode_initrd(context: Context) -> Optional[Path]:
+def build_microcode_initrd(context: Context) -> list[Path]:
     if not context.config.architecture.is_x86_variant():
-        return None
+        return []
 
     microcode = context.workspace / "microcode.initrd"
     if microcode.exists():
-        return microcode
+        return [microcode]
 
     amd = context.root / "usr/lib/firmware/amd-ucode"
     intel = context.root / "usr/lib/firmware/intel-ucode"
 
     if not amd.exists() and not intel.exists():
         logging.warning("/usr/lib/firmware/{amd-ucode,intel-ucode} not found, not adding microcode")
-        return None
+        return []
 
     root = context.workspace / "microcode-root"
     destdir = root / "kernel/x86/microcode"
@@ -1871,7 +1872,7 @@ def build_microcode_initrd(context: Context) -> Optional[Path]:
         vendorfile, ucodefile = identify_cpu(context.root)
         if vendorfile is None or ucodefile is None:
             logging.warning("Unable to identify CPU for MicrocodeHostonly=")
-            return None
+            return []
         with (destdir / vendorfile).open("wb") as f:
             f.write(ucodefile.read_bytes())
     else:
@@ -1887,7 +1888,7 @@ def build_microcode_initrd(context: Context) -> Optional[Path]:
 
     make_cpio(root, microcode, sandbox=context.sandbox)
 
-    return microcode
+    return [microcode]
 
 
 def build_kernel_modules_initrd(context: Context, kver: str) -> Path:
@@ -1993,7 +1994,8 @@ def build_uki(
     stub: Path,
     kver: str,
     kimg: Path,
-    initrds: Sequence[Path],
+    microcodes: list[Path],
+    initrds: list[Path],
     cmdline: Sequence[str],
     output: Path,
 ) -> None:
@@ -2077,6 +2079,20 @@ def build_uki(
     cmd += ["build", "--linux", kimg]
     mounts += [Mount(kimg, kimg, ro=True)]
 
+    if microcodes:
+        ukify = find_binary("ukify", "/usr/lib/systemd/ukify", root=context.config.tools())
+        assert ukify is not None
+        # new .ucode section support?
+        if (
+            systemd_tool_version(context.config, ukify) >= "256~devel" and
+            systemd_stub_version(context, stub) >= "256~devel"
+        ):
+            for microcode in microcodes:
+                cmd += ["--microcode", microcode]
+                mounts += [Mount(microcode, microcode, ro=True)]
+        else:
+            initrds = microcodes + initrds
+
     for initrd in initrds:
         cmd += ["--initrd", initrd]
         mounts += [Mount(initrd, initrd, ro=True)]
@@ -2128,6 +2144,14 @@ def systemd_stub_binary(context: Context) -> Path:
     return stub
 
 
+def systemd_stub_version(context: Context, stub: Path) -> GenericVersion:
+    sdmagic = extract_pe_section(context, stub, ".sdmagic", context.workspace / "sdmagic")
+    sdmagic_text = sdmagic.read_text()
+    if version := re.match(r"#### LoaderInfo: systemd-stub (?P<version>[.~^a-zA-Z0-9-]+) ####", sdmagic_text):
+        return GenericVersion(version.group("version"))
+    die(f"Unable to determine systemd-stub version, found {sdmagic_text!r}")
+
+
 def want_uki(context: Context) -> bool:
     return want_efi(context.config) and (
             context.config.bootloader == Bootloader.uki or
@@ -2174,22 +2198,20 @@ def finalize_cmdline(context: Context, roothash: Optional[str]) -> list[str]:
     return cmdline + context.config.kernel_command_line
 
 
-def finalize_initrds(context: Context) -> list[Path]:
+def finalize_microcode(context: Context) -> list[Path]:
     if any((context.artifacts / "io.mkosi.microcode").glob("*")):
-        initrds = sorted((context.artifacts / "io.mkosi.microcode").iterdir())
+        return sorted((context.artifacts / "io.mkosi.microcode").iterdir())
     elif microcode := build_microcode_initrd(context):
-        initrds = [microcode]
-    else:
-        initrds = []
+        return microcode
+    return []
 
+
+def finalize_initrds(context: Context) -> list[Path]:
     if context.config.initrds:
-        initrds += context.config.initrds
+        return context.config.initrds
     elif any((context.artifacts / "io.mkosi.initrd").glob("*")):
-        initrds += sorted((context.artifacts / "io.mkosi.initrd").iterdir())
-    else:
-        initrds += [build_default_initrd(context)]
-
-    return initrds
+        return sorted((context.artifacts / "io.mkosi.initrd").iterdir())
+    return [build_default_initrd(context)]
 
 
 def install_type1(
@@ -2219,7 +2241,10 @@ def install_type1(
         else:
             kimg = Path(shutil.copy2(context.root / kimg, dst / "vmlinuz"))
 
-        initrds = [Path(shutil.copy2(initrd, dst.parent / initrd.name)) for initrd in finalize_initrds(context)]
+        initrds = [
+            Path(shutil.copy2(initrd, dst.parent / initrd.name))
+            for initrd in finalize_microcode(context) + finalize_initrds(context)
+        ]
         initrds += [Path(shutil.copy2(kmods, dst / "kernel-modules.initrd"))]
 
         with entry.open("w") as f:
@@ -2304,6 +2329,8 @@ def install_uki(context: Context, kver: str, kimg: Path, token: str, partitions:
 
             return
     else:
+        microcodes = finalize_microcode(context)
+
         initrds = finalize_initrds(context)
         if context.config.kernel_modules_initrd:
             initrds += [build_kernel_modules_initrd(context, kver)]
@@ -2313,6 +2340,7 @@ def install_uki(context: Context, kver: str, kimg: Path, token: str, partitions:
             systemd_stub_binary(context),
             kver,
             context.root / kimg,
+            microcodes,
             initrds,
             finalize_cmdline(context, roothash),
             boot_binary,
@@ -2379,14 +2407,13 @@ def install_kernel(context: Context, partitions: Sequence[Partition]) -> None:
             break
 
 
-def make_uki(context: Context, stub: Path, kver: str, kimg: Path, microcode: Optional[Path], output: Path) -> None:
+def make_uki(context: Context, stub: Path, kver: str, kimg: Path, microcode: list[Path], output: Path) -> None:
     make_cpio(context.root, context.workspace / "initrd", sandbox=context.sandbox)
     maybe_compress(context, context.config.compress_output, context.workspace / "initrd", context.workspace / "initrd")
 
-    initrds = [microcode] if microcode else []
-    initrds += [context.workspace / "initrd"]
+    initrds = [context.workspace / "initrd"]
 
-    build_uki(context, stub, kver, kimg, initrds, context.config.kernel_command_line, output)
+    build_uki(context, stub, kver, kimg, microcode, initrds, context.config.kernel_command_line, output)
     extract_pe_section(context, output, ".linux", context.staging / context.config.output_split_kernel)
     extract_pe_section(context, output, ".initrd", context.staging / context.config.output_split_initrd)
 
@@ -3112,9 +3139,9 @@ def reuse_cache(context: Context) -> bool:
     return True
 
 
-def save_uki_components(context: Context) -> tuple[Optional[Path], Optional[str], Optional[Path], Optional[Path]]:
+def save_uki_components(context: Context) -> tuple[Optional[Path], Optional[str], Optional[Path], list[Path]]:
     if context.config.output_format not in (OutputFormat.uki, OutputFormat.esp):
-        return None, None, None, None
+        return None, None, None, []
 
     try:
         kver, kimg = next(gen_kernel_images(context))
