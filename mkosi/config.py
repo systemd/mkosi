@@ -1186,6 +1186,15 @@ class PagerHelpAction(argparse._HelpAction):
         parser.exit()
 
 
+def dict_with_capitalised_keys_factory(pairs: Any) -> dict[str, Any]:
+    def key_transformer(k: str) -> str:
+        if (s := SETTINGS_LOOKUP_BY_DEST.get(k)) is not None:
+            return s.name
+        return "".join(p.capitalize() for p in k.split("_"))
+
+    return {key_transformer(k): v for k, v in dict(pairs).items()}
+
+
 @dataclasses.dataclass(frozen=True)
 class Args:
     verb: Verb
@@ -1222,10 +1231,7 @@ class Args:
         })
 
     def to_dict(self) -> dict[str, Any]:
-        def key_transformer(k: str) -> str:
-            return "".join(p.capitalize() for p in k.split("_"))
-
-        return {key_transformer(k): v for k, v in dataclasses.asdict(self).items()}
+        return dataclasses.asdict(self, dict_factory=dict_with_capitalised_keys_factory)
 
     def to_json(self, *, indent: Optional[int] = 4, sort_keys: bool = True) -> str:
         """Dump MkosiArgs as JSON string."""
@@ -1536,12 +1542,7 @@ class Config:
         }
 
     def to_dict(self) -> dict[str, Any]:
-        def key_transformer(k: str) -> str:
-            if (s := SETTINGS_LOOKUP_BY_DEST.get(k)) is not None:
-                return s.name
-            return "".join(p.capitalize() for p in k.split("_"))
-
-        return {key_transformer(k): v for k, v in dataclasses.asdict(self).items()}
+        return dataclasses.asdict(self, dict_factory=dict_with_capitalised_keys_factory)
 
     def to_json(self, *, indent: Optional[int] = 4, sort_keys: bool = True) -> str:
         """Dump MkosiConfig as JSON string."""
@@ -3887,12 +3888,12 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         # TODO: exchange for TypeGuard and list comprehension once on 3.10
         ret = []
         for d in trees:
-            assert "source" in d
-            assert "target" in d
+            assert "Source" in d
+            assert "Target" in d
             ret.append(
                 ConfigTree(
-                    source=Path(d["source"]),
-                    target=Path(d["target"]) if d["target"] is not None else None,
+                    source=Path(d["Source"]),
+                    target=Path(d["Target"]) if d["Target"] is not None else None,
                 )
             )
         return ret
@@ -3914,16 +3915,16 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         # TODO: exchange for TypeGuard and list comprehension once on 3.10
         ret = []
         for d in drives:
-            assert "id" in d
-            assert "size" in d
-            assert "directory" in d
-            assert "options" in d
+            assert "Id" in d
+            assert "Size" in d
+            assert "Directory" in d
+            assert "Options" in d
             ret.append(
                 QemuDrive(
-                    id=d["id"],
-                    size=int(d["size"]),
-                    directory=Path(d["directory"]) if d["directory"] else None,
-                    options=d["options"],
+                    id=d["Id"],
+                    size=int(d["Size"]),
+                    directory=Path(d["Directory"]) if d["Directory"] else None,
+                    options=d["Options"],
                 )
             )
         return ret
@@ -3935,8 +3936,8 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         return GenericVersion(version) if version is not None else None
 
     def key_source_transformer(keysource: dict[str, Any], fieldtype: type[KeySource]) -> KeySource:
-        assert "type" in keysource
-        return KeySource(type=KeySource.Type(keysource["type"]), source=keysource.get("source", ""))
+        assert "Type" in keysource
+        return KeySource(type=KeySource.Type(keysource["Type"]), source=keysource.get("Source", ""))
 
     transformers = {
         Path: path_transformer,

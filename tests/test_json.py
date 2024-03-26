@@ -103,8 +103,8 @@ def test_config() -> None:
             ],
             "BuildSources": [
                 {
-                    "source": "/qux",
-                    "target": "/frob"
+                    "Source": "/qux",
+                    "Target": "/frob"
                 }
             ],
             "BuildSourcesEphemeral": true,
@@ -194,8 +194,8 @@ def test_config() -> None:
             "PackageDirectories": [],
             "PackageManagerTrees": [
                 {
-                    "source": "/foo/bar",
-                    "target": null
+                    "Source": "/foo/bar",
+                    "Target": null
                 }
             ],
             "Packages": [],
@@ -215,16 +215,16 @@ def test_config() -> None:
             "QemuCdrom": false,
             "QemuDrives": [
                 {
-                    "directory": "/foo/bar",
-                    "id": "abc",
-                    "options": "abc,qed",
-                    "size": 200
+                    "Directory": "/foo/bar",
+                    "Id": "abc",
+                    "Options": "abc,qed",
+                    "Size": 200
                 },
                 {
-                    "directory": null,
-                    "id": "abc",
-                    "options": "",
-                    "size": 200
+                    "Directory": null,
+                    "Id": "abc",
+                    "Options": "",
+                    "Size": 200
                 }
             ],
             "QemuFirmware": "linux",
@@ -256,12 +256,12 @@ def test_config() -> None:
             "RuntimeSize": 8589934592,
             "RuntimeTrees": [
                 {
-                    "source": "/foo/bar",
-                    "target": "/baz"
+                    "Source": "/foo/bar",
+                    "Target": "/baz"
                 },
                 {
-                    "source": "/bar/baz",
-                    "target": "/qux"
+                    "Source": "/bar/baz",
+                    "Target": "/qux"
                 }
             ],
             "SELinuxRelabel": "disabled",
@@ -271,8 +271,8 @@ def test_config() -> None:
             "SecureBootCertificate": null,
             "SecureBootKey": "/path/to/keyfile",
             "SecureBootKeySource": {
-                "source": "",
-                "type": "file"
+                "Source": "",
+                "Type": "file"
             },
             "SecureBootSignTool": "pesign",
             "Seed": "7496d7d8-7f08-4a2b-96c6-ec8c43791b60",
@@ -281,12 +281,12 @@ def test_config() -> None:
             "SignExpectedPcr": "disabled",
             "SkeletonTrees": [
                 {
-                    "source": "/foo/bar",
-                    "target": "/"
+                    "Source": "/foo/bar",
+                    "Target": "/"
                 },
                 {
-                    "source": "/bar/baz",
-                    "target": "/qux"
+                    "Source": "/bar/baz",
+                    "Target": "/qux"
                 }
             ],
             "SourceDateEpoch": 12345,
@@ -303,8 +303,8 @@ def test_config() -> None:
             "ToolsTreeMirror": null,
             "ToolsTreePackageManagerTrees": [
                 {
-                    "source": "/a/b/c",
-                    "target": "/"
+                    "Source": "/a/b/c",
+                    "Target": "/"
                 }
             ],
             "ToolsTreePackages": [],
@@ -317,8 +317,8 @@ def test_config() -> None:
             "VerityCertificate": "/path/to/cert",
             "VerityKey": null,
             "VerityKeySource": {
-                "source": "",
-                "type": "file"
+                "Source": "",
+                "Type": "file"
             },
             "VirtualMachineMonitor": "qemu",
             "WithDocs": true,
