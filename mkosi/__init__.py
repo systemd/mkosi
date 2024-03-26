@@ -9,6 +9,7 @@ import itertools
 import json
 import logging
 import os
+import re
 import resource
 import shlex
 import shutil
@@ -1962,7 +1963,8 @@ def build_uki(
     stub: Path,
     kver: str,
     kimg: Path,
-    initrds: Sequence[Path],
+    microcode: Optional[Path],
+    initrds: list[Path],
     cmdline: Sequence[str],
     output: Path,
 ) -> None:
@@ -2043,6 +2045,24 @@ def build_uki(
     cmd += ["build", "--linux", kimg]
     mounts += [Mount(kimg, kimg, ro=True)]
 
+    if microcode:
+        # might need modification
+        initrds = initrds.copy()
+        ukify = find_binary("ukify", "/usr/lib/systemd/ukify", root=context.config.tools())
+        if ukify is None:
+            # this can't happen, we check ukify earlier
+            # but the linter doens't know and is concerned about None
+            die("ukify not found")
+        # new .ucode section support?
+        if (
+            systemd_tool_version(context.config, ukify) >= "256~devel"
+            and systemd_stub_version(context, stub) >= "256~devel"
+        ):
+            cmd += ["--ucode", microcode]
+            mounts += [Mount(microcode, microcode, ro=True)]
+        else:
+            initrds.insert(0, microcode)
+
     for initrd in initrds:
         cmd += ["--initrd", initrd]
         mounts += [Mount(initrd, initrd, ro=True)]
@@ -2091,6 +2111,14 @@ def systemd_stub_binary(context: Context) -> Path:
     arch = context.config.architecture.to_efi()
     stub = context.root / f"usr/lib/systemd/boot/efi/linux{arch}.efi.stub"
     return stub
+
+
+def systemd_stub_version(context: Context, stub: Path) -> GenericVersion:
+    sdmagic = extract_pe_section(context, stub, ".sdmagic", context.workspace / "sdmagic")
+    sdmagic_text = sdmagic.read_text()
+    if version := re.match(r"#### LoaderInfo: systemd-stub (?P<version>[\.\-~^a-zA-Z0-9]+) ####", sdmagic_text):
+        return GenericVersion(version.group("version"))
+    die(f"Unable to determine systemd-stub version, found \"{sdmagic_text}\"")
 
 
 def want_uki(context: Context) -> bool:
@@ -2253,8 +2281,7 @@ def install_uki(context: Context, kver: str, kimg: Path, token: str, partitions:
     else:
         microcode = build_microcode_initrd(context)
 
-        initrds = [microcode] if microcode else []
-        initrds += context.config.initrds or [build_default_initrd(context)]
+        initrds = context.config.initrds or [build_default_initrd(context)]
 
         if context.config.kernel_modules_initrd:
             initrds += [build_kernel_modules_initrd(context, kver)]
@@ -2264,6 +2291,7 @@ def install_uki(context: Context, kver: str, kimg: Path, token: str, partitions:
             systemd_stub_binary(context),
             kver,
             context.root / kimg,
+            microcode,
             initrds,
             finalize_cmdline(context, roothash),
             boot_binary,
@@ -2334,10 +2362,9 @@ def make_uki(context: Context, stub: Path, kver: str, kimg: Path, microcode: Opt
     make_cpio(context.root, context.workspace / "initrd", tools=context.config.tools(), sandbox=context.sandbox)
     maybe_compress(context, context.config.compress_output, context.workspace / "initrd", context.workspace / "initrd")
 
-    initrds = [microcode] if microcode else []
-    initrds += [context.workspace / "initrd"]
+    initrds = [context.workspace / "initrd"]
 
-    build_uki(context, stub, kver, kimg, initrds, context.config.kernel_command_line, output)
+    build_uki(context, stub, kver, kimg, microcode, initrds, context.config.kernel_command_line, output)
     extract_pe_section(context, output, ".linux", context.staging / context.config.output_split_kernel)
     extract_pe_section(context, output, ".initrd", context.staging / context.config.output_split_initrd)
 
