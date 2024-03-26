@@ -24,6 +24,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import typing
 import uuid
 from collections.abc import Collection, Iterable, Iterator, Sequence
 from pathlib import Path
@@ -3901,7 +3902,7 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         return fieldtype(enumval)
 
     def optional_enum_transformer(enumval: Optional[str], fieldtype: type[Optional[E]]) -> Optional[E]:
-        return fieldtype(enumval) if enumval is not None else None  # type: ignore
+        return typing.get_args(fieldtype)[0] if enumval is not None else None
 
     def enum_list_transformer(enumlist: list[str], fieldtype: type[list[E]]) -> list[E]:
         enumtype = fieldtype.__args__[0]  # type: ignore
