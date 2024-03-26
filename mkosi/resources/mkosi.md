@@ -1889,6 +1889,7 @@ in consecutive runs with data from the cached one.
 
 1. Parse CLI options
 1. Parse configuration files
+1. Run configure scripts (`mkosi.configure`)
 1. If we're not running as root, unshare the user namespace and map the
    subuid range configured in `/etc/subuid` and `/etc/subgid` into it.
 1. Unshare the mount namespace
