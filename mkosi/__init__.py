@@ -423,6 +423,46 @@ def finalize_config_json(config: Config) -> Iterator[Path]:
         yield Path(f.name)
 
 
+def run_configure_scripts(config: Config) -> Config:
+    if not config.configure_scripts:
+        return config
+
+    for script in config.configure_scripts:
+        if not os.access(script, os.X_OK):
+            die(f"{script} is not executable")
+
+    env = dict(
+        DISTRIBUTION=str(config.distribution),
+        RELEASE=config.release,
+        ARCHITECTURE=str(config.architecture),
+        SRCDIR="/work/src",
+        MKOSI_UID=str(INVOKING_USER.uid),
+        MKOSI_GID=str(INVOKING_USER.gid),
+    )
+
+    if config.profile:
+        env["PROFILE"] = config.profile
+
+    with finalize_source_mounts(config, ephemeral=False) as sources:
+        for script in config.configure_scripts:
+            with complete_step(f"Running configure script {script}…"):
+                result = run(
+                    ["/work/configure", "final"],
+                    env=env | config.environment,
+                    sandbox=config.sandbox(
+                        tools=Path("/"),
+                        mounts=[*sources, Mount(script, "/work/configure", ro=True)],
+                        options=["--dir", "/work/src", "--chdir", "/work/src"]
+                    ),
+                    input=config.to_json(indent=None),
+                    stdout=subprocess.PIPE,
+                )
+
+                config = Config.from_json(result.stdout)
+
+    return config
+
+
 def run_sync_scripts(context: Context) -> None:
     if not context.config.sync_scripts:
         return
@@ -1678,6 +1718,10 @@ def finalize_default_initrd(
         cmdline += ["--include", os.fspath(include)]
 
     _, [config] = parse_config(cmdline + ["build"], resources=resources)
+
+    make_executable(*config.configure_scripts)
+
+    run_configure_scripts(config)
 
     make_executable(
         *config.prepare_scripts,
@@ -4183,12 +4227,15 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
     if args.verb == Verb.genkey:
         return generate_key_cert_pair(args)
 
+    if args.verb == Verb.bump:
+        return bump_image_version()
+
     if all(config == Config.default() for config in images):
         die("No configuration found",
             hint="Make sure you're running mkosi from a directory with configuration files")
 
-    if args.verb == Verb.bump:
-        return bump_image_version()
+    for i, config in enumerate(images):
+        images[i] = run_configure_scripts(config)
 
     if args.verb == Verb.summary:
         if args.json:
