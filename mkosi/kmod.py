@@ -11,6 +11,7 @@ from pathlib import Path
 from mkosi.log import complete_step, log_step
 from mkosi.run import run
 from mkosi.sandbox import Mount, SandboxProtocol, nosandbox
+from mkosi.util import parents_below
 
 
 def loaded_modules() -> list[str]:
@@ -148,11 +149,6 @@ def resolve_module_dependencies(
         firmware.update(firmwaredep.get(m, []))
 
     return set(nametofile[m] for m in mods if m in nametofile), set(firmware)
-
-
-def parents_below(path: Path, below: Path) -> list[Path]:
-    parents = list(path.parents)
-    return parents[:parents.index(below)]
 
 
 def gen_required_kernel_modules(

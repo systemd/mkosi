@@ -77,6 +77,7 @@ from mkosi.util import (
     format_rlimit,
     make_executable,
     one_zero,
+    parents_below,
     read_env_file,
     read_os_release,
     round_up,
@@ -2604,6 +2605,7 @@ def check_inputs(config: Config) -> None:
                 die(f"Initrd {p} is not a file")
 
     for script in itertools.chain(
+        config.sync_scripts,
         config.prepare_scripts,
         config.build_scripts,
         config.postinst_scripts,
@@ -4124,10 +4126,6 @@ def run_sync(args: Args, config: Config, *, resources: Path) -> None:
         os.setgid(INVOKING_USER.gid)
         os.setuid(INVOKING_USER.uid)
 
-    for script in config.sync_scripts:
-        if not os.access(script, os.X_OK):
-            die(f"{script} is not executable")
-
     if not (p := config.package_cache_dir_or_default()).exists():
         p.mkdir(parents=True, exist_ok=True)
 
@@ -4161,8 +4159,6 @@ def run_sync(args: Args, config: Config, *, resources: Path) -> None:
 
 
 def run_build(args: Args, config: Config, *, resources: Path) -> None:
-    check_inputs(config)
-
     for p in (
         config.output_dir,
         config.cache_dir,
@@ -4173,12 +4169,16 @@ def run_build(args: Args, config: Config, *, resources: Path) -> None:
         if not p or p.exists():
             continue
 
-        p.mkdir()
+        p.mkdir(parents=True, exist_ok=True)
 
-        # If we created the directory in a parent directory owned by the invoking user, make sure the directory itself
-        # is owned by the invoking user as well.
-        if INVOKING_USER.is_regular_user() and p.parent.stat().st_uid == INVOKING_USER.uid:
-            os.chown(p, INVOKING_USER.uid, INVOKING_USER.gid)
+        # If we created the directory in a parent directory owned by the invoking user, make sure the directories we
+        # just created are owned by the invoking user as well.
+        if (
+            INVOKING_USER.is_regular_user() and
+            (q := next((parent for parent in p.parents if parent.stat().st_uid == INVOKING_USER.uid), None))
+        ):
+            for parent in parents_below(p, q):
+                os.chown(parent, INVOKING_USER.uid, INVOKING_USER.gid)
 
     # Discard setuid/setgid bits as these are inherited and can leak into the image.
     if config.build_dir:
@@ -4312,6 +4312,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         if (config.output_dir_or_cwd() / config.output_with_compression).exists():
             continue
 
+        check_inputs(config)
         fork_and_wait(run_sync, args, config, resources=resources)
         fork_and_wait(run_build, args, config, resources=resources)
 
