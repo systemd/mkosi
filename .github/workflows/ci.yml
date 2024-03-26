@@ -120,6 +120,9 @@ jobs:
           # TODO: Try again once Arch gets a new rpm release.
           - distro: centos
             tools: arch
+          # TODO: Re-enable once pacman-package-manager is back in testing
+          - distro: arch
+            tools: debian
 
     steps:
     - uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633
@@ -181,7 +184,5 @@ jobs:
             --verbose \
             -m integration \
             --distribution ${{ matrix.distro }} \
-            $([ "${{ matrix.distro }}" = "debian" ] && echo --release=unstable) \
-            $([ "${{ matrix.tools }}" = "debian" ] && echo --tools-tree-release=unstable) \
             --tools-tree-distribution ${{ matrix.tools }} \
             tests/
