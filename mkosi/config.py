@@ -2808,7 +2808,7 @@ SETTINGS = (
         dest="qemu_args",
         metavar="ARGS",
         section="Host",
-        parse=config_make_list_parser(delimiter=" "),
+        parse=config_make_list_parser(delimiter=" ", unescape=True),
         # Suppress the command line option because it's already possible to pass qemu args as normal
         # arguments.
         help=argparse.SUPPRESS,
