@@ -121,7 +121,11 @@ def test_config() -> None:
                 "dep1"
             ],
             "Distribution": "fedora",
-            "Environment": {},
+            "Environment": {
+                "BAR": "BAR",
+                "Qux": "Qux",
+                "foo": "foo"
+            },
             "EnvironmentFiles": [],
             "Ephemeral": true,
             "ExtraSearchPaths": [],
@@ -348,7 +352,7 @@ def test_config() -> None:
         credentials =  {"credkey": "credval"},
         dependencies = ("dep1",),
         distribution = Distribution.fedora,
-        environment = {},
+        environment = {"foo": "foo", "BAR": "BAR", "Qux": "Qux"},
         environment_files = [],
         ephemeral = True,
         extra_search_paths = [],
