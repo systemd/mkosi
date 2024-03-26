@@ -197,6 +197,11 @@ def umask(mask: int) -> Iterator[None]:
         os.umask(old)
 
 
+def parents_below(path: Path, below: Path) -> list[Path]:
+    parents = list(path.parents)
+    return parents[:parents.index(below)]
+
+
 @contextlib.contextmanager
 def resource_path(mod: ModuleType) -> Iterator[Path]:
 
