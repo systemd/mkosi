@@ -266,6 +266,12 @@ def spawn(
         **env,
     }
 
+    if "TMPDIR" in os.environ:
+        env["TMPDIR"] = os.environ["TMPDIR"]
+
+    if "HOME" not in env:
+        env["HOME"] = "/"
+
     def preexec() -> None:
         if foreground:
             make_foreground_process()
