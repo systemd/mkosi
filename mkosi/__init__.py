@@ -2561,6 +2561,7 @@ def check_inputs(config: Config) -> None:
                 die(f"Initrd {p} is not a file")
 
     for script in itertools.chain(
+        config.sync_scripts,
         config.prepare_scripts,
         config.build_scripts,
         config.postinst_scripts,
@@ -4081,10 +4082,6 @@ def run_sync(args: Args, config: Config, *, resources: Path) -> None:
         os.setgid(INVOKING_USER.gid)
         os.setuid(INVOKING_USER.uid)
 
-    for script in config.sync_scripts:
-        if not os.access(script, os.X_OK):
-            die(f"{script} is not executable")
-
     if not (p := config.package_cache_dir_or_default()).exists():
         p.mkdir(parents=True, exist_ok=True)
 
@@ -4118,8 +4115,6 @@ def run_sync(args: Args, config: Config, *, resources: Path) -> None:
 
 
 def run_build(args: Args, config: Config, *, resources: Path) -> None:
-    check_inputs(config)
-
     for p in (
         config.output_dir,
         config.cache_dir,
@@ -4270,6 +4265,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         if (config.output_dir_or_cwd() / config.output_with_compression).exists():
             continue
 
+        check_inputs(config)
         fork_and_wait(run_sync, args, config, resources=resources)
         fork_and_wait(run_build, args, config, resources=resources)
 
