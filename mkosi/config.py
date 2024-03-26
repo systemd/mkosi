@@ -3855,7 +3855,7 @@ class JsonEncoder(json.JSONEncoder):
             return str(o)
         elif isinstance(o, (Args, Config)):
             return o.to_dict()
-        return json.JSONEncoder.default(self, o)
+        return super().default(o)
 
 
 E = TypeVar("E", bound=StrEnum)
