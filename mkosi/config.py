@@ -24,6 +24,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import typing
 import uuid
 from collections.abc import Collection, Iterable, Iterator, Sequence
 from pathlib import Path
@@ -1323,6 +1324,7 @@ class Config:
     clean_package_metadata: ConfigFeature
     source_date_epoch: Optional[int]
 
+    configure_scripts: list[Path]
     sync_scripts: list[Path]
     prepare_scripts: list[Path]
     build_scripts: list[Path]
@@ -1585,6 +1587,7 @@ class Config:
         network: bool = False,
         devices: bool = False,
         relaxed: bool = False,
+        tools: Optional[Path] = None,
         scripts: Optional[Path] = None,
         mounts: Sequence[Mount] = (),
         options: Sequence[PathString] = (),
@@ -1602,7 +1605,7 @@ class Config:
             devices=devices,
             relaxed=relaxed,
             scripts=scripts,
-            tools=self.tools(),
+            tools=tools or self.tools(),
             mounts=mounts,
             options=options,
         )
@@ -2071,6 +2074,15 @@ SETTINGS = (
         default_factory=config_default_source_date_epoch,
         default_factory_depends=("environment",),
         help="Set the $SOURCE_DATE_EPOCH timestamp",
+    ),
+    ConfigSetting(
+        dest="configure_scripts",
+        long="--configure-script",
+        metavar="PATH",
+        section="Content",
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        paths=("mkosi.configure",),
+        help="Configure script to run before doing anything",
     ),
     ConfigSetting(
         dest="sync_scripts",
@@ -3731,6 +3743,7 @@ def summary(config: Config) -> str:
      Clean Package Manager Metadata: {config.clean_package_metadata}
                   Source Date Epoch: {none_to_none(config.source_date_epoch)}
 
+                  Configure Scripts: {line_join_list(config.configure_scripts)}
                        Sync Scripts: {line_join_list(config.sync_scripts)}
                     Prepare Scripts: {line_join_list(config.prepare_scripts)}
                       Build Scripts: {line_join_list(config.build_scripts)}
@@ -3901,7 +3914,7 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         return fieldtype(enumval)
 
     def optional_enum_transformer(enumval: Optional[str], fieldtype: type[Optional[E]]) -> Optional[E]:
-        return fieldtype(enumval) if enumval is not None else None  # type: ignore
+        return typing.get_args(fieldtype)[0] if enumval is not None else None
 
     def enum_list_transformer(enumlist: list[str], fieldtype: type[list[E]]) -> list[E]:
         enumtype = fieldtype.__args__[0]  # type: ignore

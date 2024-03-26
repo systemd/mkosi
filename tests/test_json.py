@@ -114,6 +114,9 @@ def test_config() -> None:
             "CleanPackageMetadata": "auto",
             "CompressLevel": 3,
             "CompressOutput": "bz2",
+            "ConfigureScripts": [
+                "/configure"
+            ],
             "Credentials": {
                 "credkey": "credval"
             },
@@ -345,6 +348,7 @@ def test_config() -> None:
         clean_package_metadata = ConfigFeature.auto,
         compress_level = 3,
         compress_output = Compression.bz2,
+        configure_scripts = [Path("/configure")],
         credentials =  {"credkey": "credval"},
         dependencies = ("dep1",),
         distribution = Distribution.fedora,
