@@ -4063,9 +4063,9 @@ def run_clean_scripts(config: Config) -> None:
                         mounts=[
                             *sources,
                             Mount(script, "/work/clean", ro=True),
-                            Mount(config.output_dir_or_cwd(), "/work/out"),
+                            *([Mount(o, "/work/out")] if (o := config.output_dir_or_cwd()).exists() else []),
                         ],
-                        options=["--dir", "/work/src", "--chdir", "/work/src"]
+                        options=["--dir", "/work/src", "--chdir", "/work/src", "--dir", "/work/out"]
                     ),
                     stdin=sys.stdin,
                 )
