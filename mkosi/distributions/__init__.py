@@ -7,7 +7,7 @@ import urllib.parse
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Optional, cast
 
-from mkosi.util import StrEnum, read_os_release
+from mkosi.util import StrEnum, read_env_file
 
 if TYPE_CHECKING:
     from mkosi.config import Architecture, Config
@@ -167,7 +167,7 @@ class Distribution(StrEnum):
 
 def detect_distribution() -> tuple[Optional[Distribution], Optional[str]]:
     try:
-        os_release = read_os_release()
+        os_release = read_env_file("/usr/lib/os-release")
     except FileNotFoundError:
         return None, None
 

@@ -769,7 +769,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   default will be `image_0.1.raw` for version `0.1` of the image, and
   similar. The version is also passed via the `$IMAGE_VERSION` to any
   build scripts invoked (which may be useful to patch it into
-  `/etc/os-release` or similar, in particular the `IMAGE_VERSION=`
+  `/usr/lib/os-release` or similar, in particular the `IMAGE_VERSION=`
   field of it).
 
 `ImageId=`, `--image-id=`
