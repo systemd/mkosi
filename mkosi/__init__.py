@@ -3260,6 +3260,10 @@ def make_disk(
     return make_image(context, msg=msg, skip=skip, split=split, tabs=tabs, root=context.root, definitions=definitions)
 
 
+def make_oci(context: Context, root_layer: Path, dst: Path) -> None:
+    raise NotImplementedError
+
+
 def make_esp(context: Context, uki: Path) -> list[Partition]:
     if not (arch := context.config.architecture.to_efi()):
         die(f"Architecture {context.config.architecture} does not support UEFI")
@@ -3560,6 +3564,17 @@ def build_image(context: Context) -> None:
             context.root, context.staging / context.config.output_with_format,
             tools=context.config.tools(),
             sandbox=context.sandbox,
+        )
+    elif context.config.output_format == OutputFormat.oci:
+        make_tar(
+            context.root, context.staging / "rootfs.layer",
+            tools=context.config.tools(),
+            sandbox=context.sandbox,
+        )
+        make_oci(
+            context,
+            context.staging / "rootfs.layer",
+            context.staging / context.config.output_with_format,
         )
     elif context.config.output_format == OutputFormat.cpio:
         make_cpio(
