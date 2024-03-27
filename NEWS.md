@@ -1,5 +1,26 @@
 # mkosi Changelog
 
+## v23
+
+- Added `CleanScripts=` to allow running custom cleanup code whenever
+  mkosi cleans up the output directory. This allows cleaning up extra
+  outputs produced by e.g. a build script that mkosi doesn't know about.
+- Added `ConfigureScripts=` to allow dynamically modifying the mkosi
+  configuration. Each configure script receives the current config as
+  JSON on stdin and should output the new config as JSON on stdout.
+- When building a UKI, we don't measure for the TPM SHA1 PCR bank
+  anymore.
+- All keys in the mkosi config JSON output are now in pascal case,
+  except for credentials and environments, where the keys encode names
+  of credentials and environment variables and are therefore case
+  sensitive.
+- Added various settings to allow running mkosi behind a proxy.
+- Various fixes to kernel module filtering that should result in fewer
+  modules being pulled into the default initrd when
+  `KernelModulesExclude=` or `KernelModulesInitrdExclude=` are used.
+- Added `ToolsTreeDistribution=` match.
+- Removed `vmspawn` verb and replaced it with `VirtualMachineMonitor=`.
+
 ## v22
 
 - We'll now try to delete btrfs subvolumes with `btrfs subvolume delete`
