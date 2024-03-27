@@ -1981,9 +1981,6 @@ def build_uki(
         "--output", output,
         "--efi-arch", arch,
         "--uname", kver,
-        # SHA1 might be disabled in OpenSSL depending on the distro so we opt to not sign for SHA1 to avoid having to
-        # manage a bunch of configuration to re-enable SHA1.
-        "--pcr-banks", "sha256,sha384,sha512",
     ]
 
     mounts = [
@@ -2028,7 +2025,9 @@ def build_uki(
         if want_signed_pcrs(context.config):
             cmd += [
                 "--pcr-private-key", context.config.secure_boot_key,
-                "--pcr-banks", "sha1,sha256",
+                # SHA1 might be disabled in OpenSSL depending on the distro so we opt to not sign for SHA1 to avoid
+                # having to manage a bunch of configuration to re-enable SHA1.
+                "--pcr-banks", "sha256",
             ]
             if context.config.secure_boot_key.exists():
                 mounts += [Mount(context.config.secure_boot_key, context.config.secure_boot_key)]
