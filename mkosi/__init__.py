@@ -455,7 +455,7 @@ def run_configure_scripts(config: Config) -> Config:
         for script in config.configure_scripts:
             with complete_step(f"Running configure script {script}…"):
                 result = run(
-                    ["/work/configure", "final"],
+                    ["/work/configure"],
                     env=env | config.environment,
                     sandbox=config.sandbox(
                         tools=Path("/"),
