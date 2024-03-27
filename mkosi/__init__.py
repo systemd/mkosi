@@ -3261,7 +3261,99 @@ def make_disk(
 
 
 def make_oci(context: Context, root_layer: Path, dst: Path) -> None:
-    raise NotImplementedError
+    ca_store = dst / "blobs" / "sha256"
+    ca_store.mkdir(parents=True)
+
+    layer_diff_digest = hash_file(root_layer)
+    maybe_compress(
+        context,
+        context.config.compress_output,
+        context.staging / "rootfs.layer",
+        # Pass explicit destination to suppress adding an extension
+        context.staging / "rootfs.layer",
+    )
+    layer_digest = hash_file(root_layer)
+    root_layer.rename(ca_store / layer_digest)
+
+    creation_time = (
+        datetime.datetime.fromtimestamp(context.config.source_date_epoch, tz=datetime.timezone.utc)
+        if context.config.source_date_epoch
+        else datetime.datetime.now(tz=datetime.timezone.utc)
+    ).isoformat()
+
+    oci_config = {
+        "created": creation_time,
+        "architecture": context.config.architecture.to_oci(),
+        # Name of the operating system which the image is built to run on as defined by
+        # https://github.com/opencontainers/image-spec/blob/v1.0.2/config.md#properties.
+        "os": "linux",
+        "rootfs": {
+            "type": "layers",
+            "diff_ids": [f"sha256:{layer_diff_digest}"],
+        },
+        "config": {
+            "Cmd": [
+                "/sbin/init",
+                *context.config.kernel_command_line,
+                *context.config.kernel_command_line_extra,
+            ],
+        },
+        "history": [
+            {
+                "created": creation_time,
+                "comment": "Created by mkosi",
+            },
+        ],
+    }
+    oci_config_blob = json.dumps(oci_config)
+    oci_config_digest = hashlib.sha256(oci_config_blob.encode()).hexdigest()
+    (ca_store / oci_config_digest).write_text(oci_config_blob)
+
+    layer_suffix = context.config.compress_output.oci_media_type_suffix()
+    oci_manifest = {
+        "schemaVersion": 2,
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "config": {
+            "mediaType": "application/vnd.oci.image.config.v1+json",
+            "digest": f"sha256:{oci_config_digest}",
+            "size": (ca_store / oci_config_digest).stat().st_size,
+        },
+        "layers": [
+            {
+                "mediaType": f"application/vnd.oci.image.layer.v1.tar{layer_suffix}",
+                "digest": f"sha256:{layer_digest}",
+                "size": (ca_store / layer_digest).stat().st_size,
+            }
+        ],
+        "annotations": {
+            "io.systemd.mkosi.version": __version__,
+            **({
+                "org.opencontainers.image.version": context.config.image_version,
+            } if context.config.image_version else {}),
+        }
+    }
+    oci_manifest_blob = json.dumps(oci_manifest)
+    oci_manifest_digest = hashlib.sha256(oci_manifest_blob.encode()).hexdigest()
+    (ca_store / oci_manifest_digest).write_text(oci_manifest_blob)
+
+    with (dst / "index.json").open("w") as f:
+        json.dump(
+            {
+                "schemaVersion": 2,
+                "mediaType": "application/vnd.oci.image.index.v1+json",
+                "manifests": [
+                    {
+                        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                        "digest": f"sha256:{oci_manifest_digest}",
+                        "size": (ca_store / oci_manifest_digest).stat().st_size,
+                    }
+                ],
+            },
+            f,
+        )
+
+    with (dst / "oci-layout").open("w") as f:
+        json.dump({"imageLayoutVersion": "1.0.0"}, f)
 
 
 def make_esp(context: Context, uki: Path) -> list[Partition]:
