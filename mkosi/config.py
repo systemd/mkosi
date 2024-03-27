@@ -1729,6 +1729,15 @@ SETTINGS = (
         help="Specify the minimum required mkosi version",
     ),
     ConfigSetting(
+        dest="configure_scripts",
+        long="--configure-script",
+        metavar="PATH",
+        section="Config",
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        paths=("mkosi.configure",),
+        help="Configure script to run before doing anything",
+    ),
+    ConfigSetting(
         dest="distribution",
         short="-d",
         section="Distribution",
@@ -2075,15 +2084,6 @@ SETTINGS = (
         default_factory=config_default_source_date_epoch,
         default_factory_depends=("environment",),
         help="Set the $SOURCE_DATE_EPOCH timestamp",
-    ),
-    ConfigSetting(
-        dest="configure_scripts",
-        long="--configure-script",
-        metavar="PATH",
-        section="Content",
-        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
-        paths=("mkosi.configure",),
-        help="Configure script to run before doing anything",
     ),
     ConfigSetting(
         dest="sync_scripts",
@@ -3697,6 +3697,7 @@ def summary(config: Config) -> str:
                              Images: {line_join_list(config.images)}
                        Dependencies: {line_join_list(config.dependencies)}
                     Minimum Version: {none_to_none(config.minimum_version)}
+                  Configure Scripts: {line_join_list(config.configure_scripts)}
 
     {bold("DISTRIBUTION")}:
                        Distribution: {bold(config.distribution)}
@@ -3744,7 +3745,6 @@ def summary(config: Config) -> str:
      Clean Package Manager Metadata: {config.clean_package_metadata}
                   Source Date Epoch: {none_to_none(config.source_date_epoch)}
 
-                  Configure Scripts: {line_join_list(config.configure_scripts)}
                        Sync Scripts: {line_join_list(config.sync_scripts)}
                     Prepare Scripts: {line_join_list(config.prepare_scripts)}
                       Build Scripts: {line_join_list(config.build_scripts)}

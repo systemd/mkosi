@@ -543,6 +543,12 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 : The minimum mkosi version required to build this configuration. If
   specified multiple times, the highest specified version is used.
 
+`ConfigureScripts=`, `--configure-script=`
+
+: Takes a comma-separated list of paths to executables that are used as
+  the configure scripts for this image. See the **Scripts** section for
+  more information.
+
 ### [Distribution] Section
 
 `Distribution=`, `--distribution=`, `-d`
@@ -1025,12 +1031,6 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   databases and repository metadata will be removed if the respective
   package manager executable is *not* present at the end of the
   installation.
-
-`ConfigureScripts=`, `--configure-script=`
-
-: Takes a comma-separated list of paths to executables that are used as
-  the configure scripts for this image. See the **Scripts** section for
-  more information.
 
 `SyncScripts=`, `--sync-script=`
 
