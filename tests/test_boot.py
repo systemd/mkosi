@@ -57,7 +57,7 @@ def test_format(config: Image.Config, format: OutputFormat) -> None:
         if image.config.distribution == Distribution.rhel_ubi:
             return
 
-        if format in (OutputFormat.tar, OutputFormat.none) or format.is_extension_image():
+        if format in (OutputFormat.tar, OutputFormat.oci, OutputFormat.none) or format.is_extension_image():
             return
 
         if format == OutputFormat.directory and not find_virtiofsd():

@@ -667,7 +667,8 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   archive is generated), `disk` (a block device OS image with a GPT
   partition table), `uki` (a unified kernel image with the OS image in
   the `.initrd` PE section), `esp` (`uki` but wrapped in a disk image
-  with only an ESP partition), `sysext`, `confext`, `portable` or `none`
+  with only an ESP partition), `oci` (a directory compatible with the
+  OCI image specification), `sysext`, `confext`, `portable` or `none`
   (the OS image is solely intended as a build image to produce another
   artifact).
 
@@ -705,11 +706,12 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 : Configure compression for the resulting image or archive. The argument can be
   either a boolean or a compression algorithm (`xz`, `zstd`). `zstd`
   compression is used by default, except CentOS and derivatives up to version
-  8, which default to `xz`. Note that when applied to block device image types,
+  8, which default to `xz`, and OCI images, which default to `gzip`.
+  Note that when applied to block device image types,
   compression means the image cannot be started directly but needs to be
   decompressed first. This also means that the `shell`, `boot`, `qemu` verbs
   are not available when this option is used. Implied for `tar`, `cpio`, `uki`,
-  and `esp`.
+  `esp`, and `oci`.
 
 `CompressLevel=`, `--compress-level=`
 
