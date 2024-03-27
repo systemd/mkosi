@@ -20,7 +20,7 @@ import textwrap
 import uuid
 from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
-from typing import Optional, TextIO, Union, cast
+from typing import Optional, Union, cast
 
 from mkosi.archive import extract_tar, make_cpio, make_tar
 from mkosi.burn import run_burn
@@ -75,6 +75,7 @@ from mkosi.util import (
     flock,
     flock_or_die,
     format_rlimit,
+    hash_file,
     make_executable,
     one_zero,
     parents_below,
@@ -2457,17 +2458,6 @@ def copy_initrd(context: Context) -> None:
         break
 
 
-def hash_file(of: TextIO, path: Path) -> None:
-    bs = 16 * 1024**2
-    h = hashlib.sha256()
-
-    with path.open("rb") as sf:
-        while (buf := sf.read(bs)):
-            h.update(buf)
-
-    of.write(h.hexdigest() + " *" + path.name + "\n")
-
-
 def calculate_sha256sum(context: Context) -> None:
     if not context.config.checksum:
         return
@@ -2478,7 +2468,7 @@ def calculate_sha256sum(context: Context) -> None:
     with complete_step("Calculating SHA256SUMS…"):
         with open(context.workspace / context.config.output_checksum, "w") as f:
             for p in context.staging.iterdir():
-                hash_file(f, p)
+                print(hash_file(p) + " *" + p.name, file=f)
 
         (context.workspace / context.config.output_checksum).rename(context.staging / context.config.output_checksum)
 

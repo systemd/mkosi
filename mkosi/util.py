@@ -7,6 +7,7 @@ import enum
 import errno
 import fcntl
 import functools
+import hashlib
 import importlib
 import importlib.resources
 import itertools
@@ -298,3 +299,15 @@ def resource_path(mod: ModuleType) -> Iterator[Path]:
             p.parent.chmod(0o755)
 
         yield p
+
+
+def hash_file(path: Path) -> str:
+    # TODO Replace with hashlib.file_digest after dropping support for Python 3.10.
+    bs = 16 * 1024**2
+    h = hashlib.sha256()
+
+    with path.open("rb") as sf:
+        while (buf := sf.read(bs)):
+            h.update(buf)
+
+    return h.hexdigest()
