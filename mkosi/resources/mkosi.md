@@ -1439,22 +1439,27 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `ProxyPeerCertificate=`, `--proxy-peer-certificate=`
 
 : Configure a file containing certificates used to verify the proxy.
-  Defaults to the system-wide certificate store. Note that not all
-  package managers that mkosi uses have support for specifying a proxy
-  peer certificate.
+  Defaults to the system-wide certificate store.
+
+: Currently, setting a proxy peer certificate is only supported when
+  `dnf` or `dnf5` is used to build the image.
 
 `ProxyClientCertificate=`, `--proxy-client-certificate=`
 
 : Configure a file containing the certificate used to authenticate the
-  client with the proxy. Note that not all package managers that mkosi
-  uses have support for specifying a proxy client certificate.
+  client with the proxy.
+
+: Currently, setting a proxy client certificate is only supported when
+  `dnf` or `dnf5` is used to build the image.
 
 `ProxyClientKey=`, `--proxy-client-key=`
 
 : Configure a file containing the private key used to authenticate the
   client with the proxy. Defaults to the proxy client certificate if one
-  is provided. Note that not all package managers that mkosi uses have
-  support for specifying a proxy client key.
+  is provided.
+
+: Currently, setting a proxy client key is only supported when `dnf` or
+  `dnf5` is used to build the image.
 
 `Incremental=`, `--incremental=`, `-i`
 
