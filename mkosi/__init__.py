@@ -3364,19 +3364,6 @@ def make_extension_image(context: Context, output: Path) -> None:
 
 
 def finalize_staging(context: Context) -> None:
-    # Our output unlinking logic removes everything prefixed with the name of the image, so let's make
-    # sure that everything we put into the output directory is prefixed with the name of the output.
-    for f in context.staging.iterdir():
-        # Skip the symlink we create without the version that points to the output with the version.
-        if f.name.startswith(context.config.output) and f.is_symlink():
-            continue
-
-        name = f.name
-        if not name.startswith(context.config.output):
-            name = f"{context.config.output}-{name}"
-        if name != f.name:
-            f.rename(context.staging / name)
-
     for f in context.staging.iterdir():
         # Make sure all build outputs that are not directories are owned by the user running mkosi.
         if not f.is_dir():
@@ -4043,6 +4030,47 @@ def check_workspace_directory(config: Config) -> None:
                 hint="Use WorkspaceDirectory= to configure a different workspace directory")
 
 
+def run_clean_scripts(config: Config) -> None:
+    if not config.clean_scripts:
+        return
+
+    for script in config.clean_scripts:
+        if not os.access(script, os.X_OK):
+            die(f"{script} is not executable")
+
+    env = dict(
+        DISTRIBUTION=str(config.distribution),
+        RELEASE=config.release,
+        ARCHITECTURE=str(config.architecture),
+        SRCDIR="/work/src",
+        OUTPUTDIR="/work/out",
+        MKOSI_UID=str(INVOKING_USER.uid),
+        MKOSI_GID=str(INVOKING_USER.gid),
+        MKOSI_CONFIG="/work/config.json",
+    )
+
+    if config.profile:
+        env["PROFILE"] = config.profile
+
+    with finalize_source_mounts(config, ephemeral=False) as sources:
+        for script in config.clean_scripts:
+            with complete_step(f"Running clean script {script}…"):
+                run(
+                    ["/work/clean"],
+                    env=env | config.environment,
+                    sandbox=config.sandbox(
+                        tools=Path("/"),
+                        mounts=[
+                            *sources,
+                            Mount(script, "/work/clean", ro=True),
+                            Mount(config.output_dir_or_cwd(), "/work/out"),
+                        ],
+                        options=["--dir", "/work/src", "--chdir", "/work/src"]
+                    ),
+                    stdin=sys.stdin,
+                )
+
+
 def needs_clean(args: Args, config: Config) -> bool:
     return (
         args.verb == Verb.clean or
@@ -4072,7 +4100,13 @@ def run_clean(args: Args, config: Config, *, resources: Path) -> None:
         remove_build_cache = args.force > 1
         remove_package_cache = args.force > 2
 
-    if outputs := list(config.output_dir_or_cwd().glob(f"{config.output}*")):
+    outputs = [
+        config.output_dir_or_cwd() / output
+        for output in config.outputs
+        if (config.output_dir_or_cwd() / output).exists()
+    ]
+
+    if outputs:
         with (
             complete_step(f"Removing output files of {config.name()} image…"),
             flock_or_die(config.output_dir_or_cwd() / config.output)
@@ -4113,6 +4147,8 @@ def run_clean(args: Args, config: Config, *, resources: Path) -> None:
                     for d in ("cache", "lib")
                 ),
             )
+
+    run_clean_scripts(config)
 
 
 @contextlib.contextmanager

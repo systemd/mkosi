@@ -112,6 +112,9 @@ def test_config() -> None:
             "CacheOnly": "always",
             "Checksum": false,
             "CleanPackageMetadata": "auto",
+            "CleanScripts": [
+                "/clean"
+            ],
             "CompressLevel": 3,
             "CompressOutput": "bz2",
             "ConfigureScripts": [
@@ -350,6 +353,7 @@ def test_config() -> None:
         cacheonly = Cacheonly.always,
         checksum =  False,
         clean_package_metadata = ConfigFeature.auto,
+        clean_scripts = [Path("/clean")],
         compress_level = 3,
         compress_output = Compression.bz2,
         configure_scripts = [Path("/configure")],

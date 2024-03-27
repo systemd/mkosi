@@ -1336,6 +1336,7 @@ class Config:
     build_scripts: list[Path]
     postinst_scripts: list[Path]
     finalize_scripts: list[Path]
+    clean_scripts: list[Path]
     build_sources: list[ConfigTree]
     build_sources_ephemeral: bool
     environment: dict[str, str]
@@ -1518,6 +1519,22 @@ class Config:
     @property
     def output_changelog(self) -> str:
         return f"{self.output}.changelog"
+
+    @property
+    def outputs(self) -> list[str]:
+        return [
+            self.output,
+            self.output_with_format,
+            self.output_with_compression,
+            self.output_split_uki,
+            self.output_split_kernel,
+            self.output_split_initrd,
+            self.output_nspawn_settings,
+            self.output_checksum,
+            self.output_signature,
+            self.output_manifest,
+            self.output_changelog,
+        ]
 
     def cache_manifest(self) -> dict[str, Any]:
         return {
@@ -1982,6 +1999,16 @@ SETTINGS = (
         parse=config_parse_seed,
         default=uuid.uuid4(),
         help="Set the seed for systemd-repart",
+    ),
+    ConfigSetting(
+        dest="clean_scripts",
+        long="--clean-script",
+        metavar="PATH",
+        section="Output",
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        paths=("mkosi.clean",),
+        path_default=False,
+        help="Clean script to run after cleanup",
     ),
 
     ConfigSetting(
@@ -3730,6 +3757,7 @@ def summary(config: Config) -> str:
                             Overlay: {yes_no(config.overlay)}
                      Use Subvolumes: {config.use_subvolumes}
                                Seed: {none_to_random(config.seed)}
+                      Clean Scripts: {line_join_list(config.clean_scripts)}
 
     {bold("CONTENT")}:
                            Packages: {line_join_list(config.packages)}
