@@ -24,7 +24,7 @@ def have_vmspawn() -> bool:
     )
 
 
-@pytest.mark.parametrize("format", OutputFormat)
+@pytest.mark.parametrize("format", [f for f in OutputFormat if f not in (OutputFormat.confext, OutputFormat.sysext)])
 def test_format(config: Image.Config, format: OutputFormat) -> None:
     with Image(
         config,

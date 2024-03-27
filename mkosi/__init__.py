@@ -79,7 +79,6 @@ from mkosi.util import (
     one_zero,
     parents_below,
     read_env_file,
-    read_os_release,
     round_up,
     scopedenv,
     umask,
@@ -137,21 +136,26 @@ def install_distribution(context: Context) -> None:
         with complete_step(f"Installing extra packages for {str(context.config.distribution).capitalize()}"):
             context.config.distribution.install_packages(context, context.config.packages)
     else:
+        if context.config.overlay or context.config.output_format in (OutputFormat.sysext, OutputFormat.confext):
+            if context.config.packages:
+                die("Cannot install packages in extension images without a base tree",
+                    hint="Configure a base tree with the BaseTrees= setting")
+            return
+
         with complete_step(f"Installing {str(context.config.distribution).capitalize()}"):
             context.config.distribution.install(context)
 
-            if not context.config.overlay:
-                if not (context.root / "etc/machine-id").exists():
-                    # Uninitialized means we want it to get initialized on first boot.
-                    with umask(~0o444):
-                        (context.root / "etc/machine-id").write_text("uninitialized\n")
+            if not (context.root / "etc/machine-id").exists():
+                # Uninitialized means we want it to get initialized on first boot.
+                with umask(~0o444):
+                    (context.root / "etc/machine-id").write_text("uninitialized\n")
 
-                # Ensure /efi exists so that the ESP is mounted there, as recommended by
-                # https://0pointer.net/blog/linux-boot-partitions.html. Use the most restrictive access mode we
-                # can without tripping up mkfs tools since this directory is only meant to be overmounted and
-                # should not be read from or written to.
-                with umask(~0o500):
-                    (context.root / "efi").mkdir(exist_ok=True)
+            # Ensure /efi exists so that the ESP is mounted there, as recommended by
+            # https://0pointer.net/blog/linux-boot-partitions.html. Use the most restrictive access mode we
+            # can without tripping up mkfs tools since this directory is only meant to be overmounted and
+            # should not be read from or written to.
+            with umask(~0o500):
+                (context.root / "efi").mkdir(exist_ok=True)
 
             if context.config.packages:
                 context.config.distribution.install_packages(context, context.config.packages)
@@ -191,6 +195,9 @@ def remove_packages(context: Context) -> None:
 
 
 def check_root_populated(context: Context) -> None:
+    if context.config.output_format in (OutputFormat.sysext, OutputFormat.confext):
+        return
+
     """Check that the root was populated by looking for a os-release file."""
     osrelease = context.root / "usr/lib/os-release"
     if not osrelease.exists():
@@ -211,7 +218,7 @@ def configure_os_release(context: Context) -> None:
     if context.config.overlay or context.config.output_format in (OutputFormat.sysext, OutputFormat.confext):
         return
 
-    for candidate in ["usr/lib/os-release", "etc/os-release", "usr/lib/initrd-release", "etc/initrd-release"]:
+    for candidate in ["usr/lib/os-release", "usr/lib/initrd-release"]:
         osrelease = context.root / candidate
         # at this point we know we will either change or add to the file
         newosrelease = osrelease.with_suffix(".new")
@@ -250,7 +257,7 @@ def configure_extension_release(context: Context) -> None:
     p = context.root / d / f"extension-release.d/extension-release.{context.config.output}"
     p.parent.mkdir(parents=True, exist_ok=True)
 
-    osrelease = read_os_release(context.root)
+    osrelease = read_env_file(q) if (q := context.root / "usr/lib/os-release").exists() else {}
     extrelease = read_env_file(p) if p.exists() else {}
     new = p.with_suffix(".new")
 
@@ -675,7 +682,7 @@ def run_build_scripts(context: Context) -> None:
                     ) + (chroot if script.suffix == ".chroot" else []),
                 )
 
-    if context.want_local_repo():
+    if context.want_local_repo() and context.config.output_format != OutputFormat.none:
         with complete_step("Rebuilding local package repository"):
             context.config.distribution.createrepo(context)
 
@@ -2778,7 +2785,7 @@ def configure_initrd(context: Context) -> None:
 
 
 def configure_clock(context: Context) -> None:
-    if context.config.overlay or context.config.output_format.is_extension_image():
+    if context.config.overlay or context.config.output_format in (OutputFormat.sysext, OutputFormat.confext):
         return
 
     with umask(~0o644):
@@ -2823,6 +2830,9 @@ def run_depmod(context: Context, *, cache: bool = False) -> None:
 
 
 def run_sysusers(context: Context) -> None:
+    if context.config.overlay or context.config.output_format in (OutputFormat.sysext, OutputFormat.confext):
+        return
+
     if not find_binary("systemd-sysusers", root=context.config.tools()):
         logging.warning("systemd-sysusers is not installed, not generating system users")
         return
@@ -2833,6 +2843,9 @@ def run_sysusers(context: Context) -> None:
 
 
 def run_tmpfiles(context: Context) -> None:
+    if context.config.overlay or context.config.output_format in (OutputFormat.sysext, OutputFormat.confext):
+        return
+
     if not find_binary("systemd-tmpfiles", root=context.config.tools()):
         logging.warning("systemd-tmpfiles is not installed, not generating volatile files")
         return
@@ -2871,6 +2884,9 @@ def run_tmpfiles(context: Context) -> None:
 
 
 def run_preset(context: Context) -> None:
+    if context.config.overlay or context.config.output_format in (OutputFormat.sysext, OutputFormat.confext):
+        return
+
     if not find_binary("systemctl", root=context.config.tools()):
         logging.warning("systemctl is not installed, not applying presets")
         return
@@ -2883,7 +2899,7 @@ def run_preset(context: Context) -> None:
 
 
 def run_hwdb(context: Context) -> None:
-    if context.config.overlay or context.config.output_format.is_extension_image():
+    if context.config.overlay or context.config.output_format in (OutputFormat.sysext, OutputFormat.confext):
         return
 
     if not find_binary("systemd-hwdb", root=context.config.tools()):
