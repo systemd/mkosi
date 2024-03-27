@@ -1981,6 +1981,9 @@ def build_uki(
         "--output", output,
         "--efi-arch", arch,
         "--uname", kver,
+        # SHA1 might be disabled in OpenSSL depending on the distro so we opt to not sign for SHA1 to avoid having to
+        # manage a bunch of configuration to re-enable SHA1.
+        "--pcr-banks", "sha256,sha384,sha512",
     ]
 
     mounts = [
