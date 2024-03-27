@@ -70,6 +70,17 @@ class INVOKING_USER:
         return cache / "mkosi"
 
     @classmethod
+    def runtime_dir(cls) -> Path:
+        if (env := os.getenv("XDG_RUNTIME_DIR")) or (env := os.getenv("RUNTIME_DIRECTORY")):
+            d = Path(env)
+        elif cls.is_regular_user():
+            d = Path("/run/user") / str(cls.uid)
+        else:
+            d = Path("/run")
+
+        return d / "mkosi"
+
+    @classmethod
     def rchown(cls, path: Path) -> None:
         if cls.is_regular_user() and any(p.stat().st_uid == cls.uid for p in path.parents) and path.exists():
             run(["chown", "--recursive", f"{INVOKING_USER.uid}:{INVOKING_USER.gid}", path])

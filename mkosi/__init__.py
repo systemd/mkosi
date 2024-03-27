@@ -3718,7 +3718,7 @@ def run_shell(args: Args, config: Config) -> None:
         ]
 
     # Underscores are not allowed in machine names so replace them with hyphens.
-    name = config.name().replace("_", "-")
+    name = config.machine_or_name().replace("_", "-")
     cmdline += ["--machine", name]
 
     for k, v in config.credentials.items():

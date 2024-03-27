@@ -184,6 +184,7 @@ def test_config() -> None:
             "LocalMirror": null,
             "Locale": "en_C.UTF-8",
             "LocaleMessages": "",
+            "Machine": "machine",
             "MakeInitrd": false,
             "ManifestFormat": [
                 "json",
@@ -392,6 +393,7 @@ def test_config() -> None:
         local_mirror = None,
         locale = "en_C.UTF-8",
         locale_messages = "",
+        machine = "machine",
         make_initrd = False,
         manifest_format = [ManifestFormat.json, ManifestFormat.changelog],
         minimum_version = GenericVersion("123"),

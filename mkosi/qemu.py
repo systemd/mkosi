@@ -553,6 +553,41 @@ def finalize_drive(drive: QemuDrive) -> Iterator[Path]:
         yield Path(file.name)
 
 
+@contextlib.contextmanager
+def finalize_state(config: Config, cid: int) -> Iterator[None]:
+    (INVOKING_USER.runtime_dir() / "machine").mkdir(parents=True, exist_ok=True)
+
+    if INVOKING_USER.is_regular_user():
+        os.chown(INVOKING_USER.runtime_dir(), INVOKING_USER.uid, INVOKING_USER.gid)
+        os.chown(INVOKING_USER.runtime_dir() / "machine", INVOKING_USER.uid, INVOKING_USER.gid)
+
+    with flock(INVOKING_USER.runtime_dir() / "machine"):
+        if (p := INVOKING_USER.runtime_dir() / "machine" / f"{config.machine_or_name()}.json").exists():
+            die(f"Another virtual machine named {config.machine_or_name()} is already running",
+                hint="Use --machine to specify a different virtual machine name")
+
+        p.write_text(
+            json.dumps(
+                {
+                    "Machine": config.machine_or_name(),
+                    "ProxyCommand": f"socat - VSOCK-CONNECT:{cid}:%p",
+                    "SshKey": os.fspath(config.ssh_key) if config.ssh_key else None,
+                },
+                sort_keys=True,
+                indent=4,
+            )
+        )
+
+        if INVOKING_USER.is_regular_user():
+            os.chown(p, INVOKING_USER.uid, INVOKING_USER.gid)
+
+    try:
+        yield
+    finally:
+        with flock(INVOKING_USER.runtime_dir() / "machine"):
+            p.unlink(missing_ok=True)
+
+
 def run_qemu(args: Args, config: Config) -> None:
     if config.output_format not in (
         OutputFormat.disk,
@@ -677,6 +712,7 @@ def run_qemu(args: Args, config: Config) -> None:
 
     cmdline += ["-accel", accel]
 
+    cid: Optional[int] = None
     if QemuDeviceNode.vhost_vsock in qemu_device_fds:
         if config.qemu_vsock_cid == QemuVsockCID.auto:
             cid = find_unused_vsock_cid(config, qemu_device_fds[QemuDeviceNode.vhost_vsock])
@@ -880,6 +916,9 @@ def run_qemu(args: Args, config: Config) -> None:
         cmdline += config.qemu_args
         cmdline += args.cmdline
 
+        if cid is not None:
+            stack.enter_context(finalize_state(config, cid))
+
         with spawn(
             cmdline,
             stdin=sys.stdin,
@@ -901,27 +940,26 @@ def run_qemu(args: Args, config: Config) -> None:
 
 
 def run_ssh(args: Args, config: Config) -> None:
-    if config.qemu_vsock_cid == QemuVsockCID.auto:
-        die("Can't use ssh verb with QemuVSockCID=auto")
+    with flock(INVOKING_USER.runtime_dir() / "machine"):
+        if not (p := INVOKING_USER.runtime_dir() / "machine" / f"{config.machine_or_name()}.json").exists():
+            die(f"{p} not found, cannot SSH into virtual machine {config.machine_or_name()}",
+                hint="Is the machine running and was it built with Ssh=yes and QemuVsock=yes?")
 
-    if not config.ssh_key:
-        die("SshKey= must be configured to use 'mkosi ssh'",
+        state = json.loads(p.read_text())
+
+    if not state["SshKey"]:
+        die("An SSH key must be configured when booting the image to use 'mkosi ssh'",
             hint="Use 'mkosi genkey' to generate a new SSH key and certificate")
-
-    if config.qemu_vsock_cid == QemuVsockCID.hash:
-        cid = hash_to_vsock_cid(hash_output(config))
-    else:
-        cid = config.qemu_vsock_cid
 
     cmd: list[PathString] = [
         "ssh",
-        "-i", config.ssh_key,
+        "-i", state["SshKey"],
         "-F", "none",
         # Silence known hosts file errors/warnings.
         "-o", "UserKnownHostsFile=/dev/null",
         "-o", "StrictHostKeyChecking=no",
         "-o", "LogLevel=ERROR",
-        "-o", f"ProxyCommand=socat - VSOCK-CONNECT:{cid}:%p",
+        "-o", f"ProxyCommand={state['ProxyCommand']}",
         "root@mkosi",
     ]
 

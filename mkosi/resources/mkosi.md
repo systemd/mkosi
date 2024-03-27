@@ -101,6 +101,11 @@ The following command line verbs are known:
   arguments to the `ssh` invocation. To connect to a container, use
   `machinectl login` or `machinectl shell`.
 
+: The `Machine=` option can be used to give the machine a custom
+  hostname when booting it which can later be used to ssh into the image
+  (e.g. `mkosi --machine=mymachine qemu` followed by
+  `mkosi --machine=mymachine ssh`).
+
 `journalctl`
 
 : Uses `journalctl` to inspect the journal inside the image.
@@ -1533,14 +1538,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 : When used with the `qemu` verb, this option specifies the vsock
   connection ID to use. Takes a number in the interval `[3, 0xFFFFFFFF)`
-  or `hash` or `auto`. Defaults to `hash`. When set to `hash`, the
+  or `hash` or `auto`. Defaults to `auto`. When set to `hash`, the
   connection ID will be derived from the full path to the image. When
   set to `auto`, `mkosi` will try to find a free connection ID
   automatically. Otherwise, the provided number will be used as is.
-
-: Note that when set to `auto`, `mkosi ssh` cannot be used as we cannot
-  figure out which free connection ID we found when booting the image
-  earlier.
 
 `QemuSwtpm=`, `--qemu-swtpm=`
 
@@ -1826,6 +1827,15 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   configured and `mkosi.crt` exists in the working directory, it will
   automatically be used for this purpose. Run `mkosi genkey` to
   automatically generate a certificate in `mkosi.crt`.
+
+`Machine=`, `--machine=`
+
+: Specify the machine name to use when booting the image. Can also be
+  used to refer to a specific image when SSH-ing into an image (e.g.
+  `mkosi --image=myimage ssh`).
+
+: Note that `Ephemeral=` has to be enabled to start multiple instances
+  of the same image.
 
 ## Specifiers
 
