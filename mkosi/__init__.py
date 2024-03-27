@@ -682,7 +682,7 @@ def run_build_scripts(context: Context) -> None:
                     ) + (chroot if script.suffix == ".chroot" else []),
                 )
 
-    if context.want_local_repo():
+    if context.want_local_repo() and context.config.output_format != OutputFormat.none:
         with complete_step("Rebuilding local package repository"):
             context.config.distribution.createrepo(context)
 
