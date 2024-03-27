@@ -1336,6 +1336,7 @@ class Config:
     build_scripts: list[Path]
     postinst_scripts: list[Path]
     finalize_scripts: list[Path]
+    clean_scripts: list[Path]
     build_sources: list[ConfigTree]
     build_sources_ephemeral: bool
     environment: dict[str, str]
@@ -1518,6 +1519,22 @@ class Config:
     @property
     def output_changelog(self) -> str:
         return f"{self.output}.changelog"
+
+    @property
+    def outputs(self) -> list[str]:
+        return [
+            self.output,
+            self.output_with_format,
+            self.output_with_compression,
+            self.output_split_uki,
+            self.output_split_kernel,
+            self.output_split_initrd,
+            self.output_nspawn_settings,
+            self.output_checksum,
+            self.output_signature,
+            self.output_manifest,
+            self.output_changelog,
+        ]
 
     def cache_manifest(self) -> dict[str, Any]:
         return {
@@ -1727,6 +1744,15 @@ SETTINGS = (
         section="Config",
         parse=config_parse_minimum_version,
         help="Specify the minimum required mkosi version",
+    ),
+    ConfigSetting(
+        dest="configure_scripts",
+        long="--configure-script",
+        metavar="PATH",
+        section="Config",
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        paths=("mkosi.configure",),
+        help="Configure script to run before doing anything",
     ),
     ConfigSetting(
         dest="distribution",
@@ -1974,6 +2000,16 @@ SETTINGS = (
         default=uuid.uuid4(),
         help="Set the seed for systemd-repart",
     ),
+    ConfigSetting(
+        dest="clean_scripts",
+        long="--clean-script",
+        metavar="PATH",
+        section="Output",
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        paths=("mkosi.clean",),
+        path_default=False,
+        help="Clean script to run after cleanup",
+    ),
 
     ConfigSetting(
         dest="packages",
@@ -2075,15 +2111,6 @@ SETTINGS = (
         default_factory=config_default_source_date_epoch,
         default_factory_depends=("environment",),
         help="Set the $SOURCE_DATE_EPOCH timestamp",
-    ),
-    ConfigSetting(
-        dest="configure_scripts",
-        long="--configure-script",
-        metavar="PATH",
-        section="Content",
-        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
-        paths=("mkosi.configure",),
-        help="Configure script to run before doing anything",
     ),
     ConfigSetting(
         dest="sync_scripts",
@@ -3697,6 +3724,7 @@ def summary(config: Config) -> str:
                              Images: {line_join_list(config.images)}
                        Dependencies: {line_join_list(config.dependencies)}
                     Minimum Version: {none_to_none(config.minimum_version)}
+                  Configure Scripts: {line_join_list(config.configure_scripts)}
 
     {bold("DISTRIBUTION")}:
                        Distribution: {bold(config.distribution)}
@@ -3729,6 +3757,7 @@ def summary(config: Config) -> str:
                             Overlay: {yes_no(config.overlay)}
                      Use Subvolumes: {config.use_subvolumes}
                                Seed: {none_to_random(config.seed)}
+                      Clean Scripts: {line_join_list(config.clean_scripts)}
 
     {bold("CONTENT")}:
                            Packages: {line_join_list(config.packages)}
@@ -3744,7 +3773,6 @@ def summary(config: Config) -> str:
      Clean Package Manager Metadata: {config.clean_package_metadata}
                   Source Date Epoch: {none_to_none(config.source_date_epoch)}
 
-                  Configure Scripts: {line_join_list(config.configure_scripts)}
                        Sync Scripts: {line_join_list(config.sync_scripts)}
                     Prepare Scripts: {line_join_list(config.prepare_scripts)}
                       Build Scripts: {line_join_list(config.build_scripts)}

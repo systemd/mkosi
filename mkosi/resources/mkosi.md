@@ -543,6 +543,12 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 : The minimum mkosi version required to build this configuration. If
   specified multiple times, the highest specified version is used.
 
+`ConfigureScripts=`, `--configure-script=`
+
+: Takes a comma-separated list of paths to executables that are used as
+  the configure scripts for this image. See the **Scripts** section for
+  more information.
+
 ### [Distribution] Section
 
 `Distribution=`, `--distribution=`, `-d`
@@ -684,12 +690,11 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `Output=`, `--output=`, `-o`
 
-: Name to use for the generated output image file or directory. All
-  outputs will be prefixed with the given name. Defaults to `image` or,
-  if `ImageId=` is specified, it is used as the default output name,
-  optionally suffixed with the version set with `ImageVersion=`. Note
-  that this option does not allow configuring the output directory, use
-  `OutputDirectory=` for that.
+: Name to use for the generated output image file or directory. Defaults
+  to `image` or, if `ImageId=` is specified, it is used as the default
+  output name, optionally suffixed with the version set with
+  `ImageVersion=`. Note that this option does not allow configuring the
+  output directory, use `OutputDirectory=` for that.
 
 : Note that this only specifies the output prefix, depending on the
   specific output format, compression and image version used, the full
@@ -864,6 +869,12 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   [SOURCE_DATE_EPOCH](https://reproducible-builds.org/specs/source-date-epoch/)
   for more information.
 
+`CleanScripts=`, `--clean-script=`
+
+: Takes a comma-separated list of paths to executables that are used as
+  the clean scripts for this image. See the **Scripts** section for
+  more information.
+
 ### [Content] Section
 
 `Packages=`, `--package=`, `-p`
@@ -1025,12 +1036,6 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   databases and repository metadata will be removed if the respective
   package manager executable is *not* present at the end of the
   installation.
-
-`ConfigureScripts=`, `--configure-script=`
-
-: Takes a comma-separated list of paths to executables that are used as
-  the configure scripts for this image. See the **Scripts** section for
-  more information.
 
 `SyncScripts=`, `--sync-script=`
 
@@ -2005,6 +2010,12 @@ current working directory. The following scripts are supported:
 * If **`mkosi.finalize`** (`FinalizeScripts=`) exists, it is executed as
   the last step of preparing an image.
 
+* If **`mkosi.clean`** (`CleanScripts=`) exists, it is executed right
+  after the outputs of a previous build have been cleaned up. A clean
+  script can clean up any outputs that mkosi does not know about (e.g.
+  RPMs built in a build script). Note that this script does not use the
+  tools tree even if one is configured.
+
 If a script uses the `.chroot` extension, mkosi will chroot into the
 image using `mkosi-chroot` (see below) before executing the script. For
 example, if `mkosi.postinst.chroot` exists, mkosi will chroot into the
@@ -2092,30 +2103,30 @@ Scripts executed by mkosi receive the following environment variables:
 
 Consult this table for which script receives which environment variables:
 
-| Variable            | `mkosi.configure` | `mkosi.sync` | `mkosi.prepare` | `mkosi.build` | `mkosi.postinst` | `mkosi.finalize` |
-|---------------------|-------------------|--------------|-----------------|---------------|------------------|------------------|
-| `ARCHITECTURE`      | X                 | X            | X               | X             | X                | X                |
-| `DISTRIBUTION`      | X                 | X            | X               | X             | X                | X                |
-| `RELEASE`           | X                 | X            | X               | X             | X                | X                |
-| `PROFILE`           | X                 | X            | X               | X             | X                | X                |
-| `CACHED`            |                   | X            |                 |               |                  |                  |
-| `CHROOT_SCRIPT`     |                   |              | X               | X             | X                | X                |
-| `SRCDIR`            | X                 | X            | X               | X             | X                | X                |
-| `CHROOT_SRCDIR`     |                   |              | X               | X             | X                | X                |
-| `BUILDDIR`          |                   |              |                 | X             |                  |                  |
-| `CHROOT_BUILDDIR`   |                   |              |                 | X             |                  |                  |
-| `DESTDIR`           |                   |              |                 | X             |                  |                  |
-| `CHROOT_DESTDIR`    |                   |              |                 | X             |                  |                  |
-| `OUTPUTDIR`         |                   |              |                 | X             | X                | X                |
-| `CHROOT_OUTPUTDIR`  |                   |              |                 | X             | X                | X                |
-| `BUILDROOT`         |                   |              | X               | X             | X                | X                |
-| `WITH_DOCS`         |                   |              | X               | X             |                  |                  |
-| `WITH_TESTS`        |                   |              | X               | X             |                  |                  |
-| `WITH_NETWORK`      |                   |              | X               | X             |                  |                  |
-| `SOURCE_DATE_EPOCH` |                   |              | X               | X             | X                | X                |
-| `MKOSI_UID`         | X                 | X            | X               | X             | X                | X                |
-| `MKOSI_GID`         | X                 | X            | X               | X             | X                | X                |
-| `MKOSI_CONFIG`      |                   | X            | X               | X             | X                | X                |
+| Variable            | `mkosi.configure` | `mkosi.sync` | `mkosi.prepare` | `mkosi.build` | `mkosi.postinst` | `mkosi.finalize` | `mkosi.clean` |
+|---------------------|-------------------|--------------|-----------------|---------------|------------------|------------------|---------------|
+| `ARCHITECTURE`      | X                 | X            | X               | X             | X                | X                | X             |
+| `DISTRIBUTION`      | X                 | X            | X               | X             | X                | X                | X             |
+| `RELEASE`           | X                 | X            | X               | X             | X                | X                | X             |
+| `PROFILE`           | X                 | X            | X               | X             | X                | X                | X             |
+| `CACHED`            |                   | X            |                 |               |                  |                  |               |
+| `CHROOT_SCRIPT`     |                   |              | X               | X             | X                | X                |               |
+| `SRCDIR`            | X                 | X            | X               | X             | X                | X                | X             |
+| `CHROOT_SRCDIR`     |                   |              | X               | X             | X                | X                |               |
+| `BUILDDIR`          |                   |              |                 | X             |                  |                  |               |
+| `CHROOT_BUILDDIR`   |                   |              |                 | X             |                  |                  |               |
+| `DESTDIR`           |                   |              |                 | X             |                  |                  |               |
+| `CHROOT_DESTDIR`    |                   |              |                 | X             |                  |                  |               |
+| `OUTPUTDIR`         |                   |              |                 | X             | X                | X                | X             |
+| `CHROOT_OUTPUTDIR`  |                   |              |                 | X             | X                | X                |               |
+| `BUILDROOT`         |                   |              | X               | X             | X                | X                |               |
+| `WITH_DOCS`         |                   |              | X               | X             |                  |                  |               |
+| `WITH_TESTS`        |                   |              | X               | X             |                  |                  |               |
+| `WITH_NETWORK`      |                   |              | X               | X             |                  |                  |               |
+| `SOURCE_DATE_EPOCH` |                   |              | X               | X             | X                | X                | X             |
+| `MKOSI_UID`         | X                 | X            | X               | X             | X                | X                | X             |
+| `MKOSI_GID`         | X                 | X            | X               | X             | X                | X                | X             |
+| `MKOSI_CONFIG`      |                   | X            | X               | X             | X                | X                | X             |
 
 Additionally, when a script is executed, a few scripts are made
 available via `$PATH` to simplify common usecases.
