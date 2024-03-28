@@ -126,6 +126,7 @@ def test_config() -> None:
             "Dependencies": [
                 "dep1"
             ],
+            "Devicetree": "freescale/imx8mm-verdin-nonwifi-dev.dtb",
             "Distribution": "fedora",
             "Environment": {
                 "BAR": "BAR",
@@ -360,6 +361,7 @@ def test_config() -> None:
         configure_scripts = [Path("/configure")],
         credentials =  {"credkey": "credval"},
         dependencies = ("dep1",),
+        devicetree = Path("freescale/imx8mm-verdin-nonwifi-dev.dtb"),
         distribution = Distribution.fedora,
         environment = {"foo": "foo", "BAR": "BAR", "Qux": "Qux"},
         environment_files = [],
