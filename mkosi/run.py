@@ -145,6 +145,7 @@ def run(
     log: bool = True,
     preexec_fn: Optional[Callable[[], None]] = None,
     sandbox: Sequence[PathString] = (),
+    foreground: bool = True,
 ) -> CompletedProcess:
     sandbox = [os.fspath(x) for x in sandbox]
     cmdline = [os.fspath(x) for x in cmdline]
@@ -180,11 +181,13 @@ def run(
         stdin = subprocess.DEVNULL
 
     def preexec() -> None:
-        make_foreground_process()
+        if foreground:
+            make_foreground_process()
         if preexec_fn:
             preexec_fn()
 
     if (
+        foreground and
         sandbox and
         subprocess.run(sandbox + ["sh", "-c", "command -v setpgid"], stdout=subprocess.DEVNULL).returncode == 0
     ):
@@ -232,7 +235,8 @@ def run(
         e.cmd = cmdline
         raise
     finally:
-        make_foreground_process(new_process_group=False)
+        if foreground:
+            make_foreground_process(new_process_group=False)
 
 
 @contextlib.contextmanager
