@@ -128,6 +128,7 @@ def clean_package_manager_metadata(context: Context) -> None:
     for tool, paths in (("rpm",      ["var/lib/rpm", "usr/lib/sysimage/rpm"]),
                         ("dnf5",     ["usr/lib/sysimage/libdnf5"]),
                         ("dpkg",     ["var/lib/dpkg"]),
+                        ("moss",     [".moss"]),
                         (executable, [f"var/lib/{subdir}", f"var/cache/{subdir}"])):
         if context.config.clean_package_metadata == ConfigFeature.enabled or not find_binary(tool, root=context.root):
             rmtree(*(context.root / p for p in paths if (context.root / p).exists()),
