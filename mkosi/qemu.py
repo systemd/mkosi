@@ -606,6 +606,7 @@ def allocate_scope(config: Config, pid: int) -> None:
             "busctl",
             "call",
             "--system" if os.getuid() == 0 else "--user",
+            "--quiet",
             "org.freedesktop.systemd1",
             "/org/freedesktop/systemd1",
             "org.freedesktop.systemd1.Manager",
@@ -637,6 +638,7 @@ def register_machine(config: Config, pid: int, fname: Path) -> None:
         [
             "busctl",
             "call",
+            "--quiet",
             "org.freedesktop.machine1",
             "/org/freedesktop/machine1",
             "org.freedesktop.machine1.Manager",
