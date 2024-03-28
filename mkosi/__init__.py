@@ -2322,7 +2322,7 @@ def install_kernel(context: Context, partitions: Sequence[Partition]) -> None:
     if want_uki(context) and not stub.exists():
         die(f"Unified kernel image(s) requested but systemd-stub not found at /{stub.relative_to(context.root)}")
 
-    if context.config.bootable == ConfigFeature.enabled and not gen_kernel_images(context):
+    if context.config.bootable == ConfigFeature.enabled and not any(gen_kernel_images(context)):
         die("A bootable image was requested but no kernel was found")
 
     token = find_entry_token(context)
