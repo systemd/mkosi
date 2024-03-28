@@ -582,6 +582,79 @@ def finalize_state(config: Config, cid: int) -> Iterator[None]:
             p.unlink(missing_ok=True)
 
 
+def allocate_scope(config: Config, pid: int) -> None:
+    if os.getuid() != 0 and "DBUS_SESSION_BUS_ADDRESS" not in os.environ:
+        return
+
+    if (
+        os.getuid() == 0 and
+        "DBUS_SYSTEM_ADDRESS" not in os.environ and
+        not Path("/run/dbus/system_bus_socket").exists()
+    ):
+        return
+
+    name = config.machine_or_name().replace("_", "-")
+
+    scope = run(
+        ["systemd-escape", "--mangle", f"{name}.scope"],
+        stdout=subprocess.PIPE,
+        foreground=False,
+    ).stdout.strip()
+
+    run(
+        [
+            "busctl",
+            "call",
+            "--system" if os.getuid() == 0 else "--user",
+            "org.freedesktop.systemd1",
+            "/org/freedesktop/systemd1",
+            "org.freedesktop.systemd1.Manager",
+            "StartTransientUnit",
+            "ssa(sv)a(sa(sv))",
+            scope,
+            "fail",
+            "3",
+            "Description", "s", f"mkosi Virtual Machine {name}",
+            "CollectMode", "s", "inactive-or-failed",
+            "PIDs", "au", "1", str(pid),
+            "AddRef", "b", "1",
+            "0",
+        ],
+        foreground=False,
+        env=os.environ | config.environment,
+        sandbox=config.sandbox(relaxed=True),
+    )
+
+
+def register_machine(config: Config, pid: int, fname: Path) -> None:
+    if (
+        os.getuid() != 0 or
+        ("DBUS_SYSTEM_ADDRESS" not in os.environ and not Path("/run/dbus/system_bus_socket").exists())
+    ):
+        return
+
+    run(
+        [
+            "busctl",
+            "call",
+            "org.freedesktop.machine1",
+            "/org/freedesktop/machine1",
+            "org.freedesktop.machine1.Manager",
+            "RegisterMachine",
+            "sayssus",
+            config.machine_or_name().replace("_", "-"),
+            "0",
+            "mkosi",
+            "vm",
+            str(pid),
+            fname if fname.is_dir() else "",
+        ],
+        foreground=False,
+        env=os.environ | config.environment,
+        sandbox=config.sandbox(relaxed=True),
+    )
+
+
 def run_qemu(args: Args, config: Config) -> None:
     if config.output_format not in (
         OutputFormat.disk,
@@ -927,6 +1000,8 @@ def run_qemu(args: Args, config: Config) -> None:
             for fd in qemu_device_fds.values():
                 os.close(fd)
 
+            allocate_scope(config, qemu.pid)
+            register_machine(config, qemu.pid, fname)
 
     if status := int(notifications.get("EXIT_STATUS", 0)):
         raise subprocess.CalledProcessError(status, cmdline)
