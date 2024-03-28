@@ -613,7 +613,7 @@ def allocate_scope(config: Config, pid: int) -> None:
             "ssa(sv)a(sa(sv))",
             scope,
             "fail",
-            "3",
+            "4",
             "Description", "s", f"mkosi Virtual Machine {name}",
             "CollectMode", "s", "inactive-or-failed",
             "PIDs", "au", "1", str(pid),
