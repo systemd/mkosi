@@ -146,7 +146,8 @@ def flock_or_die(path: Path) -> Iterator[Path]:
             raise e
 
         die(f"Cannot lock {path} as it is locked by another process",
-            hint="Maybe another mkosi process is still using it?")
+            hint="Maybe another mkosi process is still using it? Use Ephemeral=yes to enable booting multiple "
+                 "instances of the same image")
 
 
 @contextlib.contextmanager

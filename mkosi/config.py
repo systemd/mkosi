@@ -1414,6 +1414,7 @@ class Config:
     runtime_network: Network
     ssh_key: Optional[Path]
     ssh_certificate: Optional[Path]
+    machine: Optional[str]
     vmm: Vmm
 
     # QEMU-specific options
@@ -1435,6 +1436,9 @@ class Config:
 
     def name(self) -> str:
         return self.image_id or self.image or "default"
+
+    def machine_or_name(self) -> str:
+        return self.machine or self.name()
 
     def output_dir_or_cwd(self) -> Path:
         return self.output_dir or Path.cwd()
@@ -2748,6 +2752,12 @@ SETTINGS = (
         help="Set the virtual machine monitor to use for mkosi qemu",
     ),
     ConfigSetting(
+        dest="machine",
+        metavar="NAME",
+        section="Host",
+        help="Set the machine name to use when booting the image",
+    ),
+    ConfigSetting(
         dest="qemu_gui",
         metavar="BOOL",
         nargs="?",
@@ -2794,7 +2804,7 @@ SETTINGS = (
         metavar="NUMBER|auto|hash",
         section="Host",
         parse=config_parse_vsock_cid,
-        default=QemuVsockCID.hash,
+        default=QemuVsockCID.auto,
         help="Specify the VSock connection ID to use",
     ),
     ConfigSetting(
@@ -3556,6 +3566,9 @@ def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
     if not any(s.startswith("SYSTEMD_SULOGIN_FORCE=") for s in args.kernel_command_line_extra):
         cmdline += ["SYSTEMD_SULOGIN_FORCE=1"]
 
+    if not any(s.startswith("systemd.hostname=") for s in args.kernel_command_line_extra) and args.machine:
+        cmdline += [f"systemd.hostname={args.machine}"]
+
     if args.qemu_cdrom:
         # CD-ROMs are read-only so tell systemd to boot in volatile mode.
         cmdline += ["systemd.volatile=yes"]
@@ -3866,6 +3879,7 @@ def summary(config: Config) -> str:
                     Runtime Network: {config.runtime_network}
                     SSH Signing Key: {none_to_none(config.ssh_key)}
                     SSH Certificate: {none_to_none(config.ssh_certificate)}
+                            Machine: {config.machine_or_name()}
 
             Virtual Machine Monitor: {config.vmm}
                            QEMU GUI: {yes_no(config.qemu_gui)}

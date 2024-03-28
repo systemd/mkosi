@@ -274,11 +274,8 @@ def start_swtpm(config: Config) -> Iterator[Path]:
                 pass_fds=(sock.fileno(),),
                 sandbox=config.sandbox(mounts=[Mount(state, state)]),
             ) as proc:
-                try:
-                    yield path
-                finally:
-                    proc.terminate()
-                    proc.wait()
+                yield path
+                proc.terminate()
 
 
 def find_virtiofsd(*, tools: Path = Path("/")) -> Optional[Path]:
@@ -349,11 +346,8 @@ def start_virtiofsd(config: Config, directory: Path, *, uidmap: bool) -> Iterato
                 options=["--uid", "0", "--gid", "0", "--cap-add", "all"],
             ),
         ) as proc:
-            try:
-                yield path
-            finally:
-                proc.terminate()
-                proc.wait()
+            yield path
+            proc.terminate()
 
 
 @contextlib.contextmanager
@@ -553,6 +547,114 @@ def finalize_drive(drive: QemuDrive) -> Iterator[Path]:
         yield Path(file.name)
 
 
+@contextlib.contextmanager
+def finalize_state(config: Config, cid: int) -> Iterator[None]:
+    (INVOKING_USER.runtime_dir() / "machine").mkdir(parents=True, exist_ok=True)
+
+    if INVOKING_USER.is_regular_user():
+        os.chown(INVOKING_USER.runtime_dir(), INVOKING_USER.uid, INVOKING_USER.gid)
+        os.chown(INVOKING_USER.runtime_dir() / "machine", INVOKING_USER.uid, INVOKING_USER.gid)
+
+    with flock(INVOKING_USER.runtime_dir() / "machine"):
+        if (p := INVOKING_USER.runtime_dir() / "machine" / f"{config.machine_or_name()}.json").exists():
+            die(f"Another virtual machine named {config.machine_or_name()} is already running",
+                hint="Use --machine to specify a different virtual machine name")
+
+        p.write_text(
+            json.dumps(
+                {
+                    "Machine": config.machine_or_name(),
+                    "ProxyCommand": f"socat - VSOCK-CONNECT:{cid}:%p",
+                    "SshKey": os.fspath(config.ssh_key) if config.ssh_key else None,
+                },
+                sort_keys=True,
+                indent=4,
+            )
+        )
+
+        if INVOKING_USER.is_regular_user():
+            os.chown(p, INVOKING_USER.uid, INVOKING_USER.gid)
+
+    try:
+        yield
+    finally:
+        with flock(INVOKING_USER.runtime_dir() / "machine"):
+            p.unlink(missing_ok=True)
+
+
+def allocate_scope(config: Config, pid: int) -> None:
+    if os.getuid() != 0 and "DBUS_SESSION_BUS_ADDRESS" not in os.environ:
+        return
+
+    if (
+        os.getuid() == 0 and
+        "DBUS_SYSTEM_ADDRESS" not in os.environ and
+        not Path("/run/dbus/system_bus_socket").exists()
+    ):
+        return
+
+    name = config.machine_or_name().replace("_", "-")
+
+    scope = run(
+        ["systemd-escape", "--mangle", f"{name}.scope"],
+        stdout=subprocess.PIPE,
+        foreground=False,
+    ).stdout.strip()
+
+    run(
+        [
+            "busctl",
+            "call",
+            "--system" if os.getuid() == 0 else "--user",
+            "org.freedesktop.systemd1",
+            "/org/freedesktop/systemd1",
+            "org.freedesktop.systemd1.Manager",
+            "StartTransientUnit",
+            "ssa(sv)a(sa(sv))",
+            scope,
+            "fail",
+            "3",
+            "Description", "s", f"mkosi Virtual Machine {name}",
+            "CollectMode", "s", "inactive-or-failed",
+            "PIDs", "au", "1", str(pid),
+            "AddRef", "b", "1",
+            "0",
+        ],
+        foreground=False,
+        env=os.environ | config.environment,
+        sandbox=config.sandbox(relaxed=True),
+    )
+
+
+def register_machine(config: Config, pid: int, fname: Path) -> None:
+    if (
+        os.getuid() != 0 or
+        ("DBUS_SYSTEM_ADDRESS" not in os.environ and not Path("/run/dbus/system_bus_socket").exists())
+    ):
+        return
+
+    run(
+        [
+            "busctl",
+            "call",
+            "org.freedesktop.machine1",
+            "/org/freedesktop/machine1",
+            "org.freedesktop.machine1.Manager",
+            "RegisterMachine",
+            "sayssus",
+            config.machine_or_name().replace("_", "-"),
+            "0",
+            "mkosi",
+            "vm",
+            str(pid),
+            fname if fname.is_dir() else "",
+        ],
+        foreground=False,
+        env=os.environ | config.environment,
+        sandbox=config.sandbox(relaxed=True),
+    )
+
+
 def run_qemu(args: Args, config: Config) -> None:
     if config.output_format not in (
         OutputFormat.disk,
@@ -677,6 +779,7 @@ def run_qemu(args: Args, config: Config) -> None:
 
     cmdline += ["-accel", accel]
 
+    cid: Optional[int] = None
     if QemuDeviceNode.vhost_vsock in qemu_device_fds:
         if config.qemu_vsock_cid == QemuVsockCID.auto:
             cid = find_unused_vsock_cid(config, qemu_device_fds[QemuDeviceNode.vhost_vsock])
@@ -880,6 +983,9 @@ def run_qemu(args: Args, config: Config) -> None:
         cmdline += config.qemu_args
         cmdline += args.cmdline
 
+        if cid is not None:
+            stack.enter_context(finalize_state(config, cid))
+
         with spawn(
             cmdline,
             stdin=sys.stdin,
@@ -894,34 +1000,34 @@ def run_qemu(args: Args, config: Config) -> None:
             for fd in qemu_device_fds.values():
                 os.close(fd)
 
-            qemu.wait()
+            allocate_scope(config, qemu.pid)
+            register_machine(config, qemu.pid, fname)
 
     if status := int(notifications.get("EXIT_STATUS", 0)):
         raise subprocess.CalledProcessError(status, cmdline)
 
 
 def run_ssh(args: Args, config: Config) -> None:
-    if config.qemu_vsock_cid == QemuVsockCID.auto:
-        die("Can't use ssh verb with QemuVSockCID=auto")
+    with flock(INVOKING_USER.runtime_dir() / "machine"):
+        if not (p := INVOKING_USER.runtime_dir() / "machine" / f"{config.machine_or_name()}.json").exists():
+            die(f"{p} not found, cannot SSH into virtual machine {config.machine_or_name()}",
+                hint="Is the machine running and was it built with Ssh=yes and QemuVsock=yes?")
 
-    if not config.ssh_key:
-        die("SshKey= must be configured to use 'mkosi ssh'",
+        state = json.loads(p.read_text())
+
+    if not state["SshKey"]:
+        die("An SSH key must be configured when booting the image to use 'mkosi ssh'",
             hint="Use 'mkosi genkey' to generate a new SSH key and certificate")
-
-    if config.qemu_vsock_cid == QemuVsockCID.hash:
-        cid = hash_to_vsock_cid(hash_output(config))
-    else:
-        cid = config.qemu_vsock_cid
 
     cmd: list[PathString] = [
         "ssh",
-        "-i", config.ssh_key,
+        "-i", state["SshKey"],
         "-F", "none",
         # Silence known hosts file errors/warnings.
         "-o", "UserKnownHostsFile=/dev/null",
         "-o", "StrictHostKeyChecking=no",
         "-o", "LogLevel=ERROR",
-        "-o", f"ProxyCommand=socat - VSOCK-CONNECT:{cid}:%p",
+        "-o", f"ProxyCommand={state['ProxyCommand']}",
         "root@mkosi",
     ]
 
