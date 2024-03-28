@@ -113,6 +113,7 @@ class Zypper(PackageManager):
             "--gpg-auto-import-keys" if context.config.repository_key_check else "--no-gpg-checks",
             "--non-interactive",
             "--no-refresh",
+            *([f"--plus-content={repo}" for repo in context.config.repositories]),
         ]
 
     @classmethod
@@ -160,7 +161,7 @@ class Zypper(PackageManager):
                 gpgcheck=0
                 autorefresh=0
                 keeppackages=0
-                priority=50
+                priority=1
                 """
             )
         )
