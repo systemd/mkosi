@@ -49,24 +49,37 @@ def log_notice(text: str) -> None:
 
 
 @contextlib.contextmanager
+def log_group_marker(s: str) -> Iterator[None]:
+    github_actions = os.getenv("GITHUB_ACTIONS")
+    if github_actions:
+        print(f"\n::group::{s}", flush=True)
+    try:
+        yield
+    finally:
+        if github_actions:
+            print("\n::endgroup::", flush=True)
+
+
+@contextlib.contextmanager
 def complete_step(text: str, text2: Optional[str] = None) -> Iterator[list[Any]]:
     global LEVEL
 
-    log_step(text)
+    with log_group_marker(text):
+        log_step(text)
 
-    LEVEL += 1
-    try:
-        args: list[Any] = []
-        yield args
-    finally:
-        LEVEL -= 1
-        assert LEVEL >= 0
+        LEVEL += 1
+        try:
+            args: list[Any] = []
+            yield args
+        finally:
+            LEVEL -= 1
+            assert LEVEL >= 0
 
-    if text2 is not None:
-        log_step(text2.format(*args))
+        if text2 is not None:
+            log_step(text2.format(*args))
 
 
-class Formatter(logging.Formatter):
+class TtyFormatter(logging.Formatter):
     def __init__(self, fmt: Optional[str] = None, *args: Any, **kwargs: Any) -> None:
         fmt = fmt or "%(message)s"
 
@@ -84,9 +97,30 @@ class Formatter(logging.Formatter):
         return self.formatters[record.levelno].format(record)
 
 
+class GithubWorkflowFormatter(logging.Formatter):
+    def __init__(self, fmt: Optional[str] = None, *args: Any, **kwargs: Any) -> None:
+        fmt = fmt or "%(message)s"
+
+        self.formatters = {
+            logging.DEBUG:    logging.Formatter(f"::debug::‣ {fmt}"),
+            logging.INFO:     logging.Formatter(f"‣ {fmt}"),
+            logging.WARNING:  logging.Formatter(f"::warning::‣ {fmt}"),
+            logging.ERROR:    logging.Formatter(f"::error::‣ {fmt}"),
+            logging.CRITICAL: logging.Formatter(f"::error::‣ {fmt}"),
+        }
+
+        super().__init__(fmt, *args, **kwargs)
+
+    def format(self, record: logging.LogRecord) -> str:
+        return self.formatters[record.levelno].format(record)
+
+
 def log_setup() -> None:
     handler = logging.StreamHandler(stream=sys.stderr)
-    handler.setFormatter(Formatter())
+    if os.getenv("GITHUB_ACTIONS"):
+        handler.setFormatter(GithubWorkflowFormatter())
+    else:
+        handler.setFormatter(TtyFormatter())
 
     logging.getLogger().addHandler(handler)
     logging.getLogger().setLevel(logging.getLevelName(os.getenv("SYSTEMD_LOG_LEVEL", "info").upper()))

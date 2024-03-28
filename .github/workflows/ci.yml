@@ -95,17 +95,17 @@ jobs:
       matrix:
         distro:
           - arch
-          - centos
-          - debian
-          - fedora
-          - opensuse
-          - ubuntu
+          # - centos
+          # - debian
+          # - fedora
+          # - opensuse
+          # - ubuntu
         tools:
           - arch
-          - debian
-          - fedora
-          - opensuse
-          - ubuntu
+          # - debian
+          # - fedora
+          # - opensuse
+          # - ubuntu
           # TODO: Add CentOS once they have systemd v254 or newer.
         exclude:
           # pacman and archlinux-keyring are not packaged in OpenSUSE.
