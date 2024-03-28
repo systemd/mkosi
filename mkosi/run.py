@@ -304,7 +304,12 @@ def spawn(
             env=env,
             preexec_fn=preexec,
         ) as proc:
-            yield proc
+            try:
+                yield proc
+            except BaseException:
+                proc.terminate()
+            finally:
+                proc.wait()
     except FileNotFoundError as e:
         die(f"{e.filename} not found.")
     except subprocess.CalledProcessError as e:

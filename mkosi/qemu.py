@@ -274,11 +274,8 @@ def start_swtpm(config: Config) -> Iterator[Path]:
                 pass_fds=(sock.fileno(),),
                 sandbox=config.sandbox(mounts=[Mount(state, state)]),
             ) as proc:
-                try:
-                    yield path
-                finally:
-                    proc.terminate()
-                    proc.wait()
+                yield path
+                proc.terminate()
 
 
 def find_virtiofsd(*, tools: Path = Path("/")) -> Optional[Path]:
@@ -349,11 +346,8 @@ def start_virtiofsd(config: Config, directory: Path, *, uidmap: bool) -> Iterato
                 options=["--uid", "0", "--gid", "0", "--cap-add", "all"],
             ),
         ) as proc:
-            try:
-                yield path
-            finally:
-                proc.terminate()
-                proc.wait()
+            yield path
+            proc.terminate()
 
 
 @contextlib.contextmanager
@@ -933,7 +927,6 @@ def run_qemu(args: Args, config: Config) -> None:
             for fd in qemu_device_fds.values():
                 os.close(fd)
 
-            qemu.wait()
 
     if status := int(notifications.get("EXIT_STATUS", 0)):
         raise subprocess.CalledProcessError(status, cmdline)
