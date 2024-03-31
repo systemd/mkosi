@@ -293,7 +293,7 @@ def spawn(
         sandbox and
         subprocess.run(sandbox + ["sh", "-c", "command -v setpgid"], stdout=subprocess.DEVNULL).returncode == 0
     ):
-        cmdline = ["setpgid", "--foreground", "--"] + cmdline
+        sandbox += ["setpgid", "--foreground", "--"]
 
     try:
         with subprocess.Popen(
