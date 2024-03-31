@@ -77,7 +77,6 @@ from mkosi.util import (
     format_rlimit,
     make_executable,
     one_zero,
-    parents_below,
     read_env_file,
     round_up,
     scopedenv,
@@ -4225,15 +4224,7 @@ def run_build(args: Args, config: Config, *, resources: Path) -> None:
             continue
 
         p.mkdir(parents=True, exist_ok=True)
-
-        # If we created the directory in a parent directory owned by the invoking user, make sure the directories we
-        # just created are owned by the invoking user as well.
-        if (
-            INVOKING_USER.is_regular_user() and
-            (q := next((parent for parent in p.parents if parent.stat().st_uid == INVOKING_USER.uid), None))
-        ):
-            for parent in parents_below(p, q):
-                os.chown(parent, INVOKING_USER.uid, INVOKING_USER.gid)
+        INVOKING_USER.chown(p)
 
     # Discard setuid/setgid bits as these are inherited and can leak into the image.
     if config.build_dir:
