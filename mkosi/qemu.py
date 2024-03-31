@@ -37,7 +37,7 @@ from mkosi.config import (
 )
 from mkosi.log import ARG_DEBUG, die
 from mkosi.partition import finalize_root, find_partitions
-from mkosi.run import AsyncioThread, find_binary, fork_and_wait, run, spawn
+from mkosi.run import SD_LISTEN_FDS_START, AsyncioThread, find_binary, fork_and_wait, run, spawn
 from mkosi.sandbox import Mount
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
@@ -267,7 +267,7 @@ def start_swtpm(config: Config) -> Iterator[Path]:
             sock.bind(os.fspath(path))
             sock.listen()
 
-            cmdline += ["--ctrl", f"type=unixio,fd={sock.fileno()}"]
+            cmdline += ["--ctrl", f"type=unixio,fd={SD_LISTEN_FDS_START}"]
 
             with spawn(
                 cmdline,
@@ -335,7 +335,7 @@ def start_virtiofsd(config: Config, directory: Path, *, uidmap: bool) -> Iterato
         # Make sure virtiofsd can connect to the socket.
         os.chown(path, INVOKING_USER.uid, INVOKING_USER.gid)
 
-        cmdline += ["--fd", str(sock.fileno())]
+        cmdline += ["--fd", str(SD_LISTEN_FDS_START)]
 
         with spawn(
             cmdline,
@@ -784,7 +784,8 @@ def run_qemu(args: Args, config: Config) -> None:
     if config.qemu_kvm != ConfigFeature.disabled and have_kvm and config.architecture.can_kvm():
         accel = "kvm"
         if qemu_version(config) >= QEMU_KVM_DEVICE_VERSION:
-            cmdline += ["--add-fd", f"fd={qemu_device_fds[QemuDeviceNode.kvm]},set=1,opaque=/dev/kvm"]
+            index = list(qemu_device_fds.keys()).index(QemuDeviceNode.kvm)
+            cmdline += ["--add-fd", f"fd={SD_LISTEN_FDS_START + index},set=1,opaque=/dev/kvm"]
             accel += ",device=/dev/fdset/1"
     else:
         accel = "tcg"
@@ -804,9 +805,10 @@ def run_qemu(args: Args, config: Config) -> None:
             die(f"VSock connection ID {cid} is already in use by another virtual machine",
                 hint="Use QemuVsockConnectionId=auto to have mkosi automatically find a free vsock connection ID")
 
+        index = list(qemu_device_fds.keys()).index(QemuDeviceNode.vhost_vsock)
         cmdline += [
             "-device",
-            f"vhost-vsock-pci,guest-cid={cid},vhostfd={qemu_device_fds[QemuDeviceNode.vhost_vsock]}"
+            f"vhost-vsock-pci,guest-cid={cid},vhostfd={SD_LISTEN_FDS_START + index}"
         ]
 
     cmdline += ["-cpu", "max"]

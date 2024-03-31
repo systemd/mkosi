@@ -4,6 +4,7 @@ import asyncio
 import asyncio.tasks
 import contextlib
 import errno
+import fcntl
 import logging
 import os
 import queue
@@ -20,6 +21,8 @@ from typing import Any, Callable, NoReturn, Optional
 
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, die
 from mkosi.types import _FILE, CompletedProcess, PathString, Popen
+
+SD_LISTEN_FDS_START = 3
 
 
 def make_foreground_process(*, new_process_group: bool = True) -> None:
@@ -254,6 +257,8 @@ def spawn(
     preexec_fn: Optional[Callable[[], None]] = None,
     sandbox: Sequence[PathString] = (),
 ) -> Iterator[Popen]:
+    assert sorted(set(pass_fds)) == list(pass_fds)
+
     sandbox = [os.fspath(x) for x in sandbox]
     cmdline = [os.fspath(x) for x in cmdline]
 
@@ -288,12 +293,43 @@ def spawn(
         if preexec_fn:
             preexec_fn()
 
+        if not pass_fds:
+            return
+
+        # The systemd socket activation interface requires any passed file descriptors to start at '3' and
+        # incrementally increase from there. The file descriptors we got from the caller might be arbitrary, so we need
+        # to move them around to make sure they start at '3' and incrementally increase.
+        for i, fd in enumerate(pass_fds):
+            # Don't do anything if the file descriptor is already what we need it to be.
+            if fd == SD_LISTEN_FDS_START + i:
+                continue
+
+            # Close any existing file descriptor that occupies the id that we want to move to. This is safe because
+            # using pass_fds implies using close_fds as well, except that file descriptors are closed by python after
+            # running the preexec function, so we have to close a few of those manually here to make room if needed.
+            try:
+                os.close(SD_LISTEN_FDS_START + i)
+            except OSError as e:
+                if e.errno != errno.EBADF:
+                    raise
+
+            nfd = fcntl.fcntl(fd, fcntl.F_DUPFD, SD_LISTEN_FDS_START + i)
+            # fcntl.F_DUPFD uses the closest available file descriptor ID, so make sure it actually picked the ID we
+            # expect it to pick.
+            assert nfd == SD_LISTEN_FDS_START + i
+
     if (
         foreground and
         sandbox and
         subprocess.run(sandbox + ["sh", "-c", "command -v setpgid"], stdout=subprocess.DEVNULL).returncode == 0
     ):
         sandbox += ["setpgid", "--foreground", "--"]
+
+    if pass_fds:
+        # We don't know the PID before we start the process and we can't modify the environment in preexec_fn so we
+        # have to spawn a temporary shell to set the necessary environment variables before spawning the actual
+        # command.
+        sandbox += ["sh", "-c", f"LISTEN_FDS={len(pass_fds)} LISTEN_PID=$$ exec $0 \"$@\""]
 
     try:
         with subprocess.Popen(
@@ -304,7 +340,9 @@ def spawn(
             text=True,
             user=user,
             group=group,
-            pass_fds=pass_fds,
+            # pass_fds only comes into effect after python has invoked the preexec function, so we make sure that
+            # pass_fds contains the file descriptors to keep open after we've done our transformation in preexec().
+            pass_fds=[SD_LISTEN_FDS_START + i for i in range(len(pass_fds))],
             env=env,
             preexec_fn=preexec,
         ) as proc:
