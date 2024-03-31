@@ -1434,6 +1434,7 @@ class Config:
     ssh_key: Optional[Path]
     ssh_certificate: Optional[Path]
     machine: Optional[str]
+    forward_journal: Optional[Path]
     vmm: Vmm
 
     # QEMU-specific options
@@ -2781,6 +2782,13 @@ SETTINGS = (
         help="Set the machine name to use when booting the image",
     ),
     ConfigSetting(
+        dest="forward_journal",
+        metavar="PATH",
+        section="Host",
+        parse=config_make_path_parser(required=False),
+        help="Set the path used to store forwarded machine journals",
+    ),
+    ConfigSetting(
         dest="qemu_gui",
         metavar="BOOL",
         nargs="?",
@@ -3892,6 +3900,7 @@ def summary(config: Config) -> str:
                     SSH Signing Key: {none_to_none(config.ssh_key)}
                     SSH Certificate: {none_to_none(config.ssh_certificate)}
                             Machine: {config.machine_or_name()}
+                    Forward Journal: {none_to_none(config.forward_journal)}
 
             Virtual Machine Monitor: {config.vmm}
                            QEMU GUI: {yes_no(config.qemu_gui)}

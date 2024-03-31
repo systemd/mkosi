@@ -412,6 +412,48 @@ def vsock_notify_handler() -> Iterator[tuple[str, dict[str, str]]]:
 
 
 @contextlib.contextmanager
+def start_journal_remote(config: Config, sockfd: int) -> Iterator[None]:
+    assert config.forward_journal
+
+    bin = find_binary("systemd-journal-remote", "/usr/lib/systemd/systemd-journal-remote", root=config.tools())
+    if not bin:
+        die("systemd-journal-remote must be installed to forward logs from the virtual machine")
+
+    d = config.forward_journal.parent if config.forward_journal.suffix == ".journal" else config.forward_journal
+    if not d.exists():
+        d.mkdir(parents=True)
+        # Make sure COW is disabled so systemd-journal-remote doesn't complain on btrfs filesystems.
+        run(["chattr", "+C", d], check=False, stderr=subprocess.DEVNULL if not ARG_DEBUG.get() else None)
+        INVOKING_USER.chown(d)
+
+    with spawn(
+        [
+            bin,
+            "--output", config.forward_journal,
+            "--split-mode", "none" if config.forward_journal.suffix == ".journal" else "host",
+        ],
+        pass_fds=(sockfd,),
+        sandbox=config.sandbox(mounts=[Mount(config.forward_journal.parent, config.forward_journal.parent)]),
+        user=config.forward_journal.parent.stat().st_uid,
+        group=config.forward_journal.parent.stat().st_gid,
+        # If all logs go into a single file, disable compact mode to allow for journal files exceeding 4G.
+        env={"SYSTEMD_JOURNAL_COMPACT": "0" if config.forward_journal.suffix == ".journal" else "1"},
+    ) as proc:
+        yield
+        proc.terminate()
+
+
+@contextlib.contextmanager
+def start_journal_remote_vsock(config: Config) -> Iterator[str]:
+    with socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM) as sock:
+        sock.bind((socket.VMADDR_CID_ANY, socket.VMADDR_PORT_ANY))
+        sock.listen()
+
+        with start_journal_remote(config, sock.fileno()):
+            yield f"vsock-stream:{socket.VMADDR_CID_HOST}:{sock.getsockname()[1]}"
+
+
+@contextlib.contextmanager
 def copy_ephemeral(config: Config, src: Path) -> Iterator[Path]:
     if not config.ephemeral or config.output_format in (OutputFormat.cpio, OutputFormat.uki):
         with flock_or_die(src):
@@ -956,6 +998,9 @@ def run_qemu(args: Args, config: Config) -> None:
         if QemuDeviceNode.vhost_vsock in qemu_device_fds:
             addr, notifications = stack.enter_context(vsock_notify_handler())
             credentials["vmm.notify_socket"] = addr
+
+        if config.forward_journal:
+            credentials["journal.forward_to_socket"] = stack.enter_context(start_journal_remote_vsock(config))
 
         for k, v in credentials.items():
             payload = base64.b64encode(v.encode()).decode()

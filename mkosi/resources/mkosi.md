@@ -1845,6 +1845,17 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 : Note that `Ephemeral=` has to be enabled to start multiple instances
   of the same image.
 
+`ForwardJournal=`, `--forward-journal=`
+
+: Specify the path to which journal logs from containers and virtual
+  machines should be forwarded. If the path has the `.journal`
+  extension, it is interpreted as a file to which the journal should be
+  written. Otherwise, the path is interpreted as a directory to which
+  the journal should be written.
+
+: Note that systemd v256 or newer is required in the virtual machine for
+  log forwarding to work.
+
 ## Specifiers
 
 The current value of various settings can be accessed when parsing

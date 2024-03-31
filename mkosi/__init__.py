@@ -12,6 +12,7 @@ import os
 import resource
 import shlex
 import shutil
+import socket
 import stat
 import subprocess
 import sys
@@ -59,7 +60,7 @@ from mkosi.manifest import Manifest
 from mkosi.mounts import finalize_source_mounts, mount_overlay
 from mkosi.pager import page
 from mkosi.partition import Partition, finalize_root, finalize_roothash
-from mkosi.qemu import KernelType, copy_ephemeral, run_qemu, run_ssh
+from mkosi.qemu import KernelType, copy_ephemeral, run_qemu, run_ssh, start_journal_remote
 from mkosi.run import (
     find_binary,
     fork_and_wait,
@@ -3777,6 +3778,19 @@ def run_shell(args: Args, config: Config) -> None:
             scratch = stack.enter_context(tempfile.TemporaryDirectory(dir="/var/tmp"))
             os.chmod(scratch, 0o1777)
             cmdline += ["--bind", f"{scratch}:/var/tmp"]
+
+        if args.verb == Verb.boot and config.forward_journal:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+                addr = Path(os.getenv("TMPDIR", "/tmp")) / f"mkosi-journal-remote-unix-{uuid.uuid4().hex[:16]}"
+                sock.bind(os.fspath(addr))
+                sock.listen()
+                if config.output_format == OutputFormat.directory and (stat := os.stat(fname)).st_uid != 0:
+                    os.chown(addr, stat.st_uid, stat.st_gid)
+                stack.enter_context(start_journal_remote(config, sock.fileno()))
+                cmdline += [
+                    "--bind", f"{addr}:/run/host/journal/socket",
+                    "--set-credential=journal.forward_to_socket:/run/host/journal/socket",
+                ]
 
         if args.verb == Verb.boot:
             # Add nspawn options first since systemd-nspawn ignores all options after the first argument.
