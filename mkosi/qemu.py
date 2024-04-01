@@ -274,6 +274,12 @@ def start_swtpm(config: Config) -> Iterator[Path]:
                 pass_fds=(sock.fileno(),),
                 sandbox=config.sandbox(mounts=[Mount(state, state)]),
             ) as proc:
+                allocate_scope(
+                    config,
+                    name=f"mkosi-swtpm-{config.machine_or_name()}",
+                    pid=proc.pid,
+                    description=f"swtpm for {config.machine_or_name()}",
+                )
                 yield path
                 proc.terminate()
 
@@ -346,6 +352,12 @@ def start_virtiofsd(config: Config, directory: Path, *, uidmap: bool) -> Iterato
                 options=["--uid", "0", "--gid", "0", "--cap-add", "all"],
             ),
         ) as proc:
+            allocate_scope(
+                config,
+                name=f"mkosi-virtiofsd-{directory}" if uidmap else f"mkosi-virtiofsd-{config.machine_or_name()}",
+                pid=proc.pid,
+                description=f"virtiofsd for {directory}",
+            )
             yield path
             proc.terminate()
 
@@ -582,7 +594,7 @@ def finalize_state(config: Config, cid: int) -> Iterator[None]:
             p.unlink(missing_ok=True)
 
 
-def allocate_scope(config: Config, pid: int) -> None:
+def allocate_scope(config: Config, *, name: str, pid: int, description: str) -> None:
     if os.getuid() != 0 and "DBUS_SESSION_BUS_ADDRESS" not in os.environ:
         return
 
@@ -592,8 +604,6 @@ def allocate_scope(config: Config, pid: int) -> None:
         not Path("/run/dbus/system_bus_socket").exists()
     ):
         return
-
-    name = config.machine_or_name().replace("_", "-")
 
     scope = run(
         ["systemd-escape", "--mangle", f"{name}.scope"],
@@ -615,7 +625,7 @@ def allocate_scope(config: Config, pid: int) -> None:
             scope,
             "fail",
             "4",
-            "Description", "s", f"mkosi Virtual Machine {name}",
+            "Description", "s", description,
             "CollectMode", "s", "inactive-or-failed",
             "PIDs", "au", "1", str(pid),
             "AddRef", "b", "1",
@@ -1002,7 +1012,13 @@ def run_qemu(args: Args, config: Config) -> None:
             for fd in qemu_device_fds.values():
                 os.close(fd)
 
-            allocate_scope(config, qemu.pid)
+            name = f"mkosi-{config.machine_or_name().replace('_', '-')}"
+            allocate_scope(
+                config,
+                name=name,
+                pid=qemu.pid,
+                description=f"mkosi Virtual Machine {name}",
+            )
             register_machine(config, qemu.pid, fname)
 
     if status := int(notifications.get("EXIT_STATUS", 0)):
