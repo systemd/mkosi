@@ -428,6 +428,7 @@ def finalize_chroot_scripts(context: Context) -> contextlib.AbstractContextManag
 def finalize_config_json(config: Config) -> Iterator[Path]:
     with tempfile.NamedTemporaryFile(mode="w") as f:
         f.write(config.to_json())
+        f.flush()
         yield Path(f.name)
 
 
