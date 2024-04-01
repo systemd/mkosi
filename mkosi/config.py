@@ -1756,6 +1756,7 @@ SETTINGS = (
         section="Config",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         paths=("mkosi.configure",),
+        path_default=False,
         help="Configure script to run before doing anything",
     ),
     ConfigSetting(
@@ -2123,6 +2124,7 @@ SETTINGS = (
         section="Content",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         paths=("mkosi.sync",),
+        path_default=False,
         help="Sync script to run before starting the build",
     ),
     ConfigSetting(
