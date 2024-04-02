@@ -12,6 +12,7 @@ import os
 import resource
 import shlex
 import shutil
+import socket
 import stat
 import subprocess
 import sys
@@ -59,7 +60,7 @@ from mkosi.manifest import Manifest
 from mkosi.mounts import finalize_source_mounts, mount_overlay
 from mkosi.pager import page
 from mkosi.partition import Partition, finalize_root, finalize_roothash
-from mkosi.qemu import KernelType, copy_ephemeral, run_qemu, run_ssh
+from mkosi.qemu import KernelType, copy_ephemeral, run_qemu, run_ssh, start_journal_remote
 from mkosi.run import (
     find_binary,
     fork_and_wait,
@@ -77,7 +78,6 @@ from mkosi.util import (
     format_rlimit,
     make_executable,
     one_zero,
-    parents_below,
     read_env_file,
     round_up,
     scopedenv,
@@ -3779,6 +3779,19 @@ def run_shell(args: Args, config: Config) -> None:
             os.chmod(scratch, 0o1777)
             cmdline += ["--bind", f"{scratch}:/var/tmp"]
 
+        if args.verb == Verb.boot and config.forward_journal:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+                addr = Path(os.getenv("TMPDIR", "/tmp")) / f"mkosi-journal-remote-unix-{uuid.uuid4().hex[:16]}"
+                sock.bind(os.fspath(addr))
+                sock.listen()
+                if config.output_format == OutputFormat.directory and (stat := os.stat(fname)).st_uid != 0:
+                    os.chown(addr, stat.st_uid, stat.st_gid)
+                stack.enter_context(start_journal_remote(config, sock.fileno()))
+                cmdline += [
+                    "--bind", f"{addr}:/run/host/journal/socket",
+                    "--set-credential=journal.forward_to_socket:/run/host/journal/socket",
+                ]
+
         if args.verb == Verb.boot:
             # Add nspawn options first since systemd-nspawn ignores all options after the first argument.
             cmdline += args.cmdline
@@ -4225,15 +4238,7 @@ def run_build(args: Args, config: Config, *, resources: Path) -> None:
             continue
 
         p.mkdir(parents=True, exist_ok=True)
-
-        # If we created the directory in a parent directory owned by the invoking user, make sure the directories we
-        # just created are owned by the invoking user as well.
-        if (
-            INVOKING_USER.is_regular_user() and
-            (q := next((parent for parent in p.parents if parent.stat().st_uid == INVOKING_USER.uid), None))
-        ):
-            for parent in parents_below(p, q):
-                os.chown(parent, INVOKING_USER.uid, INVOKING_USER.gid)
+        INVOKING_USER.chown(p)
 
     # Discard setuid/setgid bits as these are inherited and can leak into the image.
     if config.build_dir:

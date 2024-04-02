@@ -37,7 +37,7 @@ from mkosi.config import (
 )
 from mkosi.log import ARG_DEBUG, die
 from mkosi.partition import finalize_root, find_partitions
-from mkosi.run import AsyncioThread, find_binary, fork_and_wait, run, spawn
+from mkosi.run import SD_LISTEN_FDS_START, AsyncioThread, find_binary, fork_and_wait, run, spawn
 from mkosi.sandbox import Mount
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
@@ -267,7 +267,7 @@ def start_swtpm(config: Config) -> Iterator[Path]:
             sock.bind(os.fspath(path))
             sock.listen()
 
-            cmdline += ["--ctrl", f"type=unixio,fd={sock.fileno()}"]
+            cmdline += ["--ctrl", f"type=unixio,fd={SD_LISTEN_FDS_START}"]
 
             with spawn(
                 cmdline,
@@ -335,7 +335,7 @@ def start_virtiofsd(config: Config, directory: Path, *, uidmap: bool) -> Iterato
         # Make sure virtiofsd can connect to the socket.
         os.chown(path, INVOKING_USER.uid, INVOKING_USER.gid)
 
-        cmdline += ["--fd", str(sock.fileno())]
+        cmdline += ["--fd", str(SD_LISTEN_FDS_START)]
 
         with spawn(
             cmdline,
@@ -409,6 +409,48 @@ def vsock_notify_handler() -> Iterator[tuple[str, dict[str, str]]]:
         logging.debug(f"Received {num_messages} notify messages totalling {format_bytes(num_bytes)} bytes")
         for k, v in messages.items():
             logging.debug(f"- {k}={v}")
+
+
+@contextlib.contextmanager
+def start_journal_remote(config: Config, sockfd: int) -> Iterator[None]:
+    assert config.forward_journal
+
+    bin = find_binary("systemd-journal-remote", "/usr/lib/systemd/systemd-journal-remote", root=config.tools())
+    if not bin:
+        die("systemd-journal-remote must be installed to forward logs from the virtual machine")
+
+    d = config.forward_journal.parent if config.forward_journal.suffix == ".journal" else config.forward_journal
+    if not d.exists():
+        d.mkdir(parents=True)
+        # Make sure COW is disabled so systemd-journal-remote doesn't complain on btrfs filesystems.
+        run(["chattr", "+C", d], check=False, stderr=subprocess.DEVNULL if not ARG_DEBUG.get() else None)
+        INVOKING_USER.chown(d)
+
+    with spawn(
+        [
+            bin,
+            "--output", config.forward_journal,
+            "--split-mode", "none" if config.forward_journal.suffix == ".journal" else "host",
+        ],
+        pass_fds=(sockfd,),
+        sandbox=config.sandbox(mounts=[Mount(config.forward_journal.parent, config.forward_journal.parent)]),
+        user=config.forward_journal.parent.stat().st_uid,
+        group=config.forward_journal.parent.stat().st_gid,
+        # If all logs go into a single file, disable compact mode to allow for journal files exceeding 4G.
+        env={"SYSTEMD_JOURNAL_COMPACT": "0" if config.forward_journal.suffix == ".journal" else "1"},
+    ) as proc:
+        yield
+        proc.terminate()
+
+
+@contextlib.contextmanager
+def start_journal_remote_vsock(config: Config) -> Iterator[str]:
+    with socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM) as sock:
+        sock.bind((socket.VMADDR_CID_ANY, socket.VMADDR_PORT_ANY))
+        sock.listen()
+
+        with start_journal_remote(config, sock.fileno()):
+            yield f"vsock-stream:{socket.VMADDR_CID_HOST}:{sock.getsockname()[1]}"
 
 
 @contextlib.contextmanager
@@ -784,7 +826,8 @@ def run_qemu(args: Args, config: Config) -> None:
     if config.qemu_kvm != ConfigFeature.disabled and have_kvm and config.architecture.can_kvm():
         accel = "kvm"
         if qemu_version(config) >= QEMU_KVM_DEVICE_VERSION:
-            cmdline += ["--add-fd", f"fd={qemu_device_fds[QemuDeviceNode.kvm]},set=1,opaque=/dev/kvm"]
+            index = list(qemu_device_fds.keys()).index(QemuDeviceNode.kvm)
+            cmdline += ["--add-fd", f"fd={SD_LISTEN_FDS_START + index},set=1,opaque=/dev/kvm"]
             accel += ",device=/dev/fdset/1"
     else:
         accel = "tcg"
@@ -804,9 +847,10 @@ def run_qemu(args: Args, config: Config) -> None:
             die(f"VSock connection ID {cid} is already in use by another virtual machine",
                 hint="Use QemuVsockConnectionId=auto to have mkosi automatically find a free vsock connection ID")
 
+        index = list(qemu_device_fds.keys()).index(QemuDeviceNode.vhost_vsock)
         cmdline += [
             "-device",
-            f"vhost-vsock-pci,guest-cid={cid},vhostfd={qemu_device_fds[QemuDeviceNode.vhost_vsock]}"
+            f"vhost-vsock-pci,guest-cid={cid},vhostfd={SD_LISTEN_FDS_START + index}"
         ]
 
     cmdline += ["-cpu", "max"]
@@ -954,6 +998,9 @@ def run_qemu(args: Args, config: Config) -> None:
         if QemuDeviceNode.vhost_vsock in qemu_device_fds:
             addr, notifications = stack.enter_context(vsock_notify_handler())
             credentials["vmm.notify_socket"] = addr
+
+        if config.forward_journal:
+            credentials["journal.forward_to_socket"] = stack.enter_context(start_journal_remote_vsock(config))
 
         for k, v in credentials.items():
             payload = base64.b64encode(v.encode()).decode()

@@ -93,6 +93,9 @@ def run_vmspawn(args: Args, config: Config) -> None:
         else:
             cmdline += ["--image", fname]
 
+        if config.forward_journal:
+            cmdline += ["--forward-journal", config.forward_journal]
+
         cmdline += [*args.cmdline, *config.kernel_command_line_extra]
 
         run(cmdline, stdin=sys.stdin, stdout=sys.stdout, env=os.environ | config.environment, log=False)
