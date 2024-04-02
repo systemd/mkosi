@@ -794,12 +794,31 @@ def config_make_dict_parser(delimiter: str,
                             *,
                             parse: Callable[[str], tuple[str, Any]],
                             unescape: bool = False,
+                            allow_paths: bool = False,
                             reset: bool = True) -> ConfigParseCallback:
     def config_parse_dict(value: Optional[str], old: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
         new = old.copy() if old else {}
 
         if value is None:
             return {}
+
+        if allow_paths and "=" not in value:
+            if Path(value).is_dir():
+                for p in Path(value).iterdir():
+                    if p.is_dir():
+                        continue
+
+                    if os.access(p, os.X_OK):
+                        new[p.name] = run([p], stdout=subprocess.PIPE, env=os.environ).stdout
+                    else:
+                        new[p.name] = p.read_text()
+            elif (p := Path(value)).exists():
+                if os.access(p, os.X_OK):
+                    new[p.name] = run([p], stdout=subprocess.PIPE, env=os.environ).stdout
+                else:
+                    new[p.name] = p.read_text()
+            else:
+                die(f"{p} does not exist")
 
         if unescape:
             lex = shlex.shlex(value, posix=True)
@@ -1756,6 +1775,7 @@ SETTINGS = (
         section="Config",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         paths=("mkosi.configure",),
+        path_default=False,
         help="Configure script to run before doing anything",
     ),
     ConfigSetting(
@@ -2123,6 +2143,7 @@ SETTINGS = (
         section="Content",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         paths=("mkosi.sync",),
+        path_default=False,
         help="Sync script to run before starting the build",
     ),
     ConfigSetting(
@@ -2619,8 +2640,10 @@ SETTINGS = (
         long="--credential",
         metavar="NAME=VALUE",
         section="Host",
-        parse=config_make_dict_parser(delimiter=" ", parse=parse_credential, unescape=True),
+        parse=config_make_dict_parser(delimiter=" ", parse=parse_credential, allow_paths=True, unescape=True),
         help="Pass a systemd credential to systemd-nspawn or qemu",
+        paths=("mkosi.credentials",),
+        path_default=False,
     ),
     ConfigSetting(
         dest="kernel_command_line_extra",
@@ -3494,17 +3517,9 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
     creds = {
         "agetty.autologin": "root",
         "login.noauth": "yes",
+        "firstboot.locale": "C.UTF-8",
+        **args.credentials,
     }
-
-    d = Path("mkosi.credentials")
-    if args.directory is not None and d.is_dir():
-        for e in d.iterdir():
-            if os.access(e, os.X_OK):
-                creds[e.name] = run([e], stdout=subprocess.PIPE, env=os.environ).stdout
-            else:
-                creds[e.name] = e.read_text()
-
-    creds |= args.credentials
 
     if "firstboot.timezone" not in creds:
         if find_binary("timedatectl"):
@@ -3517,9 +3532,6 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
             tz = "UTC"
 
         creds["firstboot.timezone"] = tz
-
-    if "firstboot.locale" not in creds:
-        creds["firstboot.locale"] = "C.UTF-8"
 
     if "ssh.authorized_keys.root" not in creds:
         if args.ssh_certificate:

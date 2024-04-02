@@ -1636,9 +1636,17 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `Credentials=`, `--credential=`
 
-: Set credentials to be passed to systemd-nspawn or qemu respectively when
-  `mkosi shell/boot` or `mkosi qemu` are used. This option takes a space separated
-  list of key=value assignments.
+: Set credentials to be passed to systemd-nspawn or qemu respectively
+  when `mkosi shell/boot` or `mkosi qemu` are used. This option takes a
+  space separated list of values which can be either key=value pairs or
+  paths. If a path is provided, if it is a file, the credential name
+  will be the name of the file. If the file is executable, the
+  credential value will be the output of executing the file. Otherwise,
+  the credential value will be the contents of the file. If the path is
+  a directory, the same logic applies to each file in the directory.
+
+: Note that values will only be treated as paths if they do not contain
+  the delimiter (`=`).
 
 `KernelCommandLineExtra=`, `--kernel-command-line-extra=`
 
