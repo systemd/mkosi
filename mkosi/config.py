@@ -3460,6 +3460,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
 
                 ns_copy = copy.deepcopy(namespace)
                 defaults_copy = copy.deepcopy(defaults)
+                parsed_includes_copy = copy.deepcopy(parsed_includes)
 
                 setattr(namespace, "image", name)
 
@@ -3472,6 +3473,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
 
                 namespace = ns_copy
                 defaults = defaults_copy
+                parsed_includes = parsed_includes_copy
 
     if not images:
         setattr(namespace, "image", None)
