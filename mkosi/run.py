@@ -172,8 +172,9 @@ def run(
     if "TMPDIR" in os.environ:
         env["TMPDIR"] = os.environ["TMPDIR"]
 
-    if "SYSTEMD_LOG_LEVEL" in os.environ:
-        env["SYSTEMD_LOG_LEVEL"] = os.environ["SYSTEMD_LOG_LEVEL"]
+    for e in ("SYSTEMD_LOG_LEVEL", "SYSTEMD_LOG_LOCATION"):
+        if e in os.environ:
+            env[e] = os.environ[e]
 
     if "HOME" not in env:
         env["HOME"] = "/"
@@ -281,8 +282,9 @@ def spawn(
     if "TMPDIR" in os.environ:
         env["TMPDIR"] = os.environ["TMPDIR"]
 
-    if "SYSTEMD_LOG_LEVEL" in os.environ:
-        env["SYSTEMD_LOG_LEVEL"] = os.environ["SYSTEMD_LOG_LEVEL"]
+    for e in ("SYSTEMD_LOG_LEVEL", "SYSTEMD_LOG_LOCATION"):
+        if e in os.environ:
+            env[e] = os.environ[e]
 
     if "HOME" not in env:
         env["HOME"] = "/"
