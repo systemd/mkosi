@@ -152,7 +152,9 @@ class Installer(DistributionInstaller):
                 [
                     "-oDebug::pkgDPkgPm=1",
                     f"-oDPkg::Pre-Install-Pkgs::=cat >{f.name}",
-                    "?essential", "?exact-name(usr-is-merged)",
+                    "?essential",
+                    "?exact-name(usr-is-merged)",
+                    "base-files",
                 ],
                 mounts=[Mount(f.name, f.name)],
             )
