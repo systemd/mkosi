@@ -1875,6 +1875,31 @@ use `%%`. The following specifiers are understood:
 | `ImageVersion=`    | `%v`      |
 | `Profile=`         | `%p`      |
 
+There are also specifiers that are independent of settings:
+
+| Specifier | Value                                   |
+|-----------|-----------------------------------------|
+| `%C`      | Parent directory of current config file |
+| `%P`      | Current working directory               |
+| `%D`      | Directory that mkosi was invoked in     |
+
+Note that the current working directory changes as mkosi parses its
+configuration. Specifically, each time mkosi parses a directory
+containing a `mkosi.conf` file, mkosi changes its working directory to
+that directory.
+
+Note that the directory that mkosi was invoked in is influenced by the
+`--directory=` command line argument.
+
+The following table shows example values for the directory specifiers
+listed above:
+
+|      | `$D/mkosi.conf` | `$D/mkosi.conf.d/abc/abc.conf` | `$D/mkosi.conf.d/abc/mkosi.conf` |
+|------|-----------------|--------------------------------|----------------------------------|
+| `%C` | `$D`            | `$D/mkosi.conf.d`              | `$D/mkosi.conf.d/qed`            |
+| `%P` | `$D`            | `$D`                           | `$D/mkosi.conf.d/qed`            |
+| `%D` | `$D`            | `$D`                           | `$D`                             |
+
 ## Supported distributions
 
 Images may be created containing installations of the following
