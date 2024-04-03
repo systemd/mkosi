@@ -3123,10 +3123,12 @@ def resolve_deps(images: Sequence[argparse.Namespace], include: Sequence[str]) -
 
 def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tuple[Args, tuple[Config, ...]]:
     # Compare inodes instead of paths so we can't get tricked by bind mounts and such.
+    namespace = argparse.Namespace()
+    defaults = argparse.Namespace()
     parsed_includes: set[tuple[int, int]] = set()
     immutable_settings: set[str] = set()
 
-    def expand_specifiers(text: str, namespace: argparse.Namespace, defaults: argparse.Namespace) -> str:
+    def expand_specifiers(text: str) -> str:
         percent = False
         result: list[str] = []
 
@@ -3142,7 +3144,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
                         logging.warning(f"Unknown specifier '%{c}' found in {text}, ignoring")
                         continue
 
-                    if (v := finalize_default(s, namespace, defaults)) is None:
+                    if (v := finalize_default(s)) is None:
                         logging.warning(
                             f"Setting {s.name} specified by specifier '%{c}' in {text} is not yet set, ignoring"
                         )
@@ -3160,10 +3162,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
         return "".join(result)
 
     @contextlib.contextmanager
-    def parse_new_includes(
-        namespace: argparse.Namespace,
-        defaults: argparse.Namespace,
-    ) -> Iterator[None]:
+    def parse_new_includes() -> Iterator[None]:
         current_num_of_includes = len(getattr(namespace, "include", []))
 
         try:
@@ -3193,7 +3192,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
                     )
 
                 with chdir(path if path.is_dir() else Path.cwd()):
-                    parse_config_one(path if path.is_file() else Path("."), namespace, defaults)
+                    parse_config_one(path if path.is_file() else Path("."))
                 parsed_includes.add((st.st_dev, st.st_ino))
 
     class ConfigAction(argparse.Action):
@@ -3214,7 +3213,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
             except KeyError:
                 die(f"Unknown setting {option_string}")
 
-            with parse_new_includes(namespace, defaults):
+            with parse_new_includes():
                 if values is None or isinstance(values, str):
                     setattr(namespace, s.dest, s.parse(values, getattr(namespace, self.dest, None)))
                 else:
@@ -3222,16 +3221,12 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
                         assert isinstance(v, str)
                         setattr(namespace, s.dest, s.parse(v, getattr(namespace, self.dest, None)))
 
-    def finalize_default(
-        setting: ConfigSetting,
-        namespace: argparse.Namespace,
-        defaults: argparse.Namespace
-    ) -> Optional[Any]:
+    def finalize_default(setting: ConfigSetting) -> Optional[Any]:
         if (v := getattr(namespace, setting.dest, None)) is not None:
             return v
 
         for d in setting.default_factory_depends:
-            finalize_default(SETTINGS_LOOKUP_BY_DEST[d], namespace, defaults)
+            finalize_default(SETTINGS_LOOKUP_BY_DEST[d])
 
         # If the setting was assigned the empty string, we don't use any configured default value.
         if not hasattr(namespace, setting.dest) and setting.dest in defaults:
@@ -3243,12 +3238,12 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
         else:
             default = setting.default
 
-        with parse_new_includes(namespace, defaults):
+        with parse_new_includes():
             setattr(namespace, setting.dest, default)
 
         return default
 
-    def match_config(path: Path, namespace: argparse.Namespace, defaults: argparse.Namespace) -> bool:
+    def match_config(path: Path) -> bool:
         condition_triggered: Optional[bool] = None
         match_triggered: Optional[bool] = None
         skip = False
@@ -3278,7 +3273,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
             negate = v.startswith("!")
             v = v.removeprefix("!")
 
-            v = expand_specifiers(v, namespace, defaults)
+            v = expand_specifiers(v)
 
             if not v:
                 die("Match value cannot be empty")
@@ -3292,7 +3287,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
 
                 # If we encounter a setting that has not been explicitly configured yet, we assign the default value
                 # first so that we can match on default values for settings.
-                if finalize_default(s, namespace, defaults) is None:
+                if finalize_default(s) is None:
                     result = False
                 else:
                     result = s.match(v, getattr(namespace, s.dest))
@@ -3316,24 +3311,19 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
 
         return match_triggered is not False
 
-    def parse_config_one(
-        path: Path,
-        namespace: argparse.Namespace,
-        defaults: argparse.Namespace,
-        profiles: bool = False,
-    ) -> bool:
+    def parse_config_one(path: Path, profiles: bool = False) -> bool:
         s: Optional[ConfigSetting] # Make mypy happy
         extras = path.is_dir()
 
         if path.is_dir():
             path = path / "mkosi.conf"
 
-        if not match_config(path, namespace, defaults):
+        if not match_config(path):
             return False
 
         if extras:
             if (path.parent / "mkosi.local.conf").exists():
-                parse_config_one(path.parent / "mkosi.local.conf", namespace, defaults)
+                parse_config_one(path.parent / "mkosi.local.conf")
 
             for s in SETTINGS:
                 ns = defaults if s.path_default else namespace
@@ -3375,13 +3365,13 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
                     canonical = s.name if k == name else f"@{s.name}"
                     logging.warning(f"Setting {k} is deprecated, please use {canonical} instead.")
 
-                v = expand_specifiers(v, namespace, defaults)
+                v = expand_specifiers(v)
 
-                with parse_new_includes(namespace, defaults):
+                with parse_new_includes():
                     setattr(ns, s.dest, s.parse(v, getattr(ns, s.dest, None)))
 
         if profiles:
-            finalize_default(SETTINGS_LOOKUP_BY_DEST["profile"], namespace, defaults)
+            finalize_default(SETTINGS_LOOKUP_BY_DEST["profile"])
             profile = getattr(namespace, "profile")
             immutable_settings.add("Profile")
 
@@ -3396,24 +3386,21 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
                 setattr(namespace, "profile", profile)
 
                 with chdir(p if p.is_dir() else Path.cwd()):
-                    parse_config_one(p if p.is_file() else Path("."), namespace, defaults)
+                    parse_config_one(p if p.is_file() else Path("."))
 
         if extras and (path.parent / "mkosi.conf.d").exists():
             for p in sorted((path.parent / "mkosi.conf.d").iterdir()):
                 if p.is_dir() or p.suffix == ".conf":
                     with chdir(p if p.is_dir() else Path.cwd()):
-                        parse_config_one(p if p.is_file() else Path("."), namespace, defaults)
+                        parse_config_one(p if p.is_file() else Path("."))
 
         return True
 
-    def finalize_defaults(namespace: argparse.Namespace, defaults: argparse.Namespace) -> None:
+    def finalize_defaults() -> None:
         for s in SETTINGS:
-            finalize_default(s, namespace, defaults)
+            finalize_default(s)
 
     images = []
-    namespace = argparse.Namespace()
-    defaults = argparse.Namespace()
-
     argv = list(argv)
 
     # Make sure the verb command gets explicitly passed. Insert a -- before the positional verb argument
@@ -3431,7 +3418,6 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
     else:
         argv += ["--", "build"]
 
-    namespace = argparse.Namespace()
     argparser = create_argument_parser(ConfigAction)
     argparser.parse_args(argv, namespace)
     cli_ns = copy.deepcopy(namespace)
@@ -3450,9 +3436,9 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
     include = ()
 
     if args.directory is not None:
-        parse_config_one(Path("."), namespace, defaults, profiles=True)
+        parse_config_one(Path("."), profiles=True)
 
-        finalize_default(SETTINGS_LOOKUP_BY_DEST["images"], namespace, defaults)
+        finalize_default(SETTINGS_LOOKUP_BY_DEST["images"])
         include = getattr(namespace, "images")
         immutable_settings.add("Images")
 
@@ -3474,19 +3460,24 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
 
                 ns_copy = copy.deepcopy(namespace)
                 defaults_copy = copy.deepcopy(defaults)
+                parsed_includes_copy = copy.deepcopy(parsed_includes)
 
-                setattr(ns_copy, "image", name)
+                setattr(namespace, "image", name)
 
                 with chdir(p if p.is_dir() else Path.cwd()):
-                    if not parse_config_one(p if p.is_file() else Path("."), ns_copy, defaults_copy):
+                    if not parse_config_one(p if p.is_file() else Path(".")):
                         continue
 
-                finalize_defaults(ns_copy, defaults_copy)
-                images += [ns_copy]
+                finalize_defaults()
+                images += [namespace]
+
+                namespace = ns_copy
+                defaults = defaults_copy
+                parsed_includes = parsed_includes_copy
 
     if not images:
         setattr(namespace, "image", None)
-        finalize_defaults(namespace, defaults)
+        finalize_defaults()
         images = [namespace]
 
     for s in vars(cli_ns):

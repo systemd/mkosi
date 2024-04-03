@@ -221,6 +221,43 @@ def test_parse_config(tmp_path: Path) -> None:
         assert config.split_artifacts is False
 
 
+def test_parse_includes_once(tmp_path: Path) -> None:
+    d = tmp_path
+
+    (d / "mkosi.conf").write_text(
+        """\
+        [Content]
+        Bootable=yes
+        BuildPackages=abc
+        """
+    )
+    (d / "abc.conf").write_text(
+        """\
+        [Content]
+        BuildPackages=def
+        """
+    )
+
+    with chdir(d):
+        _, [config] = parse_config(["--include", "abc.conf", "--include", "abc.conf"])
+        assert config.build_packages == ["def", "abc"]
+
+    (d / "mkosi.images").mkdir()
+
+    for n in ("one", "two"):
+        (d / "mkosi.images" / f"{n}.conf").write_text(
+            """\
+            [Config]
+            Include=abc.conf
+            """
+        )
+
+    with chdir(d):
+        _, [one, two] = parse_config([])
+        assert one.build_packages == ["abc", "def"]
+        assert two.build_packages == ["abc", "def"]
+
+
 def test_profiles(tmp_path: Path) -> None:
     d = tmp_path
 
