@@ -1133,6 +1133,12 @@ class Match:
     match: Callable[[str], bool]
 
 
+@dataclasses.dataclass(frozen=True)
+class Specifier:
+    char: str
+    callback: Callable[[argparse.Namespace, Path], str]
+
+
 class CustomHelpFormatter(argparse.HelpFormatter):
     def _format_action_invocation(self, action: argparse.Action) -> str:
         if not action.option_strings or action.nargs == 0:
@@ -2916,6 +2922,23 @@ MATCHES = (
 
 MATCH_LOOKUP = {m.name: m for m in MATCHES}
 
+SPECIFIERS = (
+    Specifier(
+        char="C",
+        callback=lambda ns, config: os.fspath(config.resolve().parent),
+    ),
+    Specifier(
+        char="P",
+        callback=lambda ns, config: os.fspath(Path.cwd()),
+    ),
+    Specifier(
+        char="D",
+        callback=lambda ns, config: os.fspath(ns.directory.resolve()),
+    ),
+)
+
+SPECIFIERS_LOOKUP_BY_CHAR = {s.char: s for s in SPECIFIERS}
+
 # This regular expression can be used to split "AutoBump" -> ["Auto", "Bump"]
 # and "NSpawnSettings" -> ["NSpawn", "Settings"]
 # The first part (?<=[a-z]) is a positive look behind for a lower case letter
@@ -3128,7 +3151,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
     parsed_includes: set[tuple[int, int]] = set()
     immutable_settings: set[str] = set()
 
-    def expand_specifiers(text: str) -> str:
+    def expand_specifiers(text: str, path: Path) -> str:
         percent = False
         result: list[str] = []
 
@@ -3138,19 +3161,18 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
 
                 if c == "%":
                     result += "%"
-                else:
-                    s = SETTINGS_LOOKUP_BY_SPECIFIER.get(c)
-                    if not s:
-                        logging.warning(f"Unknown specifier '%{c}' found in {text}, ignoring")
-                        continue
-
-                    if (v := finalize_default(s)) is None:
+                elif setting := SETTINGS_LOOKUP_BY_SPECIFIER.get(c):
+                    if (v := finalize_default(setting)) is None:
                         logging.warning(
-                            f"Setting {s.name} specified by specifier '%{c}' in {text} is not yet set, ignoring"
+                            f"Setting {setting.name} specified by specifier '%{c}' in {text} is not yet set, ignoring"
                         )
                         continue
 
                     result += str(v)
+                elif specifier := SPECIFIERS_LOOKUP_BY_CHAR.get(c):
+                    result += specifier.callback(namespace, path)
+                else:
+                    logging.warning(f"Unknown specifier '%{c}' found in {text}, ignoring")
             elif c == "%":
                 percent = True
             else:
@@ -3273,7 +3295,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
             negate = v.startswith("!")
             v = v.removeprefix("!")
 
-            v = expand_specifiers(v)
+            v = expand_specifiers(v, path)
 
             if not v:
                 die("Match value cannot be empty")
@@ -3365,7 +3387,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
                     canonical = s.name if k == name else f"@{s.name}"
                     logging.warning(f"Setting {k} is deprecated, please use {canonical} instead.")
 
-                v = expand_specifiers(v)
+                v = expand_specifiers(v, path)
 
                 with parse_new_includes():
                     setattr(ns, s.dest, s.parse(v, getattr(ns, s.dest, None)))

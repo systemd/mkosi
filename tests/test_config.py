@@ -920,6 +920,28 @@ def test_specifiers(tmp_path: Path) -> None:
                     ImageVersion=%v
                     OutputDirectory=%O
                     Output=%o
+                    ConfigRootDirectory=%D
+                    ConfigRootConfdir=%C
+                    ConfigRootPwd=%P
+        """
+    )
+
+    (d / "mkosi.conf.d").mkdir()
+    (d / "mkosi.conf.d/abc.conf").write_text(
+        """\
+        [Content]
+        Environment=ConfigAbcDirectory=%D
+                    ConfigAbcConfdir=%C
+                    ConfigAbcPwd=%P
+        """
+    )
+    (d / "mkosi.conf.d/qed").mkdir()
+    (d / "mkosi.conf.d/qed/mkosi.conf").write_text(
+        """
+        [Content]
+        Environment=ConfigQedDirectory=%D
+                    ConfigQedConfdir=%C
+                    ConfigQedPwd=%P
         """
     )
 
@@ -934,6 +956,15 @@ def test_specifiers(tmp_path: Path) -> None:
             "ImageVersion": "1.2.3",
             "OutputDirectory": str(Path.cwd() / "abcde"),
             "Output": "test",
+            "ConfigRootDirectory": os.fspath(d),
+            "ConfigRootConfdir": os.fspath(d),
+            "ConfigRootPwd": os.fspath(d),
+            "ConfigAbcDirectory": os.fspath(d),
+            "ConfigAbcConfdir": os.fspath(d / "mkosi.conf.d"),
+            "ConfigAbcPwd": os.fspath(d),
+            "ConfigQedDirectory": os.fspath(d),
+            "ConfigQedConfdir": os.fspath(d / "mkosi.conf.d/qed"),
+            "ConfigQedPwd": os.fspath(d / "mkosi.conf.d/qed"),
         }
 
         assert {k: v for k, v in config.environment.items() if k in expected} == expected
