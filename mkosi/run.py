@@ -112,17 +112,6 @@ def fork_and_wait(target: Callable[..., None], *args: Any, **kwargs: Any) -> Non
         raise subprocess.CalledProcessError(rc, ["self"])
 
 
-@contextlib.contextmanager
-def sigkill_to_sigterm() -> Iterator[None]:
-    old = signal.SIGKILL
-    signal.SIGKILL = signal.SIGTERM
-
-    try:
-        yield
-    finally:
-        signal.SIGKILL = old
-
-
 def log_process_failure(sandbox: Sequence[str], cmdline: Sequence[str], returncode: int) -> None:
     if returncode < 0:
         logging.error(f"Interrupted by {signal.Signals(-returncode).name} signal")
@@ -149,101 +138,34 @@ def run(
     sandbox: Sequence[PathString] = (),
     foreground: bool = True,
 ) -> CompletedProcess:
-    sandbox = [os.fspath(x) for x in sandbox]
-    cmdline = [os.fspath(x) for x in cmdline]
-
-    if ARG_DEBUG.get():
-        logging.info(f"+ {shlex.join(cmdline)}")
-
-    if not stdout and not stderr:
-        # Unless explicit redirection is done, print all subprocess
-        # output on stderr, since we do so as well for mkosi's own
-        # output.
-        stdout = sys.stderr
-
-    env = {
-        "PATH": os.environ["PATH"],
-        "TERM": os.getenv("TERM", "vt220"),
-        "LANG": "C.UTF-8",
-        **env,
-    }
-
-    if "TMPDIR" in os.environ:
-        env["TMPDIR"] = os.environ["TMPDIR"]
-
-    for e in ("SYSTEMD_LOG_LEVEL", "SYSTEMD_LOG_LOCATION"):
-        if e in os.environ:
-            env[e] = os.environ[e]
-
-    if "HOME" not in env:
-        env["HOME"] = "/"
-
     if input is not None:
         assert stdin is None  # stdin and input cannot be specified together
-    elif stdin is None:
-        stdin = subprocess.DEVNULL
+        stdin = subprocess.PIPE
 
-    def preexec() -> None:
-        if foreground:
-            make_foreground_process()
-        if preexec_fn:
-            preexec_fn()
+    with spawn(
+        cmdline,
+        check=check,
+        stdin=stdin,
+        stdout=stdout,
+        stderr=stderr,
+        user=user,
+        group=group,
+        env=env,
+        cwd=cwd,
+        log=log,
+        preexec_fn=preexec_fn,
+        sandbox=sandbox,
+        foreground=foreground,
+    ) as process:
+        out, err = process.communicate(input)
 
-    if (
-        foreground and
-        sandbox and
-        subprocess.run(sandbox + ["sh", "-c", "command -v setpgid"], stdout=subprocess.DEVNULL).returncode == 0
-    ):
-        cmdline = ["setpgid", "--foreground", "--"] + cmdline
-
-    try:
-        # subprocess.run() will use SIGKILL to kill processes when an exception is raised.
-        # We'd prefer it to use SIGTERM instead but since this we can't configure which signal
-        # should be used, we override the constant in the signal module instead before we call
-        # subprocess.run().
-        with sigkill_to_sigterm():
-            return subprocess.run(
-                sandbox + cmdline,
-                check=check,
-                stdin=stdin,
-                stdout=stdout,
-                stderr=stderr,
-                input=input,
-                text=True,
-                user=user,
-                group=group,
-                env=env,
-                cwd=cwd,
-                preexec_fn=preexec,
-            )
-    except FileNotFoundError as e:
-        die(f"{e.filename} not found.")
-    except subprocess.CalledProcessError as e:
-        if log:
-            log_process_failure(sandbox, cmdline, e.returncode)
-        if ARG_DEBUG_SHELL.get():
-            subprocess.run(
-                [*sandbox, "bash"],
-                check=False,
-                stdin=sys.stdin,
-                text=True,
-                user=user,
-                group=group,
-                env=env,
-                cwd=cwd,
-                preexec_fn=preexec,
-            )
-        # Remove the sandboxing stuff from the command line to show a more readable error to users.
-        e.cmd = cmdline
-        raise
-    finally:
-        if foreground:
-            make_foreground_process(new_process_group=False)
+    return CompletedProcess(cmdline, process.returncode, out, err)
 
 
 @contextlib.contextmanager
 def spawn(
     cmdline: Sequence[PathString],
+    check: bool = True,
     stdin: _FILE = None,
     stdout: _FILE = None,
     stderr: _FILE = None,
@@ -357,7 +279,24 @@ def spawn(
                 proc.terminate()
                 raise
             finally:
-                proc.wait()
+                returncode = proc.wait()
+
+            if check and returncode:
+                if log:
+                    log_process_failure(sandbox, cmdline, returncode)
+                if ARG_DEBUG_SHELL.get():
+                    subprocess.run(
+                        [*sandbox, "bash"],
+                        check=False,
+                        stdin=sys.stdin,
+                        text=True,
+                        user=user,
+                        group=group,
+                        env=env,
+                        cwd=cwd,
+                        preexec_fn=preexec_fn,
+                    )
+                raise subprocess.CalledProcessError(returncode, cmdline)
     except FileNotFoundError as e:
         die(f"{e.filename} not found.")
     finally:
