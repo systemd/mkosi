@@ -354,6 +354,7 @@ def spawn(
                 yield proc
             except BaseException:
                 proc.terminate()
+                raise
             finally:
                 proc.wait()
     except FileNotFoundError as e:
