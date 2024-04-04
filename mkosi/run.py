@@ -244,6 +244,14 @@ def spawn(
             # expect it to pick.
             assert nfd == SD_LISTEN_FDS_START + i
 
+    # First, check if the sandbox works at all before executing the command.
+    if sandbox and (rc := subprocess.run(sandbox + ["true"]).returncode) != 0:
+        log_process_failure(sandbox, cmdline, rc)
+        raise subprocess.CalledProcessError(rc, sandbox + cmdline)
+
+    if subprocess.run(sandbox + ["sh", "-c", f"command -v {cmdline[0]}"], stdout=subprocess.DEVNULL).returncode != 0:
+        die(f"{cmdline[0]} not found.", hint=f"Is {cmdline[0]} installed on the host system?")
+
     if (
         foreground and
         sandbox and
