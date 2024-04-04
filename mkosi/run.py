@@ -359,10 +359,6 @@ def spawn(
                 proc.wait()
     except FileNotFoundError as e:
         die(f"{e.filename} not found.")
-    except subprocess.CalledProcessError as e:
-        if log:
-            log_process_failure(sandbox, cmdline, e.returncode)
-        raise e
     finally:
         if foreground:
             make_foreground_process(new_process_group=False)
