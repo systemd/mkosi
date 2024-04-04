@@ -38,7 +38,7 @@ class Zypper(PackageManager):
         ]
 
         return {
-            "zypper": apivfs_cmd() + cls.cmd(context),
+            "zypper": apivfs_cmd() + cls.env_cmd(context) + cls.cmd(context),
             "rpm"   : apivfs_cmd() + rpm_cmd(),
             "mkosi-install"  : install,
             "mkosi-upgrade"  : ["zypper", "update"],
@@ -105,8 +105,6 @@ class Zypper(PackageManager):
     @classmethod
     def cmd(cls, context: Context) -> list[PathString]:
         return [
-            "env",
-            *([f"{k}={v}" for k, v in cls.finalize_environment(context).items()]),
             "zypper",
             "--installroot=/buildroot",
             "--cache-dir=/var/cache/zypp",
@@ -138,7 +136,7 @@ class Zypper(PackageManager):
                         options=["--dir", "/work/src", "--chdir", "/work/src"],
                     ) + (apivfs_cmd() if apivfs else [])
                 ),
-                env=context.config.environment,
+                env=context.config.environment | cls.finalize_environment(context),
                 stdout=stdout,
             )
 

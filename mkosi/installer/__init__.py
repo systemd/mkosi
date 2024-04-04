@@ -46,6 +46,10 @@ class PackageManager:
         return env
 
     @classmethod
+    def env_cmd(cls, context: Context) -> list[PathString]:
+        return ["env", *([f"{k}={v}" for k, v in cls.finalize_environment(context).items()])]
+
+    @classmethod
     def mounts(cls, context: Context) -> list[Mount]:
         mounts = [
             *finalize_crypto_mounts(tools=context.config.tools()),
