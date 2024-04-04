@@ -149,7 +149,10 @@ def rmtree(*paths: Path, tools: Path = Path("/"), sandbox: SandboxProtocol = nos
     if not paths:
         return
 
-    if find_binary("btrfs", root=tools) and (subvolumes := sorted({p for p in paths if is_subvolume(p)})):
+    if (
+        find_binary("btrfs", root=tools) and
+        (subvolumes := sorted({p for p in paths if is_subvolume(p, sandbox=sandbox)}))
+    ):
         # Silence and ignore failures since when not running as root, this will fail with a permission error unless the
         # btrfs filesystem is mounted with user_subvol_rm_allowed.
         run(["btrfs", "subvolume", "delete", *subvolumes],
