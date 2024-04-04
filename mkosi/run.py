@@ -271,6 +271,9 @@ def spawn(
         # output.
         stdout = sys.stderr
 
+    if stdin is None:
+        stdin = subprocess.DEVNULL
+
     env = {
         "PATH": os.environ["PATH"],
         "TERM": os.getenv("TERM", "vt220"),
