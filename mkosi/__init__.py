@@ -2661,6 +2661,9 @@ def check_systemd_tool(
 
 def check_tools(config: Config, verb: Verb) -> None:
     if verb == Verb.build:
+        if config.bootable != ConfigFeature.disabled:
+            check_tool(config, "depmod", reason="generate kernel module dependencies")
+
         if want_efi(config) and config.unified_kernel_images == ConfigFeature.enabled:
             check_systemd_tool(
                 config,
