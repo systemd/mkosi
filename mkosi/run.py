@@ -253,6 +253,7 @@ def spawn(
     group: Optional[int] = None,
     pass_fds: Collection[int] = (),
     env: Mapping[str, str] = {},
+    cwd: Optional[Path] = None,
     log: bool = True,
     foreground: bool = False,
     preexec_fn: Optional[Callable[[], None]] = None,
@@ -346,6 +347,7 @@ def spawn(
             # pass_fds contains the file descriptors to keep open after we've done our transformation in preexec().
             pass_fds=[SD_LISTEN_FDS_START + i for i in range(len(pass_fds))],
             env=env,
+            cwd=cwd,
             preexec_fn=preexec,
         ) as proc:
             try:
