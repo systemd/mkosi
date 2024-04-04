@@ -1462,7 +1462,6 @@ def grub_bios_setup(context: Context, partitions: Sequence[Partition]) -> None:
         # be able to do the mount and we don't know the pid beforehand.
         run(
             [
-                "sh", "-c", f"mount --bind {mountinfo.name} /proc/$$/mountinfo && exec $0 \"$@\"",
                 setup,
                 "--directory", "/grub",
                 context.staging / context.config.output_with_format,
@@ -1473,7 +1472,7 @@ def grub_bios_setup(context: Context, partitions: Sequence[Partition]) -> None:
                     Mount(context.staging, context.staging),
                     Mount(mountinfo.name, mountinfo.name),
                 ],
-            ),
+            ) + ["sh", "-c", f"mount --bind {mountinfo.name} /proc/$$/mountinfo && exec $0 \"$@\""],
         )
 
 
