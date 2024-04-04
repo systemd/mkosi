@@ -804,7 +804,7 @@ def config_make_dict_parser(delimiter: str,
 
         if allow_paths and "=" not in value:
             if Path(value).is_dir():
-                for p in Path(value).iterdir():
+                for p in sorted(Path(value).iterdir()):
                     if p.is_dir():
                         continue
 
@@ -3472,7 +3472,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
             d = None
 
         if d:
-            for p in d.iterdir():
+            for p in sorted(d.iterdir()):
                 if not p.is_dir() and not p.suffix == ".conf":
                     continue
 
