@@ -91,9 +91,9 @@ def resolve_module_dependencies(
     for i in range(0, len(nametofile.keys()), 8500):
         chunk = list(nametofile.keys())[i:i+8500]
         info += run(
-            ["modinfo", "--basedir", root, "--set-version", kver, "--null", *chunk],
+            ["modinfo", "--basedir", "/buildroot", "--set-version", kver, "--null", *chunk],
             stdout=subprocess.PIPE,
-            sandbox=sandbox(mounts=[Mount(root, root, ro=True)]),
+            sandbox=sandbox(mounts=[Mount(root, "/buildroot", ro=True)]),
         ).stdout.strip()
 
     log_step("Calculating required kernel modules and firmware")
