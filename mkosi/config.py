@@ -3098,6 +3098,11 @@ def create_argument_parser(action: type[argparse.Action]) -> argparse.ArgumentPa
         action="store_true",
         default=False,
     )
+    parser.add_argument(
+        "--append",
+        help="All settings passed after this argument will be parsed after all configuration files are parsed",
+        action="store_true",
+    )
     # These can be removed once mkosi v15 is available in LTS distros and compatibility with <= v14
     # is no longer needed in build infrastructure (e.g.: OBS).
     parser.add_argument(
@@ -3196,6 +3201,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
     defaults = argparse.Namespace()
     parsed_includes: set[tuple[int, int]] = set()
     immutable_settings: set[str] = set()
+    append = False
 
     def expand_specifiers(text: str, path: Path) -> str:
         percent = False
@@ -3272,6 +3278,9 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
             option_string: Optional[str] = None
         ) -> None:
             assert option_string is not None
+
+            if getattr(namespace, "append", False) != append:
+                return
 
             if values is None and self.nargs == "?":
                 values = self.const or "yes"
@@ -3547,6 +3556,11 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
         setattr(namespace, "image", None)
         finalize_defaults()
         images = [namespace]
+
+    append = True
+
+    for ns in images:
+        argparser.parse_args(argv, ns)
 
     for s in vars(cli_ns):
         if s not in SETTINGS_LOOKUP_BY_DEST:
