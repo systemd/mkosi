@@ -52,7 +52,7 @@ class Apt(PackageManager):
     def scripts(cls, context: Context) -> dict[str, list[PathString]]:
         return {
             **{
-                command: apivfs_cmd() + cls.cmd(context, command) for command in (
+                command: apivfs_cmd() + cls.env_cmd(context) + cls.cmd(context, command) for command in (
                     "apt",
                     "apt-cache",
                     "apt-cdrom",
@@ -128,8 +128,6 @@ class Apt(PackageManager):
         debarch = context.config.distribution.architecture(context.config.architecture)
 
         cmdline: list[PathString] = [
-            "env",
-            *([f"{k}={v}" for k, v in cls.finalize_environment(context).items()]),
             command,
             "-o", f"APT::Architecture={debarch}",
             "-o", f"APT::Architectures={debarch}",
@@ -204,7 +202,7 @@ class Apt(PackageManager):
                         options=["--dir", "/work/src", "--chdir", "/work/src"],
                     ) + (apivfs_cmd() if apivfs else [])
                 ),
-                env=context.config.environment,
+                env=context.config.environment | cls.finalize_environment(context),
                 stdout=stdout,
             )
 

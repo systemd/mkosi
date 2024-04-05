@@ -39,7 +39,7 @@ class Dnf(PackageManager):
     @classmethod
     def scripts(cls, context: Context) -> dict[str, list[PathString]]:
         return {
-            "dnf": apivfs_cmd() + cls.cmd(context),
+            "dnf": apivfs_cmd() + cls.env_cmd(context) + cls.cmd(context),
             "rpm": apivfs_cmd() + rpm_cmd(),
             "mkosi-install"  : ["dnf", "install"],
             "mkosi-upgrade"  : ["dnf", "upgrade"],
@@ -99,8 +99,6 @@ class Dnf(PackageManager):
         dnf = cls.executable(context.config)
 
         cmdline: list[PathString] = [
-            "env",
-            *([f"{k}={v}" for k, v in cls.finalize_environment(context).items()]),
             dnf,
             "--assumeyes",
             "--best",
@@ -183,7 +181,7 @@ class Dnf(PackageManager):
                             options=["--dir", "/work/src", "--chdir", "/work/src"],
                         ) + (apivfs_cmd() if apivfs else [])
                     ),
-                    env=context.config.environment,
+                    env=context.config.environment | cls.finalize_environment(context),
                     stdout=stdout,
                 )
         finally:

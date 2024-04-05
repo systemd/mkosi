@@ -37,7 +37,7 @@ class Pacman(PackageManager):
     @classmethod
     def scripts(cls, context: Context) -> dict[str, list[PathString]]:
         return {
-            "pacman": apivfs_cmd() + cls.cmd(context),
+            "pacman": apivfs_cmd() + cls.env_cmd(context) + cls.cmd(context),
             "mkosi-install"  : ["pacman", "--sync", "--needed"],
             "mkosi-upgrade"  : ["pacman", "--sync", "--sysupgrade", "--needed"],
             "mkosi-remove"   : ["pacman", "--remove", "--recursive", "--nosave"],
@@ -127,8 +127,6 @@ class Pacman(PackageManager):
     @classmethod
     def cmd(cls, context: Context) -> list[PathString]:
         return [
-            "env",
-            *([f"{k}={v}" for k, v in cls.finalize_environment(context).items()]),
             "pacman",
             "--root=/buildroot",
             "--logfile=/dev/null",
@@ -166,7 +164,7 @@ class Pacman(PackageManager):
                         options=["--dir", "/work/src", "--chdir", "/work/src"],
                     ) + (apivfs_cmd() if apivfs else [])
                 ),
-                env=context.config.environment,
+                env=context.config.environment | cls.finalize_environment(context),
                 stdout=stdout,
             )
 

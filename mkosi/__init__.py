@@ -1462,7 +1462,6 @@ def grub_bios_setup(context: Context, partitions: Sequence[Partition]) -> None:
         # be able to do the mount and we don't know the pid beforehand.
         run(
             [
-                "sh", "-c", f"mount --bind {mountinfo.name} /proc/$$/mountinfo && exec $0 \"$@\"",
                 setup,
                 "--directory", "/grub",
                 context.staging / context.config.output_with_format,
@@ -1473,7 +1472,7 @@ def grub_bios_setup(context: Context, partitions: Sequence[Partition]) -> None:
                     Mount(context.staging, context.staging),
                     Mount(mountinfo.name, mountinfo.name),
                 ],
-            ),
+            ) + ["sh", "-c", f"mount --bind {mountinfo.name} /proc/$$/mountinfo && exec $0 \"$@\""],
         )
 
 
@@ -2491,16 +2490,7 @@ def calculate_signature(context: Context) -> None:
     if context.config.output_format == OutputFormat.directory:
         return
 
-    # GPG messes with the user's home directory so we run it as the invoking user.
-
-    cmdline: list[PathString] = [
-        "setpriv",
-        f"--reuid={INVOKING_USER.uid}",
-        f"--regid={INVOKING_USER.gid}",
-        "--clear-groups",
-        "gpg",
-        "--detach-sign",
-    ]
+    cmdline: list[PathString] = ["gpg", "--detach-sign"]
 
     # Need to specify key before file to sign
     if context.config.key is not None:
@@ -2529,7 +2519,17 @@ def calculate_signature(context: Context) -> None:
         open(context.staging / context.config.output_checksum, "rb") as i,
         open(context.staging / context.config.output_signature, "wb") as o,
     ):
-        run(cmdline, env=env, stdin=i, stdout=o, sandbox=context.sandbox(mounts=mounts, options=options))
+        run(
+            cmdline,
+            env=env,
+            stdin=i,
+            stdout=o,
+            # GPG messes with the user's home directory so we run it as the invoking user.
+            sandbox=context.sandbox(
+                mounts=mounts,
+                options=options,
+            ) + ["setpriv", f"--reuid={INVOKING_USER.uid}", f"--regid={INVOKING_USER.gid}", "--clear-groups"]
+        )
 
 
 def dir_size(path: Union[Path, os.DirEntry[str]]) -> int:
@@ -2661,6 +2661,9 @@ def check_systemd_tool(
 
 def check_tools(config: Config, verb: Verb) -> None:
     if verb == Verb.build:
+        if config.bootable != ConfigFeature.disabled:
+            check_tool(config, "depmod", reason="generate kernel module dependencies")
+
         if want_efi(config) and config.unified_kernel_images == ConfigFeature.enabled:
             check_systemd_tool(
                 config,
