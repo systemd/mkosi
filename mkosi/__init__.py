@@ -21,7 +21,7 @@ import textwrap
 import uuid
 from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
-from typing import Optional, TextIO, Union, cast
+from typing import Optional, Union, cast
 
 from mkosi.archive import extract_tar, make_cpio, make_tar
 from mkosi.burn import run_burn
@@ -76,6 +76,7 @@ from mkosi.util import (
     flock,
     flock_or_die,
     format_rlimit,
+    hash_file,
     make_executable,
     one_zero,
     read_env_file,
@@ -2457,17 +2458,6 @@ def copy_initrd(context: Context) -> None:
         break
 
 
-def hash_file(of: TextIO, path: Path) -> None:
-    bs = 16 * 1024**2
-    h = hashlib.sha256()
-
-    with path.open("rb") as sf:
-        while (buf := sf.read(bs)):
-            h.update(buf)
-
-    of.write(h.hexdigest() + " *" + path.name + "\n")
-
-
 def calculate_sha256sum(context: Context) -> None:
     if not context.config.checksum:
         return
@@ -2478,7 +2468,7 @@ def calculate_sha256sum(context: Context) -> None:
     with complete_step("Calculating SHA256SUMS…"):
         with open(context.workspace / context.config.output_checksum, "w") as f:
             for p in context.staging.iterdir():
-                hash_file(f, p)
+                print(hash_file(p) + " *" + p.name, file=f)
 
         (context.workspace / context.config.output_checksum).rename(context.staging / context.config.output_checksum)
 
@@ -3276,6 +3266,103 @@ def make_disk(
     return make_image(context, msg=msg, skip=skip, split=split, tabs=tabs, root=context.root, definitions=definitions)
 
 
+def make_oci(context: Context, root_layer: Path, dst: Path) -> None:
+    ca_store = dst / "blobs" / "sha256"
+    with umask(~0o755):
+        ca_store.mkdir(parents=True)
+
+    layer_diff_digest = hash_file(root_layer)
+    maybe_compress(
+        context,
+        context.config.compress_output,
+        context.staging / "rootfs.layer",
+        # Pass explicit destination to suppress adding an extension
+        context.staging / "rootfs.layer",
+    )
+    layer_digest = hash_file(root_layer)
+    root_layer.rename(ca_store / layer_digest)
+
+    creation_time = (
+        datetime.datetime.fromtimestamp(context.config.source_date_epoch, tz=datetime.timezone.utc)
+        if context.config.source_date_epoch is not None
+        else datetime.datetime.now(tz=datetime.timezone.utc)
+    ).isoformat()
+
+    oci_config = {
+        "created": creation_time,
+        "architecture": context.config.architecture.to_oci(),
+        # Name of the operating system which the image is built to run on as defined by
+        # https://github.com/opencontainers/image-spec/blob/v1.0.2/config.md#properties.
+        "os": "linux",
+        "rootfs": {
+            "type": "layers",
+            "diff_ids": [f"sha256:{layer_diff_digest}"],
+        },
+        "config": {
+            "Cmd": [
+                "/sbin/init",
+                *context.config.kernel_command_line,
+            ],
+        },
+        "history": [
+            {
+                "created": creation_time,
+                "comment": "Created by mkosi",
+            },
+        ],
+    }
+    oci_config_blob = json.dumps(oci_config)
+    oci_config_digest = hashlib.sha256(oci_config_blob.encode()).hexdigest()
+    with umask(~0o644):
+        (ca_store / oci_config_digest).write_text(oci_config_blob)
+
+    layer_suffix = context.config.compress_output.oci_media_type_suffix()
+    oci_manifest = {
+        "schemaVersion": 2,
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "config": {
+            "mediaType": "application/vnd.oci.image.config.v1+json",
+            "digest": f"sha256:{oci_config_digest}",
+            "size": (ca_store / oci_config_digest).stat().st_size,
+        },
+        "layers": [
+            {
+                "mediaType": f"application/vnd.oci.image.layer.v1.tar{layer_suffix}",
+                "digest": f"sha256:{layer_digest}",
+                "size": (ca_store / layer_digest).stat().st_size,
+            }
+        ],
+        "annotations": {
+            "io.systemd.mkosi.version": __version__,
+            **({
+                "org.opencontainers.image.version": context.config.image_version,
+            } if context.config.image_version else {}),
+        }
+    }
+    oci_manifest_blob = json.dumps(oci_manifest)
+    oci_manifest_digest = hashlib.sha256(oci_manifest_blob.encode()).hexdigest()
+    with umask(~0o644):
+        (ca_store / oci_manifest_digest).write_text(oci_manifest_blob)
+
+        (dst / "index.json").write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 2,
+                    "mediaType": "application/vnd.oci.image.index.v1+json",
+                    "manifests": [
+                        {
+                            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                            "digest": f"sha256:{oci_manifest_digest}",
+                            "size": (ca_store / oci_manifest_digest).stat().st_size,
+                        }
+                    ],
+                }
+            )
+        )
+
+        (dst / "oci-layout").write_text(json.dumps({"imageLayoutVersion": "1.0.0"}))
+
+
 def make_esp(context: Context, uki: Path) -> list[Partition]:
     if not (arch := context.config.architecture.to_efi()):
         die(f"Architecture {context.config.architecture} does not support UEFI")
@@ -3576,6 +3663,17 @@ def build_image(context: Context) -> None:
             context.root, context.staging / context.config.output_with_format,
             tools=context.config.tools(),
             sandbox=context.sandbox,
+        )
+    elif context.config.output_format == OutputFormat.oci:
+        make_tar(
+            context.root, context.staging / "rootfs.layer",
+            tools=context.config.tools(),
+            sandbox=context.sandbox,
+        )
+        make_oci(
+            context,
+            context.staging / "rootfs.layer",
+            context.staging / context.config.output_with_format,
         )
     elif context.config.output_format == OutputFormat.cpio:
         make_cpio(

@@ -173,6 +173,7 @@ class OutputFormat(StrEnum):
     sysext    = enum.auto()
     tar       = enum.auto()
     uki       = enum.auto()
+    oci       = enum.auto()
 
     def extension(self) -> str:
         return {
@@ -205,6 +206,7 @@ class Compression(StrEnum):
     xz   = enum.auto()
     bz2  = enum.auto()
     gz   = enum.auto()
+    gzip = "gz"
     lz4  = enum.auto()
     lzma = enum.auto()
 
@@ -215,6 +217,18 @@ class Compression(StrEnum):
         return {
             Compression.zstd: ".zst"
         }.get(self, f".{self}")
+
+    def oci_media_type_suffix(self) -> str:
+        suffix = {
+            Compression.none: "",
+            Compression.gz:   "+gzip",
+            Compression.zstd: "+zstd",
+        }.get(self)
+
+        if not suffix:
+            die(f"Compression {self} not supported for OCI layers")
+
+        return suffix
 
 
 class DocFormat(StrEnum):
@@ -376,6 +390,28 @@ class Architecture(StrEnum):
 
         if not a:
             die(f"Architecture {self} not supported by QEMU")
+
+        return a
+
+    def to_oci(self) -> str:
+        a = {
+            Architecture.arm         : "arm",
+            Architecture.arm64       : "arm64",
+            Architecture.loongarch64 : "loong64",
+            Architecture.mips64_le   : "mips64le",
+            Architecture.mips_le     : "mipsle",
+            Architecture.ppc         : "ppc",
+            Architecture.ppc64       : "ppc64",
+            Architecture.ppc64_le    : "ppc64le",
+            Architecture.riscv32     : "riscv",
+            Architecture.riscv64     : "riscv64",
+            Architecture.s390x       : "s390x",
+            Architecture.x86         : "386",
+            Architecture.x86_64      : "amd64",
+        }.get(self)
+
+        if not a:
+            die(f"Architecture {self} not supported by OCI")
 
         return a
 
@@ -634,6 +670,8 @@ def config_default_compression(namespace: argparse.Namespace) -> Compression:
             return Compression.xz
         else:
             return Compression.zstd
+    elif namespace.output_format == OutputFormat.oci:
+        return Compression.gz
     else:
         return Compression.none
 
