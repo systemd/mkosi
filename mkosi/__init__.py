@@ -2974,6 +2974,8 @@ def run_selinux_relabel(context: Context) -> None:
         return
 
     policy, fc, binpolicy = selinux
+    fc = Path("/buildroot") / fc.relative_to(context.root)
+    binpolicy = Path("/buildroot") / binpolicy.relative_to(context.root)
 
     with complete_step(f"Relabeling files using {policy} policy"):
         run(["setfiles", "-mFr", "/buildroot", "-c", binpolicy, fc, "/buildroot"],
