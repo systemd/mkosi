@@ -1,0 +1,101 @@
+name: Bug Report
+description: A report of an error in mkosi
+labels: ["bug"]
+
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to fill out this bug report!
+
+  - type: input
+    id: version
+    attributes:
+      label: mkosi commit the issue has been seen with
+      description: |
+        Please do not submit bug reports against older releases, but use your distribution bug tracker.
+        Please also test whether your bug has been already resolved on the current git main.
+      placeholder: 'main'
+    validations:
+      required: true
+
+  - type: input
+    id: hostdistro
+    attributes:
+      label: Used host distribution
+      description: Used distribution on the host (or in the tools tree) and its version
+      placeholder: Fedora 39
+    validations:
+      required: false
+
+  - type: input
+    id: targetdistro
+    attributes:
+      label: Used target distribution
+      description: Used distribution for the image and its version
+      placeholder: Fedora 39
+    validations:
+      required: false
+
+  - type: input
+    id: kernel
+    attributes:
+      label: Linux kernel version used
+      description: |
+        Please use `uname -r` to get linux kernel version.
+      placeholder: kernel-6.6.8-200.fc39.x86_64
+    validations:
+      required: false
+
+  - type: dropdown
+    id: architecture
+    attributes:
+      label: CPU architectures issue was seen on
+      options:
+        - aarch64
+        - alpha
+        - arm
+        - i686
+        - ia64
+        - loongarch
+        - mips
+        - parisc
+        - ppc (big endian)
+        - ppc64 (big endian)
+        - ppc64le
+        - riscv64
+        - s390x
+        - sparc
+        - sparc64
+        - x86_64
+        - other
+    validations:
+      required: false
+
+  - type: textarea
+    id: unexpected-behaviour
+    attributes:
+      label: Unexpected behaviour you saw
+    validations:
+      required: false
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Used mkosi config
+      description: |
+        Please add a, preferably minimised, mkosi config to reproduce the issue here.
+      placeholder: This will be automatically formatted into code, so no need for backticks.
+      render: ini
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label:
+      description: |
+        Please paste the full mkosi debug output here.
+      placeholder: This will be automatically formatted into code, so no need for backticks.
+      render: sh
+    validations:
+      required: false
