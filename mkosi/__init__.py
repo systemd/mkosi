@@ -3851,6 +3851,15 @@ def run_shell(args: Args, config: Config) -> None:
         else:
             cmdline += ["--image", fname]
 
+        if config.runtime_build_sources:
+            with finalize_source_mounts(config, ephemeral=False) as mounts:
+                for mount in mounts:
+                    uidmap = "rootidmap" if Path(mount.src).stat().st_uid == INVOKING_USER.uid else "noidmap"
+                    cmdline += ["--bind", f"{mount.src}:{mount.dst}:norbind,{uidmap}"]
+
+            if config.build_dir:
+                cmdline += ["--bind", f"{config.build_dir}:/work/build:norbind,noidmap"]
+
         for tree in config.runtime_trees:
             target = Path("/root/src") / (tree.target or "")
             # We add norbind because very often RuntimeTrees= will be used to mount the source directory into the

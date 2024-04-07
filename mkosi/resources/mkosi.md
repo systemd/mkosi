@@ -1821,6 +1821,13 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   `systemd-networkd` is running on the host which will automatically
   configure the host interface of the link.
 
+`RuntimeBuildSources=`, `--runtime-build-sources=`
+
+: Mount the build sources configured with `BuildSources=` and the build
+  directory (if one is configured) to the same locations in `/work` that
+  they were mounted to when running the build script when using `mkosi
+  boot` or `mkosi qemu`.
+
 `SshKey=`, `--ssh-key=`
 
 : Path to the X509 private key in PEM format to use to connect to a

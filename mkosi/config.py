@@ -1475,6 +1475,7 @@ class Config:
     runtime_size: Optional[int]
     runtime_scratch: ConfigFeature
     runtime_network: Network
+    runtime_build_sources: bool
     ssh_key: Optional[Path]
     ssh_certificate: Optional[Path]
     machine: Optional[str]
@@ -2795,6 +2796,13 @@ SETTINGS = (
         default=Network.user,
     ),
     ConfigSetting(
+        dest="runtime_build_sources",
+        metavar="BOOL",
+        section="Host",
+        parse=config_parse_boolean,
+        help="Mount build sources and build directory in /work when booting the image",
+    ),
+    ConfigSetting(
         dest="ssh_key",
         metavar="PATH",
         section="Host",
@@ -3948,6 +3956,7 @@ def summary(config: Config) -> str:
                        Runtime Size: {format_bytes_or_none(config.runtime_size)}
                     Runtime Scratch: {config.runtime_scratch}
                     Runtime Network: {config.runtime_network}
+              Runtime Build Sources: {config.runtime_build_sources}
                     SSH Signing Key: {none_to_none(config.ssh_key)}
                     SSH Certificate: {none_to_none(config.ssh_certificate)}
                             Machine: {config.machine_or_name()}

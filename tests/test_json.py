@@ -259,6 +259,7 @@ def test_config() -> None:
                 false
             ],
             "RootShell": "/bin/tcsh",
+            "RuntimeBuildSources": true,
             "RuntimeNetwork": "interface",
             "RuntimeScratch": "enabled",
             "RuntimeSize": 8589934592,
@@ -439,6 +440,7 @@ def test_config() -> None:
         repository_key_check = False,
         root_password = ("test1234", False),
         root_shell = "/bin/tcsh",
+        runtime_build_sources = True,
         runtime_network = Network.interface,
         runtime_scratch = ConfigFeature.enabled,
         runtime_size = 8589934592,
