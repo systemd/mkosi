@@ -3858,7 +3858,8 @@ def run_shell(args: Args, config: Config) -> None:
             # source directory which would mean we'd be mounting the container root directory as a subdirectory in
             # itself which tends to lead to all kinds of weird issues, which we avoid by not doing a recursive mount
             # which means the container root directory mounts will be skipped.
-            cmdline += ["--bind", f"{tree.source}:{target}:norbind,rootidmap"]
+            uidmap = "rootidmap" if tree.source.stat().st_uid == INVOKING_USER.uid else "noidmap"
+            cmdline += ["--bind", f"{tree.source}:{target}:norbind,{uidmap}"]
 
         if config.runtime_scratch == ConfigFeature.enabled or (
             config.runtime_scratch == ConfigFeature.auto and

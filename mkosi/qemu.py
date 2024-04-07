@@ -298,7 +298,9 @@ def find_virtiofsd(*, tools: Path = Path("/")) -> Optional[Path]:
 
 
 @contextlib.contextmanager
-def start_virtiofsd(config: Config, directory: Path, *, uidmap: bool) -> Iterator[Path]:
+def start_virtiofsd(config: Config, directory: Path, *, name: str, selinux: bool = False) -> Iterator[Path]:
+    uidmap = directory.stat().st_uid == INVOKING_USER.uid
+
     virtiofsd = find_virtiofsd(tools=config.tools())
     if virtiofsd is None:
         die("virtiofsd must be installed to boot directory images or use RuntimeTrees= with mkosi qemu")
@@ -314,7 +316,7 @@ def start_virtiofsd(config: Config, directory: Path, *, uidmap: bool) -> Iterato
         f"--inode-file-handles={'prefer' if os.getuid() == 0 and not uidmap else 'never'}",
     ]
 
-    if not uidmap and want_selinux_relabel(config, directory, fatal=False):
+    if selinux:
         cmdline += ["--security-label"]
 
     # We create the socket ourselves and pass the fd to virtiofsd to avoid race conditions where we start qemu
@@ -354,7 +356,7 @@ def start_virtiofsd(config: Config, directory: Path, *, uidmap: bool) -> Iterato
         ) as proc:
             allocate_scope(
                 config,
-                name=f"mkosi-virtiofsd-{directory}" if uidmap else f"mkosi-virtiofsd-{config.machine_or_name()}",
+                name=f"mkosi-virtiofsd-{name}",
                 pid=proc.pid,
                 description=f"virtiofsd for {directory}",
             )
@@ -938,7 +940,13 @@ def run_qemu(args: Args, config: Config) -> None:
 
                 kcl += [root]
             elif config.output_format == OutputFormat.directory:
-                sock = stack.enter_context(start_virtiofsd(config, fname, uidmap=False))
+                sock = stack.enter_context(
+                    start_virtiofsd(
+                        config,
+                        fname,
+                        name=config.machine_or_name(),
+                        selinux=bool(want_selinux_relabel(config, fname, fatal=False))),
+                )
                 cmdline += [
                     "-chardev", f"socket,id={sock.name},path={sock}",
                     "-device", f"vhost-user-fs-pci,queue-size=1024,chardev={sock.name},tag=root",
@@ -946,7 +954,7 @@ def run_qemu(args: Args, config: Config) -> None:
                 kcl += ["root=root", "rootfstype=virtiofs", "rw"]
 
         for tree in config.runtime_trees:
-            sock = stack.enter_context(start_virtiofsd(config, tree.source, uidmap=True))
+            sock = stack.enter_context(start_virtiofsd(config, tree.source, name=os.fspath(tree.source)))
             tag = tree.target.name if tree.target else tree.source.name
             cmdline += [
                 "-chardev", f"socket,id={sock.name},path={sock}",
