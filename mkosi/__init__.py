@@ -4330,15 +4330,19 @@ def run_build(args: Args, config: Config, *, resources: Path) -> None:
         p.mkdir(parents=True, exist_ok=True)
         INVOKING_USER.chown(p)
 
-    # Discard setuid/setgid bits as these are inherited and can leak into the image.
-    if config.build_dir:
-        config.build_dir.chmod(stat.S_IMODE(config.build_dir.stat().st_mode) & ~(stat.S_ISGID|stat.S_ISUID))
-
     if (uid := os.getuid()) != 0:
         become_root()
     unshare(CLONE_NEWNS)
     if uid == 0:
         run(["mount", "--make-rslave", "/"])
+
+    if config.build_dir:
+        # Make sure the build directory is owned by root (in the user namespace) so that the correct uid-mapping is
+        # applied if it is used in RuntimeTrees=
+        os.chown(config.build_dir, os.getuid(), os.getgid())
+
+        # Discard setuid/setgid bits as these are inherited and can leak into the image.
+        config.build_dir.chmod(stat.S_IMODE(config.build_dir.stat().st_mode) & ~(stat.S_ISGID|stat.S_ISUID))
 
     # For extra safety when running as root, remount a bunch of stuff read-only.
     # Because some build systems use output directories in /usr, we only remount
