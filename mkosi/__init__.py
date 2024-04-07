@@ -390,10 +390,11 @@ def finalize_scripts(scripts: Mapping[str, Sequence[PathString]], root: Path) ->
         yield Path(d)
 
 
-GIT_COMMAND = (
-    "git",
-    "-c", "safe.directory=*",
-)
+GIT_ENV = {
+    "GIT_CONFIG_COUNT": "1",
+    "GIT_CONFIG_KEY_0": "safe.directory",
+    "GIT_CONFIG_VALUE_0": "*",
+}
 
 
 def mkosi_as_caller() -> tuple[str, ...]:
@@ -410,19 +411,10 @@ def finalize_host_scripts(
     helpers: Mapping[str, Sequence[PathString]] = {},
 ) -> contextlib.AbstractContextManager[Path]:
     scripts: dict[str, Sequence[PathString]] = {}
-    if find_binary("git", root=context.config.tools()):
-        scripts["git"] = GIT_COMMAND
     for binary in ("useradd", "groupadd"):
         if find_binary(binary, root=context.config.tools()):
             scripts[binary] = (binary, "--root", "/buildroot")
     return finalize_scripts(scripts | dict(helpers), root=context.config.tools())
-
-
-def finalize_chroot_scripts(context: Context) -> contextlib.AbstractContextManager[Path]:
-    scripts: dict[str, Sequence[PathString]] = {}
-    if find_binary("git", root=context.config.tools()):
-        scripts["git"] = GIT_COMMAND
-    return finalize_scripts(scripts, root=context.root)
 
 
 @contextlib.contextmanager
@@ -551,6 +543,7 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
         WITH_DOCS=one_zero(context.config.with_docs),
         WITH_NETWORK=one_zero(context.config.with_network),
         WITH_TESTS=one_zero(context.config.with_tests),
+        **GIT_ENV,
     )
 
     if context.config.profile:
@@ -558,7 +551,6 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
 
     with (
         mount_build_overlay(context) if build else contextlib.nullcontext(),
-        finalize_chroot_scripts(context) as cd,
         finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources,
     ):
         if build:
@@ -592,7 +584,6 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
                             *sources,
                             Mount(script, "/work/prepare", ro=True),
                             Mount(json, "/work/config.json", ro=True),
-                            Mount(cd, "/work/scripts", ro=True),
                             Mount(context.root, "/buildroot"),
                             *context.config.distribution.package_manager(context.config).mounts(context),
                         ],
@@ -626,6 +617,7 @@ def run_build_scripts(context: Context) -> None:
         WITH_DOCS=one_zero(context.config.with_docs),
         WITH_NETWORK=one_zero(context.config.with_network),
         WITH_TESTS=one_zero(context.config.with_tests),
+        **GIT_ENV,
     )
 
     if context.config.profile:
@@ -639,7 +631,6 @@ def run_build_scripts(context: Context) -> None:
 
     with (
         mount_build_overlay(context, volatile=True),
-        finalize_chroot_scripts(context) as cd,
         finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources,
     ):
         for script in context.config.build_scripts:
@@ -668,7 +659,6 @@ def run_build_scripts(context: Context) -> None:
                             *sources,
                             Mount(script, "/work/build-script", ro=True),
                             Mount(json, "/work/config.json", ro=True),
-                            Mount(cd, "/work/scripts", ro=True),
                             Mount(context.root, "/buildroot"),
                             Mount(context.install_dir, "/work/dest"),
                             Mount(context.staging, "/work/out"),
@@ -708,13 +698,13 @@ def run_postinst_scripts(context: Context) -> None:
         MKOSI_UID=str(INVOKING_USER.uid),
         MKOSI_GID=str(INVOKING_USER.gid),
         MKOSI_CONFIG="/work/config.json",
+        **GIT_ENV,
     )
 
     if context.config.profile:
         env["PROFILE"] = context.config.profile
 
     with (
-        finalize_chroot_scripts(context) as cd,
         finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources,
     ):
         for script in context.config.postinst_scripts:
@@ -741,7 +731,6 @@ def run_postinst_scripts(context: Context) -> None:
                             *sources,
                             Mount(script, "/work/postinst", ro=True),
                             Mount(json, "/work/config.json", ro=True),
-                            Mount(cd, "/work/scripts", ro=True),
                             Mount(context.root, "/buildroot"),
                             Mount(context.staging, "/work/out"),
                             *context.config.distribution.package_manager(context.config).mounts(context),
@@ -771,15 +760,13 @@ def run_finalize_scripts(context: Context) -> None:
         MKOSI_UID=str(INVOKING_USER.uid),
         MKOSI_GID=str(INVOKING_USER.gid),
         MKOSI_CONFIG="/work/config.json",
+        **GIT_ENV,
     )
 
     if context.config.profile:
         env["PROFILE"] = context.config.profile
 
-    with (
-        finalize_chroot_scripts(context) as cd,
-        finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources,
-    ):
+    with finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources:
         for script in context.config.finalize_scripts:
             chroot = chroot_cmd(resolve=context.config.with_network)
 
@@ -804,7 +791,6 @@ def run_finalize_scripts(context: Context) -> None:
                             *sources,
                             Mount(script, "/work/finalize", ro=True),
                             Mount(json, "/work/config.json", ro=True),
-                            Mount(cd, "/work/scripts", ro=True),
                             Mount(context.root, "/buildroot"),
                             Mount(context.staging, "/work/out"),
                             *context.config.distribution.package_manager(context.config).mounts(context),
