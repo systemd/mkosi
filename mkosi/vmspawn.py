@@ -78,7 +78,7 @@ def run_vmspawn(args: Args, config: Config) -> None:
         apply_runtime_size(config, fname)
 
         for tree in config.runtime_trees:
-            target = Path("/root/src") / (tree.target or tree.source.name)
+            target = Path("/root/src") / (tree.target or "")
             cmdline += ["--bind", f"{tree.source}:{target}"]
 
         if kernel:

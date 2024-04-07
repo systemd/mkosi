@@ -1777,7 +1777,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   directory to mount into any machine (container or VM) started by
   mkosi. The second path refers to the target directory inside the
   machine. If the second path is not provided, the directory is mounted
-  below `/root/src` in the machine. If the second path is relative, it
+  at `/root/src` in the machine. If the second path is relative, it
   is interpreted relative to `/root/src` in the machine.
 
 : For each mounted directory, the uid and gid of the user running mkosi

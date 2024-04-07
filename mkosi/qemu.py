@@ -960,7 +960,7 @@ def run_qemu(args: Args, config: Config) -> None:
                 "-chardev", f"socket,id={sock.name},path={sock}",
                 "-device", f"vhost-user-fs-pci,queue-size=1024,chardev={sock.name},tag={tag}",
             ]
-            target = Path("/root/src") / (tree.target or tree.source.name)
+            target = Path("/root/src") / (tree.target or "")
             kcl += [f"systemd.mount-extra={tag}:{target}:virtiofs"]
 
         if want_scratch(config) or config.output_format in (OutputFormat.disk, OutputFormat.esp):

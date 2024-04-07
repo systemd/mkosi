@@ -3852,7 +3852,7 @@ def run_shell(args: Args, config: Config) -> None:
             cmdline += ["--image", fname]
 
         for tree in config.runtime_trees:
-            target = Path("/root/src") / (tree.target or tree.source.name)
+            target = Path("/root/src") / (tree.target or "")
             # We add norbind because very often RuntimeTrees= will be used to mount the source directory into the
             # container and the output directory from which we're running will very likely be a subdirectory of the
             # source directory which would mean we'd be mounting the container root directory as a subdirectory in
