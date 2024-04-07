@@ -1797,7 +1797,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   Additionally, the suffixes `K`, `M` and `G` can be used to specify a
   size in kilobytes, megabytes and gigabytes respectively.
 
-`RuntimeScratch=`: `--runtime-scratch=`
+`RuntimeScratch=`, `--runtime-scratch=`
 
 : Takes a boolean value or `auto`. Specifies whether to mount extra
   scratch space to `/var/tmp`. If enabled, practically unlimited scratch
@@ -1807,7 +1807,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 : Note that using this feature with `mkosi qemu` requires systemd v254
   or newer in the guest.
 
-`RuntimeNetwork=`: `--runtime-network=`
+`RuntimeNetwork=`, `--runtime-network=`
 
 : Takes one of `user`, `interface` or `none`. Defaults to `user`.
   Specifies the networking to set up when booting the image. `user` sets
@@ -2359,7 +2359,7 @@ local directory:
   SizeMaxBytes=1M
   ```
 
-  `10-root.conf`:
+  `10-root.conf`
 
   ```
   [Partition]
