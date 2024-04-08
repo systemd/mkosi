@@ -2,6 +2,7 @@
 
 import contextlib
 import errno
+import logging
 import shutil
 import subprocess
 import tempfile
@@ -187,6 +188,9 @@ def move_tree(
         if e.errno != errno.EXDEV:
             raise e
 
+        logging.info(
+            f"Could not rename {src} to {dst} as they are located on different devices, falling back to copying"
+        )
         copy_tree(src, dst, use_subvolumes=use_subvolumes, tools=tools, sandbox=sandbox)
         rmtree(src, tools=tools, sandbox=sandbox)
 
