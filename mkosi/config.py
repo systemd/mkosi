@@ -1607,6 +1607,8 @@ class Config:
 
     def cache_manifest(self) -> dict[str, Any]:
         return {
+            "uid": INVOKING_USER.uid,
+            "gid": INVOKING_USER.gid,
             "distribution": self.distribution,
             "release": self.release,
             "mirror": self.mirror,
