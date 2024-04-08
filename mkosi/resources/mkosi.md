@@ -1777,7 +1777,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   directory to mount into any machine (container or VM) started by
   mkosi. The second path refers to the target directory inside the
   machine. If the second path is not provided, the directory is mounted
-  below `/root/src` in the machine. If the second path is relative, it
+  at `/root/src` in the machine. If the second path is relative, it
   is interpreted relative to `/root/src` in the machine.
 
 : For each mounted directory, the uid and gid of the user running mkosi
@@ -1820,6 +1820,13 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   configure the host interface. It is expected that a recent version of
   `systemd-networkd` is running on the host which will automatically
   configure the host interface of the link.
+
+`RuntimeBuildSources=`, `--runtime-build-sources=`
+
+: Mount the build sources configured with `BuildSources=` and the build
+  directory (if one is configured) to the same locations in `/work` that
+  they were mounted to when running the build script when using `mkosi
+  boot` or `mkosi qemu`.
 
 `SshKey=`, `--ssh-key=`
 

@@ -390,10 +390,11 @@ def finalize_scripts(scripts: Mapping[str, Sequence[PathString]], root: Path) ->
         yield Path(d)
 
 
-GIT_COMMAND = (
-    "git",
-    "-c", "safe.directory=*",
-)
+GIT_ENV = {
+    "GIT_CONFIG_COUNT": "1",
+    "GIT_CONFIG_KEY_0": "safe.directory",
+    "GIT_CONFIG_VALUE_0": "*",
+}
 
 
 def mkosi_as_caller() -> tuple[str, ...]:
@@ -410,19 +411,10 @@ def finalize_host_scripts(
     helpers: Mapping[str, Sequence[PathString]] = {},
 ) -> contextlib.AbstractContextManager[Path]:
     scripts: dict[str, Sequence[PathString]] = {}
-    if find_binary("git", root=context.config.tools()):
-        scripts["git"] = GIT_COMMAND
     for binary in ("useradd", "groupadd"):
         if find_binary(binary, root=context.config.tools()):
             scripts[binary] = (binary, "--root", "/buildroot")
     return finalize_scripts(scripts | dict(helpers), root=context.config.tools())
-
-
-def finalize_chroot_scripts(context: Context) -> contextlib.AbstractContextManager[Path]:
-    scripts: dict[str, Sequence[PathString]] = {}
-    if find_binary("git", root=context.config.tools()):
-        scripts["git"] = GIT_COMMAND
-    return finalize_scripts(scripts, root=context.root)
 
 
 @contextlib.contextmanager
@@ -551,6 +543,7 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
         WITH_DOCS=one_zero(context.config.with_docs),
         WITH_NETWORK=one_zero(context.config.with_network),
         WITH_TESTS=one_zero(context.config.with_tests),
+        **GIT_ENV,
     )
 
     if context.config.profile:
@@ -558,7 +551,6 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
 
     with (
         mount_build_overlay(context) if build else contextlib.nullcontext(),
-        finalize_chroot_scripts(context) as cd,
         finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources,
     ):
         if build:
@@ -592,7 +584,6 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
                             *sources,
                             Mount(script, "/work/prepare", ro=True),
                             Mount(json, "/work/config.json", ro=True),
-                            Mount(cd, "/work/scripts", ro=True),
                             Mount(context.root, "/buildroot"),
                             *context.config.distribution.package_manager(context.config).mounts(context),
                         ],
@@ -626,6 +617,7 @@ def run_build_scripts(context: Context) -> None:
         WITH_DOCS=one_zero(context.config.with_docs),
         WITH_NETWORK=one_zero(context.config.with_network),
         WITH_TESTS=one_zero(context.config.with_tests),
+        **GIT_ENV,
     )
 
     if context.config.profile:
@@ -639,7 +631,6 @@ def run_build_scripts(context: Context) -> None:
 
     with (
         mount_build_overlay(context, volatile=True),
-        finalize_chroot_scripts(context) as cd,
         finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources,
     ):
         for script in context.config.build_scripts:
@@ -668,7 +659,6 @@ def run_build_scripts(context: Context) -> None:
                             *sources,
                             Mount(script, "/work/build-script", ro=True),
                             Mount(json, "/work/config.json", ro=True),
-                            Mount(cd, "/work/scripts", ro=True),
                             Mount(context.root, "/buildroot"),
                             Mount(context.install_dir, "/work/dest"),
                             Mount(context.staging, "/work/out"),
@@ -708,13 +698,13 @@ def run_postinst_scripts(context: Context) -> None:
         MKOSI_UID=str(INVOKING_USER.uid),
         MKOSI_GID=str(INVOKING_USER.gid),
         MKOSI_CONFIG="/work/config.json",
+        **GIT_ENV,
     )
 
     if context.config.profile:
         env["PROFILE"] = context.config.profile
 
     with (
-        finalize_chroot_scripts(context) as cd,
         finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources,
     ):
         for script in context.config.postinst_scripts:
@@ -741,7 +731,6 @@ def run_postinst_scripts(context: Context) -> None:
                             *sources,
                             Mount(script, "/work/postinst", ro=True),
                             Mount(json, "/work/config.json", ro=True),
-                            Mount(cd, "/work/scripts", ro=True),
                             Mount(context.root, "/buildroot"),
                             Mount(context.staging, "/work/out"),
                             *context.config.distribution.package_manager(context.config).mounts(context),
@@ -771,15 +760,13 @@ def run_finalize_scripts(context: Context) -> None:
         MKOSI_UID=str(INVOKING_USER.uid),
         MKOSI_GID=str(INVOKING_USER.gid),
         MKOSI_CONFIG="/work/config.json",
+        **GIT_ENV,
     )
 
     if context.config.profile:
         env["PROFILE"] = context.config.profile
 
-    with (
-        finalize_chroot_scripts(context) as cd,
-        finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources,
-    ):
+    with finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources:
         for script in context.config.finalize_scripts:
             chroot = chroot_cmd(resolve=context.config.with_network)
 
@@ -804,7 +791,6 @@ def run_finalize_scripts(context: Context) -> None:
                             *sources,
                             Mount(script, "/work/finalize", ro=True),
                             Mount(json, "/work/config.json", ro=True),
-                            Mount(cd, "/work/scripts", ro=True),
                             Mount(context.root, "/buildroot"),
                             Mount(context.staging, "/work/out"),
                             *context.config.distribution.package_manager(context.config).mounts(context),
@@ -3865,14 +3851,24 @@ def run_shell(args: Args, config: Config) -> None:
         else:
             cmdline += ["--image", fname]
 
+        if config.runtime_build_sources:
+            with finalize_source_mounts(config, ephemeral=False) as mounts:
+                for mount in mounts:
+                    uidmap = "rootidmap" if Path(mount.src).stat().st_uid == INVOKING_USER.uid else "noidmap"
+                    cmdline += ["--bind", f"{mount.src}:{mount.dst}:norbind,{uidmap}"]
+
+            if config.build_dir:
+                cmdline += ["--bind", f"{config.build_dir}:/work/build:norbind,noidmap"]
+
         for tree in config.runtime_trees:
-            target = Path("/root/src") / (tree.target or tree.source.name)
+            target = Path("/root/src") / (tree.target or "")
             # We add norbind because very often RuntimeTrees= will be used to mount the source directory into the
             # container and the output directory from which we're running will very likely be a subdirectory of the
             # source directory which would mean we'd be mounting the container root directory as a subdirectory in
             # itself which tends to lead to all kinds of weird issues, which we avoid by not doing a recursive mount
             # which means the container root directory mounts will be skipped.
-            cmdline += ["--bind", f"{tree.source}:{target}:norbind,rootidmap"]
+            uidmap = "rootidmap" if tree.source.stat().st_uid == INVOKING_USER.uid else "noidmap"
+            cmdline += ["--bind", f"{tree.source}:{target}:norbind,{uidmap}"]
 
         if config.runtime_scratch == ConfigFeature.enabled or (
             config.runtime_scratch == ConfigFeature.auto and
@@ -4343,15 +4339,19 @@ def run_build(args: Args, config: Config, *, resources: Path) -> None:
         p.mkdir(parents=True, exist_ok=True)
         INVOKING_USER.chown(p)
 
-    # Discard setuid/setgid bits as these are inherited and can leak into the image.
-    if config.build_dir:
-        config.build_dir.chmod(stat.S_IMODE(config.build_dir.stat().st_mode) & ~(stat.S_ISGID|stat.S_ISUID))
-
     if (uid := os.getuid()) != 0:
         become_root()
     unshare(CLONE_NEWNS)
     if uid == 0:
         run(["mount", "--make-rslave", "/"])
+
+    if config.build_dir:
+        # Make sure the build directory is owned by root (in the user namespace) so that the correct uid-mapping is
+        # applied if it is used in RuntimeTrees=
+        os.chown(config.build_dir, os.getuid(), os.getgid())
+
+        # Discard setuid/setgid bits as these are inherited and can leak into the image.
+        config.build_dir.chmod(stat.S_IMODE(config.build_dir.stat().st_mode) & ~(stat.S_ISGID|stat.S_ISUID))
 
     # For extra safety when running as root, remount a bunch of stuff read-only.
     # Because some build systems use output directories in /usr, we only remount
