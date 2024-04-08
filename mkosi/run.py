@@ -302,7 +302,7 @@ def spawn(
                         group=group,
                         env=env,
                         cwd=cwd,
-                        preexec_fn=preexec_fn,
+                        preexec_fn=preexec,
                     )
                 raise subprocess.CalledProcessError(returncode, cmdline)
     except FileNotFoundError as e:
