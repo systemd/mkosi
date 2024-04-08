@@ -1530,6 +1530,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 : When used with the `qemu` verb, this options sets `qemu`'s `-smp`
   argument which controls the number of guest's CPUs. Defaults to `2`.
 
+: When set to `0`, the number of CPUs available to the mkosi process
+  will be used.
+
 `QemuMem=`, `--qemu-mem=`
 
 : When used with the `qemu` verb, this options sets `qemu`'s `-m`

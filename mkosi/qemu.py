@@ -808,7 +808,7 @@ def run_qemu(args: Args, config: Config) -> None:
     cmdline: list[PathString] = [
         find_qemu_binary(config),
         "-machine", machine,
-        "-smp", str(config.qemu_smp),
+        "-smp", str(config.qemu_smp or os.cpu_count()),
         "-m", f"{config.qemu_mem // 1024**2}M",
         "-object", "rng-random,filename=/dev/urandom,id=rng0",
         "-device", "virtio-rng-pci,rng=rng0,id=rng-device0",
