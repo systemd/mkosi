@@ -92,7 +92,7 @@ body:
   - type: textarea
     id: logs
     attributes:
-      label:
+      label: mkosi output
       description: |
         Please paste the full mkosi debug output here.
       placeholder: This will be automatically formatted into code, so no need for backticks.
