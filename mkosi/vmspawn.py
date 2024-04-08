@@ -51,7 +51,7 @@ def run_vmspawn(args: Args, config: Config) -> None:
 
     cmdline: list[PathString] = [
         "systemd-vmspawn",
-        "--cpus", str(config.qemu_smp),
+        "--cpus", str(config.qemu_smp or os.cpu_count()),
         "--ram", str(config.qemu_mem),
         "--kvm", config.qemu_kvm.to_tristate(),
         "--vsock", config.qemu_vsock.to_tristate(),
