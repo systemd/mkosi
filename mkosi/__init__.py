@@ -1707,23 +1707,14 @@ def finalize_default_initrd(
         *(["-f"] * args.force),
     ]
 
-    cmdline += ["--include", os.fspath(resources / "mkosi-initrd")]
+    cmdline += ["--include=mkosi-initrd"]
 
     for include in config.initrd_include:
         cmdline += ["--include", os.fspath(include)]
 
     _, [config] = parse_config(cmdline + ["build"], resources=resources)
 
-    make_executable(*config.configure_scripts)
-
     run_configure_scripts(config)
-
-    make_executable(
-        *config.prepare_scripts,
-        *config.postinst_scripts,
-        *config.finalize_scripts,
-        *config.build_scripts,
-    )
 
     return dataclasses.replace(config, image="default-initrd")
 
@@ -4106,15 +4097,8 @@ def finalize_default_tools(args: Args, config: Config, *, resources: Path) -> Co
     ]
 
     _, [tools] = parse_config(
-        cmdline + ["--include", os.fspath(resources / "mkosi-tools"), "build"],
+        cmdline + ["--include=mkosi-tools", "build"],
         resources=resources,
-    )
-
-    make_executable(
-        *tools.prepare_scripts,
-        *tools.postinst_scripts,
-        *tools.finalize_scripts,
-        *tools.build_scripts,
     )
 
     tools = dataclasses.replace(tools, image=f"{config.tools_tree_distribution}-tools")
