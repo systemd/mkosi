@@ -82,6 +82,8 @@ class Apt(PackageManager):
             (context.root / "var/lib/dpkg").mkdir(parents=True, exist_ok=True)
             (context.root / "var/lib/dpkg/status").touch()
 
+            (context.root / "var/lib/dpkg/available").touch()
+
         # We have a special apt.conf outside of pkgmngr dir that only configures "Dir::Etc" that we pass to APT_CONFIG
         # to tell apt it should read config files from /etc/apt in case this is overridden by distributions. This is
         # required because apt parses CLI configuration options after parsing its configuration files and as such we
