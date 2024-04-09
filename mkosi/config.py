@@ -3261,10 +3261,13 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
                 if any(p == Path(c) for c in BUILTIN_CONFIGS):
                     _, [config] = parse_config(["--directory", "", "--include", os.fspath(path)])
                     make_executable(
+                        *config.configure_scripts,
+                        *config.clean_scripts,
+                        *config.sync_scripts,
                         *config.prepare_scripts,
+                        *config.build_scripts,
                         *config.postinst_scripts,
                         *config.finalize_scripts,
-                        *config.build_scripts,
                     )
 
                 with chdir(path if path.is_dir() else Path.cwd()):
