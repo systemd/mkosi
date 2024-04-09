@@ -1331,6 +1331,8 @@ class Args:
         j = cls._load_json(s)
         return dataclasses.replace(cls.default(), **j)
 
+CACHE_UID = os.getuid()
+CACHE_GID = os.getgid()
 
 @dataclasses.dataclass(frozen=True)
 class Config:
@@ -1607,8 +1609,8 @@ class Config:
 
     def cache_manifest(self) -> dict[str, Any]:
         return {
-            "uid": INVOKING_USER.uid,
-            "gid": INVOKING_USER.gid,
+            "uid": CACHE_UID,
+            "gid": CACHE_GID,
             "distribution": self.distribution,
             "release": self.release,
             "mirror": self.mirror,
