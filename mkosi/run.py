@@ -166,6 +166,7 @@ def run(
 def spawn(
     cmdline: Sequence[PathString],
     check: bool = True,
+    terminate: bool = False,
     stdin: _FILE = None,
     stdout: _FILE = None,
     stderr: _FILE = None,
@@ -281,15 +282,23 @@ def spawn(
             cwd=cwd,
             preexec_fn=preexec,
         ) as proc:
+            terminated = False
             try:
                 yield proc
             except BaseException:
                 proc.terminate()
                 raise
+            else:
+                if proc.poll() is None and terminate:
+                    proc.terminate()
+                    terminated = True
             finally:
                 returncode = proc.wait()
 
             if check and returncode:
+                if terminated and returncode == -signal.SIGTERM:
+                    return
+
                 if log:
                     log_process_failure(sandbox, cmdline, returncode)
                 if ARG_DEBUG_SHELL.get():
