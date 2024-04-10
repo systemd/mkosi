@@ -858,6 +858,8 @@ def config_make_dict_parser(delimiter: str,
             else:
                 die(f"{p} does not exist")
 
+            return new
+
         if unescape:
             lex = shlex.shlex(value, posix=True)
             lex.whitespace_split = True
