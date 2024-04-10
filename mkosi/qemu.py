@@ -272,6 +272,7 @@ def start_swtpm(config: Config) -> Iterator[Path]:
 
             with spawn(
                 cmdline,
+                terminate=True,
                 pass_fds=(sock.fileno(),),
                 sandbox=config.sandbox(mounts=[Mount(state, state)]),
             ) as proc:
@@ -282,7 +283,6 @@ def start_swtpm(config: Config) -> Iterator[Path]:
                     description=f"swtpm for {config.machine_or_name()}",
                 )
                 yield path
-                proc.terminate()
 
 
 def find_virtiofsd(*, tools: Path = Path("/")) -> Optional[Path]:
@@ -342,6 +342,7 @@ def start_virtiofsd(config: Config, directory: PathString, *, name: str, selinux
 
         with spawn(
             cmdline,
+            terminate=True,
             pass_fds=(sock.fileno(),),
             # When not invoked as root, bubblewrap will automatically map the current uid/gid to the requested uid/gid
             # in the user namespace it spawns, so by specifying --uid 0 --gid 0 we'll get a userns with the current
@@ -362,7 +363,6 @@ def start_virtiofsd(config: Config, directory: PathString, *, name: str, selinux
                 description=f"virtiofsd for {directory}",
             )
             yield path
-            proc.terminate()
 
 
 @contextlib.contextmanager
