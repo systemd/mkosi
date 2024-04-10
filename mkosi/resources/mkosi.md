@@ -1804,10 +1804,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `RuntimeSize=`, `--runtime-size=`
 
-: If specified, disk images are grown to the specified size before
-  they're booted with systemd-nspawn or qemu. Takes a size in bytes.
-  Additionally, the suffixes `K`, `M` and `G` can be used to specify a
-  size in kilobytes, megabytes and gigabytes respectively.
+: If specified, disk images are grown to the specified size when
+  they're booted with `mkosi boot` or `mkosi qemu`. Takes a size in
+  bytes. Additionally, the suffixes `K`, `M` and `G` can be used to
+  specify a size in kilobytes, megabytes and gigabytes respectively.
 
 `RuntimeScratch=`, `--runtime-scratch=`
 
