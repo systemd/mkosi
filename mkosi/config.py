@@ -840,7 +840,7 @@ def config_make_dict_parser(delimiter: str,
         if value is None:
             return {}
 
-        if allow_paths and "=" not in value:
+        if allow_paths and value and "=" not in value:
             if Path(value).is_dir():
                 for p in sorted(Path(value).iterdir()):
                     if p.is_dir():
