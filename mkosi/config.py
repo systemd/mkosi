@@ -840,7 +840,7 @@ def config_make_dict_parser(delimiter: str,
         if value is None:
             return {}
 
-        if allow_paths and "=" not in value:
+        if allow_paths and value and "=" not in value:
             if Path(value).is_dir():
                 for p in sorted(Path(value).iterdir()):
                     if p.is_dir():
@@ -857,6 +857,8 @@ def config_make_dict_parser(delimiter: str,
                     new[p.name] = p.read_text()
             else:
                 die(f"{p} does not exist")
+
+            return new
 
         if unescape:
             lex = shlex.shlex(value, posix=True)
@@ -1274,6 +1276,7 @@ class Args:
     auto_bump: bool
     doc_format: DocFormat
     json: bool
+    append: bool
 
     @classmethod
     def default(cls) -> "Args":
@@ -2997,7 +3000,7 @@ SPECIFIERS_LOOKUP_BY_CHAR = {s.char: s for s in SPECIFIERS}
 FALLBACK_NAME_TO_DEST_SPLITTER = re.compile("(?<=[a-z])(?=[A-Z])")
 
 
-def create_argument_parser(action: type[argparse.Action]) -> argparse.ArgumentParser:
+def create_argument_parser(action: type[argparse.Action], chdir: bool = True) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="mkosi",
         description="Build Bespoke OS Images",
@@ -3042,7 +3045,7 @@ def create_argument_parser(action: type[argparse.Action]) -> argparse.ArgumentPa
     )
     parser.add_argument(
         "-C", "--directory",
-        type=parse_chdir,
+        type=parse_chdir if chdir else str,
         default=Path.cwd(),
         help="Change to specified directory before doing anything",
         metavar="PATH",
@@ -3106,6 +3109,7 @@ def create_argument_parser(action: type[argparse.Action]) -> argparse.ArgumentPa
         "--append",
         help="All settings passed after this argument will be parsed after all configuration files are parsed",
         action="store_true",
+        default=False,
     )
     # These can be removed once mkosi v15 is available in LTS distros and compatibility with <= v14
     # is no longer needed in build infrastructure (e.g.: OBS).
@@ -3286,7 +3290,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
         ) -> None:
             assert option_string is not None
 
-            if getattr(namespace, "append", False) != append:
+            if namespace.append != append:
                 return
 
             if values is None and self.nargs == "?":
@@ -3566,8 +3570,10 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
 
     append = True
 
-    for ns in images:
-        argparser.parse_args(argv, ns)
+    if args.append:
+        for ns in images:
+            ns.append = False
+            create_argument_parser(ConfigAction, chdir=False).parse_args(argv, ns)
 
     for s in vars(cli_ns):
         if s not in SETTINGS_LOOKUP_BY_DEST:

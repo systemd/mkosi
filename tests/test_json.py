@@ -40,6 +40,7 @@ def test_args(path: Optional[Path]) -> None:
     dump = textwrap.dedent(
         f"""\
         {{
+            "Append": true,
             "AutoBump": false,
             "Cmdline": [
                 "foo",
@@ -61,6 +62,7 @@ def test_args(path: Optional[Path]) -> None:
     )
 
     args = Args(
+        append = True,
         auto_bump = False,
         cmdline = ["foo", "bar"],
         debug = False,
