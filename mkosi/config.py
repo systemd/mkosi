@@ -3567,6 +3567,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
     append = True
 
     for ns in images:
+        ns.append = False
         create_argument_parser(ConfigAction, chdir=False).parse_args(argv, ns)
 
     for s in vars(cli_ns):
