@@ -1274,6 +1274,7 @@ class Args:
     auto_bump: bool
     doc_format: DocFormat
     json: bool
+    append: bool
 
     @classmethod
     def default(cls) -> "Args":
@@ -3106,6 +3107,7 @@ def create_argument_parser(action: type[argparse.Action], chdir: bool = True) ->
         "--append",
         help="All settings passed after this argument will be parsed after all configuration files are parsed",
         action="store_true",
+        default=False,
     )
     # These can be removed once mkosi v15 is available in LTS distros and compatibility with <= v14
     # is no longer needed in build infrastructure (e.g.: OBS).
@@ -3286,7 +3288,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
         ) -> None:
             assert option_string is not None
 
-            if getattr(namespace, "append", False) != append:
+            if namespace.append != append:
                 return
 
             if values is None and self.nargs == "?":
@@ -3566,9 +3568,10 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
 
     append = True
 
-    for ns in images:
-        ns.append = False
-        create_argument_parser(ConfigAction, chdir=False).parse_args(argv, ns)
+    if args.append:
+        for ns in images:
+            ns.append = False
+            create_argument_parser(ConfigAction, chdir=False).parse_args(argv, ns)
 
     for s in vars(cli_ns):
         if s not in SETTINGS_LOOKUP_BY_DEST:
