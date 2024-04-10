@@ -3426,6 +3426,8 @@ def make_extension_image(context: Context, output: Path) -> None:
 
 
 def finalize_staging(context: Context) -> None:
+    rmtree(*(context.config.output_dir_or_cwd() / f.name for f in context.staging.iterdir()))
+
     for f in context.staging.iterdir():
         # Make sure all build outputs that are not directories are owned by the user running mkosi.
         if not f.is_dir():
