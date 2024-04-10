@@ -2997,7 +2997,7 @@ SPECIFIERS_LOOKUP_BY_CHAR = {s.char: s for s in SPECIFIERS}
 FALLBACK_NAME_TO_DEST_SPLITTER = re.compile("(?<=[a-z])(?=[A-Z])")
 
 
-def create_argument_parser(action: type[argparse.Action]) -> argparse.ArgumentParser:
+def create_argument_parser(action: type[argparse.Action], chdir: bool = True) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="mkosi",
         description="Build Bespoke OS Images",
@@ -3042,7 +3042,7 @@ def create_argument_parser(action: type[argparse.Action]) -> argparse.ArgumentPa
     )
     parser.add_argument(
         "-C", "--directory",
-        type=parse_chdir,
+        type=parse_chdir if chdir else str,
         default=Path.cwd(),
         help="Change to specified directory before doing anything",
         metavar="PATH",
@@ -3567,7 +3567,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
     append = True
 
     for ns in images:
-        argparser.parse_args(argv, ns)
+        create_argument_parser(ConfigAction, chdir=False).parse_args(argv, ns)
 
     for s in vars(cli_ns):
         if s not in SETTINGS_LOOKUP_BY_DEST:
