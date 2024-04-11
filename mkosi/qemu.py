@@ -1100,8 +1100,8 @@ def run_qemu(args: Args, config: Config) -> None:
             )
             register_machine(config, qemu.pid, fname)
 
-    if status := int(notifications.get("EXIT_STATUS", 0)):
-        raise subprocess.CalledProcessError(status, cmdline)
+            if qemu.wait() == 0 and (status := int(notifications.get("EXIT_STATUS", 0))):
+                raise subprocess.CalledProcessError(status, cmdline)
 
 
 def run_ssh(args: Args, config: Config) -> None:
