@@ -994,7 +994,7 @@ def run_qemu(args: Args, config: Config) -> None:
         if want_scratch(config):
             scratch = stack.enter_context(generate_scratch_fs(config))
             cmdline += [
-                "-drive", f"if=none,id=scratch,file={scratch},format=raw",
+                "-drive", f"if=none,id=scratch,file={scratch},format=raw,discard=on",
                 "-device", "scsi-hd,drive=scratch",
             ]
             kcl += [f"systemd.mount-extra=LABEL=scratch:/var/tmp:{config.distribution.filesystem()}"]
@@ -1009,7 +1009,7 @@ def run_qemu(args: Args, config: Config) -> None:
             cmdline += ["-initrd", config.output_dir_or_cwd() / config.output_split_initrd]
 
         if config.output_format in (OutputFormat.disk, OutputFormat.esp):
-            cmdline += ["-drive", f"if=none,id=mkosi,file={fname},format=raw",
+            cmdline += ["-drive", f"if=none,id=mkosi,file={fname},format=raw,discard=on",
                         "-device", f"scsi-{'cd' if config.qemu_cdrom else 'hd'},drive=mkosi,bootindex=1"]
 
         if (
