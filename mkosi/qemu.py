@@ -1058,9 +1058,9 @@ def run_qemu(args: Args, config: Config) -> None:
         elif config.architecture.supports_smbios(firmware):
             cmdline += [
                 "-smbios",
-                f"type=11,value=io.systemd.stub.kernel-cmdline-extra={' '.join(kcl)}",
+                f"type=11,value=io.systemd.stub.kernel-cmdline-extra={' '.join(kcl).replace(',', ',,')}",
                 "-smbios",
-                f"type=11,value=io.systemd.boot.kernel-cmdline-extra={' '.join(kcl)}",
+                f"type=11,value=io.systemd.boot.kernel-cmdline-extra={' '.join(kcl).replace(',', ',,')}",
             ]
 
         for drive in config.qemu_drives:
