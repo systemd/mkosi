@@ -187,7 +187,11 @@ def become_root() -> None:
         # execute using flock so they don't execute before they can get a lock on the same temporary file, then we
         # unshare the user namespace and finally we unlock the temporary file, which allows the newuidmap and newgidmap
         # processes to execute. we then wait for the processes to finish before continuing.
-        with flock(lock) as fd, spawn(newuidmap) as uidmap, spawn(newgidmap) as gidmap:
+        with (
+            flock(lock) as fd,
+            spawn(newuidmap, innerpid=False) as (uidmap, _),
+            spawn(newgidmap, innerpid=False) as (gidmap, _)
+        ):
             unshare(CLONE_NEWUSER)
             fcntl.flock(fd, fcntl.LOCK_UN)
             uidmap.wait()

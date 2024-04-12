@@ -159,7 +159,8 @@ def run(
         preexec_fn=preexec_fn,
         success_exit_status=success_exit_status,
         sandbox=sandbox,
-    ) as process:
+        innerpid=False,
+    ) as (process, _):
         out, err = process.communicate(input)
 
     return CompletedProcess(cmdline, process.returncode, out, err)
@@ -182,7 +183,8 @@ def spawn(
     preexec_fn: Optional[Callable[[], None]] = None,
     success_exit_status: Sequence[int] = (0,),
     sandbox: AbstractContextManager[Sequence[PathString]] = contextlib.nullcontext([]),
-) -> Iterator[Popen]:
+    innerpid: bool = True,
+) -> Iterator[tuple[Popen, int]]:
     assert sorted(set(pass_fds)) == list(pass_fds)
 
     cmdline = [os.fspath(x) for x in cmdline]
@@ -274,6 +276,17 @@ def spawn(
             # command.
             prefix += ["sh", "-c", f"LISTEN_FDS={len(pass_fds)} LISTEN_PID=$$ exec $0 \"$@\""]
 
+        if prefix and innerpid:
+            r, w = os.pipe2(os.O_CLOEXEC)
+            # Make sure that the write end won't be overridden in preexec() when we're moving fds forward.
+            q = fcntl.fcntl(w, fcntl.F_DUPFD_CLOEXEC, SD_LISTEN_FDS_START + len(pass_fds) + 1)
+            os.close(w)
+            w = q
+            # dash doesn't support working with file descriptors higher than 9 so make sure we use bash.
+            prefix += ["bash", "-c", f"echo $$ >&{w} && exec {w}>&- && exec $0 \"$@\""]
+        else:
+            r, w = (None, None)
+
         try:
             with subprocess.Popen(
                 prefix + cmdline,
@@ -285,15 +298,24 @@ def spawn(
                 group=group,
                 # pass_fds only comes into effect after python has invoked the preexec function, so we make sure that
                 # pass_fds contains the file descriptors to keep open after we've done our transformation in preexec().
-                pass_fds=[SD_LISTEN_FDS_START + i for i in range(len(pass_fds))],
+                pass_fds=[SD_LISTEN_FDS_START + i for i in range(len(pass_fds))] + ([w] if w else []),
                 env=env,
                 cwd=cwd,
                 preexec_fn=preexec,
             ) as proc:
+                if w:
+                    os.close(w)
+                pid = proc.pid
                 try:
-                    yield proc
+                    if r:
+                        with open(r) as f:
+                            s = f.read()
+                            if s:
+                                pid = int(s)
+
+                    yield proc, pid
                 except BaseException:
-                    proc.terminate()
+                    kill(proc, pid, signal.SIGTERM)
                     raise
                 finally:
                     returncode = proc.wait()
@@ -340,6 +362,18 @@ def find_binary(*names: PathString, root: Path = Path("/")) -> Optional[Path]:
                 return Path("/") / Path(binary).relative_to(root)
 
     return None
+
+
+def kill(process: Popen, innerpid: int, signal: int) -> None:
+    process.poll()
+    if process.returncode is not None:
+        return
+
+    try:
+        os.kill(innerpid, signal)
+    # Handle the race condition where the process might exit between us calling poll() and us calling os.kill().
+    except ProcessLookupError:
+        pass
 
 
 class AsyncioThread(threading.Thread):
