@@ -441,6 +441,7 @@ def start_journal_remote(config: Config, sockfd: int) -> Iterator[None]:
         group=config.forward_journal.parent.stat().st_gid if INVOKING_USER.invoked_as_root else None,
         # If all logs go into a single file, disable compact mode to allow for journal files exceeding 4G.
         env={"SYSTEMD_JOURNAL_COMPACT": "0" if config.forward_journal.suffix == ".journal" else "1"},
+        foreground=False,
     ) as proc:
         allocate_scope(
             config,
