@@ -709,6 +709,9 @@ def register_machine(config: Config, pid: int, fname: Path) -> None:
         foreground=False,
         env=os.environ | config.environment,
         sandbox=config.sandbox(relaxed=True),
+        # systemd-machined might not be installed so let's ignore any failures unless running in debug mode.
+        check=ARG_DEBUG.get(),
+        stderr=None if ARG_DEBUG.get() else subprocess.DEVNULL,
     )
 
 
