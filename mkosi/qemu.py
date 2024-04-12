@@ -442,6 +442,12 @@ def start_journal_remote(config: Config, sockfd: int) -> Iterator[None]:
         # If all logs go into a single file, disable compact mode to allow for journal files exceeding 4G.
         env={"SYSTEMD_JOURNAL_COMPACT": "0" if config.forward_journal.suffix == ".journal" else "1"},
     ) as proc:
+        allocate_scope(
+            config,
+            name=f"mkosi-journal-remote-{config.machine_or_name()}",
+            pid=proc.pid,
+            description=f"mkosi systemd-journal-remote for {config.machine_or_name()}",
+        )
         yield
         proc.terminate()
 
