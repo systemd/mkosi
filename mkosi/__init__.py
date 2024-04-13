@@ -324,8 +324,8 @@ def configure_autologin(context: Context) -> None:
 
 
 @contextlib.contextmanager
-def mount_cache_overlay(context: Context) -> Iterator[None]:
-    if not context.config.incremental or not context.config.base_trees or context.config.overlay:
+def mount_cache_overlay(context: Context, cached: bool) -> Iterator[None]:
+    if not context.config.incremental or not context.config.base_trees or context.config.overlay or cached:
         yield
         return
 
@@ -3506,15 +3506,16 @@ def lock_repository_metadata(config: Config) -> Iterator[None]:
 
 
 def copy_repository_metadata(context: Context) -> None:
-    if have_cache(context.config):
-        return
-
     subdir = context.config.distribution.package_manager(context.config).subdir(context.config)
 
-    # Don't copy anything if the repository metadata directories are already populated.
+    # Don't copy anything if the repository metadata directories are already populated and we're not explicitly asked
+    # to sync repository metadata.
     if (
-        any((context.package_cache_dir / "cache" / subdir).glob("*")) or
-        any((context.package_cache_dir / "lib" / subdir).glob("*"))
+        context.config.cacheonly != Cacheonly.never and
+        (
+            any((context.package_cache_dir / "cache" / subdir).glob("*")) or
+            any((context.package_cache_dir / "lib" / subdir).glob("*"))
+        )
     ):
         logging.debug(f"Found repository metadata in {context.package_cache_dir}, not copying repository metadata")
         return
@@ -3562,15 +3563,14 @@ def build_image(context: Context) -> None:
         install_base_trees(context)
         cached = reuse_cache(context)
 
-        if not cached:
-            with mount_cache_overlay(context):
-                copy_repository_metadata(context)
+        with mount_cache_overlay(context, cached):
+            copy_repository_metadata(context)
 
         context.config.distribution.setup(context)
         install_package_directories(context)
 
         if not cached:
-            with mount_cache_overlay(context):
+            with mount_cache_overlay(context, cached):
                 install_skeleton_trees(context)
                 install_distribution(context)
                 run_prepare_scripts(context, build=False)
@@ -4268,7 +4268,10 @@ def rchown_package_manager_dirs(config: Config) -> Iterator[None]:
 
 
 def sync_repository_metadata(context: Context) -> None:
-    if have_cache(context.config) or context.config.cacheonly != Cacheonly.none:
+    if (
+        context.config.cacheonly != Cacheonly.never and
+        (have_cache(context.config) or context.config.cacheonly != Cacheonly.auto)
+    ):
         return
 
     with (

@@ -259,9 +259,11 @@ class ShimBootloader(StrEnum):
 
 
 class Cacheonly(StrEnum):
-    always = enum.auto()
-    none = enum.auto()
+    always   = enum.auto()
+    auto     = enum.auto()
+    none     = auto
     metadata = enum.auto()
+    never    = enum.auto()
 
 
 class QemuFirmware(StrEnum):
@@ -1898,11 +1900,11 @@ SETTINGS = (
         dest="cacheonly",
         long="--cache-only",
         name="CacheOnly",
-        metavar="CACHEONLY",
         section="Distribution",
-        parse=config_make_enum_parser_with_boolean(Cacheonly, yes=Cacheonly.always, no=Cacheonly.none),
-        default=Cacheonly.none,
+        parse=config_make_enum_parser_with_boolean(Cacheonly, yes=Cacheonly.always, no=Cacheonly.auto),
+        default=Cacheonly.auto,
         help="Only use the package cache when installing packages",
+        choices=Cacheonly.values(),
     ),
     ConfigSetting(
         dest="package_manager_trees",
