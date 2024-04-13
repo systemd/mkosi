@@ -149,8 +149,8 @@ class KernelType(StrEnum):
             logging.warning("bootctl is not installed, assuming 'unknown' kernel type")
             return KernelType.unknown
 
-        if systemd_tool_version(config, "bootctl") < 253:
-            logging.warning("bootctl doesn't know kernel-identify verb, assuming 'unknown' kernel type")
+        if (v := systemd_tool_version(config, "bootctl")) < 253:
+            logging.warning(f"bootctl {v} doesn't know kernel-identify verb, assuming 'unknown' kernel type")
             return KernelType.unknown
 
         type = run(
