@@ -165,7 +165,7 @@ class Pacman(PackageManager):
 
     @classmethod
     def sync(cls, context: Context) -> None:
-        cls.invoke(context, "--sync", ["--refresh"])
+        cls.invoke(context, "--sync", ["--refresh"] + (["--refresh"] if context.args.force > 1 else []))
 
     @classmethod
     def createrepo(cls, context: Context) -> None:

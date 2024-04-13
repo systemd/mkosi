@@ -143,7 +143,7 @@ class Zypper(PackageManager):
 
     @classmethod
     def sync(cls, context: Context) -> None:
-        cls.invoke(context, "refresh")
+        cls.invoke(context, "refresh", ["--force"] if context.args.force > 1 else [])
 
     @classmethod
     def createrepo(cls, context: Context) -> None:
