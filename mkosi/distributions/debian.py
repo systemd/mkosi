@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-import shutil
 import tempfile
 from collections.abc import Iterable, Sequence
 from pathlib import Path
@@ -204,12 +203,6 @@ class Installer(DistributionInstaller):
         install_apt_sources(context, cls.repositories(context, local=False))
 
         policyrcd.unlink()
-
-        for d in context.root.glob("boot/vmlinuz-*"):
-            kver = d.name.removeprefix("vmlinuz-")
-            vmlinuz = context.root / "usr/lib/modules" / kver / "vmlinuz"
-            if not vmlinuz.exists():
-                shutil.copy2(d, vmlinuz)
 
         # systemd-gpt-auto-generator is disabled by default in Ubuntu:
         # https://git.launchpad.net/ubuntu/+source/systemd/tree/debian/systemd.links?h=ubuntu/noble-proposed.

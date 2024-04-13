@@ -1616,6 +1616,18 @@ def gzip_binary(context: Context) -> str:
     return "pigz" if find_binary("pigz", root=context.config.tools()) else "gzip"
 
 
+def fixup_vmlinuz_location(context: Context) -> None:
+    for d in context.root.glob("boot/vmlinuz-*"):
+        kver = d.name.removeprefix("vmlinuz-")
+        vmlinuz = context.root / "usr/lib/modules" / kver / "vmlinuz"
+        # Some distributions (OpenMandriva) symlink /usr/lib/modules/<kver>/vmlinuz to /boot/vmlinuz-<kver>, so get rid
+        # of the symlink and copy the actual vmlinuz to /usr/lib/modules/<kver>.
+        if vmlinuz.is_symlink() and vmlinuz.is_relative_to("/boot"):
+            vmlinuz.unlink()
+        if not vmlinuz.exists():
+            shutil.copy2(d, vmlinuz)
+
+
 def gen_kernel_images(context: Context) -> Iterator[tuple[str, Path]]:
     if not (context.root / "usr/lib/modules").exists():
         return
@@ -3564,6 +3576,7 @@ def build_image(context: Context) -> None:
                 run_prepare_scripts(context, build=False)
                 install_build_packages(context)
                 run_prepare_scripts(context, build=True)
+                fixup_vmlinuz_location(context)
                 run_depmod(context, cache=True)
 
             save_cache(context)
@@ -3581,6 +3594,7 @@ def build_image(context: Context) -> None:
         install_build_dest(context)
         install_extra_trees(context)
         run_postinst_scripts(context)
+        fixup_vmlinuz_location(context)
 
         configure_autologin(context)
         configure_os_release(context)
