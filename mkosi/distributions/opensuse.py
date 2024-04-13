@@ -166,6 +166,7 @@ def fetch_gpgurls(context: Context, repourl: str) -> tuple[str, ...]:
                 "--no-progress-meter",
                 "--fail",
                 *(["--proxy", context.config.proxy_url] if context.config.proxy_url else []),
+                *(["--noproxy", ",".join(context.config.proxy_exclude)] if context.config.proxy_exclude else []),
                 *(["--proxy-capath", "/proxy.cacert"] if context.config.proxy_peer_certificate else []),
                 *(["--proxy-cert", "/proxy.clientcert"] if context.config.proxy_client_certificate else []),
                 *(["--proxy-key", "/proxy.clientkey"] if context.config.proxy_client_key else []),

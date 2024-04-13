@@ -1462,6 +1462,7 @@ class Config:
     key: Optional[str]
 
     proxy_url: Optional[str]
+    proxy_exclude: list[str]
     proxy_peer_certificate: Optional[Path]
     proxy_client_certificate: Optional[Path]
     proxy_client_key: Optional[Path]
@@ -2635,6 +2636,13 @@ SETTINGS = (
         help="Set the proxy to use",
     ),
     ConfigSetting(
+        dest="proxy_exclude",
+        section="Host",
+        metavar="HOST",
+        parse=config_make_list_parser(delimiter=","),
+        help="Don't use the configured proxy for the specified host(s)",
+    ),
+    ConfigSetting(
         dest="proxy_peer_certificate",
         section="Host",
         parse=config_make_path_parser(),
@@ -3727,6 +3735,9 @@ def load_environment(args: argparse.Namespace) -> dict[str, str]:
         for e in ("http_proxy", "https_proxy"):
             env[e] = args.proxy_url
             env[e.upper()] = args.proxy_url
+    if args.proxy_exclude:
+        env["no_proxy"] = ",".join(args.proxy_exclude)
+        env["NO_PROXY"] = ",".join(args.proxy_exclude)
     if args.proxy_peer_certificate:
         env["GIT_PROXY_SSL_CAINFO"] = "/proxy.cacert"
     if args.proxy_client_certificate:

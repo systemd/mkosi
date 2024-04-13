@@ -1455,6 +1455,11 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   well-known environment variables to specify the proxy to use for any
   programs it invokes that may need internet access.
 
+`ProxyExclude=`, `--proxy-exclude=`
+
+: Configure hostnames for which requests should not go through the
+  proxy. Takes a comma separated list of hostnames.
+
 `ProxyPeerCertificate=`, `--proxy-peer-certificate=`
 
 : Configure a file containing certificates used to verify the proxy.
