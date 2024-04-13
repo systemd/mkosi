@@ -4224,5 +4224,9 @@ def want_selinux_relabel(config: Config, root: Path, fatal: bool = True) -> Opti
 
 def systemd_tool_version(config: Config, tool: PathString) -> GenericVersion:
     return GenericVersion(
-        run([tool, "--version"], stdout=subprocess.PIPE, sandbox=config.sandbox()).stdout.split()[2].strip("()")
+        run(
+            [tool, "--version"],
+            stdout=subprocess.PIPE,
+            sandbox=config.sandbox()
+        ).stdout.split()[2].strip("()").removeprefix("v")
     )
