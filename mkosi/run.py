@@ -134,10 +134,10 @@ def run(
     env: Mapping[str, str] = {},
     cwd: Optional[Path] = None,
     log: bool = True,
+    foreground: bool = True,
     preexec_fn: Optional[Callable[[], None]] = None,
     success_exit_status: Sequence[int] = (0,),
     sandbox: Sequence[PathString] = (),
-    foreground: bool = True,
 ) -> CompletedProcess:
     if input is not None:
         assert stdin is None  # stdin and input cannot be specified together
@@ -154,10 +154,10 @@ def run(
         env=env,
         cwd=cwd,
         log=log,
+        foreground=foreground,
         preexec_fn=preexec_fn,
         success_exit_status=success_exit_status,
         sandbox=sandbox,
-        foreground=foreground,
     ) as process:
         out, err = process.communicate(input)
 
