@@ -1477,6 +1477,7 @@ class Config:
     tools_tree_repositories: list[str]
     tools_tree_package_manager_trees: list[ConfigTree]
     tools_tree_packages: list[str]
+    tools_tree_certificates: bool
     runtime_trees: list[ConfigTree]
     runtime_size: Optional[int]
     runtime_scratch: ConfigFeature
@@ -2776,6 +2777,14 @@ SETTINGS = (
         help="Add additional packages to the default tools tree",
     ),
     ConfigSetting(
+        dest="tools_tree_certificates",
+        metavar="BOOL",
+        section="Host",
+        parse=config_parse_boolean,
+        help="Use certificates from the tools tree",
+        default=True,
+    ),
+    ConfigSetting(
         dest="runtime_trees",
         long="--runtime-tree",
         metavar="SOURCE:[TARGET]",
@@ -3982,6 +3991,7 @@ def summary(config: Config) -> str:
             Tools Tree Repositories: {line_join_list(config.tools_tree_repositories)}
    Tools Tree Package Manager Trees: {line_join_list(config.tools_tree_package_manager_trees)}
                 Tools Tree Packages: {line_join_list(config.tools_tree_packages)}
+            Tools Tree Certificates: {yes_no(config.tools_tree_certificates)}
                       Runtime Trees: {line_join_list(config.runtime_trees)}
                        Runtime Size: {format_bytes_or_none(config.runtime_size)}
                     Runtime Scratch: {config.runtime_scratch}

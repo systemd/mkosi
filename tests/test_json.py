@@ -310,6 +310,7 @@ def test_config() -> None:
             ],
             "Timezone": null,
             "ToolsTree": null,
+            "ToolsTreeCertificates": true,
             "ToolsTreeDistribution": null,
             "ToolsTreeMirror": null,
             "ToolsTreePackageManagerTrees": [
@@ -468,6 +469,7 @@ def test_config() -> None:
         sync_scripts = [Path("/sync")],
         timezone = None,
         tools_tree = None,
+        tools_tree_certificates = True,
         tools_tree_distribution = None,
         tools_tree_mirror = None,
         tools_tree_package_manager_trees = [ConfigTree(Path("/a/b/c"), Path("/"))],

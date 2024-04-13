@@ -22,11 +22,13 @@ class RpmRepository(NamedTuple):
 
 
 def find_rpm_gpgkey(context: Context, key: str) -> Optional[str]:
-    if gpgpath := next((context.config.tools() / "usr/share/distribution-gpg-keys").rglob(key), None):
-        return ('/' / gpgpath.relative_to(context.config.tools())).as_uri()
+    root = context.config.tools() if context.config.tools_tree_certificates else Path("/")
+
+    if gpgpath := next((root / "usr/share/distribution-gpg-keys").rglob(key), None):
+        return (Path("/") / gpgpath.relative_to(root)).as_uri()
 
     if gpgpath := next(Path(context.pkgmngr / "etc/pki/rpm-gpg").rglob(key), None):
-        return ('/' / gpgpath.relative_to(context.pkgmngr)).as_uri()
+        return (Path("/") / gpgpath.relative_to(context.pkgmngr)).as_uri()
 
     return None
 

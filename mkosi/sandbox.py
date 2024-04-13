@@ -79,26 +79,6 @@ def finalize_passwd_mounts(root: PathString) -> list[Mount]:
     ]
 
 
-def finalize_crypto_mounts(tools: Path = Path("/")) -> list[Mount]:
-    mounts = [
-        (tools / subdir, Path("/") / subdir)
-        for subdir in (
-            Path("etc/pki"),
-            Path("etc/ssl"),
-            Path("etc/ca-certificates"),
-            Path("etc/pacman.d/gnupg"),
-            Path("var/lib/ca-certificates"),
-        )
-        if (tools / subdir).exists()
-    ]
-
-    return [
-        Mount(src, target, ro=True)
-        for src, target
-        in sorted(set(mounts), key=lambda s: s[1])
-    ]
-
-
 def finalize_mounts(mounts: Sequence[Mount]) -> list[PathString]:
     mounts = list(set(mounts))
 

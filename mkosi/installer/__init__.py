@@ -4,8 +4,9 @@ from pathlib import Path
 
 from mkosi.config import Config, ConfigFeature, OutputFormat
 from mkosi.context import Context
+from mkosi.mounts import finalize_crypto_mounts
 from mkosi.run import find_binary
-from mkosi.sandbox import Mount, finalize_crypto_mounts
+from mkosi.sandbox import Mount
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
 from mkosi.util import startswith
@@ -52,7 +53,7 @@ class PackageManager:
     @classmethod
     def mounts(cls, context: Context) -> list[Mount]:
         mounts = [
-            *finalize_crypto_mounts(tools=context.config.tools()),
+            *finalize_crypto_mounts(context.config),
             Mount(context.packages, "/work/packages"),
         ]
 

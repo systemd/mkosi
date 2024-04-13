@@ -58,7 +58,7 @@ from mkosi.installer import clean_package_manager_metadata
 from mkosi.kmod import gen_required_kernel_modules, process_kernel_modules
 from mkosi.log import ARG_DEBUG, complete_step, die, log_notice, log_step
 from mkosi.manifest import Manifest
-from mkosi.mounts import finalize_source_mounts, mount_overlay
+from mkosi.mounts import finalize_crypto_mounts, finalize_source_mounts, mount_overlay
 from mkosi.pager import page
 from mkosi.partition import Partition, finalize_root, finalize_roothash
 from mkosi.qemu import KernelType, copy_ephemeral, run_qemu, run_ssh, start_journal_remote
@@ -67,7 +67,7 @@ from mkosi.run import (
     fork_and_wait,
     run,
 )
-from mkosi.sandbox import Mount, chroot_cmd, finalize_crypto_mounts, finalize_passwd_mounts
+from mkosi.sandbox import Mount, chroot_cmd, finalize_passwd_mounts
 from mkosi.tree import copy_tree, move_tree, rmtree
 from mkosi.types import PathString
 from mkosi.user import CLONE_NEWNS, INVOKING_USER, become_root, unshare
@@ -494,7 +494,7 @@ def run_sync_scripts(context: Context) -> None:
         for script in context.config.sync_scripts:
             mounts = [
                 *sources,
-                *finalize_crypto_mounts(context.config.tools()),
+                *finalize_crypto_mounts(context.config),
                 Mount(script, "/work/sync", ro=True),
                 Mount(json, "/work/config.json", ro=True),
             ]
