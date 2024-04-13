@@ -27,6 +27,7 @@ import textwrap
 import typing
 import uuid
 from collections.abc import Collection, Iterable, Iterator, Sequence
+from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Any, Callable, Optional, TypeVar, Union, cast
 
@@ -1685,7 +1686,8 @@ class Config:
         scripts: Optional[Path] = None,
         mounts: Sequence[Mount] = (),
         options: Sequence[PathString] = (),
-    ) -> list[PathString]:
+        extra: Sequence[PathString] = (),
+    ) -> AbstractContextManager[list[PathString]]:
         mounts = [
             *[Mount(d, d, ro=True) for d in self.extra_search_paths if not relaxed and not self.tools_tree],
             *([Mount(p, "/proxy.cacert", ro=True)] if (p := self.proxy_peer_certificate) else []),
@@ -1702,6 +1704,7 @@ class Config:
             tools=tools or self.tools(),
             mounts=mounts,
             options=options,
+            extra=extra,
         )
 
 

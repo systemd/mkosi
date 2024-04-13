@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 from collections.abc import Sequence
+from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Optional
 
@@ -75,7 +76,16 @@ class Context:
         scripts: Optional[Path] = None,
         mounts: Sequence[Mount] = (),
         options: Sequence[PathString] = (),
-    ) -> list[PathString]:
+        extra: Sequence[PathString] = (),
+    ) -> AbstractContextManager[list[PathString]]:
+        if (self.pkgmngr / "usr").exists():
+            extra = [
+                "sh",
+                "-c",
+                f"mount -t overlay -o lowerdir={self.pkgmngr / 'usr'}:/usr overlayfs /usr && exec $0 \"$@\"",
+                *extra,
+            ]
+
         return self.config.sandbox(
             network=network,
             devices=devices,
@@ -95,13 +105,7 @@ class Context:
                 "--cap-add", "ALL",
                 *options,
             ],
-        ) + (
-            [
-                "sh",
-                "-c",
-                f"mount -t overlay -o lowerdir={self.pkgmngr / 'usr'}:/usr overlayfs /usr && exec $0 \"$@\"",
-            ] if (self.pkgmngr / "usr").exists() else []
+            extra=extra,
         )
-
     def want_local_repo(self) -> bool:
         return any(self.packages.iterdir())

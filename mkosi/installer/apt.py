@@ -202,7 +202,8 @@ class Apt(PackageManager):
                         network=True,
                         mounts=[Mount(context.root, "/buildroot"), *cls.mounts(context), *sources, *mounts],
                         options=["--dir", "/work/src", "--chdir", "/work/src"],
-                    ) + (apivfs_cmd() if apivfs else [])
+                        extra=apivfs_cmd() if apivfs else []
+                    )
                 ),
                 env=context.config.environment | cls.finalize_environment(context),
                 stdout=stdout,

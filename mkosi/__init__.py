@@ -20,6 +20,7 @@ import tempfile
 import textwrap
 import uuid
 from collections.abc import Iterator, Mapping, Sequence
+from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Optional, Union, cast
 
@@ -408,7 +409,7 @@ def mkosi_as_caller() -> tuple[str, ...]:
 def finalize_host_scripts(
     context: Context,
     helpers: Mapping[str, Sequence[PathString]] = {},
-) -> contextlib.AbstractContextManager[Path]:
+) -> AbstractContextManager[Path]:
     scripts: dict[str, Sequence[PathString]] = {}
     for binary in ("useradd", "groupadd"):
         if find_binary(binary, root=context.config.tools()):
@@ -588,7 +589,8 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
                         ],
                         options=["--dir", "/work/src", "--chdir", "/work/src"],
                         scripts=hd,
-                    ) + (chroot if script.suffix == ".chroot" else []),
+                        extra=chroot if script.suffix == ".chroot" else [],
+                    )
                 )
 
 
@@ -670,7 +672,8 @@ def run_build_scripts(context: Context) -> None:
                         ],
                         options=["--dir", "/work/src", "--chdir", "/work/src"],
                         scripts=hd,
-                    ) + (chroot if script.suffix == ".chroot" else []),
+                        extra=chroot if script.suffix == ".chroot" else [],
+                    ),
                 )
 
     if context.want_local_repo() and context.config.output_format != OutputFormat.none:
@@ -736,7 +739,8 @@ def run_postinst_scripts(context: Context) -> None:
                         ],
                         options=["--dir", "/work/src", "--chdir", "/work/src"],
                         scripts=hd,
-                    ) + (chroot if script.suffix == ".chroot" else []),
+                        extra=chroot if script.suffix == ".chroot" else [],
+                    ),
                 )
 
 
@@ -796,7 +800,8 @@ def run_finalize_scripts(context: Context) -> None:
                         ],
                         options=["--dir", "/work/src", "--chdir", "/work/src"],
                         scripts=hd,
-                    ) + (chroot if script.suffix == ".chroot" else []),
+                        extra=chroot if script.suffix == ".chroot" else [],
+                    ),
                 )
 
 
@@ -1458,7 +1463,8 @@ def grub_bios_setup(context: Context, partitions: Sequence[Partition]) -> None:
                     Mount(context.staging, context.staging),
                     Mount(mountinfo.name, mountinfo.name),
                 ],
-            ) + ["sh", "-c", f"mount --bind {mountinfo.name} /proc/$$/mountinfo && exec $0 \"$@\""],
+                extra=["sh", "-c", f"mount --bind {mountinfo.name} /proc/$$/mountinfo && exec $0 \"$@\""],
+            ),
         )
 
 
@@ -2494,7 +2500,8 @@ def calculate_signature(context: Context) -> None:
             sandbox=context.sandbox(
                 mounts=mounts,
                 options=options,
-            ) + ["setpriv", f"--reuid={INVOKING_USER.uid}", f"--regid={INVOKING_USER.gid}", "--clear-groups"]
+                extra=["setpriv", f"--reuid={INVOKING_USER.uid}", f"--regid={INVOKING_USER.gid}", "--clear-groups"],
+            )
         )
 
 
@@ -3523,7 +3530,7 @@ def copy_repository_metadata(context: Context) -> None:
                 with umask(~0o755):
                     dst.mkdir(parents=True, exist_ok=True)
 
-                def sandbox(*, mounts: Sequence[Mount] = ()) -> list[PathString]:
+                def sandbox(*, mounts: Sequence[Mount] = ()) -> AbstractContextManager[list[PathString]]:
                     return context.sandbox(mounts=[*mounts, *exclude])
 
                 copy_tree(

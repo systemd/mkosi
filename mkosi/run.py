@@ -15,6 +15,7 @@ import subprocess
 import sys
 import threading
 from collections.abc import Awaitable, Collection, Iterator, Mapping, Sequence
+from contextlib import AbstractContextManager
 from pathlib import Path
 from types import TracebackType
 from typing import Any, Callable, NoReturn, Optional
@@ -137,7 +138,7 @@ def run(
     foreground: bool = True,
     preexec_fn: Optional[Callable[[], None]] = None,
     success_exit_status: Sequence[int] = (0,),
-    sandbox: Sequence[PathString] = (),
+    sandbox: AbstractContextManager[Sequence[PathString]] = contextlib.nullcontext([]),
 ) -> CompletedProcess:
     if input is not None:
         assert stdin is None  # stdin and input cannot be specified together
@@ -180,11 +181,10 @@ def spawn(
     foreground: bool = False,
     preexec_fn: Optional[Callable[[], None]] = None,
     success_exit_status: Sequence[int] = (0,),
-    sandbox: Sequence[PathString] = (),
+    sandbox: AbstractContextManager[Sequence[PathString]] = contextlib.nullcontext([]),
 ) -> Iterator[Popen]:
     assert sorted(set(pass_fds)) == list(pass_fds)
 
-    sandbox = [os.fspath(x) for x in sandbox]
     cmdline = [os.fspath(x) for x in cmdline]
 
     if ARG_DEBUG.get():
@@ -247,72 +247,78 @@ def spawn(
             # expect it to pick.
             assert nfd == SD_LISTEN_FDS_START + i
 
-    # First, check if the sandbox works at all before executing the command.
-    if sandbox and (rc := subprocess.run(sandbox + ["true"]).returncode) != 0:
-        log_process_failure(sandbox, cmdline, rc)
-        raise subprocess.CalledProcessError(rc, sandbox + cmdline)
+    with sandbox as sbx:
+        prefix = [os.fspath(x) for x in sbx]
 
-    if subprocess.run(sandbox + ["sh", "-c", f"command -v {cmdline[0]}"], stdout=subprocess.DEVNULL).returncode != 0:
-        die(f"{cmdline[0]} not found.", hint=f"Is {cmdline[0]} installed on the host system?")
+        # First, check if the sandbox works at all before executing the command.
+        if prefix and (rc := subprocess.run(prefix + ["true"]).returncode) != 0:
+            log_process_failure(prefix, cmdline, rc)
+            raise subprocess.CalledProcessError(rc, prefix + cmdline)
 
-    if (
-        foreground and
-        sandbox and
-        subprocess.run(sandbox + ["sh", "-c", "command -v setpgid"], stdout=subprocess.DEVNULL).returncode == 0
-    ):
-        sandbox += ["setpgid", "--foreground", "--"]
+        if subprocess.run(
+            prefix + ["sh", "-c", f"command -v {cmdline[0]}"],
+            stdout=subprocess.DEVNULL,
+        ).returncode != 0:
+            die(f"{cmdline[0]} not found.", hint=f"Is {cmdline[0]} installed on the host system?")
 
-    if pass_fds:
-        # We don't know the PID before we start the process and we can't modify the environment in preexec_fn so we
-        # have to spawn a temporary shell to set the necessary environment variables before spawning the actual
-        # command.
-        sandbox += ["sh", "-c", f"LISTEN_FDS={len(pass_fds)} LISTEN_PID=$$ exec $0 \"$@\""]
+        if (
+            foreground and
+            prefix and
+            subprocess.run(prefix + ["sh", "-c", "command -v setpgid"], stdout=subprocess.DEVNULL).returncode == 0
+        ):
+            prefix += ["setpgid", "--foreground", "--"]
 
-    try:
-        with subprocess.Popen(
-            sandbox + cmdline,
-            stdin=stdin,
-            stdout=stdout,
-            stderr=stderr,
-            text=True,
-            user=user,
-            group=group,
-            # pass_fds only comes into effect after python has invoked the preexec function, so we make sure that
-            # pass_fds contains the file descriptors to keep open after we've done our transformation in preexec().
-            pass_fds=[SD_LISTEN_FDS_START + i for i in range(len(pass_fds))],
-            env=env,
-            cwd=cwd,
-            preexec_fn=preexec,
-        ) as proc:
-            try:
-                yield proc
-            except BaseException:
-                proc.terminate()
-                raise
-            finally:
-                returncode = proc.wait()
+        if pass_fds:
+            # We don't know the PID before we start the process and we can't modify the environment in preexec_fn so we
+            # have to spawn a temporary shell to set the necessary environment variables before spawning the actual
+            # command.
+            prefix += ["sh", "-c", f"LISTEN_FDS={len(pass_fds)} LISTEN_PID=$$ exec $0 \"$@\""]
 
-            if check and returncode not in success_exit_status:
-                if log:
-                    log_process_failure(sandbox, cmdline, returncode)
-                if ARG_DEBUG_SHELL.get():
-                    subprocess.run(
-                        [*sandbox, "bash"],
-                        check=False,
-                        stdin=sys.stdin,
-                        text=True,
-                        user=user,
-                        group=group,
-                        env=env,
-                        cwd=cwd,
-                        preexec_fn=preexec,
-                    )
-                raise subprocess.CalledProcessError(returncode, cmdline)
-    except FileNotFoundError as e:
-        die(f"{e.filename} not found.")
-    finally:
-        if foreground:
-            make_foreground_process(new_process_group=False)
+        try:
+            with subprocess.Popen(
+                prefix + cmdline,
+                stdin=stdin,
+                stdout=stdout,
+                stderr=stderr,
+                text=True,
+                user=user,
+                group=group,
+                # pass_fds only comes into effect after python has invoked the preexec function, so we make sure that
+                # pass_fds contains the file descriptors to keep open after we've done our transformation in preexec().
+                pass_fds=[SD_LISTEN_FDS_START + i for i in range(len(pass_fds))],
+                env=env,
+                cwd=cwd,
+                preexec_fn=preexec,
+            ) as proc:
+                try:
+                    yield proc
+                except BaseException:
+                    proc.terminate()
+                    raise
+                finally:
+                    returncode = proc.wait()
+
+                if check and returncode not in success_exit_status:
+                    if log:
+                        log_process_failure(prefix, cmdline, returncode)
+                    if ARG_DEBUG_SHELL.get():
+                        subprocess.run(
+                            [*prefix, "bash"],
+                            check=False,
+                            stdin=sys.stdin,
+                            text=True,
+                            user=user,
+                            group=group,
+                            env=env,
+                            cwd=cwd,
+                            preexec_fn=preexec,
+                        )
+                    raise subprocess.CalledProcessError(returncode, cmdline)
+        except FileNotFoundError as e:
+            die(f"{e.filename} not found.")
+        finally:
+            if foreground:
+                make_foreground_process(new_process_group=False)
 
 
 def find_binary(*names: PathString, root: Path = Path("/")) -> Optional[Path]:
