@@ -59,12 +59,6 @@ class Pacman(PackageManager):
             # bind mount the local directory from the image to make sure that happens.
             mounts += [Mount(context.root / "var/lib/pacman/local", "/var/lib/pacman/local")]
 
-        if (
-            (context.config.tools() / "etc/makepkg.conf").exists() and
-            not (context.pkgmngr / "etc/makepkg.conf").exists()
-        ):
-            mounts += [Mount(context.config.tools() / "etc/makepkg.conf", "/etc/makepkg.conf", ro=True)]
-
         return mounts
 
     @classmethod
