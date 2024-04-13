@@ -135,6 +135,7 @@ def run(
     cwd: Optional[Path] = None,
     log: bool = True,
     preexec_fn: Optional[Callable[[], None]] = None,
+    success_exit_status: Sequence[int] = (0,),
     sandbox: Sequence[PathString] = (),
     foreground: bool = True,
 ) -> CompletedProcess:
@@ -154,6 +155,7 @@ def run(
         cwd=cwd,
         log=log,
         preexec_fn=preexec_fn,
+        success_exit_status=success_exit_status,
         sandbox=sandbox,
         foreground=foreground,
     ) as process:
@@ -177,6 +179,7 @@ def spawn(
     log: bool = True,
     foreground: bool = False,
     preexec_fn: Optional[Callable[[], None]] = None,
+    success_exit_status: Sequence[int] = (0,),
     sandbox: Sequence[PathString] = (),
 ) -> Iterator[Popen]:
     assert sorted(set(pass_fds)) == list(pass_fds)
@@ -289,7 +292,7 @@ def spawn(
             finally:
                 returncode = proc.wait()
 
-            if check and returncode:
+            if check and returncode not in success_exit_status:
                 if log:
                     log_process_failure(sandbox, cmdline, returncode)
                 if ARG_DEBUG_SHELL.get():

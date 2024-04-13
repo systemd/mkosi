@@ -64,7 +64,6 @@ from mkosi.qemu import KernelType, copy_ephemeral, run_qemu, run_ssh, start_jour
 from mkosi.run import (
     find_binary,
     fork_and_wait,
-    log_process_failure,
     run,
 )
 from mkosi.sandbox import Mount, chroot_cmd, finalize_crypto_mounts, finalize_passwd_mounts
@@ -2822,36 +2821,29 @@ def run_tmpfiles(context: Context) -> None:
         return
 
     with complete_step("Generating volatile files"):
-        cmdline = [
-            "systemd-tmpfiles",
-            "--root=/buildroot",
-            "--boot",
-            "--create",
-            "--remove",
-            # Exclude APIVFS and temporary files directories.
-            *(f"--exclude-prefix={d}" for d in ("/tmp", "/var/tmp", "/run", "/proc", "/sys", "/dev")),
-        ]
-
-        sandbox = context.sandbox(
-            mounts=[
-                Mount(context.root, "/buildroot"),
-                # systemd uses acl.h to parse ACLs in tmpfiles snippets which uses the host's passwd so we have to
-                # mount the image's passwd over it to make ACL parsing work.
-                *finalize_passwd_mounts(context.root)
+        run(
+            [
+                "systemd-tmpfiles",
+                "--root=/buildroot",
+                "--boot",
+                "--create",
+                "--remove",
+                # Exclude APIVFS and temporary files directories.
+                *(f"--exclude-prefix={d}" for d in ("/tmp", "/var/tmp", "/run", "/proc", "/sys", "/dev")),
             ],
-        )
-
-        result = run(
-            cmdline,
-            sandbox=sandbox,
             env={"SYSTEMD_TMPFILES_FORCE_SUBVOL": "0"},
-            check=False,
+            # systemd-tmpfiles can exit with DATAERR or CANTCREAT in some cases which are handled as success by the
+            # systemd-tmpfiles service so we handle those as success as well.
+            success_exit_status=(0, 65, 73),
+            sandbox=context.sandbox(
+                mounts=[
+                    Mount(context.root, "/buildroot"),
+                    # systemd uses acl.h to parse ACLs in tmpfiles snippets which uses the host's passwd so we have to
+                    # mount the image's passwd over it to make ACL parsing work.
+                    *finalize_passwd_mounts(context.root)
+                ],
+            ),
         )
-        # systemd-tmpfiles can exit with DATAERR or CANTCREAT in some cases which are handled as success by the
-        # systemd-tmpfiles service so we handle those as success as well.
-        if result.returncode not in (0, 65, 73):
-            log_process_failure([str(s) for s in sandbox], cmdline, result.returncode)
-            raise subprocess.CalledProcessError(result.returncode, cmdline)
 
 
 def run_preset(context: Context) -> None:
