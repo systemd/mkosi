@@ -203,11 +203,11 @@ class ManifestFormat(StrEnum):
 class Compression(StrEnum):
     none = enum.auto()
     zstd = enum.auto()
-    zst  = "zstd"
+    zst  = zstd
     xz   = enum.auto()
     bz2  = enum.auto()
     gz   = enum.auto()
-    gzip = "gz"
+    gzip = gz
     lz4  = enum.auto()
     lzma = enum.auto()
 
