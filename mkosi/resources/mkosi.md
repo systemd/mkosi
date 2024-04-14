@@ -951,6 +951,15 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   `mkosi.build` scripts require to operate. Note that packages listed
   here will be absent in the final image.
 
+`VolatilePackages=`, `--volatile-package=`
+
+: Similar to `Packages=`, but packages configured with this setting are
+  not cached when `Incremental=` is enabled and are installed after
+  executing any build scripts.
+
+: Specifically, this setting can be used to install packages that change
+  often or which are built by a build script.
+
 `PackageDirectories=`, `--package-directory=`
 
 : Specify directories containing extra packages to be made available during
@@ -1242,6 +1251,11 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 : Extra packages to install into the default initrd. Takes a comma
   separated list of package specifications. This option may be used
   multiple times in which case the specified package lists are combined.
+
+`InitrdVolatilePackages=`, `--initrd-volatile-package=`
+
+: Similar to `VolatilePackages=`, except it applies to the default
+  initrd.
 
 `MicrocodeHost=`, `--microcode-host=`
 

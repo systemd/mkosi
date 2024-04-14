@@ -182,6 +182,14 @@ def install_build_packages(context: Context) -> None:
         context.config.distribution.install_packages(context, context.config.build_packages)
 
 
+def install_volatile_packages(context: Context) -> None:
+    if not context.config.volatile_packages:
+        return
+
+    with complete_step(f"Installing volatile packages for {context.config.distribution.pretty_name()}"):
+        context.config.distribution.install_packages(context, context.config.volatile_packages)
+
+
 def remove_packages(context: Context) -> None:
     """Remove packages listed in config.remove_packages"""
 
@@ -1699,6 +1707,7 @@ def finalize_default_initrd(
         "--incremental", str(config.incremental),
         "--acl", str(config.acl),
         *(f"--package={package}" for package in config.initrd_packages),
+        *(f"--volatile-package={package}" for package in config.initrd_volatile_packages),
         *(["--package-directory", str(package_dir)] if package_dir else []),
         "--output", "initrd",
         *(["--image-id", config.image_id] if config.image_id else []),
@@ -3592,6 +3601,7 @@ def build_image(context: Context) -> None:
             finalize_staging(context)
             return
 
+        install_volatile_packages(context)
         install_build_dest(context)
         install_extra_trees(context)
         run_postinst_scripts(context)
