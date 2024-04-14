@@ -6,16 +6,26 @@ if [ -z "$1" ] ; then
     exit 1
 fi
 
+VERSION="$1"
+
 if ! git diff-index --quiet HEAD; then
     echo "Repo has modified files."
     exit 1
 fi
 
-sed -r -i "s/^version = \".*\"$/version = \"$1\"/" pyproject.toml
-sed -r -i "s/^__version__ = \".*\"$/__version__ = \"$1\"/" mkosi/config.py
+sed -r -i "s/^version = \".*\"$/version = \"$VERSION\"/" pyproject.toml
+sed -r -i "s/^__version__ = \".*\"$/__version__ = \"$VERSION\"/" mkosi/config.py
 
 git add -p pyproject.toml mkosi
 
-git commit -m "Release $1"
+git commit -m "Release $VERSION"
 
-git tag -s "v$1" -m "mkosi $1"
+git tag -s "v$VERSION" -m "mkosi $VERSION"
+
+VERSION="$((VERSION + 1))~devel"
+
+sed -r -i "s/^__version__ = \".*\"$/__version__ = \"$VERSION\"/" mkosi/config.py
+
+git add -p mkosi
+
+git commit -m "Bump version to $VERSION"
