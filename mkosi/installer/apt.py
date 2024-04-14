@@ -215,15 +215,28 @@ class Apt(PackageManager):
 
     @classmethod
     def createrepo(cls, context: Context) -> None:
-        with (context.packages / "Packages").open("wb") as f:
-            run(
-                ["dpkg-scanpackages", "."],
-                stdout=f,
-                sandbox=context.sandbox(
-                    mounts=[Mount(context.packages, context.packages, ro=True)],
-                    options=["--chdir", context.packages],
-                ),
+        if not (conf := context.packages / "conf/distributions").exists():
+            conf.parent.mkdir(exist_ok=True)
+            conf.write_text(
+                textwrap.dedent(
+                    f"""\
+                    Origin: mkosi
+                    Label: mkosi
+                    Architectures: {context.config.distribution.architecture(context.config.architecture)}
+                    Codename: mkosi
+                    Components: main
+                    Description: mkosi local repository
+                    """
+                )
             )
+
+        run(
+            ["reprepro", "includedeb", "mkosi"] + [d.name for d in context.packages.glob("*.deb")],
+            sandbox=context.sandbox(
+                mounts=[Mount(context.packages, context.packages)],
+                options=["--chdir", context.packages],
+            ),
+        )
 
         (context.pkgmngr / "etc/apt/sources.list.d").mkdir(parents=True, exist_ok=True)
         (context.pkgmngr / "etc/apt/sources.list.d/mkosi-local.sources").write_text(
@@ -232,7 +245,8 @@ class Apt(PackageManager):
                 Enabled: yes
                 Types: deb
                 URIs: file:///work/packages
-                Suites: ./
+                Suites: mkosi
+                Components: main
                 Trusted: yes
                 """
             )
