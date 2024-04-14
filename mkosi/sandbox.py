@@ -1,9 +1,12 @@
 # SPDX-License-Identifier: LGPL-2.1+
+import contextlib
 import enum
 import logging
 import os
+import shutil
 import uuid
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import NamedTuple, Optional, Protocol
 
@@ -40,11 +43,11 @@ class Mount(NamedTuple):
 
 
 class SandboxProtocol(Protocol):
-    def __call__(self, *, mounts: Sequence[Mount] = ()) -> list[PathString]: ...
+    def __call__(self, *, mounts: Sequence[Mount] = ()) -> AbstractContextManager[list[PathString]]: ...
 
 
-def nosandbox(*, mounts: Sequence[Mount] = ()) -> list[PathString]:
-    return []
+def nosandbox(*, mounts: Sequence[Mount] = ()) -> AbstractContextManager[list[PathString]]:
+    return contextlib.nullcontext([])
 
 
 # https://github.com/torvalds/linux/blob/master/include/uapi/linux/capability.h
@@ -76,26 +79,6 @@ def finalize_passwd_mounts(root: PathString) -> list[Mount]:
     ]
 
 
-def finalize_crypto_mounts(tools: Path = Path("/")) -> list[Mount]:
-    mounts = [
-        (tools / subdir, Path("/") / subdir)
-        for subdir in (
-            Path("etc/pki"),
-            Path("etc/ssl"),
-            Path("etc/ca-certificates"),
-            Path("etc/pacman.d/gnupg"),
-            Path("var/lib/ca-certificates"),
-        )
-        if (tools / subdir).exists()
-    ]
-
-    return [
-        Mount(src, target, ro=True)
-        for src, target
-        in sorted(set(mounts), key=lambda s: s[1])
-    ]
-
-
 def finalize_mounts(mounts: Sequence[Mount]) -> list[PathString]:
     mounts = list(set(mounts))
 
@@ -118,6 +101,7 @@ def finalize_mounts(mounts: Sequence[Mount]) -> list[PathString]:
     return flatten(m.options() for m in mounts)
 
 
+@contextlib.contextmanager
 def sandbox_cmd(
     *,
     network: bool = False,
@@ -127,16 +111,14 @@ def sandbox_cmd(
     relaxed: bool = False,
     mounts: Sequence[Mount] = (),
     options: Sequence[PathString] = (),
-) -> list[PathString]:
+    extra: Sequence[PathString] = (),
+) -> Iterator[list[PathString]]:
     cmdline: list[PathString] = []
     mounts = list(mounts)
 
     if not relaxed:
-        # We want to use an empty subdirectory in the host's temporary directory as the sandbox's /var/tmp. To make
-        # sure it only gets created when we run the sandboxed command and cleaned up when the sandboxed command exits,
-        # we create it using shell.
+        # We want to use an empty subdirectory in the host's temporary directory as the sandbox's /var/tmp.
         vartmp = Path(os.getenv("TMPDIR", "/var/tmp")) / f"mkosi-var-tmp-{uuid.uuid4().hex[:16]}"
-        cmdline += ["sh", "-c", f"trap 'rm -rf {vartmp}' EXIT && mkdir --mode 1777 {vartmp} && $0 \"$@\""]
     else:
         vartmp = None
 
@@ -238,9 +220,16 @@ def sandbox_cmd(
         ops += ["chmod 755 /etc"]
     ops += ["exec $0 \"$@\""]
 
-    cmdline += ["sh", "-c", " && ".join(ops)]
+    cmdline += ["sh", "-c", " && ".join(ops), *extra]
 
-    return cmdline
+    if vartmp:
+        vartmp.mkdir(mode=0o1777)
+
+    try:
+        yield cmdline
+    finally:
+        if vartmp:
+            shutil.rmtree(vartmp)
 
 
 def apivfs_cmd() -> list[PathString]:

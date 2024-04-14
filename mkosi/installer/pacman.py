@@ -59,12 +59,6 @@ class Pacman(PackageManager):
             # bind mount the local directory from the image to make sure that happens.
             mounts += [Mount(context.root / "var/lib/pacman/local", "/var/lib/pacman/local")]
 
-        if (
-            (context.config.tools() / "etc/makepkg.conf").exists() and
-            not (context.pkgmngr / "etc/makepkg.conf").exists()
-        ):
-            mounts += [Mount(context.config.tools() / "etc/makepkg.conf", "/etc/makepkg.conf", ro=True)]
-
         return mounts
 
     @classmethod
@@ -162,7 +156,8 @@ class Pacman(PackageManager):
                         network=True,
                         mounts=[Mount(context.root, "/buildroot"), *cls.mounts(context), *sources],
                         options=["--dir", "/work/src", "--chdir", "/work/src"],
-                    ) + (apivfs_cmd() if apivfs else [])
+                        extra=apivfs_cmd() if apivfs else [],
+                    )
                 ),
                 env=context.config.environment | cls.finalize_environment(context),
                 stdout=stdout,
@@ -170,7 +165,7 @@ class Pacman(PackageManager):
 
     @classmethod
     def sync(cls, context: Context) -> None:
-        cls.invoke(context, "--sync", ["--refresh"])
+        cls.invoke(context, "--sync", ["--refresh"] + (["--refresh"] if context.args.force > 1 else []))
 
     @classmethod
     def createrepo(cls, context: Context) -> None:

@@ -179,7 +179,7 @@ class StrEnum(enum.Enum):
 
     @classmethod
     def values(cls) -> list[str]:
-        return list(map(str, cls))
+        return list(s.replace("_", "-") for s in map(str, cls.__members__))
 
 
 @contextlib.contextmanager

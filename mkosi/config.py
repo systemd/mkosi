@@ -27,6 +27,7 @@ import textwrap
 import typing
 import uuid
 from collections.abc import Collection, Iterable, Iterator, Sequence
+from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Any, Callable, Optional, TypeVar, Union, cast
 
@@ -202,11 +203,11 @@ class ManifestFormat(StrEnum):
 class Compression(StrEnum):
     none = enum.auto()
     zstd = enum.auto()
-    zst  = "zstd"
+    zst  = zstd
     xz   = enum.auto()
     bz2  = enum.auto()
     gz   = enum.auto()
-    gzip = "gz"
+    gzip = gz
     lz4  = enum.auto()
     lzma = enum.auto()
 
@@ -258,9 +259,11 @@ class ShimBootloader(StrEnum):
 
 
 class Cacheonly(StrEnum):
-    always = enum.auto()
-    none = enum.auto()
+    always   = enum.auto()
+    auto     = enum.auto()
+    none     = auto
     metadata = enum.auto()
+    never    = enum.auto()
 
 
 class QemuFirmware(StrEnum):
@@ -1459,6 +1462,7 @@ class Config:
     key: Optional[str]
 
     proxy_url: Optional[str]
+    proxy_exclude: list[str]
     proxy_peer_certificate: Optional[Path]
     proxy_client_certificate: Optional[Path]
     proxy_client_key: Optional[Path]
@@ -1476,6 +1480,7 @@ class Config:
     tools_tree_repositories: list[str]
     tools_tree_package_manager_trees: list[ConfigTree]
     tools_tree_packages: list[str]
+    tools_tree_certificates: bool
     runtime_trees: list[ConfigTree]
     runtime_size: Optional[int]
     runtime_scratch: ConfigFeature
@@ -1685,7 +1690,8 @@ class Config:
         scripts: Optional[Path] = None,
         mounts: Sequence[Mount] = (),
         options: Sequence[PathString] = (),
-    ) -> list[PathString]:
+        extra: Sequence[PathString] = (),
+    ) -> AbstractContextManager[list[PathString]]:
         mounts = [
             *[Mount(d, d, ro=True) for d in self.extra_search_paths if not relaxed and not self.tools_tree],
             *([Mount(p, "/proxy.cacert", ro=True)] if (p := self.proxy_peer_certificate) else []),
@@ -1702,6 +1708,7 @@ class Config:
             tools=tools or self.tools(),
             mounts=mounts,
             options=options,
+            extra=extra,
         )
 
 
@@ -1894,11 +1901,11 @@ SETTINGS = (
         dest="cacheonly",
         long="--cache-only",
         name="CacheOnly",
-        metavar="CACHEONLY",
         section="Distribution",
-        parse=config_make_enum_parser_with_boolean(Cacheonly, yes=Cacheonly.always, no=Cacheonly.none),
-        default=Cacheonly.none,
+        parse=config_make_enum_parser_with_boolean(Cacheonly, yes=Cacheonly.always, no=Cacheonly.auto),
+        default=Cacheonly.auto,
         help="Only use the package cache when installing packages",
+        choices=Cacheonly.values(),
     ),
     ConfigSetting(
         dest="package_manager_trees",
@@ -2629,6 +2636,13 @@ SETTINGS = (
         help="Set the proxy to use",
     ),
     ConfigSetting(
+        dest="proxy_exclude",
+        section="Host",
+        metavar="HOST",
+        parse=config_make_list_parser(delimiter=","),
+        help="Don't use the configured proxy for the specified host(s)",
+    ),
+    ConfigSetting(
         dest="proxy_peer_certificate",
         section="Host",
         parse=config_make_path_parser(),
@@ -2771,6 +2785,14 @@ SETTINGS = (
         section="Host",
         parse=config_make_list_parser(delimiter=","),
         help="Add additional packages to the default tools tree",
+    ),
+    ConfigSetting(
+        dest="tools_tree_certificates",
+        metavar="BOOL",
+        section="Host",
+        parse=config_parse_boolean,
+        help="Use certificates from the tools tree",
+        default=True,
     ),
     ConfigSetting(
         dest="runtime_trees",
@@ -3713,6 +3735,9 @@ def load_environment(args: argparse.Namespace) -> dict[str, str]:
         for e in ("http_proxy", "https_proxy"):
             env[e] = args.proxy_url
             env[e.upper()] = args.proxy_url
+    if args.proxy_exclude:
+        env["no_proxy"] = ",".join(args.proxy_exclude)
+        env["NO_PROXY"] = ",".join(args.proxy_exclude)
     if args.proxy_peer_certificate:
         env["GIT_PROXY_SSL_CAINFO"] = "/proxy.cacert"
     if args.proxy_client_certificate:
@@ -3979,6 +4004,7 @@ def summary(config: Config) -> str:
             Tools Tree Repositories: {line_join_list(config.tools_tree_repositories)}
    Tools Tree Package Manager Trees: {line_join_list(config.tools_tree_package_manager_trees)}
                 Tools Tree Packages: {line_join_list(config.tools_tree_packages)}
+            Tools Tree Certificates: {yes_no(config.tools_tree_certificates)}
                       Runtime Trees: {line_join_list(config.runtime_trees)}
                        Runtime Size: {format_bytes_or_none(config.runtime_size)}
                     Runtime Scratch: {config.runtime_scratch}
@@ -4198,5 +4224,9 @@ def want_selinux_relabel(config: Config, root: Path, fatal: bool = True) -> Opti
 
 def systemd_tool_version(config: Config, tool: PathString) -> GenericVersion:
     return GenericVersion(
-        run([tool, "--version"], stdout=subprocess.PIPE, sandbox=config.sandbox()).stdout.split()[2].strip("()")
+        run(
+            [tool, "--version"],
+            stdout=subprocess.PIPE,
+            sandbox=config.sandbox()
+        ).stdout.split()[2].strip("()").removeprefix("v")
     )

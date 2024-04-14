@@ -133,3 +133,27 @@ def finalize_source_mounts(config: Config, *, ephemeral: bool) -> Iterator[list[
         )
 
         yield [Mount(src, target) for src, target in sorted(sources, key=lambda s: s[1])]
+
+
+def finalize_crypto_mounts(config: Config) -> list[Mount]:
+    root = config.tools() if config.tools_tree_certificates else Path("/")
+
+    mounts = [
+        (root / subdir, Path("/") / subdir)
+        for subdir in (
+            Path("usr/share/keyrings"),
+            Path("usr/share/distribution-gpg-keys"),
+            Path("etc/pki"),
+            Path("etc/ssl"),
+            Path("etc/ca-certificates"),
+            Path("etc/pacman.d/gnupg"),
+            Path("var/lib/ca-certificates"),
+        )
+        if (root / subdir).exists()
+    ]
+
+    return [
+        Mount(src, target, ro=True)
+        for src, target
+        in sorted(set(mounts), key=lambda s: s[1])
+    ]

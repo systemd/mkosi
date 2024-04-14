@@ -12,6 +12,7 @@ import logging
 import os
 import random
 import shutil
+import signal
 import socket
 import struct
 import subprocess
@@ -38,7 +39,7 @@ from mkosi.config import (
 from mkosi.log import ARG_DEBUG, die
 from mkosi.mounts import finalize_source_mounts
 from mkosi.partition import finalize_root, find_partitions
-from mkosi.run import SD_LISTEN_FDS_START, AsyncioThread, find_binary, fork_and_wait, run, spawn
+from mkosi.run import SD_LISTEN_FDS_START, AsyncioThread, find_binary, fork_and_wait, kill, run, spawn
 from mkosi.sandbox import Mount
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
@@ -148,8 +149,8 @@ class KernelType(StrEnum):
             logging.warning("bootctl is not installed, assuming 'unknown' kernel type")
             return KernelType.unknown
 
-        if systemd_tool_version(config, "bootctl") < 253:
-            logging.warning("bootctl doesn't know kernel-identify verb, assuming 'unknown' kernel type")
+        if (v := systemd_tool_version(config, "bootctl")) < 253:
+            logging.warning(f"bootctl {v} doesn't know kernel-identify verb, assuming 'unknown' kernel type")
             return KernelType.unknown
 
         type = run(
@@ -274,15 +275,15 @@ def start_swtpm(config: Config) -> Iterator[Path]:
                 cmdline,
                 pass_fds=(sock.fileno(),),
                 sandbox=config.sandbox(mounts=[Mount(state, state)]),
-            ) as proc:
+            ) as (proc, innerpid):
                 allocate_scope(
                     config,
                     name=f"mkosi-swtpm-{config.machine_or_name()}",
-                    pid=proc.pid,
+                    pid=innerpid,
                     description=f"swtpm for {config.machine_or_name()}",
                 )
                 yield path
-                proc.terminate()
+                kill(proc, innerpid, signal.SIGTERM)
 
 
 def find_virtiofsd(*, tools: Path = Path("/")) -> Optional[Path]:
@@ -354,15 +355,15 @@ def start_virtiofsd(config: Config, directory: PathString, *, name: str, selinux
                 mounts=[Mount(directory, directory)],
                 options=["--uid", "0", "--gid", "0", "--cap-add", "all"],
             ),
-        ) as proc:
+        ) as (proc, innerpid):
             allocate_scope(
                 config,
                 name=f"mkosi-virtiofsd-{name}",
-                pid=proc.pid,
+                pid=innerpid,
                 description=f"virtiofsd for {directory}",
             )
             yield path
-            proc.terminate()
+            kill(proc, innerpid, signal.SIGTERM)
 
 
 @contextlib.contextmanager
@@ -437,13 +438,21 @@ def start_journal_remote(config: Config, sockfd: int) -> Iterator[None]:
         ],
         pass_fds=(sockfd,),
         sandbox=config.sandbox(mounts=[Mount(config.forward_journal.parent, config.forward_journal.parent)]),
-        user=config.forward_journal.parent.stat().st_uid,
-        group=config.forward_journal.parent.stat().st_gid,
+        user=config.forward_journal.parent.stat().st_uid if INVOKING_USER.invoked_as_root else None,
+        group=config.forward_journal.parent.stat().st_gid if INVOKING_USER.invoked_as_root else None,
         # If all logs go into a single file, disable compact mode to allow for journal files exceeding 4G.
         env={"SYSTEMD_JOURNAL_COMPACT": "0" if config.forward_journal.suffix == ".journal" else "1"},
-    ) as proc:
+        foreground=False,
+    ) as (proc, innerpid):
+        allocate_scope(
+            config,
+            name=f"mkosi-journal-remote-{config.machine_or_name()}",
+            pid=innerpid,
+            description=f"mkosi systemd-journal-remote for {config.machine_or_name()}",
+        )
         yield
-        proc.terminate()
+        kill(proc, innerpid, signal.SIGTERM)
+
 
 
 @contextlib.contextmanager
@@ -709,6 +718,9 @@ def register_machine(config: Config, pid: int, fname: Path) -> None:
         foreground=False,
         env=os.environ | config.environment,
         sandbox=config.sandbox(relaxed=True),
+        # systemd-machined might not be installed so let's ignore any failures unless running in debug mode.
+        check=ARG_DEBUG.get(),
+        stderr=None if ARG_DEBUG.get() else subprocess.DEVNULL,
     )
 
 
@@ -1087,7 +1099,7 @@ def run_qemu(args: Args, config: Config) -> None:
             log=False,
             foreground=True,
             sandbox=config.sandbox(network=True, devices=True, relaxed=True),
-        ) as qemu:
+        ) as (proc, innerpid):
             # We have to close these before we wait for qemu otherwise we'll deadlock as qemu will never exit.
             for fd in qemu_device_fds.values():
                 os.close(fd)
@@ -1096,12 +1108,12 @@ def run_qemu(args: Args, config: Config) -> None:
             allocate_scope(
                 config,
                 name=name,
-                pid=qemu.pid,
+                pid=innerpid,
                 description=f"mkosi Virtual Machine {name}",
             )
-            register_machine(config, qemu.pid, fname)
+            register_machine(config, innerpid, fname)
 
-            if qemu.wait() == 0 and (status := int(notifications.get("EXIT_STATUS", 0))):
+            if proc.wait() == 0 and (status := int(notifications.get("EXIT_STATUS", 0))):
                 raise subprocess.CalledProcessError(status, cmdline)
 
 

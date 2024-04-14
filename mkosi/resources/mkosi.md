@@ -643,13 +643,16 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `CacheOnly=`, `--cache-only=`
 
-: Takes one of `none`, `metadata` or `always`. If `always`, the package
-  manager is instructed not to contact the network. This provides a
-  minimal level of reproducibility, as long as the package cache is
-  already fully populated. If set to `metadata`, the package manager can
-  still download packages, but we won't sync the repository metadata. If
-  set to `none`, the repository metadata is synced and packages can be
-  downloaded during the build.
+: Takes one of `auto`, `metadata`, `always` or `never`. Defaults to
+  `auto`. If `always`, the package manager is instructed not to contact
+  the network. This provides a minimal level of reproducibility, as long
+  as the package cache is already fully populated. If set to `metadata`,
+  the package manager can still download packages, but we won't sync the
+  repository metadata. If set to `auto`, the repository metadata is
+  synced unless we have a cached image (see `Incremental=`) and packages
+  can be downloaded during the build. If set to `never`, repository
+  metadata is always synced and and packages can be downloaded during
+  the build.
 
 `PackageManagerTrees=`, `--package-manager-tree=`
 
@@ -1452,6 +1455,11 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   well-known environment variables to specify the proxy to use for any
   programs it invokes that may need internet access.
 
+`ProxyExclude=`, `--proxy-exclude=`
+
+: Configure hostnames for which requests should not go through the
+  proxy. Takes a comma separated list of hostnames.
+
 `ProxyPeerCertificate=`, `--proxy-peer-certificate=`
 
 : Configure a file containing certificates used to verify the proxy.
@@ -1782,6 +1790,14 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 : Extra packages to install into the default tools tree. Takes a comma
   separated list of package specifications. This option may be used
   multiple times in which case the specified package lists are combined.
+
+`ToolsTreeCertificates=`, `--tools-tree-certificates=`
+
+: Specify whether to use certificates and keys from the tools tree. If
+  enabled, `/usr/share/keyrings`, `/usr/share/distribution-gpg-keys`,
+  `/etc/pki`, `/etc/ssl`, `/etc/ca-certificates`, `/etc/pacman.d/gnupg`
+  and `/var/lib/ca-certificates` from the tools tree are used.
+  Otherwise, these directories are picked up from the host.
 
 `RuntimeTrees=`, `--runtime-tree=`
 

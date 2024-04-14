@@ -219,6 +219,9 @@ def test_config() -> None:
             "Profile": "profile",
             "ProxyClientCertificate": "/my/client/cert",
             "ProxyClientKey": "/my/client/key",
+            "ProxyExclude": [
+                "www.example.com"
+            ],
             "ProxyPeerCertificate": "/my/peer/cert",
             "ProxyUrl": "https://my/proxy",
             "QemuArgs": [],
@@ -310,6 +313,7 @@ def test_config() -> None:
             ],
             "Timezone": null,
             "ToolsTree": null,
+            "ToolsTreeCertificates": true,
             "ToolsTreeDistribution": null,
             "ToolsTreeMirror": null,
             "ToolsTreePackageManagerTrees": [
@@ -418,6 +422,7 @@ def test_config() -> None:
         profile = "profile",
         proxy_client_certificate = Path("/my/client/cert"),
         proxy_client_key = Path("/my/client/key"),
+        proxy_exclude = ["www.example.com"],
         proxy_peer_certificate = Path("/my/peer/cert"),
         proxy_url = "https://my/proxy",
         qemu_args = [],
@@ -468,6 +473,7 @@ def test_config() -> None:
         sync_scripts = [Path("/sync")],
         timezone = None,
         tools_tree = None,
+        tools_tree_certificates = True,
         tools_tree_distribution = None,
         tools_tree_mirror = None,
         tools_tree_package_manager_trees = [ConfigTree(Path("/a/b/c"), Path("/"))],

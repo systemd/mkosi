@@ -20,6 +20,7 @@ import tempfile
 import textwrap
 import uuid
 from collections.abc import Iterator, Mapping, Sequence
+from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Optional, Union, cast
 
@@ -57,17 +58,16 @@ from mkosi.installer import clean_package_manager_metadata
 from mkosi.kmod import gen_required_kernel_modules, process_kernel_modules
 from mkosi.log import ARG_DEBUG, complete_step, die, log_notice, log_step
 from mkosi.manifest import Manifest
-from mkosi.mounts import finalize_source_mounts, mount_overlay
+from mkosi.mounts import finalize_crypto_mounts, finalize_source_mounts, mount_overlay
 from mkosi.pager import page
 from mkosi.partition import Partition, finalize_root, finalize_roothash
 from mkosi.qemu import KernelType, copy_ephemeral, run_qemu, run_ssh, start_journal_remote
 from mkosi.run import (
     find_binary,
     fork_and_wait,
-    log_process_failure,
     run,
 )
-from mkosi.sandbox import Mount, chroot_cmd, finalize_crypto_mounts, finalize_passwd_mounts
+from mkosi.sandbox import Mount, chroot_cmd, finalize_passwd_mounts
 from mkosi.tree import copy_tree, move_tree, rmtree
 from mkosi.types import PathString
 from mkosi.user import CLONE_NEWNS, INVOKING_USER, become_root, unshare
@@ -324,8 +324,8 @@ def configure_autologin(context: Context) -> None:
 
 
 @contextlib.contextmanager
-def mount_cache_overlay(context: Context) -> Iterator[None]:
-    if not context.config.incremental or not context.config.base_trees or context.config.overlay:
+def mount_cache_overlay(context: Context, cached: bool) -> Iterator[None]:
+    if not context.config.incremental or not context.config.base_trees or context.config.overlay or cached:
         yield
         return
 
@@ -409,7 +409,7 @@ def mkosi_as_caller() -> tuple[str, ...]:
 def finalize_host_scripts(
     context: Context,
     helpers: Mapping[str, Sequence[PathString]] = {},
-) -> contextlib.AbstractContextManager[Path]:
+) -> AbstractContextManager[Path]:
     scripts: dict[str, Sequence[PathString]] = {}
     for binary in ("useradd", "groupadd"):
         if find_binary(binary, root=context.config.tools()):
@@ -494,7 +494,7 @@ def run_sync_scripts(context: Context) -> None:
         for script in context.config.sync_scripts:
             mounts = [
                 *sources,
-                *finalize_crypto_mounts(context.config.tools()),
+                *finalize_crypto_mounts(context.config),
                 Mount(script, "/work/sync", ro=True),
                 Mount(json, "/work/config.json", ro=True),
             ]
@@ -589,7 +589,8 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
                         ],
                         options=["--dir", "/work/src", "--chdir", "/work/src"],
                         scripts=hd,
-                    ) + (chroot if script.suffix == ".chroot" else []),
+                        extra=chroot if script.suffix == ".chroot" else [],
+                    )
                 )
 
 
@@ -671,7 +672,8 @@ def run_build_scripts(context: Context) -> None:
                         ],
                         options=["--dir", "/work/src", "--chdir", "/work/src"],
                         scripts=hd,
-                    ) + (chroot if script.suffix == ".chroot" else []),
+                        extra=chroot if script.suffix == ".chroot" else [],
+                    ),
                 )
 
     if context.want_local_repo() and context.config.output_format != OutputFormat.none:
@@ -737,7 +739,8 @@ def run_postinst_scripts(context: Context) -> None:
                         ],
                         options=["--dir", "/work/src", "--chdir", "/work/src"],
                         scripts=hd,
-                    ) + (chroot if script.suffix == ".chroot" else []),
+                        extra=chroot if script.suffix == ".chroot" else [],
+                    ),
                 )
 
 
@@ -797,7 +800,8 @@ def run_finalize_scripts(context: Context) -> None:
                         ],
                         options=["--dir", "/work/src", "--chdir", "/work/src"],
                         scripts=hd,
-                    ) + (chroot if script.suffix == ".chroot" else []),
+                        extra=chroot if script.suffix == ".chroot" else [],
+                    ),
                 )
 
 
@@ -1459,7 +1463,8 @@ def grub_bios_setup(context: Context, partitions: Sequence[Partition]) -> None:
                     Mount(context.staging, context.staging),
                     Mount(mountinfo.name, mountinfo.name),
                 ],
-            ) + ["sh", "-c", f"mount --bind {mountinfo.name} /proc/$$/mountinfo && exec $0 \"$@\""],
+                extra=["sh", "-c", f"mount --bind {mountinfo.name} /proc/$$/mountinfo && exec $0 \"$@\""],
+            ),
         )
 
 
@@ -1611,6 +1616,18 @@ def gzip_binary(context: Context) -> str:
     return "pigz" if find_binary("pigz", root=context.config.tools()) else "gzip"
 
 
+def fixup_vmlinuz_location(context: Context) -> None:
+    for d in context.root.glob("boot/vmlinuz-*"):
+        kver = d.name.removeprefix("vmlinuz-")
+        vmlinuz = context.root / "usr/lib/modules" / kver / "vmlinuz"
+        # Some distributions (OpenMandriva) symlink /usr/lib/modules/<kver>/vmlinuz to /boot/vmlinuz-<kver>, so get rid
+        # of the symlink and copy the actual vmlinuz to /usr/lib/modules/<kver>.
+        if vmlinuz.is_symlink() and vmlinuz.is_relative_to("/boot"):
+            vmlinuz.unlink()
+        if not vmlinuz.exists():
+            shutil.copy2(d, vmlinuz)
+
+
 def gen_kernel_images(context: Context) -> Iterator[tuple[str, Path]]:
     if not (context.root / "usr/lib/modules").exists():
         return
@@ -1701,6 +1718,7 @@ def finalize_default_initrd(
         *(["--tools-tree", str(config.tools_tree)] if config.tools_tree else []),
         *([f"--extra-search-path={p}" for p in config.extra_search_paths]),
         *(["--proxy-url", config.proxy_url] if config.proxy_url else []),
+        *([f"--proxy-exclude={host}" for host in config.proxy_exclude]),
         *(["--proxy-peer-certificate", str(p)] if (p := config.proxy_peer_certificate) else []),
         *(["--proxy-client-certificate", str(p)] if (p := config.proxy_client_certificate) else []),
         *(["--proxy-client-key", str(p)] if (p := config.proxy_client_key) else []),
@@ -2495,7 +2513,8 @@ def calculate_signature(context: Context) -> None:
             sandbox=context.sandbox(
                 mounts=mounts,
                 options=options,
-            ) + ["setpriv", f"--reuid={INVOKING_USER.uid}", f"--regid={INVOKING_USER.gid}", "--clear-groups"]
+                extra=["setpriv", f"--reuid={INVOKING_USER.uid}", f"--regid={INVOKING_USER.gid}", "--clear-groups"],
+            )
         )
 
 
@@ -2822,36 +2841,29 @@ def run_tmpfiles(context: Context) -> None:
         return
 
     with complete_step("Generating volatile files"):
-        cmdline = [
-            "systemd-tmpfiles",
-            "--root=/buildroot",
-            "--boot",
-            "--create",
-            "--remove",
-            # Exclude APIVFS and temporary files directories.
-            *(f"--exclude-prefix={d}" for d in ("/tmp", "/var/tmp", "/run", "/proc", "/sys", "/dev")),
-        ]
-
-        sandbox = context.sandbox(
-            mounts=[
-                Mount(context.root, "/buildroot"),
-                # systemd uses acl.h to parse ACLs in tmpfiles snippets which uses the host's passwd so we have to
-                # mount the image's passwd over it to make ACL parsing work.
-                *finalize_passwd_mounts(context.root)
+        run(
+            [
+                "systemd-tmpfiles",
+                "--root=/buildroot",
+                "--boot",
+                "--create",
+                "--remove",
+                # Exclude APIVFS and temporary files directories.
+                *(f"--exclude-prefix={d}" for d in ("/tmp", "/var/tmp", "/run", "/proc", "/sys", "/dev")),
             ],
-        )
-
-        result = run(
-            cmdline,
-            sandbox=sandbox,
             env={"SYSTEMD_TMPFILES_FORCE_SUBVOL": "0"},
-            check=False,
+            # systemd-tmpfiles can exit with DATAERR or CANTCREAT in some cases which are handled as success by the
+            # systemd-tmpfiles service so we handle those as success as well.
+            success_exit_status=(0, 65, 73),
+            sandbox=context.sandbox(
+                mounts=[
+                    Mount(context.root, "/buildroot"),
+                    # systemd uses acl.h to parse ACLs in tmpfiles snippets which uses the host's passwd so we have to
+                    # mount the image's passwd over it to make ACL parsing work.
+                    *finalize_passwd_mounts(context.root)
+                ],
+            ),
         )
-        # systemd-tmpfiles can exit with DATAERR or CANTCREAT in some cases which are handled as success by the
-        # systemd-tmpfiles service so we handle those as success as well.
-        if result.returncode not in (0, 65, 73):
-            log_process_failure([str(s) for s in sandbox], cmdline, result.returncode)
-            raise subprocess.CalledProcessError(result.returncode, cmdline)
 
 
 def run_preset(context: Context) -> None:
@@ -3495,15 +3507,16 @@ def lock_repository_metadata(config: Config) -> Iterator[None]:
 
 
 def copy_repository_metadata(context: Context) -> None:
-    if have_cache(context.config):
-        return
-
     subdir = context.config.distribution.package_manager(context.config).subdir(context.config)
 
-    # Don't copy anything if the repository metadata directories are already populated.
+    # Don't copy anything if the repository metadata directories are already populated and we're not explicitly asked
+    # to sync repository metadata.
     if (
-        any((context.package_cache_dir / "cache" / subdir).glob("*")) or
-        any((context.package_cache_dir / "lib" / subdir).glob("*"))
+        context.config.cacheonly != Cacheonly.never and
+        (
+            any((context.package_cache_dir / "cache" / subdir).glob("*")) or
+            any((context.package_cache_dir / "lib" / subdir).glob("*"))
+        )
     ):
         logging.debug(f"Found repository metadata in {context.package_cache_dir}, not copying repository metadata")
         return
@@ -3531,7 +3544,7 @@ def copy_repository_metadata(context: Context) -> None:
                 with umask(~0o755):
                     dst.mkdir(parents=True, exist_ok=True)
 
-                def sandbox(*, mounts: Sequence[Mount] = ()) -> list[PathString]:
+                def sandbox(*, mounts: Sequence[Mount] = ()) -> AbstractContextManager[list[PathString]]:
                     return context.sandbox(mounts=[*mounts, *exclude])
 
                 copy_tree(
@@ -3551,20 +3564,20 @@ def build_image(context: Context) -> None:
         install_base_trees(context)
         cached = reuse_cache(context)
 
-        if not cached:
-            with mount_cache_overlay(context):
-                copy_repository_metadata(context)
+        with mount_cache_overlay(context, cached):
+            copy_repository_metadata(context)
 
         context.config.distribution.setup(context)
         install_package_directories(context)
 
         if not cached:
-            with mount_cache_overlay(context):
+            with mount_cache_overlay(context, cached):
                 install_skeleton_trees(context)
                 install_distribution(context)
                 run_prepare_scripts(context, build=False)
                 install_build_packages(context)
                 run_prepare_scripts(context, build=True)
+                fixup_vmlinuz_location(context)
                 run_depmod(context, cache=True)
 
             save_cache(context)
@@ -3582,6 +3595,7 @@ def build_image(context: Context) -> None:
         install_build_dest(context)
         install_extra_trees(context)
         run_postinst_scripts(context)
+        fixup_vmlinuz_location(context)
 
         configure_autologin(context)
         configure_os_release(context)
@@ -4092,6 +4106,7 @@ def finalize_default_tools(args: Args, config: Config, *, resources: Path) -> Co
         *([f"--environment={k}='{v}'" for k, v in config.environment.items()]),
         *([f"--extra-search-path={p}" for p in config.extra_search_paths]),
         *(["--proxy-url", config.proxy_url] if config.proxy_url else []),
+        *([f"--proxy-exclude={host}" for host in config.proxy_exclude]),
         *(["--proxy-peer-certificate", str(p)] if (p := config.proxy_peer_certificate) else []),
         *(["--proxy-client-certificate", str(p)] if (p := config.proxy_client_certificate) else []),
         *(["--proxy-client-key", str(p)] if (p := config.proxy_client_key) else []),
@@ -4162,10 +4177,10 @@ def run_clean_scripts(config: Config) -> None:
                 )
 
 
-def needs_clean(args: Args, config: Config) -> bool:
+def needs_clean(args: Args, config: Config, force: int = 1) -> bool:
     return (
         args.verb == Verb.clean or
-        args.force > 0 or
+        args.force >= force or
         not (config.output_dir_or_cwd() / config.output_with_compression).exists() or
         # When the output is a directory, its name is the same as the symlink we create that points to the actual
         # output when not building a directory. So if the full output path exists, we have to check that it's not
@@ -4255,7 +4270,10 @@ def rchown_package_manager_dirs(config: Config) -> Iterator[None]:
 
 
 def sync_repository_metadata(context: Context) -> None:
-    if have_cache(context.config) or context.config.cacheonly != Cacheonly.none:
+    if (
+        context.config.cacheonly != Cacheonly.never and
+        (have_cache(context.config) or context.config.cacheonly != Cacheonly.auto)
+    ):
         return
 
     with (
@@ -4411,12 +4429,12 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
     # image build could end up deleting the output generated by an earlier image build.
     for config in images:
         if config.tools_tree and config.tools_tree == Path("default"):
-            fork_and_wait(
-                run_clean,
-                args,
-                finalize_default_tools(args, config, resources=resources),
-                resources=resources,
-            )
+            toolsconfig = finalize_default_tools(args, config, resources=resources)
+
+            # If we're doing an incremental tools tree and the cache is not out of date, don't clean up the tools tree
+            # so that we can reuse the previous one.
+            if not toolsconfig.incremental or not have_cache(toolsconfig) or needs_clean(args, toolsconfig, force=2):
+                fork_and_wait(run_clean, args, toolsconfig, resources=resources)
 
         fork_and_wait(run_clean, args, config, resources=resources)
 

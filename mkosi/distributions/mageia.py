@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-import shutil
 from collections.abc import Iterable, Sequence
 
 from mkosi.config import Architecture
@@ -31,12 +30,6 @@ class Installer(fedora.Installer):
     @classmethod
     def install_packages(cls, context: Context, packages: Sequence[str], apivfs: bool = True) -> None:
         super().install_packages(context, packages, apivfs)
-
-        for d in context.root.glob("boot/vmlinuz-*"):
-            kver = d.name.removeprefix("vmlinuz-")
-            vmlinuz = context.root / "usr/lib/modules" / kver / "vmlinuz"
-            if not vmlinuz.exists():
-                shutil.copy2(d, vmlinuz)
 
     @classmethod
     @listify

@@ -134,7 +134,8 @@ class Zypper(PackageManager):
                         network=True,
                         mounts=[Mount(context.root, "/buildroot"), *cls.mounts(context), *sources],
                         options=["--dir", "/work/src", "--chdir", "/work/src"],
-                    ) + (apivfs_cmd() if apivfs else [])
+                        extra=apivfs_cmd() if apivfs else [],
+                    )
                 ),
                 env=context.config.environment | cls.finalize_environment(context),
                 stdout=stdout,
@@ -142,7 +143,7 @@ class Zypper(PackageManager):
 
     @classmethod
     def sync(cls, context: Context) -> None:
-        cls.invoke(context, "refresh")
+        cls.invoke(context, "refresh", ["--force"] if context.args.force > 1 else [])
 
     @classmethod
     def createrepo(cls, context: Context) -> None:

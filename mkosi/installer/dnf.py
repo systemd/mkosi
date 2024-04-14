@@ -179,7 +179,8 @@ class Dnf(PackageManager):
                             network=True,
                             mounts=[Mount(context.root, "/buildroot"), *cls.mounts(context), *sources],
                             options=["--dir", "/work/src", "--chdir", "/work/src"],
-                        ) + (apivfs_cmd() if apivfs else [])
+                            extra=apivfs_cmd() if apivfs else [],
+                        )
                     ),
                     env=context.config.environment | cls.finalize_environment(context),
                     stdout=stdout,
@@ -198,7 +199,7 @@ class Dnf(PackageManager):
             context,
             "makecache",
             arguments=[
-                "--refresh",
+                *(["--refresh"] if context.args.force > 1 else []),
                 *(["--setopt=cacheonly=none"] if cls.executable(context.config) == "dnf5" else []),
                 *options,
             ],

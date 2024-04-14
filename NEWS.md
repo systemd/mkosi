@@ -20,6 +20,28 @@
   `KernelModulesExclude=` or `KernelModulesInitrdExclude=` are used.
 - Added `ToolsTreeDistribution=` match.
 - Removed `vmspawn` verb and replaced it with `VirtualMachineMonitor=`.
+- New specifiers for various directories were added. `%D` resolves to
+  the directory that mkosi was invoked in, `%P` to the current working
+  directory, and `%C` to the parent directory of the config file.
+- Added `ForwardJournal=` to have systemd inside a container/VM forward
+  its journal to the specified file or directory.
+- Systemd scopes are now allocated for qemu, swtpm, virtiofsd and
+  systemd-journal-remote if available.
+- The `mkosi qemu` virtual machine is now registered with
+  systemd-machined if available.
+- Added new `oci` output format
+- Runtime trees without a target are now mounted to `/root/src` instead
+  of a subdirectory of it (To have the same behaviour as
+  `BuildSources=`).
+- Added `RuntimeBuildSources=` to mount build and source directories
+  when booting the image with `mkosi nspawn` or `mkosi qemu`.
+- Introduced `--append` to allow command line settings to be parsed
+  after parsing configuration files.
+- `distribution-release` is not installed by default anymore on
+  OpenSUSE.
+- Setting `QemuSmp=` to `0` will now make qemu use all available CPUs
+- Free page reporting and discard request processing are now enabled by
+  default in VMs spawned by `mkosi qemu`.
 
 ## v22
 
