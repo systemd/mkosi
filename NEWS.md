@@ -42,6 +42,18 @@
 - Setting `QemuSmp=` to `0` will now make qemu use all available CPUs
 - Free page reporting and discard request processing are now enabled by
   default in VMs spawned by `mkosi qemu`.
+- Added `ToolsTreeCertificates=` to allow configuring whether to use
+  certificates and keys from the tools tree (if one is used) or the
+  host.
+- Added `never` for `CacheOnly=` to specify that repository metadata
+  should always be refreshed.
+- Added `ProxyExclude=` to configure hostnames for which requests should
+  not go through the configured proxy.
+- Renamed the `none` option for `CacheOnly` to `auto`.
+- The default tools tree is now reused on incremental builds.
+- Added `VolatilePackages=` and `InitrdVolatilePackages=` to configure
+  packages that should be installed after executing build scripts and
+  which should not be cached when using `Incremental=`.
 
 ## v22
 
