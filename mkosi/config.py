@@ -1388,6 +1388,7 @@ class Config:
 
     packages: list[str]
     build_packages: list[str]
+    volatile_packages: list[str]
     package_directories: list[Path]
     with_recommends: bool
     with_docs: bool
@@ -1422,6 +1423,7 @@ class Config:
     unified_kernel_images: ConfigFeature
     initrds: list[Path]
     initrd_packages: list[str]
+    initrd_volatile_packages: list[str]
     microcode_host: bool
     kernel_command_line: list[str]
     kernel_modules_include: list[str]
@@ -2112,6 +2114,14 @@ SETTINGS = (
         help="Additional packages needed for build scripts",
     ),
     ConfigSetting(
+        dest="volatile_packages",
+        long="--volatile-package",
+        metavar="PACKAGE",
+        section="Content",
+        parse=config_make_list_parser(delimiter=","),
+        help="Packages to install after executing build scripts",
+    ),
+    ConfigSetting(
         dest="package_directories",
         long="--package-directory",
         metavar="PATH",
@@ -2367,6 +2377,14 @@ SETTINGS = (
         section="Content",
         parse=config_make_list_parser(delimiter=","),
         help="Add additional packages to the default initrd",
+    ),
+    ConfigSetting(
+        dest="initrd_volatile_packages",
+        long="--initrd-volatile-package",
+        metavar="PACKAGE",
+        section="Content",
+        parse=config_make_list_parser(delimiter=","),
+        help="Packages to install in the initrd that are not cached",
     ),
     ConfigSetting(
         dest="kernel_command_line",
@@ -3900,6 +3918,7 @@ def summary(config: Config) -> str:
     {bold("CONTENT")}:
                            Packages: {line_join_list(config.packages)}
                      Build Packages: {line_join_list(config.build_packages)}
+                  Volatile Packages: {line_join_list(config.volatile_packages)}
                  With Documentation: {yes_no(config.with_docs)}
 
                          Base Trees: {line_join_list(config.base_trees)}
@@ -3929,6 +3948,7 @@ def summary(config: Config) -> str:
                     Shim Bootloader: {config.shim_bootloader}
                             Initrds: {line_join_list(config.initrds)}
                     Initrd Packages: {line_join_list(config.initrd_packages)}
+           Initrd Volatile Packages: {line_join_list(config.initrd_volatile_packages)}
                 Kernel Command Line: {line_join_list(config.kernel_command_line)}
              Kernel Modules Include: {line_join_list(config.kernel_modules_include)}
              Kernel Modules Exclude: {line_join_list(config.kernel_modules_exclude)}

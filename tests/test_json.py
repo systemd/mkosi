@@ -157,6 +157,9 @@ def test_config() -> None:
             "InitrdPackages": [
                 "clevis"
             ],
+            "InitrdVolatilePackages": [
+                "abc"
+            ],
             "Initrds": [
                 "/efi/initrd1",
                 "/efi/initrd2"
@@ -336,6 +339,9 @@ def test_config() -> None:
                 "Type": "file"
             },
             "VirtualMachineMonitor": "qemu",
+            "VolatilePackages": [
+                "abc"
+            ],
             "WithDocs": true,
             "WithNetwork": false,
             "WithRecommends": true,
@@ -386,6 +392,7 @@ def test_config() -> None:
         incremental = False,
         initrd_include = [Path("/foo/bar"),],
         initrd_packages = ["clevis"],
+        initrd_volatile_packages = ["abc"],
         initrds = [Path("/efi/initrd1"), Path("/efi/initrd2")],
         microcode_host=True,
         kernel_command_line = [],
@@ -485,6 +492,7 @@ def test_config() -> None:
         verity_certificate = Path("/path/to/cert"),
         verity_key = None,
         verity_key_source = KeySource(type=KeySource.Type.file),
+        volatile_packages = ["abc"],
         with_docs = True,
         with_network = False,
         with_recommends = True,
