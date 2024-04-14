@@ -1922,7 +1922,6 @@ SETTINGS = (
         dest="output_format",
         short="-t",
         long="--format",
-        metavar="FORMAT",
         name="Format",
         section="Output",
         specifier="t",
@@ -2315,7 +2314,6 @@ SETTINGS = (
     ),
     ConfigSetting(
         dest="bootloader",
-        metavar="BOOTLOADER",
         section="Content",
         parse=config_make_enum_parser(Bootloader),
         choices=Bootloader.values(),
@@ -2324,7 +2322,6 @@ SETTINGS = (
     ),
     ConfigSetting(
         dest="bios_bootloader",
-        metavar="BOOTLOADER",
         section="Content",
         parse=config_make_enum_parser(BiosBootloader),
         choices=BiosBootloader.values(),
@@ -2333,7 +2330,6 @@ SETTINGS = (
     ),
     ConfigSetting(
         dest="shim_bootloader",
-        metavar="BOOTLOADER",
         section="Content",
         parse=config_make_enum_parser(ShimBootloader),
         choices=ShimBootloader.values(),
@@ -2559,7 +2555,6 @@ SETTINGS = (
     ),
     ConfigSetting(
         dest="secure_boot_sign_tool",
-        metavar="TOOL",
         section="Validation",
         parse=config_make_enum_parser(SecureBootSignTool),
         default=SecureBootSignTool.auto,
@@ -2737,10 +2732,10 @@ SETTINGS = (
     ),
     ConfigSetting(
         dest="tools_tree_distribution",
-        metavar="DISTRIBUTION",
         section="Host",
         parse=config_make_enum_parser(Distribution),
         match=config_make_enum_matcher(Distribution),
+        choices=Distribution.values(),
         default_factory_depends=("distribution",),
         default_factory=lambda ns: ns.distribution.default_tools_tree_distribution(),
         help="Set the distribution to use for the default tools tree",
@@ -2818,9 +2813,9 @@ SETTINGS = (
     ),
     ConfigSetting(
         dest="runtime_network",
-        metavar="NET",
         section="Host",
         parse=config_make_enum_parser(Network),
+        choices=Network.values(),
         help="Set networking backend to use when booting the image",
         default=Network.user,
     ),
@@ -2850,8 +2845,8 @@ SETTINGS = (
     ConfigSetting(
         dest="vmm",
         name="VirtualMachineMonitor",
-        metavar="VMM",
         section="Host",
+        choices=Vmm.values(),
         parse=config_make_enum_parser(Vmm),
         default=Vmm.qemu,
         help="Set the virtual machine monitor to use for mkosi qemu",
@@ -2937,7 +2932,6 @@ SETTINGS = (
     ),
     ConfigSetting(
         dest="qemu_firmware",
-        metavar="FIRMWARE",
         section="Host",
         parse=config_make_enum_parser(QemuFirmware),
         default=QemuFirmware.auto,
