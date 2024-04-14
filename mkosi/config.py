@@ -2111,6 +2111,7 @@ SETTINGS = (
         metavar="PATH",
         section="Content",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        paths=("mkosi.packages",),
         help="Specify a directory containing extra packages",
     ),
     ConfigSetting(

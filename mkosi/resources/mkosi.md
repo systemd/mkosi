@@ -953,7 +953,8 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 : Specify directories containing extra packages to be made available during
   the build. `mkosi` will create a local repository containing all
   packages in these directories and make it available when installing packages or
-  running scripts.
+  running scripts. If the `mkosi.packages/` directory is found in the local
+  directory it is also used for this purpose.
 
 : Note that this local repository is also made available when running
   scripts. Build scripts can add more packages to the local repository
