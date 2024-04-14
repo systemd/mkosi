@@ -4216,11 +4216,15 @@ def run_clean(args: Args, config: Config, *, resources: Path) -> None:
         remove_build_cache = args.force > 1
         remove_package_cache = args.force > 2
 
-    outputs = [
+    outputs = {
         config.output_dir_or_cwd() / output
         for output in config.outputs
         if (config.output_dir_or_cwd() / output).exists()
-    ]
+    }
+
+    # Make sure we resolve the symlink we create in the output directory and remove its target as well as it might not
+    # be in the list of outputs anymore if the compression or output format was changed.
+    outputs |= {o.resolve() for o in outputs}
 
     if outputs:
         with (
