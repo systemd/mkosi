@@ -47,9 +47,9 @@
   host.
 - Added `never` for `CacheOnly=` to specify that repository metadata
   should always be refreshed.
+- Renamed the `none` option for `CacheOnly=` to `auto`.
 - Added `ProxyExclude=` to configure hostnames for which requests should
   not go through the configured proxy.
-- Renamed the `none` option for `CacheOnly` to `auto`.
 - The default tools tree is now reused on incremental builds.
 - Added `VolatilePackages=` and `InitrdVolatilePackages=` to configure
   packages that should be installed after executing build scripts and
