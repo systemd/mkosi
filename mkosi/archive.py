@@ -6,24 +6,9 @@ from pathlib import Path
 from typing import Optional
 
 from mkosi.log import log_step
-from mkosi.run import find_binary, run
+from mkosi.run import run
 from mkosi.sandbox import Mount, SandboxProtocol, finalize_passwd_mounts, nosandbox
 from mkosi.util import umask
-
-
-def tar_binary(*, tools: Path = Path("/")) -> str:
-    # Some distros (Mandriva) install BSD tar as "tar", hence prefer
-    # "gtar" if it exists, which should be GNU tar wherever it exists.
-    # We are interested in exposing same behaviour everywhere hence
-    # it's preferable to use the same implementation of tar
-    # everywhere. In particular given the limited/different SELinux
-    # support in BSD tar and the different command line syntax
-    # compared to GNU tar.
-    return "gtar" if find_binary("gtar", root=tools) else "tar"
-
-
-def cpio_binary(*, tools: Path = Path("/")) -> str:
-    return "gcpio" if find_binary("gcpio", root=tools) else "cpio"
 
 
 def tar_exclude_apivfs_tmp() -> list[str]:
@@ -37,13 +22,13 @@ def tar_exclude_apivfs_tmp() -> list[str]:
     ]
 
 
-def make_tar(src: Path, dst: Path, *, tools: Path = Path("/"), sandbox: SandboxProtocol = nosandbox) -> None:
+def make_tar(src: Path, dst: Path, *, sandbox: SandboxProtocol = nosandbox) -> None:
     log_step(f"Creating tar archive {dst}…")
 
     with dst.open("wb") as f:
         run(
             [
-                tar_binary(tools=tools),
+                "tar",
                 "--create",
                 "--file", "-",
                 "--directory", src,
@@ -70,7 +55,6 @@ def extract_tar(
     dst: Path,
     *,
     log: bool = True,
-    tools: Path = Path("/"),
     sandbox: SandboxProtocol = nosandbox,
 ) -> None:
     if log:
@@ -82,7 +66,7 @@ def extract_tar(
     with src.open("rb") as f:
         run(
             [
-                tar_binary(tools=tools),
+                "tar",
                 "--extract",
                 "--file", "-",
                 "--directory", dst,
@@ -110,7 +94,6 @@ def make_cpio(
     dst: Path,
     *,
     files: Optional[Iterable[Path]] = None,
-    tools: Path = Path("/"),
     sandbox: SandboxProtocol = nosandbox,
 ) -> None:
     if not files:
@@ -122,7 +105,7 @@ def make_cpio(
     with dst.open("wb") as f:
         run(
             [
-                cpio_binary(tools=tools),
+                "cpio",
                 "--create",
                 "--reproducible",
                 "--null",

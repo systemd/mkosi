@@ -104,7 +104,7 @@ def mount_base_trees(context: Context) -> Iterator[None]:
             if path.is_dir():
                 bases += [path]
             elif path.suffix == ".tar":
-                extract_tar(path, d, tools=context.config.tools(), sandbox=context.sandbox)
+                extract_tar(path, d, sandbox=context.sandbox)
                 bases += [d]
             elif path.suffix == ".raw":
                 run(["systemd-dissect", "-M", path, d])
@@ -1503,7 +1503,7 @@ def install_tree(
     if src.is_dir() or (src.is_file() and target):
         copy()
     elif src.suffix == ".tar":
-        extract_tar(src, t, tools=config.tools(), sandbox=config.sandbox)
+        extract_tar(src, t, sandbox=config.sandbox)
     elif src.suffix == ".raw":
         run(
             ["systemd-dissect", "--copy-from", src, "/", t],
@@ -1865,7 +1865,7 @@ def build_microcode_initrd(context: Context) -> Optional[Path]:
                 for p in intel.iterdir():
                     f.write(p.read_bytes())
 
-    make_cpio(root, microcode, tools=context.config.tools(), sandbox=context.sandbox)
+    make_cpio(root, microcode, sandbox=context.sandbox)
 
     return microcode
 
@@ -1884,7 +1884,6 @@ def build_kernel_modules_initrd(context: Context, kver: str) -> Path:
             host=context.config.kernel_modules_initrd_include_host,
             sandbox=context.sandbox,
         ),
-        tools=context.config.tools(),
         sandbox=context.sandbox,
     )
 
@@ -2343,7 +2342,7 @@ def install_kernel(context: Context, partitions: Sequence[Partition]) -> None:
 
 
 def make_uki(context: Context, stub: Path, kver: str, kimg: Path, microcode: Optional[Path], output: Path) -> None:
-    make_cpio(context.root, context.workspace / "initrd", tools=context.config.tools(), sandbox=context.sandbox)
+    make_cpio(context.root, context.workspace / "initrd", sandbox=context.sandbox)
     maybe_compress(context, context.config.compress_output, context.workspace / "initrd", context.workspace / "initrd")
 
     initrds = [microcode] if microcode else []
@@ -3654,28 +3653,16 @@ def build_image(context: Context) -> None:
     copy_initrd(context)
 
     if context.config.output_format == OutputFormat.tar:
-        make_tar(
-            context.root, context.staging / context.config.output_with_format,
-            tools=context.config.tools(),
-            sandbox=context.sandbox,
-        )
+        make_tar(context.root, context.staging / context.config.output_with_format, sandbox=context.sandbox)
     elif context.config.output_format == OutputFormat.oci:
-        make_tar(
-            context.root, context.staging / "rootfs.layer",
-            tools=context.config.tools(),
-            sandbox=context.sandbox,
-        )
+        make_tar(context.root, context.staging / "rootfs.layer", sandbox=context.sandbox)
         make_oci(
             context,
             context.staging / "rootfs.layer",
             context.staging / context.config.output_with_format,
         )
     elif context.config.output_format == OutputFormat.cpio:
-        make_cpio(
-            context.root, context.staging / context.config.output_with_format,
-            tools=context.config.tools(),
-            sandbox=context.sandbox,
-        )
+        make_cpio(context.root, context.staging / context.config.output_with_format, sandbox=context.sandbox)
     elif context.config.output_format == OutputFormat.uki:
         assert stub and kver and kimg
         make_uki(context, stub, kver, kimg, microcode, context.staging / context.config.output_with_format)

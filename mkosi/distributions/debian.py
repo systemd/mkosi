@@ -176,12 +176,7 @@ class Installer(DistributionInstaller):
 
             with open(path, "rb") as i, tempfile.NamedTemporaryFile() as o:
                 run(["dpkg-deb", "--fsys-tarfile", "/dev/stdin"], stdin=i, stdout=o, sandbox=context.sandbox())
-                extract_tar(
-                    Path(o.name), context.root,
-                    log=False,
-                    tools=context.config.tools(),
-                    sandbox=context.sandbox,
-                )
+                extract_tar(Path(o.name), context.root, log=False, sandbox=context.sandbox)
 
         # Finally, run apt to properly install packages in the chroot without having to worry that maintainer
         # scripts won't find basic tools that they depend on.
