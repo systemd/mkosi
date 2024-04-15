@@ -43,10 +43,19 @@ class Mount(NamedTuple):
 
 
 class SandboxProtocol(Protocol):
-    def __call__(self, *, mounts: Sequence[Mount] = ()) -> AbstractContextManager[list[PathString]]: ...
+    def __call__(
+        self,
+        *,
+        binary: Optional[PathString], 
+        mounts: Sequence[Mount] = ()
+    ) -> AbstractContextManager[list[PathString]]: ...
 
 
-def nosandbox(*, mounts: Sequence[Mount] = ()) -> AbstractContextManager[list[PathString]]:
+def nosandbox(
+    *,
+    binary: Optional[PathString],
+    mounts: Sequence[Mount] = (),
+) -> AbstractContextManager[list[PathString]]:
     return contextlib.nullcontext([])
 
 

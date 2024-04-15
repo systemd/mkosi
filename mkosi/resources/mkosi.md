@@ -1708,10 +1708,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   version is installed on the host system. If this option is not used,
   but the `mkosi.tools/` directory is found in the local directory it is
   automatically used for this purpose with the root directory as target.
-  Note that when looking up binaries in `--tools-tree=`, only `/usr/bin`
-  and `/usr/sbin` are considered. Specifically, paths specified by
-  `--extra-search-path=` are ignored when looking up binaries in the
-  given tools tree.
+
+: Note if a binary is found in any of the paths configured with
+  `ExtraSearchPaths=`, the binary will be executed on the host.
 
 : If set to `default`, mkosi will automatically add an extra tools tree
   image and use it as the tools tree. The following table shows for

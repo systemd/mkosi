@@ -93,7 +93,7 @@ def resolve_module_dependencies(
         info += run(
             ["modinfo", "--basedir", "/buildroot", "--set-version", kver, "--null", *chunk],
             stdout=subprocess.PIPE,
-            sandbox=sandbox(mounts=[Mount(root, "/buildroot", ro=True)]),
+            sandbox=sandbox(binary="modinfo", mounts=[Mount(root, "/buildroot", ro=True)]),
         ).stdout.strip()
 
     log_step("Calculating required kernel modules and firmware")

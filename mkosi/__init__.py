@@ -126,7 +126,7 @@ def remove_files(context: Context) -> None:
 
     with complete_step("Removing files…"):
         for pattern in context.config.remove_files:
-            rmtree(*context.root.glob(pattern.lstrip("/")), tools=context.config.tools(), sandbox=context.sandbox)
+            rmtree(*context.root.glob(pattern.lstrip("/")), sandbox=context.sandbox)
 
 
 def install_distribution(context: Context) -> None:
@@ -367,7 +367,7 @@ def mount_build_overlay(context: Context, volatile: bool = False) -> Iterator[Pa
 
 
 @contextlib.contextmanager
-def finalize_scripts(scripts: Mapping[str, Sequence[PathString]], root: Path) -> Iterator[Path]:
+def finalize_scripts(config: Config, scripts: Mapping[str, Sequence[PathString]]) -> Iterator[Path]:
     with tempfile.TemporaryDirectory(prefix="mkosi-scripts") as d:
         # Make sure than when mkosi-as-caller is used the scripts can still be accessed.
         os.chmod(d, 0o755)
@@ -378,7 +378,7 @@ def finalize_scripts(scripts: Mapping[str, Sequence[PathString]], root: Path) ->
             with (Path(d) / name).open("w") as f:
                 f.write("#!/bin/sh\n")
 
-                if find_binary(name, root=root):
+                if config.find_binary(name):
                     f.write(
                         textwrap.dedent(
                             """\
@@ -420,9 +420,9 @@ def finalize_host_scripts(
 ) -> AbstractContextManager[Path]:
     scripts: dict[str, Sequence[PathString]] = {}
     for binary in ("useradd", "groupadd"):
-        if find_binary(binary, root=context.config.tools()):
+        if context.config.find_binary(binary):
             scripts[binary] = (binary, "--root", "/buildroot")
-    return finalize_scripts(scripts | dict(helpers), root=context.config.tools())
+    return finalize_scripts(context.config, scripts | dict(helpers))
 
 
 @contextlib.contextmanager
@@ -460,6 +460,7 @@ def run_configure_scripts(config: Config) -> Config:
                     ["/work/configure"],
                     env=env | config.environment,
                     sandbox=config.sandbox(
+                        binary=None,
                         tools=False,
                         mounts=[*sources, Mount(script, "/work/configure", ro=True)],
                         options=["--dir", "/work/src", "--chdir", "/work/src"]
@@ -522,6 +523,7 @@ def run_sync_scripts(context: Context) -> None:
                     env=env | context.config.environment,
                     stdin=sys.stdin,
                     sandbox=context.sandbox(
+                        binary=None,
                         network=True,
                         mounts=mounts,
                         options=["--dir", "/work/src", "--chdir", "/work/src"]
@@ -587,6 +589,7 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
                     env=env | context.config.environment,
                     stdin=sys.stdin,
                     sandbox=context.sandbox(
+                        binary=None,
                         network=True,
                         mounts=[
                             *sources,
@@ -663,6 +666,7 @@ def run_build_scripts(context: Context) -> None:
                     env=env | context.config.environment,
                     stdin=sys.stdin,
                     sandbox=context.sandbox(
+                        binary=None,
                         network=context.config.with_network,
                         mounts=[
                             *sources,
@@ -736,6 +740,7 @@ def run_postinst_scripts(context: Context) -> None:
                     env=env | context.config.environment,
                     stdin=sys.stdin,
                     sandbox=context.sandbox(
+                        binary=None,
                         network=context.config.with_network,
                         mounts=[
                             *sources,
@@ -797,6 +802,7 @@ def run_finalize_scripts(context: Context) -> None:
                     env=env | context.config.environment,
                     stdin=sys.stdin,
                     sandbox=context.sandbox(
+                        binary=None,
                         network=context.config.with_network,
                         mounts=[
                             *sources,
@@ -824,7 +830,7 @@ def certificate_common_name(context: Context, certificate: Path) -> str:
             "-in", certificate,
         ],
         stdout=subprocess.PIPE,
-        sandbox=context.sandbox(mounts=[Mount(certificate, certificate, ro=True)]),
+        sandbox=context.sandbox(binary="openssl", mounts=[Mount(certificate, certificate, ro=True)]),
     ).stdout
 
     for line in output.splitlines():
@@ -868,6 +874,7 @@ def pesign_prepare(context: Context) -> None:
             ],
             stdout=f,
             sandbox=context.sandbox(
+                binary="openssl",
                 mounts=[
                     Mount(context.config.secure_boot_key, context.config.secure_boot_key, ro=True),
                     Mount(context.config.secure_boot_certificate, context.config.secure_boot_certificate, ro=True),
@@ -886,6 +893,7 @@ def pesign_prepare(context: Context) -> None:
             "-d", context.workspace / "pesign",
         ],
         sandbox=context.sandbox(
+            binary="pk12util",
             mounts=[
                 Mount(context.workspace / "secure-boot.p12", context.workspace / "secure-boot.p12", ro=True),
                 Mount(context.workspace / "pesign", context.workspace / "pesign"),
@@ -916,7 +924,7 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
     if (
         context.config.secure_boot_sign_tool == SecureBootSignTool.sbsign or
         context.config.secure_boot_sign_tool == SecureBootSignTool.auto and
-        find_binary("sbsign", root=context.config.tools()) is not None
+        context.config.find_binary("sbsign") is not None
     ):
         with tempfile.NamedTemporaryFile(dir=output.parent, prefix=output.name) as f:
             os.chmod(f.name, stat.S_IMODE(input.stat().st_mode))
@@ -939,6 +947,7 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
                 cmd,
                 stdout=f,
                 sandbox=context.sandbox(
+                    binary="sbsign",
                     mounts=mounts,
                     devices=context.config.secure_boot_key_source.type != KeySource.Type.file,
                 )
@@ -948,7 +957,7 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
     elif (
         context.config.secure_boot_sign_tool == SecureBootSignTool.pesign or
         context.config.secure_boot_sign_tool == SecureBootSignTool.auto and
-        find_binary("pesign", root=context.config.tools()) is not None
+        context.config.find_binary("pesign") is not None
     ):
         pesign_prepare(context)
         with tempfile.NamedTemporaryFile(dir=output.parent, prefix=output.name) as f:
@@ -965,6 +974,7 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
                 ],
                 stdout=f,
                 sandbox=context.sandbox(
+                    binary="pesign",
                     mounts=[
                         Mount(context.workspace / "pesign", context.workspace / "pesign", ro=True),
                         Mount(input, input, ro=True),
@@ -989,7 +999,7 @@ def install_systemd_boot(context: Context) -> None:
     if not any(gen_kernel_images(context)) and context.config.bootable == ConfigFeature.auto:
         return
 
-    if not find_binary("bootctl", root=context.config.tools()):
+    if not context.config.find_binary("bootctl"):
         if context.config.bootable == ConfigFeature.enabled:
             die("An EFI bootable image with systemd-boot was requested but bootctl was not found")
         return
@@ -1012,7 +1022,7 @@ def install_systemd_boot(context: Context) -> None:
         run(
             ["bootctl", "install", "--root=/buildroot", "--all-architectures", "--no-variables"],
             env={"SYSTEMD_ESP_PATH": "/efi", "SYSTEMD_XBOOTLDR_PATH": "/boot"},
-            sandbox=context.sandbox(mounts=[Mount(context.root, "/buildroot")]),
+            sandbox=context.sandbox(binary="bootctl", mounts=[Mount(context.root, "/buildroot")]),
         )
 
         if context.config.shim_bootloader != ShimBootloader.none:
@@ -1041,6 +1051,7 @@ def install_systemd_boot(context: Context) -> None:
                     ],
                     stdout=f,
                     sandbox=context.sandbox(
+                        binary="openssl",
                         mounts=[
                             Mount(
                                 context.config.secure_boot_certificate,
@@ -1062,6 +1073,7 @@ def install_systemd_boot(context: Context) -> None:
                     ],
                     stdout=f,
                     sandbox=context.sandbox(
+                        binary="sbsiglist",
                         mounts=[Mount(context.workspace / "mkosi.der", context.workspace / "mkosi.der", ro=True)]
                     ),
                 )
@@ -1094,6 +1106,7 @@ def install_systemd_boot(context: Context) -> None:
                         cmd,
                         stdout=f,
                         sandbox=context.sandbox(
+                            binary="sbvarsign",
                             mounts=mounts,
                             devices=context.config.secure_boot_key_source.type != KeySource.Type.file,
                         ),
@@ -1203,9 +1216,9 @@ def find_grub_directory(context: Context, *, target: str) -> Optional[Path]:
     return None
 
 
-def find_grub_binary(binary: str, root: Path = Path("/")) -> Optional[Path]:
+def find_grub_binary(config: Config, binary: str) -> Optional[Path]:
     assert "grub" not in binary
-    return find_binary(f"grub-{binary}", f"grub2-{binary}", root=root)
+    return config.find_binary(f"grub-{binary}", f"grub2-{binary}")
 
 
 def want_grub_efi(context: Context) -> bool:
@@ -1255,7 +1268,7 @@ def want_grub_bios(context: Context, partitions: Sequence[Partition] = ()) -> bo
     installed = True
 
     for binary in ("mkimage", "bios-setup"):
-        if find_grub_binary(binary, root=context.config.tools()):
+        if find_grub_binary(context.config, binary):
             continue
 
         if context.config.bootable == ConfigFeature.enabled:
@@ -1302,7 +1315,7 @@ def grub_mkimage(
     output: Optional[Path] = None,
     sbat: Optional[Path] = None,
 ) -> None:
-    mkimage = find_grub_binary("mkimage", root=context.config.tools())
+    mkimage = find_grub_binary(context.config, "mkimage")
     assert mkimage
 
     directory = find_grub_directory(context, target=target)
@@ -1357,6 +1370,7 @@ def grub_mkimage(
                 *modules,
             ],
             sandbox=context.sandbox(
+                binary=mkimage,
                 mounts=[
                     Mount(directory, "/grub"),
                     Mount(earlyconfig.name, earlyconfig.name, ro=True),
@@ -1439,7 +1453,7 @@ def grub_bios_setup(context: Context, partitions: Sequence[Partition]) -> None:
     if not want_grub_bios(context, partitions):
         return
 
-    setup = find_grub_binary("bios-setup", root=context.config.tools())
+    setup = find_grub_binary(context.config, "bios-setup")
     assert setup
 
     directory = find_grub_directory(context, target="i386-pc")
@@ -1466,6 +1480,7 @@ def grub_bios_setup(context: Context, partitions: Sequence[Partition]) -> None:
                 context.staging / context.config.output_with_format,
             ],
             sandbox=context.sandbox(
+                binary=setup,
                 mounts=[
                     Mount(directory, "/grub"),
                     Mount(context.staging, context.staging),
@@ -1496,7 +1511,6 @@ def install_tree(
             src, t,
             preserve=preserve,
             use_subvolumes=config.use_subvolumes,
-            tools=config.tools(),
             sandbox=config.sandbox,
         )
 
@@ -1508,6 +1522,7 @@ def install_tree(
         run(
             ["systemd-dissect", "--copy-from", src, "/", t],
             sandbox=config.sandbox(
+                binary="systemd-dissect",
                 devices=True,
                 network=True,
                 mounts=[Mount(src, src, ro=True), Mount(t.parent, t.parent)],
@@ -1568,7 +1583,6 @@ def install_package_manager_trees(context: Context) -> None:
             p, context.pkgmngr / "etc/crypto-policies",
             preserve=False,
             dereference=True,
-            tools=context.config.tools(),
             sandbox=context.config.sandbox,
         )
 
@@ -1589,7 +1603,6 @@ def install_package_directories(context: Context) -> None:
             copy_tree(
                 d, context.packages,
                 use_subvolumes=context.config.use_subvolumes,
-                tools=context.config.tools(),
                 sandbox=context.sandbox,
             )
 
@@ -1615,13 +1628,12 @@ def install_build_dest(context: Context) -> None:
         copy_tree(
             context.install_dir, context.root,
             use_subvolumes=context.config.use_subvolumes,
-            tools=context.config.tools(),
             sandbox=context.sandbox,
         )
 
 
 def gzip_binary(context: Context) -> str:
-    return "pigz" if find_binary("pigz", root=context.config.tools()) else "gzip"
+    return "pigz" if context.config.find_binary("pigz") else "gzip"
 
 
 def fixup_vmlinuz_location(context: Context) -> None:
@@ -1952,7 +1964,7 @@ def extract_pe_section(context: Context, binary: Path, section: str, output: Pat
             [python_binary(context.config)],
             input=pefile,
             stdout=f,
-            sandbox=context.sandbox(mounts=[Mount(binary, binary, ro=True)])
+            sandbox=context.sandbox(binary=python_binary(context.config), mounts=[Mount(binary, binary, ro=True)])
         )
 
     return output
@@ -1963,7 +1975,7 @@ def want_signed_pcrs(config: Config) -> bool:
         config.sign_expected_pcr == ConfigFeature.enabled or
         (
             config.sign_expected_pcr == ConfigFeature.auto and
-            find_binary("systemd-measure", "/usr/lib/systemd/systemd-measure", root=config.tools()) is not None
+            config.find_binary("systemd-measure", "/usr/lib/systemd/systemd-measure") is not None
         )
     )
 
@@ -1984,8 +1996,11 @@ def build_uki(
     if not (arch := context.config.architecture.to_efi()):
         die(f"Architecture {context.config.architecture} does not support UEFI")
 
+    if not (ukify := context.config.find_binary("ukify", "/usr/lib/systemd/ukify")):
+        die("Could not find ukify")
+
     cmd: list[PathString] = [
-        find_binary("ukify", root=context.config.tools()) or "/usr/lib/systemd/ukify",
+        ukify,
         "--cmdline", f"@{context.workspace / 'cmdline'}",
         "--os-release", f"@{context.root / 'usr/lib/os-release'}",
         "--stub", stub,
@@ -2062,6 +2077,7 @@ def build_uki(
         run(
             cmd,
             sandbox=context.sandbox(
+                binary=ukify,
                 mounts=mounts,
                 devices=context.config.secure_boot_key_source.type != KeySource.Type.file,
             ),
@@ -2110,7 +2126,7 @@ def want_uki(context: Context) -> bool:
             context.config.unified_kernel_images == ConfigFeature.enabled or (
                 context.config.unified_kernel_images == ConfigFeature.auto and
                 systemd_stub_binary(context).exists() and
-                find_binary("ukify", "/usr/lib/systemd/ukify", root=context.config.tools()) is not None
+                context.config.find_binary("ukify", "/usr/lib/systemd/ukify") is not None
             )
     )
 
@@ -2118,15 +2134,20 @@ def want_uki(context: Context) -> bool:
 def find_entry_token(context: Context) -> str:
     if (
         "--version" not in run(["kernel-install", "--help"],
-                               stdout=subprocess.PIPE, sandbox=context.sandbox()).stdout or
+                               stdout=subprocess.PIPE, sandbox=context.sandbox(binary="kernel-install")).stdout or
         systemd_tool_version(context.config, "kernel-install") < "255.1"
     ):
         return context.config.image_id or context.config.distribution.name
 
-    output = json.loads(run(["kernel-install", "--root=/buildroot", "--json=pretty", "inspect"],
-                            sandbox=context.sandbox(mounts=[Mount(context.root, "/buildroot", ro=True)]),
-                            stdout=subprocess.PIPE,
-                            env={"SYSTEMD_ESP_PATH": "/efi", "SYSTEMD_XBOOTLDR_PATH": "/boot"}).stdout)
+    output = json.loads(
+        run(
+            ["kernel-install", "--root=/buildroot", "--json=pretty", "inspect"],
+            sandbox=context.sandbox(binary="kernel-install", mounts=[Mount(context.root, "/buildroot", ro=True)]),
+            stdout=subprocess.PIPE,
+            env={"SYSTEMD_ESP_PATH": "/efi", "SYSTEMD_XBOOTLDR_PATH": "/boot"},
+        ).stdout
+    )
+
     logging.debug(json.dumps(output, indent=4))
     return cast(str, output["EntryToken"])
 
@@ -2372,7 +2393,6 @@ def maybe_compress(context: Context, compression: Compression, src: Path, dst: O
             move_tree(
                 src, dst,
                 use_subvolumes=context.config.use_subvolumes,
-                tools=context.config.tools(),
                 sandbox=context.sandbox,
             )
         return
@@ -2380,12 +2400,14 @@ def maybe_compress(context: Context, compression: Compression, src: Path, dst: O
     if not dst:
         dst = src.parent / f"{src.name}{compression.extension()}"
 
+    cmd = compressor_command(context, compression)
+
     with complete_step(f"Compressing {src} with {compression}"):
         with src.open("rb") as i:
             src.unlink() # if src == dst, make sure dst doesn't truncate the src file but creates a new file.
 
             with dst.open("wb") as o:
-                run(compressor_command(context, compression), stdin=i, stdout=o, sandbox=context.sandbox())
+                run(cmd, stdin=i, stdout=o, sandbox=context.sandbox(binary=cmd[0]))
 
 
 def copy_uki(context: Context) -> None:
@@ -2519,6 +2541,7 @@ def calculate_signature(context: Context) -> None:
             stdout=o,
             # GPG messes with the user's home directory so we run it as the invoking user.
             sandbox=context.sandbox(
+                binary="gpg",
                 mounts=mounts,
                 options=options,
                 extra=["setpriv", f"--reuid={INVOKING_USER.uid}", f"--regid={INVOKING_USER.gid}", "--clear-groups"],
@@ -2631,7 +2654,7 @@ def check_outputs(config: Config) -> None:
 
 
 def check_tool(config: Config, *tools: PathString, reason: str, hint: Optional[str] = None) -> Path:
-    tool = find_binary(*tools, root=config.tools())
+    tool = config.find_binary(*tools)
     if not tool:
         die(f"Could not find '{tools[0]}' which is required to {reason}.", hint=hint)
 
@@ -2824,27 +2847,27 @@ def run_depmod(context: Context, *, cache: bool = False) -> None:
 
         with complete_step(f"Running depmod for {kver}"):
             run(["depmod", "--all", "--basedir", "/buildroot", kver],
-                sandbox=context.sandbox(mounts=[Mount(context.root, "/buildroot")]))
+                sandbox=context.sandbox(binary="depmod", mounts=[Mount(context.root, "/buildroot")]))
 
 
 def run_sysusers(context: Context) -> None:
     if context.config.overlay or context.config.output_format in (OutputFormat.sysext, OutputFormat.confext):
         return
 
-    if not find_binary("systemd-sysusers", root=context.config.tools()):
+    if not context.config.find_binary("systemd-sysusers"):
         logging.warning("systemd-sysusers is not installed, not generating system users")
         return
 
     with complete_step("Generating system users"):
         run(["systemd-sysusers", "--root=/buildroot"],
-            sandbox=context.sandbox(mounts=[Mount(context.root, "/buildroot")]))
+            sandbox=context.sandbox(binary="systemd-sysusers", mounts=[Mount(context.root, "/buildroot")]))
 
 
 def run_tmpfiles(context: Context) -> None:
     if context.config.overlay or context.config.output_format in (OutputFormat.sysext, OutputFormat.confext):
         return
 
-    if not find_binary("systemd-tmpfiles", root=context.config.tools()):
+    if not context.config.find_binary("systemd-tmpfiles"):
         logging.warning("systemd-tmpfiles is not installed, not generating volatile files")
         return
 
@@ -2864,6 +2887,7 @@ def run_tmpfiles(context: Context) -> None:
             # systemd-tmpfiles service so we handle those as success as well.
             success_exit_status=(0, 65, 73),
             sandbox=context.sandbox(
+                binary="systemd-tmpfiles",
                 mounts=[
                     Mount(context.root, "/buildroot"),
                     # systemd uses acl.h to parse ACLs in tmpfiles snippets which uses the host's passwd so we have to
@@ -2878,28 +2902,28 @@ def run_preset(context: Context) -> None:
     if context.config.overlay or context.config.output_format in (OutputFormat.sysext, OutputFormat.confext):
         return
 
-    if not find_binary("systemctl", root=context.config.tools()):
+    if not context.config.find_binary("systemctl"):
         logging.warning("systemctl is not installed, not applying presets")
         return
 
     with complete_step("Applying presets…"):
         run(["systemctl", "--root=/buildroot", "preset-all"],
-            sandbox=context.sandbox(mounts=[Mount(context.root, "/buildroot")]))
+            sandbox=context.sandbox(binary="systemctl", mounts=[Mount(context.root, "/buildroot")]))
         run(["systemctl", "--root=/buildroot", "--global", "preset-all"],
-            sandbox=context.sandbox(mounts=[Mount(context.root, "/buildroot")]))
+            sandbox=context.sandbox(binary="systemctl", mounts=[Mount(context.root, "/buildroot")]))
 
 
 def run_hwdb(context: Context) -> None:
     if context.config.overlay or context.config.output_format in (OutputFormat.sysext, OutputFormat.confext):
         return
 
-    if not find_binary("systemd-hwdb", root=context.config.tools()):
+    if not context.config.find_binary("systemd-hwdb"):
         logging.warning("systemd-hwdb is not installed, not generating hwdb")
         return
 
     with complete_step("Generating hardware database"):
         run(["systemd-hwdb", "--root=/buildroot", "--usr", "--strict", "update"],
-            sandbox=context.sandbox(mounts=[Mount(context.root, "/buildroot")]))
+            sandbox=context.sandbox(binary="systemd-hwdb", mounts=[Mount(context.root, "/buildroot")]))
 
     # Remove any existing hwdb in /etc in favor of the one we just put in /usr.
     (context.root / "etc/udev/hwdb.bin").unlink(missing_ok=True)
@@ -2909,14 +2933,18 @@ def run_firstboot(context: Context) -> None:
     if context.config.overlay or context.config.output_format.is_extension_image():
         return
 
-    if not find_binary("systemd-firstboot", root=context.config.tools()):
+    if not context.config.find_binary("systemd-firstboot"):
         logging.warning("systemd-firstboot is not installed, not applying first boot settings")
         return
 
     password, hashed = context.config.root_password or (None, False)
     if password and not hashed:
-        password = run(["openssl", "passwd", "-stdin", "-6"],
-                       sandbox=context.sandbox(), input=password, stdout=subprocess.PIPE).stdout.strip()
+        password = run(
+            ["openssl", "passwd", "-stdin", "-6"],
+            sandbox=context.sandbox(binary="openssl"),
+            input=password,
+            stdout=subprocess.PIPE,
+        ).stdout.strip()
 
     settings = (
         ("--locale",               "firstboot.locale",            context.config.locale),
@@ -2946,7 +2974,7 @@ def run_firstboot(context: Context) -> None:
 
     with complete_step("Applying first boot settings"):
         run(["systemd-firstboot", "--root=/buildroot", "--force", *options],
-            sandbox=context.sandbox(mounts=[Mount(context.root, "/buildroot")]))
+            sandbox=context.sandbox(binary="systemd-firstboot", mounts=[Mount(context.root, "/buildroot")]))
 
         # Initrds generally don't ship with only /usr so there's not much point in putting the credentials in
         # /usr/lib/credstore.
@@ -2969,7 +2997,7 @@ def run_selinux_relabel(context: Context) -> None:
 
     with complete_step(f"Relabeling files using {policy} policy"):
         run(["setfiles", "-mFr", "/buildroot", "-c", binpolicy, fc, "/buildroot"],
-            sandbox=context.sandbox(mounts=[Mount(context.root, "/buildroot")]),
+            sandbox=context.sandbox(binary="setfiles", mounts=[Mount(context.root, "/buildroot")]),
             check=context.config.selinux_relabel == ConfigFeature.enabled)
 
 
@@ -2984,7 +3012,7 @@ def save_cache(context: Context) -> None:
     final, build, manifest = cache_tree_paths(context.config)
 
     with complete_step("Installing cache copies"):
-        rmtree(final, tools=context.config.tools(), sandbox=context.sandbox)
+        rmtree(final, sandbox=context.sandbox)
 
         # We only use the cache-overlay directory for caching if we have a base tree, otherwise we just
         # cache the root directory.
@@ -2992,7 +3020,6 @@ def save_cache(context: Context) -> None:
             move_tree(
                 context.workspace / "cache-overlay", final,
                 use_subvolumes=context.config.use_subvolumes,
-                tools=context.config.tools(),
                 sandbox=context.sandbox,
             )
         else:
@@ -3003,11 +3030,10 @@ def save_cache(context: Context) -> None:
             )
 
         if need_build_overlay(context.config) and (context.workspace / "build-overlay").exists():
-            rmtree(build, tools=context.config.tools(), sandbox=context.sandbox)
+            rmtree(build, sandbox=context.sandbox)
             move_tree(
                 context.workspace / "build-overlay", build,
                 use_subvolumes=context.config.use_subvolumes,
-                tools=context.config.tools(),
                 sandbox=context.sandbox,
             )
 
@@ -3041,7 +3067,7 @@ def have_cache(config: Config) -> bool:
             logging.info("Cache manifest mismatch, not reusing cached images")
             if ARG_DEBUG.get():
                 run(["diff", manifest, "-"], input=new, check=False,
-                    sandbox=config.sandbox(mounts=[Mount(manifest, manifest)]))
+                    sandbox=config.sandbox(binary="diff", mounts=[Mount(manifest, manifest)]))
 
             return False
     else:
@@ -3061,7 +3087,6 @@ def reuse_cache(context: Context) -> bool:
         copy_tree(
             final, context.root,
             use_subvolumes=context.config.use_subvolumes,
-            tools=context.config.tools(),
             sandbox=context.sandbox,
         )
 
@@ -3159,6 +3184,7 @@ def make_image(
                 stdout=subprocess.PIPE,
                 env=context.config.environment,
                 sandbox=context.sandbox(
+                    binary="systemd-repart",
                     devices=(
                         not context.config.repart_offline or
                         context.config.verity_key_source.type != KeySource.Type.file
@@ -3436,6 +3462,7 @@ def make_extension_image(context: Context, output: Path) -> None:
             cmdline + ["--definitions", r],
             env=env,
             sandbox=context.sandbox(
+                binary="systemd-repart",
                 devices=(
                     not context.config.repart_offline or
                     context.config.verity_key_source.type != KeySource.Type.file
@@ -3461,7 +3488,6 @@ def finalize_staging(context: Context) -> None:
         move_tree(
             f, context.config.output_dir_or_cwd(),
             use_subvolumes=context.config.use_subvolumes,
-            tools=context.config.tools(),
             sandbox=context.sandbox,
         )
 
@@ -3487,7 +3513,7 @@ def setup_workspace(args: Args, config: Config) -> Iterator[Path]:
         workspace = Path(tempfile.mkdtemp(dir=config.workspace_dir_or_default(), prefix="mkosi-workspace"))
         # Discard setuid/setgid bits as these are inherited and can leak into the image.
         workspace.chmod(stat.S_IMODE(workspace.stat().st_mode) & ~(stat.S_ISGID|stat.S_ISUID))
-        stack.callback(lambda: rmtree(workspace, tools=config.tools(), sandbox=config.sandbox))
+        stack.callback(lambda: rmtree(workspace, sandbox=config.sandbox))
         (workspace / "tmp").mkdir(mode=0o1777)
 
         with scopedenv({"TMPDIR" : os.fspath(workspace / "tmp")}):
@@ -3552,12 +3578,15 @@ def copy_repository_metadata(context: Context) -> None:
                 with umask(~0o755):
                     dst.mkdir(parents=True, exist_ok=True)
 
-                def sandbox(*, mounts: Sequence[Mount] = ()) -> AbstractContextManager[list[PathString]]:
-                    return context.sandbox(mounts=[*mounts, *exclude])
+                def sandbox(
+                    *,
+                    binary: Optional[PathString],
+                    mounts: Sequence[Mount] = (),
+                ) -> AbstractContextManager[list[PathString]]:
+                    return context.sandbox(binary=binary, mounts=[*mounts, *exclude])
 
                 copy_tree(
                     src, dst,
-                    tools=context.config.tools(),
                     preserve=False,
                     sandbox=sandbox,
                 )
@@ -3705,7 +3734,7 @@ def setfacl(config: Config, root: Path, uid: int, allow: bool) -> None:
         ],
         # Supply files via stdin so we don't clutter --debug run output too much
         input="\n".join([str(root), *(os.fspath(p) for p in root.rglob("*") if p.is_dir())]),
-        sandbox=config.sandbox(mounts=[Mount(root, root)]),
+        sandbox=config.sandbox(binary="setfacl", mounts=[Mount(root, root)]),
     )
 
 
@@ -3717,7 +3746,7 @@ def acl_maybe_toggle(config: Config, root: Path, uid: int, *, always: bool) -> I
 
     # getfacl complains about absolute paths so make sure we pass a relative one.
     if root.exists():
-        sandbox = config.sandbox(mounts=[Mount(root, root)], options=["--chdir", root])
+        sandbox = config.sandbox(binary="getfacl", mounts=[Mount(root, root)], options=["--chdir", root])
         has_acl = f"user:{uid}:rwx" in run(["getfacl", "-n", "."], sandbox=sandbox, stdout=subprocess.PIPE).stdout
 
         if not has_acl and not always:
@@ -3835,7 +3864,12 @@ def run_shell(args: Args, config: Config) -> None:
                 ],
                 stdin=sys.stdin,
                 env=config.environment,
-                sandbox=config.sandbox(network=True, devices=True, mounts=[Mount(fname, fname)]),
+                sandbox=config.sandbox(
+                    binary="systemd-repart",
+                    network=True,
+                    devices=True,
+                    mounts=[Mount(fname, fname)],
+                ),
             )
 
         if config.output_format == OutputFormat.directory:
@@ -3904,7 +3938,7 @@ def run_shell(args: Args, config: Config) -> None:
             stdout=sys.stdout,
             env=os.environ | config.environment,
             log=False,
-            sandbox=config.sandbox(devices=True, network=True, relaxed=True),
+            sandbox=config.sandbox(binary="systemd-nspawn", devices=True, network=True, relaxed=True),
         )
 
 
@@ -3919,7 +3953,7 @@ def run_systemd_tool(tool: str, args: Args, config: Config) -> None:
     ):
         die(f"Must be root to run the {args.verb} command")
 
-    if (tool_path := find_binary(tool, root=config.tools())) is None:
+    if (tool_path := config.find_binary(tool)) is None:
         die(f"Failed to find {tool}")
 
     if config.ephemeral:
@@ -3937,7 +3971,12 @@ def run_systemd_tool(tool: str, args: Args, config: Config) -> None:
         env=os.environ | config.environment,
         log=False,
         preexec_fn=become_root,
-        sandbox=config.sandbox(network=True, devices=config.output_format == OutputFormat.disk, relaxed=True),
+        sandbox=config.sandbox(
+            binary=tool_path,
+            network=True,
+            devices=config.output_format == OutputFormat.disk,
+            relaxed=True,
+        ),
     )
 
 
@@ -3952,9 +3991,16 @@ def run_coredumpctl(args: Args, config: Config) -> None:
 def run_serve(args: Args, config: Config) -> None:
     """Serve the output directory via a tiny HTTP server"""
 
-    run([python_binary(config), "-m", "http.server", "8081"],
+    run(
+        [python_binary(config), "-m", "http.server", "8081"],
         stdin=sys.stdin, stdout=sys.stdout,
-        sandbox=config.sandbox(network=True, relaxed=True, options=["--chdir", config.output_dir_or_cwd()]))
+        sandbox=config.sandbox(
+            binary=python_binary(config),
+            network=True,
+            relaxed=True,
+            options=["--chdir", config.output_dir_or_cwd()],
+        ),
+    )
 
 
 def generate_key_cert_pair(args: Args) -> None:
@@ -4057,7 +4103,7 @@ def expand_specifier(s: str) -> str:
 
 @contextlib.contextmanager
 def prepend_to_environ_path(config: Config) -> Iterator[None]:
-    if config.tools_tree or not config.extra_search_paths:
+    if not config.extra_search_paths:
         yield
         return
 
@@ -4162,6 +4208,7 @@ def run_clean_scripts(config: Config) -> None:
                     ["/work/clean"],
                     env=env | config.environment,
                     sandbox=config.sandbox(
+                        binary=None,
                         tools=False,
                         mounts=[
                             *sources,

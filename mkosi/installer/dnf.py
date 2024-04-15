@@ -10,7 +10,7 @@ from mkosi.installer import PackageManager
 from mkosi.installer.rpm import RpmRepository, rpm_cmd
 from mkosi.log import ARG_DEBUG
 from mkosi.mounts import finalize_source_mounts
-from mkosi.run import find_binary, run
+from mkosi.run import run
 from mkosi.sandbox import Mount, apivfs_cmd
 from mkosi.types import _FILE, CompletedProcess, PathString
 
@@ -20,9 +20,7 @@ class Dnf(PackageManager):
     def executable(cls, config: Config) -> str:
         # Allow the user to override autodetection with an environment variable
         dnf = config.environment.get("MKOSI_DNF")
-        root = config.tools()
-
-        return Path(dnf or find_binary("dnf5", root=root) or find_binary("dnf", root=root) or "yum").name
+        return Path(dnf or config.find_binary("dnf5") or config.find_binary("dnf") or "yum").name
 
     @classmethod
     def subdir(cls, config: Config) -> Path:
@@ -176,6 +174,7 @@ class Dnf(PackageManager):
                     cls.cmd(context) + [operation,*arguments],
                     sandbox=(
                         context.sandbox(
+                            binary=cls.executable(context.config),
                             network=True,
                             mounts=[Mount(context.root, "/buildroot"), *cls.mounts(context), *sources],
                             options=["--dir", "/work/src", "--chdir", "/work/src"],
@@ -208,7 +207,7 @@ class Dnf(PackageManager):
     @classmethod
     def createrepo(cls, context: Context) -> None:
         run(["createrepo_c", context.packages],
-            sandbox=context.sandbox(mounts=[Mount(context.packages, context.packages)]))
+            sandbox=context.sandbox(binary="createrepo_c", mounts=[Mount(context.packages, context.packages)]))
 
         (context.pkgmngr / "etc/yum.repos.d/mkosi-local.repo").write_text(
             textwrap.dedent(

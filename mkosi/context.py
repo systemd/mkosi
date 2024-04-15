@@ -39,7 +39,6 @@ class Context:
                 make_tree(
                     self.root,
                     use_subvolumes=self.config.use_subvolumes,
-                    tools=config.tools(),
                     sandbox=config.sandbox,
                 )
 
@@ -71,6 +70,7 @@ class Context:
     def sandbox(
         self,
         *,
+        binary: Optional[PathString],
         network: bool = False,
         devices: bool = False,
         scripts: Optional[Path] = None,
@@ -87,6 +87,7 @@ class Context:
             ]
 
         return self.config.sandbox(
+            binary=binary,
             network=network,
             devices=devices,
             scripts=scripts,

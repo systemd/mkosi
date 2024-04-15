@@ -131,6 +131,7 @@ class Zypper(PackageManager):
                 cls.cmd(context) + [operation, *arguments],
                 sandbox=(
                     context.sandbox(
+                        binary="zypper",
                         network=True,
                         mounts=[Mount(context.root, "/buildroot"), *cls.mounts(context), *sources],
                         options=["--dir", "/work/src", "--chdir", "/work/src"],
@@ -148,7 +149,7 @@ class Zypper(PackageManager):
     @classmethod
     def createrepo(cls, context: Context) -> None:
         run(["createrepo_c", context.packages],
-            sandbox=context.sandbox(mounts=[Mount(context.packages, context.packages)]))
+            sandbox=context.sandbox(binary="createrepo_c", mounts=[Mount(context.packages, context.packages)]))
 
         (context.pkgmngr / "etc/zypp/repos.d/mkosi-local.repo").write_text(
             textwrap.dedent(

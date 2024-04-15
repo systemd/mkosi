@@ -46,7 +46,7 @@ def make_tar(src: Path, dst: Path, *, sandbox: SandboxProtocol = nosandbox) -> N
             ],
             stdout=f,
             # Make sure tar uses user/group information from the root directory instead of the host.
-            sandbox=sandbox(mounts=[Mount(src, src, ro=True), *finalize_passwd_mounts(src)]),
+            sandbox=sandbox(binary="tar", mounts=[Mount(src, src, ro=True), *finalize_passwd_mounts(src)]),
         )
 
 
@@ -83,6 +83,7 @@ def extract_tar(
             ],
             stdin=f,
             sandbox=sandbox(
+                binary="tar",
                 # Make sure tar uses user/group information from the root directory instead of the host.
                 mounts=[Mount(src, src, ro=True), Mount(dst, dst), *finalize_passwd_mounts(dst)]
             ),
@@ -115,5 +116,5 @@ def make_cpio(
             ],
             input="\0".join(os.fspath(f.relative_to(src)) for f in files),
             stdout=f,
-            sandbox=sandbox(mounts=[Mount(src, src, ro=True), *finalize_passwd_mounts(src)]),
+            sandbox=sandbox(binary="cpio", mounts=[Mount(src, src, ro=True), *finalize_passwd_mounts(src)]),
         )
