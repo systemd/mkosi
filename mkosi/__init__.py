@@ -460,7 +460,7 @@ def run_configure_scripts(config: Config) -> Config:
                     ["/work/configure"],
                     env=env | config.environment,
                     sandbox=config.sandbox(
-                        tools=Path("/"),
+                        tools=False,
                         mounts=[*sources, Mount(script, "/work/configure", ro=True)],
                         options=["--dir", "/work/src", "--chdir", "/work/src"]
                     ),
@@ -4175,7 +4175,7 @@ def run_clean_scripts(config: Config) -> None:
                     ["/work/clean"],
                     env=env | config.environment,
                     sandbox=config.sandbox(
-                        tools=Path("/"),
+                        tools=False,
                         mounts=[
                             *sources,
                             Mount(script, "/work/clean", ro=True),
