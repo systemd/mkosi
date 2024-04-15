@@ -153,6 +153,7 @@ class Pacman(PackageManager):
                 cls.cmd(context) + [operation, *arguments],
                 sandbox=(
                     context.sandbox(
+                        binary="pacman",
                         network=True,
                         mounts=[Mount(context.root, "/buildroot"), *cls.mounts(context), *sources],
                         options=["--dir", "/work/src", "--chdir", "/work/src"],
@@ -176,7 +177,7 @@ class Pacman(PackageManager):
                 context.packages / "mkosi.db.tar",
                 *sorted(context.packages.glob("*.pkg.tar*"), key=lambda p: GenericVersion(Path(p).name))
             ],
-            sandbox=context.sandbox(mounts=[Mount(context.packages, context.packages)]),
+            sandbox=context.sandbox(binary="repo-add", mounts=[Mount(context.packages, context.packages)]),
         )
 
         (context.pkgmngr / "etc/mkosi-local.conf").write_text(

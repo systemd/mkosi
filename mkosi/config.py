@@ -1682,32 +1682,43 @@ class Config:
         j = cls._load_json(s)
         return dataclasses.replace(cls.default(), **j)
 
+    def find_binary(self, *names: PathString, tools: bool = True) -> Optional[Path]:
+        return find_binary(*names, root=self.tools() if tools else Path("/"), extra=self.extra_search_paths)
+
     def sandbox(
         self,
         *,
+        binary: Optional[PathString],
         network: bool = False,
         devices: bool = False,
         relaxed: bool = False,
-        tools: Optional[Path] = None,
+        tools: bool = True,
         scripts: Optional[Path] = None,
         mounts: Sequence[Mount] = (),
         options: Sequence[PathString] = (),
         extra: Sequence[PathString] = (),
     ) -> AbstractContextManager[list[PathString]]:
         mounts = [
-            *[Mount(d, d, ro=True) for d in self.extra_search_paths if not relaxed and not self.tools_tree],
             *([Mount(p, "/proxy.cacert", ro=True)] if (p := self.proxy_peer_certificate) else []),
             *([Mount(p, "/proxy.clientcert", ro=True)] if (p := self.proxy_client_certificate) else []),
             *([Mount(p, "/proxy.clientkey", ro=True)] if (p := self.proxy_client_key) else []),
             *mounts,
         ]
 
+        if (
+            binary and
+            (path := self.find_binary(binary, tools=tools)) and
+            any(path.is_relative_to(d) for d in self.extra_search_paths)
+        ):
+            tools = False
+            mounts += [Mount(d, d, ro=True) for d in self.extra_search_paths if not relaxed]
+
         return sandbox_cmd(
             network=network,
             devices=devices,
             relaxed=relaxed,
             scripts=scripts,
-            tools=tools or self.tools(),
+            tools=self.tools() if tools else Path("/"),
             mounts=mounts,
             options=options,
             extra=extra,
@@ -4204,14 +4215,14 @@ def want_selinux_relabel(config: Config, root: Path, fatal: bool = True) -> Opti
         return None
 
     policy = run(["sh", "-c", f". {selinux} && echo $SELINUXTYPE"],
-                 sandbox=config.sandbox(mounts=[Mount(selinux, selinux, ro=True)]),
+                 sandbox=config.sandbox(binary="sh", mounts=[Mount(selinux, selinux, ro=True)]),
                  stdout=subprocess.PIPE).stdout.strip()
     if not policy:
         if fatal and config.selinux_relabel == ConfigFeature.enabled:
             die("SELinux relabel is requested but no selinux policy is configured in /etc/selinux/config")
         return None
 
-    if not find_binary("setfiles", root=config.tools()):
+    if not config.find_binary("setfiles"):
         if fatal and config.selinux_relabel == ConfigFeature.enabled:
             die("SELinux relabel is requested but setfiles is not installed")
         return None
@@ -4243,6 +4254,6 @@ def systemd_tool_version(config: Config, tool: PathString) -> GenericVersion:
         run(
             [tool, "--version"],
             stdout=subprocess.PIPE,
-            sandbox=config.sandbox()
+            sandbox=config.sandbox(binary=tool),
         ).stdout.split()[2].strip("()").removeprefix("v")
     )

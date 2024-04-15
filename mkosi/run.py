@@ -5,6 +5,7 @@ import asyncio.tasks
 import contextlib
 import errno
 import fcntl
+import itertools
 import logging
 import os
 import queue
@@ -144,24 +145,27 @@ def run(
         assert stdin is None  # stdin and input cannot be specified together
         stdin = subprocess.PIPE
 
-    with spawn(
-        cmdline,
-        check=check,
-        stdin=stdin,
-        stdout=stdout,
-        stderr=stderr,
-        user=user,
-        group=group,
-        env=env,
-        cwd=cwd,
-        log=log,
-        foreground=foreground,
-        preexec_fn=preexec_fn,
-        success_exit_status=success_exit_status,
-        sandbox=sandbox,
-        innerpid=False,
-    ) as (process, _):
-        out, err = process.communicate(input)
+    try:
+        with spawn(
+            cmdline,
+            check=check,
+            stdin=stdin,
+            stdout=stdout,
+            stderr=stderr,
+            user=user,
+            group=group,
+            env=env,
+            cwd=cwd,
+            log=log,
+            foreground=foreground,
+            preexec_fn=preexec_fn,
+            success_exit_status=success_exit_status,
+            sandbox=sandbox,
+            innerpid=False,
+        ) as (process, _):
+            out, err = process.communicate(input)
+    except FileNotFoundError:
+        return CompletedProcess(cmdline, 1)
 
     return CompletedProcess(cmdline, process.returncode, out, err)
 
@@ -261,7 +265,13 @@ def spawn(
             prefix + ["sh", "-c", f"command -v {cmdline[0]}"],
             stdout=subprocess.DEVNULL,
         ).returncode != 0:
-            die(f"{cmdline[0]} not found.", hint=f"Is {cmdline[0]} installed on the host system?")
+            if check:
+                die(f"{cmdline[0]} not found.", hint=f"Is {cmdline[0]} installed on the host system?")
+
+            # We can't really return anything in this case, so we raise a specific exception that we can catch in
+            # run().
+            logging.debug(f"{cmdline[0]} not found, not running {shlex.join(cmdline)}")
+            raise FileNotFoundError(cmdline[0])
 
         if (
             foreground and
@@ -343,14 +353,21 @@ def spawn(
                 make_foreground_process(new_process_group=False)
 
 
-def find_binary(*names: PathString, root: Path = Path("/")) -> Optional[Path]:
+def find_binary(*names: PathString, root: Path = Path("/"), extra: Sequence[Path] = ()) -> Optional[Path]:
     if root != Path("/"):
-        path = ":".join(os.fspath(p) for p in (root / "usr/bin", root / "usr/sbin"))
+        path = ":".join(
+            itertools.chain(
+                (os.fspath(p) for p in extra),
+                (os.fspath(p) for p in (root / "usr/bin", root / "usr/sbin")),
+            )
+        )
     else:
         path = os.environ["PATH"]
 
     for name in names:
-        if Path(name).is_absolute():
+        if any(Path(name).is_relative_to(d) for d in extra):
+            pass
+        elif Path(name).is_absolute():
             name = root / Path(name).relative_to("/")
         elif "/" in str(name):
             name = root / name

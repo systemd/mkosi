@@ -10,7 +10,7 @@ from mkosi.context import Context
 from mkosi.installer import PackageManager
 from mkosi.log import die
 from mkosi.mounts import finalize_source_mounts
-from mkosi.run import find_binary, run
+from mkosi.run import run
 from mkosi.sandbox import Mount, apivfs_cmd
 from mkosi.types import _FILE, CompletedProcess, PathString
 from mkosi.util import umask
@@ -144,7 +144,7 @@ class Apt(PackageManager):
             "-o", "Dir::State=/var/lib/apt",
             "-o", "Dir::Log=/var/log/apt",
             "-o", "Dir::State::Status=/buildroot/var/lib/dpkg/status",
-            "-o", f"Dir::Bin::DPkg={find_binary('dpkg', root=context.config.tools())}",
+            "-o", f"Dir::Bin::DPkg={context.config.find_binary('dpkg')}",
             "-o", "Debug::NoLocking=true",
             "-o", "DPkg::Options::=--root=/buildroot",
             "-o", "DPkg::Options::=--force-unsafe-io",
@@ -199,6 +199,7 @@ class Apt(PackageManager):
                 cls.cmd(context, "apt-get") + [operation, *arguments],
                 sandbox=(
                     context.sandbox(
+                        binary="apt-get",
                         network=True,
                         mounts=[Mount(context.root, "/buildroot"), *cls.mounts(context), *sources, *mounts],
                         options=["--dir", "/work/src", "--chdir", "/work/src"],
@@ -233,6 +234,7 @@ class Apt(PackageManager):
         run(
             ["reprepro", "includedeb", "mkosi"] + [d.name for d in context.packages.glob("*.deb")],
             sandbox=context.sandbox(
+                binary="reprepro",
                 mounts=[Mount(context.packages, context.packages)],
                 options=["--chdir", context.packages],
             ),

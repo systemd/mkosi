@@ -43,7 +43,7 @@ def setup_rpm(context: Context, *, dbpath: str = "/usr/lib/sysimage/rpm") -> Non
         (confdir / "macros.dbpath").write_text(f"%_dbpath {dbpath}")
 
     plugindir = Path(run(["rpm", "--eval", "%{__plugindir}"],
-                         sandbox=context.sandbox(), stdout=subprocess.PIPE).stdout.strip())
+                         sandbox=context.sandbox(binary="rpm"), stdout=subprocess.PIPE).stdout.strip())
     if (plugindir := context.config.tools() / plugindir.relative_to("/")).exists():
         with (confdir / "macros.disable-plugins").open("w") as f:
             for plugin in plugindir.iterdir():

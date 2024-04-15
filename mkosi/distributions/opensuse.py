@@ -14,7 +14,7 @@ from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey, setup_rpm
 from mkosi.installer.zypper import Zypper
 from mkosi.log import die
 from mkosi.mounts import finalize_crypto_mounts
-from mkosi.run import find_binary, run
+from mkosi.run import run
 from mkosi.sandbox import Mount
 from mkosi.util import listify, sort_packages
 
@@ -46,21 +46,21 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def package_manager(cls, config: Config) -> type[PackageManager]:
-        if find_binary("zypper", root=config.tools()):
+        if config.find_binary("zypper"):
             return Zypper
         else:
             return Dnf
 
     @classmethod
     def createrepo(cls, context: Context) -> None:
-        if find_binary("zypper", root=context.config.tools()):
+        if context.config.find_binary("zypper"):
             Zypper.createrepo(context)
         else:
             Dnf.createrepo(context)
 
     @classmethod
     def setup(cls, context: Context) -> None:
-        zypper = find_binary("zypper", root=context.config.tools())
+        zypper = context.config.find_binary("zypper")
         if zypper:
             Zypper.setup(context, cls.repositories(context))
         else:
@@ -74,7 +74,7 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def install_packages(cls, context: Context, packages: Sequence[str], apivfs: bool = True) -> None:
-        if find_binary("zypper", root=context.config.tools()):
+        if context.config.find_binary("zypper"):
             Zypper.invoke(
                 context,
                 "install",
@@ -89,7 +89,7 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def remove_packages(cls, context: Context, packages: Sequence[str]) -> None:
-        if find_binary("zypper", root=context.config.tools()):
+        if context.config.find_binary("zypper"):
             Zypper.invoke(context, "remove", ["--clean-deps", *sort_packages(packages)], apivfs=True)
         else:
             Dnf.invoke(context, "remove", packages, apivfs=True)
@@ -97,7 +97,7 @@ class Installer(DistributionInstaller):
     @classmethod
     @listify
     def repositories(cls, context: Context) -> Iterable[RpmRepository]:
-        zypper = find_binary("zypper", root=context.config.tools())
+        zypper = context.config.find_binary("zypper")
 
         release = context.config.release
         if release == "leap":
@@ -173,6 +173,7 @@ def fetch_gpgurls(context: Context, repourl: str) -> tuple[str, ...]:
                 f"{repourl}/repodata/repomd.xml",
             ],
             sandbox=context.sandbox(
+                binary="curl",
                 network=True,
                 mounts=[Mount(d, d), *finalize_crypto_mounts(context.config)],
             ),

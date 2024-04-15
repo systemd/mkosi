@@ -111,7 +111,7 @@ class Manifest:
                 "--queryformat", r"%{NEVRA}\t%{SOURCERPM}\t%{NAME}\t%{ARCH}\t%{LONGSIZE}\t%{INSTALLTIME}\n",
             ],
             stdout=subprocess.PIPE,
-            sandbox=self.context.sandbox(mounts=[Mount(self.context.root, "/buildroot")]),
+            sandbox=self.context.sandbox(binary="rpm", mounts=[Mount(self.context.root, "/buildroot")]),
         )
 
         packages = sorted(c.stdout.splitlines())
@@ -157,7 +157,10 @@ class Manifest:
                     ],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.DEVNULL,
-                    sandbox=self.context.sandbox(mounts=[Mount(self.context.root, "/buildroot", ro=True)]),
+                    sandbox=self.context.sandbox(
+                        binary="rpm",
+                        mounts=[Mount(self.context.root, "/buildroot", ro=True)]
+                    ),
                 )
                 changelog = c.stdout.strip()
                 source = SourcePackageManifest(srpm, changelog)
@@ -175,7 +178,10 @@ class Manifest:
                     r'${Package}\t${source:Package}\t${Version}\t${Architecture}\t${Installed-Size}\t${db-fsys:Last-Modified}\n',
             ],
             stdout=subprocess.PIPE,
-            sandbox=self.context.sandbox(mounts=[Mount(self.context.root, "/buildroot", ro=True)]),
+            sandbox=self.context.sandbox(
+                binary="dpkg-query",
+                mounts=[Mount(self.context.root, "/buildroot", ro=True)],
+            ),
         )
 
         packages = sorted(c.stdout.splitlines())

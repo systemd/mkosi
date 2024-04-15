@@ -37,7 +37,7 @@ def find_partitions(image: Path, *, sandbox: SandboxProtocol = nosandbox) -> lis
             ["systemd-repart", "--json=short", image],
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
-            sandbox=sandbox(mounts=[Mount(image, image, ro=True)]),
+            sandbox=sandbox(binary="systemd-repart", mounts=[Mount(image, image, ro=True)]),
         ).stdout
     )
     return [Partition.from_dict(d) for d in output]
