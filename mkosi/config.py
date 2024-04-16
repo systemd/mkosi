@@ -3629,7 +3629,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
         if getattr(cli_ns, s) is None:
             continue
 
-        if isinstance(getattr(cli_ns, s), (list, tuple)):
+        if isinstance(getattr(cli_ns, s), (list, tuple, dict)):
             continue
 
         if any(getattr(config, s) == getattr(cli_ns, s) for config in images):
