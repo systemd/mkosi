@@ -1215,7 +1215,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   set to `none`, shim and MokManager will not be installed to the ESP.
   If set to `unsigned`, mkosi will search for unsigned shim and
   MokManager EFI binaries and install them. If `SecureBoot=` is enabled,
-  mkosi will sign the unsigned EFI binaries before installing thel. If
+  mkosi will sign the unsigned EFI binaries before installing them. If
   set to `signed`, mkosi will search for signed EFI binaries and install
   those. Even if `SecureBoot=` is enabled, mkosi won't sign these
   binaries again.
