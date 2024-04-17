@@ -2230,6 +2230,7 @@ Consult this table for which script receives which environment variables:
 | `OUTPUTDIR`         |                   |              |                 | X             | X                | X                | X             |
 | `CHROOT_OUTPUTDIR`  |                   |              |                 | X             | X                | X                |               |
 | `BUILDROOT`         |                   |              | X               | X             | X                | X                |               |
+| `PACKAGEDIR`        |                   |              | x               | x             | x                | x                |               |
 | `WITH_DOCS`         |                   |              | X               | X             |                  |                  |               |
 | `WITH_TESTS`        |                   |              | X               | X             |                  |                  |               |
 | `WITH_NETWORK`      |                   |              | X               | X             |                  |                  |               |
