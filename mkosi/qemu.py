@@ -314,7 +314,6 @@ def start_virtiofsd(config: Config, directory: PathString, *, name: str, selinux
         # qemu's client doesn't seem to support announcing submounts so disable the feature to avoid the warning.
         "--no-announce-submounts",
         "--sandbox=chroot",
-        "--cache=always",
         f"--inode-file-handles={'prefer' if os.getuid() == 0 and not uidmap else 'never'}",
     ]
 
