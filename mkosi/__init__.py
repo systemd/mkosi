@@ -545,6 +545,7 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
         SRCDIR="/work/src",
         CHROOT_SRCDIR="/work/src",
         PACKAGEDIR="/work/packages",
+        ARTIFACTDIR="/work/artifacts",
         SCRIPT="/work/prepare",
         CHROOT_SCRIPT="/work/prepare",
         MKOSI_UID=str(INVOKING_USER.uid),
@@ -596,6 +597,7 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
                             Mount(script, "/work/prepare", ro=True),
                             Mount(json, "/work/config.json", ro=True),
                             Mount(context.root, "/buildroot"),
+                            Mount(context.artifacts, "/work/artifacts"),
                             *context.config.distribution.package_manager(context.config).mounts(context),
                         ],
                         options=["--dir", "/work/src", "--chdir", "/work/src"],
@@ -621,6 +623,7 @@ def run_build_scripts(context: Context) -> None:
         SRCDIR="/work/src",
         CHROOT_SRCDIR="/work/src",
         PACKAGEDIR="/work/packages",
+        ARTIFACTDIR="/work/artifacts",
         SCRIPT="/work/build-script",
         CHROOT_SCRIPT="/work/build-script",
         MKOSI_UID=str(INVOKING_USER.uid),
@@ -675,6 +678,7 @@ def run_build_scripts(context: Context) -> None:
                             Mount(context.root, "/buildroot"),
                             Mount(context.install_dir, "/work/dest"),
                             Mount(context.staging, "/work/out"),
+                            Mount(context.artifacts, "/work/artifacts"),
                             *(
                                 [Mount(context.config.build_dir, "/work/build")]
                                 if context.config.build_dir
@@ -709,6 +713,7 @@ def run_postinst_scripts(context: Context) -> None:
         SRCDIR="/work/src",
         CHROOT_SRCDIR="/work/src",
         PACKAGEDIR="/work/packages",
+        ARTIFACTDIR="/work/artifacts",
         MKOSI_UID=str(INVOKING_USER.uid),
         MKOSI_GID=str(INVOKING_USER.gid),
         MKOSI_CONFIG="/work/config.json",
@@ -748,6 +753,7 @@ def run_postinst_scripts(context: Context) -> None:
                             Mount(json, "/work/config.json", ro=True),
                             Mount(context.root, "/buildroot"),
                             Mount(context.staging, "/work/out"),
+                            Mount(context.artifacts, "/work/artifacts"),
                             *context.config.distribution.package_manager(context.config).mounts(context),
                         ],
                         options=["--dir", "/work/src", "--chdir", "/work/src"],
@@ -771,6 +777,7 @@ def run_finalize_scripts(context: Context) -> None:
         SRCDIR="/work/src",
         CHROOT_SRCDIR="/work/src",
         PACKAGEDIR="/work/packages",
+        ARTIFACTDIR="/work/artifacts",
         SCRIPT="/work/finalize",
         CHROOT_SCRIPT="/work/finalize",
         MKOSI_UID=str(INVOKING_USER.uid),
@@ -810,6 +817,7 @@ def run_finalize_scripts(context: Context) -> None:
                             Mount(json, "/work/config.json", ro=True),
                             Mount(context.root, "/buildroot"),
                             Mount(context.staging, "/work/out"),
+                            Mount(context.artifacts, "/work/artifacts"),
                             *context.config.distribution.package_manager(context.config).mounts(context),
                         ],
                         options=["--dir", "/work/src", "--chdir", "/work/src"],
@@ -1674,7 +1682,7 @@ def want_initrd(context: Context) -> bool:
     if context.config.output_format not in (OutputFormat.disk, OutputFormat.directory):
         return False
 
-    if not any(gen_kernel_images(context)):
+    if not any((context.artifacts / "io.mkosi.initrd").glob("*")) and not any(gen_kernel_images(context)):
         return False
 
     return True
@@ -2166,6 +2174,24 @@ def finalize_cmdline(context: Context, roothash: Optional[str]) -> list[str]:
     return cmdline + context.config.kernel_command_line
 
 
+def finalize_initrds(context: Context) -> list[Path]:
+    if any((context.artifacts / "io.mkosi.microcode").glob("*")):
+        initrds = sorted((context.artifacts / "io.mkosi.microcode").iterdir())
+    elif microcode := build_microcode_initrd(context):
+        initrds = [microcode]
+    else:
+        initrds = []
+
+    if context.config.initrds:
+        initrds += context.config.initrds
+    elif any((context.artifacts / "io.mkosi.initrd").glob("*")):
+        initrds += sorted((context.artifacts / "io.mkosi.initrd").iterdir())
+    else:
+        initrds += [build_default_initrd(context)]
+
+    return initrds
+
+
 def install_type1(
     context: Context,
     kver: str,
@@ -2179,7 +2205,6 @@ def install_type1(
         dst.mkdir(parents=True, exist_ok=True)
         entry.parent.mkdir(parents=True, exist_ok=True)
 
-    microcode = build_microcode_initrd(context)
     kmods = build_kernel_modules_initrd(context, kver)
     cmdline = finalize_cmdline(context, finalize_roothash(partitions))
 
@@ -2194,11 +2219,7 @@ def install_type1(
         else:
             kimg = Path(shutil.copy2(context.root / kimg, dst / "vmlinuz"))
 
-        initrds = [Path(shutil.copy2(microcode, dst.parent / "microcode.initrd"))] if microcode else []
-        initrds += [
-            Path(shutil.copy2(initrd, dst.parent / initrd.name))
-            for initrd in (context.config.initrds or [build_default_initrd(context)])
-        ]
+        initrds = [Path(shutil.copy2(initrd, dst.parent / initrd.name)) for initrd in finalize_initrds(context)]
         initrds += [Path(shutil.copy2(kmods, dst / "kernel-modules.initrd"))]
 
         with entry.open("w") as f:
@@ -2283,11 +2304,7 @@ def install_uki(context: Context, kver: str, kimg: Path, token: str, partitions:
 
             return
     else:
-        microcode = build_microcode_initrd(context)
-
-        initrds = [microcode] if microcode else []
-        initrds += context.config.initrds or [build_default_initrd(context)]
-
+        initrds = finalize_initrds(context)
         if context.config.kernel_modules_initrd:
             initrds += [build_kernel_modules_initrd(context, kver)]
 
@@ -2473,9 +2490,8 @@ def copy_initrd(context: Context) -> None:
         return
 
     for kver, _ in gen_kernel_images(context):
-        microcode = build_microcode_initrd(context)
-        initrds = [microcode] if microcode else []
-        initrds += context.config.initrds or [build_default_initrd(context)]
+        initrds = finalize_initrds(context)
+
         if context.config.kernel_modules_initrd:
             kver = next(gen_kernel_images(context))[0]
             initrds += [build_kernel_modules_initrd(context, kver)]
