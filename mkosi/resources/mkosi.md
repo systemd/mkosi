@@ -485,6 +485,11 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 : Matches against the configured tools tree distribution.
 
+`Environment=`
+
+: Matches against a specific key/value pair configured with
+  `Environment=`.
+
 | Matcher                  | Globs | Rich Comparisons | Default                               |
 |--------------------------|-------|------------------|---------------------------------------|
 | `Profile=`               | no    | no               | match fails                           |
@@ -500,6 +505,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 | `BuildSources=`          | no    | no               | match fails                           |
 | `HostArchitecture=`      | no    | no               | n/a                                   |
 | `ToolsTreeDistribution=` | no    | no               | match default tools tree distribution |
+| `Environment=`           | no    | no               | n/a                                   |
 
 ### [Config] Section
 

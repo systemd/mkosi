@@ -812,6 +812,30 @@ def test_match_imageversion(tmp_path: Path, op: str, version: str) -> None:
         assert "testpkg3" not in conf.packages
 
 
+def test_match_environment(tmp_path: Path) -> None:
+    d = tmp_path
+
+    (d / "mkosi.conf").write_text(
+        """\
+        [Match]
+        Environment=MYENV=abc
+
+        [Content]
+        ImageId=matched
+        """
+    )
+
+    with chdir(d):
+        _, [conf] = parse_config(["--environment", "MYENV=abc"])
+        assert conf.image_id == "matched"
+        _, [conf] = parse_config(["--environment", "MYENV=abd"])
+        assert conf.image_id != "matched"
+        _, [conf] = parse_config(["--environment", "MYEN=abc"])
+        assert conf.image_id != "matched"
+        _, [conf] = parse_config(["--environment", "MYEN=abd"])
+        assert conf.image_id != "matched"
+
+
 @pytest.mark.parametrize(
     "skel,pkgmngr", itertools.product(
         [None, Path("/foo"), Path("/bar")],
