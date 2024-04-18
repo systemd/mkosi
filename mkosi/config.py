@@ -583,6 +583,14 @@ def config_make_string_matcher(allow_globs: bool = False) -> ConfigMatchCallback
     return config_match_string
 
 
+def config_match_key_value(match: str, value: dict[str, str]) -> bool:
+    k, sep, v = match.partition("=")
+    if not sep:
+        die(f"{match} is not a key=value pair")
+
+    return value.get(k, None) == v
+
+
 def config_parse_boolean(value: Optional[str], old: Optional[bool]) -> Optional[bool]:
     if value is None:
         return False
@@ -2295,6 +2303,7 @@ SETTINGS = (
         metavar="NAME[=VALUE]",
         section="Content",
         parse=config_make_dict_parser(delimiter=" ", parse=parse_environment, unescape=True),
+        match=config_match_key_value,
         help="Set an environment variable when running scripts",
     ),
     ConfigSetting(
