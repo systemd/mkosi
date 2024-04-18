@@ -45,6 +45,7 @@ class Context:
         self.staging.mkdir()
         self.pkgmngr.mkdir()
         self.packages.mkdir()
+        self.artifacts.mkdir()
         self.install_dir.mkdir(exist_ok=True)
 
     @property
@@ -62,6 +63,10 @@ class Context:
     @property
     def packages(self) -> Path:
         return self.workspace / "packages"
+
+    @property
+    def artifacts(self) -> Path:
+        return self.workspace / "artifacts"
 
     @property
     def install_dir(self) -> Path:

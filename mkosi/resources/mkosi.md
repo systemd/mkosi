@@ -1248,10 +1248,13 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `Initrds=`, `--initrd`
 
-: Use user-provided initrd(s). Takes a comma separated list of paths to
-  initrd files. This option may be used multiple times in which case the
-  initrd lists are combined. If no initrds are specified and a bootable
-  image is requested, mkosi will automatically build a default initrd.
+: Use user-provided initrd(s). Takes a comma separated list of paths to initrd
+  files. This option may be used multiple times in which case the initrd lists
+  are combined. If no initrds are specified and a bootable image is requested,
+  mkosi will look for initrds in a subdirectory `io.mkosi.initrd` of the
+  artifact directory (see `$ARTIFACTDIR` in the section **ENVIRONMENT
+  VARIABLES**), if none are found there mkosi will automatically build a
+  default initrd.
 
 `InitrdPackages=`, `--initrd-package=`
 
@@ -2181,6 +2184,26 @@ Scripts executed by mkosi receive the following environment variables:
   repository. Build scripts can add more packages to the local
   repository by writing the packages to `$PACKAGEDIR`.
 
+* `$ARTIFACTDIR` points to the directory that is used to pass around build
+  artifacts generated during the build and make them available for use by
+  mkosi. This is similar to `PACKAGEDIR`, but is meant for artifacts that may
+  not be packages understood by the package manager, e.g. initrds created by
+  other initrd generators than mkosi. Build scripts can add more artifacts to
+  the directory by placing them in `$ARTIFACTDIR`. Files in this directory are
+  only available for the current build and are not copied out like the contents
+  of `$OUTPUTDIR`.
+
+  `mkosi` will also use certain subdirectories of an artifacts directory to
+  automatically use their contents at certain steps. Currently the following
+  two subdirectories in the artifact directory are used by mkosi:
+  - `io.mkosi.microcode`: All files in this directory are used as microcode
+    files, i.e. they are prepended to the initrds in lexicographical order.
+  - `io.mkosi.initrd`: All files in this directory are used as initrds and
+    joined in lexicographical order.
+
+  It is recommend users of `$ARTIFACTDIR` put things for their own use in a
+  similar namespaced directory, e.h. `local.my.namespace`.
+
 * `$BUILDROOT` is the root directory of the image being built,
   optionally with the build overlay mounted on top depending on the
   script that's being executed.
@@ -2236,6 +2259,8 @@ Consult this table for which script receives which environment variables:
 | `OUTPUTDIR`         |                   |              |                 | X             | X                | X                | X             |
 | `CHROOT_OUTPUTDIR`  |                   |              |                 | X             | X                | X                |               |
 | `BUILDROOT`         |                   |              | X               | X             | X                | X                |               |
+| `PACKAGEDIR`        |                   |              | x               | x             | x                | x                |               |
+| `ARTIFACTDIR`       |                   |              | x               | x             | x                | x                |               |
 | `WITH_DOCS`         |                   |              | X               | X             |                  |                  |               |
 | `WITH_TESTS`        |                   |              | X               | X             |                  |                  |               |
 | `WITH_NETWORK`      |                   |              | X               | X             |                  |                  |               |
