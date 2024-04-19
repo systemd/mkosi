@@ -3067,7 +3067,6 @@ def create_argument_parser(action: type[argparse.Action], chdir: bool = True) ->
                 mkosi [options...] {b}shell{e}       [command line...]
                 mkosi [options...] {b}boot{e}        [nspawn settings...]
                 mkosi [options...] {b}qemu{e}        [qemu parameters...]
-                mkosi [options...] {b}vmspawn{e}     [vmspawn parameters...]
                 mkosi [options...] {b}ssh{e}         [command line...]
                 mkosi [options...] {b}journalctl{e}  [command line...]
                 mkosi [options...] {b}coredumpctl{e} [command line...]
