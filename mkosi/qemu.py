@@ -44,7 +44,7 @@ from mkosi.sandbox import Mount
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
 from mkosi.user import INVOKING_USER, become_root
-from mkosi.util import StrEnum, flatten, flock, flock_or_die
+from mkosi.util import StrEnum, flatten, flock, flock_or_die, try_or
 from mkosi.versioncomp import GenericVersion
 
 QEMU_KVM_DEVICE_VERSION = GenericVersion("9.0")
@@ -1102,10 +1102,32 @@ def run_qemu(args: Args, config: Config) -> None:
         if cid is not None:
             stack.enter_context(finalize_state(config, cid))
 
+        # Reopen stdin, stdout and stderr to give qemu a private copy of them.
+        # This is a mitigation for the case when running mkosi under meson and
+        # one or two of the three are redirected and their pipe might block,
+        # but qemu opens all of them non-blocking because at least one of them
+        # is opened this way.
+        stdin = try_or(
+            lambda: os.open(f"/proc/self/fd/{sys.stdin.fileno()}", os.O_RDONLY),
+            OSError,
+            sys.stdin.fileno(),
+        )
+        stdout = try_or(
+            lambda: os.open(f"/proc/self/fd/{sys.stdout.fileno()}", os.O_WRONLY),
+            OSError,
+            sys.stdout.fileno(),
+        )
+        stderr = try_or(
+            lambda: os.open(f"/proc/self/fd/{sys.stderr.fileno()}", os.O_WRONLY),
+            OSError,
+            sys.stderr.fileno(),
+        )
+
         with spawn(
             cmdline,
-            stdin=sys.stdin,
-            stdout=sys.stdout,
+            stdin=stdin,
+            stdout=stdout,
+            stderr=stderr,
             pass_fds=qemu_device_fds.values(),
             env=os.environ | config.environment,
             log=False,

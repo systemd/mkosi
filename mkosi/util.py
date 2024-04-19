@@ -312,3 +312,10 @@ def hash_file(path: Path) -> str:
             h.update(buf)
 
     return h.hexdigest()
+
+
+def try_or(fn: Callable[..., T], exception: type[Exception], default: T) -> T:
+    try:
+        return fn()
+    except exception:
+        return default
