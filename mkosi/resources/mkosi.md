@@ -1916,6 +1916,11 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 : Note that systemd v256 or newer is required in the virtual machine for
   log forwarding to work.
 
+: Note that if a path with the `.journal` extension is given, the
+  journal size is limited to `4G`. Configure an output directory instead
+  of file if your workload produces more than `4G` worth of journal
+  data.
+
 ## Specifiers
 
 The current value of various settings can be accessed when parsing

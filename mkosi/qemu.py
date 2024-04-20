@@ -18,6 +18,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import textwrap
 import uuid
 from collections.abc import Iterator, Sequence
 from pathlib import Path
@@ -430,31 +431,49 @@ def start_journal_remote(config: Config, sockfd: int) -> Iterator[None]:
         run(["chattr", "+C", d], check=False, stderr=subprocess.DEVNULL if not ARG_DEBUG.get() else None)
         INVOKING_USER.chown(d)
 
-    with spawn(
-        [
-            bin,
-            "--output", config.forward_journal,
-            "--split-mode", "none" if config.forward_journal.suffix == ".journal" else "host",
-        ],
-        pass_fds=(sockfd,),
-        sandbox=config.sandbox(
-            binary=bin,
-            mounts=[Mount(config.forward_journal.parent, config.forward_journal.parent)],
-        ),
-        user=config.forward_journal.parent.stat().st_uid if INVOKING_USER.invoked_as_root else None,
-        group=config.forward_journal.parent.stat().st_gid if INVOKING_USER.invoked_as_root else None,
-        # If all logs go into a single file, disable compact mode to allow for journal files exceeding 4G.
-        env={"SYSTEMD_JOURNAL_COMPACT": "0" if config.forward_journal.suffix == ".journal" else "1"},
-        foreground=False,
-    ) as (proc, innerpid):
-        allocate_scope(
-            config,
-            name=f"mkosi-journal-remote-{config.machine_or_name()}",
-            pid=innerpid,
-            description=f"mkosi systemd-journal-remote for {config.machine_or_name()}",
+    with tempfile.NamedTemporaryFile(mode="w", prefix="mkosi-journal-remote-config") as f:
+        # Make sure we capture all the logs by bumping the limits. We set MaxFileSize=4G because with the compact mode
+        # enabled the files cannot grow any larger anyway.
+        f.write(
+            textwrap.dedent(
+                f"""\
+                [Remote]
+                MaxUse=1T
+                KeepFree=1G
+                MaxFileSize=4G
+                MaxFiles={1 if config.forward_journal.suffix == ".journal" else 100}
+                """
+            )
         )
-        yield
-        kill(proc, innerpid, signal.SIGTERM)
+
+        f.flush()
+
+        with spawn(
+            [
+                bin,
+                "--output", config.forward_journal,
+                "--split-mode", "none" if config.forward_journal.suffix == ".journal" else "host",
+            ],
+            pass_fds=(sockfd,),
+            sandbox=config.sandbox(
+                binary=bin,
+                mounts=[
+                    Mount(config.forward_journal.parent, config.forward_journal.parent),
+                    Mount(f.name, "/etc/systemd/journal-remote.conf"),
+                ],
+            ),
+            user=config.forward_journal.parent.stat().st_uid if INVOKING_USER.invoked_as_root else None,
+            group=config.forward_journal.parent.stat().st_gid if INVOKING_USER.invoked_as_root else None,
+            foreground=False,
+        ) as (proc, innerpid):
+            allocate_scope(
+                config,
+                name=f"mkosi-journal-remote-{config.machine_or_name()}",
+                pid=innerpid,
+                description=f"mkosi systemd-journal-remote for {config.machine_or_name()}",
+            )
+            yield
+            kill(proc, innerpid, signal.SIGTERM)
 
 
 
