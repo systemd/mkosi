@@ -3697,10 +3697,11 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
 
 
 def finalize_term() -> str:
-    if not (term := os.getenv("TERM")) or term == "unknown":
+    term = os.getenv("TERM", "unknown")
+    if term == "unknown":
         term = "vt220" if sys.stderr.isatty() else "dumb"
 
-    return term
+    return term if sys.stderr.isatty() else "dumb"
 
 
 def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
