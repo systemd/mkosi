@@ -85,7 +85,7 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def install(cls, context: Context) -> None:
-        cls.install_packages(context, ["filesystem"], apivfs=False)
+        cls.install_packages(context, ["basesystem"], apivfs=False)
 
     @classmethod
     def install_packages(cls, context: Context, packages: Sequence[str], apivfs: bool = True) -> None:
