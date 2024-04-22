@@ -4528,6 +4528,9 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
             tools_tree=tools.output_dir_or_cwd() / tools.output if tools else config.tools_tree,
         )
 
+        if args.verb != Verb.build and args.force == 0:
+            continue
+
         if tools and not (tools.output_dir_or_cwd() / tools.output_with_compression).exists():
             fork_and_wait(run_sync, args, tools, resources=resources)
             fork_and_wait(run_build, args, tools, resources=resources)
@@ -4548,6 +4551,10 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         return
 
     last = images[-1]
+
+    if not (last.output_dir_or_cwd() / last.output_with_compression).exists():
+        die(f"Image '{last.name()}' has not been built yet",
+            hint="Make sure to build the image first with 'mkosi build' or use --force")
 
     with prepend_to_environ_path(last):
         check_tools(last, args.verb)
