@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable
 
 from mkosi.config import Architecture
 from mkosi.context import Context
@@ -28,8 +28,8 @@ class Installer(fedora.Installer):
         return Distribution.mageia
 
     @classmethod
-    def install_packages(cls, context: Context, packages: Sequence[str], apivfs: bool = True) -> None:
-        super().install_packages(context, packages, apivfs)
+    def install(cls, context: Context) -> None:
+        cls.install_packages(context, ["filesystem"], apivfs=False)
 
     @classmethod
     @listify

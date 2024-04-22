@@ -79,8 +79,7 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def install(cls, context: Context) -> None:
-        # Make sure glibc-minimal-langpack is installed instead of glibc-all-langpacks.
-        cls.install_packages(context, ["filesystem", "glibc-minimal-langpack"], apivfs=False)
+        cls.install_packages(context, ["basesystem"], apivfs=False)
 
     @classmethod
     def install_packages(cls, context: Context, packages: Sequence[str], apivfs: bool = True) -> None:
