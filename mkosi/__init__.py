@@ -3432,20 +3432,25 @@ def make_esp(context: Context, uki: Path) -> list[Partition]:
 
 
 def make_extension_image(context: Context, output: Path) -> None:
+    r = context.resources / f"repart/definitions/{context.config.output_format}.repart.d"
+
     cmdline: list[PathString] = [
         "systemd-repart",
         "--root=/buildroot",
+        "--json=pretty",
         "--dry-run=no",
         "--no-pager",
         f"--offline={yes_no(context.config.repart_offline)}",
         "--seed", str(context.config.seed) if context.config.seed else "random",
         "--empty=create",
         "--size=auto",
+        "--definitions", r,
         output,
     ]
     mounts = [
         Mount(output.parent, output.parent),
         Mount(context.root, "/buildroot", ro=True),
+        Mount(r, r, ro=True),
     ]
 
     if not context.config.architecture.is_native():
@@ -3464,28 +3469,32 @@ def make_extension_image(context: Context, output: Path) -> None:
         mounts += [Mount(context.config.verity_certificate, context.config.verity_certificate, ro=True)]
     if context.config.sector_size:
         cmdline += ["--sector-size", str(context.config.sector_size)]
-
-    env = {
-        option: value
-        for option, value in context.config.environment.items()
-        if option.startswith("SYSTEMD_REPART_MKFS_OPTIONS_") or option == "SOURCE_DATE_EPOCH"
-    }
+    if context.config.split_artifacts:
+        cmdline += ["--split=yes"]
 
     with complete_step(f"Building {context.config.output_format} extension image"):
-        r = context.resources / f"repart/definitions/{context.config.output_format}.repart.d"
-        mounts += [Mount(r, r, ro=True)]
-        run(
-            cmdline + ["--definitions", r],
-            env=env,
-            sandbox=context.sandbox(
-                binary="systemd-repart",
-                devices=(
-                    not context.config.repart_offline or
-                    context.config.verity_key_source.type != KeySource.Type.file
+        j = json.loads(
+            run(
+                cmdline,
+                stdout=subprocess.PIPE,
+                env=context.config.environment,
+                sandbox=context.sandbox(
+                    binary="systemd-repart",
+                    devices=(
+                        not context.config.repart_offline or
+                        context.config.verity_key_source.type != KeySource.Type.file
+                    ),
+                    mounts=mounts,
                 ),
-                mounts=mounts,
-            ),
+            ).stdout
         )
+
+    logging.debug(json.dumps(j, indent=4))
+
+    if context.config.split_artifacts:
+        for p in (Partition.from_dict(d) for d in j):
+            if p.split_path:
+                maybe_compress(context, context.config.compress_output, p.split_path)
 
 
 def finalize_staging(context: Context) -> None:
