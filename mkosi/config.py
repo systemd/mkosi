@@ -3330,14 +3330,6 @@ def create_argument_parser(action: type[argparse.Action], chdir: bool = True) ->
             action=action,
         )
 
-
-    try:
-        import argcomplete
-
-        argcomplete.autocomplete(parser)
-    except ImportError:
-        pass
-
     return parser
 
 
