@@ -426,7 +426,9 @@ def start_journal_remote(config: Config, sockfd: int) -> Iterator[None]:
 
     d = config.forward_journal.parent if config.forward_journal.suffix == ".journal" else config.forward_journal
     if not d.exists():
-        d.mkdir(parents=True)
+        # Pass exist_ok=True because multiple mkosi processes might be trying to create the parent directory at the
+        # same time.
+        d.mkdir(exist_ok=True, parents=True)
         # Make sure COW is disabled so systemd-journal-remote doesn't complain on btrfs filesystems.
         run(["chattr", "+C", d], check=False, stderr=subprocess.DEVNULL if not ARG_DEBUG.get() else None)
         INVOKING_USER.chown(d)
