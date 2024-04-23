@@ -3099,7 +3099,7 @@ SPECIFIERS_LOOKUP_BY_CHAR = {s.char: s for s in SPECIFIERS}
 FALLBACK_NAME_TO_DEST_SPLITTER = re.compile("(?<=[a-z])(?=[A-Z])")
 
 
-def create_argument_parser(action: type[argparse.Action], chdir: bool = True) -> argparse.ArgumentParser:
+def create_argument_only_parser(chdir: bool = True) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="mkosi",
         description="Build Bespoke OS Images",
@@ -3242,6 +3242,11 @@ def create_argument_parser(action: type[argparse.Action], chdir: bool = True) ->
         action=PagerHelpAction,
         help=argparse.SUPPRESS,
     )
+    return parser
+
+
+def create_argument_parser(action: type[argparse.Action], chdir: bool = True) -> argparse.ArgumentParser:
+    parser = create_argument_only_parser(chdir)
 
     last_section = None
 
