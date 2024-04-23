@@ -232,7 +232,14 @@ class Apt(PackageManager):
             )
 
         run(
-            ["reprepro", "includedeb", "mkosi"] + [d.name for d in context.packages.glob("*.deb")],
+            [
+                "reprepro",
+                "--ignore=extension",
+                "includedeb",
+                "mkosi",
+                *(d.name for d in context.packages.glob("*.deb")),
+                *(d.name for d in context.packages.glob("*.ddeb")),
+            ],
             sandbox=context.sandbox(
                 binary="reprepro",
                 mounts=[Mount(context.packages, context.packages)],
