@@ -3555,6 +3555,10 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
         except ValueError:
             continue
 
+        # Hack to make sure mkosi -C build works.
+        if argv[v_i - 1] in ("-C", "--directory"):
+            continue
+
         if v_i > 0 and argv[v_i - 1] != "--":
             argv.insert(v_i, "--")
         break
