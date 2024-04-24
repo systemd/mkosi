@@ -19,6 +19,8 @@ jobs:
 
     - name: Install
       run: |
+        # This is added by default, and it is often broken, but we don't need anything from it
+        sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
         sudo apt-get update
         sudo apt-get install pandoc python3-pytest
         python3 -m pip install --upgrade setuptools wheel pip
