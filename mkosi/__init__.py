@@ -2080,8 +2080,6 @@ def build_uki(
     mounts += [Mount(kimg, kimg, ro=True)]
 
     if microcodes:
-        ukify = find_binary("ukify", "/usr/lib/systemd/ukify", root=context.config.tools())
-        assert ukify is not None
         # new .ucode section support?
         if (
             systemd_tool_version(context.config, ukify) >= "256~devel" and
