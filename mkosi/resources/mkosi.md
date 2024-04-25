@@ -1118,8 +1118,8 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 : Takes a boolean. Disabled by default. Configures whether changes to
   source directories (The working directory and configured using
   `BuildSources=`) are persisted. If enabled, all source directories
-  will be reset to their original state after scripts (except sync
-  scripts) finish executing.
+  will be reset to their original state every time after running all
+  scripts of a specific type (except sync scripts).
 
 `Environment=`, `--environment=`
 
