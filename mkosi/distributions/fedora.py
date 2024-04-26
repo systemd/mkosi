@@ -60,7 +60,7 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def default_release(cls) -> str:
-        return "39"
+        return "40"
 
     @classmethod
     def default_tools_tree_distribution(cls) -> Distribution:
