@@ -2137,8 +2137,8 @@ current working directory. The following scripts are supported:
 * If **`mkosi.clean`** (`CleanScripts=`) exists, it is executed right
   after the outputs of a previous build have been cleaned up. A clean
   script can clean up any outputs that mkosi does not know about (e.g.
-  RPMs built in a build script). Note that this script does not use the
-  tools tree even if one is configured.
+  artifacts from `SplitArtifacts=yes` or RPMs built in a build script).
+  Note that this script does not use the tools tree even if one is configured.
 
 If a script uses the `.chroot` extension, mkosi will chroot into the
 image using `mkosi-chroot` (see below) before executing the script. For
