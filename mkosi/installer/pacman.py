@@ -91,11 +91,25 @@ class Pacman(PackageManager):
                     ParallelDownloads = 5
                     Architecture = {context.config.distribution.architecture(context.config.architecture)}
 
-                    # This has to go first so that our local repository always takes precedence over any other ones.
-                    Include = /etc/mkosi-local.conf
                     """
                 )
             )
+
+            if not context.config.with_docs:
+                f.write(
+                    textwrap.dedent(
+                        """\
+                        NoExtract = usr/share/doc/*
+                        NoExtract = usr/share/doc/*/copyright
+                        NoExtract = usr/share/man/*
+                        NoExtract = usr/share/groff/*
+                        NoExtract = usr/share/info/*
+                        """
+                    )
+                )
+
+            # This has to go first so that our local repository always takes precedence over any other ones.
+            f.write("Include = /etc/mkosi-local.conf\n")
 
             for repo in repositories:
                 f.write(
