@@ -100,7 +100,6 @@ class Pacman(PackageManager):
                     textwrap.dedent(
                         """\
                         NoExtract = usr/share/doc/*
-                        NoExtract = usr/share/doc/*/copyright
                         NoExtract = usr/share/man/*
                         NoExtract = usr/share/groff/*
                         NoExtract = usr/share/info/*
