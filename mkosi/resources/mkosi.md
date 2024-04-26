@@ -1961,8 +1961,8 @@ listed above:
 
 |      | `$D/mkosi.conf` | `$D/mkosi.conf.d/abc/abc.conf` | `$D/mkosi.conf.d/abc/mkosi.conf` |
 |------|-----------------|--------------------------------|----------------------------------|
-| `%C` | `$D`            | `$D/mkosi.conf.d`              | `$D/mkosi.conf.d/qed`            |
-| `%P` | `$D`            | `$D`                           | `$D/mkosi.conf.d/qed`            |
+| `%C` | `$D`            | `$D/mkosi.conf.d`              | `$D/mkosi.conf.d/abc`            |
+| `%P` | `$D`            | `$D`                           | `$D/mkosi.conf.d/abc`            |
 | `%D` | `$D`            | `$D`                           | `$D`                             |
 
 ## Supported distributions
