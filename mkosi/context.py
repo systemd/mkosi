@@ -46,7 +46,7 @@ class Context:
         self.pkgmngr.mkdir()
         self.packages.mkdir()
         self.artifacts.mkdir()
-        self.install_dir.mkdir(exist_ok=True)
+        self.install_dir.mkdir()
 
     @property
     def root(self) -> Path:
@@ -113,5 +113,6 @@ class Context:
             ],
             extra=extra,
         )
+
     def want_local_repo(self) -> bool:
         return any(self.packages.iterdir())

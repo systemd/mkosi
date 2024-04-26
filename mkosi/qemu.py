@@ -409,11 +409,12 @@ def vsock_notify_handler() -> Iterator[tuple[str, dict[str, str]]]:
                     messages[k] = v
 
         with AsyncioThread(notify()):
-            yield f"vsock-stream:{socket.VMADDR_CID_HOST}:{vsock.getsockname()[1]}", messages
-
-        logging.debug(f"Received {num_messages} notify messages totalling {format_bytes(num_bytes)} bytes")
-        for k, v in messages.items():
-            logging.debug(f"- {k}={v}")
+            try:
+                yield f"vsock-stream:{socket.VMADDR_CID_HOST}:{vsock.getsockname()[1]}", messages
+            finally:
+                logging.debug(f"Received {num_messages} notify messages totalling {format_bytes(num_bytes)} bytes")
+                for k, v in messages.items():
+                    logging.debug(f"- {k}={v}")
 
 
 @contextlib.contextmanager
