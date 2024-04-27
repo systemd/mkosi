@@ -169,6 +169,7 @@ class Apt(PackageManager):
                 "-o", "DPkg::Options::=--path-include=/usr/share/doc/*/copyright",
                 "-o", "DPkg::Options::=--path-exclude=/usr/share/man/*",
                 "-o", "DPkg::Options::=--path-exclude=/usr/share/groff/*",
+                "-o", "DPkg::Options::=--path-exclude=/usr/share/gtk-doc/*",
                 "-o", "DPkg::Options::=--path-exclude=/usr/share/info/*",
             ]
 
