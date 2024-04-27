@@ -102,6 +102,7 @@ class Pacman(PackageManager):
                         NoExtract = usr/share/doc/*
                         NoExtract = usr/share/man/*
                         NoExtract = usr/share/groff/*
+                        NoExtract = usr/share/gtk-doc/*
                         NoExtract = usr/share/info/*
                         """
                     )
