@@ -4217,7 +4217,7 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
     return json_transformer
 
 
-def want_selinux_relabel(config: Config, root: Path, fatal: bool = True) -> Optional[tuple[str, Path, Path]]:
+def want_selinux_relabel(config: Config, root: Path, fatal: bool = True) -> Optional[tuple[Path, str, Path, Path]]:
     if config.selinux_relabel == ConfigFeature.disabled:
         return None
 
@@ -4235,7 +4235,7 @@ def want_selinux_relabel(config: Config, root: Path, fatal: bool = True) -> Opti
             die("SELinux relabel is requested but no selinux policy is configured in /etc/selinux/config")
         return None
 
-    if not config.find_binary("setfiles"):
+    if not (setfiles := config.find_binary("setfiles")):
         if fatal and config.selinux_relabel == ConfigFeature.enabled:
             die("SELinux relabel is requested but setfiles is not installed")
         return None
@@ -4259,7 +4259,7 @@ def want_selinux_relabel(config: Config, root: Path, fatal: bool = True) -> Opti
 
     binpolicy = sorted(policies, key=lambda p: GenericVersion(p.name), reverse=True)[0]
 
-    return policy, fc, binpolicy
+    return setfiles, policy, fc, binpolicy
 
 
 def systemd_tool_version(config: Config, tool: PathString) -> GenericVersion:

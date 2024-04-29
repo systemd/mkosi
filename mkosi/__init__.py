@@ -3032,13 +3032,13 @@ def run_selinux_relabel(context: Context) -> None:
     if not (selinux := want_selinux_relabel(context.config, context.root)):
         return
 
-    policy, fc, binpolicy = selinux
+    setfiles, policy, fc, binpolicy = selinux
     fc = Path("/buildroot") / fc.relative_to(context.root)
     binpolicy = Path("/buildroot") / binpolicy.relative_to(context.root)
 
     with complete_step(f"Relabeling files using {policy} policy"):
-        run(["setfiles", "-mFr", "/buildroot", "-c", binpolicy, fc, "/buildroot"],
-            sandbox=context.sandbox(binary="setfiles", mounts=[Mount(context.root, "/buildroot")]),
+        run([setfiles, "-mFr", "/buildroot", "-c", binpolicy, fc, "/buildroot"],
+            sandbox=context.sandbox(binary=setfiles, mounts=[Mount(context.root, "/buildroot")]),
             check=context.config.selinux_relabel == ConfigFeature.enabled)
 
 
