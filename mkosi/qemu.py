@@ -597,7 +597,7 @@ def finalize_firmware_variables(config: Config, ovmf: OvmfConfig, stack: context
                 "--loglevel", "WARNING",
             ],
             sandbox=config.sandbox(
-                binary="virt-fw-vars",
+                binary=None,
                 mounts=[
                     Mount(ovmf_vars.name, ovmf_vars.name),
                     Mount(config.secure_boot_certificate, config.secure_boot_certificate, ro=True),
@@ -1150,7 +1150,7 @@ def run_qemu(args: Args, config: Config) -> None:
             env=os.environ | config.environment,
             log=False,
             foreground=True,
-            sandbox=config.sandbox(binary=cmdline[0], network=True, devices=True, relaxed=True),
+            sandbox=config.sandbox(binary=None, network=True, devices=True, relaxed=True),
         ) as (proc, innerpid):
             # We have to close these before we wait for qemu otherwise we'll deadlock as qemu will never exit.
             for fd in qemu_device_fds.values():
