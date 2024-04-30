@@ -45,7 +45,7 @@ from mkosi.sandbox import Mount
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
 from mkosi.user import INVOKING_USER, become_root
-from mkosi.util import StrEnum, flatten, flock, flock_or_die, try_or
+from mkosi.util import StrEnum, flock, flock_or_die, try_or
 from mkosi.versioncomp import GenericVersion
 
 QEMU_KVM_DEVICE_VERSION = GenericVersion("9.0")
@@ -189,13 +189,9 @@ def find_ovmf_firmware(config: Config, firmware: QemuFirmware) -> Optional[OvmfC
     if not firmware.is_uefi():
         return None
 
-    desc = flatten(
-        p.glob("*")
-        for p in (
-            config.tools() / "etc/qemu/firmware",
-            config.tools() / "usr/share/qemu/firmware",
-        )
-    )
+    desc = list((config.tools() / "usr/share/qemu/firmware").glob("*"))
+    if config.tools() == Path("/"):
+        desc += list((config.tools() / "etc/qemu/firmware").glob("*"))
 
     arch = config.architecture.to_qemu()
     machine = config.architecture.default_qemu_machine()
@@ -601,7 +597,7 @@ def finalize_firmware_variables(config: Config, ovmf: OvmfConfig, stack: context
                 "--loglevel", "WARNING",
             ],
             sandbox=config.sandbox(
-                binary="virt-fw-vars",
+                binary=None,
                 mounts=[
                     Mount(ovmf_vars.name, ovmf_vars.name),
                     Mount(config.secure_boot_certificate, config.secure_boot_certificate, ro=True),
@@ -1154,7 +1150,7 @@ def run_qemu(args: Args, config: Config) -> None:
             env=os.environ | config.environment,
             log=False,
             foreground=True,
-            sandbox=config.sandbox(binary=cmdline[0], network=True, devices=True, relaxed=True),
+            sandbox=config.sandbox(binary=None, network=True, devices=True, relaxed=True),
         ) as (proc, innerpid):
             # We have to close these before we wait for qemu otherwise we'll deadlock as qemu will never exit.
             for fd in qemu_device_fds.values():

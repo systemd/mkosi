@@ -19,7 +19,6 @@ from mkosi.qemu import (
     apply_runtime_size,
     copy_ephemeral,
     finalize_qemu_firmware,
-    find_ovmf_firmware,
 )
 from mkosi.run import run
 from mkosi.types import PathString
@@ -67,10 +66,6 @@ def run_vmspawn(args: Args, config: Config) -> None:
     if config.qemu_gui:
         cmdline += ["--console=gui"]
 
-    ovmf = find_ovmf_firmware(config, firmware)
-    if ovmf:
-        cmdline += ["--firmware", ovmf.description]
-
     cmdline += [f"--set-credential={k}:{v}" for k, v in config.credentials.items()]
 
     with contextlib.ExitStack() as stack:
@@ -107,4 +102,11 @@ def run_vmspawn(args: Args, config: Config) -> None:
 
         cmdline += [*args.cmdline, *config.kernel_command_line_extra]
 
-        run(cmdline, stdin=sys.stdin, stdout=sys.stdout, env=os.environ | config.environment, log=False)
+        run(
+            cmdline,
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            env=os.environ | config.environment,
+            log=False,
+            sandbox=config.sandbox(binary=cmdline[0], network=True, devices=True, relaxed=True),
+        )
