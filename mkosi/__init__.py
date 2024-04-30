@@ -509,7 +509,7 @@ def run_sync_scripts(context: Context) -> None:
                 Mount(json, "/work/config.json", ro=True),
             ]
 
-            if (p := INVOKING_USER.home()).exists():
+            if (p := INVOKING_USER.home()).exists() and p != Path("/"):
                 # We use a writable mount here to keep git worktrees working which encode absolute paths to the parent
                 # git repository and might need to modify the git config in the parent git repository when submodules
                 # are in use as well.
