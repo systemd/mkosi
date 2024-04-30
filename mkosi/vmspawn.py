@@ -102,4 +102,11 @@ def run_vmspawn(args: Args, config: Config) -> None:
 
         cmdline += [*args.cmdline, *config.kernel_command_line_extra]
 
-        run(cmdline, stdin=sys.stdin, stdout=sys.stdout, env=os.environ | config.environment, log=False)
+        run(
+            cmdline,
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            env=os.environ | config.environment,
+            log=False,
+            sandbox=config.sandbox(binary=cmdline[0], network=True, devices=True, relaxed=True),
+        )
