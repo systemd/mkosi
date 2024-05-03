@@ -46,7 +46,7 @@ class SandboxProtocol(Protocol):
     def __call__(
         self,
         *,
-        binary: Optional[PathString], 
+        binary: Optional[PathString],
         mounts: Sequence[Mount] = ()
     ) -> AbstractContextManager[list[PathString]]: ...
 
@@ -120,6 +120,7 @@ def sandbox_cmd(
     relaxed: bool = False,
     mounts: Sequence[Mount] = (),
     options: Sequence[PathString] = (),
+    setup: Sequence[PathString] = (),
     extra: Sequence[PathString] = (),
 ) -> Iterator[list[PathString]]:
     cmdline: list[PathString] = []
@@ -132,6 +133,7 @@ def sandbox_cmd(
         vartmp = None
 
     cmdline += [
+        *setup,
         "bwrap",
         *(
             ["--unshare-net"]

@@ -205,3 +205,26 @@ def become_root() -> None:
 
     INVOKING_USER.uid = SUBRANGE - 100
     INVOKING_USER.gid = SUBRANGE - 100
+
+
+def become_root_cmd() -> list[str]:
+    if os.getuid() == 0:
+        return []
+
+    subuid = read_subrange(Path("/etc/subuid"))
+    subgid = read_subrange(Path("/etc/subgid"))
+
+    cmd = [
+        "unshare",
+        "--setuid", "0",
+        "--setgid", "0",
+        "--map-users",  f"0:{subuid}:{SUBRANGE - 100}",
+        "--map-users",  f"{SUBRANGE - 100}:{os.getuid()}:1",
+        "--map-users",  f"{SUBRANGE - 100 + 1}:{subuid + SUBRANGE - 100 + 1}:99",
+        "--map-groups", f"0:{subgid}:{SUBRANGE - 100}",
+        "--map-groups", f"{SUBRANGE - 100}:{os.getgid()}:1",
+        "--map-groups", f"{SUBRANGE - 100 + 1}:{subgid + SUBRANGE - 100 + 1}:99",
+        "--keep-caps",
+    ]
+
+    return [str(x) for x in cmd]

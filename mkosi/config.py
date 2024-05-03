@@ -1704,6 +1704,7 @@ class Config:
         scripts: Optional[Path] = None,
         mounts: Sequence[Mount] = (),
         options: Sequence[PathString] = (),
+        setup: Sequence[PathString] = (),
         extra: Sequence[PathString] = (),
     ) -> AbstractContextManager[list[PathString]]:
         mounts = [
@@ -1729,6 +1730,7 @@ class Config:
             tools=self.tools() if tools else Path("/"),
             mounts=mounts,
             options=options,
+            setup=setup,
             extra=extra,
         )
 
