@@ -688,6 +688,7 @@ def scope_cmd(
     description: str,
     user: Optional[int] = None,
     group: Optional[int] = None,
+    properties: Sequence[str] = (),
 ) -> list[str]:
     return [
         "systemd-run",
@@ -699,6 +700,7 @@ def scope_cmd(
         "--collect",
         *(["--uid", str(user)] if user is not None else []),
         *(["--gid", str(group)] if group is not None else []),
+        *([f"--property={p}" for p in properties]),
     ]
 
 
@@ -1141,7 +1143,11 @@ def run_qemu(args: Args, config: Config) -> None:
             log=False,
             foreground=True,
             sandbox=config.sandbox(binary=None, network=True, devices=True, relaxed=True),
-            scope=scope_cmd(name=name, description=f"mkosi Virtual Machine {name}"),
+            scope=scope_cmd(
+                name=name,
+                description=f"mkosi Virtual Machine {name}",
+                properties=config.unit_properties,
+            ),
         ) as (proc, innerpid):
             # We have to close these before we wait for qemu otherwise we'll deadlock as qemu will never exit.
             for fd in qemu_device_fds.values():
