@@ -36,6 +36,7 @@ from mkosi.config import (
     format_bytes,
     systemd_tool_version,
     want_selinux_relabel,
+    yes_no,
 )
 from mkosi.log import ARG_DEBUG, die
 from mkosi.mounts import finalize_source_mounts
@@ -1035,8 +1036,9 @@ def run_qemu(args: Args, config: Config) -> None:
 
         if want_scratch(config):
             scratch = stack.enter_context(generate_scratch_fs(config))
+            cache = "cache.writeback=on,cache.direct=on,cache.no-flush=yes,aio=io_uring"
             cmdline += [
-                "-drive", f"if=none,id=scratch,file={scratch},format=raw,discard=on",
+                "-drive", f"if=none,id=scratch,file={scratch},format=raw,discard=on,{cache}",
                 "-device", "scsi-hd,drive=scratch",
             ]
             kcl += [f"systemd.mount-extra=LABEL=scratch:/var/tmp:{config.distribution.filesystem()}"]
@@ -1051,7 +1053,8 @@ def run_qemu(args: Args, config: Config) -> None:
             cmdline += ["-initrd", config.output_dir_or_cwd() / config.output_split_initrd]
 
         if config.output_format in (OutputFormat.disk, OutputFormat.esp):
-            cmdline += ["-drive", f"if=none,id=mkosi,file={fname},format=raw,discard=on",
+            cache = f"cache.writeback=on,cache.direct=on,cache.no-flush={yes_no(config.ephemeral)},aio=io_uring"
+            cmdline += ["-drive", f"if=none,id=mkosi,file={fname},format=raw,discard=on,{cache}",
                         "-device", f"scsi-{'cd' if config.qemu_cdrom else 'hd'},drive=mkosi,bootindex=1"]
 
         if (
