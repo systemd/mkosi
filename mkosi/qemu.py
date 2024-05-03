@@ -1055,9 +1055,12 @@ def run_qemu(args: Args, config: Config) -> None:
                         "-device", f"scsi-{'cd' if config.qemu_cdrom else 'hd'},drive=mkosi,bootindex=1"]
 
         if (
-            firmware.is_uefi() and
-            config.qemu_swtpm != ConfigFeature.disabled and
-            config.find_binary("swtpm") is not None
+            config.qemu_swtpm == ConfigFeature.enabled or
+            (
+                config.qemu_swtpm == ConfigFeature.auto and
+                firmware.is_uefi() and
+                config.find_binary("swtpm") is not None
+            )
         ):
             sock = stack.enter_context(start_swtpm(config))
             cmdline += ["-chardev", f"socket,id=chrtpm,path={sock}",
