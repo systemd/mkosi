@@ -896,7 +896,7 @@ def run_qemu(args: Args, config: Config) -> None:
             f"vhost-vsock-pci,guest-cid={cid},vhostfd={SD_LISTEN_FDS_START + index}"
         ]
 
-    cmdline += ["-cpu", "max"]
+    cmdline += ["-cpu", "max" + (",hv_relaxed,hv-vapic,hv-time" if config.architecture.is_x86_variant() else "")]
 
     if config.qemu_gui:
         cmdline += ["-vga", "virtio"]
