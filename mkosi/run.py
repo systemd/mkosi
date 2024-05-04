@@ -140,6 +140,7 @@ def run(
     preexec_fn: Optional[Callable[[], None]] = None,
     success_exit_status: Sequence[int] = (0,),
     sandbox: AbstractContextManager[Sequence[PathString]] = contextlib.nullcontext([]),
+    scope: Sequence[str] = (),
 ) -> CompletedProcess:
     if input is not None:
         assert stdin is None  # stdin and input cannot be specified together
@@ -161,6 +162,7 @@ def run(
             preexec_fn=preexec_fn,
             success_exit_status=success_exit_status,
             sandbox=sandbox,
+            scope=scope,
             innerpid=False,
         ) as (process, _):
             out, err = process.communicate(input)
@@ -187,6 +189,7 @@ def spawn(
     preexec_fn: Optional[Callable[[], None]] = None,
     success_exit_status: Sequence[int] = (0,),
     sandbox: AbstractContextManager[Sequence[PathString]] = contextlib.nullcontext([]),
+    scope: Sequence[str] = (),
     innerpid: bool = True,
 ) -> Iterator[tuple[Popen, int]]:
     assert sorted(set(pass_fds)) == list(pass_fds)
@@ -214,6 +217,20 @@ def spawn(
 
     if "TMPDIR" in os.environ:
         env["TMPDIR"] = os.environ["TMPDIR"]
+
+    if scope:
+        if not find_binary("systemd-run"):
+            scope = []
+        elif os.getuid() != 0 and "DBUS_SESSION_BUS_ADDRESS" in os.environ and "XDG_RUNTIME_DIR" in os.environ:
+            env["DBUS_SESSION_BUS_ADDRESS"] = os.environ["DBUS_SESSION_BUS_ADDRESS"]
+            env["XDG_RUNTIME_DIR"] = os.environ["XDG_RUNTIME_DIR"]
+        elif os.getuid() == 0 and "DBUS_SYSTEM_ADDRESS" in os.environ:
+            env["DBUS_SYSTEM_ADDRESS"] = os.environ["DBUS_SYSTEM_ADDRESS"]
+        else:
+            scope = []
+
+    if scope:
+        user = group = None
 
     for e in ("SYSTEMD_LOG_LEVEL", "SYSTEMD_LOG_LOCATION"):
         if e in os.environ:
@@ -299,7 +316,7 @@ def spawn(
 
         try:
             with subprocess.Popen(
-                prefix + cmdline,
+                [*scope, *prefix, *cmdline],
                 stdin=stdin,
                 stdout=stdout,
                 stderr=stderr,
@@ -335,7 +352,7 @@ def spawn(
                         log_process_failure(prefix, cmdline, returncode)
                     if ARG_DEBUG_SHELL.get():
                         subprocess.run(
-                            [*prefix, "bash"],
+                            [*scope, *prefix, "bash"],
                             check=False,
                             stdin=sys.stdin,
                             text=True,

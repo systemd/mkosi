@@ -1879,6 +1879,13 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   they were mounted to when running the build script when using `mkosi
   boot` or `mkosi qemu`.
 
+`UnitProperties=`, `--unit-property=`
+
+: Configure systemd unit properties to add to the systemd scopes
+  allocated when using `mkosi boot` or `mkosi qemu`. These are passed
+  directly to the `--property` options of `systemd-nspawn` and
+  `systemd-run` respectively.
+
 `SshKey=`, `--ssh-key=`
 
 : Path to the X509 private key in PEM format to use to connect to a

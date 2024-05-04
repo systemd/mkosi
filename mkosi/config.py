@@ -1496,6 +1496,7 @@ class Config:
     runtime_scratch: ConfigFeature
     runtime_network: Network
     runtime_build_sources: bool
+    unit_properties: list[str]
     ssh_key: Optional[Path]
     ssh_certificate: Optional[Path]
     machine: Optional[str]
@@ -1704,6 +1705,7 @@ class Config:
         scripts: Optional[Path] = None,
         mounts: Sequence[Mount] = (),
         options: Sequence[PathString] = (),
+        setup: Sequence[PathString] = (),
         extra: Sequence[PathString] = (),
     ) -> AbstractContextManager[list[PathString]]:
         mounts = [
@@ -1729,6 +1731,7 @@ class Config:
             tools=self.tools() if tools else Path("/"),
             mounts=mounts,
             options=options,
+            setup=setup,
             extra=extra,
         )
 
@@ -2865,6 +2868,13 @@ SETTINGS = (
         section="Host",
         parse=config_parse_boolean,
         help="Mount build sources and build directory in /work when booting the image",
+    ),
+    ConfigSetting(
+        dest="unit_properties",
+        long="--unit-property",
+        metavar="PROPERTY",
+        section="Host",
+        parse=config_make_list_parser(delimiter=" ", unescape=True),
     ),
     ConfigSetting(
         dest="ssh_key",
@@ -4050,6 +4060,7 @@ def summary(config: Config) -> str:
                     Runtime Scratch: {config.runtime_scratch}
                     Runtime Network: {config.runtime_network}
               Runtime Build Sources: {config.runtime_build_sources}
+                    Unit Properties: {line_join_list(config.unit_properties)}
                     SSH Signing Key: {none_to_none(config.ssh_key)}
                     SSH Certificate: {none_to_none(config.ssh_certificate)}
                             Machine: {config.machine_or_name()}

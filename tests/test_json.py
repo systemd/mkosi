@@ -331,6 +331,9 @@ def test_config() -> None:
                 "abc"
             ],
             "UnifiedKernelImages": "auto",
+            "UnitProperties": [
+                "PROPERTY=VALUE"
+            ],
             "UseSubvolumes": "auto",
             "VerityCertificate": "/path/to/cert",
             "VerityKey": null,
@@ -488,6 +491,7 @@ def test_config() -> None:
         tools_tree_release=None,
         tools_tree_repositories=["abc"],
         unified_kernel_images=ConfigFeature.auto,
+        unit_properties=["PROPERTY=VALUE"],
         use_subvolumes=ConfigFeature.auto,
         verity_certificate=Path("/path/to/cert"),
         verity_key=None,

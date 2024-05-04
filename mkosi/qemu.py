@@ -6,6 +6,7 @@ import contextlib
 import enum
 import errno
 import fcntl
+import functools
 import hashlib
 import json
 import logging
@@ -41,11 +42,11 @@ from mkosi.config import (
 from mkosi.log import ARG_DEBUG, die
 from mkosi.mounts import finalize_source_mounts
 from mkosi.partition import finalize_root, find_partitions
-from mkosi.run import SD_LISTEN_FDS_START, AsyncioThread, find_binary, fork_and_wait, kill, run, spawn
+from mkosi.run import SD_LISTEN_FDS_START, AsyncioThread, find_binary, kill, run, spawn
 from mkosi.sandbox import Mount
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
-from mkosi.user import INVOKING_USER, become_root
+from mkosi.user import INVOKING_USER, become_root_cmd
 from mkosi.util import StrEnum, flock, flock_or_die, try_or
 from mkosi.versioncomp import GenericVersion
 
@@ -254,9 +255,18 @@ def find_ovmf_firmware(config: Config, firmware: QemuFirmware) -> Optional[OvmfC
 def start_swtpm(config: Config) -> Iterator[Path]:
     with tempfile.TemporaryDirectory(prefix="mkosi-swtpm") as state:
         # swtpm_setup is noisy and doesn't have a --quiet option so we pipe it's stdout to /dev/null.
-        run(["swtpm_setup", "--tpm-state", state, "--tpm2", "--pcr-banks", "sha256", "--config", "/dev/null"],
-            sandbox=config.sandbox(binary="swtpm_setup", mounts=[Mount(state, state)]),
-            stdout=None if ARG_DEBUG.get() else subprocess.DEVNULL)
+        run(
+            ["swtpm_setup", "--tpm-state", state, "--tpm2", "--pcr-banks", "sha256", "--config", "/dev/null"],
+            sandbox=config.sandbox(
+                binary="swtpm_setup",
+                mounts=[Mount(state, state)],
+            ),
+            scope=scope_cmd(
+                name=f"mkosi-swtpm-{config.machine_or_name()}",
+                description=f"swtpm for {config.machine_or_name()}",
+            ),
+            stdout=None if ARG_DEBUG.get() else subprocess.DEVNULL,
+        )
 
         cmdline = ["swtpm", "socket", "--tpm2", "--tpmstate", f"dir={state}"]
 
@@ -274,12 +284,6 @@ def start_swtpm(config: Config) -> Iterator[Path]:
                 pass_fds=(sock.fileno(),),
                 sandbox=config.sandbox(binary="swtpm", mounts=[Mount(state, state)]),
             ) as (proc, innerpid):
-                allocate_scope(
-                    config,
-                    name=f"mkosi-swtpm-{config.machine_or_name()}",
-                    pid=innerpid,
-                    description=f"swtpm for {config.machine_or_name()}",
-                )
                 yield path
                 kill(proc, innerpid, signal.SIGTERM)
 
@@ -338,6 +342,14 @@ def start_virtiofsd(config: Config, directory: PathString, *, name: str, selinux
 
         cmdline += ["--fd", str(SD_LISTEN_FDS_START)]
 
+        uid = gid = None
+        runas = []
+        if uidmap and os.getuid() != INVOKING_USER.uid:
+            uid = INVOKING_USER.uid
+            gid = INVOKING_USER.gid
+        elif not uidmap and os.getuid() != 0:
+            runas = become_root_cmd()
+
         with spawn(
             cmdline,
             pass_fds=(sock.fileno(),),
@@ -345,21 +357,21 @@ def start_virtiofsd(config: Config, directory: PathString, *, name: str, selinux
             # in the user namespace it spawns, so by specifying --uid 0 --gid 0 we'll get a userns with the current
             # uid/gid mapped to root in the userns. --cap-add=all is required to make virtiofsd work. Since it drops
             # capabilities itself, we don't bother figuring out the exact set of capabilities it needs.
-            user=INVOKING_USER.uid if uidmap else None,
-            group=INVOKING_USER.gid if uidmap else None,
-            preexec_fn=become_root if not uidmap else None,
+            user=uid,
+            group=gid,
             sandbox=config.sandbox(
                 binary=virtiofsd,
                 mounts=[Mount(directory, directory)],
                 options=["--uid", "0", "--gid", "0", "--cap-add", "all"],
+                setup=runas,
+            ),
+            scope=scope_cmd(
+                name=f"mkosi-virtiofsd-{name}",
+                description=f"virtiofsd for {directory}",
+                user=uid,
+                group=gid,
             ),
         ) as (proc, innerpid):
-            allocate_scope(
-                config,
-                name=f"mkosi-virtiofsd-{name}",
-                pid=innerpid,
-                description=f"virtiofsd for {directory}",
-            )
             yield path
             kill(proc, innerpid, signal.SIGTERM)
 
@@ -462,16 +474,14 @@ def start_journal_remote(config: Config, sockfd: int) -> Iterator[None]:
                     Mount(f.name, "/etc/systemd/journal-remote.conf"),
                 ],
             ),
-            user=config.forward_journal.parent.stat().st_uid if INVOKING_USER.invoked_as_root else None,
-            group=config.forward_journal.parent.stat().st_gid if INVOKING_USER.invoked_as_root else None,
+            scope=scope_cmd(
+                name=f"mkosi-journal-remote-{config.machine_or_name()}",
+                description=f"mkosi systemd-journal-remote for {config.machine_or_name()}",
+                user=config.forward_journal.parent.stat().st_uid if INVOKING_USER.invoked_as_root else None,
+                group=config.forward_journal.parent.stat().st_gid if INVOKING_USER.invoked_as_root else None,
+            ),
             foreground=False,
         ) as (proc, innerpid):
-            allocate_scope(
-                config,
-                name=f"mkosi-journal-remote-{config.machine_or_name()}",
-                pid=innerpid,
-                description=f"mkosi systemd-journal-remote for {config.machine_or_name()}",
-            )
             yield
             kill(proc, innerpid, signal.SIGTERM)
 
@@ -502,28 +512,25 @@ def copy_ephemeral(config: Config, src: Path) -> Iterator[Path]:
     tmp = src.parent / f"{src.name}-{uuid.uuid4().hex[:16]}"
 
     try:
-        def copy() -> None:
-            if config.output_format == OutputFormat.directory:
-                become_root()
-
+        with flock(src):
             copy_tree(
                 src, tmp,
                 preserve=config.output_format == OutputFormat.directory,
                 use_subvolumes=config.use_subvolumes,
-                sandbox=config.sandbox,
+                sandbox=functools.partial(
+                    config.sandbox,
+                    setup=become_root_cmd() if config.output_format == OutputFormat.directory else [],
+                ),
             )
-
-        with flock(src):
-            fork_and_wait(copy)
         yield tmp
     finally:
-        def rm() -> None:
-            if config.output_format == OutputFormat.directory:
-                become_root()
-
-            rmtree(tmp, sandbox=config.sandbox)
-
-        fork_and_wait(rm)
+        rmtree(
+            tmp,
+            sandbox=functools.partial(
+                config.sandbox,
+                setup=become_root_cmd() if config.output_format == OutputFormat.directory else [],
+            ),
+        )
 
 
 def qemu_version(config: Config) -> GenericVersion:
@@ -676,47 +683,25 @@ def finalize_state(config: Config, cid: int) -> Iterator[None]:
             p.unlink(missing_ok=True)
 
 
-def allocate_scope(config: Config, *, name: str, pid: int, description: str) -> None:
-    if os.getuid() != 0 and "DBUS_SESSION_BUS_ADDRESS" not in os.environ:
-        return
-
-    if (
-        os.getuid() == 0 and
-        "DBUS_SYSTEM_ADDRESS" not in os.environ and
-        not Path("/run/dbus/system_bus_socket").exists()
-    ):
-        return
-
-    scope = run(
-        ["systemd-escape", "--mangle", f"{name}.scope"],
-        stdout=subprocess.PIPE,
-        foreground=False,
-    ).stdout.strip()
-
-    run(
-        [
-            "busctl",
-            "call",
-            "--system" if os.getuid() == 0 else "--user",
-            "--quiet",
-            "org.freedesktop.systemd1",
-            "/org/freedesktop/systemd1",
-            "org.freedesktop.systemd1.Manager",
-            "StartTransientUnit",
-            "ssa(sv)a(sa(sv))",
-            scope,
-            "fail",
-            "4",
-            "Description", "s", description,
-            "CollectMode", "s", "inactive-or-failed",
-            "PIDs", "au", "1", str(pid),
-            "AddRef", "b", "1",
-            "0",
-        ],
-        foreground=False,
-        env=os.environ | config.environment,
-        sandbox=config.sandbox(binary="busctl", relaxed=True),
-    )
+def scope_cmd(
+    name: str,
+    description: str,
+    user: Optional[int] = None,
+    group: Optional[int] = None,
+    properties: Sequence[str] = (),
+) -> list[str]:
+    return [
+        "systemd-run",
+        "--system" if os.getuid() == 0 else "--user",
+        *(["--quiet"] if not ARG_DEBUG.get() else []),
+        "--unit", name,
+        "--description", description,
+        "--scope",
+        "--collect",
+        *(["--uid", str(user)] if user is not None else []),
+        *(["--gid", str(group)] if group is not None else []),
+        *([f"--property={p}" for p in properties]),
+    ]
 
 
 def register_machine(config: Config, pid: int, fname: Path) -> None:
@@ -1147,6 +1132,7 @@ def run_qemu(args: Args, config: Config) -> None:
             sys.stderr.fileno(),
         )
 
+        name = f"mkosi-{config.machine_or_name().replace('_', '-')}"
         with spawn(
             cmdline,
             stdin=stdin,
@@ -1157,18 +1143,16 @@ def run_qemu(args: Args, config: Config) -> None:
             log=False,
             foreground=True,
             sandbox=config.sandbox(binary=None, network=True, devices=True, relaxed=True),
+            scope=scope_cmd(
+                name=name,
+                description=f"mkosi Virtual Machine {name}",
+                properties=config.unit_properties,
+            ),
         ) as (proc, innerpid):
             # We have to close these before we wait for qemu otherwise we'll deadlock as qemu will never exit.
             for fd in qemu_device_fds.values():
                 os.close(fd)
 
-            name = f"mkosi-{config.machine_or_name().replace('_', '-')}"
-            allocate_scope(
-                config,
-                name=name,
-                pid=innerpid,
-                description=f"mkosi Virtual Machine {name}",
-            )
             register_machine(config, innerpid, fname)
 
             if proc.wait() == 0 and (status := int(notifications.get("EXIT_STATUS", 0))):
