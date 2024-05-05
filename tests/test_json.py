@@ -317,7 +317,7 @@ def test_config() -> None:
             "Timezone": null,
             "ToolsTree": null,
             "ToolsTreeCertificates": true,
-            "ToolsTreeDistribution": null,
+            "ToolsTreeDistribution": "fedora",
             "ToolsTreeMirror": null,
             "ToolsTreePackageManagerTrees": [
                 {
@@ -484,7 +484,7 @@ def test_config() -> None:
         timezone=None,
         tools_tree=None,
         tools_tree_certificates=True,
-        tools_tree_distribution=None,
+        tools_tree_distribution=Distribution.fedora,
         tools_tree_mirror=None,
         tools_tree_package_manager_trees=[ConfigTree(Path("/a/b/c"), Path("/"))],
         tools_tree_packages=[],
