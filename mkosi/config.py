@@ -602,10 +602,10 @@ def config_parse_boolean(value: Optional[str], old: Optional[bool]) -> Optional[
 
 
 def parse_feature(value: str) -> ConfigFeature:
-    if value == ConfigFeature.auto.name:
-        return ConfigFeature.auto
-
-    return ConfigFeature.enabled if parse_boolean(value) else ConfigFeature.disabled
+    try:
+        return ConfigFeature(value)
+    except ValueError:
+        return ConfigFeature.enabled if parse_boolean(value) else ConfigFeature.disabled
 
 
 def config_parse_feature(value: Optional[str], old: Optional[ConfigFeature]) -> Optional[ConfigFeature]:

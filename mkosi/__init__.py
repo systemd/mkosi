@@ -1752,6 +1752,7 @@ def finalize_default_initrd(
         *(["--proxy-peer-certificate", str(p)] if (p := config.proxy_peer_certificate) else []),
         *(["--proxy-client-certificate", str(p)] if (p := config.proxy_client_certificate) else []),
         *(["--proxy-client-key", str(p)] if (p := config.proxy_client_key) else []),
+        "--selinux-relabel", str(config.selinux_relabel),
         *(["-f"] * args.force),
     ]
 
