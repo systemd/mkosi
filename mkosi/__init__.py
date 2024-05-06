@@ -1609,11 +1609,14 @@ def install_package_directories(context: Context) -> None:
 
     with complete_step("Copying in extra packages…"):
         for d in context.config.package_directories:
-            copy_tree(
-                d, context.packages,
-                use_subvolumes=context.config.use_subvolumes,
-                sandbox=context.sandbox,
-            )
+            for p in itertools.chain(
+                d.glob("*.rpm*"),
+                d.glob("*.pkg.tar*"),
+                d.glob("*.deb*"),
+                d.glob("*.ddeb*"),
+                d.glob("*.udeb*"),
+            ):
+                shutil.copy(p, context.packages, follow_symlinks=True)
 
     if context.want_local_repo():
         with complete_step("Building local package repository"):
