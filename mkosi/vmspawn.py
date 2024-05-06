@@ -25,7 +25,7 @@ from mkosi.types import PathString
 
 
 def run_vmspawn(args: Args, config: Config) -> None:
-    if config.output_format not in (OutputFormat.disk, OutputFormat.directory):
+    if config.output_format not in (OutputFormat.disk, OutputFormat.esp, OutputFormat.directory):
         die(f"{config.output_format} images cannot be booted in systemd-vmspawn")
 
     if config.qemu_firmware == QemuFirmware.bios:
