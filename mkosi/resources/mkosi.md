@@ -398,177 +398,6 @@ their long version. In the config files, they should be specified with a
 boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `false` to disable.
 
-### [Match] Section.
-
-`Profile=`
-
-: Matches against the configured profile.
-
-`Distribution=`
-
-: Matches against the configured distribution.
-
-`Release=`
-
-: Matches against the configured distribution release. If this condition is used and no distribution has been
-  explicitly configured yet, the host distribution and release are used.
-
-`Architecture=`
-
-: Matches against the configured architecture. If this condition is used
-  and no architecture has been explicitly configured yet, the host
-  architecture is used.
-
-`PathExists=`
-
-: This condition is satisfied if the given path exists. Relative paths are interpreted relative to the parent
-  directory of the config file that the condition is read from.
-
-`ImageId=`
-
-: Matches against the configured image ID, supporting globs. If this condition is used and no image ID has
-  been explicitly configured yet, this condition fails.
-
-`ImageVersion=`
-
-: Matches against the configured image version. Image versions can be prepended by the operators `==`, `!=`,
-  `>=`, `<=`, `<`, `>` for rich version comparisons according to the UAPI group version format specification.
-  If no operator is prepended, the equality operator is assumed by default. If this condition is used and no
-  image version has been explicitly configured yet, this condition fails.
-
-`Bootable=`
-
-: Matches against the configured value for the `Bootable=` feature. Takes a boolean value or `auto`.
-
-`Format=`
-
-: Matches against the configured value for the `Format=` option. Takes
-  an output format (see the `Format=` option).
-
-`SystemdVersion=`
-
-: Matches against the systemd version on the host (as reported by
-  `systemctl --version`). Values can be prepended by the operators `==`,
-  `!=`, `>=`, `<=`, `<`, `>` for rich version comparisons according to
-  the UAPI group version format specification. If no operator is
-  prepended, the equality operator is assumed by default.
-
-`BuildSources=`
-
-: Takes a build source target path (see `BuildSources=`). This match is
-  satisfied if any of the configured build sources uses this target
-  path. For example, if we have a `mkosi.conf` file containing:
-
-  ```conf
-  [Content]
-  BuildSources=../abc/qed:kernel
-  ```
-
-  and a drop-in containing:
-
-  ```conf
-  [Match]
-  BuildSources=kernel
-  ```
-
-  The drop-in will be included.
-
-: Any absolute paths passed to this setting are interpreted relative to
-  the current working directory.
-
-`HostArchitecture=`
-
-: Matches against the host's native architecture. See the
-  `Architecture=` setting for a list of possible values.
-
-`ToolsTreeDistribution=`
-
-: Matches against the configured tools tree distribution.
-
-`Environment=`
-
-: Matches against a specific key/value pair configured with
-  `Environment=`.
-
-| Matcher                  | Globs | Rich Comparisons | Default                               |
-|--------------------------|-------|------------------|---------------------------------------|
-| `Profile=`               | no    | no               | match fails                           |
-| `Distribution=`          | no    | no               | match host distribution               |
-| `Release=`               | no    | no               | match host release                    |
-| `Architecture=`          | no    | no               | match host architecture               |
-| `PathExists=`            | no    | no               | n/a                                   |
-| `ImageId=`               | yes   | no               | match fails                           |
-| `ImageVersion=`          | no    | yes              | match fails                           |
-| `Bootable=`              | no    | no               | match auto feature                    |
-| `Format=`                | no    | no               | match default format                  |
-| `SystemdVersion=`        | no    | yes              | n/a                                   |
-| `BuildSources=`          | no    | no               | match fails                           |
-| `HostArchitecture=`      | no    | no               | n/a                                   |
-| `ToolsTreeDistribution=` | no    | no               | match default tools tree distribution |
-| `Environment=`           | no    | no               | n/a                                   |
-
-### [Config] Section
-
-`Profile=`, `--profile=`
-
-: Select the given profile. A profile is a configuration file or
-  directory in the `mkosi.profiles/` directory. When selected, this
-  configuration file or directory is included after parsing the
-  `mkosi.conf` file, but before any `mkosi.conf.d/*.conf` drop in
-  configuration.
-
-`Include=`, `--include=`
-
-: Include extra configuration from the given file or directory. The
-  extra configuration is included immediately after parsing the setting,
-  except when a default is set using `@Include=`, in which case the
-  configuration is included after parsing all the other configuration
-  files.
-
-: Note that each path containing extra configuration is only parsed
-  once, even if included more than once with `Include=`.
-
-: The builtin configs for the mkosi default initrd and default tools
-  tree can be included by including the literal value `mkosi-initrd` and
-  `mkosi-tools` respectively.
-
-: Note: Include names starting with either of the literals `mkosi-` or
-  `contrib-` are reserved for use by mkosi itself.
-
-`InitrdInclude=`, `--initrd-include=`
-
-: Same as `Include=`, but the extra configuration files or directories
-  are included when building the default initrd.
-
-`Images=`, `--image=`
-
-: If specified, only build the given image. Can be specified multiple
-  times to build multiple images. All the given images and their
-  dependencies are built. If not specified, all images are built. See
-  the **Building multiple images** section for more information.
-
-: Note that this section only takes effect when specified in the global
-  configuration files. It has no effect if specified as an image
-  specific setting.
-
-`Dependencies=`, `--dependency=`
-
-: The images that this image depends on specified as a comma-separated
-  list. All images configured in this option will be built before this
-  image and will be pulled in as dependencies of this image when
-  `Images=` is used.
-
-`MinimumVersion=`, `--minimum-version=`
-
-: The minimum mkosi version required to build this configuration. If
-  specified multiple times, the highest specified version is used.
-
-`ConfigureScripts=`, `--configure-script=`
-
-: Takes a comma-separated list of paths to executables that are used as
-  the configure scripts for this image. See the **Scripts** section for
-  more information.
-
 ### [Distribution] Section
 
 `Distribution=`, `--distribution=`, `-d`
@@ -1927,6 +1756,177 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   journal size is limited to `4G`. Configure an output directory instead
   of file if your workload produces more than `4G` worth of journal
   data.
+
+### [Match] Section.
+
+`Profile=`
+
+: Matches against the configured profile.
+
+`Distribution=`
+
+: Matches against the configured distribution.
+
+`Release=`
+
+: Matches against the configured distribution release. If this condition is used and no distribution has been
+  explicitly configured yet, the host distribution and release are used.
+
+`Architecture=`
+
+: Matches against the configured architecture. If this condition is used
+  and no architecture has been explicitly configured yet, the host
+  architecture is used.
+
+`PathExists=`
+
+: This condition is satisfied if the given path exists. Relative paths are interpreted relative to the parent
+  directory of the config file that the condition is read from.
+
+`ImageId=`
+
+: Matches against the configured image ID, supporting globs. If this condition is used and no image ID has
+  been explicitly configured yet, this condition fails.
+
+`ImageVersion=`
+
+: Matches against the configured image version. Image versions can be prepended by the operators `==`, `!=`,
+  `>=`, `<=`, `<`, `>` for rich version comparisons according to the UAPI group version format specification.
+  If no operator is prepended, the equality operator is assumed by default. If this condition is used and no
+  image version has been explicitly configured yet, this condition fails.
+
+`Bootable=`
+
+: Matches against the configured value for the `Bootable=` feature. Takes a boolean value or `auto`.
+
+`Format=`
+
+: Matches against the configured value for the `Format=` option. Takes
+  an output format (see the `Format=` option).
+
+`SystemdVersion=`
+
+: Matches against the systemd version on the host (as reported by
+  `systemctl --version`). Values can be prepended by the operators `==`,
+  `!=`, `>=`, `<=`, `<`, `>` for rich version comparisons according to
+  the UAPI group version format specification. If no operator is
+  prepended, the equality operator is assumed by default.
+
+`BuildSources=`
+
+: Takes a build source target path (see `BuildSources=`). This match is
+  satisfied if any of the configured build sources uses this target
+  path. For example, if we have a `mkosi.conf` file containing:
+
+  ```conf
+  [Content]
+  BuildSources=../abc/qed:kernel
+  ```
+
+  and a drop-in containing:
+
+  ```conf
+  [Match]
+  BuildSources=kernel
+  ```
+
+  The drop-in will be included.
+
+: Any absolute paths passed to this setting are interpreted relative to
+  the current working directory.
+
+`HostArchitecture=`
+
+: Matches against the host's native architecture. See the
+  `Architecture=` setting for a list of possible values.
+
+`ToolsTreeDistribution=`
+
+: Matches against the configured tools tree distribution.
+
+`Environment=`
+
+: Matches against a specific key/value pair configured with
+  `Environment=`.
+
+| Matcher                  | Globs | Rich Comparisons | Default                               |
+|--------------------------|-------|------------------|---------------------------------------|
+| `Profile=`               | no    | no               | match fails                           |
+| `Distribution=`          | no    | no               | match host distribution               |
+| `Release=`               | no    | no               | match host release                    |
+| `Architecture=`          | no    | no               | match host architecture               |
+| `PathExists=`            | no    | no               | n/a                                   |
+| `ImageId=`               | yes   | no               | match fails                           |
+| `ImageVersion=`          | no    | yes              | match fails                           |
+| `Bootable=`              | no    | no               | match auto feature                    |
+| `Format=`                | no    | no               | match default format                  |
+| `SystemdVersion=`        | no    | yes              | n/a                                   |
+| `BuildSources=`          | no    | no               | match fails                           |
+| `HostArchitecture=`      | no    | no               | n/a                                   |
+| `ToolsTreeDistribution=` | no    | no               | match default tools tree distribution |
+| `Environment=`           | no    | no               | n/a                                   |
+
+### [Config] Section
+
+`Profile=`, `--profile=`
+
+: Select the given profile. A profile is a configuration file or
+  directory in the `mkosi.profiles/` directory. When selected, this
+  configuration file or directory is included after parsing the
+  `mkosi.conf` file, but before any `mkosi.conf.d/*.conf` drop in
+  configuration.
+
+`Include=`, `--include=`
+
+: Include extra configuration from the given file or directory. The
+  extra configuration is included immediately after parsing the setting,
+  except when a default is set using `@Include=`, in which case the
+  configuration is included after parsing all the other configuration
+  files.
+
+: Note that each path containing extra configuration is only parsed
+  once, even if included more than once with `Include=`.
+
+: The builtin configs for the mkosi default initrd and default tools
+  tree can be included by including the literal value `mkosi-initrd` and
+  `mkosi-tools` respectively.
+
+: Note: Include names starting with either of the literals `mkosi-` or
+  `contrib-` are reserved for use by mkosi itself.
+
+`InitrdInclude=`, `--initrd-include=`
+
+: Same as `Include=`, but the extra configuration files or directories
+  are included when building the default initrd.
+
+`Images=`, `--image=`
+
+: If specified, only build the given image. Can be specified multiple
+  times to build multiple images. All the given images and their
+  dependencies are built. If not specified, all images are built. See
+  the **Building multiple images** section for more information.
+
+: Note that this section only takes effect when specified in the global
+  configuration files. It has no effect if specified as an image
+  specific setting.
+
+`Dependencies=`, `--dependency=`
+
+: The images that this image depends on specified as a comma-separated
+  list. All images configured in this option will be built before this
+  image and will be pulled in as dependencies of this image when
+  `Images=` is used.
+
+`MinimumVersion=`, `--minimum-version=`
+
+: The minimum mkosi version required to build this configuration. If
+  specified multiple times, the highest specified version is used.
+
+`ConfigureScripts=`, `--configure-script=`
+
+: Takes a comma-separated list of paths to executables that are used as
+  the configure scripts for this image. See the **Scripts** section for
+  more information.
 
 ## Specifiers
 
