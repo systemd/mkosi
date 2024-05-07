@@ -1610,7 +1610,7 @@ def install_package_directories(context: Context) -> None:
     with complete_step("Copying in extra packages…"):
         for d in context.config.package_directories:
             for p in itertools.chain(
-                d.glob("*.rpm*"),
+                d.glob("*.rpm"),
                 d.glob("*.pkg.tar*"),
                 d.glob("*.deb*"),
                 d.glob("*.ddeb*"),
