@@ -158,15 +158,6 @@ jobs:
         QemuKvm=yes
         EOF
 
-        # Work around for https://src.fedoraproject.org/rpms/grub2/pull-request/61 by disabling obsoletes.
-        tee mkosi/resources/mkosi-tools/mkosi.local.conf <<EOF
-        [Distribution]
-        PackageManagerTrees=mkosi.pkgmngr
-        EOF
-
-        mkdir -p mkosi/resources/mkosi-tools/mkosi.pkgmngr/etc/dnf
-        echo -e "[main]\nobsoletes=0" > mkosi/resources/mkosi-tools/mkosi.pkgmngr/etc/dnf/dnf.conf
-
         # TODO: Remove once all distros have recent enough systemd that knows systemd.default_device_timeout_sec.
         mkdir -p mkosi-initrd/mkosi.extra/usr/lib/systemd/system.conf.d
         tee mkosi-initrd/mkosi.extra/usr/lib/systemd/system.conf.d/device-timeout.conf <<EOF
