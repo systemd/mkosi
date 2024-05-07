@@ -76,7 +76,10 @@ def resolve_module_dependencies(
     root directory.
     """
     modulesd = root / "usr/lib/modules" / kver
-    builtin = set(module_path_to_name(Path(m)) for m in (modulesd / "modules.builtin").read_text().splitlines())
+    if (modulesd / "modules.builtin").exists():
+        builtin = set(module_path_to_name(Path(m)) for m in (modulesd / "modules.builtin").read_text().splitlines())
+    else:
+        builtin = set()
     allmodules = set(modulesd.rglob("*.ko*"))
     nametofile = {module_path_to_name(m): m for m in allmodules}
 
