@@ -1551,9 +1551,17 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   `ExtraSearchPaths=`, the binary will be executed on the host.
 
 : If set to `default`, mkosi will automatically add an extra tools tree
-  image and use it as the tools tree. The following table shows for
-  which distributions default tools tree packages are defined and which
-  packages are included in those default tools trees:
+  image and use it as the tools tree.
+
+: Note that mkosi will only build a single default tools tree per build,
+  even if multiple images are defined in `mkosi.images` with
+  `ToolsTree=default`. The settings of the "last" image will apply to
+  the default tools tree (usually the image defined last in
+  mkosi.images and without any dependencies on other images).
+
+: The following table shows for which distributions default tools tree
+  packages are defined and which packages are included in those default
+  tools trees:
 
   |                         | Fedora | CentOS | Debian | Ubuntu | Arch | openSUSE |
   |-------------------------|--------|--------|--------|--------|------|----------|
