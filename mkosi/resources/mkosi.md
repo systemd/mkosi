@@ -233,11 +233,11 @@ Those settings cannot be configured in the configuration files.
 
 `--auto-bump=`, `-B`
 
-: If specified, after each successful build the the version is bumped
-  in a fashion equivalent to the `bump` verb, in preparation for the
-  next build. This is useful for simple, linear version management:
-  each build in a series will have a version number one higher then
-  the previous one.
+: If specified, after each successful build the version is bumped in a
+  fashion equivalent to the `bump` verb, in preparation for the next
+  build. This is useful for simple, linear version management: each
+  build in a series will have a version number one higher then the
+  previous one.
 
 `--doc-format`
 
