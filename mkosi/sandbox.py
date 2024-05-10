@@ -275,7 +275,7 @@ def apivfs_cmd() -> list[PathString]:
 
 
 def chroot_cmd(*, resolve: bool = False, work: bool = False) -> list[PathString]:
-    workdir = '/buildroot/work' if work else ''
+    workdir = "/buildroot/work" if work else ""
 
     return apivfs_cmd() + [
         "sh", "-c",

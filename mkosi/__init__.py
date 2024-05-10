@@ -2890,8 +2890,14 @@ def run_depmod(context: Context, *, cache: bool = False) -> None:
             )
 
         with complete_step(f"Running depmod for {kver}"):
-            run(["depmod", "--all", "--basedir", "/buildroot", kver],
-                sandbox=context.sandbox(binary="depmod", mounts=[Mount(context.root, "/buildroot")]))
+            run(
+                ["depmod", "--all", kver],
+                sandbox=context.sandbox(
+                    binary=None,
+                    mounts=[Mount(context.root, "/buildroot")],
+                    extra=chroot_cmd(),
+                )
+            )
 
 
 def run_sysusers(context: Context) -> None:

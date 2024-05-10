@@ -10,7 +10,7 @@ from pathlib import Path
 
 from mkosi.log import complete_step, log_step
 from mkosi.run import run
-from mkosi.sandbox import Mount, SandboxProtocol, nosandbox
+from mkosi.sandbox import Mount, SandboxProtocol, chroot_cmd, nosandbox
 from mkosi.util import parents_below
 
 
@@ -94,9 +94,9 @@ def resolve_module_dependencies(
     for i in range(0, len(nametofile.keys()), 8500):
         chunk = list(nametofile.keys())[i:i+8500]
         info += run(
-            ["modinfo", "--basedir", "/buildroot", "--set-version", kver, "--null", *chunk],
+            ["modinfo", "--set-version", kver, "--null", *chunk],
             stdout=subprocess.PIPE,
-            sandbox=sandbox(binary="modinfo", mounts=[Mount(root, "/buildroot", ro=True)]),
+            sandbox=sandbox(binary="modinfo", mounts=[Mount(root, "/buildroot", ro=True)], extra=chroot_cmd()),
         ).stdout.strip()
 
     log_step("Calculating required kernel modules and firmware")
