@@ -572,7 +572,7 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
             arg = "final"
 
         for script in context.config.prepare_scripts:
-            chroot = chroot_cmd(resolve=True)
+            chroot = chroot_cmd(resolve=True, work=True)
 
             helpers = {
                 "mkosi-chroot": chroot,
@@ -649,7 +649,7 @@ def run_build_scripts(context: Context) -> None:
         finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources,
     ):
         for script in context.config.build_scripts:
-            chroot = chroot_cmd(resolve=context.config.with_network)
+            chroot = chroot_cmd(resolve=context.config.with_network, work=True)
 
             helpers = {
                 "mkosi-chroot": chroot,
@@ -727,7 +727,7 @@ def run_postinst_scripts(context: Context) -> None:
         finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources,
     ):
         for script in context.config.postinst_scripts:
-            chroot = chroot_cmd(resolve=context.config.with_network)
+            chroot = chroot_cmd(resolve=context.config.with_network, work=True)
 
             helpers = {
                 "mkosi-chroot": chroot,
@@ -791,7 +791,7 @@ def run_finalize_scripts(context: Context) -> None:
 
     with finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources:
         for script in context.config.finalize_scripts:
-            chroot = chroot_cmd(resolve=context.config.with_network)
+            chroot = chroot_cmd(resolve=context.config.with_network, work=True)
 
             helpers = {
                 "mkosi-chroot": chroot,
@@ -2890,8 +2890,14 @@ def run_depmod(context: Context, *, cache: bool = False) -> None:
             )
 
         with complete_step(f"Running depmod for {kver}"):
-            run(["depmod", "--all", "--basedir", "/buildroot", kver],
-                sandbox=context.sandbox(binary="depmod", mounts=[Mount(context.root, "/buildroot")]))
+            run(
+                ["depmod", "--all", kver],
+                sandbox=context.sandbox(
+                    binary=None,
+                    mounts=[Mount(context.root, "/buildroot")],
+                    extra=chroot_cmd(),
+                )
+            )
 
 
 def run_sysusers(context: Context) -> None:
@@ -3635,8 +3641,9 @@ def copy_repository_metadata(context: Context) -> None:
                     *,
                     binary: Optional[PathString],
                     mounts: Sequence[Mount] = (),
+                    extra: Sequence[PathString] = (),
                 ) -> AbstractContextManager[list[PathString]]:
-                    return context.sandbox(binary=binary, mounts=[*mounts, *exclude])
+                    return context.sandbox(binary=binary, mounts=[*mounts, *exclude], extra=extra)
 
                 copy_tree(
                     src, dst,
