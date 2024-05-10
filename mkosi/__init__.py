@@ -4598,7 +4598,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
 
     if not (last.output_dir_or_cwd() / last.output_with_compression).exists():
         die(f"Image '{last.name()}' has not been built yet",
-            hint="Make sure to build the image first with 'mkosi build' or use --force")
+            hint="Make sure to build the image first with 'mkosi build' or use '--force'")
 
     with prepend_to_environ_path(last):
         check_tools(last, args.verb)
