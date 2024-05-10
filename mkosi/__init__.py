@@ -462,7 +462,6 @@ def run_configure_scripts(config: Config) -> Config:
                     env=env | config.environment,
                     sandbox=config.sandbox(
                         binary=None,
-                        tools=False,
                         mounts=[*sources, Mount(script, "/work/configure", ro=True)],
                         options=["--dir", "/work/src", "--chdir", "/work/src"]
                     ),
@@ -4498,9 +4497,6 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         die("No configuration found",
             hint="Make sure you're running mkosi from a directory with configuration files")
 
-    for i, config in enumerate(images):
-        images[i] = run_configure_scripts(config)
-
     if args.verb == Verb.summary:
         if args.json:
             text = json.dumps(
@@ -4559,6 +4555,14 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
 
         check_workspace_directory(config)
 
+    if tools and not (tools.output_dir_or_cwd() / tools.output).exists():
+        if args.verb == Verb.build or args.force > 0:
+            fork_and_wait(run_sync, args, tools, resources=resources)
+            fork_and_wait(run_build, args, tools, resources=resources)
+        else:
+            die(f"Default tools tree requested for image '{last.name()}' but it has not been built yet",
+                hint="Make sure to build the image first with 'mkosi build' or use '--force'")
+
     build = False
 
     for i, config in enumerate(images):
@@ -4571,12 +4575,10 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
             )
         )
 
+        images[i] = config = run_configure_scripts(config)
+
         if args.verb != Verb.build and args.force == 0:
             continue
-
-        if tools and not (tools.output_dir_or_cwd() / tools.output).exists():
-            fork_and_wait(run_sync, args, tools, resources=resources)
-            fork_and_wait(run_build, args, tools, resources=resources)
 
         if (config.output_dir_or_cwd() / config.output_with_compression).exists():
             continue
