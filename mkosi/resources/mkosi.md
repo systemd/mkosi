@@ -233,11 +233,11 @@ Those settings cannot be configured in the configuration files.
 
 `--auto-bump=`, `-B`
 
-: If specified, after each successful build the the version is bumped
-  in a fashion equivalent to the `bump` verb, in preparation for the
-  next build. This is useful for simple, linear version management:
-  each build in a series will have a version number one higher then
-  the previous one.
+: If specified, after each successful build the version is bumped in a
+  fashion equivalent to the `bump` verb, in preparation for the next
+  build. This is useful for simple, linear version management: each
+  build in a series will have a version number one higher then the
+  previous one.
 
 `--doc-format`
 
@@ -2102,11 +2102,15 @@ in the current working directory. `$SRCDIR` is set to point to the
 current working directory. The following scripts are supported:
 
 * If **`mkosi.configure`** (`ConfigureScripts=`) exists, it is executed
-  after parsing the configuration files. This script may be used to
-  dynamically modify the configuration. It receives the configuration
-  serialized as JSON on stdin and should output the modified
-  configuration serialized as JSON on stdout. Note that this script does
-  not use the tools tree even if one is configured.
+  before building the image. This script may be used to dynamically
+  modify the configuration. It receives the configuration serialized as
+  JSON on stdin and should output the modified configuration serialized
+  as JSON on stdout. Note that this script only runs when building or
+  booting the image (`build`, `qemu`, `boot` and `shell` verbs). If a
+  default tools tree is configured, it will be built before running the
+  configure scripts and the configure scripts will run with the tools
+  tree available. This also means that the modifications made by
+  configure scripts will not be visible in the `summary` output.
 
 * If **`mkosi.sync`** (`SyncScripts=`) exists, it is executed before the
   image is built. This script may be used to update various sources that
