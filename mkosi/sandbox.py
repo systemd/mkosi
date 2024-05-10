@@ -272,17 +272,19 @@ def apivfs_cmd() -> list[PathString]:
     ]
 
 
-def chroot_cmd(*, resolve: bool = False) -> list[PathString]:
+def chroot_cmd(*, resolve: bool = False, work: bool = False) -> list[PathString]:
+    workdir = '/buildroot/work' if work else ''
+
     return apivfs_cmd() + [
         "sh", "-c",
         " && ".join(
             [
-                "trap 'rm -rf /buildroot/work' EXIT",
+                *([f"trap 'rm -rf {workdir}' EXIT"] if work else []),
                 # /etc/resolv.conf can be a dangling symlink to /run/systemd/resolve/stub-resolv.conf. Bubblewrap tries
                 # to call mkdir() on each component of the path which means it will try to call
                 # mkdir(/run/systemd/resolve/stub-resolv.conf) which will fail unless /run/systemd/resolve exists
                 # already so we make sure that it already exists.
-                "mkdir -p -m 755 /buildroot/work /buildroot/run/systemd /buildroot/run/systemd/resolve",
+                f"mkdir -p -m 755 {workdir} /buildroot/run/systemd /buildroot/run/systemd/resolve",
                 # No exec here because we need to clean up the /work directory afterwards.
                 "$0 \"$@\"",
             ]
@@ -293,8 +295,7 @@ def chroot_cmd(*, resolve: bool = False) -> list[PathString]:
         "--setenv", "HOME", "/",
         "--setenv", "PATH", "/work/scripts:/usr/bin:/usr/sbin",
         *(["--ro-bind-try", "/etc/resolv.conf", "/etc/resolv.conf"] if resolve else []),
-        "--bind", "/work", "/work",
-        "--chdir", "/work/src",
+        *(["--bind", "/work", "/work", "--chdir", "/work/src"] if work else []),
         "--setenv", "BUILDROOT", "/",
         # Start an interactive bash shell if we're not given any arguments.
         "sh", "-c", '[ "$0" = "sh" ] && [ $# -eq 0 ] && exec bash -i || exec $0 "$@"',

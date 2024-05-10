@@ -572,7 +572,7 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
             arg = "final"
 
         for script in context.config.prepare_scripts:
-            chroot = chroot_cmd(resolve=True)
+            chroot = chroot_cmd(resolve=True, work=True)
 
             helpers = {
                 "mkosi-chroot": chroot,
@@ -649,7 +649,7 @@ def run_build_scripts(context: Context) -> None:
         finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources,
     ):
         for script in context.config.build_scripts:
-            chroot = chroot_cmd(resolve=context.config.with_network)
+            chroot = chroot_cmd(resolve=context.config.with_network, work=True)
 
             helpers = {
                 "mkosi-chroot": chroot,
@@ -727,7 +727,7 @@ def run_postinst_scripts(context: Context) -> None:
         finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources,
     ):
         for script in context.config.postinst_scripts:
-            chroot = chroot_cmd(resolve=context.config.with_network)
+            chroot = chroot_cmd(resolve=context.config.with_network, work=True)
 
             helpers = {
                 "mkosi-chroot": chroot,
@@ -791,7 +791,7 @@ def run_finalize_scripts(context: Context) -> None:
 
     with finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources:
         for script in context.config.finalize_scripts:
-            chroot = chroot_cmd(resolve=context.config.with_network)
+            chroot = chroot_cmd(resolve=context.config.with_network, work=True)
 
             helpers = {
                 "mkosi-chroot": chroot,
