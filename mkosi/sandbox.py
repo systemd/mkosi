@@ -47,7 +47,8 @@ class SandboxProtocol(Protocol):
         self,
         *,
         binary: Optional[PathString],
-        mounts: Sequence[Mount] = ()
+        mounts: Sequence[Mount] = (),
+        extra: Sequence[PathString] = (),
     ) -> AbstractContextManager[list[PathString]]: ...
 
 
@@ -55,6 +56,7 @@ def nosandbox(
     *,
     binary: Optional[PathString],
     mounts: Sequence[Mount] = (),
+    extra: Sequence[PathString] = (),
 ) -> AbstractContextManager[list[PathString]]:
     return contextlib.nullcontext([])
 

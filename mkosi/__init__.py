@@ -3635,8 +3635,9 @@ def copy_repository_metadata(context: Context) -> None:
                     *,
                     binary: Optional[PathString],
                     mounts: Sequence[Mount] = (),
+                    extra: Sequence[PathString] = (),
                 ) -> AbstractContextManager[list[PathString]]:
-                    return context.sandbox(binary=binary, mounts=[*mounts, *exclude])
+                    return context.sandbox(binary=binary, mounts=[*mounts, *exclude], extra=extra)
 
                 copy_tree(
                     src, dst,
