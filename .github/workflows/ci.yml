@@ -118,10 +118,6 @@ jobs:
             tools: opensuse
           - distro: ubuntu
             tools: opensuse
-          # This combination results in rpm failing because of SIGPIPE.
-          # TODO: Try again once Arch gets a new rpm release.
-          - distro: centos
-            tools: arch
 
     steps:
     - uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b
