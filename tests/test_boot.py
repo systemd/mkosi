@@ -44,12 +44,7 @@ def test_format(config: Image.Config, format: OutputFormat) -> None:
         image.build(options=options)
 
         if format in (OutputFormat.disk, OutputFormat.directory) and os.getuid() == 0:
-            # systemd-resolved is enabled by default in Arch/Debian/Ubuntu (systemd default preset) but fails
-            # to start in a systemd-nspawn container with --private-users so we mask it out here to avoid CI
-            # failures.
-            # FIXME: Remove when Arch/Debian/Ubuntu ship systemd v253
-            args = ["systemd.mask=systemd-resolved.service"] if format == OutputFormat.directory else []
-            image.boot(options=options, args=args)
+            image.boot(options=options)
 
         if format in (OutputFormat.cpio, OutputFormat.uki, OutputFormat.esp):
             pytest.skip("Default image is too large to be able to boot in CPIO/UKI/ESP format")
