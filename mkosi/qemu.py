@@ -46,7 +46,7 @@ from mkosi.sandbox import Mount
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
 from mkosi.user import INVOKING_USER, become_root, become_root_cmd
-from mkosi.util import StrEnum, flock, flock_or_die, try_or
+from mkosi.util import StrEnum, flock, flock_or_die, groupby, try_or
 from mkosi.versioncomp import GenericVersion
 
 QEMU_KVM_DEVICE_VERSION = GenericVersion("9.0")
@@ -1123,14 +1123,15 @@ def run_qemu(args: Args, config: Config) -> None:
                 f"type=11,value=io.systemd.boot.kernel-cmdline-extra={' '.join(kcl).replace(',', ',,')}",
             ]
 
-        for drive in config.qemu_drives:
-            file = stack.enter_context(finalize_drive(drive))
+        for _, drives in groupby(config.qemu_drives, key=lambda d: d.file_id):
+            file = stack.enter_context(finalize_drive(drives[0]))
 
-            arg = f"if=none,id={drive.id},file={file},format=raw"
-            if drive.options:
-                arg += f",{drive.options}"
+            for drive in drives:
+                arg = f"if=none,id={drive.id},file={file},format=raw,file.locking=off"
+                if drive.options:
+                    arg += f",{drive.options}"
 
-            cmdline += ["-drive", arg]
+                cmdline += ["-drive", arg]
 
         cmdline += config.qemu_args
         cmdline += args.cmdline

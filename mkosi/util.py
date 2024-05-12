@@ -17,7 +17,7 @@ import re
 import resource
 import stat
 import tempfile
-from collections.abc import Iterable, Iterator, Mapping, Sequence
+from collections.abc import Hashable, Iterable, Iterator, Mapping, Sequence
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Callable, Optional, TypeVar, no_type_check
@@ -27,6 +27,7 @@ from mkosi.types import PathString
 
 T = TypeVar("T")
 V = TypeVar("V")
+S = TypeVar("S", bound=Hashable)
 
 
 def dictify(f: Callable[..., Iterator[tuple[T, V]]]) -> Callable[..., dict[T, V]]:
@@ -319,3 +320,17 @@ def try_or(fn: Callable[..., T], exception: type[Exception], default: T) -> T:
         return fn()
     except exception:
         return default
+
+
+def groupby(seq: Sequence[T], key: Callable[[T], S]) -> list[tuple[S, list[T]]]:
+    grouped: dict[S, list[T]] = {}
+
+    for i in seq:
+        k = key(i)
+
+        if k not in grouped:
+            grouped[k] = []
+
+        grouped[k].append(i)
+
+    return [(key, group) for key, group in grouped.items()]

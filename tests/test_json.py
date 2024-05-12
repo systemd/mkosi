@@ -232,12 +232,14 @@ def test_config() -> None:
             "QemuDrives": [
                 {
                     "Directory": "/foo/bar",
+                    "FileId": "red",
                     "Id": "abc",
                     "Options": "abc,qed",
                     "Size": 200
                 },
                 {
                     "Directory": null,
+                    "FileId": "wcd",
                     "Id": "abc",
                     "Options": "",
                     "Size": 200
@@ -437,7 +439,10 @@ def test_config() -> None:
         proxy_url="https://my/proxy",
         qemu_args=[],
         qemu_cdrom=False,
-        qemu_drives=[QemuDrive("abc", 200, Path("/foo/bar"), "abc,qed"), QemuDrive("abc", 200, None, "")],
+        qemu_drives=[
+            QemuDrive("abc", 200, Path("/foo/bar"), "abc,qed", "red"),
+            QemuDrive("abc", 200, None, "", "wcd"),
+        ],
         qemu_firmware=QemuFirmware.linux,
         qemu_firmware_variables=Path("/foo/bar"),
         qemu_gui=True,
