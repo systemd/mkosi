@@ -1477,15 +1477,18 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `QemuDrives=`, `--qemu-drive=`
 
 : Add a qemu drive. Takes a colon-delimited string of format
-  `<id>:<size>[:<directory>[:<options>]]`. `id` specifies the qemu id we
-  assign to the drive. This can be used as the `drive=` property in
-  various qemu devices. `size` specifies the size of the drive. This
-  takes a size in bytes. Additionally, the suffixes `K`, `M` and `G` can
-  be used to specify a size in kilobytes, megabytes and gigabytes
-  respectively. `directory` optionally specifies the directory in which
-  to create the file backing the drive. `options` optionally specifies
-  extra comma-delimited properties which are passed verbatim to qemu's
-  `-drive` option.
+  `<id>:<size>[:<directory>[:<options>[:<file-id>]]]`. `id` specifies
+  the qemu ID assigned to the drive. This can be used as the `drive=`
+  property in various qemu devices. `size` specifies the size of the
+  drive. This takes a size in bytes. Additionally, the suffixes `K`, `M`
+  and `G` can be used to specify a size in kilobytes, megabytes and
+  gigabytes respectively. `directory` optionally specifies the directory
+  in which to create the file backing the drive. `options` optionally
+  specifies extra comma-delimited properties which are passed verbatim
+  to qemu's `-drive` option. `file-id` specifies the ID of the file
+  backing the drive. Drives with the same file ID will share the
+  backing file. The directory and size of the file will be determined
+  from the first drive with a given file ID.
 
 : Example usage:
 

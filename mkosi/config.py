@@ -138,6 +138,7 @@ class QemuDrive:
     size: int
     directory: Optional[Path]
     options: Optional[str]
+    file_id: str
 
 
 # We use negative numbers for specifying special constants
@@ -1051,7 +1052,7 @@ def parse_drive(value: str) -> QemuDrive:
     if len(parts) < 2:
         die(f"Missing size in drive '{value}")
 
-    if len(parts) > 4:
+    if len(parts) > 5:
         die(f"Too many components in drive '{value}")
 
     id = parts[0]
@@ -1062,8 +1063,9 @@ def parse_drive(value: str) -> QemuDrive:
 
     directory = parse_path(parts[2]) if len(parts) > 2 and parts[2] else None
     options = parts[3] if len(parts) > 3 and parts[3] else None
+    file_id = parts[4] if len(parts) > 4 and parts[4] else id
 
-    return QemuDrive(id=id, size=size, directory=directory, options=options)
+    return QemuDrive(id=id, size=size, directory=directory, options=options, file_id=file_id)
 
 
 def config_parse_sector_size(value: Optional[str], old: Optional[int]) -> Optional[int]:
@@ -4154,19 +4156,20 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
     def config_drive_transformer(drives: list[dict[str, Any]], fieldtype: type[QemuDrive]) -> list[QemuDrive]:
         # TODO: exchange for TypeGuard and list comprehension once on 3.10
         ret = []
+
         for d in drives:
             assert "Id" in d
             assert "Size" in d
-            assert "Directory" in d
-            assert "Options" in d
             ret.append(
                 QemuDrive(
                     id=d["Id"],
-                    size=int(d["Size"]),
-                    directory=Path(d["Directory"]) if d["Directory"] else None,
-                    options=d["Options"],
+                    size=d["Size"] if isinstance(d["Size"], int) else parse_bytes(d["Size"]),
+                    directory=Path(d["Directory"]) if d.get("Directory") else None,
+                    options=d.get("Options"),
+                    file_id=d.get("FileId", d["Id"]),
                 )
             )
+
         return ret
 
     def generic_version_transformer(
