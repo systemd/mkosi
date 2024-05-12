@@ -446,6 +446,7 @@ def run_configure_scripts(config: Config) -> Config:
         DISTRIBUTION=str(config.distribution),
         RELEASE=config.release,
         ARCHITECTURE=str(config.architecture),
+        QEMU_ARCHITECTURE=config.architecture.to_qemu(),
         SRCDIR="/work/src",
         MKOSI_UID=str(INVOKING_USER.uid),
         MKOSI_GID=str(INVOKING_USER.gid),
