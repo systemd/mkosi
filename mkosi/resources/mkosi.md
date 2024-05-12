@@ -2171,6 +2171,10 @@ Scripts executed by mkosi receive the following environment variables:
   architecture of the host machine. See the documentation of
   `Architecture=` for possible values for this variable.
 
+* `$QEMU_ARCHITECTURE` contains the architecture from `$ARCHITECTURE` in
+   the format used by `qemu`. Useful for finding the qemu binary (
+    `qemu-system-$QEMU_ARCHITECTURE`).
+
 * `$DISTRIBUTION` contains the distribution from the `Distribution=` setting.
 
 * `$RELEASE` contains the release from the `Release=` setting.
@@ -2269,6 +2273,7 @@ Consult this table for which script receives which environment variables:
 | Variable            | `mkosi.configure` | `mkosi.sync` | `mkosi.prepare` | `mkosi.build` | `mkosi.postinst` | `mkosi.finalize` | `mkosi.clean` |
 |---------------------|-------------------|--------------|-----------------|---------------|------------------|------------------|---------------|
 | `ARCHITECTURE`      | X                 | X            | X               | X             | X                | X                | X             |
+| `QEMU_ARCHITECTURE` | X                 |              |                 |               |                  |                  |               |
 | `DISTRIBUTION`      | X                 | X            | X               | X             | X                | X                | X             |
 | `RELEASE`           | X                 | X            | X               | X             | X                | X                | X             |
 | `PROFILE`           | X                 | X            | X               | X             | X                | X                | X             |
