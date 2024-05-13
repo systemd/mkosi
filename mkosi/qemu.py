@@ -1044,7 +1044,7 @@ def run_qemu(args: Args, config: Config) -> None:
             )
 
         if want_scratch(config) or config.output_format in (OutputFormat.disk, OutputFormat.esp):
-            cmdline += ["-device", "virtio-scsi-pci,id=scsi"]
+            cmdline += ["-device", "virtio-scsi-pci,id=mkosi"]
 
         if want_scratch(config):
             scratch = stack.enter_context(generate_scratch_fs(config))
