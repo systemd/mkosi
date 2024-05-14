@@ -4233,10 +4233,6 @@ def finalize_default_tools(args: Args, config: Config, *, resources: Path) -> Co
 def check_workspace_directory(config: Config) -> None:
     wd = config.workspace_dir_or_default()
 
-    if wd.is_relative_to(Path.cwd()):
-        die(f"The workspace directory ({wd}) must be located outside the current working directory ({Path.cwd()})",
-            hint="Use WorkspaceDirectory= to configure a different workspace directory")
-
     for tree in config.build_sources:
         if wd.is_relative_to(tree.source):
             die(f"The workspace directory ({wd}) cannot be a subdirectory of any source directory ({tree.source})",
