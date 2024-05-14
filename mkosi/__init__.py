@@ -2695,7 +2695,7 @@ def check_outputs(config: Config) -> None:
         config.output_nspawn_settings if config.nspawn_settings else None,
     ):
         if f and (config.output_dir_or_cwd() / f).exists():
-            die(f"Output path {f} exists already. (Consider invocation with --force.)")
+            logging.info(f"Output path {f} exists already. (Use --force to rebuild.)")
 
 
 def check_tool(config: Config, *tools: PathString, reason: str, hint: Optional[str] = None) -> Path:
