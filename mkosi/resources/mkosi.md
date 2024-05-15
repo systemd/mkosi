@@ -690,7 +690,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     packages in the file system, package groups, and virtual provides,
     including file paths.
 
-    Example: when using a distro that uses `dnf`, the following configuration
+    **Example**: when using a distro that uses `dnf`, the following configuration
     would install the `meson` package (in the latest version), the 32-bit version
     of the `libfdisk-devel` package, all available packages that start with the
     `git-` prefix, a `systemd` rpm from the local file system, one of the
@@ -1352,7 +1352,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     backing file. The directory and size of the file will be determined
     from the first drive with a given file ID.
 
-    Example usage:
+    **Example usage:**
 
     ```conf
     [Host]
