@@ -1811,6 +1811,7 @@ def parse_ini(path: Path, only_sections: Collection[str] = ()) -> Iterator[tuple
 SETTINGS = (
     ConfigSetting(
         dest="include",
+        short="-I",
         section="Config",
         parse=config_make_list_parser(
             delimiter=",",
