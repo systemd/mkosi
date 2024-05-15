@@ -198,7 +198,7 @@ class Dnf(PackageManager):
             context,
             "makecache",
             arguments=[
-                *(["--refresh"] if context.args.force > 1 else []),
+                *(["--refresh"] if context.args.force > 1 or context.config.cacheonly == Cacheonly.never else []),
                 *(["--setopt=cacheonly=none"] if cls.executable(context.config) == "dnf5" else []),
                 *options,
             ],

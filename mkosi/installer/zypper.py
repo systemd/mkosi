@@ -5,7 +5,7 @@ import textwrap
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 
-from mkosi.config import Config, yes_no
+from mkosi.config import Cacheonly, Config, yes_no
 from mkosi.context import Context
 from mkosi.installer import PackageManager
 from mkosi.installer.rpm import RpmRepository, rpm_cmd
@@ -144,7 +144,11 @@ class Zypper(PackageManager):
 
     @classmethod
     def sync(cls, context: Context) -> None:
-        cls.invoke(context, "refresh", ["--force"] if context.args.force > 1 else [])
+        cls.invoke(
+            context,
+            "refresh",
+            ["--force"] if context.args.force > 1 or context.config.cacheonly == Cacheonly.never else []
+        )
 
     @classmethod
     def createrepo(cls, context: Context) -> None:

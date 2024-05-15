@@ -6,7 +6,7 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import NamedTuple
 
-from mkosi.config import Config
+from mkosi.config import Cacheonly, Config
 from mkosi.context import Context
 from mkosi.installer import PackageManager
 from mkosi.mounts import finalize_source_mounts
@@ -180,7 +180,13 @@ class Pacman(PackageManager):
 
     @classmethod
     def sync(cls, context: Context) -> None:
-        cls.invoke(context, "--sync", ["--refresh"] + (["--refresh"] if context.args.force > 1 else []))
+        cls.invoke(
+            context,
+            "--sync",
+            ["--refresh"] + (
+                ["--refresh"] if context.args.force > 1 or context.config.cacheonly == Cacheonly.never else []
+            )
+        )
 
     @classmethod
     def createrepo(cls, context: Context) -> None:
