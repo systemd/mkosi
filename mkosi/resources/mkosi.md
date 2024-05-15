@@ -1423,7 +1423,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     tools trees:
 
     |                         | Fedora | CentOS | Debian | Ubuntu | Arch | openSUSE |
-    |-------------------------|--------|--------|--------|--------|------|----------|
+    |-------------------------|:------:|:------:|:------:|:------:|:----:|:--------:|
     | `acl`                   | X      | X      | X      | X      | X    | X        |
     | `apt`                   | X      | X      | X      | X      | X    |          |
     | `archlinux-keyring`     | X      |        | X      | X      | X    |          |
@@ -2093,7 +2093,7 @@ Scripts executed by mkosi receive the following environment variables:
 Consult this table for which script receives which environment variables:
 
 | Variable            | `mkosi.configure` | `mkosi.sync` | `mkosi.prepare` | `mkosi.build` | `mkosi.postinst` | `mkosi.finalize` | `mkosi.clean` |
-|---------------------|-------------------|--------------|-----------------|---------------|------------------|------------------|---------------|
+|---------------------|:-----------------:|:------------:|:---------------:|:-------------:|:----------------:|:----------------:|:-------------:|
 | `ARCHITECTURE`      | X                 | X            | X               | X             | X                | X                | X             |
 | `QEMU_ARCHITECTURE` | X                 |              |                 |               |                  |                  |               |
 | `DISTRIBUTION`      | X                 | X            | X               | X             | X                | X                | X             |
