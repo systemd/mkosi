@@ -689,7 +689,7 @@ def config_default_compression(namespace: argparse.Namespace) -> Compression:
 
 
 def config_default_output(namespace: argparse.Namespace) -> str:
-    output = namespace.image_id or namespace.image or "image"
+    output = namespace.image or namespace.image_id or "image"
 
     if namespace.image_version:
         output += f"_{namespace.image_version}"
@@ -1523,7 +1523,7 @@ class Config:
     image: Optional[str]
 
     def name(self) -> str:
-        return self.image_id or self.image or "default"
+        return self.image or self.image_id or "default"
 
     def machine_or_name(self) -> str:
         return self.machine or self.name()
