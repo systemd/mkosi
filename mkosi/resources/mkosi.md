@@ -1887,7 +1887,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   `mkosi.conf` file, but before any `mkosi.conf.d/*.conf` drop in
   configuration.
 
-`Include=`, `--include=`
+`Include=`, `--include=`, `-I`
 
 : Include extra configuration from the given file or directory. The
   extra configuration is included immediately after parsing the setting,
