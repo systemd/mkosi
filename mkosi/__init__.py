@@ -718,6 +718,7 @@ def run_postinst_scripts(context: Context) -> None:
         MKOSI_UID=str(INVOKING_USER.uid),
         MKOSI_GID=str(INVOKING_USER.gid),
         MKOSI_CONFIG="/work/config.json",
+        WITH_NETWORK=one_zero(context.config.with_network),
         **GIT_ENV,
     )
 
@@ -784,6 +785,7 @@ def run_finalize_scripts(context: Context) -> None:
         MKOSI_UID=str(INVOKING_USER.uid),
         MKOSI_GID=str(INVOKING_USER.gid),
         MKOSI_CONFIG="/work/config.json",
+        WITH_NETWORK=one_zero(context.config.with_network),
         **GIT_ENV,
     )
 

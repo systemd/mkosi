@@ -2295,7 +2295,7 @@ Consult this table for which script receives which environment variables:
 | `ARTIFACTDIR`       |                   |              | x               | x             | x                | x                |               |
 | `WITH_DOCS`         |                   |              | X               | X             |                  |                  |               |
 | `WITH_TESTS`        |                   |              | X               | X             |                  |                  |               |
-| `WITH_NETWORK`      |                   |              | X               | X             |                  |                  |               |
+| `WITH_NETWORK`      |                   |              | X               | X             | x                | x                |               |
 | `SOURCE_DATE_EPOCH` |                   |              | X               | X             | X                | X                | X             |
 | `MKOSI_UID`         | X                 | X            | X               | X             | X                | X                | X             |
 | `MKOSI_GID`         | X                 | X            | X               | X             | X                | X                | X             |
