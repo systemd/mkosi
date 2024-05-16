@@ -835,6 +835,24 @@ def test_match_environment(tmp_path: Path) -> None:
         _, [conf] = parse_config(["--environment", "MYEN=abd"])
         assert conf.image_id != "matched"
 
+    (d / "mkosi.conf").write_text(
+        """\
+        [Match]
+        Environment=MYENV
+
+        [Content]
+        ImageId=matched
+        """
+    )
+
+    with chdir(d):
+        _, [conf] = parse_config(["--environment", "MYENV=abc"])
+        assert conf.image_id == "matched"
+        _, [conf] = parse_config(["--environment", "MYENV=abd"])
+        assert conf.image_id == "matched"
+        _, [conf] = parse_config(["--environment", "MYEN=abc"])
+        assert conf.image_id != "matched"
+
 
 @pytest.mark.parametrize(
     "skel,pkgmngr", itertools.product(

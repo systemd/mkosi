@@ -587,7 +587,7 @@ def config_make_string_matcher(allow_globs: bool = False) -> ConfigMatchCallback
 def config_match_key_value(match: str, value: dict[str, str]) -> bool:
     k, sep, v = match.partition("=")
     if not sep:
-        die(f"{match} is not a key=value pair")
+        return k in value
 
     return value.get(k, None) == v
 

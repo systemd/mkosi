@@ -1858,7 +1858,8 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `Environment=`
 
 : Matches against a specific key/value pair configured with
-  `Environment=`.
+  `Environment=`. If no value is provided, check if the given key is in
+  the environment regardless of which value it has.
 
 | Matcher                  | Globs | Rich Comparisons | Default                               |
 |--------------------------|-------|------------------|---------------------------------------|
