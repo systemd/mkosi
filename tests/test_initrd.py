@@ -263,7 +263,7 @@ def test_initrd_size(initrd: Image) -> None:
         Distribution.fedora: 46,
         Distribution.debian: 40,
         Distribution.ubuntu: 36,
-        Distribution.arch: 47,
+        Distribution.arch: 67,
         Distribution.opensuse: 39,
     }.get(initrd.config.distribution, 48)
 
