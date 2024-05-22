@@ -327,7 +327,7 @@ sections. As an example, the following will only match if the output
 format is one of `disk` or `directory` and the architecture is one of
 `x86-64` or `arm64`:
 
-```conf
+```ini
 [Match]
 Format=|disk
 Format=|directory
@@ -344,7 +344,7 @@ example, the following will match if the distribution is `debian` and
 the release is `bookworm` or if the distribution is `ubuntu` and the
 release is `focal`.
 
-```conf
+```ini
 [TriggerMatch]
 Distribution=debian
 Release=bookworm
@@ -697,7 +697,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     packages that provides `/usr/bin/ld`, the packages in the *Development Tools*
     group, and the package that contains the `mypy` python module.
 
-    ```conf
+    ```ini
     Packages=meson
              libfdisk-devel.i686
              git-*
@@ -713,7 +713,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     local package located at `../my-packages/abc.rpm` relative to the mkosi
     working directory, then we'd be able to install it as follows:
 
-    ```conf
+    ```ini
     BuildSources=../my-packages:my-packages-in-sandbox
     Packages=my-packages-in-sandbox/abc.rpm
     ```
@@ -1354,7 +1354,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
     **Example usage:**
 
-    ```conf
+    ```ini
     [Host]
     QemuDrives=btrfs:10G
                ext4:20G
@@ -1657,14 +1657,14 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     satisfied if any of the configured build sources uses this target
     path. For example, if we have a `mkosi.conf` file containing:
 
-    ```conf
+    ```ini
     [Content]
     BuildSources=../abc/qed:kernel
     ```
 
     and a drop-in containing:
 
-    ```conf
+    ```ini
     [Match]
     BuildSources=kernel
     ```
