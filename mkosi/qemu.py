@@ -252,7 +252,7 @@ def find_ovmf_firmware(config: Config, firmware: QemuFirmware) -> Optional[OvmfC
 
 @contextlib.contextmanager
 def start_swtpm(config: Config) -> Iterator[Path]:
-    with tempfile.TemporaryDirectory(prefix="mkosi-swtpm") as state:
+    with tempfile.TemporaryDirectory(prefix="mkosi-swtpm-") as state:
         # swtpm_setup is noisy and doesn't have a --quiet option so we pipe it's stdout to /dev/null.
         run(
             ["swtpm_setup", "--tpm-state", state, "--tpm2", "--pcr-banks", "sha256", "--config", "/dev/null"],
@@ -329,7 +329,7 @@ def start_virtiofsd(config: Config, directory: PathString, *, name: str, selinux
     # We create the socket ourselves and pass the fd to virtiofsd to avoid race conditions where we start qemu
     # before virtiofsd has had the chance to create the socket (or where we try to chown it first).
     with (
-        tempfile.TemporaryDirectory(prefix="mkosi-virtiofsd") as context,
+        tempfile.TemporaryDirectory(prefix="mkosi-virtiofsd-") as context,
         socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock,
     ):
         # Make sure virtiofsd can access the socket in this directory.
@@ -449,7 +449,7 @@ def start_journal_remote(config: Config, sockfd: int) -> Iterator[None]:
         run(["chattr", "+C", d], check=False, stderr=subprocess.DEVNULL if not ARG_DEBUG.get() else None)
         INVOKING_USER.chown(d)
 
-    with tempfile.NamedTemporaryFile(mode="w", prefix="mkosi-journal-remote-config") as f:
+    with tempfile.NamedTemporaryFile(mode="w", prefix="mkosi-journal-remote-config-") as f:
         # Make sure we capture all the logs by bumping the limits. We set MaxFileSize=4G because with the compact mode
         # enabled the files cannot grow any larger anyway.
         f.write(
@@ -563,7 +563,7 @@ def want_scratch(config: Config) -> bool:
 
 @contextlib.contextmanager
 def generate_scratch_fs(config: Config) -> Iterator[Path]:
-    with tempfile.NamedTemporaryFile(dir="/var/tmp", prefix="mkosi-scratch") as scratch:
+    with tempfile.NamedTemporaryFile(dir="/var/tmp", prefix="mkosi-scratch-") as scratch:
         scratch.truncate(1024**4)
         fs = config.distribution.filesystem()
         extra = config.environment.get(f"SYSTEMD_REPART_MKFS_OPTIONS_{fs.upper()}", "")
@@ -595,7 +595,7 @@ def finalize_qemu_firmware(config: Config, kernel: Optional[Path]) -> QemuFirmwa
 
 
 def finalize_firmware_variables(config: Config, ovmf: OvmfConfig, stack: contextlib.ExitStack) -> tuple[Path, str]:
-    ovmf_vars = stack.enter_context(tempfile.NamedTemporaryFile(prefix="mkosi-ovmf-vars"))
+    ovmf_vars = stack.enter_context(tempfile.NamedTemporaryFile(prefix="mkosi-ovmf-vars-"))
     if config.qemu_firmware_variables in (None, Path("custom"), Path("microsoft")):
         ovmf_vars_format = ovmf.vars_format
     else:
@@ -1100,7 +1100,7 @@ def run_qemu(args: Args, config: Config) -> None:
             if config.architecture.supports_smbios(firmware):
                 cmdline += ["-smbios", f"type=11,value=io.systemd.credential.binary:{k}={payload}"]
             elif config.architecture.supports_fw_cfg():
-                f = stack.enter_context(tempfile.NamedTemporaryFile(prefix="mkosi-fw-cfg", mode="w"))
+                f = stack.enter_context(tempfile.NamedTemporaryFile(prefix="mkosi-fw-cfg-", mode="w"))
                 f.write(v)
                 f.flush()
                 cmdline += ["-fw_cfg", f"name=opt/io.systemd.credentials/{k},file={f.name}"]

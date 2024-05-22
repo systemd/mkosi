@@ -156,7 +156,7 @@ def become_root() -> None:
 
     pid = os.getpid()
 
-    with tempfile.NamedTemporaryFile(prefix="mkosi-uidmap-lock") as lockfile:
+    with tempfile.NamedTemporaryFile(prefix="mkosi-uidmap-lock-") as lockfile:
         lock = Path(lockfile.name)
 
         # We map the private UID range configured in /etc/subuid and /etc/subgid into the container using

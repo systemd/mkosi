@@ -369,7 +369,7 @@ def mount_build_overlay(context: Context, volatile: bool = False) -> Iterator[Pa
 
 @contextlib.contextmanager
 def finalize_scripts(config: Config, scripts: Mapping[str, Sequence[PathString]]) -> Iterator[Path]:
-    with tempfile.TemporaryDirectory(prefix="mkosi-scripts") as d:
+    with tempfile.TemporaryDirectory(prefix="mkosi-scripts-") as d:
         # Make sure than when mkosi-as-caller is used the scripts can still be accessed.
         os.chmod(d, 0o755)
 
@@ -3572,7 +3572,7 @@ def normalize_mtime(root: Path, mtime: Optional[int], directory: Optional[Path] 
 @contextlib.contextmanager
 def setup_workspace(args: Args, config: Config) -> Iterator[Path]:
     with contextlib.ExitStack() as stack:
-        workspace = Path(tempfile.mkdtemp(dir=config.workspace_dir_or_default(), prefix="mkosi-workspace"))
+        workspace = Path(tempfile.mkdtemp(dir=config.workspace_dir_or_default(), prefix="mkosi-workspace-"))
         # Discard setuid/setgid bits as these are inherited and can leak into the image.
         workspace.chmod(stat.S_IMODE(workspace.stat().st_mode) & ~(stat.S_ISGID|stat.S_ISUID))
         stack.callback(lambda: rmtree(workspace, sandbox=config.sandbox))
@@ -4173,7 +4173,7 @@ def prepend_to_environ_path(config: Config) -> Iterator[None]:
         yield
         return
 
-    with tempfile.TemporaryDirectory(prefix="mkosi.path") as d:
+    with tempfile.TemporaryDirectory(prefix="mkosi.path-") as d:
 
         for path in config.extra_search_paths:
             if not path.is_dir():
