@@ -715,8 +715,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `SourceDateEpoch=`, `--source-date-epoch=`
 
-: Takes a timestamp as argument. Resets file modification times of all files to
-  this timestamp. The variable is also propagated to systemd-repart and
+: Takes a timestamp in seconds since the UNIX epoch as argument.
+  File modification times of all files will be clamped to this value.
+  The variable is also propagated to systemd-repart and
   scripts executed by mkosi. If not set explicitly, `SOURCE_DATE_EPOCH` from
   `--environment` and from the host environment are tried in that order.
   This is useful to make builds reproducible. See
