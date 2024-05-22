@@ -3554,19 +3554,26 @@ def finalize_staging(context: Context) -> None:
         )
 
 
-def normalize_mtime(root: Path, mtime: Optional[int], directory: Optional[Path] = None) -> None:
+def clamp_mtime(path: Path, mtime: int) -> None:
+    st = os.stat(path, follow_symlinks=False)
+    orig = (st.st_atime_ns, st.st_mtime_ns)
+    updated = (min(orig[0], mtime * 1_000_000_000),
+               min(orig[1], mtime * 1_000_000_000))
+    if orig != updated:
+        os.utime(path, ns=updated, follow_symlinks=False)
+
+
+def normalize_mtime(root: Path, mtime: Optional[int], directory: Path = Path("")) -> None:
     if mtime is None:
         return
-
-    directory = directory or Path("")
 
     if not (root / directory).exists():
         return
 
     with complete_step(f"Normalizing modification times of /{directory}"):
-        os.utime(root / directory, (mtime, mtime), follow_symlinks=False)
+        clamp_mtime(root / directory, mtime)
         for p in (root / directory).rglob("*"):
-            os.utime(p, (mtime, mtime), follow_symlinks=False)
+            clamp_mtime(p, mtime)
 
 
 @contextlib.contextmanager
