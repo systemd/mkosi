@@ -2724,6 +2724,8 @@ def check_systemd_tool(
 
 
 def check_tools(config: Config, verb: Verb) -> None:
+    check_tool(config, "bwrap", reason="execute sandboxed commands")
+
     if verb == Verb.build:
         if config.bootable != ConfigFeature.disabled:
             check_tool(config, "depmod", reason="generate kernel module dependencies")
