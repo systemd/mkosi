@@ -55,23 +55,20 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def dbpath(cls, context: Context) -> str:
-        if GenericVersion(context.config.release) < 9:
-            return "/var/lib/rpm"
-
         # The Hyperscale SIG uses /usr/lib/sysimage/rpm in its rebuild of rpm for C9S that's shipped in the
         # hyperscale-packages-experimental repository.
         if (
-            GenericVersion(context.config.release) == 9 and
-            "hyperscale-packages-experimental" not in context.config.repositories
+            GenericVersion(context.config.release) > 9 or
+            "hyperscale-packages-experimental" in context.config.repositories
         ):
-            return "/var/lib/rpm"
+            return "/usr/lib/sysimage/rpm"
 
-        return "/usr/lib/sysimage/rpm"
+        return "/var/lib/rpm"
 
     @classmethod
     def setup(cls, context: Context) -> None:
-        if GenericVersion(context.config.release) <= 7:
-            die(f"{cls.pretty_name()} 7 or earlier variants are not supported")
+        if GenericVersion(context.config.release) <= 8:
+            die(f"{cls.pretty_name()} Stream 8 or earlier variants are not supported")
 
         Dnf.setup(context, cls.repositories(context))
         (context.pkgmngr / "etc/dnf/vars/stream").write_text(f"{context.config.release}-stream\n")
@@ -114,110 +111,70 @@ class Installer(DistributionInstaller):
             yield RpmRepository(repo, f"baseurl={context.config.local_mirror}", cls.gpgurls(context))
 
         elif mirror := context.config.mirror:
-            if GenericVersion(context.config.release) <= 8:
+            if repo == "extras":
                 yield RpmRepository(
                     repo.lower(),
-                    f"baseurl={join_mirror(mirror, f'centos/$stream/{repo}/$basearch/os')}",
+                    f"baseurl={join_mirror(mirror, f'centos-stream/SIGs/$stream/{repo}/$basearch/extras-common')}",
+                    cls.gpgurls(context),
+                )
+                yield RpmRepository(
+                    f"{repo.lower()}-source",
+                    f"baseurl={join_mirror(mirror, f'centos-stream/SIGs/$stream/{repo}/source/extras-common')}",
+                    cls.gpgurls(context),
+                    enabled=False,
+                )
+
+            else:
+                yield RpmRepository(
+                    repo.lower(),
+                    f"baseurl={join_mirror(mirror, f'centos-stream/$stream/{repo}/$basearch/os')}",
                     cls.gpgurls(context),
                 )
                 yield RpmRepository(
                     f"{repo.lower()}-debuginfo",
-                    f"baseurl={join_mirror(mirror, 'centos-debuginfo/$stream/$basearch')}",
+                    f"baseurl={join_mirror(mirror, f'centos-stream/$stream/{repo}/$basearch/debug/tree')}",
                     cls.gpgurls(context),
                     enabled=False,
                 )
                 yield RpmRepository(
                     f"{repo.lower()}-source",
-                    f"baseurl={join_mirror(mirror, f'centos/$stream/{repo}/Source')}",
+                    f"baseurl={join_mirror(mirror, f'centos-stream/$stream/{repo}/source/tree')}",
                     cls.gpgurls(context),
                     enabled=False,
                 )
-            else:
-                if repo == "extras":
-                    yield RpmRepository(
-                        repo.lower(),
-                        f"baseurl={join_mirror(mirror, f'centos-stream/SIGs/$stream/{repo}/$basearch/extras-common')}",
-                        cls.gpgurls(context),
-                    )
-                    yield RpmRepository(
-                        f"{repo.lower()}-source",
-                        f"baseurl={join_mirror(mirror, f'centos-stream/SIGs/$stream/{repo}/source/extras-common')}",
-                        cls.gpgurls(context),
-                        enabled=False,
-                    )
-
-                else:
-                    yield RpmRepository(
-                        repo.lower(),
-                        f"baseurl={join_mirror(mirror, f'centos-stream/$stream/{repo}/$basearch/os')}",
-                        cls.gpgurls(context),
-                    )
-                    yield RpmRepository(
-                        f"{repo.lower()}-debuginfo",
-                        f"baseurl={join_mirror(mirror, f'centos-stream/$stream/{repo}/$basearch/debug/tree')}",
-                        cls.gpgurls(context),
-                        enabled=False,
-                    )
-                    yield RpmRepository(
-                        f"{repo.lower()}-source",
-                        f"baseurl={join_mirror(mirror, f'centos-stream/$stream/{repo}/source/tree')}",
-                        cls.gpgurls(context),
-                        enabled=False,
-                    )
-
         else:
-            if GenericVersion(context.config.release) <= 8:
+            url = "metalink=https://mirrors.centos.org/metalink"
+
+            if repo == "extras":
                 yield RpmRepository(
                     repo.lower(),
-                    f"mirrorlist=http://mirrorlist.centos.org/?release=$stream&arch=$basearch&repo={repo}",
+                    f"{url}?arch=$basearch&repo=centos-extras-sig-extras-common-$stream",
                     cls.gpgurls(context),
                 )
-                # These can't be retrieved from the mirrorlist.
+                yield RpmRepository(
+                    f"{repo.lower()}-source",
+                    f"{url}?arch=source&repo=centos-extras-sig-extras-common-source-$stream",
+                    cls.gpgurls(context),
+                    enabled=False,
+                )
+            else:
+                yield RpmRepository(
+                    repo.lower(),
+                    f"{url}?arch=$basearch&repo=centos-{repo.lower()}-$stream",
+                    cls.gpgurls(context),
+                )
                 yield RpmRepository(
                     f"{repo.lower()}-debuginfo",
-                    "baseurl=http://debuginfo.centos.org/$stream/$basearch",
+                    f"{url}?arch=$basearch&repo=centos-{repo.lower()}-debug-$stream",
                     cls.gpgurls(context),
                     enabled=False,
                 )
                 yield RpmRepository(
                     f"{repo.lower()}-source",
-                    f"baseurl=https://vault.centos.org/centos/$stream/{repo}/Source",
+                    f"{url}?arch=source&repo=centos-{repo.lower()}-source-$stream",
                     cls.gpgurls(context),
                     enabled=False,
                 )
-            else:
-                url = "metalink=https://mirrors.centos.org/metalink"
-
-                if repo == "extras":
-                    yield RpmRepository(
-                        repo.lower(),
-                        f"{url}?arch=$basearch&repo=centos-extras-sig-extras-common-$stream",
-                        cls.gpgurls(context),
-                    )
-                    yield RpmRepository(
-                        f"{repo.lower()}-source",
-                        f"{url}?arch=source&repo=centos-extras-sig-extras-common-source-$stream",
-                        cls.gpgurls(context),
-                        enabled=False,
-                    )
-                else:
-                    yield RpmRepository(
-                        repo.lower(),
-                        f"{url}?arch=$basearch&repo=centos-{repo.lower()}-$stream",
-                        cls.gpgurls(context),
-                    )
-                    yield RpmRepository(
-                        f"{repo.lower()}-debuginfo",
-                        f"{url}?arch=$basearch&repo=centos-{repo.lower()}-debug-$stream",
-                        cls.gpgurls(context),
-                        enabled=False,
-                    )
-                    yield RpmRepository(
-                        f"{repo.lower()}-source",
-                        f"{url}?arch=source&repo=centos-{repo.lower()}-source-$stream",
-                        cls.gpgurls(context),
-                        enabled=False,
-                    )
 
     @classmethod
     @listify
@@ -229,11 +186,7 @@ class Installer(DistributionInstaller):
         yield from cls.repository_variants(context, "BaseOS")
         yield from cls.repository_variants(context, "AppStream")
         yield from cls.repository_variants(context, "extras")
-
-        if GenericVersion(context.config.release) >= 9:
-            yield from cls.repository_variants(context, "CRB")
-        else:
-            yield from cls.repository_variants(context, "PowerTools")
+        yield from cls.repository_variants(context, "CRB")
 
         yield from cls.epel_repositories(context)
         yield from cls.sig_repositories(context)
@@ -347,98 +300,50 @@ class Installer(DistributionInstaller):
 
             for c in components:
                 if mirror := context.config.mirror:
-                    if GenericVersion(context.config.release) <= 8:
-                        yield RpmRepository(
-                            f"{sig}-{c}",
-                            f"baseurl={join_mirror(mirror, f'centos/$stream/{sig}/$basearch/{c}')}",
-                            gpgurls,
-                            enabled=False,
-                            priority=CENTOS_SIG_REPO_PRIORITY,
-                        )
-                        yield RpmRepository(
-                            f"{sig}-{c}-debuginfo",
-                            f"baseurl={join_mirror(mirror, f'centos-debuginfo/$stream/{sig}/$basearch')}",
-                            gpgurls,
-                            enabled=False,
-                            priority=CENTOS_SIG_REPO_PRIORITY,
-                        )
-                        yield RpmRepository(
-                            f"{sig}-{c}-source",
-                            f"baseurl={join_mirror(mirror, f'centos/$stream/{sig}/Source')}",
-                            gpgurls,
-                            enabled=False,
-                            priority=CENTOS_SIG_REPO_PRIORITY,
-                        )
-                    else:
-                        yield RpmRepository(
-                            f"{sig}-{c}",
-                            f"baseurl={join_mirror(mirror, f'centos-stream/SIGs/$stream/{sig}/$basearch/{c}')}",
-                            gpgurls,
-                            enabled=False,
-                            priority=CENTOS_SIG_REPO_PRIORITY,
-                        )
-                        yield RpmRepository(
-                            f"{sig}-{c}-debuginfo",
-                            f"baseurl={join_mirror(mirror, f'centos-stream/SIGs/$stream/{sig}/$basearch/{c}/debug')}",
-                            gpgurls,
-                            enabled=False,
-                            priority=CENTOS_SIG_REPO_PRIORITY,
-                        )
-                        yield RpmRepository(
-                            f"{sig}-{c}-source",
-                            f"baseurl={join_mirror(mirror, f'centos-stream/SIGs/$stream/{sig}/source/{c}')}",
-                            gpgurls,
-                            enabled=False,
-                            priority=CENTOS_SIG_REPO_PRIORITY,
-                        )
+                    yield RpmRepository(
+                        f"{sig}-{c}",
+                        f"baseurl={join_mirror(mirror, f'centos-stream/SIGs/$stream/{sig}/$basearch/{c}')}",
+                        gpgurls,
+                        enabled=False,
+                        priority=CENTOS_SIG_REPO_PRIORITY,
+                    )
+                    yield RpmRepository(
+                        f"{sig}-{c}-debuginfo",
+                        f"baseurl={join_mirror(mirror, f'centos-stream/SIGs/$stream/{sig}/$basearch/{c}/debug')}",
+                        gpgurls,
+                        enabled=False,
+                        priority=CENTOS_SIG_REPO_PRIORITY,
+                    )
+                    yield RpmRepository(
+                        f"{sig}-{c}-source",
+                        f"baseurl={join_mirror(mirror, f'centos-stream/SIGs/$stream/{sig}/source/{c}')}",
+                        gpgurls,
+                        enabled=False,
+                        priority=CENTOS_SIG_REPO_PRIORITY,
+                    )
                 else:
-                    if GenericVersion(context.config.release) <= 8:
-                        yield RpmRepository(
-                            f"{sig}-{c}",
-                            f"mirrorlist=http://mirrorlist.centos.org/?release=$stream&arch=$basearch&repo={sig}-{c}",
-                            gpgurls,
-                            enabled=False,
-                            priority=CENTOS_SIG_REPO_PRIORITY,
-                        )
-                        # These can't be retrieved from the mirrorlist.
-                        yield RpmRepository(
-                            f"{sig}-{c}-debuginfo",
-                            f"baseurl=http://debuginfo.centos.org/centos/$stream/{sig}/$basearch",
-                            gpgurls,
-                            enabled=False,
-                            priority=CENTOS_SIG_REPO_PRIORITY,
-                        )
-                        yield RpmRepository(
-                            f"{sig}-{c}-source",
-                            f"baseurl=https://vault.centos.org/$stream/{sig}/Source/{c}",
-                            gpgurls,
-                            enabled=False,
-                            priority=CENTOS_SIG_REPO_PRIORITY,
-                        )
-                    else:
-                        url = "metalink=https://mirrors.centos.org/metalink"
-                        yield RpmRepository(
-                            f"{sig}-{c}",
-                            f"{url}?arch=$basearch&repo=centos-{sig}-sig-{c}-$stream",
-                            gpgurls,
-                            enabled=False,
-                            priority=CENTOS_SIG_REPO_PRIORITY,
-                        )
-                        yield RpmRepository(
-                            f"{sig}-{c}-debuginfo",
-                            f"{url}?arch=$basearch&repo=centos-{sig}-sig-{c}-debug-$stream",
-                            gpgurls,
-                            enabled=False,
-                            priority=CENTOS_SIG_REPO_PRIORITY,
-                        )
-                        yield RpmRepository(
-                            f"{sig}-{c}-source",
-                            f"{url}?arch=source&repo=centos-{sig}-sig-{c}-source-$stream",
-                            gpgurls,
-                            enabled=False,
-                            priority=CENTOS_SIG_REPO_PRIORITY,
-                        )
-
+                    url = "metalink=https://mirrors.centos.org/metalink"
+                    yield RpmRepository(
+                        f"{sig}-{c}",
+                        f"{url}?arch=$basearch&repo=centos-{sig}-sig-{c}-$stream",
+                        gpgurls,
+                        enabled=False,
+                        priority=CENTOS_SIG_REPO_PRIORITY,
+                    )
+                    yield RpmRepository(
+                        f"{sig}-{c}-debuginfo",
+                        f"{url}?arch=$basearch&repo=centos-{sig}-sig-{c}-debug-$stream",
+                        gpgurls,
+                        enabled=False,
+                        priority=CENTOS_SIG_REPO_PRIORITY,
+                    )
+                    yield RpmRepository(
+                        f"{sig}-{c}-source",
+                        f"{url}?arch=source&repo=centos-{sig}-sig-{c}-source-$stream",
+                        gpgurls,
+                        enabled=False,
+                        priority=CENTOS_SIG_REPO_PRIORITY,
+                    )
                     yield RpmRepository(
                         f"{sig}-{c}-testing",
                         f"baseurl=https://buildlogs.centos.org/centos/$stream/{sig}/$basearch/{c}",
@@ -446,12 +351,10 @@ class Installer(DistributionInstaller):
                         enabled=False,
                         priority=CENTOS_SIG_REPO_PRIORITY,
                     )
-
-                    if GenericVersion(context.config.release) >= 9:
-                        yield RpmRepository(
-                            f"{sig}-{c}-testing-debuginfo",
-                            f"baseurl=https://buildlogs.centos.org/centos/$stream/{sig}/$basearch/{c}",
-                            gpgurls,
-                            enabled=False,
-                            priority=CENTOS_SIG_REPO_PRIORITY,
-                        )
+                    yield RpmRepository(
+                        f"{sig}-{c}-testing-debuginfo",
+                        f"baseurl=https://buildlogs.centos.org/centos/$stream/{sig}/$basearch/{c}",
+                        gpgurls,
+                        enabled=False,
+                        priority=CENTOS_SIG_REPO_PRIORITY,
+                    )
