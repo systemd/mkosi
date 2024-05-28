@@ -49,220 +49,192 @@ that may generate disk images with a number of bells and whistles.
 The following command line verbs are known:
 
 `summary`
-
-: Outputs a human-readable summary of all options used for building an
-  image. This will parse the command line and `mkosi.conf` file as it
-  would do on `build`, but only output what it is configured for and not
-  actually build anything.
+:   Outputs a human-readable summary of all options used for building an
+    image. This will parse the command line and `mkosi.conf` file as it
+    would do on `build`, but only output what it is configured for and not
+    actually build anything.
 
 `build`
-
-: This builds the image based on the settings passed in on the command
-  line or read from configuration files. This command is the default if
-  no verb is explicitly specified. If any command line arguments are
-  specified, these are passed directly to the build script if one is
-  defined.
+:   This builds the image based on the settings passed in on the command
+    line or read from configuration files. This command is the default if
+    no verb is explicitly specified. If any command line arguments are
+    specified, these are passed directly to the build script if one is
+    defined.
 
 `shell`
-
-: This builds the image if it is not built yet, and then invokes
-  `systemd-nspawn` to acquire an interactive shell prompt in it. An optional
-  command line may be specified after the `shell` verb, to be invoked in place
-  of the shell in the container. Use `-f` in order to rebuild the image
-  unconditionally before acquiring the shell, see below. This command must be
-  executed as `root`.
+:   This builds the image if it is not built yet, and then invokes
+    `systemd-nspawn` to acquire an interactive shell prompt in it. An optional
+    command line may be specified after the `shell` verb, to be invoked in place
+    of the shell in the container. Use `-f` in order to rebuild the image
+    unconditionally before acquiring the shell, see below. This command must be
+    executed as `root`.
 
 `boot`
-
-: Similar to `shell`, but boots the image using `systemd-nspawn`. An
-  optional command line may be specified after the `boot` verb, which
-  can contain extra nspawn options as well as arguments which are passed
-  as the *kernel command line* to the init system in the image.
+:   Similar to `shell`, but boots the image using `systemd-nspawn`. An
+    optional command line may be specified after the `boot` verb, which
+    can contain extra nspawn options as well as arguments which are passed
+    as the *kernel command line* to the init system in the image.
 
 `qemu`
-
-: Similar to `boot`, but uses the configured virtual machine monitor (by
-  default `qemu`) to boot up the image, i.e. instead of container
-  virtualization virtual machine virtualization is used. How extra
-  command line arguments are interpreted depends on the configured
-  virtual machine monitor. See `VirtualMachineMonitor=` for more
-  information.
+:   Similar to `boot`, but uses the configured virtual machine monitor (by
+    default `qemu`) to boot up the image, i.e. instead of container
+    virtualization virtual machine virtualization is used. How extra
+    command line arguments are interpreted depends on the configured
+    virtual machine monitor. See `VirtualMachineMonitor=` for more
+    information.
 
 `ssh`
+:   When the image is built with the `Ssh=yes` option, this command
+    connects to a booted virtual machine (`qemu`) via SSH. Make sure to
+    run `mkosi ssh` with the same config as `mkosi build` so that it has
+    the necessary information available to connect to the running virtual
+    machine via SSH. Specifically, the SSH private key from the `SshKey=`
+    setting is used to connect to the virtual machine. Use `mkosi genkey`
+    to automatically generate a key and certificate that will be picked up
+    by mkosi. Any arguments passed after the `ssh` verb are passed as
+    arguments to the `ssh` invocation. To connect to a container, use
+    `machinectl login` or `machinectl shell`.
 
-: When the image is built with the `Ssh=yes` option, this command
-  connects to a booted virtual machine (`qemu`) via SSH. Make sure to
-  run `mkosi ssh` with the same config as `mkosi build` so that it has
-  the necessary information available to connect to the running virtual
-  machine via SSH. Specifically, the SSH private key from the `SshKey=`
-  setting is used to connect to the virtual machine. Use `mkosi genkey`
-  to automatically generate a key and certificate that will be picked up
-  by mkosi. Any arguments passed after the `ssh` verb are passed as
-  arguments to the `ssh` invocation. To connect to a container, use
-  `machinectl login` or `machinectl shell`.
-
-: The `Machine=` option can be used to give the machine a custom
-  hostname when booting it which can later be used to ssh into the image
-  (e.g. `mkosi --machine=mymachine qemu` followed by
-  `mkosi --machine=mymachine ssh`).
+    The `Machine=` option can be used to give the machine a custom
+    hostname when booting it which can later be used to ssh into the image
+    (e.g. `mkosi --machine=mymachine qemu` followed by
+    `mkosi --machine=mymachine ssh`).
 
 `journalctl`
-
-: Uses `journalctl` to inspect the journal inside the image.
-  Any arguments specified after the `journalctl` verb are appended to the
-  `journalctl` invocation.
+:   Uses `journalctl` to inspect the journal inside the image.
+    Any arguments specified after the `journalctl` verb are appended to the
+    `journalctl` invocation.
 
 `coredumpctl`
-
-: Uses `coredumpctl` to look for coredumps inside the image.
-  Any arguments specified after the `coredumpctl` verb are appended to the
-  `coredumpctl` invocation.
+:   Uses `coredumpctl` to look for coredumps inside the image.
+    Any arguments specified after the `coredumpctl` verb are appended to the
+    `coredumpctl` invocation.
 
 `clean`
-
-: Remove build artifacts generated on a previous build. If combined
-  with `-f`, also removes incremental build cache images. If `-f` is
-  specified twice, also removes any package cache.
+:   Remove build artifacts generated on a previous build. If combined
+    with `-f`, also removes incremental build cache images. If `-f` is
+    specified twice, also removes any package cache.
 
 `serve`
-
-: This builds the image if it is not built yet, and then serves the
-  output directory (i.e. usually `mkosi.output/`, see below) via a
-  small embedded HTTP server, listening on port 8081. Combine with
-  `-f` in order to rebuild the image unconditionally before serving
-  it. This command is useful for testing network based acquisition of
-  OS images, for example via `machinectl pull-raw …` and `machinectl
-  pull-tar …`.
+:   This builds the image if it is not built yet, and then serves the
+    output directory (i.e. usually `mkosi.output/`, see below) via a
+    small embedded HTTP server, listening on port 8081. Combine with
+    `-f` in order to rebuild the image unconditionally before serving
+    it. This command is useful for testing network based acquisition of
+    OS images, for example via `machinectl pull-raw …` and `machinectl
+    pull-tar …`.
 
 `burn <device>`
-
-: This builds the image if it is not built yet, and then writes it to the
-  specified block device. The partition contents are written as-is, but the GPT
-  partition table is corrected to match sector and disk size of the specified
-  medium.
+:   This builds the image if it is not built yet, and then writes it to the
+    specified block device. The partition contents are written as-is, but the GPT
+    partition table is corrected to match sector and disk size of the specified
+    medium.
 
 `bump`
-
-: Bumps the image version from `mkosi.version` and writes the resulting
-  version string to `mkosi.version`. This is useful for implementing a
-  simple versioning scheme: each time this verb is called the version is
-  bumped in preparation for the subsequent build. Note that
-  `--auto-bump`/`-B` may be used to automatically bump the version
-  after each successful build.
+:   Bumps the image version from `mkosi.version` and writes the resulting
+    version string to `mkosi.version`. This is useful for implementing a
+    simple versioning scheme: each time this verb is called the version is
+    bumped in preparation for the subsequent build. Note that
+    `--auto-bump`/`-B` may be used to automatically bump the version
+    after each successful build.
 
 `genkey`
-
-: Generate a pair of SecureBoot keys for usage with the
-  `SecureBootKey=`/`--secure-boot-key=` and
-  `SecureBootCertificate=`/`--secure-boot-certificate=` options.
+:   Generate a pair of SecureBoot keys for usage with the
+    `SecureBootKey=`/`--secure-boot-key=` and
+    `SecureBootCertificate=`/`--secure-boot-certificate=` options.
 
 `documentation`
-
-: Show mkosi's documentation. By default this verb will try several ways
-  to output the documentation, but a specific option can be chosen with
-  the `--doc-format` option. Distro packagers are encouraged to add a
-  file `mkosi.1` into the `mkosi/resources` directory of the Python
-  package, if it is missing, as well as to install it in the appropriate
-  search path for man pages. The man page can be generated from the
-  markdown file `mkosi/resources/mkosi.md` e.g via
-  `pandoc -t man -s -o mkosi.1 mkosi.md`.
+:   Show mkosi's documentation. By default this verb will try several ways
+    to output the documentation, but a specific option can be chosen with
+    the `--doc-format` option. Distro packagers are encouraged to add a
+    file `mkosi.1` into the `mkosi/resources` directory of the Python
+    package, if it is missing, as well as to install it in the appropriate
+    search path for man pages. The man page can be generated from the
+    markdown file `mkosi/resources/mkosi.md` e.g via
+    `pandoc -t man -s -o mkosi.1 mkosi.md`.
 
 `help`
-
-: This verb is equivalent to the `--help` switch documented below: it
-  shows a brief usage explanation.
+:   This verb is equivalent to the `--help` switch documented below: it
+    shows a brief usage explanation.
 
 ## Commandline-only Options
 
 Those settings cannot be configured in the configuration files.
 
 `--force`, `-f`
-
-: Replace the output file if it already exists, when building an
-  image. By default when building an image and an output artifact
-  already exists `mkosi` will refuse operation. Specify this option
-  once to delete all build artifacts from a previous run before
-  re-building the image. If incremental builds are enabled,
-  specifying this option twice will ensure the intermediary
-  cache files are removed, too, before the re-build is initiated. If a
-  package cache is used (also see the **Files** section below),
-  specifying this option thrice will ensure the package cache is
-  removed too, before the re-build is initiated. For the `clean`
-  operation this option has a slightly different effect: by default
-  the verb will only remove build artifacts from a previous run, when
-  specified once the incremental cache files are deleted too, and when
-  specified twice the package cache is also removed.
+:   Replace the output file if it already exists, when building an
+    image. By default when building an image and an output artifact
+    already exists `mkosi` will refuse operation. Specify this option
+    once to delete all build artifacts from a previous run before
+    re-building the image. If incremental builds are enabled,
+    specifying this option twice will ensure the intermediary
+    cache files are removed, too, before the re-build is initiated. If a
+    package cache is used (also see the **Files** section below),
+    specifying this option thrice will ensure the package cache is
+    removed too, before the re-build is initiated. For the `clean`
+    operation this option has a slightly different effect: by default
+    the verb will only remove build artifacts from a previous run, when
+    specified once the incremental cache files are deleted too, and when
+    specified twice the package cache is also removed.
 
 `--directory=`, `-C`
-
-: Takes a path to a directory. `mkosi` switches to this directory before
-  doing anything. Note that the various configuration files are searched
-  for in this directory, hence using this option is an effective way to
-  build a project located in a specific directory.
+:   Takes a path to a directory. `mkosi` switches to this directory before
+    doing anything. Note that the various configuration files are searched
+    for in this directory, hence using this option is an effective way to
+    build a project located in a specific directory.
 
 `--debug=`
-
-: Enable additional debugging output.
+:   Enable additional debugging output.
 
 `--debug-shell`
-
-: When executing a command in the image fails, mkosi will start an interactive
-  shell in the image allowing further debugging.
+:   When executing a command in the image fails, mkosi will start an interactive
+    shell in the image allowing further debugging.
 
 `--debug-workspace=`
-
-: When an error occurs, the workspace directory will not be deleted.
+:   When an error occurs, the workspace directory will not be deleted.
 
 `--version`
-
-: Show package version.
+:   Show package version.
 
 `--help`, `-h`
-
-: Show brief usage information.
+:   Show brief usage information.
 
 `--genkey-common-name=`
-
-: Common name to be used when generating keys via mkosi's `genkey` command. Defaults to `mkosi of %u`, where
-  `%u` expands to the username of the user invoking mkosi.
+:   Common name to be used when generating keys via mkosi's `genkey` command. Defaults to `mkosi of %u`, where
+    `%u` expands to the username of the user invoking mkosi.
 
 `--genkey-valid-days=`
-
-: Number of days that the keys should remain valid when generating keys via mkosi's `genkey` command.
-  Defaults to two years (730 days).
+:   Number of days that the keys should remain valid when generating keys via mkosi's `genkey` command.
+    Defaults to two years (730 days).
 
 `--auto-bump=`, `-B`
-
-: If specified, after each successful build the version is bumped in a
-  fashion equivalent to the `bump` verb, in preparation for the next
-  build. This is useful for simple, linear version management: each
-  build in a series will have a version number one higher then the
-  previous one.
+:   If specified, after each successful build the version is bumped in a
+    fashion equivalent to the `bump` verb, in preparation for the next
+    build. This is useful for simple, linear version management: each
+    build in a series will have a version number one higher then the
+    previous one.
 
 `--doc-format`
-
-: The format to show the documentation in. Supports the values `markdown`,
-  `man`, `pandoc`, `system` and `auto`. In the case of `markdown` the
-  documentation is shown in the original Markdown format. `man` shows the
-  documentation in man page format, if it is available. `pandoc` will generate
-  the man page format on the fly, if `pandoc` is available. `system` will show
-  the system-wide man page for mkosi, which may or may not correspond to the
-  version you are using, depending on how you installed mkosi. `auto`, which is
-  the default, will try all methods in the order `man`, `pandoc`, `markdown`,
-  `system`.
+:   The format to show the documentation in. Supports the values `markdown`,
+    `man`, `pandoc`, `system` and `auto`. In the case of `markdown` the
+    documentation is shown in the original Markdown format. `man` shows the
+    documentation in man page format, if it is available. `pandoc` will generate
+    the man page format on the fly, if `pandoc` is available. `system` will show
+    the system-wide man page for mkosi, which may or may not correspond to the
+    version you are using, depending on how you installed mkosi. `auto`, which is
+    the default, will try all methods in the order `man`, `pandoc`, `markdown`,
+    `system`.
 
 `--json`
-
-: Show the summary output as JSON-SEQ.
+:   Show the summary output as JSON-SEQ.
 
 `--append`
+:   All settings passed after this argument will be parsed after all
+    configuration files have been parsed.
 
-: All settings passed after this argument will be parsed after all
-  configuration files have been parsed.
-
-: Note that any setting passed this way will not have any affect on
-  `[Match]` sections as they will only be parsed after all `[Match]`
-  sections have already been evaluated.
+    Note that any setting passed this way will not have any affect on
+    `[Match]` sections as they will only be parsed after all `[Match]`
+    sections have already been evaluated.
 
 ## Supported output formats
 
@@ -355,7 +327,7 @@ sections. As an example, the following will only match if the output
 format is one of `disk` or `directory` and the architecture is one of
 `x86-64` or `arm64`:
 
-```conf
+```ini
 [Match]
 Format=|disk
 Format=|directory
@@ -372,7 +344,7 @@ example, the following will match if the distribution is `debian` and
 the release is `bookworm` or if the distribution is `ubuntu` and the
 release is `focal`.
 
-```conf
+```ini
 [TriggerMatch]
 Distribution=debian
 Release=bookworm
@@ -401,1466 +373,1322 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 ### [Distribution] Section
 
 `Distribution=`, `--distribution=`, `-d`
-
-: The distribution to install in the image. Takes one of the following
-  arguments: `fedora`, `debian`, `ubuntu`, `arch`, `opensuse`, `mageia`,
-  `centos`, `rhel`, `rhel-ubi`, `openmandriva`, `rocky`, `alma`,
-  `custom`. If not specified, defaults to the distribution of the host
-  or `custom` if the distribution of the host is not a supported
-  distribution.
+:   The distribution to install in the image. Takes one of the following
+    arguments: `fedora`, `debian`, `ubuntu`, `arch`, `opensuse`, `mageia`,
+    `centos`, `rhel`, `rhel-ubi`, `openmandriva`, `rocky`, `alma`,
+    `custom`. If not specified, defaults to the distribution of the host
+    or `custom` if the distribution of the host is not a supported
+    distribution.
 
 `Release=`, `--release=`, `-r`
-
-: The release of the distribution to install in the image. The precise
-  syntax of the argument this takes depends on the distribution used,
-  and is either a numeric string (in case of Fedora Linux, CentOS, …,
-  e.g. `29`), or a distribution version name (in case of Debian, Ubuntu,
-  …, e.g. `artful`). Defaults to a recent version of the chosen
-  distribution, or the version of the distribution running on the host
-  if it matches the configured distribution.
+:   The release of the distribution to install in the image. The precise
+    syntax of the argument this takes depends on the distribution used,
+    and is either a numeric string (in case of Fedora Linux, CentOS, …,
+    e.g. `29`), or a distribution version name (in case of Debian, Ubuntu,
+    …, e.g. `artful`). Defaults to a recent version of the chosen
+    distribution, or the version of the distribution running on the host
+    if it matches the configured distribution.
 
 `Architecture=`, `--architecture=`
+:   The architecture to build the image for. The architectures that are
+    actually supported depends on the distribution used and whether a
+    bootable image is requested or not. When building for a foreign
+    architecture, you'll also need to install and register a user mode
+    emulator for that architecture.
 
-: The architecture to build the image for. The architectures that are
-  actually supported depends on the distribution used and whether a
-  bootable image is requested or not. When building for a foreign
-  architecture, you'll also need to install and register a user mode
-  emulator for that architecture.
-
-: One of the following architectures can be specified per image built:
-  `alpha`, `arc`, `arm`, `arm64`, `ia64`, `loongarch64`, `mips64-le`,
-  `mips-le`, `parisc`, `ppc`, `ppc64`, `ppc64-le`, `riscv32`, `riscv64`,
-  `s390`, `s390x`, `tilegx`, `x86`, `x86-64`.
+    One of the following architectures can be specified per image built:
+    `alpha`, `arc`, `arm`, `arm64`, `ia64`, `loongarch64`, `mips64-le`,
+    `mips-le`, `parisc`, `ppc`, `ppc64`, `ppc64-le`, `riscv32`, `riscv64`,
+    `s390`, `s390x`, `tilegx`, `x86`, `x86-64`.
 
 `Mirror=`, `--mirror=`, `-m`
+:   The mirror to use for downloading the distribution packages. Expects
+    a mirror URL as argument. If not provided, the default mirror for the
+    distribution is used.
 
-: The mirror to use for downloading the distribution packages. Expects
-  a mirror URL as argument. If not provided, the default mirror for the
-  distribution is used.
+    The default mirrors for each distribution are as follows (unless
+    specified, the same mirror is used for all architectures):
 
-: The default mirrors for each distribution are as follows (unless
-  specified, the same mirror is used for all architectures):
-
-  |                | x86-64                            | aarch64                        |
-  |----------------|-----------------------------------|--------------------------------|
-  | `debian`       | http://deb.debian.org/debian      |                                |
-  | `arch`         | https://geo.mirror.pkgbuild.com   | http://mirror.archlinuxarm.org |
-  | `opensuse`     | http://download.opensuse.org      |                                |
-  | `ubuntu`       | http://archive.ubuntu.com         | http://ports.ubuntu.com        |
-  | `centos`       | https://mirrors.centos.org        |                                |
-  | `rocky`        | https://mirrors.rockylinux.org    |                                |
-  | `alma`         | https://mirrors.almalinux.org     |                                |
-  | `fedora`       | https://mirrors.fedoraproject.org |                                |
-  | `rhel-ubi`     | https://cdn-ubi.redhat.com        |                                |
-  | `mageia`       | https://www.mageia.org            |                                |
-  | `openmandriva` | http://mirrors.openmandriva.org   |                                |
+    |                | x86-64                            | aarch64                        |
+    |----------------|-----------------------------------|--------------------------------|
+    | `debian`       | http://deb.debian.org/debian      |                                |
+    | `arch`         | https://geo.mirror.pkgbuild.com   | http://mirror.archlinuxarm.org |
+    | `opensuse`     | http://download.opensuse.org      |                                |
+    | `ubuntu`       | http://archive.ubuntu.com         | http://ports.ubuntu.com        |
+    | `centos`       | https://mirrors.centos.org        |                                |
+    | `rocky`        | https://mirrors.rockylinux.org    |                                |
+    | `alma`         | https://mirrors.almalinux.org     |                                |
+    | `fedora`       | https://mirrors.fedoraproject.org |                                |
+    | `rhel-ubi`     | https://cdn-ubi.redhat.com        |                                |
+    | `mageia`       | https://www.mageia.org            |                                |
+    | `openmandriva` | http://mirrors.openmandriva.org   |                                |
 
 `LocalMirror=`, `--local-mirror=`
-
-: The mirror will be used as a local, plain and direct mirror instead
-  of using it as a prefix for the full set of repositories normally supported
-  by distributions. Useful for fully offline builds with a single repository.
-  Supported on deb/rpm/arch based distributions. Overrides `--mirror=` but only
-  for the local mkosi build, it will not be configured inside the final image,
-  `--mirror=` (or the default repository) will be configured inside the final
-  image instead.
+:   The mirror will be used as a local, plain and direct mirror instead
+    of using it as a prefix for the full set of repositories normally supported
+    by distributions. Useful for fully offline builds with a single repository.
+    Supported on deb/rpm/arch based distributions. Overrides `--mirror=` but only
+    for the local mkosi build, it will not be configured inside the final image,
+    `--mirror=` (or the default repository) will be configured inside the final
+    image instead.
 
 `RepositoryKeyCheck=`, `--repository-key-check=`
-
-: Controls signature/key checks when using repositories, enabled by default.
-  Useful to disable checks when combined with `--local-mirror=` and using only
-  a repository from a local filesystem. Not used for DNF-based distros yet.
+:   Controls signature/key checks when using repositories, enabled by default.
+    Useful to disable checks when combined with `--local-mirror=` and using only
+    a repository from a local filesystem. Not used for DNF-based distros yet.
 
 `Repositories=`, `--repositories=`
-
-: Enable package repositories that are disabled by default. This can be used to enable the EPEL repos for
-  CentOS or different components of the Debian/Ubuntu repositories.
+:   Enable package repositories that are disabled by default. This can be used to enable the EPEL repos for
+    CentOS or different components of the Debian/Ubuntu repositories.
 
 `CacheOnly=`, `--cache-only=`
-
-: Takes one of `auto`, `metadata`, `always` or `never`. Defaults to
-  `auto`. If `always`, the package manager is instructed not to contact
-  the network. This provides a minimal level of reproducibility, as long
-  as the package cache is already fully populated. If set to `metadata`,
-  the package manager can still download packages, but we won't sync the
-  repository metadata. If set to `auto`, the repository metadata is
-  synced unless we have a cached image (see `Incremental=`) and packages
-  can be downloaded during the build. If set to `never`, repository
-  metadata is always synced and and packages can be downloaded during
-  the build.
+:   Takes one of `auto`, `metadata`, `always` or `never`. Defaults to
+    `auto`. If `always`, the package manager is instructed not to contact
+    the network. This provides a minimal level of reproducibility, as long
+    as the package cache is already fully populated. If set to `metadata`,
+    the package manager can still download packages, but we won't sync the
+    repository metadata. If set to `auto`, the repository metadata is
+    synced unless we have a cached image (see `Incremental=`) and packages
+    can be downloaded during the build. If set to `never`, repository
+    metadata is always synced and and packages can be downloaded during
+    the build.
 
 `PackageManagerTrees=`, `--package-manager-tree=`
+:   This option mirrors the above `SkeletonTrees=` option and defaults to the
+    same value if not configured otherwise, but installs the files to a
+    subdirectory of the workspace directory instead of the OS tree. This
+    subdirectory of the workspace is used to configure the package manager.
 
-: This option mirrors the above `SkeletonTrees=` option and defaults to the
-  same value if not configured otherwise, but installs the files to a
-  subdirectory of the workspace directory instead of the OS tree. This
-  subdirectory of the workspace is used to configure the package manager.
+    `mkosi` will look for the package manager configuration and related
+    files in the configured package manager trees. Unless specified
+    otherwise, it will use the configuration files from their canonical
+    locations in `/usr` or `/etc` in the package manager trees. For
+    example, it will look for `etc/dnf/dnf.conf` in the package manager
+    trees if `dnf` is used to install packages.
 
-: `mkosi` will look for the package manager configuration and related
-  files in the configured package manager trees. Unless specified
-  otherwise, it will use the configuration files from their canonical
-  locations in `/usr` or `/etc` in the package manager trees. For
-  example, it will look for `etc/dnf/dnf.conf` in the package manager
-  trees if `dnf` is used to install packages.
-
-: `SkeletonTrees=` and `PackageManagerTrees=` fulfill similar roles. Use
-  `SkeletonTrees=` if you want the files to be present in the final image. Use
-  `PackageManagerTrees=` if you don't want the files to be present in the final
-  image, e.g. when building an initrd or if you want to refer to paths outside
-  of the image in your repository configuration.
+    `SkeletonTrees=` and `PackageManagerTrees=` fulfill similar roles. Use
+    `SkeletonTrees=` if you want the files to be present in the final image. Use
+    `PackageManagerTrees=` if you don't want the files to be present in the final
+    image, e.g. when building an initrd or if you want to refer to paths outside
+    of the image in your repository configuration.
 
 ### [Output] Section
 
 `Format=`, `--format=`, `-t`
+:   The image format type to generate. One of `directory` (for generating
+    an OS image directly in a local directory), `tar` (similar, but a
+    tarball of the OS image is generated), `cpio` (similar, but a cpio
+    archive is generated), `disk` (a block device OS image with a GPT
+    partition table), `uki` (a unified kernel image with the OS image in
+    the `.initrd` PE section), `esp` (`uki` but wrapped in a disk image
+    with only an ESP partition), `oci` (a directory compatible with the
+    OCI image specification), `sysext`, `confext`, `portable` or `none`
+    (the OS image is solely intended as a build image to produce another
+    artifact).
 
-: The image format type to generate. One of `directory` (for generating
-  an OS image directly in a local directory), `tar` (similar, but a
-  tarball of the OS image is generated), `cpio` (similar, but a cpio
-  archive is generated), `disk` (a block device OS image with a GPT
-  partition table), `uki` (a unified kernel image with the OS image in
-  the `.initrd` PE section), `esp` (`uki` but wrapped in a disk image
-  with only an ESP partition), `oci` (a directory compatible with the
-  OCI image specification), `sysext`, `confext`, `portable` or `none`
-  (the OS image is solely intended as a build image to produce another
-  artifact).
-
-: If the `disk` output format is used, the disk image is generated using
-  `systemd-repart`. The repart partition definition files to use can be
-  configured using the `RepartDirectories=` setting or via
-  `mkosi.repart/`. When verity partitions are configured using
-  systemd-repart's `Verity=` setting, mkosi will automatically parse the
-  verity hash partition's roothash from systemd-repart's JSON output and
-  include it in the kernel command line of every unified kernel image
-  built by mkosi.
+    If the `disk` output format is used, the disk image is generated using
+    `systemd-repart`. The repart partition definition files to use can be
+    configured using the `RepartDirectories=` setting or via
+    `mkosi.repart/`. When verity partitions are configured using
+    systemd-repart's `Verity=` setting, mkosi will automatically parse the
+    verity hash partition's roothash from systemd-repart's JSON output and
+    include it in the kernel command line of every unified kernel image
+    built by mkosi.
 
 `ManifestFormat=`, `--manifest-format=`
-
-: The manifest format type or types to generate. A comma-delimited
-  list consisting of `json` (the standard JSON output format that
-  describes the packages installed), `changelog` (a human-readable
-  text format designed for diffing). By default no manifest is
-  generated.
+:   The manifest format type or types to generate. A comma-delimited
+    list consisting of `json` (the standard JSON output format that
+    describes the packages installed), `changelog` (a human-readable
+    text format designed for diffing). By default no manifest is
+    generated.
 
 `Output=`, `--output=`, `-o`
+:   Name to use for the generated output image file or directory. Defaults
+    to `image` or, if `ImageId=` is specified, it is used as the default
+    output name, optionally suffixed with the version set with
+    `ImageVersion=`. Note that this option does not allow configuring the
+    output directory, use `OutputDirectory=` for that.
 
-: Name to use for the generated output image file or directory. Defaults
-  to `image` or, if `ImageId=` is specified, it is used as the default
-  output name, optionally suffixed with the version set with
-  `ImageVersion=`. Note that this option does not allow configuring the
-  output directory, use `OutputDirectory=` for that.
-
-: Note that this only specifies the output prefix, depending on the
-  specific output format, compression and image version used, the full
-  output name might be `image_7.8.raw.xz`.
+    Note that this only specifies the output prefix, depending on the
+    specific output format, compression and image version used, the full
+    output name might be `image_7.8.raw.xz`.
 
 `CompressOutput=`, `--compress-output=`
-
-: Configure compression for the resulting image or archive. The argument can be
-  either a boolean or a compression algorithm (`xz`, `zstd`). `zstd`
-  compression is used by default, except CentOS and derivatives up to version
-  8, which default to `xz`, and OCI images, which default to `gzip`.
-  Note that when applied to block device image types,
-  compression means the image cannot be started directly but needs to be
-  decompressed first. This also means that the `shell`, `boot`, `qemu` verbs
-  are not available when this option is used. Implied for `tar`, `cpio`, `uki`,
-  `esp`, and `oci`.
+:   Configure compression for the resulting image or archive. The argument can be
+    either a boolean or a compression algorithm (`xz`, `zstd`). `zstd`
+    compression is used by default, except CentOS and derivatives up to version
+    8, which default to `xz`, and OCI images, which default to `gzip`.
+    Note that when applied to block device image types,
+    compression means the image cannot be started directly but needs to be
+    decompressed first. This also means that the `shell`, `boot`, `qemu` verbs
+    are not available when this option is used. Implied for `tar`, `cpio`, `uki`,
+    `esp`, and `oci`.
 
 `CompressLevel=`, `--compress-level=`
-
-: Configure the compression level to use. Takes an integer. The possible
-  values depend on the compression being used.
+:   Configure the compression level to use. Takes an integer. The possible
+    values depend on the compression being used.
 
 `OutputDirectory=`, `--output-dir=`, `-O`
-
-: Path to a directory where to place all generated artifacts. If this is
-  not specified and the directory `mkosi.output/` exists in the local
-  directory, it is automatically used for this purpose.
+:   Path to a directory where to place all generated artifacts. If this is
+    not specified and the directory `mkosi.output/` exists in the local
+    directory, it is automatically used for this purpose.
 
 `WorkspaceDirectory=`, `--workspace-dir=`
+:   Path to a directory where to store data required temporarily while
+    building the image. This directory should have enough space to store
+    the full OS image, though in most modes the actually used disk space
+    is smaller. If not specified, a subdirectory of `$XDG_CACHE_HOME` (if
+    set), `$HOME/.cache` (if set) or `/var/tmp` is used.
 
-: Path to a directory where to store data required temporarily while
-  building the image. This directory should have enough space to store
-  the full OS image, though in most modes the actually used disk space
-  is smaller. If not specified, a subdirectory of `$XDG_CACHE_HOME` (if
-  set), `$HOME/.cache` (if set) or `/var/tmp` is used.
-
-: The data in this directory is removed automatically after each
-  build. It's safe to manually remove the contents of this directory
-  should an `mkosi` invocation be aborted abnormally (for example, due
-  to reboot/power failure).
+    The data in this directory is removed automatically after each
+    build. It's safe to manually remove the contents of this directory
+    should an `mkosi` invocation be aborted abnormally (for example, due
+    to reboot/power failure).
 
 `CacheDirectory=`, `--cache-dir=`
-
-: Takes a path to a directory to use as the incremental cache directory
-  for the incremental images produced when the `Incremental=` option is
-  enabled. If this option is not used, but a `mkosi.cache/` directory is
-  found in the local directory it is automatically used for this
-  purpose.
+:   Takes a path to a directory to use as the incremental cache directory
+    for the incremental images produced when the `Incremental=` option is
+    enabled. If this option is not used, but a `mkosi.cache/` directory is
+    found in the local directory it is automatically used for this
+    purpose.
 
 `PackageCacheDirectory=`, `--package-cache-dir`
-
-: Takes a path to a directory to use as the package cache directory for
-  the distribution package manager used. If unset, a suitable directory
-  in the user's home directory or system is used.
+:   Takes a path to a directory to use as the package cache directory for
+    the distribution package manager used. If unset, a suitable directory
+    in the user's home directory or system is used.
 
 `BuildDirectory=`, `--build-dir=`
-
-: Takes a path to a directory to use as the build directory for build
-  systems that support out-of-tree builds (such as Meson). The directory
-  used this way is shared between repeated builds, and allows the build
-  system to reuse artifacts (such as object files, executable, …)
-  generated on previous invocations. The build scripts can find the path
-  to this directory in the `$BUILDDIR` environment variable. This
-  directory is mounted into the image's root directory when
-  `mkosi-chroot` is invoked during execution of the build scripts. If
-  this option is not specified, but a directory `mkosi.builddir/` exists
-  in the local directory it is automatically used for this purpose (also
-  see the **Files** section below).
+:   Takes a path to a directory to use as the build directory for build
+    systems that support out-of-tree builds (such as Meson). The directory
+    used this way is shared between repeated builds, and allows the build
+    system to reuse artifacts (such as object files, executable, …)
+    generated on previous invocations. The build scripts can find the path
+    to this directory in the `$BUILDDIR` environment variable. This
+    directory is mounted into the image's root directory when
+    `mkosi-chroot` is invoked during execution of the build scripts. If
+    this option is not specified, but a directory `mkosi.builddir/` exists
+    in the local directory it is automatically used for this purpose (also
+    see the **Files** section below).
 
 `ImageVersion=`, `--image-version=`
-
-: Configure the image version. This accepts any string, but it is
-  recommended to specify a series of dot separated components. The
-  version may also be configured in a file `mkosi.version` in which
-  case it may be conveniently managed via the `bump` verb or the
-  `--auto-bump` option. When specified the image version is included
-  in the default output file name, i.e. instead of `image.raw` the
-  default will be `image_0.1.raw` for version `0.1` of the image, and
-  similar. The version is also passed via the `$IMAGE_VERSION` to any
-  build scripts invoked (which may be useful to patch it into
-  `/usr/lib/os-release` or similar, in particular the `IMAGE_VERSION=`
-  field of it).
+:   Configure the image version. This accepts any string, but it is
+    recommended to specify a series of dot separated components. The
+    version may also be configured in a file `mkosi.version` in which
+    case it may be conveniently managed via the `bump` verb or the
+    `--auto-bump` option. When specified the image version is included
+    in the default output file name, i.e. instead of `image.raw` the
+    default will be `image_0.1.raw` for version `0.1` of the image, and
+    similar. The version is also passed via the `$IMAGE_VERSION` to any
+    build scripts invoked (which may be useful to patch it into
+    `/usr/lib/os-release` or similar, in particular the `IMAGE_VERSION=`
+    field of it).
 
 `ImageId=`, `--image-id=`
-
-: Configure the image identifier. This accepts a freeform string that
-  shall be used to identify the image with. If set the default output
-  file will be named after it (possibly suffixed with the version). The
-  identifier is also passed via the `$IMAGE_ID` to any build scripts
-  invoked. The image ID is automatically added to `/usr/lib/os-release`.
+:   Configure the image identifier. This accepts a freeform string that
+    shall be used to identify the image with. If set the default output
+    file will be named after it (possibly suffixed with the version). The
+    identifier is also passed via the `$IMAGE_ID` to any build scripts
+    invoked. The image ID is automatically added to `/usr/lib/os-release`.
 
 `SplitArtifacts=`, `--split-artifacts`
-
-: If specified and building a disk image, pass `--split=yes` to systemd-repart
-  to have it write out split partition files for each configured partition.
-  Read the [man](https://www.freedesktop.org/software/systemd/man/systemd-repart.html#--split=BOOL)
-  page for more information. This is useful in A/B update scenarios where
-  an existing disk image shall be augmented with a new version of a
-  root or `/usr` partition along with its Verity partition and unified
-  kernel.
+:   If specified and building a disk image, pass `--split=yes` to systemd-repart
+    to have it write out split partition files for each configured partition.
+    Read the [man](https://www.freedesktop.org/software/systemd/man/systemd-repart.html#--split=BOOL)
+    page for more information. This is useful in A/B update scenarios where
+    an existing disk image shall be augmented with a new version of a
+    root or `/usr` partition along with its Verity partition and unified
+    kernel.
 
 `RepartDirectories=`, `--repart-dir=`
-
-: Paths to directories containing systemd-repart partition definition
-  files that are used when mkosi invokes systemd-repart when building a
-  disk image. If `mkosi.repart/` exists in the local directory, it will
-  be used for this purpose as well. Note that mkosi invokes repart with
-  `--root=` set to the root of the image root, so any `CopyFiles=`
-  source paths in partition definition files will be relative to the
-  image root directory.
+:   Paths to directories containing systemd-repart partition definition
+    files that are used when mkosi invokes systemd-repart when building a
+    disk image. If `mkosi.repart/` exists in the local directory, it will
+    be used for this purpose as well. Note that mkosi invokes repart with
+    `--root=` set to the root of the image root, so any `CopyFiles=`
+    source paths in partition definition files will be relative to the
+    image root directory.
 
 `SectorSize=`, `--sector-size=`
-
-: Override the default sector size that systemd-repart uses when building a disk
-  image.
+:   Override the default sector size that systemd-repart uses when building a disk
+    image.
 
 `RepartOffline=`, `--repart-offline=`
+:   Specifies whether to build disk images using loopback devices. Enabled
+    by default. When enabled, `systemd-repart` will not use loopback
+    devices to build disk images. When disabled, `systemd-repart` will
+    always use loopback devices to build disk images.
 
-: Specifies whether to build disk images using loopback devices. Enabled
-  by default. When enabled, `systemd-repart` will not use loopback
-  devices to build disk images. When disabled, `systemd-repart` will
-  always use loopback devices to build disk images.
+    Note that when using `RepartOffline=no` mkosi cannot run unprivileged and
+    the image build has to be done as the root user outside of any
+    containers and with loopback devices available on the host system.
 
-: Note that when using `RepartOffline=no` mkosi cannot run unprivileged and
-  the image build has to be done as the root user outside of any
-  containers and with loopback devices available on the host system.
-
-: There are currently two known scenarios where `RepartOffline=no` has to be
-  used. The first is when using `Subvolumes=` in a repart partition
-  definition file, as subvolumes cannot be created without using
-  loopback devices. The second is when creating a system with SELinux
-  and an XFS root partition. Because `mkfs.xfs` does not support
-  populating an XFS filesystem with extended attributes, loopback
-  devices have to be used to ensure the SELinux extended attributes end
-  up in the generated XFS filesystem.
+    There are currently two known scenarios where `RepartOffline=no` has to be
+    used. The first is when using `Subvolumes=` in a repart partition
+    definition file, as subvolumes cannot be created without using
+    loopback devices. The second is when creating a system with SELinux
+    and an XFS root partition. Because `mkfs.xfs` does not support
+    populating an XFS filesystem with extended attributes, loopback
+    devices have to be used to ensure the SELinux extended attributes end
+    up in the generated XFS filesystem.
 
 `Overlay=`, `--overlay`
+:   When used together with `BaseTrees=`, the output will consist only out of
+    changes to the specified base trees. Each base tree is attached as a lower
+    layer in an overlayfs structure, and the output becomes the upper layer,
+    initially empty. Thus files that are not modified compared to the base trees
+    will not be present in the final output.
 
-: When used together with `BaseTrees=`, the output will consist only out of
-  changes to the specified base trees. Each base tree is attached as a lower
-  layer in an overlayfs structure, and the output becomes the upper layer,
-  initially empty. Thus files that are not modified compared to the base trees
-  will not be present in the final output.
-
-: This option may be used to create [systemd *system extensions* or
-  *portable services*](https://uapi-group.org/specifications/specs/extension_image).
+    This option may be used to create [systemd *system extensions* or
+    *portable services*](https://uapi-group.org/specifications/specs/extension_image).
 
 `UseSubvolumes=`, `--use-subvolumes=`
-
-: Takes a boolean or `auto`. Enables or disables use of btrfs subvolumes for
-  directory tree outputs. If enabled, mkosi will create the root directory as
-  a btrfs subvolume and use btrfs subvolume snapshots where possible to copy
-  base or cached trees which is much faster than doing a recursive copy. If
-  explicitly enabled and `btrfs` is not installed or subvolumes cannot be
-  created, an error is raised. If `auto`, missing `btrfs` or failures to
-  create subvolumes are ignored.
+:   Takes a boolean or `auto`. Enables or disables use of btrfs subvolumes for
+    directory tree outputs. If enabled, mkosi will create the root directory as
+    a btrfs subvolume and use btrfs subvolume snapshots where possible to copy
+    base or cached trees which is much faster than doing a recursive copy. If
+    explicitly enabled and `btrfs` is not installed or subvolumes cannot be
+    created, an error is raised. If `auto`, missing `btrfs` or failures to
+    create subvolumes are ignored.
 
 `Seed=`, `--seed=`
-
-: Takes a UUID as argument or the special value `random`.
-  Overrides the seed that [`systemd-repart(8)`](https://www.freedesktop.org/software/systemd/man/systemd-repart.service.html)
-  uses when building a disk image. This is useful to achieve reproducible
-  builds, where deterministic UUIDs and other partition metadata should be
-  derived on each build.
+:   Takes a UUID as argument or the special value `random`.
+    Overrides the seed that [`systemd-repart(8)`](https://www.freedesktop.org/software/systemd/man/systemd-repart.service.html)
+    uses when building a disk image. This is useful to achieve reproducible
+    builds, where deterministic UUIDs and other partition metadata should be
+    derived on each build.
 
 `SourceDateEpoch=`, `--source-date-epoch=`
-
-: Takes a timestamp in seconds since the UNIX epoch as argument.
-  File modification times of all files will be clamped to this value.
-  The variable is also propagated to systemd-repart and
-  scripts executed by mkosi. If not set explicitly, `SOURCE_DATE_EPOCH` from
-  `--environment` and from the host environment are tried in that order.
-  This is useful to make builds reproducible. See
-  [SOURCE_DATE_EPOCH](https://reproducible-builds.org/specs/source-date-epoch/)
-  for more information.
+:   Takes a timestamp in seconds since the UNIX epoch as argument.
+    File modification times of all files will be clamped to this value.
+    The variable is also propagated to systemd-repart and
+    scripts executed by mkosi. If not set explicitly, `SOURCE_DATE_EPOCH` from
+    `--environment` and from the host environment are tried in that order.
+    This is useful to make builds reproducible. See
+    [SOURCE_DATE_EPOCH](https://reproducible-builds.org/specs/source-date-epoch/)
+    for more information.
 
 `CleanScripts=`, `--clean-script=`
-
-: Takes a comma-separated list of paths to executables that are used as
-  the clean scripts for this image. See the **Scripts** section for
-  more information.
+:   Takes a comma-separated list of paths to executables that are used as
+    the clean scripts for this image. See the **Scripts** section for
+    more information.
 
 ### [Content] Section
 
 `Packages=`, `--package=`, `-p`
+:   Install the specified distribution packages (i.e. RPM, DEB, …) in the
+    image. Takes a comma separated list of package specifications. This
+    option may be used multiple times in which case the specified package
+    lists are combined. Use `BuildPackages=` to specify packages that
+    shall only be installed in an overlay that is mounted when the prepare
+    scripts are executed with the `build` argument and when the build scripts
+    are executed.
 
-: Install the specified distribution packages (i.e. RPM, DEB, …) in the
-  image. Takes a comma separated list of package specifications. This
-  option may be used multiple times in which case the specified package
-  lists are combined. Use `BuildPackages=` to specify packages that
-  shall only be installed in an overlay that is mounted when the prepare
-  scripts are executed with the `build` argument and when the build scripts
-  are executed.
+    The types and syntax of *package specifications* that are allowed
+    depend on the package installer (e.g. `dnf` for `rpm`-based distros or
+    `apt` for `deb`-based distros), but may include package names, package
+    names with version and/or architecture, package name globs, paths to
+    packages in the file system, package groups, and virtual provides,
+    including file paths.
 
-: The types and syntax of *package specifications* that are allowed
-  depend on the package installer (e.g. `dnf` for `rpm`-based distros or
-  `apt` for `deb`-based distros), but may include package names, package
-  names with version and/or architecture, package name globs, paths to
-  packages in the file system, package groups, and virtual provides,
-  including file paths.
+    **Example**: when using a distro that uses `dnf`, the following configuration
+    would install the `meson` package (in the latest version), the 32-bit version
+    of the `libfdisk-devel` package, all available packages that start with the
+    `git-` prefix, a `systemd` rpm from the local file system, one of the
+    packages that provides `/usr/bin/ld`, the packages in the *Development Tools*
+    group, and the package that contains the `mypy` python module.
 
-: Example: when using a distro that uses `dnf`, the following configuration
-  would install the `meson` package (in the latest version), the 32-bit version
-  of the `libfdisk-devel` package, all available packages that start with the
-  `git-` prefix, a `systemd` rpm from the local file system, one of the
-  packages that provides `/usr/bin/ld`, the packages in the *Development Tools*
-  group, and the package that contains the `mypy` python module.
+    ```ini
+    Packages=meson
+             libfdisk-devel.i686
+             git-*
+             prebuilt/rpms/systemd-249-rc1.local.rpm
+             /usr/bin/ld
+             @development-tools
+             python3dist(mypy)
+    ```
 
-  ```conf
-  Packages=meson
-           libfdisk-devel.i686
-           git-*
-           prebuilt/rpms/systemd-249-rc1.local.rpm
-           /usr/bin/ld
-           @development-tools
-           python3dist(mypy)
-  ```
+    Note that since mkosi runs in a sandbox with most of the host files
+    unavailable, any local packages have to be mounted into the sandbox
+    explicitly using `BuildSources=`. For example, let's say we have a
+    local package located at `../my-packages/abc.rpm` relative to the mkosi
+    working directory, then we'd be able to install it as follows:
 
-: Note that since mkosi runs in a sandbox with most of the host files
-  unavailable, any local packages have to be mounted into the sandbox
-  explicitly using `BuildSources=`. For example, let's say we have a
-  local package located at `../my-packages/abc.rpm` relative to the mkosi
-  working directory, then we'd be able to install it as follows:
-
-  ```conf
-  BuildSources=../my-packages:my-packages-in-sandbox
-  Packages=my-packages-in-sandbox/abc.rpm
-  ```
+    ```ini
+    BuildSources=../my-packages:my-packages-in-sandbox
+    Packages=my-packages-in-sandbox/abc.rpm
+    ```
 
 `BuildPackages=`, `--build-package=`
-
-: Similar to `Packages=`, but configures packages to install only in an
-  overlay that is made available on top of the image to the prepare
-  scripts when executed with the `build` argument and the build scripts.
-  This option should be used to list packages containing header files,
-  compilers, build systems, linkers and other build tools the
-  `mkosi.build` scripts require to operate. Note that packages listed
-  here will be absent in the final image.
+:   Similar to `Packages=`, but configures packages to install only in an
+    overlay that is made available on top of the image to the prepare
+    scripts when executed with the `build` argument and the build scripts.
+    This option should be used to list packages containing header files,
+    compilers, build systems, linkers and other build tools the
+    `mkosi.build` scripts require to operate. Note that packages listed
+    here will be absent in the final image.
 
 `VolatilePackages=`, `--volatile-package=`
+:   Similar to `Packages=`, but packages configured with this setting are
+    not cached when `Incremental=` is enabled and are installed after
+    executing any build scripts.
 
-: Similar to `Packages=`, but packages configured with this setting are
-  not cached when `Incremental=` is enabled and are installed after
-  executing any build scripts.
-
-: Specifically, this setting can be used to install packages that change
-  often or which are built by a build script.
+    Specifically, this setting can be used to install packages that change
+    often or which are built by a build script.
 
 `PackageDirectories=`, `--package-directory=`
+:   Specify directories containing extra packages to be made available during
+    the build. `mkosi` will create a local repository containing all
+    packages in these directories and make it available when installing packages or
+    running scripts. If the `mkosi.packages/` directory is found in the local
+    directory it is also used for this purpose.
 
-: Specify directories containing extra packages to be made available during
-  the build. `mkosi` will create a local repository containing all
-  packages in these directories and make it available when installing packages or
-  running scripts. If the `mkosi.packages/` directory is found in the local
-  directory it is also used for this purpose.
-
-: Note that this local repository is also made available when running
-  scripts. Build scripts can add more packages to the local repository
-  by placing the built packages in `$PACKAGEDIR`.
+    Note that this local repository is also made available when running
+    scripts. Build scripts can add more packages to the local repository
+    by placing the built packages in `$PACKAGEDIR`.
 
 `WithRecommends=`, `--with-recommends=`
-
-: Configures whether to install recommended or weak dependencies,
-  depending on how they are named by the used package manager, or not.
-  By default, recommended packages are not installed. This is only used
-  for package managers that support the concept, which are currently
-  apt, dnf and zypper.
+:   Configures whether to install recommended or weak dependencies,
+    depending on how they are named by the used package manager, or not.
+    By default, recommended packages are not installed. This is only used
+    for package managers that support the concept, which are currently
+    apt, dnf and zypper.
 
 `WithDocs=`, `--with-docs`
-
-: Include documentation in the image. Enabled by default. When disabled,
-  if the underlying distribution package manager supports it
-  documentation is not included in the image. The `$WITH_DOCS`
-  environment variable passed to the `mkosi.build` scripts is set to `0`
-  or `1` depending on whether this option is enabled or disabled.
+:   Include documentation in the image. Enabled by default. When disabled,
+    if the underlying distribution package manager supports it
+    documentation is not included in the image. The `$WITH_DOCS`
+    environment variable passed to the `mkosi.build` scripts is set to `0`
+    or `1` depending on whether this option is enabled or disabled.
 
 `BaseTrees=`, `--base-tree=`
+:   Takes a comma separated list of paths to use as base trees. When used,
+    these base trees are each copied into the OS tree and form the base
+    distribution instead of installing the distribution from scratch. Only
+    extra packages are installed on top of the ones already installed in
+    the base trees. Note that for this to work properly, the base image
+    still needs to contain the package manager metadata by setting
+    `CleanPackageMetadata=no` (see `CleanPackageMetadata=`).
 
-: Takes a comma separated list of paths to use as base trees. When used,
-  these base trees are each copied into the OS tree and form the base
-  distribution instead of installing the distribution from scratch. Only
-  extra packages are installed on top of the ones already installed in
-  the base trees. Note that for this to work properly, the base image
-  still needs to contain the package manager metadata by setting
-  `CleanPackageMetadata=no` (see `CleanPackageMetadata=`).
-
-: Instead of a directory, a tar file or a disk image may be provided. In
-  this case it is unpacked into the OS tree. This mode of operation
-  allows setting permissions and file ownership explicitly, in
-  particular for projects stored in a version control system such as
-  `git` which retain full file ownership and access mode metadata for
-  committed files.
+    Instead of a directory, a tar file or a disk image may be provided. In
+    this case it is unpacked into the OS tree. This mode of operation
+    allows setting permissions and file ownership explicitly, in
+    particular for projects stored in a version control system such as
+    `git` which retain full file ownership and access mode metadata for
+    committed files.
 
 `SkeletonTrees=`, `--skeleton-tree=`
+:   Takes a comma separated list of colon separated path pairs. The first
+    path of each pair refers to a directory to copy into the OS tree
+    before invoking the package manager. The second path of each pair
+    refers to the target directory inside the image. If the second path is
+    not provided, the directory is copied on top of the root directory of
+    the image. The second path is always interpreted as an absolute path.
+    Use this to insert files and directories into the OS tree before the
+    package manager installs any packages. If the `mkosi.skeleton/`
+    directory is found in the local directory it is also used for this
+    purpose with the root directory as target (also see the **Files**
+    section below).
 
-: Takes a comma separated list of colon separated path pairs. The first
-  path of each pair refers to a directory to copy into the OS tree
-  before invoking the package manager. The second path of each pair
-  refers to the target directory inside the image. If the second path is
-  not provided, the directory is copied on top of the root directory of
-  the image. The second path is always interpreted as an absolute path.
-  Use this to insert files and directories into the OS tree before the
-  package manager installs any packages. If the `mkosi.skeleton/`
-  directory is found in the local directory it is also used for this
-  purpose with the root directory as target (also see the **Files**
-  section below).
+    Note that skeleton trees are cached and any changes to skeleton trees
+    after a cached image has been built (when using `Incremental=`) are
+    only applied when the cached image is rebuilt (by using `-ff` or
+    running `mkosi -f clean`).
 
-: Note that skeleton trees are cached and any changes to skeleton trees
-  after a cached image has been built (when using `Incremental=`) are
-  only applied when the cached image is rebuilt (by using `-ff` or
-  running `mkosi -f clean`).
-
-: As with the base tree logic above, instead of a directory, a tar
-  file may be provided too. `mkosi.skeleton.tar` will be automatically
-  used if found in the local directory.
+    As with the base tree logic above, instead of a directory, a tar
+    file may be provided too. `mkosi.skeleton.tar` will be automatically
+    used if found in the local directory.
 
 `ExtraTrees=`, `--extra-tree=`
+:   Takes a comma separated list of colon separated path pairs. The first
+    path of each pair refers to a directory to copy from the host into the
+    image. The second path of each pair refers to the target directory
+    inside the image. If the second path is not provided, the directory is
+    copied on top of the root directory of the image. The second path is
+    always interpreted as an absolute path. Use this to override any
+    default configuration files shipped with the distribution. If the
+    `mkosi.extra/` directory is found in the local directory it is also
+    used for this purpose with the root directory as target. (also see the
+    **Files** section below).
 
-: Takes a comma separated list of colon separated path pairs. The first
-  path of each pair refers to a directory to copy from the host into the
-  image. The second path of each pair refers to the target directory
-  inside the image. If the second path is not provided, the directory is
-  copied on top of the root directory of the image. The second path is
-  always interpreted as an absolute path. Use this to override any
-  default configuration files shipped with the distribution. If the
-  `mkosi.extra/` directory is found in the local directory it is also
-  used for this purpose with the root directory as target. (also see the
-  **Files** section below).
-
-: As with the base tree logic above, instead of a directory, a tar
-  file may be provided too. `mkosi.extra.tar` will be automatically
-  used if found in the local directory.
+    As with the base tree logic above, instead of a directory, a tar
+    file may be provided too. `mkosi.extra.tar` will be automatically
+    used if found in the local directory.
 
 `RemovePackages=`, `--remove-package=`
-
-: Takes a comma-separated list of package specifications for removal, in
-  the same format as `Packages=`. The removal will be performed as one
-  of the last steps. This step is skipped if `CleanPackageMetadata=no`
-  is used.
+:   Takes a comma-separated list of package specifications for removal, in
+    the same format as `Packages=`. The removal will be performed as one
+    of the last steps. This step is skipped if `CleanPackageMetadata=no`
+    is used.
 
 `RemoveFiles=`, `--remove-files=`
-
-: Takes a comma-separated list of globs. Files in the image matching
-  the globs will be purged at the end.
+:   Takes a comma-separated list of globs. Files in the image matching
+    the globs will be purged at the end.
 
 `CleanPackageMetadata=`, `--clean-package-metadata=`
-
-: Enable/disable removal of package manager databases and repository
-  metadata at the end of installation. Can be specified as `true`,
-  `false`, or `auto` (the default). With `auto`, package manager
-  databases and repository metadata will be removed if the respective
-  package manager executable is *not* present at the end of the
-  installation.
+:   Enable/disable removal of package manager databases and repository
+    metadata at the end of installation. Can be specified as `true`,
+    `false`, or `auto` (the default). With `auto`, package manager
+    databases and repository metadata will be removed if the respective
+    package manager executable is *not* present at the end of the
+    installation.
 
 `SyncScripts=`, `--sync-script=`
-
-: Takes a comma-separated list of paths to executables that are used as
-  the sync scripts for this image. See the **Scripts** section for
-  more information.
+:   Takes a comma-separated list of paths to executables that are used as
+    the sync scripts for this image. See the **Scripts** section for
+    more information.
 
 `PrepareScripts=`, `--prepare-script=`
-
-: Takes a comma-separated list of paths to executables that are used as
-  the prepare scripts for this image. See the **Scripts** section for
-  more information.
+:   Takes a comma-separated list of paths to executables that are used as
+    the prepare scripts for this image. See the **Scripts** section for
+    more information.
 
 `BuildScripts=`, `--build-script=`
-
-: Takes a comma-separated list of paths to executables that are used as
-  the build scripts for this image. See the **Scripts** section for more
-  information.
+:   Takes a comma-separated list of paths to executables that are used as
+    the build scripts for this image. See the **Scripts** section for more
+    information.
 
 `PostInstallationScripts=`, `--postinst-script=`
-
-: Takes a comma-separated list of paths to executables that are used as
-  the post-installation scripts for this image. See the **Scripts** section
-  for more information.
+:   Takes a comma-separated list of paths to executables that are used as
+    the post-installation scripts for this image. See the **Scripts** section
+    for more information.
 
 `FinalizeScripts=`, `--finalize-script=`
-
-: Takes a comma-separated list of paths to executables that are used as
-  the finalize scripts for this image. See the **Scripts** section for more
-  information.
+:   Takes a comma-separated list of paths to executables that are used as
+    the finalize scripts for this image. See the **Scripts** section for more
+    information.
 
 `BuildSources=`, `--build-sources=`
-
-: Takes a comma separated list of colon separated path pairs. The first
-  path of each pair refers to a directory to mount from the host. The
-  second path of each pair refers to the directory where the source
-  directory should be mounted when running scripts. Every target path is
-  prefixed with `/work/src` and all build sources are sorted
-  lexicographically by their target before mounting, so that top level
-  paths are mounted first. If not configured explicitly, the current
-  working directory is mounted to `/work/src`.
+:   Takes a comma separated list of colon separated path pairs. The first
+    path of each pair refers to a directory to mount from the host. The
+    second path of each pair refers to the directory where the source
+    directory should be mounted when running scripts. Every target path is
+    prefixed with `/work/src` and all build sources are sorted
+    lexicographically by their target before mounting, so that top level
+    paths are mounted first. If not configured explicitly, the current
+    working directory is mounted to `/work/src`.
 
 `BuildSourcesEphemeral=`, `--build-sources-ephemeral=`
-
-: Takes a boolean. Disabled by default. Configures whether changes to
-  source directories (The working directory and configured using
-  `BuildSources=`) are persisted. If enabled, all source directories
-  will be reset to their original state every time after running all
-  scripts of a specific type (except sync scripts).
+:   Takes a boolean. Disabled by default. Configures whether changes to
+    source directories (The working directory and configured using
+    `BuildSources=`) are persisted. If enabled, all source directories
+    will be reset to their original state every time after running all
+    scripts of a specific type (except sync scripts).
 
 `Environment=`, `--environment=`
-
-: Adds variables to the environment that package managers and the
-  prepare/build/postinstall/finalize scripts are executed with. Takes
-  a space-separated list of variable assignments or just variable
-  names. In the latter case, the values of those variables will be
-  passed through from the environment in which `mkosi` was invoked.
-  This option may be specified more than once, in which case all
-  listed variables will be set. If the same variable is set twice, the
-  later setting overrides the earlier one.
+:   Adds variables to the environment that package managers and the
+    prepare/build/postinstall/finalize scripts are executed with. Takes
+    a space-separated list of variable assignments or just variable
+    names. In the latter case, the values of those variables will be
+    passed through from the environment in which `mkosi` was invoked.
+    This option may be specified more than once, in which case all
+    listed variables will be set. If the same variable is set twice, the
+    later setting overrides the earlier one.
 
 `EnvironmentFiles=`, `--env-file=`
-
-: Takes a comma-separated list of paths to files that contain environment
-  variable definitions to be added to the scripting environment. Uses
-  `mkosi.env` if it is found in the local directory. The variables are
-  first read from `mkosi.env` if it exists, then from the given list of
-  files and then from the `Environment=` settings.
+:   Takes a comma-separated list of paths to files that contain environment
+    variable definitions to be added to the scripting environment. Uses
+    `mkosi.env` if it is found in the local directory. The variables are
+    first read from `mkosi.env` if it exists, then from the given list of
+    files and then from the `Environment=` settings.
 
 `WithTests=`, `--without-tests`, `-T`
-
-: If set to false (or when the command-line option is used), the
-  `$WITH_TESTS` environment variable is set to `0` when the
-  `mkosi.build` scripts are invoked. This is supposed to be used by the
-  build scripts to bypass any unit or integration tests that are
-  normally run during the source build process. Note that this option
-  has no effect unless the `mkosi.build` build scripts honor it.
+:   If set to false (or when the command-line option is used), the
+    `$WITH_TESTS` environment variable is set to `0` when the
+    `mkosi.build` scripts are invoked. This is supposed to be used by the
+    build scripts to bypass any unit or integration tests that are
+    normally run during the source build process. Note that this option
+    has no effect unless the `mkosi.build` build scripts honor it.
 
 `WithNetwork=`, `--with-network=`
-
-: When true, enables network connectivity while the build scripts
-  `mkosi.build` are invoked. By default, the build scripts run with
-  networking turned off. The `$WITH_NETWORK` environment variable is
-  passed to the `mkosi.build` build scripts indicating whether the
-  build is done with or without network.
+:   When true, enables network connectivity while the build scripts
+    `mkosi.build` are invoked. By default, the build scripts run with
+    networking turned off. The `$WITH_NETWORK` environment variable is
+    passed to the `mkosi.build` build scripts indicating whether the
+    build is done with or without network.
 
 `Bootable=`, `--bootable=`
-
-: Takes a boolean or `auto`. Enables or disables generation of a
-  bootable image. If enabled, mkosi will install an EFI bootloader, and
-  add an ESP partition when the disk image output is used. If the
-  selected EFI bootloader (See `Bootloader=`) is not installed or no
-  kernel images can be found, the build will fail. `auto` behaves as if
-  the option was enabled, but the build won't fail if either no kernel
-  images or the selected EFI bootloader can't be found. If disabled, no
-  bootloader will be installed even if found inside the image, no
-  unified kernel images will be generated and no ESP partition will be
-  added to the image if the disk output format is used.
+:   Takes a boolean or `auto`. Enables or disables generation of a
+    bootable image. If enabled, mkosi will install an EFI bootloader, and
+    add an ESP partition when the disk image output is used. If the
+    selected EFI bootloader (See `Bootloader=`) is not installed or no
+    kernel images can be found, the build will fail. `auto` behaves as if
+    the option was enabled, but the build won't fail if either no kernel
+    images or the selected EFI bootloader can't be found. If disabled, no
+    bootloader will be installed even if found inside the image, no
+    unified kernel images will be generated and no ESP partition will be
+    added to the image if the disk output format is used.
 
 `Bootloader=`, `--bootloader=`
+:   Takes one of `none`, `systemd-boot`, `uki` or `grub`. Defaults to
+    `systemd-boot`. If set to `none`, no EFI bootloader will be installed
+    into the image. If set to `systemd-boot`, systemd-boot will be
+    installed and for each installed kernel, a UKI will be generated and
+    stored in `EFI/Linux` in the ESP. If set to `uki`, a single UKI will
+    be generated for the latest installed kernel (the one with the highest
+    version) which is installed to `EFI/BOOT/BOOTX64.EFI` in the ESP. If
+    set to `grub`, for each installed kernel, a UKI will be generated and
+    stored in `EFI/Linux` in the ESP. For each generated UKI, a menu entry
+    is appended to the grub configuration in `grub/grub.cfg` in the ESP
+    which chainloads into the UKI. A shim grub.cfg is also written to
+    `EFI/<distribution>/grub.cfg` in the ESP which loads `grub/grub.cfg`
+    in the ESP for compatibility with signed versions of grub which load
+    the grub configuration from this location.
 
-: Takes one of `none`, `systemd-boot`, `uki` or `grub`. Defaults to
-  `systemd-boot`. If set to `none`, no EFI bootloader will be installed
-  into the image. If set to `systemd-boot`, systemd-boot will be
-  installed and for each installed kernel, a UKI will be generated and
-  stored in `EFI/Linux` in the ESP. If set to `uki`, a single UKI will
-  be generated for the latest installed kernel (the one with the highest
-  version) which is installed to `EFI/BOOT/BOOTX64.EFI` in the ESP. If
-  set to `grub`, for each installed kernel, a UKI will be generated and
-  stored in `EFI/Linux` in the ESP. For each generated UKI, a menu entry
-  is appended to the grub configuration in `grub/grub.cfg` in the ESP
-  which chainloads into the UKI. A shim grub.cfg is also written to
-  `EFI/<distribution>/grub.cfg` in the ESP which loads `grub/grub.cfg`
-  in the ESP for compatibility with signed versions of grub which load
-  the grub configuration from this location.
-
-: Note that we do not yet install grub to the ESP when `Bootloader=` is
-  set to `grub`. This has to be done manually in a postinst or finalize
-  script. The grub EFI binary should be installed to
-  `/efi/EFI/BOOT/BOOTX64.EFI` (or similar depending on the architecture)
-  and should be configured to load its configuration from
-  `EFI/<distribution>/grub.cfg` in the ESP. Signed versions of grub
-  shipped by distributions will load their configuration from this
-  location by default.
+    Note that we do not yet install grub to the ESP when `Bootloader=` is
+    set to `grub`. This has to be done manually in a postinst or finalize
+    script. The grub EFI binary should be installed to
+    `/efi/EFI/BOOT/BOOTX64.EFI` (or similar depending on the architecture)
+    and should be configured to load its configuration from
+    `EFI/<distribution>/grub.cfg` in the ESP. Signed versions of grub
+    shipped by distributions will load their configuration from this
+    location by default.
 
 `BiosBootloader=`, `--bios-bootloader=`
+:   Takes one of `none` or `grub`. Defaults to `none`. If set to `none`,
+    no BIOS bootloader will be installed. If set to `grub`, grub is
+    installed as the BIOS boot loader if a bootable image is requested
+    with the `Bootable=` option. If no repart partition definition files
+    are configured, mkosi will add a grub BIOS boot partition and an EFI
+    system partition to the default partition definition files.
 
-: Takes one of `none` or `grub`. Defaults to `none`. If set to `none`,
-  no BIOS bootloader will be installed. If set to `grub`, grub is
-  installed as the BIOS boot loader if a bootable image is requested
-  with the `Bootable=` option. If no repart partition definition files
-  are configured, mkosi will add a grub BIOS boot partition and an EFI
-  system partition to the default partition definition files.
+    Note that this option is not mutually exclusive with `Bootloader=`. It
+    is possible to have an image that is both bootable on UEFI and BIOS by
+    configuring both `Bootloader=` and `BiosBootloader=`.
 
-: Note that this option is not mutually exclusive with `Bootloader=`. It
-  is possible to have an image that is both bootable on UEFI and BIOS by
-  configuring both `Bootloader=` and `BiosBootloader=`.
+    The grub BIOS boot partition should have UUID
+    `21686148-6449-6e6f-744e-656564454649` and should be at least 1MB.
 
-: The grub BIOS boot partition should have UUID
-  `21686148-6449-6e6f-744e-656564454649` and should be at least 1MB.
-
-: Even if no EFI bootloader is installed, we still need an ESP for BIOS
-  boot as that's where we store the kernel, initrd and grub modules.
+    Even if no EFI bootloader is installed, we still need an ESP for BIOS
+    boot as that's where we store the kernel, initrd and grub modules.
 
 `ShimBootloader=`, `--shim-bootloader=`
+:   Takes one of `none`, `unsigned`, or `signed`. Defaults to `none`. If
+    set to `none`, shim and MokManager will not be installed to the ESP.
+    If set to `unsigned`, mkosi will search for unsigned shim and
+    MokManager EFI binaries and install them. If `SecureBoot=` is enabled,
+    mkosi will sign the unsigned EFI binaries before installing them. If
+    set to `signed`, mkosi will search for signed EFI binaries and install
+    those. Even if `SecureBoot=` is enabled, mkosi won't sign these
+    binaries again.
 
-: Takes one of `none`, `unsigned`, or `signed`. Defaults to `none`. If
-  set to `none`, shim and MokManager will not be installed to the ESP.
-  If set to `unsigned`, mkosi will search for unsigned shim and
-  MokManager EFI binaries and install them. If `SecureBoot=` is enabled,
-  mkosi will sign the unsigned EFI binaries before installing them. If
-  set to `signed`, mkosi will search for signed EFI binaries and install
-  those. Even if `SecureBoot=` is enabled, mkosi won't sign these
-  binaries again.
+    Note that this option only takes effect when an image that is bootable
+    on UEFI firmware is requested using other options
+    (`Bootable=`, `Bootloader=`).
 
-: Note that this option only takes effect when an image that is bootable
-  on UEFI firmware is requested using other options
-  (`Bootable=`, `Bootloader=`).
-
-: Note that when this option is enabled, mkosi will only install already
-  signed bootloader binaries, kernel image files and unified kernel
-  images as self-signed binaries would not be accepted by the signed
-  version of shim.
+    Note that when this option is enabled, mkosi will only install already
+    signed bootloader binaries, kernel image files and unified kernel
+    images as self-signed binaries would not be accepted by the signed
+    version of shim.
 
 `UnifiedKernelImages=`, `--unified-kernel-images=`
-
-: Specifies whether to use unified kernel images or not when
-  `Bootloader=` is set to `systemd-boot` or `grub`. Takes a boolean
-  value or `auto`. Defaults to `auto`. If enabled, unified kernel images
-  are always used and the build will fail if any components required to
-  build unified kernel images are missing. If set to `auto`, unified
-  kernel images will be used if all necessary components are available.
-  Otherwise Type 1 entries as defined by the Boot Loader Specification
-  will be used instead. If disabled, Type 1 entries will always be used.
+:   Specifies whether to use unified kernel images or not when
+    `Bootloader=` is set to `systemd-boot` or `grub`. Takes a boolean
+    value or `auto`. Defaults to `auto`. If enabled, unified kernel images
+    are always used and the build will fail if any components required to
+    build unified kernel images are missing. If set to `auto`, unified
+    kernel images will be used if all necessary components are available.
+    Otherwise Type 1 entries as defined by the Boot Loader Specification
+    will be used instead. If disabled, Type 1 entries will always be used.
 
 `Initrds=`, `--initrd`
-
-: Use user-provided initrd(s). Takes a comma separated list of paths to initrd
-  files. This option may be used multiple times in which case the initrd lists
-  are combined. If no initrds are specified and a bootable image is requested,
-  mkosi will look for initrds in a subdirectory `io.mkosi.initrd` of the
-  artifact directory (see `$ARTIFACTDIR` in the section **ENVIRONMENT
-  VARIABLES**), if none are found there mkosi will automatically build a
-  default initrd.
+:   Use user-provided initrd(s). Takes a comma separated list of paths to initrd
+    files. This option may be used multiple times in which case the initrd lists
+    are combined. If no initrds are specified and a bootable image is requested,
+    mkosi will look for initrds in a subdirectory `io.mkosi.initrd` of the
+    artifact directory (see `$ARTIFACTDIR` in the section **ENVIRONMENT
+    VARIABLES**), if none are found there mkosi will automatically build a
+    default initrd.
 
 `InitrdPackages=`, `--initrd-package=`
-
-: Extra packages to install into the default initrd. Takes a comma
-  separated list of package specifications. This option may be used
-  multiple times in which case the specified package lists are combined.
+:   Extra packages to install into the default initrd. Takes a comma
+    separated list of package specifications. This option may be used
+    multiple times in which case the specified package lists are combined.
 
 `InitrdVolatilePackages=`, `--initrd-volatile-package=`
-
-: Similar to `VolatilePackages=`, except it applies to the default
-  initrd.
+:   Similar to `VolatilePackages=`, except it applies to the default
+    initrd.
 
 `MicrocodeHost=`, `--microcode-host=`
-
-: When set to true only include microcode for the host's CPU in the image.
+:   When set to true only include microcode for the host's CPU in the image.
 
 `KernelCommandLine=`, `--kernel-command-line=`
-
-: Use the specified kernel command line when building images.
-  Defaults to `console=ttyS0`. For `arm`, `s390` and `ppc`, `ttyS0` is replaced
-  with `ttyAMA0`, `ttysclp0` or `hvc0`, respectively.
+:   Use the specified kernel command line when building images.
+    Defaults to `console=ttyS0`. For `arm`, `s390` and `ppc`, `ttyS0` is replaced
+    with `ttyAMA0`, `ttysclp0` or `hvc0`, respectively.
 
 `KernelModulesInclude=`, `--kernel-modules-include=`
-
-: Takes a list of regex patterns that specify kernel modules to include in the image. Patterns should be
-  relative to the `/usr/lib/modules/<kver>/kernel` directory. mkosi checks for a match anywhere in the module
-  path (e.g. `i915` will match against `drivers/gpu/drm/i915.ko`). All modules that match any of the
-  specified patterns are included in the image. All module and firmware dependencies of the matched modules
-  are included in the image as well. This setting takes priority over `KernelModulesExclude=` and only makes
-  sense when used in combination with it because all kernel modules are included in the image by default.
+:   Takes a list of regex patterns that specify kernel modules to include in the image. Patterns should be
+    relative to the `/usr/lib/modules/<kver>/kernel` directory. mkosi checks for a match anywhere in the module
+    path (e.g. `i915` will match against `drivers/gpu/drm/i915.ko`). All modules that match any of the
+    specified patterns are included in the image. All module and firmware dependencies of the matched modules
+    are included in the image as well. This setting takes priority over `KernelModulesExclude=` and only makes
+    sense when used in combination with it because all kernel modules are included in the image by default.
 
 `KernelModulesExclude=`, `--kernel-modules-exclude=`
-
-: Takes a list of regex patterns that specify modules to exclude from the image. Behaves the same as
-  `KernelModulesInclude=` except that all modules that match any of the specified patterns are excluded from
-  the image.
+:   Takes a list of regex patterns that specify modules to exclude from the image. Behaves the same as
+    `KernelModulesInclude=` except that all modules that match any of the specified patterns are excluded from
+    the image.
 
 `KernelModulesIncludeHost=`, `--kernel-modules-include-host=`
-
-: Takes a boolean. Specifies whether to include the currently loaded
-  modules on the host system in the image. This setting takes priority
-  over `KernelModulesExclude=` and only makes sense when used in
-  combination with it because all kernel modules are included in the
-  image by default.
+:   Takes a boolean. Specifies whether to include the currently loaded
+    modules on the host system in the image. This setting takes priority
+    over `KernelModulesExclude=` and only makes sense when used in
+    combination with it because all kernel modules are included in the
+    image by default.
 
 `KernelModulesInitrd=`, `--kernel-modules-initrd=`
-
-: Enable/Disable generation of the kernel modules initrd when building a bootable image. Enabled by default.
-  If enabled, when building a bootable image, for each kernel that we assemble a unified kernel image for we
-  generate an extra initrd containing only the kernel modules for that kernel version and append it to the
-  prebuilt initrd. This allows generating kernel independent initrds which are augmented with the necessary
-  kernel modules when the UKI is assembled.
+:   Enable/Disable generation of the kernel modules initrd when building a bootable image. Enabled by default.
+    If enabled, when building a bootable image, for each kernel that we assemble a unified kernel image for we
+    generate an extra initrd containing only the kernel modules for that kernel version and append it to the
+    prebuilt initrd. This allows generating kernel independent initrds which are augmented with the necessary
+    kernel modules when the UKI is assembled.
 
 `KernelModulesInitrdInclude=`, `--kernel-modules-initrd-include=`
-
-: Like `KernelModulesInclude=`, but applies to the kernel modules included in the kernel modules initrd.
+:   Like `KernelModulesInclude=`, but applies to the kernel modules included in the kernel modules initrd.
 
 `KernelModulesInitrdExclude=`, `--kernel-modules-initrd-exclude=`
-
-: Like `KernelModulesExclude=`, but applies to the kernel modules included in the kernel modules initrd.
+:   Like `KernelModulesExclude=`, but applies to the kernel modules included in the kernel modules initrd.
 
 `KernelModulesInitrdIncludeHost=`, `--kernel-modules-initrd-include-host=`
-
-: Like `KernelModulesIncludeHost=`, but applies to the kernel modules included in the kernel modules initrd.
+:   Like `KernelModulesIncludeHost=`, but applies to the kernel modules included in the kernel modules initrd.
 
 `Locale=`, `--locale=`, `LocaleMessages=`, `--locale-messages=`, `Keymap=`, `--keymap=`, `Timezone=`, `--timezone=`, `Hostname=`, `--hostname=`, `RootShell=`, `--root-shell=`
-
-: The settings `Locale=`, `--locale=`, `LocaleMessages=`, `--locale-messages=`,
-  `Keymap=`, `--keymap=`, `Timezone=`, `--timezone=`, `Hostname=`,
-  `--hostname=`, `RootShell=`, `--root-shell=` correspond to the identically
-  named systemd-firstboot options. See the systemd firstboot
-  [manpage](https://www.freedesktop.org/software/systemd/man/systemd-firstboot.html)
-  for more information.  Additionally, where applicable, the corresponding
-  systemd credentials for these settings are written to `/usr/lib/credstore`,
-  so that they apply even if only `/usr` is shipped in the image.
+:   The settings `Locale=`, `--locale=`, `LocaleMessages=`, `--locale-messages=`,
+    `Keymap=`, `--keymap=`, `Timezone=`, `--timezone=`, `Hostname=`,
+    `--hostname=`, `RootShell=`, `--root-shell=` correspond to the identically
+    named systemd-firstboot options. See the systemd firstboot
+    [manpage](https://www.freedesktop.org/software/systemd/man/systemd-firstboot.html)
+    for more information.  Additionally, where applicable, the corresponding
+    systemd credentials for these settings are written to `/usr/lib/credstore`,
+    so that they apply even if only `/usr` is shipped in the image.
 
 `RootPassword=`, `--root-password=`,
-
-: Set the system root password. If this option is not used, but a `mkosi.rootpw` file is found in the local
-  directory, the password is automatically read from it. If the password starts with `hashed:`, it is treated
-  as an already hashed root password. The root password is also stored in `/usr/lib/credstore` under the
-  appropriate systemd credential so that it applies even if only `/usr` is shipped in the image. To create
-  an unlocked account without any password use `hashed:` without a hash.
+:   Set the system root password. If this option is not used, but a `mkosi.rootpw` file is found in the local
+    directory, the password is automatically read from it. If the password starts with `hashed:`, it is treated
+    as an already hashed root password. The root password is also stored in `/usr/lib/credstore` under the
+    appropriate systemd credential so that it applies even if only `/usr` is shipped in the image. To create
+    an unlocked account without any password use `hashed:` without a hash.
 
 `Autologin=`, `--autologin`
-
-: Enable autologin for the `root` user on `/dev/pts/0` (nspawn),
-  `/dev/tty1` and `/dev/ttyS0`.
+:   Enable autologin for the `root` user on `/dev/pts/0` (nspawn),
+    `/dev/tty1` and `/dev/ttyS0`.
 
 `MakeInitrd=`, `--make-initrd`
-
-: Add `/etc/initrd-release` and `/init` to the image so that it can be
-  used as an initramfs.
+:   Add `/etc/initrd-release` and `/init` to the image so that it can be
+    used as an initramfs.
 
 `Ssh=`, `--ssh`
-
-: If specified, an sshd socket unit and matching service are installed
-  in the final image that expose SSH over VSock. When building with this
-  option and running the image using `mkosi qemu`, the `mkosi ssh`
-  command can be used to connect to the container/VM via SSH. Note that
-  you still have to make sure openssh is installed in the image to make
-  this option behave correctly. Run `mkosi genkey` to automatically
-  generate an X509 certificate and private key to be used by mkosi to
-  enable SSH access to any virtual machines via `mkosi ssh`. To access
-  images booted using `mkosi boot`, use `machinectl`.
+:   If specified, an sshd socket unit and matching service are installed
+    in the final image that expose SSH over VSock. When building with this
+    option and running the image using `mkosi qemu`, the `mkosi ssh`
+    command can be used to connect to the container/VM via SSH. Note that
+    you still have to make sure openssh is installed in the image to make
+    this option behave correctly. Run `mkosi genkey` to automatically
+    generate an X509 certificate and private key to be used by mkosi to
+    enable SSH access to any virtual machines via `mkosi ssh`. To access
+    images booted using `mkosi boot`, use `machinectl`.
 
 `SELinuxRelabel=`, `--selinux-relabel=`
+:   Specifies whether to relabel files to match the image's SELinux
+    policy. Takes a boolean value or `auto`. Defaults to `auto`. If
+    disabled, files will not relabeled. If enabled, an SELinux policy has
+    to be installed in the image and `setfiles` has to be available to
+    relabel files. If any errors occur during `setfiles`, the build will
+    fail. If set to `auto`, files will be relabeled if an SELinux policy
+    is installed in the image and if `setfiles` is available. Any errors
+    occurred during `setfiles` will be ignored.
 
-: Specifies whether to relabel files to match the image's SELinux
-  policy. Takes a boolean value or `auto`. Defaults to `auto`. If
-  disabled, files will not relabeled. If enabled, an SELinux policy has
-  to be installed in the image and `setfiles` has to be available to
-  relabel files. If any errors occur during `setfiles`, the build will
-  fail. If set to `auto`, files will be relabeled if an SELinux policy
-  is installed in the image and if `setfiles` is available. Any errors
-  occurred during `setfiles` will be ignored.
-
-: Note that when running unprivileged, `setfiles` will fail to set any
-  labels that are not in the host's SELinux policy. To ensure `setfiles`
-  succeeds without errors, make sure to run mkosi as root or build from
-  a host system with the same SELinux policy as the image you're
-  building.
+    Note that when running unprivileged, `setfiles` will fail to set any
+    labels that are not in the host's SELinux policy. To ensure `setfiles`
+    succeeds without errors, make sure to run mkosi as root or build from
+    a host system with the same SELinux policy as the image you're
+    building.
 
 ### [Validation] Section
 
 `SecureBoot=`, `--secure-boot`
-
-: Sign systemd-boot (if it is not signed yet) and any generated
-  unified kernel images for UEFI SecureBoot.
+:   Sign systemd-boot (if it is not signed yet) and any generated
+    unified kernel images for UEFI SecureBoot.
 
 `SecureBootAutoEnroll=`, `--secure-boot-auto-enroll=`
-
-: Set up automatic enrollment of the secure boot keys in virtual machines as
-  documented in the systemd-boot
-  [man page](https://www.freedesktop.org/software/systemd/man/systemd-boot.html)
-  if `SecureBoot=` is used.
-  Note that systemd-boot will only do automatic secure boot key
-  enrollment in virtual machines starting from systemd v253. To do auto
-  enrollment on systemd v252 or on bare metal machines, write a
-  systemd-boot configuration file to `/efi/loader/loader.conf` using an
-  extra tree with `secure-boot-enroll force` or
-  `secure-boot-enroll manual` in it. Auto enrollment is not supported on
-  systemd versions older than v252. Defaults to `yes`.
+:   Set up automatic enrollment of the secure boot keys in virtual machines as
+    documented in the systemd-boot
+    [man page](https://www.freedesktop.org/software/systemd/man/systemd-boot.html)
+    if `SecureBoot=` is used.
+    Note that systemd-boot will only do automatic secure boot key
+    enrollment in virtual machines starting from systemd v253. To do auto
+    enrollment on systemd v252 or on bare metal machines, write a
+    systemd-boot configuration file to `/efi/loader/loader.conf` using an
+    extra tree with `secure-boot-enroll force` or
+    `secure-boot-enroll manual` in it. Auto enrollment is not supported on
+    systemd versions older than v252. Defaults to `yes`.
 
 `SecureBootKey=`, `--secure-boot-key=`
-
-: Path to the PEM file containing the secret key for signing the
-  UEFI kernel image if `SecureBoot=` is used and PCR signatures when
-  `SignExpectedPcr=` is also used. When `SecureBootKeySource=` is specified,
-  the input type depends on the source.
+:   Path to the PEM file containing the secret key for signing the
+    UEFI kernel image if `SecureBoot=` is used and PCR signatures when
+    `SignExpectedPcr=` is also used. When `SecureBootKeySource=` is specified,
+    the input type depends on the source.
 
 `SecureBootKeySource=`, `--secure-boot-key-source=`
-
-: Source of `SecureBootKey=`, to support OpenSSL engines. E.g.:
-  `--secure-boot-key-source=engine:pkcs11`
+:   Source of `SecureBootKey=`, to support OpenSSL engines. E.g.:
+    `--secure-boot-key-source=engine:pkcs11`
 
 `SecureBootCertificate=`, `--secure-boot-certificate=`
-
-: Path to the X.509 file containing the certificate for the signed
-  UEFI kernel image, if `SecureBoot=` is used.
+:   Path to the X.509 file containing the certificate for the signed
+    UEFI kernel image, if `SecureBoot=` is used.
 
 `SecureBootSignTool=`, `--secure-boot-sign-tool`
-
-: Tool to use to sign secure boot PE binaries. Takes one of `sbsign`, `pesign` or `auto`. Defaults to `auto`.
-  If set to `auto`, either sbsign or pesign are used if available, with sbsign being preferred if both are
-  installed.
+:   Tool to use to sign secure boot PE binaries. Takes one of `sbsign`, `pesign` or `auto`. Defaults to `auto`.
+    If set to `auto`, either sbsign or pesign are used if available, with sbsign being preferred if both are
+    installed.
 
 `VerityKey=`, `--verity-key=`
-
-: Path to the PEM file containing the secret key for signing the verity signature, if a verity signature
-  partition is added with systemd-repart. When `VerityKeySource=` is specified, the input type depends on
-  the source.
+:   Path to the PEM file containing the secret key for signing the verity signature, if a verity signature
+    partition is added with systemd-repart. When `VerityKeySource=` is specified, the input type depends on
+    the source.
 
 `VerityKeySource=`, `--verity-key-source=`
-
-: Source of `VerityKey=`, to support OpenSSL engines. E.g.:
-  `--verity-key-source=engine:pkcs11`
+:   Source of `VerityKey=`, to support OpenSSL engines. E.g.:
+    `--verity-key-source=engine:pkcs11`
 
 `VerityCertificate=`, `--verity-certificate=`
-
-: Path to the X.509 file containing the certificate for signing the verity signature, if a verity signature
-  partition is added with systemd-repart.
+:   Path to the X.509 file containing the certificate for signing the verity signature, if a verity signature
+    partition is added with systemd-repart.
 
 `SignExpectedPcr=`, `--sign-expected-pcr`
-
-: Measure the components of the unified kernel image (UKI) using
-  `systemd-measure` and embed the PCR signature into the unified kernel
-  image. This option takes a boolean value or the special value `auto`,
-  which is the default, which is equal to a true value if the
-  `systemd-measure` binary is in `PATH`.  Depends on `SecureBoot=`
-  being enabled and key from `SecureBootKey=`.
+:   Measure the components of the unified kernel image (UKI) using
+    `systemd-measure` and embed the PCR signature into the unified kernel
+    image. This option takes a boolean value or the special value `auto`,
+    which is the default, which is equal to a true value if the
+    `systemd-measure` binary is in `PATH`.  Depends on `SecureBoot=`
+    being enabled and key from `SecureBootKey=`.
 
 `Passphrase=`, `--passphrase`
-
-: Specify the path to a file containing the passphrase to use for LUKS
-  encryption. It should contain the passphrase literally, and not end in
-  a newline character (i.e. in the same format as cryptsetup and
-  `/etc/crypttab` expect the passphrase files). The file must have an
-  access mode of 0600 or less.
+:   Specify the path to a file containing the passphrase to use for LUKS
+    encryption. It should contain the passphrase literally, and not end in
+    a newline character (i.e. in the same format as cryptsetup and
+    `/etc/crypttab` expect the passphrase files). The file must have an
+    access mode of 0600 or less.
 
 `Checksum=`, `--checksum`
-
-: Generate a `SHA256SUMS` file of all generated artifacts after the
-  build is complete.
+:   Generate a `SHA256SUMS` file of all generated artifacts after the
+    build is complete.
 
 `Sign=`, `--sign`
-
-: Sign the generated `SHA256SUMS` using `gpg` after completion.
+:   Sign the generated `SHA256SUMS` using `gpg` after completion.
 
 `Key=`, `--key=`
-
-: Select the `gpg` key to use for signing `SHA256SUMS`. This key must
-  be already present in the `gpg` keyring.
+:   Select the `gpg` key to use for signing `SHA256SUMS`. This key must
+    be already present in the `gpg` keyring.
 
 ### [Host] Section
 
 `ProxyUrl=`, `--proxy-url=`
-
-: Configure a proxy to be used for all outgoing network connections.
-  Various tools that mkosi invokes and for which the proxy can be
-  configured are configured to use this proxy. mkosi also sets various
-  well-known environment variables to specify the proxy to use for any
-  programs it invokes that may need internet access.
+:   Configure a proxy to be used for all outgoing network connections.
+    Various tools that mkosi invokes and for which the proxy can be
+    configured are configured to use this proxy. mkosi also sets various
+    well-known environment variables to specify the proxy to use for any
+    programs it invokes that may need internet access.
 
 `ProxyExclude=`, `--proxy-exclude=`
-
-: Configure hostnames for which requests should not go through the
-  proxy. Takes a comma separated list of hostnames.
+:   Configure hostnames for which requests should not go through the
+    proxy. Takes a comma separated list of hostnames.
 
 `ProxyPeerCertificate=`, `--proxy-peer-certificate=`
+:   Configure a file containing certificates used to verify the proxy.
+    Defaults to the system-wide certificate store.
 
-: Configure a file containing certificates used to verify the proxy.
-  Defaults to the system-wide certificate store.
-
-: Currently, setting a proxy peer certificate is only supported when
-  `dnf` or `dnf5` is used to build the image.
+    Currently, setting a proxy peer certificate is only supported when
+    `dnf` or `dnf5` is used to build the image.
 
 `ProxyClientCertificate=`, `--proxy-client-certificate=`
+:   Configure a file containing the certificate used to authenticate the
+    client with the proxy.
 
-: Configure a file containing the certificate used to authenticate the
-  client with the proxy.
-
-: Currently, setting a proxy client certificate is only supported when
-  `dnf` or `dnf5` is used to build the image.
+    Currently, setting a proxy client certificate is only supported when
+    `dnf` or `dnf5` is used to build the image.
 
 `ProxyClientKey=`, `--proxy-client-key=`
+:   Configure a file containing the private key used to authenticate the
+    client with the proxy. Defaults to the proxy client certificate if one
+    is provided.
 
-: Configure a file containing the private key used to authenticate the
-  client with the proxy. Defaults to the proxy client certificate if one
-  is provided.
-
-: Currently, setting a proxy client key is only supported when `dnf` or
-  `dnf5` is used to build the image.
+    Currently, setting a proxy client key is only supported when `dnf` or
+    `dnf5` is used to build the image.
 
 `Incremental=`, `--incremental=`, `-i`
-
-: Enable incremental build mode. In this mode, a copy of the OS image is
-  created immediately after all OS packages are installed and the
-  prepare scripts have executed but before the `mkosi.build` scripts are
-  invoked (or anything that happens after it). On subsequent invocations
-  of `mkosi` with the `-i` switch this cached image may be used to skip
-  the OS package installation, thus drastically speeding up repetitive
-  build times. Note that while there is some rudimentary cache
-  invalidation, it is definitely not perfect. In order to force
-  rebuilding of the cached image, combine `-i` with `-ff` to ensure the
-  cached image is first removed and then re-created.
+:   Enable incremental build mode. In this mode, a copy of the OS image is
+    created immediately after all OS packages are installed and the
+    prepare scripts have executed but before the `mkosi.build` scripts are
+    invoked (or anything that happens after it). On subsequent invocations
+    of `mkosi` with the `-i` switch this cached image may be used to skip
+    the OS package installation, thus drastically speeding up repetitive
+    build times. Note that while there is some rudimentary cache
+    invalidation, it is definitely not perfect. In order to force
+    rebuilding of the cached image, combine `-i` with `-ff` to ensure the
+    cached image is first removed and then re-created.
 
 `NSpawnSettings=`, `--settings=`
-
-: Specifies a `.nspawn` settings file for `systemd-nspawn` to use in
-  the `boot` and `shell` verbs, and to place next to the generated
-  image file. This is useful to configure the `systemd-nspawn`
-  environment when the image is run. If this setting is not used but
-  an `mkosi.nspawn` file found in the local directory it is
-  automatically used for this purpose.
+:   Specifies a `.nspawn` settings file for `systemd-nspawn` to use in
+    the `boot` and `shell` verbs, and to place next to the generated
+    image file. This is useful to configure the `systemd-nspawn`
+    environment when the image is run. If this setting is not used but
+    an `mkosi.nspawn` file found in the local directory it is
+    automatically used for this purpose.
 
 `ExtraSearchPaths=`, `--extra-search-path=`
-
-: List of colon-separated paths to look for tools in, before using the
-  regular `$PATH` search path.
+:   List of colon-separated paths to look for tools in, before using the
+    regular `$PATH` search path.
 
 `VirtualMachineMonitor=`, `--vmm=`
+:   Configures the virtual machine monitor to use. Takes one of `qemu` or
+    `vmspawn`. Defaults to `qemu`.
 
-: Configures the virtual machine monitor to use. Takes one of `qemu` or
-  `vmspawn`. Defaults to `qemu`.
+    When set to `qemu`, the image is booted with `qemu`. Most output
+    formats can be booted in `qemu`. Any arguments specified after the
+    verb are appended to the `qemu` invocation and are interpreted as
+    extra qemu command line arguments.
 
-: When set to `qemu`, the image is booted with `qemu`. Most output
-  formats can be booted in `qemu`. Any arguments specified after the
-  verb are appended to the `qemu` invocation and are interpreted as
-  extra qemu command line arguments.
-
-: When set to `vmspawn`, `systemd-vmspawn` is used to boot up the image,
-  `vmspawn` only supports disk and directory type images. Any arguments
-  specified after the verb are appended to the `systemd-vmspawn`
-  invocation and are interpreted as extra vmspawn options and extra
-  kernel command line arguments.
+    When set to `vmspawn`, `systemd-vmspawn` is used to boot up the image,
+    `vmspawn` only supports disk and directory type images. Any arguments
+    specified after the verb are appended to the `systemd-vmspawn`
+    invocation and are interpreted as extra vmspawn options and extra
+    kernel command line arguments.
 
 `QemuGui=`, `--qemu-gui=`
-
-: If enabled, qemu is executed with its graphical interface instead of
-  with a serial console.
+:   If enabled, qemu is executed with its graphical interface instead of
+    with a serial console.
 
 `QemuSmp=`, `--qemu-smp=`
+:   When used with the `qemu` verb, this options sets `qemu`'s `-smp`
+    argument which controls the number of guest's CPUs. Defaults to `2`.
 
-: When used with the `qemu` verb, this options sets `qemu`'s `-smp`
-  argument which controls the number of guest's CPUs. Defaults to `2`.
-
-: When set to `0`, the number of CPUs available to the mkosi process
-  will be used.
+    When set to `0`, the number of CPUs available to the mkosi process
+    will be used.
 
 `QemuMem=`, `--qemu-mem=`
-
-: When used with the `qemu` verb, this options sets `qemu`'s `-m`
-  argument which controls the amount of guest's RAM. Defaults to `2G`.
+:   When used with the `qemu` verb, this options sets `qemu`'s `-m`
+    argument which controls the amount of guest's RAM. Defaults to `2G`.
 
 `QemuKvm=`, `--qemu-kvm=`
-
-: When used with the `qemu` verb, this option specifies whether QEMU should use KVM acceleration. Takes a
-  boolean value or `auto`. Defaults to `auto`.
+:   When used with the `qemu` verb, this option specifies whether QEMU should use KVM acceleration. Takes a
+    boolean value or `auto`. Defaults to `auto`.
 
 `QemuVsock=`, `--qemu-vsock=`
-
-: When used with the `qemu` verb, this option specifies whether QEMU should be configured with a vsock. Takes
-  a boolean value or `auto`. Defaults to `auto`.
+:   When used with the `qemu` verb, this option specifies whether QEMU should be configured with a vsock. Takes
+    a boolean value or `auto`. Defaults to `auto`.
 
 `QemuVsockConnectionId=`, `--qemu-vsock-cid=`
-
-: When used with the `qemu` verb, this option specifies the vsock
-  connection ID to use. Takes a number in the interval `[3, 0xFFFFFFFF)`
-  or `hash` or `auto`. Defaults to `auto`. When set to `hash`, the
-  connection ID will be derived from the full path to the image. When
-  set to `auto`, `mkosi` will try to find a free connection ID
-  automatically. Otherwise, the provided number will be used as is.
+:   When used with the `qemu` verb, this option specifies the vsock
+    connection ID to use. Takes a number in the interval `[3, 0xFFFFFFFF)`
+    or `hash` or `auto`. Defaults to `auto`. When set to `hash`, the
+    connection ID will be derived from the full path to the image. When
+    set to `auto`, `mkosi` will try to find a free connection ID
+    automatically. Otherwise, the provided number will be used as is.
 
 `QemuSwtpm=`, `--qemu-swtpm=`
-
-: When used with the `qemu` verb, this option specifies whether to start an instance of swtpm to be used as a
-  TPM with qemu. This requires swtpm to be installed on the host. Takes a boolean value or `auto`. Defaults
-  to `auto`.
+:   When used with the `qemu` verb, this option specifies whether to start an instance of swtpm to be used as a
+    TPM with qemu. This requires swtpm to be installed on the host. Takes a boolean value or `auto`. Defaults
+    to `auto`.
 
 `QemuCdrom=`, `--qemu-cdrom=`
-
-: When used with the `qemu` verb, this option specifies whether to
-  attach the image to the virtual machine as a CD-ROM device. Takes a
-  boolean. Defaults to `no`.
+:   When used with the `qemu` verb, this option specifies whether to
+    attach the image to the virtual machine as a CD-ROM device. Takes a
+    boolean. Defaults to `no`.
 
 `QemuFirmware=`, `--qemu-firmware=`
-
-: When used with the `qemu` verb, this option specifies which firmware
-  to use. Takes one of `uefi`, `uefi-secure-boot`, `bios`, `linux`, or
-  `auto`. Defaults to `auto`. When set to `uefi`, the OVMF firmware
-  without secure boot support is used. When set to `uefi-secure-boot`,
-  the OVMF firmware with secure boot support is used. When set to
-  `bios`, the default SeaBIOS firmware is used. When set to `linux`,
-  direct kernel boot is used. See the `QemuKernel=` option for more
-  details on which kernel image is used with direct kernel boot. When
-  set to `auto`, `uefi-secure-boot` is used if possible and `linux`
-  otherwise.
+:   When used with the `qemu` verb, this option specifies which firmware
+    to use. Takes one of `uefi`, `uefi-secure-boot`, `bios`, `linux`, or
+    `auto`. Defaults to `auto`. When set to `uefi`, the OVMF firmware
+    without secure boot support is used. When set to `uefi-secure-boot`,
+    the OVMF firmware with secure boot support is used. When set to
+    `bios`, the default SeaBIOS firmware is used. When set to `linux`,
+    direct kernel boot is used. See the `QemuKernel=` option for more
+    details on which kernel image is used with direct kernel boot. When
+    set to `auto`, `uefi-secure-boot` is used if possible and `linux`
+    otherwise.
 
 `QemuFirmwareVariables=`, `--qemu-firmware-variables=`
+:   When used with the `qemu` verb, this option specifies the path to the
+    the firmware variables file to use. Currently, this option is only
+    taken into account when the `uefi` or `uefi-secure-boot` firmware is
+    used. If not specified, mkosi will search for the default variables
+    file and use that instead.
 
-: When used with the `qemu` verb, this option specifies the path to the
-  the firmware variables file to use. Currently, this option is only
-  taken into account when the `uefi` or `uefi-secure-boot` firmware is
-  used. If not specified, mkosi will search for the default variables
-  file and use that instead.
+    When set to `microsoft`, a firmware variables file with the Microsoft
+    secure boot certificates already enrolled will be used.
 
-: When set to `microsoft`, a firmware variables file with the Microsoft
-  secure boot certificates already enrolled will be used.
+    When set to `custom`, the secure boot certificate from
+    `SecureBootCertificate=` will be enrolled into the default firmware
+    variables file.
 
-: When set to `custom`, the secure boot certificate from
-  `SecureBootCertificate=` will be enrolled into the default firmware
-  variables file.
-
-: `virt-fw-vars` from the
-  [virt-firmware](https://gitlab.com/kraxel/virt-firmware) project can
-  be used to customize OVMF variable files.
+    `virt-fw-vars` from the
+    [virt-firmware](https://gitlab.com/kraxel/virt-firmware) project can
+    be used to customize OVMF variable files.
 
 `QemuKernel=`, `--qemu-kernel=`
+:   Set the kernel image to use for qemu direct kernel boot. If not
+    specified, mkosi will use the kernel provided via the command line
+    (`-kernel` option) or latest the kernel that was installed into
+    the image (or fail if no kernel was installed into the image).
 
-: Set the kernel image to use for qemu direct kernel boot. If not
-  specified, mkosi will use the kernel provided via the command line
-  (`-kernel` option) or latest the kernel that was installed into
-  the image (or fail if no kernel was installed into the image).
-
-: Note that when the `cpio` output format is used, direct kernel boot is
-  used regardless of the configured firmware. Depending on the
-  configured firmware, qemu might boot the kernel itself or using the
-  configured firmware.
+    Note that when the `cpio` output format is used, direct kernel boot is
+    used regardless of the configured firmware. Depending on the
+    configured firmware, qemu might boot the kernel itself or using the
+    configured firmware.
 
 `QemuDrives=`, `--qemu-drive=`
+:   Add a qemu drive. Takes a colon-delimited string of format
+    `<id>:<size>[:<directory>[:<options>[:<file-id>]]]`. `id` specifies
+    the qemu ID assigned to the drive. This can be used as the `drive=`
+    property in various qemu devices. `size` specifies the size of the
+    drive. This takes a size in bytes. Additionally, the suffixes `K`, `M`
+    and `G` can be used to specify a size in kilobytes, megabytes and
+    gigabytes respectively. `directory` optionally specifies the directory
+    in which to create the file backing the drive. `options` optionally
+    specifies extra comma-delimited properties which are passed verbatim
+    to qemu's `-drive` option. `file-id` specifies the ID of the file
+    backing the drive. Drives with the same file ID will share the
+    backing file. The directory and size of the file will be determined
+    from the first drive with a given file ID.
 
-: Add a qemu drive. Takes a colon-delimited string of format
-  `<id>:<size>[:<directory>[:<options>[:<file-id>]]]`. `id` specifies
-  the qemu ID assigned to the drive. This can be used as the `drive=`
-  property in various qemu devices. `size` specifies the size of the
-  drive. This takes a size in bytes. Additionally, the suffixes `K`, `M`
-  and `G` can be used to specify a size in kilobytes, megabytes and
-  gigabytes respectively. `directory` optionally specifies the directory
-  in which to create the file backing the drive. `options` optionally
-  specifies extra comma-delimited properties which are passed verbatim
-  to qemu's `-drive` option. `file-id` specifies the ID of the file
-  backing the drive. Drives with the same file ID will share the
-  backing file. The directory and size of the file will be determined
-  from the first drive with a given file ID.
+    **Example usage:**
 
-: Example usage:
-
-  ```conf
-  [Host]
-  QemuDrives=btrfs:10G
-             ext4:20G
-  QemuArgs=-device nvme,serial=btrfs,drive=btrfs
-           -device nvme,serial=ext4,drive=ext4
-  ```
+    ```ini
+    [Host]
+    QemuDrives=btrfs:10G
+               ext4:20G
+    QemuArgs=-device nvme,serial=btrfs,drive=btrfs
+             -device nvme,serial=ext4,drive=ext4
+    ```
 
 `QemuArgs=`
-
-: Space-delimited list of additional arguments to pass when invoking
-  qemu.
+:   Space-delimited list of additional arguments to pass when invoking
+    qemu.
 
 `Ephemeral=`, `--ephemeral`
-
-: When used with the `shell`, `boot`, or `qemu` verbs, this option runs the specified verb on a temporary
-  snapshot of the output image that is removed immediately when the container terminates. Taking the
-  temporary snapshot is more efficient on file systems that support reflinks natively (btrfs or xfs)
-  than on more traditional file systems that do not (ext4).
+:   When used with the `shell`, `boot`, or `qemu` verbs, this option runs the specified verb on a temporary
+    snapshot of the output image that is removed immediately when the container terminates. Taking the
+    temporary snapshot is more efficient on file systems that support reflinks natively (btrfs or xfs)
+    than on more traditional file systems that do not (ext4).
 
 `Credentials=`, `--credential=`
+:   Set credentials to be passed to systemd-nspawn or qemu respectively
+    when `mkosi shell/boot` or `mkosi qemu` are used. This option takes a
+    space separated list of values which can be either key=value pairs or
+    paths. If a path is provided, if it is a file, the credential name
+    will be the name of the file. If the file is executable, the
+    credential value will be the output of executing the file. Otherwise,
+    the credential value will be the contents of the file. If the path is
+    a directory, the same logic applies to each file in the directory.
 
-: Set credentials to be passed to systemd-nspawn or qemu respectively
-  when `mkosi shell/boot` or `mkosi qemu` are used. This option takes a
-  space separated list of values which can be either key=value pairs or
-  paths. If a path is provided, if it is a file, the credential name
-  will be the name of the file. If the file is executable, the
-  credential value will be the output of executing the file. Otherwise,
-  the credential value will be the contents of the file. If the path is
-  a directory, the same logic applies to each file in the directory.
-
-: Note that values will only be treated as paths if they do not contain
-  the delimiter (`=`).
+    Note that values will only be treated as paths if they do not contain
+    the delimiter (`=`).
 
 `KernelCommandLineExtra=`, `--kernel-command-line-extra=`
-
-: Set extra kernel command line entries that are appended to the kernel command
-  line at runtime when booting the image. When booting in a container, these are
-  passed as extra arguments to systemd. When booting in a VM, these are appended
-  to the kernel command line via the SMBIOS io.systemd.stub.kernel-cmdline-extra
-  OEM string. This will only be picked up by systemd-boot/systemd-stub versions
-  newer than or equal to v254.
+:   Set extra kernel command line entries that are appended to the kernel command
+    line at runtime when booting the image. When booting in a container, these are
+    passed as extra arguments to systemd. When booting in a VM, these are appended
+    to the kernel command line via the SMBIOS io.systemd.stub.kernel-cmdline-extra
+    OEM string. This will only be picked up by systemd-boot/systemd-stub versions
+    newer than or equal to v254.
 
 `Acl=`, `--acl=`
-
-: If specified, ACLs will be set on any generated root filesystem directories that
-  allow the user running mkosi to remove them without needing privileges.
+:   If specified, ACLs will be set on any generated root filesystem directories that
+    allow the user running mkosi to remove them without needing privileges.
 
 `ToolsTree=`, `--tools-tree=`
+:   If specified, programs executed by mkosi to build and boot an image
+    are looked up inside the given tree instead of in the host system. Use
+    this option to make image builds more reproducible by always using the
+    same versions of programs to build the final image instead of whatever
+    version is installed on the host system. If this option is not used,
+    but the `mkosi.tools/` directory is found in the local directory it is
+    automatically used for this purpose with the root directory as target.
 
-: If specified, programs executed by mkosi to build and boot an image
-  are looked up inside the given tree instead of in the host system. Use
-  this option to make image builds more reproducible by always using the
-  same versions of programs to build the final image instead of whatever
-  version is installed on the host system. If this option is not used,
-  but the `mkosi.tools/` directory is found in the local directory it is
-  automatically used for this purpose with the root directory as target.
+    Note if a binary is found in any of the paths configured with
+    `ExtraSearchPaths=`, the binary will be executed on the host.
 
-: Note if a binary is found in any of the paths configured with
-  `ExtraSearchPaths=`, the binary will be executed on the host.
+    If set to `default`, mkosi will automatically add an extra tools tree
+    image and use it as the tools tree.
 
-: If set to `default`, mkosi will automatically add an extra tools tree
-  image and use it as the tools tree.
+    Note that mkosi will only build a single default tools tree per build,
+    even if multiple images are defined in `mkosi.images` with
+    `ToolsTree=default`. The settings of the "last" image will apply to
+    the default tools tree (usually the image defined last in
+    mkosi.images and without any dependencies on other images).
 
-: Note that mkosi will only build a single default tools tree per build,
-  even if multiple images are defined in `mkosi.images` with
-  `ToolsTree=default`. The settings of the "last" image will apply to
-  the default tools tree (usually the image defined last in
-  mkosi.images and without any dependencies on other images).
+    The following table shows for which distributions default tools tree
+    packages are defined and which packages are included in those default
+    tools trees:
 
-: The following table shows for which distributions default tools tree
-  packages are defined and which packages are included in those default
-  tools trees:
-
-  |                         | Fedora | CentOS | Debian | Ubuntu | Arch | openSUSE |
-  |-------------------------|--------|--------|--------|--------|------|----------|
-  | `acl`                   | X      | X      | X      | X      | X    | X        |
-  | `apt`                   | X      | X      | X      | X      | X    |          |
-  | `archlinux-keyring`     | X      |        | X      | X      | X    |          |
-  | `attr`                  | X      | X      | X      | X      | X    | X        |
-  | `bash`                  | X      | X      | X      | X      | X    | X        |
-  | `btrfs-progs`           | X      |        | X      | X      | X    | X        |
-  | `bubblewrap`            | X      | X      | X      | X      | X    | X        |
-  | `ca-certificates`       | X      | X      | X      | X      | X    | X        |
-  | `coreutils`             | X      | X      | X      | X      | X    | X        |
-  | `cpio`                  | X      | X      | X      | X      | X    | X        |
-  | `curl`                  | X      | X      | X      | X      | X    | X        |
-  | `debian-keyring`        | X      | X      | X      | X      | X    |          |
-  | `diffutils`             | X      | X      | X      | X      | X    | X        |
-  | `distribution-gpg-keys` | X      | X      |        |        |      | X        |
-  | `dnf`                   | X      | X      | X      | X      | X    | X        |
-  | `dnf-plugins-core`      | X      | X      |        |        |      | X        |
-  | `dnf5`                  | X      |        |        |        |      |          |
-  | `dnf5-plugins`          | X      |        |        |        |      |          |
-  | `dosfstools`            | X      | X      | X      | X      | X    | X        |
-  | `e2fsprogs`             | X      | X      | X      | X      | X    | X        |
-  | `edk2-ovmf`             | X      | X      | X      | X      | X    | X        |
-  | `erofs-utils`           | X      |        | X      | X      | X    | X        |
-  | `findutils`             | X      | X      | X      | X      | X    | X        |
-  | `git`                   | X      | X      | X      | X      | X    | X        |
-  | `grep`                  | X      | X      | X      | X      | X    | X        |
-  | `jq`                    | X      | X      | X      | X      | X    | X        |
-  | `kmod`                  | X      | X      | X      | X      | X    | X        |
-  | `less`                  | X      | X      | X      | X      | X    | X        |
-  | `mtools`                | X      | X      | X      | X      | X    | X        |
-  | `nano`                  | X      | X      | X      | X      | X    | X        |
-  | `openssh`               | X      | X      | X      | X      | X    | X        |
-  | `openssl`               | X      | X      | X      | X      | X    | X        |
-  | `sed`                   | X      | X      | X      | X      | X    | X        |
-  | `pacman`                | X      |        | X      | X      | X    |          |
-  | `pesign`                | X      | X      | X      | X      | X    | X        |
-  | `policycoreutils`       | X      | X      | X      | X      |      | X        |
-  | `qemu`                  | X      | X      | X      | X      | X    | X        |
-  | `sbsigntools`           | X      |        | X      | X      | X    | X        |
-  | `socat`                 | X      | X      | X      | X      | X    | X        |
-  | `squashfs-tools`        | X      | X      | X      | X      | X    | X        |
-  | `strace`                | X      | X      | X      | X      | X    | X        |
-  | `swtpm`                 | X      | X      | X      | X      | X    | X        |
-  | `systemd`               | X      | X      | X      | X      | X    | X        |
-  | `ukify`                 | X      |        | X      | X      | X    | X        |
-  | `tar`                   | X      | X      | X      | X      | X    | X        |
-  | `ubuntu-keyring`        | X      | X      | X      | X      | X    |          |
-  | `util-linux`            | X      | X      | X      | X      | X    | X        |
-  | `virtiofsd`             | X      | X      |        |        | X    | X        |
-  | `virt-firmware`         | X      | X      |        |        | X    |          |
-  | `xfsprogs`              | X      | X      | X      | X      | X    | X        |
-  | `xz`                    | X      | X      | X      | X      | X    | X        |
-  | `zstd`                  | X      | X      | X      | X      | X    | X        |
-  | `zypper`                | X      |        | X      | X      | X    |          |
+    |                         | Fedora | CentOS | Debian | Ubuntu | Arch | openSUSE |
+    |-------------------------|:------:|:------:|:------:|:------:|:----:|:--------:|
+    | `acl`                   | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `apt`                   | ✓      | ✓      | ✓      | ✓      | ✓    |          |
+    | `archlinux-keyring`     | ✓      |        | ✓      | ✓      | ✓    |          |
+    | `attr`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `bash`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `btrfs-progs`           | ✓      |        | ✓      | ✓      | ✓    | ✓        |
+    | `bubblewrap`            | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `ca-certificates`       | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `coreutils`             | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `cpio`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `curl`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `debian-keyring`        | ✓      | ✓      | ✓      | ✓      | ✓    |          |
+    | `diffutils`             | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `distribution-gpg-keys` | ✓      | ✓      |        |        |      | ✓        |
+    | `dnf`                   | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `dnf-plugins-core`      | ✓      | ✓      |        |        |      | ✓        |
+    | `dnf5`                  | ✓      |        |        |        |      |          |
+    | `dnf5-plugins`          | ✓      |        |        |        |      |          |
+    | `dosfstools`            | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `e2fsprogs`             | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `edk2-ovmf`             | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `erofs-utils`           | ✓      |        | ✓      | ✓      | ✓    | ✓        |
+    | `findutils`             | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `git`                   | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `grep`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `jq`                    | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `kmod`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `less`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `mtools`                | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `nano`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `openssh`               | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `openssl`               | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `sed`                   | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `pacman`                | ✓      |        | ✓      | ✓      | ✓    |          |
+    | `pesign`                | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `policycoreutils`       | ✓      | ✓      | ✓      | ✓      |      | ✓        |
+    | `qemu`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `sbsigntools`           | ✓      |        | ✓      | ✓      | ✓    | ✓        |
+    | `socat`                 | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `squashfs-tools`        | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `strace`                | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `swtpm`                 | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `systemd`               | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `ukify`                 | ✓      |        | ✓      | ✓      | ✓    | ✓        |
+    | `tar`                   | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `ubuntu-keyring`        | ✓      | ✓      | ✓      | ✓      | ✓    |          |
+    | `util-linux`            | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `virtiofsd`             | ✓      | ✓      |        |        | ✓    | ✓        |
+    | `virt-firmware`         | ✓      | ✓      |        |        | ✓    |          |
+    | `xfsprogs`              | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `xz`                    | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `zstd`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `zypper`                | ✓      |        | ✓      | ✓      | ✓    |          |
 
 `ToolsTreeDistribution=`, `--tools-tree-distribution=`
-
-: Set the distribution to use for the default tools tree. By default,
-  the same distribution as the image that's being built is used, except
-  for CentOS and Ubuntu images, in which case Fedora and Debian are used
-  respectively.
+:   Set the distribution to use for the default tools tree. By default,
+    the same distribution as the image that's being built is used, except
+    for CentOS and Ubuntu images, in which case Fedora and Debian are used
+    respectively.
 
 `ToolsTreeRelease=`, `--tools-tree-release=`
-
-: Set the distribution release to use for the default tools tree. By
-  default, the hardcoded default release in mkosi for the distribution
-  is used.
+:   Set the distribution release to use for the default tools tree. By
+    default, the hardcoded default release in mkosi for the distribution
+    is used.
 
 `ToolsTreeMirror=`, `--tools-tree-mirror=`
-
-: Set the mirror to use for the default tools tree. By default, the
-  default mirror for the tools tree distribution is used.
+:   Set the mirror to use for the default tools tree. By default, the
+    default mirror for the tools tree distribution is used.
 
 `ToolsTreeRepositories=`, `--tools-tree-repository`
-
-: Same as `Repositories=` but for the default tools tree.
+:   Same as `Repositories=` but for the default tools tree.
 
 `ToolsTreePackageManagerTrees=`, `--tools-tree-package-manager-tree=`
-
-: Same as `PackageManagerTrees=` but for the default tools tree.
+:   Same as `PackageManagerTrees=` but for the default tools tree.
 
 `ToolsTreePackages=`, `--tools-tree-packages=`
-
-: Extra packages to install into the default tools tree. Takes a comma
-  separated list of package specifications. This option may be used
-  multiple times in which case the specified package lists are combined.
+:   Extra packages to install into the default tools tree. Takes a comma
+    separated list of package specifications. This option may be used
+    multiple times in which case the specified package lists are combined.
 
 `ToolsTreeCertificates=`, `--tools-tree-certificates=`
-
-: Specify whether to use certificates and keys from the tools tree. If
-  enabled, `/usr/share/keyrings`, `/usr/share/distribution-gpg-keys`,
-  `/etc/pki`, `/etc/ssl`, `/etc/ca-certificates`, `/etc/pacman.d/gnupg`
-  and `/var/lib/ca-certificates` from the tools tree are used.
-  Otherwise, these directories are picked up from the host.
+:   Specify whether to use certificates and keys from the tools tree. If
+    enabled, `/usr/share/keyrings`, `/usr/share/distribution-gpg-keys`,
+    `/etc/pki`, `/etc/ssl`, `/etc/ca-certificates`, `/etc/pacman.d/gnupg`
+    and `/var/lib/ca-certificates` from the tools tree are used.
+    Otherwise, these directories are picked up from the host.
 
 `RuntimeTrees=`, `--runtime-tree=`
+:   Takes a colon separated pair of paths. The first path refers to a
+    directory to mount into any machine (container or VM) started by
+    mkosi. The second path refers to the target directory inside the
+    machine. If the second path is not provided, the directory is mounted
+    at `/root/src` in the machine. If the second path is relative, it
+    is interpreted relative to `/root/src` in the machine.
 
-: Takes a colon separated pair of paths. The first path refers to a
-  directory to mount into any machine (container or VM) started by
-  mkosi. The second path refers to the target directory inside the
-  machine. If the second path is not provided, the directory is mounted
-  at `/root/src` in the machine. If the second path is relative, it
-  is interpreted relative to `/root/src` in the machine.
+    For each mounted directory, the uid and gid of the user running mkosi
+    are mapped to the root user in the machine. This means that all the
+    files and directories will appear as if they're owned by root in the
+    machine, and all new files and directories created by root in the
+    machine in these directories will be owned by the user running mkosi
+    on the host.
 
-: For each mounted directory, the uid and gid of the user running mkosi
-  are mapped to the root user in the machine. This means that all the
-  files and directories will appear as if they're owned by root in the
-  machine, and all new files and directories created by root in the
-  machine in these directories will be owned by the user running mkosi
-  on the host.
-
-: Note that when using `mkosi qemu` with this feature systemd v254 or
-  newer has to be installed in the image.
+    Note that when using `mkosi qemu` with this feature systemd v254 or
+    newer has to be installed in the image.
 
 `RuntimeSize=`, `--runtime-size=`
-
-: If specified, disk images are grown to the specified size when
-  they're booted with `mkosi boot` or `mkosi qemu`. Takes a size in
-  bytes. Additionally, the suffixes `K`, `M` and `G` can be used to
-  specify a size in kilobytes, megabytes and gigabytes respectively.
+:   If specified, disk images are grown to the specified size when
+    they're booted with `mkosi boot` or `mkosi qemu`. Takes a size in
+    bytes. Additionally, the suffixes `K`, `M` and `G` can be used to
+    specify a size in kilobytes, megabytes and gigabytes respectively.
 
 `RuntimeScratch=`, `--runtime-scratch=`
+:   Takes a boolean value or `auto`. Specifies whether to mount extra
+    scratch space to `/var/tmp`. If enabled, practically unlimited scratch
+    space is made available under `/var/tmp` when booting the image with
+    `mkosi qemu`, `mkosi boot` or `mkosi shell`.
 
-: Takes a boolean value or `auto`. Specifies whether to mount extra
-  scratch space to `/var/tmp`. If enabled, practically unlimited scratch
-  space is made available under `/var/tmp` when booting the image with
-  `mkosi qemu`, `mkosi boot` or `mkosi shell`.
-
-: Note that using this feature with `mkosi qemu` requires systemd v254
-  or newer in the guest.
+    Note that using this feature with `mkosi qemu` requires systemd v254
+    or newer in the guest.
 
 `RuntimeNetwork=`, `--runtime-network=`
+:   Takes one of `user`, `interface` or `none`. Defaults to `user`.
+    Specifies the networking to set up when booting the image. `user` sets
+    up usermode networking. `interface` sets up a virtual network
+    connection between the host and the image. This translates to a veth
+    interface for `mkosi shell` and `mkosi boot` and a tap interface for
+    `mkosi qemu` and `mkosi vmspawn`.
 
-: Takes one of `user`, `interface` or `none`. Defaults to `user`.
-  Specifies the networking to set up when booting the image. `user` sets
-  up usermode networking. `interface` sets up a virtual network
-  connection between the host and the image. This translates to a veth
-  interface for `mkosi shell` and `mkosi boot` and a tap interface for
-  `mkosi qemu` and `mkosi vmspawn`.
-
-: Note that when using `interface`, mkosi does not automatically
-  configure the host interface. It is expected that a recent version of
-  `systemd-networkd` is running on the host which will automatically
-  configure the host interface of the link.
+    Note that when using `interface`, mkosi does not automatically
+    configure the host interface. It is expected that a recent version of
+    `systemd-networkd` is running on the host which will automatically
+    configure the host interface of the link.
 
 `RuntimeBuildSources=`, `--runtime-build-sources=`
-
-: Mount the build sources configured with `BuildSources=` and the build
-  directory (if one is configured) to the same locations in `/work` that
-  they were mounted to when running the build script when using `mkosi
-  boot` or `mkosi qemu`.
+:   Mount the build sources configured with `BuildSources=` and the build
+    directory (if one is configured) to the same locations in `/work` that
+    they were mounted to when running the build script when using `mkosi
+    boot` or `mkosi qemu`.
 
 `UnitProperties=`, `--unit-property=`
-
-: Configure systemd unit properties to add to the systemd scopes
-  allocated when using `mkosi boot` or `mkosi qemu`. These are passed
-  directly to the `--property` options of `systemd-nspawn` and
-  `systemd-run` respectively.
+:   Configure systemd unit properties to add to the systemd scopes
+    allocated when using `mkosi boot` or `mkosi qemu`. These are passed
+    directly to the `--property` options of `systemd-nspawn` and
+    `systemd-run` respectively.
 
 `SshKey=`, `--ssh-key=`
-
-: Path to the X509 private key in PEM format to use to connect to a
-  virtual machine started with `mkosi qemu` and built with the `Ssh=`
-  option enabled via the `mkosi ssh` command. If not configured and
-  `mkosi.key` exists in the working directory, it will automatically be
-  used for this purpose. Run `mkosi genkey` to automatically generate
-  a key in `mkosi.key`.
+:   Path to the X509 private key in PEM format to use to connect to a
+    virtual machine started with `mkosi qemu` and built with the `Ssh=`
+    option enabled via the `mkosi ssh` command. If not configured and
+    `mkosi.key` exists in the working directory, it will automatically be
+    used for this purpose. Run `mkosi genkey` to automatically generate
+    a key in `mkosi.key`.
 
 `SshCertificate=`, `--ssh-certificate=`
-
-: Path to the X509 certificate in PEM format to provision as the SSH
-  public key in virtual machines started with `mkosi qemu`.  If not
-  configured and `mkosi.crt` exists in the working directory, it will
-  automatically be used for this purpose. Run `mkosi genkey` to
-  automatically generate a certificate in `mkosi.crt`.
+:   Path to the X509 certificate in PEM format to provision as the SSH
+    public key in virtual machines started with `mkosi qemu`.  If not
+    configured and `mkosi.crt` exists in the working directory, it will
+    automatically be used for this purpose. Run `mkosi genkey` to
+    automatically generate a certificate in `mkosi.crt`.
 
 `Machine=`, `--machine=`
+:   Specify the machine name to use when booting the image. Can also be
+    used to refer to a specific image when SSH-ing into an image (e.g.
+    `mkosi --image=myimage ssh`).
 
-: Specify the machine name to use when booting the image. Can also be
-  used to refer to a specific image when SSH-ing into an image (e.g.
-  `mkosi --image=myimage ssh`).
-
-: Note that `Ephemeral=` has to be enabled to start multiple instances
-  of the same image.
+    Note that `Ephemeral=` has to be enabled to start multiple instances
+    of the same image.
 
 `ForwardJournal=`, `--forward-journal=`
+:   Specify the path to which journal logs from containers and virtual
+    machines should be forwarded. If the path has the `.journal`
+    extension, it is interpreted as a file to which the journal should be
+    written. Otherwise, the path is interpreted as a directory to which
+    the journal should be written.
 
-: Specify the path to which journal logs from containers and virtual
-  machines should be forwarded. If the path has the `.journal`
-  extension, it is interpreted as a file to which the journal should be
-  written. Otherwise, the path is interpreted as a directory to which
-  the journal should be written.
+    Note that systemd v256 or newer is required in the virtual machine for
+    log forwarding to work.
 
-: Note that systemd v256 or newer is required in the virtual machine for
-  log forwarding to work.
-
-: Note that if a path with the `.journal` extension is given, the
-  journal size is limited to `4G`. Configure an output directory instead
-  of file if your workload produces more than `4G` worth of journal
-  data.
+    Note that if a path with the `.journal` extension is given, the
+    journal size is limited to `4G`. Configure an output directory instead
+    of file if your workload produces more than `4G` worth of journal
+    data.
 
 ### [Match] Section.
 
 `Profile=`
-
-: Matches against the configured profile.
+:   Matches against the configured profile.
 
 `Distribution=`
-
-: Matches against the configured distribution.
+:   Matches against the configured distribution.
 
 `Release=`
-
-: Matches against the configured distribution release. If this condition is used and no distribution has been
-  explicitly configured yet, the host distribution and release are used.
+:   Matches against the configured distribution release. If this condition is used and no distribution has been
+    explicitly configured yet, the host distribution and release are used.
 
 `Architecture=`
-
-: Matches against the configured architecture. If this condition is used
-  and no architecture has been explicitly configured yet, the host
-  architecture is used.
+:   Matches against the configured architecture. If this condition is used
+    and no architecture has been explicitly configured yet, the host
+    architecture is used.
 
 `PathExists=`
-
-: This condition is satisfied if the given path exists. Relative paths are interpreted relative to the parent
-  directory of the config file that the condition is read from.
+:   This condition is satisfied if the given path exists. Relative paths are interpreted relative to the parent
+    directory of the config file that the condition is read from.
 
 `ImageId=`
-
-: Matches against the configured image ID, supporting globs. If this condition is used and no image ID has
-  been explicitly configured yet, this condition fails.
+:   Matches against the configured image ID, supporting globs. If this condition is used and no image ID has
+    been explicitly configured yet, this condition fails.
 
 `ImageVersion=`
-
-: Matches against the configured image version. Image versions can be prepended by the operators `==`, `!=`,
-  `>=`, `<=`, `<`, `>` for rich version comparisons according to the UAPI group version format specification.
-  If no operator is prepended, the equality operator is assumed by default. If this condition is used and no
-  image version has been explicitly configured yet, this condition fails.
+:   Matches against the configured image version. Image versions can be prepended by the operators `==`, `!=`,
+    `>=`, `<=`, `<`, `>` for rich version comparisons according to the UAPI group version format specification.
+    If no operator is prepended, the equality operator is assumed by default. If this condition is used and no
+    image version has been explicitly configured yet, this condition fails.
 
 `Bootable=`
-
-: Matches against the configured value for the `Bootable=` feature. Takes a boolean value or `auto`.
+:   Matches against the configured value for the `Bootable=` feature. Takes a boolean value or `auto`.
 
 `Format=`
-
-: Matches against the configured value for the `Format=` option. Takes
-  an output format (see the `Format=` option).
+:   Matches against the configured value for the `Format=` option. Takes
+    an output format (see the `Format=` option).
 
 `SystemdVersion=`
-
-: Matches against the systemd version on the host (as reported by
-  `systemctl --version`). Values can be prepended by the operators `==`,
-  `!=`, `>=`, `<=`, `<`, `>` for rich version comparisons according to
-  the UAPI group version format specification. If no operator is
-  prepended, the equality operator is assumed by default.
+:   Matches against the systemd version on the host (as reported by
+    `systemctl --version`). Values can be prepended by the operators `==`,
+    `!=`, `>=`, `<=`, `<`, `>` for rich version comparisons according to
+    the UAPI group version format specification. If no operator is
+    prepended, the equality operator is assumed by default.
 
 `BuildSources=`
+:   Takes a build source target path (see `BuildSources=`). This match is
+    satisfied if any of the configured build sources uses this target
+    path. For example, if we have a `mkosi.conf` file containing:
 
-: Takes a build source target path (see `BuildSources=`). This match is
-  satisfied if any of the configured build sources uses this target
-  path. For example, if we have a `mkosi.conf` file containing:
+    ```ini
+    [Content]
+    BuildSources=../abc/qed:kernel
+    ```
 
-  ```conf
-  [Content]
-  BuildSources=../abc/qed:kernel
-  ```
+    and a drop-in containing:
 
-  and a drop-in containing:
+    ```ini
+    [Match]
+    BuildSources=kernel
+    ```
 
-  ```conf
-  [Match]
-  BuildSources=kernel
-  ```
+    The drop-in will be included.
 
-  The drop-in will be included.
-
-: Any absolute paths passed to this setting are interpreted relative to
-  the current working directory.
+    Any absolute paths passed to this setting are interpreted relative to
+    the current working directory.
 
 `HostArchitecture=`
-
-: Matches against the host's native architecture. See the
-  `Architecture=` setting for a list of possible values.
+:   Matches against the host's native architecture. See the
+    `Architecture=` setting for a list of possible values.
 
 `ToolsTreeDistribution=`
-
-: Matches against the configured tools tree distribution.
+:   Matches against the configured tools tree distribution.
 
 `Environment=`
+:    Matches against a specific key/value pair configured with
+     `Environment=`. If no value is provided, check if the given key is in
+     the environment regardless of which value it has.
 
-: Matches against a specific key/value pair configured with
-  `Environment=`. If no value is provided, check if the given key is in
-  the environment regardless of which value it has.
+This table shows which matchers support globs, rich comparisons and the default
+value that is matched against if no value has been configured at the time the
+config file is read:
 
 | Matcher                  | Globs | Rich Comparisons | Default                               |
 |--------------------------|-------|------------------|---------------------------------------|
@@ -1882,64 +1710,57 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 ### [Config] Section
 
 `Profile=`, `--profile=`
-
-: Select the given profile. A profile is a configuration file or
-  directory in the `mkosi.profiles/` directory. When selected, this
-  configuration file or directory is included after parsing the
-  `mkosi.conf` file, but before any `mkosi.conf.d/*.conf` drop in
-  configuration.
+:   Select the given profile. A profile is a configuration file or
+    directory in the `mkosi.profiles/` directory. When selected, this
+    configuration file or directory is included after parsing the
+    `mkosi.conf` file, but before any `mkosi.conf.d/*.conf` drop in
+    configuration.
 
 `Include=`, `--include=`, `-I`
+:   Include extra configuration from the given file or directory. The
+    extra configuration is included immediately after parsing the setting,
+    except when a default is set using `@Include=`, in which case the
+    configuration is included after parsing all the other configuration
+    files.
 
-: Include extra configuration from the given file or directory. The
-  extra configuration is included immediately after parsing the setting,
-  except when a default is set using `@Include=`, in which case the
-  configuration is included after parsing all the other configuration
-  files.
+    Note that each path containing extra configuration is only parsed
+    once, even if included more than once with `Include=`.
 
-: Note that each path containing extra configuration is only parsed
-  once, even if included more than once with `Include=`.
+    The builtin configs for the mkosi default initrd and default tools
+    tree can be included by including the literal value `mkosi-initrd` and
+    `mkosi-tools` respectively.
 
-: The builtin configs for the mkosi default initrd and default tools
-  tree can be included by including the literal value `mkosi-initrd` and
-  `mkosi-tools` respectively.
-
-: Note: Include names starting with either of the literals `mkosi-` or
-  `contrib-` are reserved for use by mkosi itself.
+    Note: Include names starting with either of the literals `mkosi-` or
+    `contrib-` are reserved for use by mkosi itself.
 
 `InitrdInclude=`, `--initrd-include=`
-
-: Same as `Include=`, but the extra configuration files or directories
-  are included when building the default initrd.
+:    Same as `Include=`, but the extra configuration files or directories
+     are included when building the default initrd.
 
 `Images=`, `--image=`
+:    If specified, only build the given image. Can be specified multiple
+     times to build multiple images. All the given images and their
+     dependencies are built. If not specified, all images are built. See
+     the **Building multiple images** section for more information.
 
-: If specified, only build the given image. Can be specified multiple
-  times to build multiple images. All the given images and their
-  dependencies are built. If not specified, all images are built. See
-  the **Building multiple images** section for more information.
-
-: Note that this section only takes effect when specified in the global
-  configuration files. It has no effect if specified as an image
-  specific setting.
+     Note that this section only takes effect when specified in the global
+     configuration files. It has no effect if specified as an image
+     specific setting.
 
 `Dependencies=`, `--dependency=`
-
-: The images that this image depends on specified as a comma-separated
-  list. All images configured in this option will be built before this
-  image and will be pulled in as dependencies of this image when
-  `Images=` is used.
+:    The images that this image depends on specified as a comma-separated
+     list. All images configured in this option will be built before this
+     image and will be pulled in as dependencies of this image when
+     `Images=` is used.
 
 `MinimumVersion=`, `--minimum-version=`
-
-: The minimum mkosi version required to build this configuration. If
-  specified multiple times, the highest specified version is used.
+:   The minimum mkosi version required to build this configuration. If
+    specified multiple times, the highest specified version is used.
 
 `ConfigureScripts=`, `--configure-script=`
-
-: Takes a comma-separated list of paths to executables that are used as
-  the configure scripts for this image. See the **Scripts** section for
-  more information.
+:    Takes a comma-separated list of paths to executables that are used as
+     the configure scripts for this image. See the **Scripts** section for
+     more information.
 
 ## Specifiers
 
@@ -2275,33 +2096,33 @@ Scripts executed by mkosi receive the following environment variables:
 
 Consult this table for which script receives which environment variables:
 
-| Variable            | `mkosi.configure` | `mkosi.sync` | `mkosi.prepare` | `mkosi.build` | `mkosi.postinst` | `mkosi.finalize` | `mkosi.clean` |
-|---------------------|-------------------|--------------|-----------------|---------------|------------------|------------------|---------------|
-| `ARCHITECTURE`      | X                 | X            | X               | X             | X                | X                | X             |
-| `QEMU_ARCHITECTURE` | X                 |              |                 |               |                  |                  |               |
-| `DISTRIBUTION`      | X                 | X            | X               | X             | X                | X                | X             |
-| `RELEASE`           | X                 | X            | X               | X             | X                | X                | X             |
-| `PROFILE`           | X                 | X            | X               | X             | X                | X                | X             |
-| `CACHED`            |                   | X            |                 |               |                  |                  |               |
-| `CHROOT_SCRIPT`     |                   |              | X               | X             | X                | X                |               |
-| `SRCDIR`            | X                 | X            | X               | X             | X                | X                | X             |
-| `CHROOT_SRCDIR`     |                   |              | X               | X             | X                | X                |               |
-| `BUILDDIR`          |                   |              |                 | X             |                  |                  |               |
-| `CHROOT_BUILDDIR`   |                   |              |                 | X             |                  |                  |               |
-| `DESTDIR`           |                   |              |                 | X             |                  |                  |               |
-| `CHROOT_DESTDIR`    |                   |              |                 | X             |                  |                  |               |
-| `OUTPUTDIR`         |                   |              |                 | X             | X                | X                | X             |
-| `CHROOT_OUTPUTDIR`  |                   |              |                 | X             | X                | X                |               |
-| `BUILDROOT`         |                   |              | X               | X             | X                | X                |               |
-| `PACKAGEDIR`        |                   |              | x               | x             | x                | x                |               |
-| `ARTIFACTDIR`       |                   |              | x               | x             | x                | x                |               |
-| `WITH_DOCS`         |                   |              | X               | X             |                  |                  |               |
-| `WITH_TESTS`        |                   |              | X               | X             |                  |                  |               |
-| `WITH_NETWORK`      |                   |              | X               | X             | x                | x                |               |
-| `SOURCE_DATE_EPOCH` |                   |              | X               | X             | X                | X                | X             |
-| `MKOSI_UID`         | X                 | X            | X               | X             | X                | X                | X             |
-| `MKOSI_GID`         | X                 | X            | X               | X             | X                | X                | X             |
-| `MKOSI_CONFIG`      |                   | X            | X               | X             | X                | X                | X             |
+| Variable            | `configure` | `sync` | `prepare` | `build` | `postinst` | `finalize` | `clean` |
+|---------------------|:-----------:|:------:|:---------:|:-------:|:----------:|:----------:|:-------:|
+| `ARCHITECTURE`      | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓       |
+| `QEMU_ARCHITECTURE` | ✓           |        |           |         |            |            |         |
+| `DISTRIBUTION`      | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓       |
+| `RELEASE`           | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓       |
+| `PROFILE`           | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓       |
+| `CACHED`            |             | ✓      |           |         |            |            |         |
+| `CHROOT_SCRIPT`     |             |        | ✓         | ✓       | ✓          | ✓          |         |
+| `SRCDIR`            | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓       |
+| `CHROOT_SRCDIR`     |             |        | ✓         | ✓       | ✓          | ✓          |         |
+| `BUILDDIR`          |             |        |           | ✓       |            |            |         |
+| `CHROOT_BUILDDIR`   |             |        |           | ✓       |            |            |         |
+| `DESTDIR`           |             |        |           | ✓       |            |            |         |
+| `CHROOT_DESTDIR`    |             |        |           | ✓       |            |            |         |
+| `OUTPUTDIR`         |             |        |           | ✓       | ✓          | ✓          | ✓       |
+| `CHROOT_OUTPUTDIR`  |             |        |           | ✓       | ✓          | ✓          |         |
+| `BUILDROOT`         |             |        | ✓         | ✓       | ✓          | ✓          |         |
+| `PACKAGEDIR`        |             |        | ✓         | ✓       | ✓          | ✓          |         |
+| `ARTIFACTDIR`       |             |        | ✓         | ✓       | ✓          | ✓          |         |
+| `WITH_DOCS`         |             |        | ✓         | ✓       |            |            |         |
+| `WITH_TESTS`        |             |        | ✓         | ✓       |            |            |         |
+| `WITH_NETWORK`      |             |        | ✓         | ✓       | ✓          | ✓          |         |
+| `SOURCE_DATE_EPOCH` |             |        | ✓         | ✓       | ✓          | ✓          | ✓       |
+| `MKOSI_UID`         | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓       |
+| `MKOSI_GID`         | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓       |
+| `MKOSI_CONFIG`      |             | ✓      | ✓         | ✓       | ✓          | ✓          | ✓       |
 
 Additionally, when a script is executed, a few scripts are made
 available via `$PATH` to simplify common usecases.
@@ -2452,7 +2273,7 @@ local directory:
 
   `00-esp.conf` (if we're building a bootable image):
 
-  ```
+  ```ini
   [Partition]
   Type=esp
   Format=vfat
@@ -2464,7 +2285,7 @@ local directory:
 
   `05-bios.conf` (if we're building a BIOS bootable image):
 
-  ```
+  ```ini
   [Partition]
   # UUID of the grub BIOS boot partition which grubs needs on GPT to
   # embed itself into.
@@ -2475,7 +2296,7 @@ local directory:
 
   `10-root.conf`
 
-  ```
+  ```ini
   [Partition]
   Type=root
   Format=<distribution-default-filesystem>
