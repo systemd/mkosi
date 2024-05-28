@@ -2269,7 +2269,7 @@ local directory:
 
   `00-esp.conf` (if we're building a bootable image):
 
-  ```
+  ```ini
   [Partition]
   Type=esp
   Format=vfat
@@ -2281,7 +2281,7 @@ local directory:
 
   `05-bios.conf` (if we're building a BIOS bootable image):
 
-  ```
+  ```ini
   [Partition]
   # UUID of the grub BIOS boot partition which grubs needs on GPT to
   # embed itself into.
@@ -2292,7 +2292,7 @@ local directory:
 
   `10-root.conf`
 
-  ```
+  ```ini
   [Partition]
   Type=root
   Format=<distribution-default-filesystem>
