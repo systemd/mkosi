@@ -1686,6 +1686,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
      `Environment=`. If no value is provided, check if the given key is in
      the environment regardless of which value it has.
 
+This table shows which matchers support globs, rich comparisons and the default
+value that is matched against if no value has been configured at the time the
+config file is read:
+
 | Matcher                  | Globs | Rich Comparisons | Default                               |
 |--------------------------|-------|------------------|---------------------------------------|
 | `Profile=`               | no    | no               | match fails                           |
