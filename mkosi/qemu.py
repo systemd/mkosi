@@ -701,8 +701,13 @@ def scope_env() -> dict[str, str]:
             "DBUS_SESSION_BUS_ADDRESS": os.environ["DBUS_SESSION_BUS_ADDRESS"],
             "XDG_RUNTIME_DIR": os.environ["XDG_RUNTIME_DIR"]
         }
-    elif os.getuid() == 0 and "DBUS_SYSTEM_ADDRESS" in os.environ:
-        return {"DBUS_SYSTEM_ADDRESS" : os.environ["DBUS_SYSTEM_ADDRESS"]}
+    elif os.getuid() == 0:
+        if "DBUS_SYSTEM_ADDRESS" in os.environ:
+            return {"DBUS_SYSTEM_ADDRESS": os.environ["DBUS_SYSTEM_ADDRESS"]}
+        elif Path("/run/dbus/system_bus_socket").exists():
+            return {"DBUS_SYSTEM_ADDRESS": "/run/dbus/system_bus_socket"}
+        else:
+            return {}
     else:
         return {}
 
