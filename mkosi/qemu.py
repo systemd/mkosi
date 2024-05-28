@@ -353,7 +353,7 @@ def start_virtiofsd(config: Config, directory: PathString, *, name: str, selinux
         scope = []
         if uidmap:
             uid = INVOKING_USER.uid if os.getuid() != INVOKING_USER.uid else None
-            gid = INVOKING_USER.gid if os.getuid() != INVOKING_USER.uid else None
+            gid = INVOKING_USER.gid if os.getgid() != INVOKING_USER.gid else None
             scope = scope_cmd(name=name, description=description, user=uid, group=gid)
         elif not uidmap and (os.getuid() == 0 or unshare_version() >= "2.38"):
             runas = become_root_cmd()
@@ -368,7 +368,7 @@ def start_virtiofsd(config: Config, directory: PathString, *, name: str, selinux
             # capabilities itself, we don't bother figuring out the exact set of capabilities it needs.
             user=uid if not scope else None,
             group=gid if not scope else None,
-            preexec_fn=become_root if not scope else None,
+            preexec_fn=become_root if not scope and not uidmap else None,
             env=scope_env() if scope else {},
             sandbox=config.sandbox(
                 binary=virtiofsd,
@@ -701,8 +701,13 @@ def scope_env() -> dict[str, str]:
             "DBUS_SESSION_BUS_ADDRESS": os.environ["DBUS_SESSION_BUS_ADDRESS"],
             "XDG_RUNTIME_DIR": os.environ["XDG_RUNTIME_DIR"]
         }
-    elif os.getuid() == 0 and "DBUS_SYSTEM_ADDRESS" in os.environ:
-        return {"DBUS_SYSTEM_ADDRESS" : os.environ["DBUS_SYSTEM_ADDRESS"]}
+    elif os.getuid() == 0:
+        if "DBUS_SYSTEM_ADDRESS" in os.environ:
+            return {"DBUS_SYSTEM_ADDRESS": os.environ["DBUS_SYSTEM_ADDRESS"]}
+        elif Path("/run/dbus/system_bus_socket").exists():
+            return {"DBUS_SYSTEM_ADDRESS": "/run/dbus/system_bus_socket"}
+        else:
+            return {}
     else:
         return {}
 
