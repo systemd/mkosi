@@ -4000,14 +4000,14 @@ def run_shell(args: Args, config: Config) -> None:
             # Add nspawn options first since systemd-nspawn ignores all options after the first argument.
             argv = args.cmdline
 
+            # When invoked by the kernel, all unknown arguments are passed as environment variables to pid1. Let's
+            # mimick the same behavior when we invoke nspawn as a container.
             for arg in itertools.chain(config.kernel_command_line, config.kernel_command_line_extra):
-                name, sep, _ = arg.partition("=")
+                name, sep, value = arg.partition("=")
 
-                if sep and name.isupper():
-                    # When invoked by the kernel, all unknown arguments are passed as environment variables to pid1.
-                    # Let's mimick the same behavior when we invoked nspawn as a container but only for upper case
-                    # arguments.
-                    cmdline += ["--setenv", arg]
+                # If there's a '.' in the argument name, it's not considered an environment variable by the kernel.
+                if sep and "." not in name:
+                    cmdline += ["--setenv", f"{name.replace('-', '_')}={value}"]
                 else:
                     # kernel cmdline config of the form systemd.xxx= get interpreted by systemd when running in nspawn
                     # as well.
