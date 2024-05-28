@@ -1424,59 +1424,59 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
     |                         | Fedora | CentOS | Debian | Ubuntu | Arch | openSUSE |
     |-------------------------|:------:|:------:|:------:|:------:|:----:|:--------:|
-    | `acl`                   | X      | X      | X      | X      | X    | X        |
-    | `apt`                   | X      | X      | X      | X      | X    |          |
-    | `archlinux-keyring`     | X      |        | X      | X      | X    |          |
-    | `attr`                  | X      | X      | X      | X      | X    | X        |
-    | `bash`                  | X      | X      | X      | X      | X    | X        |
-    | `btrfs-progs`           | X      |        | X      | X      | X    | X        |
-    | `bubblewrap`            | X      | X      | X      | X      | X    | X        |
-    | `ca-certificates`       | X      | X      | X      | X      | X    | X        |
-    | `coreutils`             | X      | X      | X      | X      | X    | X        |
-    | `cpio`                  | X      | X      | X      | X      | X    | X        |
-    | `curl`                  | X      | X      | X      | X      | X    | X        |
-    | `debian-keyring`        | X      | X      | X      | X      | X    |          |
-    | `diffutils`             | X      | X      | X      | X      | X    | X        |
-    | `distribution-gpg-keys` | X      | X      |        |        |      | X        |
-    | `dnf`                   | X      | X      | X      | X      | X    | X        |
-    | `dnf-plugins-core`      | X      | X      |        |        |      | X        |
-    | `dnf5`                  | X      |        |        |        |      |          |
-    | `dnf5-plugins`          | X      |        |        |        |      |          |
-    | `dosfstools`            | X      | X      | X      | X      | X    | X        |
-    | `e2fsprogs`             | X      | X      | X      | X      | X    | X        |
-    | `edk2-ovmf`             | X      | X      | X      | X      | X    | X        |
-    | `erofs-utils`           | X      |        | X      | X      | X    | X        |
-    | `findutils`             | X      | X      | X      | X      | X    | X        |
-    | `git`                   | X      | X      | X      | X      | X    | X        |
-    | `grep`                  | X      | X      | X      | X      | X    | X        |
-    | `jq`                    | X      | X      | X      | X      | X    | X        |
-    | `kmod`                  | X      | X      | X      | X      | X    | X        |
-    | `less`                  | X      | X      | X      | X      | X    | X        |
-    | `mtools`                | X      | X      | X      | X      | X    | X        |
-    | `nano`                  | X      | X      | X      | X      | X    | X        |
-    | `openssh`               | X      | X      | X      | X      | X    | X        |
-    | `openssl`               | X      | X      | X      | X      | X    | X        |
-    | `sed`                   | X      | X      | X      | X      | X    | X        |
-    | `pacman`                | X      |        | X      | X      | X    |          |
-    | `pesign`                | X      | X      | X      | X      | X    | X        |
-    | `policycoreutils`       | X      | X      | X      | X      |      | X        |
-    | `qemu`                  | X      | X      | X      | X      | X    | X        |
-    | `sbsigntools`           | X      |        | X      | X      | X    | X        |
-    | `socat`                 | X      | X      | X      | X      | X    | X        |
-    | `squashfs-tools`        | X      | X      | X      | X      | X    | X        |
-    | `strace`                | X      | X      | X      | X      | X    | X        |
-    | `swtpm`                 | X      | X      | X      | X      | X    | X        |
-    | `systemd`               | X      | X      | X      | X      | X    | X        |
-    | `ukify`                 | X      |        | X      | X      | X    | X        |
-    | `tar`                   | X      | X      | X      | X      | X    | X        |
-    | `ubuntu-keyring`        | X      | X      | X      | X      | X    |          |
-    | `util-linux`            | X      | X      | X      | X      | X    | X        |
-    | `virtiofsd`             | X      | X      |        |        | X    | X        |
-    | `virt-firmware`         | X      | X      |        |        | X    |          |
-    | `xfsprogs`              | X      | X      | X      | X      | X    | X        |
-    | `xz`                    | X      | X      | X      | X      | X    | X        |
-    | `zstd`                  | X      | X      | X      | X      | X    | X        |
-    | `zypper`                | X      |        | X      | X      | X    |          |
+    | `acl`                   | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `apt`                   | ✓      | ✓      | ✓      | ✓      | ✓    |          |
+    | `archlinux-keyring`     | ✓      |        | ✓      | ✓      | ✓    |          |
+    | `attr`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `bash`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `btrfs-progs`           | ✓      |        | ✓      | ✓      | ✓    | ✓        |
+    | `bubblewrap`            | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `ca-certificates`       | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `coreutils`             | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `cpio`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `curl`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `debian-keyring`        | ✓      | ✓      | ✓      | ✓      | ✓    |          |
+    | `diffutils`             | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `distribution-gpg-keys` | ✓      | ✓      |        |        |      | ✓        |
+    | `dnf`                   | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `dnf-plugins-core`      | ✓      | ✓      |        |        |      | ✓        |
+    | `dnf5`                  | ✓      |        |        |        |      |          |
+    | `dnf5-plugins`          | ✓      |        |        |        |      |          |
+    | `dosfstools`            | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `e2fsprogs`             | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `edk2-ovmf`             | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `erofs-utils`           | ✓      |        | ✓      | ✓      | ✓    | ✓        |
+    | `findutils`             | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `git`                   | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `grep`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `jq`                    | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `kmod`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `less`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `mtools`                | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `nano`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `openssh`               | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `openssl`               | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `sed`                   | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `pacman`                | ✓      |        | ✓      | ✓      | ✓    |          |
+    | `pesign`                | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `policycoreutils`       | ✓      | ✓      | ✓      | ✓      |      | ✓        |
+    | `qemu`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `sbsigntools`           | ✓      |        | ✓      | ✓      | ✓    | ✓        |
+    | `socat`                 | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `squashfs-tools`        | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `strace`                | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `swtpm`                 | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `systemd`               | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `ukify`                 | ✓      |        | ✓      | ✓      | ✓    | ✓        |
+    | `tar`                   | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `ubuntu-keyring`        | ✓      | ✓      | ✓      | ✓      | ✓    |          |
+    | `util-linux`            | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `virtiofsd`             | ✓      | ✓      |        |        | ✓    | ✓        |
+    | `virt-firmware`         | ✓      | ✓      |        |        | ✓    |          |
+    | `xfsprogs`              | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `xz`                    | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `zstd`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `zypper`                | ✓      |        | ✓      | ✓      | ✓    |          |
 
 `ToolsTreeDistribution=`, `--tools-tree-distribution=`
 :   Set the distribution to use for the default tools tree. By default,
@@ -2094,31 +2094,31 @@ Consult this table for which script receives which environment variables:
 
 | Variable            | `configure` | `sync` | `prepare` | `build` | `postinst` | `finalize` | `clean` |
 |---------------------|:-----------:|:------:|:---------:|:-------:|:----------:|:----------:|:-------:|
-| `ARCHITECTURE`      | X           | X      | X         | X       | X          | X          | X       |
-| `QEMU_ARCHITECTURE` | X           |        |           |         |            |            |         |
-| `DISTRIBUTION`      | X           | X      | X         | X       | X          | X          | X       |
-| `RELEASE`           | X           | X      | X         | X       | X          | X          | X       |
-| `PROFILE`           | X           | X      | X         | X       | X          | X          | X       |
-| `CACHED`            |             | X      |           |         |            |            |         |
-| `CHROOT_SCRIPT`     |             |        | X         | X       | X          | X          |         |
-| `SRCDIR`            | X           | X      | X         | X       | X          | X          | X       |
-| `CHROOT_SRCDIR`     |             |        | X         | X       | X          | X          |         |
-| `BUILDDIR`          |             |        |           | X       |            |            |         |
-| `CHROOT_BUILDDIR`   |             |        |           | X       |            |            |         |
-| `DESTDIR`           |             |        |           | X       |            |            |         |
-| `CHROOT_DESTDIR`    |             |        |           | X       |            |            |         |
-| `OUTPUTDIR`         |             |        |           | X       | X          | X          | X       |
-| `CHROOT_OUTPUTDIR`  |             |        |           | X       | X          | X          |         |
-| `BUILDROOT`         |             |        | X         | X       | X          | X          |         |
-| `PACKAGEDIR`        |             |        | x         | x       | x          | x          |         |
-| `ARTIFACTDIR`       |             |        | x         | x       | x          | x          |         |
-| `WITH_DOCS`         |             |        | X         | X       |            |            |         |
-| `WITH_TESTS`        |             |        | X         | X       |            |            |         |
-| `WITH_NETWORK`      |             |        | X         | X       | x          | x          |         |
-| `SOURCE_DATE_EPOCH` |             |        | X         | X       | X          | X          | X       |
-| `MKOSI_UID`         | X           | X      | X         | X       | X          | X          | X       |
-| `MKOSI_GID`         | X           | X      | X         | X       | X          | X          | X       |
-| `MKOSI_CONFIG`      |             | X      | X         | X       | X          | X          | X       |
+| `ARCHITECTURE`      | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓       |
+| `QEMU_ARCHITECTURE` | ✓           |        |           |         |            |            |         |
+| `DISTRIBUTION`      | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓       |
+| `RELEASE`           | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓       |
+| `PROFILE`           | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓       |
+| `CACHED`            |             | ✓      |           |         |            |            |         |
+| `CHROOT_SCRIPT`     |             |        | ✓         | ✓       | ✓          | ✓          |         |
+| `SRCDIR`            | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓       |
+| `CHROOT_SRCDIR`     |             |        | ✓         | ✓       | ✓          | ✓          |         |
+| `BUILDDIR`          |             |        |           | ✓       |            |            |         |
+| `CHROOT_BUILDDIR`   |             |        |           | ✓       |            |            |         |
+| `DESTDIR`           |             |        |           | ✓       |            |            |         |
+| `CHROOT_DESTDIR`    |             |        |           | ✓       |            |            |         |
+| `OUTPUTDIR`         |             |        |           | ✓       | ✓          | ✓          | ✓       |
+| `CHROOT_OUTPUTDIR`  |             |        |           | ✓       | ✓          | ✓          |         |
+| `BUILDROOT`         |             |        | ✓         | ✓       | ✓          | ✓          |         |
+| `PACKAGEDIR`        |             |        | ✓         | ✓       | ✓          | ✓          |         |
+| `ARTIFACTDIR`       |             |        | ✓         | ✓       | ✓          | ✓          |         |
+| `WITH_DOCS`         |             |        | ✓         | ✓       |            |            |         |
+| `WITH_TESTS`        |             |        | ✓         | ✓       |            |            |         |
+| `WITH_NETWORK`      |             |        | ✓         | ✓       | ✓          | ✓          |         |
+| `SOURCE_DATE_EPOCH` |             |        | ✓         | ✓       | ✓          | ✓          | ✓       |
+| `MKOSI_UID`         | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓       |
+| `MKOSI_GID`         | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓       |
+| `MKOSI_CONFIG`      |             | ✓      | ✓         | ✓       | ✓          | ✓          | ✓       |
 
 Additionally, when a script is executed, a few scripts are made
 available via `$PATH` to simplify common usecases.
