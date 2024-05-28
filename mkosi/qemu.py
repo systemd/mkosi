@@ -368,7 +368,7 @@ def start_virtiofsd(config: Config, directory: PathString, *, name: str, selinux
             # capabilities itself, we don't bother figuring out the exact set of capabilities it needs.
             user=uid if not scope else None,
             group=gid if not scope else None,
-            preexec_fn=become_root if not scope else None,
+            preexec_fn=become_root if not scope and not uidmap else None,
             env=scope_env() if scope else {},
             sandbox=config.sandbox(
                 binary=virtiofsd,
