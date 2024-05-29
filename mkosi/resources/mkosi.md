@@ -649,6 +649,14 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   root or `/usr` partition along with its Verity partition and unified
   kernel.
 
+`SysupdateNaming=`, `--sysupdate-naming`
+
+: The naming of Unified Kernel Images (UKIs) within `/boot/EFI` and the saved
+  UKI binary artifact will be in the format `ImageId_ImageVersion.efi` when
+  enabled. This is useful when used with `systemd-sysupdate` which requires the
+  version to be stored in the UKI binary name. Requires `ImageId=` and
+  `ImageVersion=` to be specified. Has no effect when a UKI is not generated.
+
 `RepartDirectories=`, `--repart-dir=`
 
 : Paths to directories containing systemd-repart partition definition

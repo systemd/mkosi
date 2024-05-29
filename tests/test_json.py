@@ -316,6 +316,7 @@ def test_config() -> None:
             "SyncScripts": [
                 "/sync"
             ],
+            "SysupdateNaming": false,
             "Timezone": null,
             "ToolsTree": null,
             "ToolsTreeCertificates": true,
@@ -486,6 +487,7 @@ def test_config() -> None:
         ssh_certificate=Path("/path/to/cert"),
         ssh_key=None,
         sync_scripts=[Path("/sync")],
+        sysupdate_naming=False,
         timezone=None,
         tools_tree=None,
         tools_tree_certificates=True,

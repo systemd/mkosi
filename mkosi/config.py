@@ -1389,6 +1389,7 @@ class Config:
     image_id: Optional[str]
     image_version: Optional[str]
     split_artifacts: bool
+    sysupdate_naming: bool
     repart_dirs: list[Path]
     sector_size: Optional[int]
     repart_offline: bool
@@ -1582,6 +1583,8 @@ class Config:
 
     @property
     def output_split_uki(self) -> str:
+        if self.sysupdate_naming:
+            return f"{self.image_id}_{self.image_version}.efi"
         return f"{self.output}.efi"
 
     @property
@@ -2062,6 +2065,14 @@ SETTINGS = (
         section="Output",
         parse=config_parse_boolean,
         help="Generate split partitions",
+    ),
+    ConfigSetting(
+        dest="sysupdate_naming",
+        metavar="BOOL",
+        nargs="?",
+        section="Output",
+        parse=config_parse_boolean,
+        help="Use systemd-sysupdate naming scheme",
     ),
     ConfigSetting(
         dest="repart_dirs",
@@ -3838,6 +3849,9 @@ def load_config(args: Args, config: argparse.Namespace) -> Config:
             die("UEFI SecureBoot enabled, private key was found, but not the certificate.",
                 hint="Consider placing it in mkosi.crt")
 
+    if config.sysupdate_naming and (config.image_version is None or config.image_id is None):
+        die("Sysupdate naming enabled, but image version and image ID are not set.")
+
     if config.repositories and not (
         config.distribution.is_dnf_distribution() or
         config.distribution.is_apt_distribution() or
@@ -3946,6 +3960,7 @@ def summary(config: Config) -> str:
                            Image ID: {config.image_id}
                       Image Version: {config.image_version}
                     Split Artifacts: {yes_no(config.split_artifacts)}
+                   Sysupdate Naming: {yes_no(config.sysupdate_naming)}
                  Repart Directories: {line_join_list(config.repart_dirs)}
                         Sector Size: {none_to_default(config.sector_size)}
                      Repart Offline: {yes_no(config.repart_offline)}

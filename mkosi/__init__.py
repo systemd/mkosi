@@ -2312,10 +2312,15 @@ def install_uki(context: Context, kver: str, kimg: Path, token: str, partitions:
         else:
             boot_binary = context.root / efi_boot_binary(context)
     else:
-        if roothash:
-            _, _, h = roothash.partition("=")
-            boot_binary = context.root / f"boot/EFI/Linux/{token}-{kver}-{h}{boot_count}.efi"
+        if context.config.sysupdate_naming:
+            # Use the image version as the authoritative version
+            # Only one kernel version is supported
+            name = f"{context.config.image_id}_{context.config.image_version}{boot_count}"
+            boot_binary = context.root / f"boot/EFI/Linux/{name}.efi"
         else:
+            # Fall back to using the kernel version as the authoritative version.
+            # The boot token prevents conflicts between different distributions
+            # in the same ESP.
             boot_binary = context.root / f"boot/EFI/Linux/{token}-{kver}{boot_count}.efi"
 
     # Make sure the parent directory where we'll be writing the UKI exists.
@@ -2404,6 +2409,9 @@ def install_kernel(context: Context, partitions: Sequence[Partition]) -> None:
     for kver, kimg in gen_kernel_images(context):
         if want_uki(context):
             install_uki(context, kver, kimg, token, partitions)
+            if context.config.sysupdate_naming:
+                # Only one kernel version is supported so use the first one
+                break
         if not want_uki(context) or want_grub_bios(context, partitions):
             install_type1(context, kver, kimg, token, partitions)
 
