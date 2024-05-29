@@ -450,6 +450,8 @@ def start_journal_remote(config: Config, sockfd: int) -> Iterator[None]:
         INVOKING_USER.chown(d)
 
     with tempfile.NamedTemporaryFile(mode="w", prefix="mkosi-journal-remote-config-") as f:
+        os.chmod(f.name, 0o644)
+
         # Make sure we capture all the logs by bumping the limits. We set MaxFileSize=4G because with the compact mode
         # enabled the files cannot grow any larger anyway.
         f.write(
