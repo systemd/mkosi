@@ -466,6 +466,15 @@ def start_journal_remote(config: Config, sockfd: int) -> Iterator[None]:
 
         f.flush()
 
+        user = config.forward_journal.parent.stat().st_uid if INVOKING_USER.invoked_as_root else None
+        group = config.forward_journal.parent.stat().st_gid if INVOKING_USER.invoked_as_root else None
+        scope = scope_cmd(
+            name=f"mkosi-journal-remote-{config.machine_or_name()}",
+            description=f"mkosi systemd-journal-remote for {config.machine_or_name()}",
+            user=user,
+            group=group,
+        )
+
         with spawn(
             [
                 bin,
@@ -480,12 +489,9 @@ def start_journal_remote(config: Config, sockfd: int) -> Iterator[None]:
                     Mount(f.name, "/etc/systemd/journal-remote.conf"),
                 ],
             ),
-            scope=scope_cmd(
-                name=f"mkosi-journal-remote-{config.machine_or_name()}",
-                description=f"mkosi systemd-journal-remote for {config.machine_or_name()}",
-                user=config.forward_journal.parent.stat().st_uid if INVOKING_USER.invoked_as_root else None,
-                group=config.forward_journal.parent.stat().st_gid if INVOKING_USER.invoked_as_root else None,
-            ),
+            user=user if not scope else None,
+            group=group if not scope else None,
+            scope=scope,
             env=scope_env(),
             foreground=False,
         ) as (proc, innerpid):
