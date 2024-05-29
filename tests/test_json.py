@@ -332,6 +332,7 @@ def test_config() -> None:
             "ToolsTreeRepositories": [
                 "abc"
             ],
+            "UnifiedKernelImageName": "myuki",
             "UnifiedKernelImages": "auto",
             "UnitProperties": [
                 "PROPERTY=VALUE"
@@ -495,6 +496,7 @@ def test_config() -> None:
         tools_tree_packages=[],
         tools_tree_release=None,
         tools_tree_repositories=["abc"],
+        unified_kernel_image_name="myuki",
         unified_kernel_images=ConfigFeature.auto,
         unit_properties=["PROPERTY=VALUE"],
         use_subvolumes=ConfigFeature.auto,

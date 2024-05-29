@@ -990,6 +990,12 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     Otherwise Type 1 entries as defined by the Boot Loader Specification
     will be used instead. If disabled, Type 1 entries will always be used.
 
+`UnifiedKernelImageName=`, `--unified-kernel-image-name=`
+
+: Specify the name to install the unified kernel image as. Takes a filename
+  without any path components or the `.efi` extension. This is only supported
+  when using a single unified kernel image.
+
 `Initrds=`, `--initrd`
 :   Use user-provided initrd(s). Takes a comma separated list of paths to initrd
     files. This option may be used multiple times in which case the initrd lists

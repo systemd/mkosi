@@ -2312,7 +2312,9 @@ def install_uki(context: Context, kver: str, kimg: Path, token: str, partitions:
         else:
             boot_binary = context.root / efi_boot_binary(context)
     else:
-        if roothash:
+        if name := context.config.unified_kernel_image_name:
+            boot_binary = context.root / f"boot/EFI/Linux/{name}{boot_count}.efi"
+        elif roothash:
             _, _, h = roothash.partition("=")
             boot_binary = context.root / f"boot/EFI/Linux/{token}-{kver}-{h}{boot_count}.efi"
         else:
@@ -2396,12 +2398,17 @@ def install_kernel(context: Context, partitions: Sequence[Partition]) -> None:
     if want_uki(context) and not stub.exists():
         die(f"Unified kernel image(s) requested but systemd-stub not found at /{stub.relative_to(context.root)}")
 
-    if context.config.bootable == ConfigFeature.enabled and not any(gen_kernel_images(context)):
+    kernel_images = list(gen_kernel_images(context))
+
+    if context.config.bootable == ConfigFeature.enabled and not any(kernel_images):
         die("A bootable image was requested but no kernel was found")
+
+    if want_uki(context) and context.config.unified_kernel_image_name and len(kernel_images) > 1:
+        die("A UKI name was specified but more than one kernel was found")
 
     token = find_entry_token(context)
 
-    for kver, kimg in gen_kernel_images(context):
+    for kver, kimg in kernel_images:
         if want_uki(context):
             install_uki(context, kver, kimg, token, partitions)
         if not want_uki(context) or want_grub_bios(context, partitions):
