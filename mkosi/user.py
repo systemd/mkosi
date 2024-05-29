@@ -20,7 +20,7 @@ SUBRANGE = 65536
 class INVOKING_USER:
     uid = int(os.getenv("SUDO_UID") or os.getenv("PKEXEC_UID") or os.getuid())
     gid = int(os.getenv("SUDO_GID") or os.getgid())
-    invoked_as_root = uid == 0
+    invoked_as_root = os.getuid() == 0
 
     @classmethod
     def init(cls) -> None:
