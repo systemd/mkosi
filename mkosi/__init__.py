@@ -2151,7 +2151,7 @@ def systemd_stub_binary(context: Context) -> Path:
 def systemd_stub_version(context: Context, stub: Path) -> GenericVersion:
     sdmagic = extract_pe_section(context, stub, ".sdmagic", context.workspace / "sdmagic")
     sdmagic_text = sdmagic.read_text()
-    if version := re.match(r"#### LoaderInfo: systemd-stub (?P<version>[.~^a-zA-Z0-9-\+]+) ####", sdmagic_text):
+    if version := re.match(r"#### LoaderInfo: systemd-stub (?P<version>[.~^a-zA-Z0-9-+]+) ####", sdmagic_text):
         return GenericVersion(version.group("version"))
     die(f"Unable to determine systemd-stub version, found {sdmagic_text!r}")
 
