@@ -2299,12 +2299,16 @@ def install_type1(
             f.write("fi\n")
 
 
+def expand_delayed_specifiers(name: str, token: str, kver: str, roothash: str, boot_count: str) -> str:
+    return name.replace("&e", token).replace("&k", kver).replace("&h", roothash).replace("&c", boot_count)
+
+
 def install_uki(context: Context, kver: str, kimg: Path, token: str, partitions: Sequence[Partition]) -> None:
     roothash = finalize_roothash(partitions)
 
     boot_count = ""
     if (context.root / "etc/kernel/tries").exists():
-        boot_count = f'+{(context.root / "etc/kernel/tries").read_text().strip()}'
+        boot_count = f'{(context.root / "etc/kernel/tries").read_text().strip()}'
 
     if context.config.bootloader == Bootloader.uki:
         if context.config.shim_bootloader != ShimBootloader.none:
@@ -2312,11 +2316,17 @@ def install_uki(context: Context, kver: str, kimg: Path, token: str, partitions:
         else:
             boot_binary = context.root / efi_boot_binary(context)
     else:
+        uki_name = "&e-&k"
         if roothash:
             _, _, h = roothash.partition("=")
-            boot_binary = context.root / f"boot/EFI/Linux/{token}-{kver}-{h}{boot_count}.efi"
+            uki_name += "-&h"
         else:
-            boot_binary = context.root / f"boot/EFI/Linux/{token}-{kver}{boot_count}.efi"
+            h = ""
+        if boot_count:
+            uki_name += "+&c"
+
+        uki_name = expand_delayed_specifiers(uki_name, token, kver, h, boot_count)
+        boot_binary = context.root / f"boot/EFI/Linux/{uki_name}.efi"
 
     # Make sure the parent directory where we'll be writing the UKI exists.
     with umask(~0o700):
