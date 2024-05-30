@@ -4119,7 +4119,9 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
     def path_list_transformer(pathlist: list[str], fieldtype: type[list[Path]]) -> list[Path]:
         return [Path(p) for p in pathlist]
 
-    def uuid_or_false_transformer(uuid_or_false_str: str, fieldtype: type[Union[uuid.UUID, Literal[False]]]) -> Union[uuid.UUID | Literal[False]]:
+    def uuid_or_false_transformer(
+        uuid_or_false_str: str, fieldtype: type[Union[uuid.UUID, Literal[False]]],
+    ) -> Union[uuid.UUID | Literal[False]]:
         if uuid_or_false_str in {"0", "false", "no", "n", "f", "off", "never"}:
             return False
         return uuid.UUID(uuid_or_false_str)
