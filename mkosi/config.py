@@ -29,7 +29,7 @@ import uuid
 from collections.abc import Collection, Iterable, Iterator, Sequence
 from contextlib import AbstractContextManager
 from pathlib import Path
-from typing import Any, Callable, Optional, TypeVar, Union, cast
+from typing import Any, Callable, Literal, Optional, TypeVar, Union, cast
 
 from mkosi.distributions import Distribution, detect_distribution
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, Style, die
@@ -633,7 +633,9 @@ def config_parse_compression(value: Optional[str], old: Optional[Compression]) -
         return Compression.zstd if parse_boolean(value) else Compression.none
 
 
-def config_parse_seed(value: Optional[str], old: Optional[str]) -> Optional[uuid.UUID]:
+def config_parse_seed(value: Optional[str], old: Optional[str]) -> Optional[uuid.UUID | Literal[False]]:
+    if value in {"0", "false", "no", "n", "f", "off", "never"}:
+        return False
     if not value or value == "random":
         return None
 
@@ -1394,7 +1396,7 @@ class Config:
     repart_offline: bool
     overlay: bool
     use_subvolumes: ConfigFeature
-    seed: uuid.UUID
+    seed: uuid.UUID | Literal[False]
 
     packages: list[str]
     build_packages: list[str]

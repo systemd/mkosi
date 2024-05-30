@@ -651,11 +651,13 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     create subvolumes are ignored.
 
 `Seed=`, `--seed=`
-:   Takes a UUID as argument or the special value `random`.
-    Overrides the seed that [`systemd-repart(8)`](https://www.freedesktop.org/software/systemd/man/systemd-repart.service.html)
+:   Takes a UUID as argument, the special value `random` or a boolean false.
+    If not false, overrides the seed that
+    [`systemd-repart(8)`](https://www.freedesktop.org/software/systemd/man/systemd-repart.service.html)
     uses when building a disk image. This is useful to achieve reproducible
     builds, where deterministic UUIDs and other partition metadata should be
-    derived on each build.
+    derived on each build. If `random`, a UUID is generated and passed to
+    `systemd-repart`. Set to `random` by default.
 
 `SourceDateEpoch=`, `--source-date-epoch=`
 :   Takes a timestamp in seconds since the UNIX epoch as argument.

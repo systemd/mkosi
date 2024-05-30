@@ -3192,7 +3192,6 @@ def make_image(
         "--json=pretty",
         "--no-pager",
         f"--offline={yes_no(context.config.repart_offline)}",
-        "--seed", str(context.config.seed),
         context.staging / context.config.output_with_format,
     ]
     mounts = [Mount(context.staging, context.staging)]
@@ -3227,6 +3226,8 @@ def make_image(
             "--generate-fstab=/etc/fstab",
             "--generate-crypttab=/etc/crypttab",
         ]
+    if context.config.seed:
+        cmdline += ["--seed", str(context.config.seed)]
 
     for d in definitions:
         cmdline += ["--definitions", d]
@@ -3480,7 +3481,6 @@ def make_extension_image(context: Context, output: Path) -> None:
         "--dry-run=no",
         "--no-pager",
         f"--offline={yes_no(context.config.repart_offline)}",
-        "--seed", str(context.config.seed) if context.config.seed else "random",
         "--empty=create",
         "--size=auto",
         "--definitions", r,
@@ -3510,6 +3510,8 @@ def make_extension_image(context: Context, output: Path) -> None:
         cmdline += ["--sector-size", str(context.config.sector_size)]
     if context.config.split_artifacts:
         cmdline += ["--split=yes"]
+    if context.config.seed:
+        cmdline += ["--seed", str(context.config.seed)]
 
     with complete_step(f"Building {context.config.output_format} extension image"):
         j = json.loads(
