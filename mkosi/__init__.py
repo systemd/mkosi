@@ -2300,7 +2300,9 @@ def install_type1(
 
 
 def install_uki(context: Context, kver: str, kimg: Path, token: str, partitions: Sequence[Partition]) -> None:
-    roothash = finalize_roothash(partitions)
+    roothash_value = ""
+    if roothash := finalize_roothash(partitions):
+        roothash_value = f"-{roothash.partition("=")[2]}"
 
     boot_count = ""
     if (context.root / "etc/kernel/tries").exists():
@@ -2312,11 +2314,7 @@ def install_uki(context: Context, kver: str, kimg: Path, token: str, partitions:
         else:
             boot_binary = context.root / efi_boot_binary(context)
     else:
-        if roothash:
-            _, _, h = roothash.partition("=")
-            boot_binary = context.root / f"boot/EFI/Linux/{token}-{kver}-{h}{boot_count}.efi"
-        else:
-            boot_binary = context.root / f"boot/EFI/Linux/{token}-{kver}{boot_count}.efi"
+        boot_binary = context.root / f"boot/EFI/Linux/{token}-{kver}{roothash_value}{boot_count}.efi"
 
     # Make sure the parent directory where we'll be writing the UKI exists.
     with umask(~0o700):
