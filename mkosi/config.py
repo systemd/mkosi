@@ -633,7 +633,7 @@ def config_parse_compression(value: Optional[str], old: Optional[Compression]) -
         return Compression.zstd if parse_boolean(value) else Compression.none
 
 
-def config_parse_seed(value: Optional[str], old: Optional[str]) -> Optional[uuid.UUID | Literal[False]]:
+def config_parse_seed(value: Optional[str], old: Optional[str]) -> Optional[Union[uuid.UUID, Literal[False]]]:
     if value in {"0", "false", "no", "n", "f", "off", "never"}:
         return False
     if not value or value == "random":
@@ -1396,7 +1396,7 @@ class Config:
     repart_offline: bool
     overlay: bool
     use_subvolumes: ConfigFeature
-    seed: uuid.UUID | Literal[False]
+    seed: Union[uuid.UUID, Literal[False]]
 
     packages: list[str]
     build_packages: list[str]
