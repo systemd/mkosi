@@ -93,7 +93,11 @@ class Dnf(PackageManager):
                     f.write("\n")
 
     @classmethod
-    def cmd(cls, context: Context) -> list[PathString]:
+    def cmd(
+            cls,
+            context: Context,
+            cached_metadata: bool = True,
+    ) -> list[PathString]:
         dnf = cls.executable(context.config)
 
         cmdline: list[PathString] = [
@@ -124,7 +128,7 @@ class Dnf(PackageManager):
 
         if context.config.cacheonly == Cacheonly.always:
             cmdline += ["--cacheonly"]
-        else:
+        elif cached_metadata:
             cmdline += ["--setopt=metadata_expire=never"]
             if dnf == "dnf5":
                 cmdline += ["--setopt=cacheonly=metadata"]
@@ -164,6 +168,7 @@ class Dnf(PackageManager):
         *,
         apivfs: bool = False,
         stdout: _FILE = None,
+        cached_metadata: bool = True,
     ) -> CompletedProcess:
         try:
             with finalize_source_mounts(
@@ -171,7 +176,7 @@ class Dnf(PackageManager):
                 ephemeral=os.getuid() == 0 and context.config.build_sources_ephemeral,
             ) as sources:
                 return run(
-                    cls.cmd(context) + [operation,*arguments],
+                    cls.cmd(context, cached_metadata=cached_metadata) + [operation, *arguments],
                     sandbox=(
                         context.sandbox(
                             binary=cls.executable(context.config),
@@ -199,9 +204,9 @@ class Dnf(PackageManager):
             "makecache",
             arguments=[
                 *(["--refresh"] if context.args.force > 1 or context.config.cacheonly == Cacheonly.never else []),
-                *(["--setopt=cacheonly=none"] if cls.executable(context.config) == "dnf5" else []),
                 *options,
             ],
+            cached_metadata=False,
         )
 
     @classmethod
