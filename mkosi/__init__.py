@@ -4029,12 +4029,13 @@ def run_shell(args: Args, config: Config) -> None:
 
 
 def run_systemd_tool(tool: str, args: Args, config: Config) -> None:
-    if config.output_format not in (OutputFormat.disk, OutputFormat.directory):
+    if config.output_format not in (OutputFormat.disk, OutputFormat.directory) and not config.forward_journal:
         die(f"{config.output_format} images cannot be inspected with {tool}")
 
     if (
         args.verb in (Verb.journalctl, Verb.coredumpctl)
         and config.output_format == OutputFormat.disk
+        and not config.forward_journal
         and os.getuid() != 0
     ):
         die(f"Must be root to run the {args.verb} command")
@@ -4042,21 +4043,30 @@ def run_systemd_tool(tool: str, args: Args, config: Config) -> None:
     if (tool_path := config.find_binary(tool)) is None:
         die(f"Failed to find {tool}")
 
-    if config.ephemeral:
+    if config.ephemeral and not config.forward_journal:
         die(f"Images booted in ephemeral mode cannot be inspected with {tool}")
 
-    image_arg_name = "root" if config.output_format == OutputFormat.directory else "image"
+    output = config.output_dir_or_cwd() / config.output
+
+    if config.forward_journal and not config.forward_journal.exists():
+        die(f"Journal directory/file configured with ForwardJournal= does not exist, cannot inspect with {tool}")
+    elif not output.exists():
+        die(f"Output {config.output_dir_or_cwd() / config.output} does not exist, cannot inspect with {tool}")
+
+    cmd: list[PathString] = [tool_path]
+
+    if config.forward_journal:
+        cmd += ["--directory" if config.forward_journal.is_dir() else "--file", config.forward_journal]
+    else:
+        cmd += ["--root" if output.is_dir() else "--image", output]
+
     run(
-        [
-            tool_path,
-            f"--{image_arg_name}={config.output_dir_or_cwd() / config.output}",
-            *args.cmdline
-        ],
+        [*cmd, *args.cmdline],
         stdin=sys.stdin,
         stdout=sys.stdout,
         env=os.environ | config.environment,
         log=False,
-        preexec_fn=become_root,
+        preexec_fn=become_root if not config.forward_journal else None,
         sandbox=config.sandbox(
             binary=tool_path,
             network=True,
