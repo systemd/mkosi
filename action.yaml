@@ -32,6 +32,12 @@ runs:
       ls -l /dev/vhost-*
       id
 
+  - name: Enable unprivileged user namespaces
+    shell: bash
+    run: |
+        sudo sysctl --ignore --write kernel.apparmor_restrict_unprivileged_unconfined=0
+        sudo sysctl --ignore --write kernel.apparmor_restrict_unprivileged_userns=0
+
   - name: Dependencies
     shell: bash
     run: |
@@ -45,6 +51,7 @@ runs:
         bubblewrap \
         debian-archive-keyring \
         dnf \
+        makepkg \
         pacman-package-manager \
         systemd-container \
         zypper
