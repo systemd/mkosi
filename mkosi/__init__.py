@@ -3932,6 +3932,7 @@ def run_shell(args: Args, config: Config) -> None:
                     "--no-pager",
                     "--dry-run=no",
                     "--offline=no",
+                    "--pretty=no",
                     fname,
                 ],
                 stdin=sys.stdin,
