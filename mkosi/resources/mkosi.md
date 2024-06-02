@@ -105,10 +105,17 @@ The following command line verbs are known:
     Any arguments specified after the `journalctl` verb are appended to the
     `journalctl` invocation.
 
+    If `ForwardJournal=` is specified, this verb will operate on the
+    forwarded journal instead of the journal inside the image.
+
 `coredumpctl`
 :   Uses `coredumpctl` to look for coredumps inside the image.
     Any arguments specified after the `coredumpctl` verb are appended to the
     `coredumpctl` invocation.
+
+    If `ForwardJournal=` is specified, this verb will operate on the
+    forwarded journal instead of the image. Note that this requires
+    configuring systemd-coredump to store coredumps in the journal.
 
 `clean`
 :   Remove build artifacts generated on a previous build. If combined
