@@ -10,7 +10,7 @@ on:
 
 jobs:
   unit-test:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: true
@@ -23,8 +23,8 @@ jobs:
         sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
         sudo apt-get update
         sudo apt-get install pandoc python3-pytest
-        python3 -m pip install --upgrade setuptools wheel pip
-        python3 -m pip install mypy ruff
+        python3 -m pip install --break-system-packages --upgrade setuptools wheel pip
+        python3 -m pip install --break-system-packages mypy ruff
         npm install -g pyright
 
     - name: Run ruff
@@ -87,7 +87,7 @@ jobs:
       run: pandoc -s mkosi.md -o mkosi.1
 
   integration-test:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: unit-test
     concurrency:
       group: ${{ github.workflow }}-${{ matrix.distro }}-${{ matrix.tools }}-${{ github.ref }}
