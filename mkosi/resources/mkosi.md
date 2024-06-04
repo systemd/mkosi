@@ -997,6 +997,25 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     Otherwise Type 1 entries as defined by the Boot Loader Specification
     will be used instead. If disabled, Type 1 entries will always be used.
 
+`UnifiedKernelImageFormat=`, `--unified-kernel-image-format=`
+:   Takes a filename without any path components to specify the format that
+    unified kernel images should be installed as. This may include both the
+    regular specifiers (see **Specifiers**) and special delayed specifiers, that
+    are expanded during the installation of the files, which are described below.
+    The default format for this parameter is `&e-&k` with `-&h` being appended
+    if `roothash=` or `usrhash=` is found on the kernel command line and `+&c`
+    if `/etc/kernel/tries` is found in the image.
+
+    The following specifiers may be used:
+
+    | Specifier | Value                                              |
+    |-----------|----------------------------------------------------|
+    | `&&`      | `&` character                                      |
+    | `&e`      | Entry Token                                        |
+    | `&k`      | Kernel version                                     |
+    | `&h`      | `roothash=` or `usrhash=` value of kernel argument |
+    | `&c`      | Number of tries used for boot attempt counting     |
+
 `Initrds=`, `--initrd`
 :   Use user-provided initrd(s). Takes a comma separated list of paths to initrd
     files. This option may be used multiple times in which case the initrd lists
