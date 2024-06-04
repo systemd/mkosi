@@ -1506,6 +1506,7 @@ class Config:
     machine: Optional[str]
     forward_journal: Optional[Path]
     vmm: Vmm
+    dnf_plugins: list[str]
 
     # QEMU-specific options
     qemu_gui: bool
@@ -2936,6 +2937,13 @@ SETTINGS = (
         help="Set the path used to store forwarded machine journals",
     ),
     ConfigSetting(
+        dest="dnf_plugins",
+        metavar="BOOL",
+        section="Host",
+        parse=config_make_list_parser(delimiter=" "),
+        help="Specify DNF plugins to enable during the build",
+    ),
+    ConfigSetting(
         dest="qemu_gui",
         metavar="BOOL",
         nargs="?",
@@ -4088,6 +4096,7 @@ def summary(config: Config) -> str:
                     SSH Certificate: {none_to_none(config.ssh_certificate)}
                             Machine: {config.machine_or_name()}
                     Forward Journal: {none_to_none(config.forward_journal)}
+                        DNF Plugins: {line_join_list(config.dnf_plugins)}
 
             Virtual Machine Monitor: {config.vmm}
                            QEMU GUI: {yes_no(config.qemu_gui)}

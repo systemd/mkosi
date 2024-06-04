@@ -116,6 +116,12 @@ class Dnf(PackageManager):
             "--enable-plugin=builddep" if dnf.endswith("dnf5") else "--enableplugin=builddep",
         ]
 
+        for plugin in context.config.dnf_plugins:
+            if dnf.endswith("dnf5"):
+                cmdline += [f"--enable-plugin={plugin}"]
+            else:
+                cmdline += [f"--enableplugin={plugin}"]
+
         if ARG_DEBUG.get():
             cmdline += ["--setopt=debuglevel=10"]
 

@@ -2,6 +2,8 @@
 
 ## v23
 
+- Added `DnfPlugins=` to allow configuring what DNF plugins are used
+  for builds using DNF.
 - Added `CleanScripts=` to allow running custom cleanup code whenever
   mkosi cleans up the output directory. This allows cleaning up extra
   outputs produced by e.g. a build script that mkosi doesn't know about.

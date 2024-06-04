@@ -129,6 +129,7 @@ def test_config() -> None:
                 "dep1"
             ],
             "Distribution": "fedora",
+            "DnfPlugins": [],
             "Environment": {
                 "BAR": "BAR",
                 "Qux": "Qux",
@@ -390,6 +391,7 @@ def test_config() -> None:
         forward_journal=Path("/mkosi.journal"),
         hostname=None,
         vmm=Vmm.qemu,
+        dnf_plugins=[],
         image="default",
         image_id="myimage",
         image_version="5",
