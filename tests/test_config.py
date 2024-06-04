@@ -10,6 +10,7 @@ from typing import Optional
 
 import pytest
 
+from mkosi import expand_kernel_specifiers
 from mkosi.config import (
     Architecture,
     Compression,
@@ -1010,6 +1011,31 @@ def test_specifiers(tmp_path: Path) -> None:
         }
 
         assert {k: v for k, v in config.environment.items() if k in expected} == expected
+
+
+def test_kernel_specifiers(tmp_path: Path) -> None:
+    kver = "13.0.8-5.10.0-1057-oem"     # taken from reporter of #1638
+    token = "MySystemImage"
+    roothash = "67e893261799236dcf20529115ba9fae4fd7c2269e1e658d42269503e5760d38"
+    boot_count = "3"
+
+    def test_expand_kernel_specifiers(text: str) -> str:
+        return expand_kernel_specifiers(
+            text,
+            kver=kver,
+            token=token,
+            roothash=roothash,
+            boot_count=boot_count,
+        )
+
+    assert test_expand_kernel_specifiers("&&") == "&"
+    assert test_expand_kernel_specifiers("&k") == kver
+    assert test_expand_kernel_specifiers("&e") == token
+    assert test_expand_kernel_specifiers("&h") == roothash
+    assert test_expand_kernel_specifiers("&c") == boot_count
+
+    assert test_expand_kernel_specifiers("Image_1.0.3") == "Image_1.0.3"
+    assert test_expand_kernel_specifiers("Image~&c+&h-&k-&e") == f"Image~{boot_count}+{roothash}-{kver}-{token}"
 
 
 def test_output_id_version(tmp_path: Path) -> None:

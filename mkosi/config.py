@@ -950,16 +950,17 @@ def is_valid_filename(s: str) -> bool:
     return not (s == "." or s == ".." or "/" in s)
 
 
-def config_parse_output(value: Optional[str], old: Optional[str]) -> Optional[str]:
-    if not value:
-        return None
+def config_make_filename_parser(hint: str) -> ConfigParseCallback:
+    def config_parse_filename(value: Optional[str], old: Optional[str]) -> Optional[str]:
+        if not value:
+            return None
 
-    if not is_valid_filename(value):
-        die(f"{value!r} is not a valid filename.",
-            hint="Output= or --output= requires a filename with no path components. "
-                 "Use OutputDirectory= or --output-dir= to configure the output directory.")
+        if not is_valid_filename(value):
+            die(f"{value!r} is not a valid filename.", hint=hint)
 
-    return value
+        return value
+
+    return config_parse_filename
 
 
 def match_path_exists(value: str) -> bool:
@@ -1431,6 +1432,7 @@ class Config:
     bios_bootloader: BiosBootloader
     shim_bootloader: ShimBootloader
     unified_kernel_images: ConfigFeature
+    unified_kernel_image_format: str
     initrds: list[Path]
     initrd_packages: list[str]
     initrd_volatile_packages: list[str]
@@ -1971,7 +1973,10 @@ SETTINGS = (
         metavar="NAME",
         section="Output",
         specifier="o",
-        parse=config_parse_output,
+        parse=config_make_filename_parser(
+            "Output= or --output= requires a filename with no path components. "
+            "Use OutputDirectory= or --output-dir= to configure the output directory."
+        ),
         default_factory=config_default_output,
         default_factory_depends=("image_id", "image_version"),
         help="Output name",
@@ -2380,6 +2385,19 @@ SETTINGS = (
         section="Content",
         parse=config_parse_feature,
         help="Specify whether to use UKIs with grub/systemd-boot in UEFI mode",
+    ),
+    ConfigSetting(
+        dest="unified_kernel_image_format",
+        section="Content",
+        parse=config_make_filename_parser(
+            "UnifiedKernelImageFormat= or --unified-kernel-image-format= "
+            "requires a filename with no path components."
+        ),
+        # The default value is set in `__init__.py` in `install_uki`.
+        # `None` is used to determin if the roothash and boot count format
+        # should be appended to the filename if they are found.
+        #default=
+        help="Specify the format used for the UKI filename",
     ),
     ConfigSetting(
         dest="initrds",
@@ -3985,6 +4003,8 @@ def summary(config: Config) -> str:
                          Bootloader: {config.bootloader}
                     BIOS Bootloader: {config.bios_bootloader}
                     Shim Bootloader: {config.shim_bootloader}
+              Unified Kernel Images: {config.unified_kernel_images}
+        Unified Kernel Image Format: {config.unified_kernel_image_format}
                             Initrds: {line_join_list(config.initrds)}
                     Initrd Packages: {line_join_list(config.initrd_packages)}
            Initrd Volatile Packages: {line_join_list(config.initrd_volatile_packages)}

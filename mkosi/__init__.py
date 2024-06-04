@@ -2299,12 +2299,50 @@ def install_type1(
             f.write("fi\n")
 
 
+def expand_kernel_specifiers(text: str, kver: str, token: str, roothash: str, boot_count: str) -> str:
+    specifiers = {
+        "&": "&",
+        "e": token,
+        "k": kver,
+        "h": roothash,
+        "c": boot_count
+    }
+
+    def replacer(match: re.Match[str]) -> str:
+        m = match.group("specifier")
+        if specifier := specifiers.get(m):
+            return specifier
+
+        logging.warning(f"Unknown specifier '&{m}' found in {text}, ignoring")
+        return ""
+
+    return re.sub(r"&(?P<specifier>[&a-zA-Z])", replacer, text)
+
+
 def install_uki(context: Context, kver: str, kimg: Path, token: str, partitions: Sequence[Partition]) -> None:
-    roothash = finalize_roothash(partitions)
+    bootloader_entry_format = context.config.unified_kernel_image_format or "&e-&k"
+
+    roothash_value = ""
+    if roothash := finalize_roothash(partitions):
+        roothash_value = roothash.partition("=")[2]
+
+        if not context.config.unified_kernel_image_format:
+            bootloader_entry_format += "-&h"
 
     boot_count = ""
     if (context.root / "etc/kernel/tries").exists():
-        boot_count = f'+{(context.root / "etc/kernel/tries").read_text().strip()}'
+        boot_count = (context.root / "etc/kernel/tries").read_text().strip()
+
+        if not context.config.unified_kernel_image_format:
+            bootloader_entry_format += "+&c"
+
+    bootloader_entry = expand_kernel_specifiers(
+        bootloader_entry_format,
+        kver=kver,
+        token=token,
+        roothash=roothash_value,
+        boot_count=boot_count,
+    )
 
     if context.config.bootloader == Bootloader.uki:
         if context.config.shim_bootloader != ShimBootloader.none:
@@ -2312,11 +2350,7 @@ def install_uki(context: Context, kver: str, kimg: Path, token: str, partitions:
         else:
             boot_binary = context.root / efi_boot_binary(context)
     else:
-        if roothash:
-            _, _, h = roothash.partition("=")
-            boot_binary = context.root / f"boot/EFI/Linux/{token}-{kver}-{h}{boot_count}.efi"
-        else:
-            boot_binary = context.root / f"boot/EFI/Linux/{token}-{kver}{boot_count}.efi"
+        boot_binary = context.root / f"boot/EFI/Linux/{bootloader_entry}.efi"
 
     # Make sure the parent directory where we'll be writing the UKI exists.
     with umask(~0o700):
