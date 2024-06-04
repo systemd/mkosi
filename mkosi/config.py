@@ -3985,6 +3985,7 @@ def summary(config: Config) -> str:
                          Bootloader: {config.bootloader}
                     BIOS Bootloader: {config.bios_bootloader}
                     Shim Bootloader: {config.shim_bootloader}
+              Unified Kernel Images: {config.unified_kernel_images}
                             Initrds: {line_join_list(config.initrds)}
                     Initrd Packages: {line_join_list(config.initrd_packages)}
            Initrd Volatile Packages: {line_join_list(config.initrd_volatile_packages)}
