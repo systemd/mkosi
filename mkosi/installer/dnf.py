@@ -60,6 +60,21 @@ class Dnf(PackageManager):
                 if cls.executable(context.config).endswith("dnf5") and filelists:
                     f.write("[main]\noptional_metadata_types=filelists\n")
 
+        # The versionlock plugin will fail if enabled without a configuration file so lets' write a noop configuration
+        # file to make it happy which can be overridden by users.
+        versionlock = context.pkgmngr / "etc/dnf/plugins/versionlock.conf"
+        if not versionlock.exists():
+            versionlock.parent.mkdir(parents=True, exist_ok=True)
+            versionlock.write_text(
+                textwrap.dedent(
+                    """\
+                    [main]
+                    enabled=0
+                    locklist=/dev/null
+                    """
+                )
+            )
+
         repofile = context.pkgmngr / "etc/yum.repos.d/mkosi.repo"
         if not repofile.exists():
             repofile.parent.mkdir(exist_ok=True, parents=True)
@@ -113,8 +128,10 @@ class Dnf(PackageManager):
             f"--setopt=install_weak_deps={int(context.config.with_recommends)}",
             "--setopt=check_config_file_age=0",
             "--disable-plugin=*" if dnf.endswith("dnf5") else "--disableplugin=*",
-            "--enable-plugin=builddep" if dnf.endswith("dnf5") else "--enableplugin=builddep",
         ]
+
+        for plugin in ("builddep", "versionlock"):
+            cmdline += ["--enable-plugin", plugin] if dnf.endswith("dnf5") else ["--enableplugin", plugin]
 
         if ARG_DEBUG.get():
             cmdline += ["--setopt=debuglevel=10"]
