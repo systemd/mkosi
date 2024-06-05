@@ -3748,7 +3748,7 @@ def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
         # Make sure we set up networking in the VM/container.
         "systemd.wants=network.target",
         # Make sure we don't load vmw_vmci which messes with virtio vsock.
-        "module_blacklist=vmw_vmci",
+        "module_blacklist=vmw_vmci,pcspkr",
         f"systemd.tty.term.{tty}={term}",
         f"systemd.tty.columns.{tty}={columns}",
         f"systemd.tty.rows.{tty}={lines}",
