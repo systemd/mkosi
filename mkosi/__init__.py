@@ -1963,24 +1963,30 @@ def extract_pe_section(context: Context, binary: Path, section: str, output: Pat
     # pefile from the tools tree if one is used.
 
     # TODO: Use ignore_padding=True instead of length once we can depend on a newer pefile.
+    # TODO: Drop KeyError logic once we drop support for Ubuntu Jammy and sdmagic will always be available.
     pefile = textwrap.dedent(
         f"""\
         import pefile
         import sys
         from pathlib import Path
         pe = pefile.PE("{binary}", fast_load=True)
-        section = {{s.Name.decode().strip("\\0"): s for s in pe.sections}}["{section}"]
+        section = {{s.Name.decode().strip("\\0"): s for s in pe.sections}}.get("{section}")
+        if not section:
+            sys.exit(67)
         sys.stdout.buffer.write(section.get_data(length=section.Misc_VirtualSize))
         """
     )
 
     with open(output, "wb") as f:
-        run(
+        result = run(
             [python_binary(context.config)],
             input=pefile,
             stdout=f,
-            sandbox=context.sandbox(binary=python_binary(context.config), mounts=[Mount(binary, binary, ro=True)])
+            sandbox=context.sandbox(binary=python_binary(context.config), mounts=[Mount(binary, binary, ro=True)]),
+            success_exit_status=(0, 67),
         )
+        if result.returncode == 67:
+            raise KeyError(f"{section} section not found in {binary}")
 
     return output
 
@@ -2089,7 +2095,8 @@ def build_uki(
         # new .ucode section support?
         if (
             systemd_tool_version(context.config, ukify) >= "256~devel" and
-            systemd_stub_version(context, stub) >= "256~devel"
+            (version := systemd_stub_version(context, stub)) and
+            version >= "256~devel"
         ):
             for microcode in microcodes:
                 cmd += ["--microcode", microcode]
@@ -2148,12 +2155,17 @@ def systemd_stub_binary(context: Context) -> Path:
     return stub
 
 
-def systemd_stub_version(context: Context, stub: Path) -> GenericVersion:
-    sdmagic = extract_pe_section(context, stub, ".sdmagic", context.workspace / "sdmagic")
+def systemd_stub_version(context: Context, stub: Path) -> Optional[GenericVersion]:
+    try:
+        sdmagic = extract_pe_section(context, stub, ".sdmagic", context.workspace / "sdmagic")
+    except KeyError:
+        return None
+
     sdmagic_text = sdmagic.read_text()
-    if version := re.match(r"#### LoaderInfo: systemd-stub (?P<version>[.~^a-zA-Z0-9-+]+) ####", sdmagic_text):
-        return GenericVersion(version.group("version"))
-    die(f"Unable to determine systemd-stub version, found {sdmagic_text!r}")
+    if not (version := re.match(r"#### LoaderInfo: systemd-stub (?P<version>[.~^a-zA-Z0-9-+]+) ####", sdmagic_text)):
+        die(f"Unable to determine systemd-stub version, found {sdmagic_text!r}")
+
+    return GenericVersion(version.group("version"))
 
 
 def want_uki(context: Context) -> bool:
