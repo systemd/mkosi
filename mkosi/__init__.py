@@ -56,7 +56,7 @@ from mkosi.config import (
 from mkosi.context import Context
 from mkosi.distributions import Distribution
 from mkosi.installer import clean_package_manager_metadata
-from mkosi.kmod import gen_required_kernel_modules, process_kernel_modules
+from mkosi.kmod import gen_required_kernel_modules, loaded_modules, process_kernel_modules
 from mkosi.log import ARG_DEBUG, complete_step, die, log_notice, log_step
 from mkosi.manifest import Manifest
 from mkosi.mounts import finalize_crypto_mounts, finalize_source_mounts, mount_overlay
@@ -1897,6 +1897,17 @@ def build_microcode_initrd(context: Context) -> list[Path]:
     return [microcode]
 
 
+def finalize_kernel_modules_include(context: Context, *, include: Sequence[str], host: bool) -> set[str]:
+    final = {i for i in include if i not in ("default", "host")}
+    if "default" in include:
+        initrd = finalize_default_initrd(context.args, context.config, resources=context.resources)
+        final.update(initrd.kernel_modules_include)
+    if host or "host" in include:
+        final.update(loaded_modules())
+
+    return final
+
+
 def build_kernel_modules_initrd(context: Context, kver: str) -> Path:
     kmods = context.workspace / f"kernel-modules-{kver}.initrd"
     if kmods.exists():
@@ -1906,9 +1917,12 @@ def build_kernel_modules_initrd(context: Context, kver: str) -> Path:
         context.root, kmods,
         files=gen_required_kernel_modules(
             context.root, kver,
-            include=context.config.kernel_modules_initrd_include,
+            include=finalize_kernel_modules_include(
+                context,
+                include=context.config.kernel_modules_initrd_include,
+                host=context.config.kernel_modules_initrd_include_host,
+            ),
             exclude=context.config.kernel_modules_initrd_exclude,
-            host=context.config.kernel_modules_initrd_include_host,
             sandbox=context.sandbox,
         ),
         sandbox=context.sandbox,
@@ -2934,9 +2948,12 @@ def run_depmod(context: Context, *, cache: bool = False) -> None:
         if not cache:
             process_kernel_modules(
                 context.root, kver,
-                include=context.config.kernel_modules_include,
+                include=finalize_kernel_modules_include(
+                    context,
+                    include=context.config.kernel_modules_include,
+                    host=context.config.kernel_modules_include_host,
+                ),
                 exclude=context.config.kernel_modules_exclude,
-                host=context.config.kernel_modules_include_host,
                 sandbox=context.sandbox,
             )
 

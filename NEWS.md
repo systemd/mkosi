@@ -107,6 +107,12 @@
 - The `versionlock` plugin is now enabled by default for dnf with a noop
   configuration.
 - `Repositories=` is now implemented for zypper.
+- `KernelModulesInclude=` and `KernelModulesInitrdInclude=` now take the
+  special values `host` and `default` to include the host's loaded
+  modules and the default kernel modules defined in `mkosi-initrd`
+  respectively.
+- `KernelModulesIncludeHost=` and `KernelModulesInitrdIncludeHost=` are
+  now deprecated.
 
 ## v22
 

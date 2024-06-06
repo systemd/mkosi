@@ -5,7 +5,7 @@ import logging
 import os
 import re
 import subprocess
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 
 from mkosi.log import complete_step, log_step
@@ -18,19 +18,9 @@ def loaded_modules() -> list[str]:
     return [fr"{line.split()[0]}\.ko" for line in Path("/proc/modules").read_text().splitlines()]
 
 
-def filter_kernel_modules(
-    root: Path,
-    kver: str,
-    *,
-    include: Sequence[str],
-    exclude: Sequence[str],
-    host: bool,
-) -> list[Path]:
+def filter_kernel_modules(root: Path, kver: str, *, include: Iterable[str], exclude: Iterable[str]) -> list[Path]:
     modulesd = root / "usr/lib/modules" / kver
     modules = set(modulesd.rglob("*.ko*"))
-
-    if host:
-        include = [*include, *loaded_modules()]
 
     keep = set()
     if include:
@@ -66,7 +56,7 @@ def module_path_to_name(path: Path) -> str:
 def resolve_module_dependencies(
     root: Path,
     kver: str,
-    modules: Sequence[str],
+    modules: Iterable[str],
     *,
     sandbox: SandboxProtocol = nosandbox,
 ) -> tuple[set[Path], set[Path]]:
@@ -158,9 +148,8 @@ def gen_required_kernel_modules(
     root: Path,
     kver: str,
     *,
-    include: Sequence[str],
-    exclude: Sequence[str],
-    host: bool,
+    include: Iterable[str],
+    exclude: Iterable[str],
     sandbox: SandboxProtocol = nosandbox,
 ) -> Iterator[Path]:
     modulesd = root / "usr/lib/modules" / kver
@@ -169,7 +158,7 @@ def gen_required_kernel_modules(
     # we have to take the slow path to make sure we don't copy firmware into the initrd that is not depended on by any
     # kernel modules.
     if exclude or (root / "usr/lib/firmware").glob("*"):
-        modules = filter_kernel_modules(root, kver, include=include, exclude=exclude, host=host)
+        modules = filter_kernel_modules(root, kver, include=include, exclude=exclude)
         names = [module_path_to_name(m) for m in modules]
         mods, firmware = resolve_module_dependencies(root, kver, names, sandbox=sandbox)
     else:
@@ -198,18 +187,15 @@ def process_kernel_modules(
     root: Path,
     kver: str,
     *,
-    include: Sequence[str],
-    exclude: Sequence[str],
-    host: bool,
+    include: Iterable[str],
+    exclude: Iterable[str],
     sandbox: SandboxProtocol = nosandbox,
 ) -> None:
     if not exclude:
         return
 
     with complete_step("Applying kernel module filters"):
-        required = set(
-            gen_required_kernel_modules(root, kver, include=include, exclude=exclude, host=host, sandbox=sandbox)
-        )
+        required = set(gen_required_kernel_modules(root, kver, include=include, exclude=exclude, sandbox=sandbox))
 
         for m in sorted((root / "usr/lib/modules" / kver).rglob("*.ko*"), reverse=True):
             if m in required:
