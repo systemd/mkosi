@@ -140,7 +140,7 @@ def main() -> None:
         "--extra-tree", f"/usr/lib/modules/{context.kernel_version}:/usr/lib/modules/{context.kernel_version}",
         "--extra-tree=/usr/lib/firmware:/usr/lib/firmware",
         "--kernel-modules-exclude=.*",
-        "--kernel-modules-include-host=yes",
+        "--kernel-modules-include=host",
         "--include=mkosi-initrd",
     ]
 
