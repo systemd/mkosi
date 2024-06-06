@@ -2793,6 +2793,8 @@ SETTINGS = (
         parse=config_make_path_parser(required=False, constants=("default",)),
         paths=("mkosi.tools",),
         help="Look up programs to execute inside the given tree",
+        nargs="?",
+        const="default",
     ),
     ConfigSetting(
         dest="tools_tree_distribution",
