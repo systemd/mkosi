@@ -4357,7 +4357,10 @@ def run_clean_scripts(config: Config) -> None:
     if config.profile:
         env["PROFILE"] = config.profile
 
-    with finalize_source_mounts(config, ephemeral=False) as sources:
+    with (
+        finalize_source_mounts(config, ephemeral=False) as sources,
+        finalize_config_json(config) as json,
+    ):
         for script in config.clean_scripts:
             with complete_step(f"Running clean script {script}…"):
                 run(
@@ -4369,6 +4372,7 @@ def run_clean_scripts(config: Config) -> None:
                         mounts=[
                             *sources,
                             Mount(script, "/work/clean", ro=True),
+                            Mount(json, "/work/config.json", ro=True),
                             *([Mount(o, "/work/out")] if (o := config.output_dir_or_cwd()).exists() else []),
                         ],
                         options=["--dir", "/work/src", "--chdir", "/work/src", "--dir", "/work/out"]
