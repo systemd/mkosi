@@ -39,13 +39,14 @@ runs:
         sudo sysctl --ignore --write kernel.apparmor_restrict_unprivileged_userns=0
 
   # Both the unix-chkpwd and swtpm profiles are broken (https://gitlab.com/apparmor/apparmor/-/issues/402) so let's
-  # just disable apparmor completely. It's not relevant in this context anyway.
+  # just disable and remove apparmor completely. It's not relevant in this context anyway.
   # TODO: Remove if https://github.com/actions/runner-images/issues/10015 is ever fixed.
   - name: Disable and mask apparmor service
     shell: bash
     run: |
         sudo systemctl disable --now apparmor
         sudo systemctl mask apparmor
+        sudo apt-get remove apparmor
 
   - name: Dependencies
     shell: bash
