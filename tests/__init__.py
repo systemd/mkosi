@@ -67,6 +67,7 @@ class Image:
             "systemd.journald.max_level_console=info",
             "printk.devkmsg=on",
             "systemd.early_core_pattern=/core",
+            "systemd.firstboot=no",
         ]
 
         return run([
