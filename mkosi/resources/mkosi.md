@@ -1509,7 +1509,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     | `tar`                   | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
     | `ubuntu-keyring`        | ✓      | ✓      | ✓      | ✓      | ✓    |          |
     | `util-linux`            | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `virtiofsd`             | ✓      | ✓      |        |        | ✓    | ✓        |
+    | `virtiofsd`             | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
     | `virt-firmware`         | ✓      | ✓      |        |        | ✓    |          |
     | `xfsprogs`              | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
     | `xz`                    | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
