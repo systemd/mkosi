@@ -38,6 +38,14 @@ runs:
         sudo sysctl --ignore --write kernel.apparmor_restrict_unprivileged_unconfined=0
         sudo sysctl --ignore --write kernel.apparmor_restrict_unprivileged_userns=0
 
+  - name: Remove and disable unix-chkpwd apparmor profile
+    shell: bash
+    run: |
+        if [[ -f /etc/apparmor.d/unix-chkpwd ]]; then
+            sudo ln --symbolic /etc/apparmor.d/unix-chkpwd /etc/apparmor.d/disable/
+            sudo apparmor_parser --remove /etc/apparmor.d/unix-chkpwd
+        fi
+
   - name: Dependencies
     shell: bash
     run: |
