@@ -113,6 +113,8 @@
   respectively.
 - `KernelModulesIncludeHost=` and `KernelModulesInitrdIncludeHost=` are
   now deprecated.
+- Added `mkosi dependencies` to output the list of packages required by
+  mkosi to build and boot images.
 
 ## v22
 

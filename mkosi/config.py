@@ -74,6 +74,7 @@ class Verb(StrEnum):
     journalctl    = enum.auto()
     coredumpctl   = enum.auto()
     burn          = enum.auto()
+    dependencies  = enum.auto()
 
     def supports_cmdline(self) -> bool:
         return self in (
