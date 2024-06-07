@@ -36,6 +36,8 @@ mkosi — Build Bespoke OS Images
 
 `mkosi [options…] documentation`
 
+`mkosi [options…] dependencies`
+
 `mkosi [options…] help`
 
 # DESCRIPTION
@@ -159,6 +161,18 @@ The following command line verbs are known:
     search path for man pages. The man page can be generated from the
     markdown file `mkosi/resources/mkosi.md` e.g via
     `pandoc -t man -s -o mkosi.1 mkosi.md`.
+
+`dependencies`
+:   Output the list of packages required by mkosi to build and boot
+    images.
+
+    This list can be piped directly to a package manager to install the
+    packages. For example, if the host system uses the dnf package
+    manager, the packages could be installed as follows:
+
+    ```sh
+    mkosi dependencies | xargs -d '\n' dnf install
+    ```
 
 `help`
 :   This verb is equivalent to the `--help` switch documented below: it

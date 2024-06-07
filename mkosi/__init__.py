@@ -4593,6 +4593,14 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
     if args.verb == Verb.bump:
         return bump_image_version()
 
+    if args.verb == Verb.dependencies:
+        _, [deps] = parse_config(["--directory", "", "--include=mkosi-tools", "build"], resources=resources)
+
+        for p in deps.packages:
+            print(p)
+
+        return
+
     if all(config == Config.default() for config in images):
         die("No configuration found",
             hint="Make sure you're running mkosi from a directory with configuration files")
