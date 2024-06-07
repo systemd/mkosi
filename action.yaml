@@ -38,13 +38,14 @@ runs:
         sudo sysctl --ignore --write kernel.apparmor_restrict_unprivileged_unconfined=0
         sudo sysctl --ignore --write kernel.apparmor_restrict_unprivileged_userns=0
 
-  - name: Remove and disable unix-chkpwd apparmor profile
+  # Both the unix-chkpwd and swtpm profiles are broken (https://gitlab.com/apparmor/apparmor/-/issues/402) so let's
+  # just disable apparmor completely. It's not relevant in this context anyway.
+  # TODO: Remove if https://github.com/actions/runner-images/issues/10015 is ever fixed.
+  - name: Disable and mask apparmor service
     shell: bash
     run: |
-        if [[ -f /etc/apparmor.d/unix-chkpwd ]]; then
-            sudo ln --symbolic /etc/apparmor.d/unix-chkpwd /etc/apparmor.d/disable/
-            sudo apparmor_parser --remove /etc/apparmor.d/unix-chkpwd
-        fi
+        sudo systemctl disable --now apparmor
+        sudo systemctl mask apparmor
 
   - name: Dependencies
     shell: bash
