@@ -44,8 +44,9 @@ runs:
   - name: Disable and mask apparmor service
     shell: bash
     run: |
-        sudo systemctl disable --now apparmor
-        sudo systemctl mask apparmor
+        # This command fails with a non-zero error code even though it unloads the apparmor profiles.
+        # https://gitlab.com/apparmor/apparmor/-/issues/403
+        sudo aa-teardown || true
         sudo apt-get remove apparmor
 
   - name: Dependencies
