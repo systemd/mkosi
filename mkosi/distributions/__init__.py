@@ -20,7 +20,6 @@ class PackageType(StrEnum):
     rpm    = enum.auto()
     deb    = enum.auto()
     pkg    = enum.auto()
-    ebuild = enum.auto()
 
 
 class DistributionInstaller:
@@ -101,18 +100,6 @@ class Distribution(StrEnum):
             Distribution.rocky,
             Distribution.rhel,
             Distribution.rhel_ubi,
-        )
-
-    def is_dnf_distribution(self) -> bool:
-        return self in (
-            Distribution.fedora,
-            Distribution.mageia,
-            Distribution.centos,
-            Distribution.rhel,
-            Distribution.rhel_ubi,
-            Distribution.openmandriva,
-            Distribution.rocky,
-            Distribution.alma,
         )
 
     def is_apt_distribution(self) -> bool:
