@@ -167,7 +167,7 @@ def run(
         ) as (process, _):
             out, err = process.communicate(input)
     except FileNotFoundError:
-        return CompletedProcess(cmdline, 1)
+        return CompletedProcess(cmdline, 1, "", "")
 
     return CompletedProcess(cmdline, process.returncode, out, err)
 
