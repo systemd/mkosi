@@ -878,6 +878,11 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     the finalize scripts for this image. See the **Scripts** section for more
     information.
 
+`PostOutputScripts=`, `--postoutput-script`
+:   Takes a comma-separated list of paths to executables that are used as
+    the post output scripts for this image. See the **Scripts** section for more
+    information.
+
 `BuildSources=`, `--build-sources=`
 :   Takes a comma separated list of colon separated path pairs. The first
     path of each pair refers to a directory to mount from the host. The
@@ -1951,6 +1956,7 @@ Then, for each image, we execute the following steps:
 1. Run finalize scripts (`mkosi.finalize`)
 1. Generate unified kernel image if configured to do so
 1. Generate final output format
+1. Run post-output scripts (`mkosi.postoutput`)
 
 # Scripts
 
@@ -2016,6 +2022,11 @@ current working directory. The following scripts are supported:
 
 * If **`mkosi.finalize`** (`FinalizeScripts=`) exists, it is executed as
   the last step of preparing an image.
+
+* If **`mkosi.postoutput`** (`PostOutputScripts=`) exists, it is executed right
+  after all the output files have been generated, before they are finally
+  moved into the output directory. This can be used to generate additional or
+  alternative outputs, e.g. `SHA256FILES` or SBOM manifests.
 
 * If **`mkosi.clean`** (`CleanScripts=`) exists, it is executed right
   after the outputs of a previous build have been cleaned up. A clean
@@ -2134,33 +2145,33 @@ Scripts executed by mkosi receive the following environment variables:
 
 Consult this table for which script receives which environment variables:
 
-| Variable            | `configure` | `sync` | `prepare` | `build` | `postinst` | `finalize` | `clean` |
-|---------------------|:-----------:|:------:|:---------:|:-------:|:----------:|:----------:|:-------:|
-| `ARCHITECTURE`      | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓       |
-| `QEMU_ARCHITECTURE` | ✓           |        |           |         |            |            |         |
-| `DISTRIBUTION`      | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓       |
-| `RELEASE`           | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓       |
-| `PROFILE`           | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓       |
-| `CACHED`            |             | ✓      |           |         |            |            |         |
-| `CHROOT_SCRIPT`     |             |        | ✓         | ✓       | ✓          | ✓          |         |
-| `SRCDIR`            | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓       |
-| `CHROOT_SRCDIR`     |             |        | ✓         | ✓       | ✓          | ✓          |         |
-| `BUILDDIR`          |             |        |           | ✓       |            |            |         |
-| `CHROOT_BUILDDIR`   |             |        |           | ✓       |            |            |         |
-| `DESTDIR`           |             |        |           | ✓       |            |            |         |
-| `CHROOT_DESTDIR`    |             |        |           | ✓       |            |            |         |
-| `OUTPUTDIR`         |             |        |           | ✓       | ✓          | ✓          | ✓       |
-| `CHROOT_OUTPUTDIR`  |             |        |           | ✓       | ✓          | ✓          |         |
-| `BUILDROOT`         |             |        | ✓         | ✓       | ✓          | ✓          |         |
-| `PACKAGEDIR`        |             |        | ✓         | ✓       | ✓          | ✓          |         |
-| `ARTIFACTDIR`       |             |        | ✓         | ✓       | ✓          | ✓          |         |
-| `WITH_DOCS`         |             |        | ✓         | ✓       |            |            |         |
-| `WITH_TESTS`        |             |        | ✓         | ✓       |            |            |         |
-| `WITH_NETWORK`      |             |        | ✓         | ✓       | ✓          | ✓          |         |
-| `SOURCE_DATE_EPOCH` |             |        | ✓         | ✓       | ✓          | ✓          | ✓       |
-| `MKOSI_UID`         | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓       |
-| `MKOSI_GID`         | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓       |
-| `MKOSI_CONFIG`      |             | ✓      | ✓         | ✓       | ✓          | ✓          | ✓       |
+| Variable            | `configure` | `sync` | `prepare` | `build` | `postinst` | `finalize` | `postoutput` | `clean` |
+|---------------------|:-----------:|:------:|:---------:|:-------:|:----------:|:----------:|:------------:|:-------:|
+| `ARCHITECTURE`      | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
+| `QEMU_ARCHITECTURE` | ✓           |        |           |         |            |            |              |         |
+| `DISTRIBUTION`      | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
+| `RELEASE`           | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
+| `PROFILE`           | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          |              | ✓       |
+| `CACHED`            |             | ✓      |           |         |            |            |              |         |
+| `CHROOT_SCRIPT`     |             |        | ✓         | ✓       | ✓          | ✓          |              |         |
+| `SRCDIR`            | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
+| `CHROOT_SRCDIR`     |             |        | ✓         | ✓       | ✓          | ✓          |              |         |
+| `BUILDDIR`          |             |        |           | ✓       |            |            |              |         |
+| `CHROOT_BUILDDIR`   |             |        |           | ✓       |            |            |              |         |
+| `DESTDIR`           |             |        |           | ✓       |            |            |              |         |
+| `CHROOT_DESTDIR`    |             |        |           | ✓       |            |            |              |         |
+| `OUTPUTDIR`         |             |        |           | ✓       | ✓          | ✓          | ✓            | ✓       |
+| `CHROOT_OUTPUTDIR`  |             |        |           | ✓       | ✓          | ✓          |              |         |
+| `BUILDROOT`         |             |        | ✓         | ✓       | ✓          | ✓          |              |         |
+| `PACKAGEDIR`        |             |        | ✓         | ✓       | ✓          | ✓          |              |         |
+| `ARTIFACTDIR`       |             |        | ✓         | ✓       | ✓          | ✓          |              |         |
+| `WITH_DOCS`         |             |        | ✓         | ✓       |            |            |              |         |
+| `WITH_TESTS`        |             |        | ✓         | ✓       |            |            |              |         |
+| `WITH_NETWORK`      |             |        | ✓         | ✓       | ✓          | ✓          |              |         |
+| `SOURCE_DATE_EPOCH` |             |        | ✓         | ✓       | ✓          | ✓          |              | ✓       |
+| `MKOSI_UID`         | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
+| `MKOSI_GID`         | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
+| `MKOSI_CONFIG`      |             | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
 
 Additionally, when a script is executed, a few scripts are made
 available via `$PATH` to simplify common usecases.

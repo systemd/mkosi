@@ -1417,6 +1417,7 @@ class Config:
     build_scripts: list[Path]
     postinst_scripts: list[Path]
     finalize_scripts: list[Path]
+    postoutput_scripts: list[Path]
     clean_scripts: list[Path]
     build_sources: list[ConfigTree]
     build_sources_ephemeral: bool
@@ -2289,6 +2290,17 @@ SETTINGS = (
         path_default=False,
         help="Postinstall script to run outside image",
         compat_names=("FinalizeScript",),
+    ),
+    ConfigSetting(
+        dest="postoutput_scripts",
+        long="--postoutput-script",
+        metavar="PATH",
+        name="PostOutputScripts",
+        section="Content",
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        paths=("mkosi.postoutput",),
+        path_default=False,
+        help="Output postprocessing script to run outside image",
     ),
     ConfigSetting(
         dest="build_sources",
@@ -3360,6 +3372,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
                         *config.build_scripts,
                         *config.postinst_scripts,
                         *config.finalize_scripts,
+                        *config.postoutput_scripts,
                     )
 
                 with chdir(path if path.is_dir() else Path.cwd()):
@@ -3985,6 +3998,7 @@ def summary(config: Config) -> str:
                       Build Scripts: {line_join_list(config.build_scripts)}
                 Postinstall Scripts: {line_join_list(config.postinst_scripts)}
                    Finalize Scripts: {line_join_list(config.finalize_scripts)}
+                 Postoutput Scripts: {line_join_list(config.postoutput_scripts)}
                       Build Sources: {line_join_list(config.build_sources)}
             Build Sources Ephemeral: {yes_no(config.build_sources_ephemeral)}
                  Script Environment: {line_join_list(env)}

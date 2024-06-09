@@ -830,6 +830,47 @@ def run_finalize_scripts(context: Context) -> None:
                 )
 
 
+def run_postoutput_scripts(context: Context) -> None:
+    if not context.config.postoutput_scripts:
+        return
+
+    env = dict(
+        DISTRIBUTION=str(context.config.distribution),
+        RELEASE=context.config.release,
+        ARCHITECTURE=str(context.config.architecture),
+        SRCDIR="/work/src",
+        OUTPUTDIR="/work/out",
+        MKOSI_UID=str(INVOKING_USER.uid),
+        MKOSI_GID=str(INVOKING_USER.gid),
+        MKOSI_CONFIG="/work/config.json",
+    )
+
+    if context.config.profile:
+        env["PROFILE"] = context.config.profile
+
+    with (
+        finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources,
+        finalize_config_json(context.config) as json,
+    ):
+        for script in context.config.postoutput_scripts:
+            with complete_step(f"Running post-output script {script}…"):
+                run(
+                    ["/work/postoutput"],
+                    env=env | context.config.environment,
+                    sandbox=context.config.sandbox(
+                        binary=None,
+                        mounts=[
+                            *sources,
+                            Mount(script, "/work/postoutput", ro=True),
+                            Mount(json, "/work/config.json", ro=True),
+                            Mount(context.staging, "/work/out"),
+                        ],
+                        options=["--dir", "/work/src", "--chdir", "/work/src", "--dir", "/work/out"]
+                    ),
+                    stdin=sys.stdin,
+                )
+
+
 def certificate_common_name(context: Context, certificate: Path) -> str:
     output = run(
         [
@@ -2744,6 +2785,7 @@ def check_inputs(config: Config) -> None:
         config.build_scripts,
         config.postinst_scripts,
         config.finalize_scripts,
+        config.postoutput_scripts,
     ):
         if not os.access(script, os.X_OK):
             die(f"{script} is not executable")
@@ -3853,6 +3895,7 @@ def build_image(context: Context) -> None:
         output_base.unlink(missing_ok=True)
         output_base.symlink_to(context.config.output_with_compression)
 
+    run_postoutput_scripts(context)
     finalize_staging(context)
 
     print_output_size(context.config.output_dir_or_cwd() / context.config.output_with_compression)
