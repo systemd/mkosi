@@ -216,6 +216,9 @@ def test_config() -> None:
             "PostInstallationScripts": [
                 "/bar/qux"
             ],
+            "PostOutputScripts": [
+                "/foo/src"
+            ],
             "PrepareScripts": [
                 "/run/foo"
             ],
@@ -431,6 +434,7 @@ def test_config() -> None:
         packages=[],
         passphrase=None,
         postinst_scripts=[Path("/bar/qux")],
+        postoutput_scripts=[Path("/foo/src")],
         prepare_scripts=[Path("/run/foo")],
         profile="profile",
         proxy_client_certificate=Path("/my/client/cert"),
