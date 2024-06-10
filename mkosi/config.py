@@ -3749,6 +3749,8 @@ def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
         "systemd.wants=network.target",
         # Make sure we don't load vmw_vmci which messes with virtio vsock.
         "module_blacklist=vmw_vmci",
+        # Limit the number of /dev/ttySXX devices that are generated.
+        "8250.nr_uarts=1",
         f"systemd.tty.term.{tty}={term}",
         f"systemd.tty.columns.{tty}={columns}",
         f"systemd.tty.rows.{tty}={lines}",
