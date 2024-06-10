@@ -49,6 +49,14 @@ class Apt(PackageManager):
         return [cache / "archives"]
 
     @classmethod
+    def dpkg_cmd(cls, command: str) -> list[PathString]:
+        return [
+            command,
+            "--admindir=/buildroot/var/lib/dpkg",
+            "--root=/buildroot",
+        ]
+
+    @classmethod
     def scripts(cls, context: Context) -> dict[str, list[PathString]]:
         return {
             **{
@@ -62,6 +70,12 @@ class Apt(PackageManager):
                     "apt-key",
                     "apt-mark",
                     "apt-sortpkgs",
+                )
+            },
+            **{
+                command: apivfs_cmd() + cls.dpkg_cmd(command) for command in(
+                    "dpkg",
+                    "dpkg-query",
                 )
             },
             "mkosi-install"  : ["apt-get", "install"],
