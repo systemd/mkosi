@@ -2197,12 +2197,12 @@ available via `$PATH` to simplify common usecases.
   To execute the entire script inside the image, add a ".chroot" suffix
   to the name (`mkosi.build.chroot` instead of `mkosi.build`, etc.).
 
-* For all of the supported package managers except portage (`dnf`,
-  `rpm`, `apt`, `pacman`, `zypper`), scripts of the same name are put
-  into `$PATH` that make sure these commands operate on the image's root
-  directory with the configuration supplied by the user instead of on
-  the host system. This means that from a script, you can do e.g. `dnf
-  install vim` to install vim into the image.
+* For all of the supported package managers (`dnf`, `rpm`, `apt`, `dpkg`,
+  `pacman`, `zypper`), scripts of the same name are put into `$PATH`
+  that make sure these commands operate on the image's root directory
+  with the configuration supplied by the user instead of on the host
+  system. This means that from a script, you can do e.g.
+  `dnf install vim` to install vim into the image.
 
   Additionally, `mkosi-install`, `mkosi-reinstall`, `mkosi-upgrade` and
   `mkosi-remove` will invoke the corresponding operation of the package
