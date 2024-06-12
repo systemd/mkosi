@@ -7,7 +7,7 @@ name = "mkosi"
 authors = [
     {name = "mkosi contributors", email = "systemd-devel@lists.freedesktop.org"},
 ]
-version = "22"
+version = "23"
 description = "Build Bespoke OS Images"
 readme = "README.md"
 requires-python = ">=3.9"
