@@ -49,6 +49,7 @@ from mkosi.config import (
     __version__,
     collect_completion_arguments,
     finalize_completion_bash,
+    finalize_completion_fish,
     format_bytes,
     parse_config,
     summary,
@@ -4317,6 +4318,8 @@ def print_completion(args: Args, *, resources: Path) -> None:
     completion_args = collect_completion_arguments()
     if args.shell_completion == ShellCompletion.bash:
         print(finalize_completion_bash(completion_args, resources))
+    elif args.shell_completion == ShellCompletion.fish:
+        print(finalize_completion_fish(completion_args, resources))
 
 
 def expand_specifier(s: str) -> str:

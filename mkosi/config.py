@@ -245,6 +245,7 @@ class DocFormat(StrEnum):
 
 class ShellCompletion(StrEnum):
     bash = enum.auto()
+    fish = enum.auto()
 
 
 class Bootloader(StrEnum):
@@ -4435,4 +4436,38 @@ def finalize_completion_bash(options: list[CompletionItem], resources: Path) -> 
 
         c.write(completion.read_text())
 
+        return c.getvalue()
+
+
+def finalize_completion_fish(options: list[CompletionItem], resources: Path) -> str:
+    with io.StringIO() as c:
+        c.write("# SPDX-License-Identifier: LGPL-2.1+\n\n")
+        c.write("complete -c mkosi -f\n")
+
+        c.write("complete -c mkosi -a ")
+        c.write(" ".join(str(v) for v in Verb))
+        c.write("\n")
+
+        for option in options:
+            if not option.short and not option.long:
+                continue
+
+            c.write("complete -c mkosi ")
+            if option.short:
+                c.write(f"-s {option.short.lstrip('-')} ")
+            if option.long:
+                c.write(f"-l {option.long.lstrip('-')} ")
+            if isinstance(option.nargs, int) and option.nargs > 0:
+                c.write("-r ")
+            if option.choices:
+                c.write("-a \"")
+                c.write(" ".join(option.choices))
+                c.write(" \"")
+            if option.help is not None:
+                c.write(f"-d \"{option.help}\"")
+            if option.compgen == CompGen.files:
+                c.write("--force-files ")
+            elif option.compgen == CompGen.dirs:
+                c.write("--force-directories ")
+            c.write("\n")
         return c.getvalue()
