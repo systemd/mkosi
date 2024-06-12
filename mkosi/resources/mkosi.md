@@ -319,7 +319,7 @@ configuration files that can still be overridden by specifying the
 setting explicitly via the CLI.
 
 To conditionally include configuration files, the `[Match]` section can
-be used. A `[Match]` section consists of invididual conditions.
+be used. A `[Match]` section consists of individual conditions.
 Conditions can use a pipe symbol (`|`) after the equals sign (`…=|…`),
 which causes the condition to become a triggering condition. The config
 file will be included if the logical AND of all non-triggering
