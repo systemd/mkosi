@@ -1,5 +1,9 @@
 # mkosi Changelog
 
+## v23.1
+
+- Respin due to git tag mismatch
+
 ## v23
 
 - Added `CleanScripts=` to allow running custom cleanup code whenever
