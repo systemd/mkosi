@@ -243,6 +243,7 @@ class DocFormat(StrEnum):
 class ShellCompletion(StrEnum):
     none = enum.auto()
     bash = enum.auto()
+    fish = enum.auto()
 
     def __bool__(self) -> bool:
         return self != ShellCompletion.none
@@ -1196,6 +1197,13 @@ class CompGen(StrEnum):
     def to_bash(self) -> str:
         return f"_mkosi_compgen_{self}"
 
+    def to_fish(self) -> str:
+        if self == CompGen.files:
+            return "--force-files"
+        elif self == CompGen.dirs:
+            return "--force-files -a '(__fish_complete_directories)'"
+        else:
+            return "-f"
 
 @dataclasses.dataclass(frozen=True)
 class ConfigSetting:
@@ -4560,4 +4568,36 @@ def finalize_completion_bash(options: list[CompletionItem], resources: Path) -> 
 
         c.write(completion.read_text())
 
+        return c.getvalue()
+
+
+def finalize_completion_fish(options: list[CompletionItem], resources: Path) -> str:
+    with io.StringIO() as c:
+        c.write("# SPDX-License-Identifier: LGPL-2.1-or-later\n\n")
+        c.write("complete -c mkosi -f\n")
+
+        c.write("complete -c mkosi -n '__fish_is_first_token' -a \"")
+        c.write(" ".join(str(v) for v in Verb))
+        c.write("\"\n")
+
+        for option in options:
+            if not option.short and not option.long:
+                continue
+
+            c.write("complete -c mkosi ")
+            if option.short:
+                c.write(f"-s {option.short.lstrip('-')} ")
+            if option.long:
+                c.write(f"-l {option.long.lstrip('-')} ")
+            if isinstance(option.nargs, int) and option.nargs > 0:
+                c.write("-r ")
+            if option.choices:
+                c.write("-a \"")
+                c.write(" ".join(option.choices))
+                c.write("\" ")
+            if option.help is not None:
+                help = option.help.replace("'", "\\'")
+                c.write(f"-d \"{help}\" ")
+            c.write(option.compgen.to_fish())
+            c.write("\n")
         return c.getvalue()
