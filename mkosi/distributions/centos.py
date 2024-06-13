@@ -102,7 +102,7 @@ class Installer(DistributionInstaller):
 
     @staticmethod
     def gpgurls(context: Context) -> tuple[str, ...]:
-        keys = ("RPM-GPG-KEY-CentOS-Official", "RPM-GPG-KEY-CentOS-SIG-Extras")
+        keys = (f"RPM-GPG-KEY-CentOS-{context.config.release}", "RPM-GPG-KEY-CentOS-SIG-Extras")
         return tuple(find_rpm_gpgkey(context, key) or f"https://www.centos.org/keys/{key}" for key in keys)
 
     @classmethod
