@@ -527,8 +527,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   Name to use for the generated output image file or directory. Defaults
     to `image` or, if `ImageId=` is specified, it is used as the default
     output name, optionally suffixed with the version set with
-    `ImageVersion=`. Note that this option does not allow configuring the
-    output directory, use `OutputDirectory=` for that.
+    `ImageVersion=` or if a specific image is built from `mkosi.images`, the
+    name of the image is preferred over `ImageId`. Note that this option does
+    not allow configuring the output directory, use `OutputDirectory=` for that.
 
     Note that this only specifies the output prefix, depending on the
     specific output format, compression and image version used, the full
