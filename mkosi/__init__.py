@@ -4609,7 +4609,8 @@ def run_build(args: Args, config: Config, *, resources: Path) -> None:
 
     for d in remount:
         if Path(d).exists():
-            run(["mount", "--rbind", d, d, "--options", "ro"])
+            options = "ro" if d in ("/usr", "/opt") else "ro,nosuid,nodev,noexec"
+            run(["mount", "--rbind", d, d, "--options", options])
 
     with (
         complete_step(f"Building {config.name()} image"),
