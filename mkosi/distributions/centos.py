@@ -102,8 +102,11 @@ class Installer(DistributionInstaller):
 
     @staticmethod
     def gpgurls(context: Context) -> tuple[str, ...]:
-        keys = (f"RPM-GPG-KEY-CentOS-{context.config.release}", "RPM-GPG-KEY-CentOS-SIG-Extras")
-        return tuple(find_rpm_gpgkey(context, key) or f"https://www.centos.org/keys/{key}" for key in keys)
+        rel = "RPM-GPG-KEY-CentOS-Official" if context.config.release == "9" else "RPM-GPG-KEY-CentOS-Official-SHA256"
+        return tuple(
+            find_rpm_gpgkey(context, key) or f"https://www.centos.org/keys/{key}"
+            for key in (rel, "RPM-GPG-KEY-CentOS-SIG-Extras")
+        )
 
     @classmethod
     def repository_variants(cls, context: Context, repo: str) -> Iterable[RpmRepository]:
