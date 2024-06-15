@@ -1,9 +1,11 @@
 # SPDX-License-Identifier: LGPL-2.1+
+
+import dataclasses
 import os
 import textwrap
 from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import NamedTuple, Optional
+from typing import Optional
 
 from mkosi.config import Config, ConfigFeature
 from mkosi.context import Context
@@ -16,26 +18,28 @@ from mkosi.types import _FILE, CompletedProcess, PathString
 from mkosi.util import umask
 
 
+@dataclasses.dataclass(frozen=True)
+class AptRepository:
+    types: tuple[str, ...]
+    url: str
+    suite: str
+    components: tuple[str, ...]
+    signedby: Optional[Path]
+
+    def __str__(self) -> str:
+        return textwrap.dedent(
+            f"""\
+            Types: {" ".join(self.types)}
+            URIs: {self.url}
+            Suites: {self.suite}
+            Components: {" ".join(self.components)}
+            {"Signed-By" if self.signedby else "Trusted"}: {self.signedby or "yes"}
+
+            """
+        )
+
+
 class Apt(PackageManager):
-    class Repository(NamedTuple):
-        types: tuple[str, ...]
-        url: str
-        suite: str
-        components: tuple[str, ...]
-        signedby: Optional[Path]
-
-        def __str__(self) -> str:
-            return textwrap.dedent(
-                f"""\
-                Types: {" ".join(self.types)}
-                URIs: {self.url}
-                Suites: {self.suite}
-                Components: {" ".join(self.components)}
-                {"Signed-By" if self.signedby else "Trusted"}: {self.signedby or "yes"}
-
-                """
-            )
-
     @classmethod
     def executable(cls, config: Config) -> str:
         return "apt"
@@ -85,7 +89,7 @@ class Apt(PackageManager):
         }
 
     @classmethod
-    def setup(cls, context: Context, repos: Iterable[Repository]) -> None:
+    def setup(cls, context: Context, repos: Iterable[AptRepository]) -> None:
         (context.pkgmngr / "etc/apt").mkdir(exist_ok=True, parents=True)
         (context.pkgmngr / "etc/apt/apt.conf.d").mkdir(exist_ok=True, parents=True)
         (context.pkgmngr / "etc/apt/preferences.d").mkdir(exist_ok=True, parents=True)
