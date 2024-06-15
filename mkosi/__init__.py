@@ -4375,7 +4375,8 @@ def check_workspace_directory(config: Config) -> None:
     for tree in config.build_sources:
         if wd.is_relative_to(tree.source):
             die(f"The workspace directory ({wd}) cannot be a subdirectory of any source directory ({tree.source})",
-                hint="Use WorkspaceDirectory= to configure a different workspace directory")
+                hint="Set BuildSources= to the empty string or use WorkspaceDirectory= to configure a different "
+                     "workspace directory")
 
 
 def run_clean_scripts(config: Config) -> None:
