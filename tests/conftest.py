@@ -7,7 +7,7 @@ import pytest
 from mkosi.config import parse_config
 from mkosi.distributions import Distribution, detect_distribution
 
-from . import Image, ci_group
+from . import ImageConfig, ci_group
 
 
 def pytest_addoption(parser: Any) -> None:
@@ -47,10 +47,10 @@ def pytest_addoption(parser: Any) -> None:
 
 
 @pytest.fixture(scope="session")
-def config(request: Any) -> Image.Config:
+def config(request: Any) -> ImageConfig:
     distribution = cast(Distribution, request.config.getoption("--distribution"))
     release = cast(str, request.config.getoption("--release") or parse_config(["-d", str(distribution)])[1][0].release)
-    return Image.Config(
+    return ImageConfig(
         distribution=distribution,
         release=release,
         tools_tree_distribution=cast(Distribution, request.config.getoption("--tools-tree-distribution")),

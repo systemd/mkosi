@@ -4,12 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from . import Image
+from . import Image, ImageConfig
 
 pytestmark = pytest.mark.integration
 
 
-def test_sysext(config: Image.Config) -> None:
+def test_sysext(config: ImageConfig) -> None:
     with Image(
         config,
         options=[

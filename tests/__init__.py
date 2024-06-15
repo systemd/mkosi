@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import contextlib
+import dataclasses
 import os
 import subprocess
 import sys
@@ -8,7 +9,7 @@ import uuid
 from collections.abc import Iterator, Sequence
 from pathlib import Path
 from types import TracebackType
-from typing import Any, NamedTuple, Optional
+from typing import Any, Optional
 
 import pytest
 
@@ -19,15 +20,17 @@ from mkosi.types import _FILE, CompletedProcess, PathString
 from mkosi.user import INVOKING_USER
 
 
-class Image:
-    class Config(NamedTuple):
-        distribution: Distribution
-        release: str
-        tools_tree_distribution: Optional[Distribution]
-        tools_tree_release: Optional[str]
-        debug_shell: bool
+@dataclasses.dataclass(frozen=True)
+class ImageConfig:
+    distribution: Distribution
+    release: str
+    tools_tree_distribution: Optional[Distribution]
+    tools_tree_release: Optional[str]
+    debug_shell: bool
 
-    def __init__(self, config: Config, options: Sequence[PathString] = []) -> None:
+
+class Image:
+    def __init__(self, config: ImageConfig, options: Sequence[PathString] = []) -> None:
         self.options = options
         self.config = config
 

@@ -11,7 +11,7 @@ from mkosi.qemu import find_virtiofsd
 from mkosi.run import find_binary, run
 from mkosi.versioncomp import GenericVersion
 
-from . import Image
+from . import Image, ImageConfig
 
 pytestmark = pytest.mark.integration
 
@@ -25,7 +25,7 @@ def have_vmspawn() -> bool:
 
 
 @pytest.mark.parametrize("format", [f for f in OutputFormat if f not in (OutputFormat.confext, OutputFormat.sysext)])
-def test_format(config: Image.Config, format: OutputFormat) -> None:
+def test_format(config: ImageConfig, format: OutputFormat) -> None:
     with Image(
         config,
         options=[
@@ -75,7 +75,7 @@ def test_format(config: Image.Config, format: OutputFormat) -> None:
 
 
 @pytest.mark.parametrize("bootloader", Bootloader)
-def test_bootloader(config: Image.Config, bootloader: Bootloader) -> None:
+def test_bootloader(config: ImageConfig, bootloader: Bootloader) -> None:
     if config.distribution == Distribution.rhel_ubi:
         return
 
