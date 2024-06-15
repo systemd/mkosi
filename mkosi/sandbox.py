@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1+
 import contextlib
+import dataclasses
 import enum
 import logging
 import os
@@ -8,14 +9,15 @@ import uuid
 from collections.abc import Iterator, Sequence
 from contextlib import AbstractContextManager
 from pathlib import Path
-from typing import NamedTuple, Optional, Protocol
+from typing import Optional, Protocol
 
 from mkosi.types import PathString
 from mkosi.user import INVOKING_USER
 from mkosi.util import flatten, one_zero, startswith
 
 
-class Mount(NamedTuple):
+@dataclasses.dataclass(frozen=True)
+class Mount:
     src: PathString
     dst: PathString
     devices: bool = False
