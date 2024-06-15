@@ -1,16 +1,18 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
+import dataclasses
 import subprocess
 import textwrap
 from pathlib import Path
-from typing import NamedTuple, Optional
+from typing import Optional
 
 from mkosi.context import Context
 from mkosi.run import run
 from mkosi.types import PathString
 
 
-class RpmRepository(NamedTuple):
+@dataclasses.dataclass(frozen=True)
+class RpmRepository:
     id: str
     url: str
     gpgurls: tuple[str, ...]
