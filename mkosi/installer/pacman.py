@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: LGPL-2.1+
+
+import dataclasses
 import os
 import shutil
 import textwrap
 from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import NamedTuple
 
 from mkosi.config import Cacheonly, Config
 from mkosi.context import Context
@@ -17,11 +18,13 @@ from mkosi.util import umask
 from mkosi.versioncomp import GenericVersion
 
 
-class Pacman(PackageManager):
-    class Repository(NamedTuple):
-        id: str
-        url: str
+@dataclasses.dataclass(frozen=True)
+class PacmanRepository:
+    id: str
+    url: str
 
+
+class Pacman(PackageManager):
     @classmethod
     def executable(cls, config: Config) -> str:
         return "pacman"
@@ -62,7 +65,7 @@ class Pacman(PackageManager):
         return mounts
 
     @classmethod
-    def setup(cls, context: Context, repositories: Iterable[Repository]) -> None:
+    def setup(cls, context: Context, repositories: Iterable[PacmanRepository]) -> None:
         if context.config.repository_key_check:
             sig_level = "Required DatabaseOptional"
         else:
