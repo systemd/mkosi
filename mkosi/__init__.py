@@ -1692,15 +1692,18 @@ def gzip_binary(context: Context) -> str:
 
 
 def fixup_vmlinuz_location(context: Context) -> None:
-    for d in context.root.glob("boot/vmlinuz-*"):
-        kver = d.name.removeprefix("vmlinuz-")
-        vmlinuz = context.root / "usr/lib/modules" / kver / "vmlinuz"
-        # Some distributions (OpenMandriva) symlink /usr/lib/modules/<kver>/vmlinuz to /boot/vmlinuz-<kver>, so get rid
-        # of the symlink and copy the actual vmlinuz to /usr/lib/modules/<kver>.
-        if vmlinuz.is_symlink() and vmlinuz.is_relative_to("/boot"):
-            vmlinuz.unlink()
-        if not vmlinuz.exists():
-            shutil.copy2(d, vmlinuz)
+    # Some architectures ship an uncompressed vmlinux (ppc64el, riscv64)
+    for type in ("vmlinuz", "vmlinux"):
+        for d in context.root.glob(f"boot/{type}-*"):
+            kver = d.name.removeprefix(f"{type}-")
+            vmlinuz = context.root / "usr/lib/modules" / kver / f"{type}"
+            # Some distributions (OpenMandriva) symlink /usr/lib/modules/<kver>/vmlinuz to /boot/vmlinuz-<kver>, so
+            # get rid of the symlink and copy the actual vmlinuz to /usr/lib/modules/<kver>.
+            if vmlinuz.is_symlink() and vmlinuz.is_relative_to("/boot"):
+                vmlinuz.unlink()
+            if not vmlinuz.exists():
+                # Rename vmlinux -> vmlinuz when copying
+                shutil.copy2(d, vmlinuz.with_name("vmlinuz"))
 
 
 def gen_kernel_images(context: Context) -> Iterator[tuple[str, Path]]:
@@ -1715,11 +1718,18 @@ def gen_kernel_images(context: Context) -> Iterator[tuple[str, Path]]:
         # Make sure we look for anything that remotely resembles vmlinuz, as
         # the arch specific install scripts in the kernel source tree sometimes
         # do weird stuff. But let's make sure we're not returning UKIs as the
-        # UKI on Fedora is named vmlinuz-virt.efi.
+        # UKI on Fedora is named vmlinuz-virt.efi. Also look for uncompressed
+        # images (vmlinux) as some architectures ship those. Prefer vmlinuz if
+        # both are present.
         for kimg in kver.glob("vmlinuz*"):
             if KernelType.identify(context.config, kimg) != KernelType.uki:
                 yield kver.name, kimg
                 break
+        else:
+            for kimg in kver.glob("vmlinux*"):
+                if KernelType.identify(context.config, kimg) != KernelType.uki:
+                    yield kver.name, kimg
+                    break
 
 
 def want_initrd(context: Context) -> bool:
