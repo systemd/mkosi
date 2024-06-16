@@ -1556,7 +1556,7 @@ class Config:
 
         This prevents MkosiArgs being generated with defaults values implicitly.
         """
-        with chdir("/"):
+        with chdir("/proc"):
             _, [config] = parse_config([])
 
         return config
