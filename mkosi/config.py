@@ -246,6 +246,7 @@ class DocFormat(StrEnum):
 class ShellCompletion(StrEnum):
     bash = enum.auto()
     fish = enum.auto()
+    zsh  = enum.auto()
 
 
 class Bootloader(StrEnum):
@@ -4470,4 +4471,71 @@ def finalize_completion_fish(options: list[CompletionItem], resources: Path) -> 
             elif option.compgen == CompGen.dirs:
                 c.write("--force-directories ")
             c.write("\n")
+        return c.getvalue()
+
+
+def finalize_completion_zsh(options: list[CompletionItem], resources: Path) -> str:
+    with io.StringIO() as c:
+        c.write("#compdef mkosi\n")
+        c.write("# SPDX-License-Identifier: LGPL-2.1+\n\n")
+
+        c.write(textwrap.dedent("""\
+            _mkosi_verb(){
+                local -a _mkosi_verbs
+                _mkosi_verbs=(
+        """))
+
+        for verb in Verb:
+            c.write(f"        '{verb.name}'\n")
+
+        c.write(textwrap.dedent("""\
+                )
+                if (( CURRENT == 1 )); then
+                    _describe -t commands 'mkosi verb' _mkosi_verbs
+                else
+                    local curcontext="$curcontext"
+                    cmd="${${_mkosi_verbs[(r)$words[1]:*]%%:*}}"
+                    if (( $#cmd )); then
+                        if (( $+functions[_mkosi_$cmd] )); then
+                            _mkosi_$cmd
+                        else
+                            _message "no more options"
+                        fi
+                    else
+                        _message "unknown mkosi verb: $words[1]"
+                    fi
+                fi
+            }
+        """))
+
+        c.write("_arguments -s \\\n")
+        c.write("    '(- *)'{-h,--help}'[Show this help]' \\\n")
+        c.write("    '(- *)--version[Show package version]' \\\n")
+
+        for option in options:
+            if not option.short and not option.long:
+                continue
+
+            posix = option.help and "'" in option.help
+            open_quote = "$'" if posix else "'"
+            if option.short and option.long:
+                c.write(f"    '({option.short} {option.long})'{{{option.short},{option.long}}}{open_quote}")
+            else:
+                c.write(f"    {open_quote}{option.short or option.long}")
+
+            if option.help:
+                help = option.help.replace("'", r"\'")
+                c.write(f"[{help}]")
+            if option.choices:
+                c.write(":(")
+                c.write(" ".join(option.choices))
+                c.write("):")
+            elif option.compgen == CompGen.files:
+                c.write(":path:_files -/")
+            elif option.compgen == CompGen.dirs:
+                c.write(":directory:_files -f")
+            c.write("' \\\n")
+
+        c.write("    '*::mkosi verb:_mkosi_verb'\n")
+
         return c.getvalue()
