@@ -3230,6 +3230,7 @@ def create_argument_only_parser(chdir: bool = True) -> argparse.ArgumentParser:
         help="The format to show documentation in",
         default=DocFormat.auto,
         type=DocFormat,
+        choices=list(DocFormat),
     )
     parser.add_argument(
         "--shell-completion",
