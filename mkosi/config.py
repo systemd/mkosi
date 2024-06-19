@@ -10,6 +10,7 @@ import fnmatch
 import functools
 import graphlib
 import inspect
+import io
 import json
 import logging
 import math
@@ -26,7 +27,7 @@ import tempfile
 import textwrap
 import typing
 import uuid
-from collections.abc import Collection, Iterable, Iterator, Sequence
+from collections.abc import Collection, Iterable, Iterator, Mapping, Sequence
 from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Any, Callable, Optional, TypeVar, Union, cast
@@ -237,6 +238,14 @@ class DocFormat(StrEnum):
     man      = enum.auto()
     pandoc   = enum.auto()
     system   = enum.auto()
+
+
+class ShellCompletion(StrEnum):
+    none = enum.auto()
+    bash = enum.auto()
+
+    def __bool__(self) -> bool:
+        return self != ShellCompletion.none
 
 
 class Bootloader(StrEnum):
@@ -1161,6 +1170,33 @@ def config_parse_key_source(value: Optional[str], old: Optional[KeySource]) -> O
     return KeySource(type=type, source=source)
 
 
+class CompGen(StrEnum):
+    default = enum.auto()
+    files   = enum.auto()
+    dirs    = enum.auto()
+
+    @staticmethod
+    def from_action(action: argparse.Action) -> "CompGen":
+        if isinstance(action.default, Path):
+            if action.default.is_dir():
+                return CompGen.dirs
+            else:
+                return CompGen.files
+        # TODO: the type of action.type is Union[Callable[[str], Any], FileType]
+        # the type of Path is type, but Path also works in this position,
+        # because the constructor is a callable from str -> Path
+        elif action.type is not None and (isinstance(action.type, type) and issubclass(action.type, Path)):  # type: ignore
+            if isinstance(action.default, Path) and action.default.is_dir():  # type: ignore
+                return CompGen.dirs
+            else:
+                return CompGen.files
+
+        return CompGen.default
+
+    def to_bash(self) -> str:
+        return f"_mkosi_compgen_{self}"
+
+
 @dataclasses.dataclass(frozen=True)
 class ConfigSetting:
     dest: str
@@ -1176,6 +1212,7 @@ class ConfigSetting:
     path_secret: bool = False
     specifier: str = ""
     universal: bool = False
+    compgen: CompGen = CompGen.default
 
     # settings for argparse
     short: Optional[str] = None
@@ -1306,6 +1343,7 @@ class Args:
     auto_bump: bool
     doc_format: DocFormat
     json: bool
+    shell_completion: ShellCompletion
 
     @classmethod
     def default(cls) -> "Args":
@@ -3271,6 +3309,13 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
         type=DocFormat,
     )
     parser.add_argument(
+        "--shell-completion",
+        help="The shell to print a completion script for",
+        type=ShellCompletion,
+        default=ShellCompletion.none,
+        choices=list(ShellCompletion),
+    )
+    parser.add_argument(
         "--json",
         help="Show summary as JSON",
         action="store_true",
@@ -4353,6 +4398,7 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         Network: enum_transformer,
         KeySource: key_source_transformer,
         Vmm: enum_transformer,
+        ShellCompletion: enum_transformer,
     }
 
     def json_transformer(key: str, val: Any) -> Any:
@@ -4427,3 +4473,90 @@ def systemd_tool_version(config: Config, *tool: PathString) -> GenericVersion:
             sandbox=config.sandbox(binary=tool[-1]),
         ).stdout.split()[2].strip("()").removeprefix("v")
     )
+
+
+@dataclasses.dataclass(frozen=True)
+class CompletionItem:
+    short: Optional[str]
+    long: Optional[str]
+    help: Optional[str]
+    nargs: Union[str, int]
+    choices: list[str]
+    compgen: CompGen
+
+
+def collect_completion_arguments() -> list[CompletionItem]:
+    parser = create_argument_parser()
+
+    options = [
+        CompletionItem(
+            short=next((s for s in action.option_strings if not s.startswith("--")), None),
+            long=next((s for s in action.option_strings if s.startswith("--")), None),
+            help=action.help,
+            nargs=action.nargs or 0,
+            choices=[str(c) for c in action.choices] if action.choices is not None else [],
+            compgen=CompGen.from_action(action),
+        )
+        for action in parser._actions
+        if (action.option_strings and
+            action.help != argparse.SUPPRESS and
+            action.dest not in SETTINGS_LOOKUP_BY_DEST)
+    ]
+
+    options += [
+        CompletionItem(
+            short=setting.short,
+            long=setting.long,
+            help=setting.help,
+            nargs=setting.nargs or 1,
+            choices=[str(c) for c in setting.choices] if setting.choices is not None else [],
+            compgen=setting.compgen,
+        )
+        for setting in SETTINGS
+    ]
+
+    return options
+
+
+def finalize_completion_bash(options: list[CompletionItem], resources: Path) -> str:
+    def to_bash_array(name: str, entries: Iterable[str]) -> str:
+        return f"declare -a {name.replace('-', '_')}=(" + " ".join(shlex.quote(str(e)) for e in entries) + ")"
+
+    def to_bash_hasharray(name: str, entries: Mapping[str, Union[str, int]]) -> str:
+        return (
+            f"declare -A {name.replace('-', '_')}=(" +
+            " ".join(f"[{shlex.quote(str(k))}]={shlex.quote(str(v))}" for k, v in entries.items()) + ")"
+        )
+
+    completion = resources / "completion.bash"
+
+    options_by_key = {o.short: o for o in options if o.short} | {o.long: o for o in options if o.long}
+
+    with io.StringIO() as c:
+        c.write("# SPDX-License-Identifier: LGPL-2.1-or-later\n\n")
+        c.write(to_bash_array("_mkosi_options", options_by_key.keys()))
+        c.write("\n\n")
+
+        nargs = to_bash_hasharray("_mkosi_nargs", {optname: v.nargs for optname, v in options_by_key.items()})
+        c.write(nargs)
+        c.write("\n\n")
+
+        choices = to_bash_hasharray(
+            "_mkosi_choices", {optname: " ".join(v.choices) for optname, v in options_by_key.items() if v.choices}
+        )
+        c.write(choices)
+        c.write("\n\n")
+
+        compgen = to_bash_hasharray(
+            "_mkosi_compgen",
+            {optname: v.compgen.to_bash() for optname, v in options_by_key.items() if v.compgen != CompGen.default},
+        )
+        c.write(compgen)
+        c.write("\n\n")
+
+        c.write(to_bash_array("_mkosi_verbs", [str(v) for v in Verb]))
+        c.write("\n\n\n")
+
+        c.write(completion.read_text())
+
+        return c.getvalue()

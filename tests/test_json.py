@@ -27,6 +27,7 @@ from mkosi.config import (
     QemuFirmware,
     QemuVsockCID,
     SecureBootSignTool,
+    ShellCompletion,
     ShimBootloader,
     Verb,
     Vmm,
@@ -55,6 +56,7 @@ def test_args(path: Optional[Path]) -> None:
             "GenkeyValidDays": "100",
             "Json": false,
             "Pager": true,
+            "ShellCompletion": "none",
             "Verb": "build"
         }}
         """
@@ -73,6 +75,7 @@ def test_args(path: Optional[Path]) -> None:
         genkey_valid_days = "100",
         json = False,
         pager = True,
+        shell_completion = ShellCompletion.none,
         verb = Verb.build,
     )
 
