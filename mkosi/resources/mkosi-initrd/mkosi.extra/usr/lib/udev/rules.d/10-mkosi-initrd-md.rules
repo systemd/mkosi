@@ -19,7 +19,7 @@ ATTR{md/array_state}=="|clear|inactive", GOTO="md_end"
 
 LABEL="md_ignore_state"
 
-IMPORT{program}="/sbin/mdadm --detail --export $tempnode"
+IMPORT{program}="/sbin/mdadm --detail --export $devnode"
 IMPORT{builtin}="blkid"
 OPTIONS+="link_priority=100"
 OPTIONS+="watch"
