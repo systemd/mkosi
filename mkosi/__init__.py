@@ -2645,12 +2645,13 @@ def calculate_sha256sum(context: Context) -> None:
     if not context.config.checksum:
         return
 
-    if context.config.output_format == OutputFormat.directory:
-        return
-
     with complete_step("Calculating SHA256SUMS…"):
         with open(context.workspace / context.config.output_checksum, "w") as f:
             for p in context.staging.iterdir():
+                if p.is_dir():
+                    logging.warning(f"Cannot checksum directory '{p}', skipping")
+                    continue
+
                 print(hash_file(p) + " *" + p.name, file=f)
 
         (context.workspace / context.config.output_checksum).rename(context.staging / context.config.output_checksum)
@@ -2658,9 +2659,6 @@ def calculate_sha256sum(context: Context) -> None:
 
 def calculate_signature(context: Context) -> None:
     if not context.config.sign or not context.config.checksum:
-        return
-
-    if context.config.output_format == OutputFormat.directory:
         return
 
     cmdline: list[PathString] = ["gpg", "--detach-sign"]
