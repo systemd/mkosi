@@ -153,10 +153,7 @@ def sandbox_cmd(
     if relaxed:
         mounts += [Mount("/tmp", "/tmp")]
     else:
-        cmdline += [
-            "--tmpfs", "/tmp",
-            "--unshare-ipc",
-        ]
+        cmdline += ["--dir", "/tmp", "--unshare-ipc"]
 
     if (tools / "nix/store").exists():
         mounts += [Mount(tools / "nix/store", "/nix/store")]
