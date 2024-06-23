@@ -220,8 +220,12 @@ def sandbox_cmd(
 
     # bubblewrap creates everything with a restricted mode so relax stuff as needed.
     ops = []
-    if not devices and not relaxed:
-        ops += ["chmod 1777 /dev/shm"]
+    if not relaxed:
+        ops += ["chmod 1777 /tmp"]
+        if not devices:
+            ops += ["chmod 1777 /dev/shm"]
+    if vartmp:
+        ops += ["chmod 1777 /var/tmp"]
     if relaxed and INVOKING_USER.home().exists() and len(INVOKING_USER.home().parents) > 1:
         # We might mount a subdirectory of /home so /home will be created with the wrong permissions by bubblewrap so
         # we need to fix up the permissions.
