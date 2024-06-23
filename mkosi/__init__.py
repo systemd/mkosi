@@ -1696,7 +1696,7 @@ def fixup_vmlinuz_location(context: Context) -> None:
     for type in ("vmlinuz", "vmlinux"):
         for d in context.root.glob(f"boot/{type}-*"):
             kver = d.name.removeprefix(f"{type}-")
-            vmlinuz = context.root / "usr/lib/modules" / kver / f"{type}"
+            vmlinuz = context.root / "usr/lib/modules" / kver / type
             if not vmlinuz.parent.exists():
                 continue
             # Some distributions (OpenMandriva) symlink /usr/lib/modules/<kver>/vmlinuz to /boot/vmlinuz-<kver>, so
