@@ -130,9 +130,9 @@ def sandbox_cmd(
 
     if not relaxed:
         # We want to use an empty subdirectory in the host's temporary directory as the sandbox's /var/tmp.
-        vartmp = Path(os.getenv("TMPDIR", "/var/tmp")) / f"mkosi-var-tmp-{uuid.uuid4().hex[:16]}"
+        vartmpdir = Path(os.getenv("TMPDIR", "/var/tmp")) / f"mkosi-var-tmp-{uuid.uuid4().hex[:16]}"
     else:
-        vartmp = None
+        vartmpdir = None
 
     cmdline += [
         *setup,
@@ -186,8 +186,8 @@ def sandbox_cmd(
         if d and d not in (*dirs, "/home", "/usr", "/nix", "/tmp"):
             mounts += [Mount(d, d)]
 
-    if vartmp:
-        mounts += [Mount(vartmp, "/var/tmp")]
+    if vartmpdir:
+        mounts += [Mount(vartmpdir, "/var/tmp")]
 
     for d in ("bin", "sbin", "lib", "lib32", "lib64"):
         if (p := tools / d).is_symlink():
@@ -224,7 +224,7 @@ def sandbox_cmd(
         ops += ["chmod 1777 /tmp"]
         if not devices:
             ops += ["chmod 1777 /dev/shm"]
-    if vartmp:
+    if vartmpdir:
         ops += ["chmod 1777 /var/tmp"]
     if relaxed and INVOKING_USER.home().exists() and len(INVOKING_USER.home().parents) > 1:
         # We might mount a subdirectory of /home so /home will be created with the wrong permissions by bubblewrap so
@@ -236,14 +236,14 @@ def sandbox_cmd(
 
     cmdline += ["sh", "-c", " && ".join(ops), *extra]
 
-    if vartmp:
-        vartmp.mkdir(mode=0o1777)
+    if vartmpdir:
+        vartmpdir.mkdir(mode=0o1777)
 
     try:
         yield cmdline
     finally:
-        if vartmp:
-            shutil.rmtree(vartmp)
+        if vartmpdir:
+            shutil.rmtree(vartmpdir)
 
 
 def apivfs_cmd() -> list[PathString]:
