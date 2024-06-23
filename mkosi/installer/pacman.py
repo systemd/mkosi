@@ -169,6 +169,7 @@ class Pacman(PackageManager):
                     context.sandbox(
                         binary="pacman",
                         network=True,
+                        vartmp=True,
                         mounts=[Mount(context.root, "/buildroot"), *cls.mounts(context), *sources],
                         options=["--dir", "/work/src", "--chdir", "/work/src"],
                         extra=apivfs_cmd() if apivfs else [],

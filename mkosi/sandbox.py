@@ -47,6 +47,7 @@ class SandboxProtocol(Protocol):
         self,
         *,
         binary: Optional[PathString],
+        vartmp: bool = False,
         mounts: Sequence[Mount] = (),
         extra: Sequence[PathString] = (),
     ) -> AbstractContextManager[list[PathString]]: ...
@@ -55,6 +56,7 @@ class SandboxProtocol(Protocol):
 def nosandbox(
     *,
     binary: Optional[PathString],
+    vartmp: bool = False,
     mounts: Sequence[Mount] = (),
     extra: Sequence[PathString] = (),
 ) -> AbstractContextManager[list[PathString]]:
@@ -117,6 +119,7 @@ def sandbox_cmd(
     *,
     network: bool = False,
     devices: bool = False,
+    vartmp: bool = False,
     scripts: Optional[Path] = None,
     tools: Path = Path("/"),
     relaxed: bool = False,
@@ -128,7 +131,7 @@ def sandbox_cmd(
     cmdline: list[PathString] = []
     mounts = list(mounts)
 
-    if not relaxed:
+    if vartmp and not relaxed:
         # We want to use an empty subdirectory in the host's temporary directory as the sandbox's /var/tmp.
         vartmpdir = Path(os.getenv("TMPDIR", "/var/tmp")) / f"mkosi-var-tmp-{uuid.uuid4().hex[:16]}"
     else:
@@ -153,7 +156,7 @@ def sandbox_cmd(
     if relaxed:
         mounts += [Mount("/tmp", "/tmp")]
     else:
-        cmdline += ["--dir", "/tmp", "--unshare-ipc"]
+        cmdline += ["--dir", "/tmp", "--dir", "/var/tmp", "--unshare-ipc"]
 
     if (tools / "nix/store").exists():
         mounts += [Mount(tools / "nix/store", "/nix/store")]

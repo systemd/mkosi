@@ -974,6 +974,7 @@ def run_qemu(args: Args, config: Config) -> None:
                 ],
                 sandbox=config.sandbox(
                     binary="systemd-repart",
+                    vartmp=True,
                     mounts=[Mount(fname.parent, fname.parent), Mount(src, src, ro=True)],
                 ),
             )

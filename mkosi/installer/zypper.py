@@ -134,6 +134,7 @@ class Zypper(PackageManager):
                     context.sandbox(
                         binary="zypper",
                         network=True,
+                        vartmp=True,
                         mounts=[Mount(context.root, "/buildroot"), *cls.mounts(context), *sources],
                         options=["--dir", "/work/src", "--chdir", "/work/src"],
                         extra=apivfs_cmd() if apivfs else [],
