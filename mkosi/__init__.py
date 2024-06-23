@@ -857,7 +857,7 @@ def run_postoutput_scripts(context: Context) -> None:
                 run(
                     ["/work/postoutput"],
                     env=env | context.config.environment,
-                    sandbox=context.config.sandbox(
+                    sandbox=context.sandbox(
                         binary=None,
                         mounts=[
                             *sources,
