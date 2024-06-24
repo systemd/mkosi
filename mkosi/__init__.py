@@ -2234,7 +2234,14 @@ def systemd_stub_version(context: Context, stub: Path) -> Optional[GenericVersio
     except KeyError:
         return None
 
-    sdmagic_text = sdmagic.read_text()
+    sdmagic_text = sdmagic.read_text().strip("\x00")
+
+    # Older versions of the stub have misaligned sections which results in an empty sdmagic text. Let's check for that
+    # explicitly and treat it as no version.
+    # TODO: Drop this logic once every distribution we support ships systemd-stub v254 or newer.
+    if not sdmagic_text:
+        return None
+
     if not (version := re.match(r"#### LoaderInfo: systemd-stub (?P<version>[.~^a-zA-Z0-9-+]+) ####", sdmagic_text)):
         die(f"Unable to determine systemd-stub version, found {sdmagic_text!r}")
 
