@@ -78,6 +78,7 @@ class Context:
         binary: Optional[PathString],
         network: bool = False,
         devices: bool = False,
+        vartmp: bool = False,
         scripts: Optional[Path] = None,
         mounts: Sequence[Mount] = (),
         options: Sequence[PathString] = (),
@@ -95,6 +96,7 @@ class Context:
             binary=binary,
             network=network,
             devices=devices,
+            vartmp=vartmp,
             scripts=scripts,
             mounts=[
                 # This mount is writable so bubblewrap can create extra directories or symlinks inside of it as needed.

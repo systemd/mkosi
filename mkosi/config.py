@@ -1703,6 +1703,7 @@ class Config:
         binary: Optional[PathString],
         network: bool = False,
         devices: bool = False,
+        vartmp: bool = False,
         relaxed: bool = False,
         tools: bool = True,
         scripts: Optional[Path] = None,
@@ -1729,6 +1730,7 @@ class Config:
         return sandbox_cmd(
             network=network,
             devices=devices,
+            vartmp=vartmp,
             relaxed=relaxed,
             scripts=scripts,
             tools=self.tools() if tools else Path("/"),

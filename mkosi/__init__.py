@@ -463,6 +463,7 @@ def run_configure_scripts(config: Config) -> Config:
                     env=env | config.environment,
                     sandbox=config.sandbox(
                         binary=None,
+                        vartmp=True,
                         mounts=[*sources, Mount(script, "/work/configure", ro=True)],
                         options=["--dir", "/work/src", "--chdir", "/work/src"]
                     ),
@@ -526,6 +527,7 @@ def run_sync_scripts(context: Context) -> None:
                     sandbox=context.sandbox(
                         binary=None,
                         network=True,
+                        vartmp=True,
                         mounts=mounts,
                         options=["--dir", "/work/src", "--chdir", "/work/src"]
                     ),
@@ -593,6 +595,7 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
                     sandbox=context.sandbox(
                         binary=None,
                         network=True,
+                        vartmp=True,
                         mounts=[
                             *sources,
                             Mount(script, "/work/prepare", ro=True),
@@ -672,6 +675,7 @@ def run_build_scripts(context: Context) -> None:
                     sandbox=context.sandbox(
                         binary=None,
                         network=context.config.with_network,
+                        vartmp=True,
                         mounts=[
                             *sources,
                             Mount(script, "/work/build-script", ro=True),
@@ -749,6 +753,7 @@ def run_postinst_scripts(context: Context) -> None:
                     sandbox=context.sandbox(
                         binary=None,
                         network=context.config.with_network,
+                        vartmp=True,
                         mounts=[
                             *sources,
                             Mount(script, "/work/postinst", ro=True),
@@ -814,6 +819,7 @@ def run_finalize_scripts(context: Context) -> None:
                     sandbox=context.sandbox(
                         binary=None,
                         network=context.config.with_network,
+                        vartmp=True,
                         mounts=[
                             *sources,
                             Mount(script, "/work/finalize", ro=True),
@@ -857,8 +863,9 @@ def run_postoutput_scripts(context: Context) -> None:
                 run(
                     ["/work/postoutput"],
                     env=env | context.config.environment,
-                    sandbox=context.config.sandbox(
+                    sandbox=context.sandbox(
                         binary=None,
+                        vartmp=True,
                         mounts=[
                             *sources,
                             Mount(script, "/work/postoutput", ro=True),
@@ -3361,6 +3368,7 @@ def make_image(
                         not context.config.repart_offline or
                         context.config.verity_key_source.type != KeySource.Type.file
                     ),
+                    vartmp=True,
                     mounts=mounts,
                 ),
             ).stdout
@@ -3640,6 +3648,7 @@ def make_extension_image(context: Context, output: Path) -> None:
                         not context.config.repart_offline or
                         context.config.verity_key_source.type != KeySource.Type.file
                     ),
+                    vartmp=True,
                     mounts=mounts,
                 ),
             ).stdout
@@ -3769,10 +3778,11 @@ def copy_repository_metadata(context: Context) -> None:
                 def sandbox(
                     *,
                     binary: Optional[PathString],
+                    vartmp: bool = False,
                     mounts: Sequence[Mount] = (),
                     extra: Sequence[PathString] = (),
                 ) -> AbstractContextManager[list[PathString]]:
-                    return context.sandbox(binary=binary, mounts=[*mounts, *exclude], extra=extra)
+                    return context.sandbox(binary=binary, vartmp=vartmp, mounts=[*mounts, *exclude], extra=extra)
 
                 copy_tree(
                     src, dst,
@@ -4059,6 +4069,7 @@ def run_shell(args: Args, config: Config) -> None:
                     binary="systemd-repart",
                     network=True,
                     devices=True,
+                    vartmp=True,
                     mounts=[Mount(fname, fname)],
                 ),
             )
@@ -4424,6 +4435,7 @@ def run_clean_scripts(config: Config) -> None:
                     env=env | config.environment,
                     sandbox=config.sandbox(
                         binary=None,
+                        vartmp=True,
                         tools=False,
                         mounts=[
                             *sources,

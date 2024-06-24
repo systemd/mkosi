@@ -217,6 +217,7 @@ class Apt(PackageManager):
                     context.sandbox(
                         binary="apt-get",
                         network=True,
+                        vartmp=True,
                         mounts=[Mount(context.root, "/buildroot"), *cls.mounts(context), *sources, *mounts],
                         options=["--dir", "/work/src", "--chdir", "/work/src"],
                         extra=apivfs_cmd() if apivfs else []
