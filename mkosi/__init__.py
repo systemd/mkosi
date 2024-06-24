@@ -1711,8 +1711,7 @@ def fixup_vmlinuz_location(context: Context) -> None:
             if vmlinuz.is_symlink() and vmlinuz.is_relative_to("/boot"):
                 vmlinuz.unlink()
             if not vmlinuz.exists():
-                # Rename vmlinux -> vmlinuz when copying
-                shutil.copy2(d, vmlinuz.with_name("vmlinuz"))
+                shutil.copy2(d, vmlinuz)
 
 
 def gen_kernel_images(context: Context) -> Iterator[tuple[str, Path]]:
