@@ -2167,9 +2167,9 @@ def build_uki(
     if microcodes:
         # new .ucode section support?
         if (
-            systemd_tool_version(context.config, ukify) >= "256~devel" and
+            systemd_tool_version(context.config, ukify) >= "256" and
             (version := systemd_stub_version(context, stub)) and
-            version >= "256~devel"
+            version >= "256"
         ):
             for microcode in microcodes:
                 cmd += ["--microcode", microcode]
@@ -2234,7 +2234,14 @@ def systemd_stub_version(context: Context, stub: Path) -> Optional[GenericVersio
     except KeyError:
         return None
 
-    sdmagic_text = sdmagic.read_text()
+    sdmagic_text = sdmagic.read_text().strip("\x00")
+
+    # Older versions of the stub have misaligned sections which results in an empty sdmagic text. Let's check for that
+    # explicitly and treat it as no version.
+    # TODO: Drop this logic once every distribution we support ships systemd-stub v254 or newer.
+    if not sdmagic_text:
+        return None
+
     if not (version := re.match(r"#### LoaderInfo: systemd-stub (?P<version>[.~^a-zA-Z0-9-+]+) ####", sdmagic_text)):
         die(f"Unable to determine systemd-stub version, found {sdmagic_text!r}")
 
@@ -2868,7 +2875,7 @@ def check_tools(config: Config, verb: Verb) -> None:
             check_systemd_tool(
                 config,
                 "ukify", "/usr/lib/systemd/ukify",
-                version="256~devel",
+                version="256",
                 reason="sign Unified Kernel Image with OpenSSL engine",
             )
 
@@ -2876,7 +2883,7 @@ def check_tools(config: Config, verb: Verb) -> None:
                 check_systemd_tool(
                     config,
                     "systemd-measure",
-                    version="256~devel",
+                    version="256",
                     reason="sign PCR hashes with OpenSSL engine",
                 )
 
@@ -2884,7 +2891,7 @@ def check_tools(config: Config, verb: Verb) -> None:
             check_systemd_tool(
                 config,
                 "systemd-repart",
-                version="256~devel",
+                version="256",
                 reason="sign verity roothash signature with OpenSSL engine",
             )
 
@@ -2896,7 +2903,7 @@ def check_tools(config: Config, verb: Verb) -> None:
         check_systemd_tool(config, "systemd-nspawn", version="254", reason="boot images")
 
     if verb == Verb.qemu and config.vmm == Vmm.vmspawn:
-        check_systemd_tool(config, "systemd-vmspawn", version="256~devel", reason="boot images with vmspawn")
+        check_systemd_tool(config, "systemd-vmspawn", version="256", reason="boot images with vmspawn")
 
 
 def configure_ssh(context: Context) -> None:
