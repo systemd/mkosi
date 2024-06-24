@@ -2167,9 +2167,9 @@ def build_uki(
     if microcodes:
         # new .ucode section support?
         if (
-            systemd_tool_version(context.config, ukify) >= "256~devel" and
+            systemd_tool_version(context.config, ukify) >= "256" and
             (version := systemd_stub_version(context, stub)) and
-            version >= "256~devel"
+            version >= "256"
         ):
             for microcode in microcodes:
                 cmd += ["--microcode", microcode]
@@ -2875,7 +2875,7 @@ def check_tools(config: Config, verb: Verb) -> None:
             check_systemd_tool(
                 config,
                 "ukify", "/usr/lib/systemd/ukify",
-                version="256~devel",
+                version="256",
                 reason="sign Unified Kernel Image with OpenSSL engine",
             )
 
@@ -2883,7 +2883,7 @@ def check_tools(config: Config, verb: Verb) -> None:
                 check_systemd_tool(
                     config,
                     "systemd-measure",
-                    version="256~devel",
+                    version="256",
                     reason="sign PCR hashes with OpenSSL engine",
                 )
 
@@ -2891,7 +2891,7 @@ def check_tools(config: Config, verb: Verb) -> None:
             check_systemd_tool(
                 config,
                 "systemd-repart",
-                version="256~devel",
+                version="256",
                 reason="sign verity roothash signature with OpenSSL engine",
             )
 
@@ -2903,7 +2903,7 @@ def check_tools(config: Config, verb: Verb) -> None:
         check_systemd_tool(config, "systemd-nspawn", version="254", reason="boot images")
 
     if verb == Verb.qemu and config.vmm == Vmm.vmspawn:
-        check_systemd_tool(config, "systemd-vmspawn", version="256~devel", reason="boot images with vmspawn")
+        check_systemd_tool(config, "systemd-vmspawn", version="256", reason="boot images with vmspawn")
 
 
 def configure_ssh(context: Context) -> None:
