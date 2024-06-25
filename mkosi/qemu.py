@@ -1113,7 +1113,8 @@ def run_qemu(args: Args, config: Config) -> None:
             payload = base64.b64encode(v.encode()).decode()
             if config.architecture.supports_smbios(firmware):
                 cmdline += ["-smbios", f"type=11,value=io.systemd.credential.binary:{k}={payload}"]
-            elif config.architecture.supports_fw_cfg():
+            # qemu's fw_cfg device only supports keys up to 55 characters long.
+            elif config.architecture.supports_fw_cfg() and len(k) <= 55 - len("opt/io.systemd.credentials/"):
                 f = stack.enter_context(tempfile.NamedTemporaryFile(prefix="mkosi-fw-cfg-", mode="w"))
                 f.write(v)
                 f.flush()
