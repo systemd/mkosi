@@ -155,7 +155,7 @@ def main() -> None:
         # Make sure we don't use any of mkosi's default repositories.
         for p in (
             "yum.repos.d/mkosi.repo",
-            "apt/sources.list",
+            "apt/sources.list.d/mkosi.sources",
             "zypp/repos.d/mkosi.repo",
             "pacman.conf",
         ):
