@@ -3,6 +3,7 @@
 import asyncio
 import base64
 import contextlib
+import dataclasses
 import enum
 import errno
 import fcntl
@@ -22,7 +23,7 @@ import textwrap
 import uuid
 from collections.abc import Iterator, Sequence
 from pathlib import Path
-from typing import NamedTuple, Optional
+from typing import Optional
 
 from mkosi.config import (
     Args,
@@ -178,7 +179,8 @@ def find_qemu_binary(config: Config) -> str:
     die("Couldn't find QEMU/KVM binary")
 
 
-class OvmfConfig(NamedTuple):
+@dataclasses.dataclass(frozen=True)
+class OvmfConfig:
     description: Path
     firmware: Path
     format: str

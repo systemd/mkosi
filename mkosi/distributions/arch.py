@@ -6,7 +6,7 @@ from mkosi.config import Architecture, Config
 from mkosi.context import Context
 from mkosi.distributions import Distribution, DistributionInstaller, PackageType
 from mkosi.installer import PackageManager
-from mkosi.installer.pacman import Pacman
+from mkosi.installer.pacman import Pacman, PacmanRepository
 from mkosi.log import die
 from mkosi.util import listify, sort_packages
 
@@ -63,9 +63,9 @@ class Installer(DistributionInstaller):
 
     @classmethod
     @listify
-    def repositories(cls, context: Context) -> Iterable[Pacman.Repository]:
+    def repositories(cls, context: Context) -> Iterable[PacmanRepository]:
         if context.config.local_mirror:
-            yield Pacman.Repository("core", context.config.local_mirror)
+            yield PacmanRepository("core", context.config.local_mirror)
         else:
             if context.config.architecture.is_arm_variant():
                 url = f"{context.config.mirror or 'http://mirror.archlinuxarm.org'}/$arch/$repo"
@@ -85,7 +85,7 @@ class Installer(DistributionInstaller):
             ] + ["core", "extra"]
 
             for repo in repos:
-                yield Pacman.Repository(repo, url)
+                yield PacmanRepository(repo, url)
 
     @classmethod
     def architecture(cls, arch: Architecture) -> str:

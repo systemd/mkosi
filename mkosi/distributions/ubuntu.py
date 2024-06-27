@@ -5,7 +5,7 @@ from pathlib import Path
 
 from mkosi.context import Context
 from mkosi.distributions import Distribution, debian
-from mkosi.installer.apt import Apt
+from mkosi.installer.apt import AptRepository
 from mkosi.util import listify
 
 
@@ -24,7 +24,7 @@ class Installer(debian.Installer):
 
     @staticmethod
     @listify
-    def repositories(context: Context, local: bool = True) -> Iterable[Apt.Repository]:
+    def repositories(context: Context, local: bool = True) -> Iterable[AptRepository]:
         types = ("deb", "deb-src")
 
         # From kinetic onwards, the usr-is-merged package is available in universe and is required by
@@ -33,7 +33,7 @@ class Installer(debian.Installer):
         components = (*components, *context.config.repositories)
 
         if context.config.local_mirror and local:
-            yield Apt.Repository(
+            yield AptRepository(
                 types=("deb",),
                 url=context.config.local_mirror,
                 suite=context.config.release,
@@ -49,7 +49,7 @@ class Installer(debian.Installer):
 
         signedby = Path("/usr/share/keyrings/ubuntu-archive-keyring.gpg")
 
-        yield Apt.Repository(
+        yield AptRepository(
             types=types,
             url=mirror,
             suite=context.config.release,
@@ -57,7 +57,7 @@ class Installer(debian.Installer):
             signedby=signedby,
         )
 
-        yield Apt.Repository(
+        yield AptRepository(
             types=types,
             url=mirror,
             suite=f"{context.config.release}-updates",
@@ -71,7 +71,7 @@ class Installer(debian.Installer):
         else:
             mirror = "http://ports.ubuntu.com/"
 
-        yield Apt.Repository(
+        yield AptRepository(
             types=types,
             url=mirror,
             suite=f"{context.config.release}-security",

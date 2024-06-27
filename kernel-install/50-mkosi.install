@@ -2,12 +2,13 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import argparse
+import dataclasses
 import logging
 import os
 import shutil
 import tempfile
 from pathlib import Path
-from typing import NamedTuple, Optional
+from typing import Optional
 
 from mkosi import identify_cpu
 from mkosi.archive import make_cpio
@@ -18,7 +19,8 @@ from mkosi.types import PathString
 from mkosi.util import umask
 
 
-class Context(NamedTuple):
+@dataclasses.dataclass(frozen=True)
+class Context:
     command: str
     kernel_version: str
     entry_dir: Path

@@ -9,7 +9,7 @@ from mkosi.config import Architecture, Config
 from mkosi.context import Context
 from mkosi.distributions import Distribution, DistributionInstaller, PackageType
 from mkosi.installer import PackageManager
-from mkosi.installer.apt import Apt
+from mkosi.installer.apt import Apt, AptRepository
 from mkosi.log import die
 from mkosi.run import run
 from mkosi.sandbox import Mount
@@ -43,12 +43,12 @@ class Installer(DistributionInstaller):
 
     @staticmethod
     @listify
-    def repositories(context: Context, local: bool = True) -> Iterable[Apt.Repository]:
+    def repositories(context: Context, local: bool = True) -> Iterable[AptRepository]:
         types = ("deb", "deb-src")
         components = ("main", *context.config.repositories)
 
         if context.config.local_mirror and local:
-            yield Apt.Repository(
+            yield AptRepository(
                 types=("deb",),
                 url=context.config.local_mirror,
                 suite=context.config.release,
@@ -60,7 +60,7 @@ class Installer(DistributionInstaller):
         mirror = context.config.mirror or "http://deb.debian.org/debian"
         signedby = Path("/usr/share/keyrings/debian-archive-keyring.gpg")
 
-        yield Apt.Repository(
+        yield AptRepository(
             types=types,
             url=mirror,
             suite=context.config.release,
@@ -71,7 +71,7 @@ class Installer(DistributionInstaller):
         # Debug repos are typically not mirrored.
         url = "http://deb.debian.org/debian-debug"
 
-        yield Apt.Repository(
+        yield AptRepository(
             types=types,
             url=url,
             suite=f"{context.config.release}-debug",
@@ -82,7 +82,7 @@ class Installer(DistributionInstaller):
         if context.config.release in ("unstable", "sid"):
             return
 
-        yield Apt.Repository(
+        yield AptRepository(
             types=types,
             url=mirror,
             suite=f"{context.config.release}-updates",
@@ -90,7 +90,7 @@ class Installer(DistributionInstaller):
             signedby=signedby,
         )
 
-        yield Apt.Repository(
+        yield AptRepository(
             types=types,
             # Security updates repos are never mirrored.
             url="http://security.debian.org/debian-security",
@@ -240,7 +240,7 @@ class Installer(DistributionInstaller):
         return a
 
 
-def install_apt_sources(context: Context, repos: Iterable[Apt.Repository]) -> None:
+def install_apt_sources(context: Context, repos: Iterable[AptRepository]) -> None:
     if not (context.root / "usr/bin/apt").exists():
         return
 

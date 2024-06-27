@@ -1904,9 +1904,9 @@ def identify_cpu(root: Path) -> tuple[Optional[Path], Optional[Path]]:
             return (Path(f"{vendor_id}.bin"), ucode)
     elif vendor_id == "GenuineIntel":
         uroot = root / "usr/lib/firmware/intel-ucode"
-        if (ucode := (uroot / f"{family:02x}-{model:02x}-{stepping:02x}")).exists():
+        if (ucode := uroot / f"{family:02x}-{model:02x}-{stepping:02x}").exists():
             return (Path(f"{vendor_id}.bin"), ucode)
-        if (ucode := (uroot / f"{family:02x}-{model:02x}-{stepping:02x}.initramfs")).exists():
+        if (ucode := uroot / f"{family:02x}-{model:02x}-{stepping:02x}.initramfs").exists():
             return (Path(f"{vendor_id}.bin"), ucode)
 
     return (Path(f"{vendor_id}.bin"), None)

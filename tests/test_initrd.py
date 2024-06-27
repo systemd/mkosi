@@ -21,7 +21,7 @@ from mkosi.types import PathString
 from mkosi.user import INVOKING_USER
 from mkosi.versioncomp import GenericVersion
 
-from . import Image, ci_group
+from . import Image, ImageConfig, ci_group
 
 pytestmark = pytest.mark.integration
 
@@ -40,7 +40,7 @@ def passphrase() -> Iterator[Path]:
 
 
 @pytest.fixture(scope="module")
-def initrd(request: Any, config: Image.Config) -> Iterator[Image]:
+def initrd(request: Any, config: ImageConfig) -> Iterator[Image]:
     with (
         ci_group(f"Initrd image {config.distribution}/{config.release}"),
         Image(
@@ -196,7 +196,7 @@ def test_initrd_luks(initrd: Image, passphrase: Path) -> None:
 
 
 @pytest.mark.skipif(os.getuid() != 0, reason="mkosi-initrd LUKS+LVM test can only be executed as root")
-def test_initrd_luks_lvm(config: Image.Config, initrd: Image, passphrase: Path) -> None:
+def test_initrd_luks_lvm(config: ImageConfig, initrd: Image, passphrase: Path) -> None:
     with Image(
         config,
         options=[

@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import tempfile
-import xml.etree.ElementTree as ElementTree
 from collections.abc import Iterable, Sequence
 from pathlib import Path
+from xml.etree import ElementTree
 
 from mkosi.config import Architecture, Config
 from mkosi.context import Context
