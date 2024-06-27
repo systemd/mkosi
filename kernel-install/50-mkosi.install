@@ -14,7 +14,7 @@ from mkosi import identify_cpu
 from mkosi.archive import make_cpio
 from mkosi.config import OutputFormat, __version__
 from mkosi.log import die, log_setup
-from mkosi.run import find_binary, run, uncaught_exception_handler
+from mkosi.run import run, uncaught_exception_handler
 from mkosi.types import PathString
 from mkosi.util import umask
 
@@ -81,30 +81,42 @@ def main() -> None:
         usage='50-mkosi.install COMMAND KERNEL_VERSION ENTRY_DIR KERNEL_IMAGE INITRD…',
     )
 
-    parser.add_argument("command",
-                        metavar="COMMAND",
-                        help="The action to perform. Only 'add' is supported.")
-    parser.add_argument("kernel_version",
-                        metavar="KERNEL_VERSION",
-                        help="Kernel version string")
-    parser.add_argument("entry_dir",
-                        metavar="ENTRY_DIR",
-                        type=Path,
-                        nargs="?",
-                        help="Type#1 entry directory (ignored)")
-    parser.add_argument("kernel_image",
-                        metavar="KERNEL_IMAGE",
-                        type=Path,
-                        nargs="?",
-                        help="Kernel image")
-    parser.add_argument("initrds",
-                        metavar="INITRD…",
-                        type=Path,
-                        nargs="*",
-                        help="Initrd files")
-    parser.add_argument("--version",
-                        action="version",
-                        version=f"mkosi {__version__}")
+    parser.add_argument(
+        "command",
+        metavar="COMMAND",
+        help="The action to perform. Only 'add' is supported.",
+    )
+    parser.add_argument(
+        "kernel_version",
+        metavar="KERNEL_VERSION",
+        help="Kernel version string",
+    )
+    parser.add_argument(
+        "entry_dir",
+        metavar="ENTRY_DIR",
+        type=Path,
+        nargs="?",
+        help="Type#1 entry directory (ignored)",
+    )
+    parser.add_argument(
+        "kernel_image",
+        metavar="KERNEL_IMAGE",
+        type=Path,
+        nargs="?",
+        help="Kernel image",
+    )
+    parser.add_argument(
+        "initrds",
+        metavar="INITRD…",
+        type=Path,
+        nargs="*",
+        help="Initrd files",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"mkosi {__version__}",
+    )
 
     context = Context(
         **vars(parser.parse_args()),
@@ -131,65 +143,19 @@ def main() -> None:
     output = "initrd" if format == OutputFormat.cpio else "uki"
 
     cmdline: list[PathString] = [
-        "mkosi",
-        "--directory", "",
+        "mkosi-initrd",
+        "--kernel-version", context.kernel_version,
         "--format", str(format),
         "--output", output,
-        "--workspace-dir=/var/tmp",
-        "--package-cache-dir=/var",
-        "--cache-only=metadata",
         "--output-dir", context.staging_area,
-        "--extra-tree", f"/usr/lib/modules/{context.kernel_version}:/usr/lib/modules/{context.kernel_version}",
-        "--extra-tree=/usr/lib/firmware:/usr/lib/firmware",
-        "--kernel-modules-exclude=.*",
-        "--kernel-modules-include=host",
-        "--include=mkosi-initrd",
     ]
 
     if context.verbose:
         cmdline += ["--debug"]
 
-    for d in ("/usr/lib/mkosi-initrd", "/etc/mkosi-initrd"):
-        if Path(d).exists():
-            cmdline += ["--include", d]
+    logging.info(f"Building {output}")
 
-    with tempfile.TemporaryDirectory() as d:
-        # Make sure we don't use any of mkosi's default repositories.
-        for p in (
-            "yum.repos.d/mkosi.repo",
-            "apt/sources.list.d/mkosi.sources",
-            "zypp/repos.d/mkosi.repo",
-            "pacman.conf",
-        ):
-            (Path(d) / "etc" / p).parent.mkdir(parents=True, exist_ok=True)
-            (Path(d) / "etc" / p).touch()
-
-        # Copy in the host's package manager configuration.
-        for p in (
-            "dnf",
-            "yum.repos.d/",
-            "apt",
-            "zypp",
-            "pacman.conf",
-            "pacman.d/",
-        ):
-            if not (Path("/etc") / p).exists():
-                continue
-
-            (Path(d) / "etc" / p).parent.mkdir(parents=True, exist_ok=True)
-            if (Path("/etc") / p).resolve().is_file():
-                shutil.copy2(Path("/etc") / p, Path(d) / "etc" / p)
-            else:
-                shutil.copytree(Path("/etc") / p, Path(d) / "etc" / p,
-                                ignore=shutil.ignore_patterns("S.*"), dirs_exist_ok=True)
-
-        cmdline += ["--package-manager-tree", d]
-
-        logging.info(f"Building {output}")
-
-        # Prefer dnf as dnf5 has not yet officially replaced it and there's a much bigger chance that there will be a
-        # populated dnf cache directory.
-        run(cmdline, env={"MKOSI_DNF": dnf.name} if (dnf := find_binary("dnf", "dnf5")) else {})
+    run(cmdline)
 
     (context.staging_area / output).unlink()
 
