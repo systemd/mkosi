@@ -3032,6 +3032,7 @@ SETTINGS = (
         metavar="PROPERTY",
         section="Host",
         parse=config_make_list_parser(delimiter=" ", unescape=True),
+        help="Set properties on the scopes spawned by systemd-nspawn or systemd-run",
     ),
     ConfigSetting(
         dest="ssh_key",
