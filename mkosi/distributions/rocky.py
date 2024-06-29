@@ -22,7 +22,7 @@ class Installer(centos.Installer):
     @classmethod
     def repository_variants(cls, context: Context, repo: str) -> list[RpmRepository]:
         if context.config.mirror:
-            url = f"baseurl={join_mirror(context.config.mirror, f'rocky/$releasever/{repo}/$basearch/os')}"
+            url = f"baseurl={join_mirror(context.config.mirror, f'$releasever/{repo}/$basearch/os')}"
         else:
             url = f"mirrorlist=https://mirrors.rockylinux.org/mirrorlist?arch=$basearch&repo={repo}-$releasever"
 

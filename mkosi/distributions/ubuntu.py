@@ -67,9 +67,9 @@ class Installer(debian.Installer):
 
         # Security updates repos are never mirrored. But !x86 are on the ports server.
         if context.config.architecture.is_x86_variant():
-            mirror = "http://security.ubuntu.com/ubuntu/"
+            mirror = "http://security.ubuntu.com/ubuntu"
         else:
-            mirror = "http://ports.ubuntu.com/"
+            mirror = "http://ports.ubuntu.com"
 
         yield AptRepository(
             types=types,

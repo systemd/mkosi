@@ -2445,6 +2445,13 @@ repository.
 * `$MKOSI_DNF` can be used to override the executable used as `dnf`.
   This is particularly useful to select between `dnf` and `dnf5`.
 
+* `$EPEL_MIRROR` can be used to override the default mirror location
+  used for the epel repositories when `Mirror=` is used. By default
+  mkosi looks for the epel repositories in the `fedora` subdirectory of
+  the parent directory of the mirror specified in `Mirror=`. For example
+  if the mirror is set to `https://mirror.net/centos-stream` mkosi will
+  look for the epel repositories in `https://mirror.net/fedora/epel`.
+
 # EXAMPLES
 
 Create and run a raw *GPT* image with *ext4*, as `image.raw`:
