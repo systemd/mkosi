@@ -1481,7 +1481,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     | `curl`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
     | `debian-keyring`        | ✓      | ✓      | ✓      | ✓      | ✓    |          |
     | `diffutils`             | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `distribution-gpg-keys` | ✓      | ✓      |        |        |      | ✓        |
+    | `distribution-gpg-keys` | ✓      | ✓      |        |        | ✓    | ✓        |
     | `dnf`                   | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
     | `dnf-plugins-core`      | ✓      | ✓      |        |        |      | ✓        |
     | `dnf5`                  | ✓      |        |        |        |      |          |
