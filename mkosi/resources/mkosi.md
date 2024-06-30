@@ -2536,7 +2536,8 @@ and later the getty login prompt and shell all use the same terminal.
 It is possible to switch between the qemu console and monitor
 by pressing `Ctrl-a c`.
 The qemu monitor may for example be used to inject special keys
-or shut down the machine quickly.
+or shut down the machine quickly. Alternatively the machine can be shut down
+using `Ctrl-a x`.
 
 To boot with a graphical window, add `--qemu-qui`:
 ```console
