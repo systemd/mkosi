@@ -50,6 +50,10 @@ def make_tar(src: Path, dst: Path, *, sandbox: SandboxProtocol = nosandbox) -> N
         )
 
 
+def can_extract_tar(src: Path) -> bool:
+    return ".tar" in src.suffixes[-2:]
+
+
 def extract_tar(
     src: Path,
     dst: Path,
@@ -63,31 +67,29 @@ def extract_tar(
     with umask(~0o755):
         dst.mkdir(exist_ok=True)
 
-    with src.open("rb") as f:
-        run(
-            [
-                "tar",
-                "--extract",
-                "--file", "-",
-                "--directory", dst,
-                "--keep-directory-symlink",
-                "--no-overwrite-dir",
-                "--same-permissions",
-                "--same-owner" if (dst / "etc/passwd").exists() else "--numeric-owner",
-                "--same-order",
-                "--acls",
-                "--selinux",
-                "--xattrs",
-                "--force-local",
-                *tar_exclude_apivfs_tmp(),
-            ],
-            stdin=f,
-            sandbox=sandbox(
-                binary="tar",
-                # Make sure tar uses user/group information from the root directory instead of the host.
-                mounts=[Mount(src, src, ro=True), Mount(dst, dst), *finalize_passwd_mounts(dst)]
-            ),
-        )
+    run(
+        [
+            "tar",
+            "--extract",
+            "--file", src,
+            "--directory", dst,
+            "--keep-directory-symlink",
+            "--no-overwrite-dir",
+            "--same-permissions",
+            "--same-owner" if (dst / "etc/passwd").exists() else "--numeric-owner",
+            "--same-order",
+            "--acls",
+            "--selinux",
+            "--xattrs",
+            "--force-local",
+            *tar_exclude_apivfs_tmp(),
+        ],
+        sandbox=sandbox(
+            binary="tar",
+            # Make sure tar uses user/group information from the root directory instead of the host.
+            mounts=[Mount(src, src, ro=True), Mount(dst, dst), *finalize_passwd_mounts(dst)]
+        ),
+    )
 
 
 def make_cpio(

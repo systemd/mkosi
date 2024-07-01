@@ -25,7 +25,7 @@ from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Optional, Union, cast
 
-from mkosi.archive import extract_tar, make_cpio, make_tar
+from mkosi.archive import can_extract_tar, extract_tar, make_cpio, make_tar
 from mkosi.burn import run_burn
 from mkosi.config import (
     Args,
@@ -104,7 +104,7 @@ def mount_base_trees(context: Context) -> Iterator[None]:
 
             if path.is_dir():
                 bases += [path]
-            elif path.suffix == ".tar":
+            elif can_extract_tar(path):
                 extract_tar(path, d, sandbox=context.sandbox)
                 bases += [d]
             elif path.suffix == ".raw":
@@ -1575,7 +1575,7 @@ def install_tree(
 
     if src.is_dir() or (src.is_file() and target):
         copy()
-    elif src.suffix == ".tar":
+    elif can_extract_tar(src):
         extract_tar(src, t, sandbox=config.sandbox)
     elif src.suffix == ".raw":
         run(
