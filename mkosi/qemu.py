@@ -1048,7 +1048,7 @@ def run_qemu(args: Args, config: Config) -> None:
             if credentials["fstab.extra"] and not credentials["fstab.extra"][-1] == "\n":
                 credentials["fstab.extra"] += "\n"
 
-            credentials["fstab.extra"] += f"{tag} {dst} virtiofs\n"
+            credentials["fstab.extra"] += f"{tag} {dst} virtiofs x-initrd.mount\n"
 
         if config.runtime_build_sources:
             with finalize_source_mounts(config, ephemeral=False) as mounts:
