@@ -1026,7 +1026,7 @@ def run_qemu(args: Args, config: Config) -> None:
                     "-chardev", f"socket,id={sock.name},path={sock}",
                     "-device", f"vhost-user-fs-pci,queue-size=1024,chardev={sock.name},tag=root",
                 ]
-                kcl += ["root=root", "rootfstype=virtiofs", "rw"]
+                kcl += ["root=root", "rootfstype=virtiofs"]
 
         def add_virtiofs_mount(
             sock: Path,
