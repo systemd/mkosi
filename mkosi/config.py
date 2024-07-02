@@ -1542,10 +1542,10 @@ class Config:
         return Path("/var/tmp")
 
     def package_cache_dir_or_default(self) -> Path:
-        return (
-            self.package_cache_dir or
-            (INVOKING_USER.cache_dir() / f"{self.distribution}~{self.release}~{self.architecture}")
-        )
+        key = f"{self.distribution}~{self.release}~{self.architecture}"
+        if self.mirror:
+            key += f"-{self.mirror}"
+        return self.package_cache_dir or (INVOKING_USER.cache_dir() / key)
 
     def tools(self) -> Path:
         return self.tools_tree or Path("/")
