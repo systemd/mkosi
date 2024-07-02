@@ -3830,6 +3830,8 @@ def load_environment(args: argparse.Namespace) -> dict[str, str]:
         env["GIT_PROXY_SSL_KEY"] = "/proxy.clientkey"
     if dnf := os.getenv("MKOSI_DNF"):
         env["MKOSI_DNF"] = dnf
+    if gnupghome := os.getenv("GNUPGHOME"):
+        env["GNUPGHOME"] = gnupghome
 
     env |= dict(parse_environment(line) for f in args.environment_files for line in f.read_text().strip().splitlines())
     env |= args.environment
