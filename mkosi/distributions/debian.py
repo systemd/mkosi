@@ -196,6 +196,8 @@ class Installer(DistributionInstaller):
         # Note: despite writing in /usr/sbin, this file is not shipped by the OS and instead should be managed by
         # the admin.
         policyrcd = context.root / "usr/sbin/policy-rc.d"
+        with umask(~0o755):
+            policyrcd.parent.mkdir(parents=True, exist_ok=True)
         with umask(~0o644):
             policyrcd.write_text("#!/bin/sh\nexit 101\n")
 
