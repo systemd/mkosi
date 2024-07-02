@@ -42,10 +42,15 @@ from mkosi.config import (
     Network,
     OutputFormat,
     SecureBootSignTool,
+    ShellCompletion,
     ShimBootloader,
     Verb,
     Vmm,
     __version__,
+    collect_completion_arguments,
+    finalize_completion_bash,
+    finalize_completion_fish,
+    finalize_completion_zsh,
     format_bytes,
     parse_config,
     summary,
@@ -4329,6 +4334,16 @@ def show_docs(args: Args, *, resources: Path) -> None:
                 raise e
 
 
+def print_completion(args: Args, *, resources: Path) -> None:
+    completion_args = collect_completion_arguments()
+    if args.shell_completion == ShellCompletion.bash:
+        print(finalize_completion_bash(completion_args, resources))
+    elif args.shell_completion == ShellCompletion.fish:
+        print(finalize_completion_fish(completion_args, resources))
+    elif args.shell_completion == ShellCompletion.zsh:
+        print(finalize_completion_zsh(completion_args, resources))
+
+
 def expand_specifier(s: str) -> str:
     return s.replace("%u", INVOKING_USER.name())
 
@@ -4662,6 +4677,9 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
 
     if args.verb.needs_root() and os.getuid() != 0:
         die(f"Must be root to run the {args.verb} command")
+
+    if args.shell_completion is not None:
+        return print_completion(args, resources=resources)
 
     if args.verb == Verb.documentation:
         return show_docs(args, resources=resources)
