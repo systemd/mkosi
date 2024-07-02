@@ -516,6 +516,12 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     include it in the kernel command line of every unified kernel image
     built by mkosi.
 
+    If the `none` output format is used, the outputs from a previous
+    build are not removed, but clean scripts (see `CleanScripts=`) are
+    still executed. This allows rerunning a build script
+    (see `BuildScripts=`) without removing the results of a previous
+    build.
+
 `ManifestFormat=`, `--manifest-format=`
 :   The manifest format type or types to generate. A comma-delimited
     list consisting of `json` (the standard JSON output format that
