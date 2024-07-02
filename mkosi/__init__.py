@@ -2787,7 +2787,7 @@ def check_inputs(config: Config) -> None:
         if not base.exists():
             die(f"Base tree {base} not found")
 
-        if base.suffix == ".raw" and os.getuid() != 0:
+        if base.is_file() and base.suffix == ".raw" and os.getuid() != 0:
             die("Must run as root to use disk images in base trees")
 
     if config.tools_tree and not config.tools_tree.exists():
@@ -2800,7 +2800,7 @@ def check_inputs(config: Config) -> None:
             if not tree.source.exists():
                 die(f"{name.capitalize()} tree {tree.source} not found")
 
-            if tree.source.suffix == ".raw" and os.getuid() != 0:
+            if tree.source.is_file() and tree.source.suffix == ".raw" and not tree.target and os.getuid() != 0:
                 die(f"Must run as root to use disk images in {name} trees")
 
     if config.bootable != ConfigFeature.disabled:
