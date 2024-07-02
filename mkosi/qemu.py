@@ -1028,28 +1028,37 @@ def run_qemu(args: Args, config: Config) -> None:
                 ]
                 kcl += ["root=root", "rootfstype=virtiofs"]
 
+        credentials = dict(config.credentials)
+
         def add_virtiofs_mount(
             sock: Path,
             dst: PathString,
             cmdline: list[PathString],
-            kcl: list[str],
+            credentials: dict[str, str],
             *, tag: str
         ) -> None:
             cmdline += [
                 "-chardev", f"socket,id={sock.name},path={sock}",
                 "-device", f"vhost-user-fs-pci,queue-size=1024,chardev={sock.name},tag={tag}",
             ]
-            kcl += [f"systemd.mount-extra={tag}:{dst}:virtiofs"]
+
+            if "fstab.extra" not in credentials:
+                credentials["fstab.extra"] = ""
+
+            if credentials["fstab.extra"] and not credentials["fstab.extra"][-1] == "\n":
+                credentials["fstab.extra"] += "\n"
+
+            credentials["fstab.extra"] += f"{tag} {dst} virtiofs\n"
 
         if config.runtime_build_sources:
             with finalize_source_mounts(config, ephemeral=False) as mounts:
                 for mount in mounts:
                     sock = stack.enter_context(start_virtiofsd(config, mount.src, name=os.fspath(mount.src)))
-                    add_virtiofs_mount(sock, mount.dst, cmdline, kcl, tag=Path(mount.src).name)
+                    add_virtiofs_mount(sock, mount.dst, cmdline, credentials, tag=Path(mount.src).name)
 
             if config.build_dir:
                 sock = stack.enter_context(start_virtiofsd(config, config.build_dir, name=os.fspath(config.build_dir)))
-                add_virtiofs_mount(sock, "/work/build", cmdline, kcl, tag="build")
+                add_virtiofs_mount(sock, "/work/build", cmdline, credentials, tag="build")
 
         for tree in config.runtime_trees:
             sock = stack.enter_context(start_virtiofsd(config, tree.source, name=os.fspath(tree.source)))
@@ -1057,7 +1066,7 @@ def run_qemu(args: Args, config: Config) -> None:
                 sock,
                 Path("/root/src") / (tree.target or ""),
                 cmdline,
-                kcl,
+                credentials,
                 tag=tree.target.name if tree.target else tree.source.name,
             )
 
@@ -1103,8 +1112,6 @@ def run_qemu(args: Args, config: Config) -> None:
                 cmdline += ["-device", "tpm-tis,tpmdev=tpm0"]
             elif config.architecture.is_arm_variant():
                 cmdline += ["-device", "tpm-tis-device,tpmdev=tpm0"]
-
-        credentials = dict(config.credentials)
 
         if QemuDeviceNode.vhost_vsock in qemu_device_fds:
             addr, notifications = stack.enter_context(vsock_notify_handler())
