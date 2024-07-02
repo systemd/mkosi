@@ -2823,14 +2823,13 @@ def check_inputs(config: Config) -> None:
 
 
 def check_outputs(config: Config) -> None:
-    for f in (
-        config.output_with_compression,
-        config.output_checksum if config.checksum else None,
-        config.output_signature if config.sign else None,
-        config.output_nspawn_settings if config.nspawn_settings else None,
-    ):
-        if f and (config.output_dir_or_cwd() / f).exists():
-            logging.info(f"Output path {f} exists already. (Use --force to rebuild.)")
+    if config.output_format == OutputFormat.none:
+        return
+
+    f = config.output_dir_or_cwd() / config.output_with_compression
+
+    if f.exists() and not f.is_symlink():
+        logging.info(f"Output path {f} exists already. (Use --force to rebuild.)")
 
 
 def check_tool(config: Config, *tools: PathString, reason: str, hint: Optional[str] = None) -> Path:
@@ -3835,8 +3834,6 @@ def build_image(context: Context) -> None:
         run_build_scripts(context)
 
         if context.config.output_format == OutputFormat.none:
-            # Touch an empty file to indicate the image was built.
-            (context.staging / context.config.output).touch()
             finalize_staging(context)
             return
 
@@ -4490,24 +4487,25 @@ def run_clean(args: Args, config: Config, *, resources: Path) -> None:
         remove_build_cache = args.force > 1
         remove_package_cache = args.force > 2
 
-    outputs = {
-        config.output_dir_or_cwd() / output
-        for output in config.outputs
-        if (config.output_dir_or_cwd() / output).exists()
-    }
+    if config.output_format != OutputFormat.none or args.force:
+        outputs = {
+            config.output_dir_or_cwd() / output
+            for output in config.outputs
+            if (config.output_dir_or_cwd() / output).exists()
+        }
 
-    # Make sure we resolve the symlink we create in the output directory and remove its target as well as it might not
-    # be in the list of outputs anymore if the compression or output format was changed.
-    outputs |= {o.resolve() for o in outputs}
+        # Make sure we resolve the symlink we create in the output directory and remove its target as well as it might
+        # not be in the list of outputs anymore if the compression or output format was changed.
+        outputs |= {o.resolve() for o in outputs}
 
-    if outputs:
-        with (
-            complete_step(f"Removing output files of {config.name()} image…"),
-            flock_or_die(config.output_dir_or_cwd() / config.output)
-            if (config.output_dir_or_cwd() / config.output).exists()
-            else contextlib.nullcontext()
-        ):
-            rmtree(*outputs)
+        if outputs:
+            with (
+                complete_step(f"Removing output files of {config.name()} image…"),
+                flock_or_die(config.output_dir_or_cwd() / config.output)
+                if (config.output_dir_or_cwd() / config.output).exists()
+                else contextlib.nullcontext()
+            ):
+                rmtree(*outputs)
 
     if remove_build_cache:
         if config.cache_dir:
@@ -4773,7 +4771,10 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         if args.verb != Verb.build and args.force == 0:
             continue
 
-        if (config.output_dir_or_cwd() / config.output_with_compression).exists():
+        if (
+            config.output_format != OutputFormat.none and
+            (config.output_dir_or_cwd() / config.output_with_compression).exists()
+        ):
             continue
 
         check_inputs(config)
