@@ -1558,6 +1558,8 @@ def install_tree(
     target: Optional[Path] = None,
     preserve: bool = True,
 ) -> None:
+    src = src.resolve()
+
     t = dst
     if target:
         t = dst / target.relative_to("/")
