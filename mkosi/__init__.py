@@ -3835,6 +3835,7 @@ def build_image(context: Context) -> None:
 
         if context.config.output_format == OutputFormat.none:
             finalize_staging(context)
+            rmtree(context.root)
             return
 
         install_volatile_packages(context)
@@ -3928,6 +3929,7 @@ def build_image(context: Context) -> None:
 
     run_postoutput_scripts(context)
     finalize_staging(context)
+    rmtree(context.root)
 
     print_output_size(context.config.output_dir_or_cwd() / context.config.output_with_compression)
 
