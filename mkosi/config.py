@@ -4215,7 +4215,14 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         assert "Type" in keysource
         return KeySource(type=KeySource.Type(keysource["Type"]), source=keysource.get("Source", ""))
 
-    transformers = {
+    # The type of this should be
+    # dict[type, Callable[a stringy JSON object (str, null, list or dict of str), type of the key], type of the key]
+    # though this seems impossible to express, since e.g. mypy will make this a
+    # builtins.dict[builtins.object, builtins.function]
+    # whereas pyright gives the type of the dict keys as the proper union of
+    # all functions in the dict. We therefore squash all the types here to Any
+    # to shut up the type checkers and rely on the tests.
+    transformers: dict[Any, Callable[[Any, Any], Any]] = {
         Path: path_transformer,
         Optional[Path]: optional_path_transformer,
         list[Path]: path_list_transformer,
@@ -4252,23 +4259,10 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         if fieldtype is None:
             raise ValueError(f"{refcls} has no field {key}")
 
-        # TODO: Remove type: ignore once we figure out the following pyright error:
-        # /home/runner/work/mkosi/mkosi/mkosi/config.py:4255:83 - error: Argument of type "Any | str" cannot be
-        #       assigned to parameter "key" of type "type[Path] | type[None] | type[list[Path]] | type[UUID] |
-        #       type[tuple[str, bool]] | type[list[ConfigTree]] | type[tuple[str, ...]] | type[Architecture] |
-        #       type[BiosBootloader] | type[ShimBootloader] | type[Bootloader] | type[Compression] |
-        #       type[ConfigFeature] | type[Distribution] | type[OutputFormat] | type[QemuFirmware] |
-        #       type[SecureBootSignTool] | type[list[ManifestFormat]] | type[Verb] | type[DocFormat] |
-        #       type[list[QemuDrive]] | type[GenericVersion] | type[Cacheonly] | type[Network] |
-        #       type[KeySource] | type[Vmm]" in function "get" (reportArgumentType)
-        #     /home/runner/work/mkosi/mkosi/mkosi/config.py:4258:41 - error: Argument of type "Any | str" cannot be
-        #        assigned to parameter of type "type"
-        #         Type "Any | str" is incompatible with type "type"
-        #         "str" is incompatible with "type" (reportArgumentType)
-        transformer = cast(Optional[Callable[[str, type], Any]], transformers.get(fieldtype.type)) # type: ignore
+        transformer = transformers.get(fieldtype.type)
         if transformer is not None:
             try:
-                return transformer(val, fieldtype.type) # type: ignore
+                return transformer(val, fieldtype.type)
             except (ValueError, IndexError, AssertionError) as e:
                 raise ValueError(f"Unable to parse {val:r} for attribute {key:r} for {refcls.__name__}") from e
 
