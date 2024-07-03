@@ -84,6 +84,9 @@ class Installer(DistributionInstaller):
                 ) if repo in context.config.repositories
             ] + ["core", "extra"]
 
+            if context.config.architecture.is_arm_variant():
+                repos += ["alarm"]
+
             for repo in repos:
                 yield PacmanRepository(repo, url)
 
