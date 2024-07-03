@@ -429,6 +429,8 @@ class Architecture(StrEnum):
             Architecture.ppc      : "hvc0",
             Architecture.ppc64    : "hvc0",
             Architecture.ppc64_le : "hvc0",
+            Architecture.x86      : "hvc0",
+            Architecture.x86_64   : "hvc0",
         }.get(self, "ttyS0")
 
     def supports_smbios(self, firmware: QemuFirmware) -> bool:

@@ -937,9 +937,18 @@ def run_qemu(args: Args, config: Config) -> None:
             "-nographic",
             "-nodefaults",
             "-chardev", "stdio,mux=on,id=console,signal=off",
-            "-serial", "chardev:console",
             "-mon", "console",
         ]
+        if ((config.architecture.to_qemu() == "i386" or config.architecture.to_qemu() == "x86_64")
+            and config.architecture.default_serial_tty() == "hvc0"):
+            cmdline += [
+                "-device", "virtio-serial-pci,id=virtio-serial0",
+                "-device", "virtconsole,bus=virtio-serial0.0,chardev=console",
+            ]
+        else:
+            cmdline += [
+                "-serial", "chardev:console",
+            ]
 
     # QEMU has built-in logic to look for the BIOS firmware so we don't need to do anything special for that.
     if firmware.is_uefi():
