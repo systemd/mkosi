@@ -3760,6 +3760,7 @@ def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
     term = finalize_term()
 
     cmdline = [
+        "rw",
         # Make sure we set up networking in the VM/container.
         "systemd.wants=network.target",
         # Make sure we don't load vmw_vmci which messes with virtio vsock.
