@@ -4251,10 +4251,23 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         if fieldtype is None:
             raise ValueError(f"{refcls} has no field {key}")
 
-        transformer = cast(Optional[Callable[[str, type], Any]], transformers.get(fieldtype.type))
+        # TODO: Remove type: ignore once we figure out the following pyright error:
+        # /home/runner/work/mkosi/mkosi/mkosi/config.py:4255:83 - error: Argument of type "Any | str" cannot be
+        #       assigned to parameter "key" of type "type[Path] | type[None] | type[list[Path]] | type[UUID] |
+        #       type[tuple[str, bool]] | type[list[ConfigTree]] | type[tuple[str, ...]] | type[Architecture] |
+        #       type[BiosBootloader] | type[ShimBootloader] | type[Bootloader] | type[Compression] |
+        #       type[ConfigFeature] | type[Distribution] | type[OutputFormat] | type[QemuFirmware] |
+        #       type[SecureBootSignTool] | type[list[ManifestFormat]] | type[Verb] | type[DocFormat] |
+        #       type[list[QemuDrive]] | type[GenericVersion] | type[Cacheonly] | type[Network] |
+        #       type[KeySource] | type[Vmm]" in function "get" (reportArgumentType)
+        #     /home/runner/work/mkosi/mkosi/mkosi/config.py:4258:41 - error: Argument of type "Any | str" cannot be
+        #        assigned to parameter of type "type"
+        #         Type "Any | str" is incompatible with type "type"
+        #         "str" is incompatible with "type" (reportArgumentType)
+        transformer = cast(Optional[Callable[[str, type], Any]], transformers.get(fieldtype.type)) # type: ignore
         if transformer is not None:
             try:
-                return transformer(val, fieldtype.type)
+                return transformer(val, fieldtype.type) # type: ignore
             except (ValueError, IndexError, AssertionError) as e:
                 raise ValueError(f"Unable to parse {val:r} for attribute {key:r} for {refcls.__name__}") from e
 
