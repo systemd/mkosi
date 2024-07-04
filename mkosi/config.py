@@ -741,10 +741,6 @@ def config_default_proxy_url(namespace: argparse.Namespace) -> Optional[str]:
     return None
 
 
-def config_default_kernel_command_line(namespace: argparse.Namespace) -> list[str]:
-    return [f"console={namespace.architecture.default_serial_tty()}"]
-
-
 def make_enum_parser(type: type[StrEnum]) -> Callable[[str], StrEnum]:
     def parse_enum(value: str) -> StrEnum:
         try:
@@ -2449,8 +2445,6 @@ SETTINGS = (
         metavar="OPTIONS",
         section="Content",
         parse=config_make_list_parser(delimiter=" "),
-        default_factory_depends=("architecture",),
-        default_factory=config_default_kernel_command_line,
         help="Set the kernel command line (only bootable images)",
     ),
     ConfigSetting(
