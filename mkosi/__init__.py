@@ -2278,7 +2278,7 @@ def find_entry_token(context: Context) -> str:
     return cast(str, output["EntryToken"])
 
 
-def finalize_cmdline(context: Context, roothash: Optional[str]) -> list[str]:
+def finalize_cmdline(context: Context, partitions: Sequence[Partition], roothash: Optional[str]) -> list[str]:
     if (context.root / "etc/kernel/cmdline").exists():
         cmdline = [(context.root / "etc/kernel/cmdline").read_text().strip()]
     elif (context.root / "usr/lib/kernel/cmdline").exists():
@@ -2289,7 +2289,16 @@ def finalize_cmdline(context: Context, roothash: Optional[str]) -> list[str]:
     if roothash:
         cmdline += [roothash]
 
-    return cmdline + context.config.kernel_command_line
+    cmdline += context.config.kernel_command_line
+
+    if not roothash:
+        for name in ("root", "mount.usr"):
+            if not (root := next((p.uuid for p in partitions if p.type.startswith(name)), None)):
+                continue
+
+            cmdline = [f"{name}=PARTUUID={root}" if c == f"{name}=PARTUUID" else c for c in cmdline]
+
+    return cmdline
 
 
 def finalize_microcode(context: Context) -> list[Path]:
@@ -2322,7 +2331,7 @@ def install_type1(
         entry.parent.mkdir(parents=True, exist_ok=True)
 
     kmods = build_kernel_modules_initrd(context, kver)
-    cmdline = finalize_cmdline(context, finalize_roothash(partitions))
+    cmdline = finalize_cmdline(context, partitions, finalize_roothash(partitions))
 
     with umask(~0o600):
         if (
@@ -2360,8 +2369,12 @@ def install_type1(
         config = prepare_grub_config(context)
         assert config
 
-        root = finalize_root(partitions)
-        assert root
+        if (
+            not any(c.startswith("root=PARTUUID=") for c in context.config.kernel_command_line) and
+            not any(c.startswith("mount.usr=PARTUUID=") for c in context.config.kernel_command_line) and
+            (root := finalize_root(partitions))
+        ):
+            cmdline = [root] + cmdline
 
         with config.open("a") as f:
             f.write("if ")
@@ -2379,7 +2392,7 @@ def install_type1(
                 textwrap.dedent(
                     f"""\
                     menuentry "{token}-{kver}" {{
-                        linux /{kimg.relative_to(context.root / "boot")} {root} {" ".join(cmdline)}
+                        linux /{kimg.relative_to(context.root / "boot")} {" ".join(cmdline)}
                         initrd {" ".join(os.fspath(Path("/") / i.relative_to(context.root / "boot")) for i in initrds)}
                     }}
                     """
@@ -2470,7 +2483,7 @@ def install_uki(context: Context, kver: str, kimg: Path, token: str, partitions:
             context.root / kimg,
             microcodes,
             initrds,
-            finalize_cmdline(context, roothash),
+            finalize_cmdline(context, partitions, roothash),
             boot_binary,
         )
 
