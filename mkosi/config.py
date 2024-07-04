@@ -420,17 +420,6 @@ class Architecture(StrEnum):
 
         return a
 
-    def default_serial_tty(self) -> str:
-        return {
-            Architecture.arm      : "ttyAMA0",
-            Architecture.arm64    : "ttyAMA0",
-            Architecture.s390     : "ttysclp0",
-            Architecture.s390x    : "ttysclp0",
-            Architecture.ppc      : "hvc0",
-            Architecture.ppc64    : "hvc0",
-            Architecture.ppc64_le : "hvc0",
-        }.get(self, "ttyS0")
-
     def supports_smbios(self, firmware: QemuFirmware) -> bool:
         if self.is_x86_variant():
             return True
@@ -3749,7 +3738,6 @@ def finalize_term() -> str:
 
 
 def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
-    tty = args.architecture.default_serial_tty()
     columns, lines = shutil.get_terminal_size()
     term = finalize_term()
 
@@ -3759,9 +3747,9 @@ def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
         "systemd.wants=network.target",
         # Make sure we don't load vmw_vmci which messes with virtio vsock.
         "module_blacklist=vmw_vmci",
-        f"systemd.tty.term.{tty}={term}",
-        f"systemd.tty.columns.{tty}={columns}",
-        f"systemd.tty.rows.{tty}={lines}",
+        f"systemd.tty.term.hvc0={term}",
+        f"systemd.tty.columns.hvc0={columns}",
+        f"systemd.tty.rows.hvc0={lines}",
     ]
 
     if not any(s.startswith("ip=") for s in args.kernel_command_line_extra):
@@ -3785,7 +3773,7 @@ def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
             f"systemd.tty.term.console={term}",
             f"systemd.tty.columns.console={columns}",
             f"systemd.tty.rows.console={lines}",
-            f"console={tty}",
+            "console=hvc0",
             f"TERM={term}",
         ]
 

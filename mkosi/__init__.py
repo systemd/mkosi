@@ -323,13 +323,9 @@ def configure_autologin(context: Context) -> None:
                                     "--noclear --keep-baud console 115200,38400,9600")
         configure_autologin_service(context, "getty@tty1.service",
                                     "--noclear -")
-        configure_autologin_service(context, "serial-getty@ttyS0.service",
+        configure_autologin_service(context,
+                                    "serial-getty@hvc0.service",
                                     "--keep-baud 115200,57600,38400,9600 -")
-
-        if context.config.architecture.default_serial_tty() != "ttyS0":
-            configure_autologin_service(context,
-                                        f"serial-getty@{context.config.architecture.default_serial_tty()}.service",
-                                        "--keep-baud 115200,57600,38400,9600 -")
 
 
 @contextlib.contextmanager

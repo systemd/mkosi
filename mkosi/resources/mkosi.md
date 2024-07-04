@@ -1119,7 +1119,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `Autologin=`, `--autologin`
 :   Enable autologin for the `root` user on `/dev/pts/0` (nspawn),
-    `/dev/tty1` and `/dev/ttyS0`.
+    `/dev/tty1` and `/dev/hvc0`.
 
 `MakeInitrd=`, `--make-initrd`
 :   Add `/etc/initrd-release` and `/init` to the image so that it can be

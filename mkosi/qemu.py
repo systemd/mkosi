@@ -937,7 +937,8 @@ def run_qemu(args: Args, config: Config) -> None:
             "-nographic",
             "-nodefaults",
             "-chardev", "stdio,mux=on,id=console,signal=off",
-            "-serial", "chardev:console",
+            "-device", "virtio-serial-pci,id=mkosi-virtio-serial-pci",
+            "-device", "virtconsole,chardev=console",
             "-mon", "console",
         ]
 
