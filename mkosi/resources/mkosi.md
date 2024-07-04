@@ -1066,6 +1066,14 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `KernelCommandLine=`, `--kernel-command-line=`
 :   Use the specified kernel command line when building images.
 
+    If the value of this setting contains the literals `root=PARTUUID`
+    or `mount.usr=PARTUUID`, these are replaced with the partition UUID
+    of the root or usr partition respectively. For example,
+    `root=PARTUUID` would be replaced with
+    `root=PARTUUID=58c7d0b2-d224-4834-a16f-e036322e88f7` where
+    `58c7d0b2-d224-4834-a16f-e036322e88f7` is the partition UUID of the
+    root partition.
+
 `KernelModulesInclude=`, `--kernel-modules-include=`
 :   Takes a list of regex patterns that specify kernel modules to include in the image. Patterns should be
     relative to the `/usr/lib/modules/<kver>/kernel` directory. mkosi checks for a match anywhere in the module
