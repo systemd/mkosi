@@ -1,5 +1,12 @@
 # mkosi Changelog
 
+## v24
+
+- The default kernel command line of `console=ttyS0` (or equivalent for
+  other architectures) has been removed. The required `console=`
+  argument to have the kernel output to the serial console has to be
+  added manually from `v24` onwards.
+
 ## v23.1
 
 - Respin due to git tag mismatch

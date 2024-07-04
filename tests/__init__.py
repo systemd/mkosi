@@ -13,7 +13,7 @@ from typing import Any, Optional
 
 import pytest
 
-from mkosi.config import Architecture, finalize_term
+from mkosi.config import finalize_term
 from mkosi.distributions import Distribution
 from mkosi.run import run
 from mkosi.types import _FILE, CompletedProcess, PathString
@@ -58,7 +58,6 @@ class Image:
         check: bool = True,
     ) -> CompletedProcess:
         kcl = [
-            f"console={Architecture.native().default_serial_tty()}",
             f"TERM={finalize_term()}",
             "loglevel=6",
             "systemd.crash_shell",
