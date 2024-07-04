@@ -128,8 +128,8 @@ class Apt(PackageManager):
                 if repo.signedby and not repo.signedby.exists():
                     die(
                         f"Keyring for repo {repo.url} not found at {repo.signedby}",
-                        hint="Make sure the right keyring package (e.g. debian-archive-keyring or ubuntu-keyring) is "
-                             "installed",
+                        hint="Make sure the right keyring package (e.g. debian-archive-keyring, kali-archive-keyring "
+                             "or ubuntu-keyring) is installed",
                     )
 
             with sources.open("w") as f:

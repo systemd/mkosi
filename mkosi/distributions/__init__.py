@@ -76,6 +76,7 @@ class Distribution(StrEnum):
     # of the mkosi maintainers before implementing a new distribution.
     fedora       = enum.auto()
     debian       = enum.auto()
+    kali         = enum.auto()
     ubuntu       = enum.auto()
     arch         = enum.auto()
     opensuse     = enum.auto()
@@ -98,7 +99,7 @@ class Distribution(StrEnum):
         )
 
     def is_apt_distribution(self) -> bool:
-        return self in (Distribution.debian, Distribution.ubuntu)
+        return self in (Distribution.debian, Distribution.ubuntu, Distribution.kali)
 
     def is_rpm_distribution(self) -> bool:
         return self in (
@@ -180,7 +181,7 @@ def detect_distribution() -> tuple[Optional[Distribution], Optional[str]]:
         if d is not None:
             break
 
-    if d in {Distribution.debian, Distribution.ubuntu} and version_codename:
+    if d in {Distribution.debian, Distribution.ubuntu, Distribution.kali} and version_codename:
         version_id = version_codename
 
     return d, version_id

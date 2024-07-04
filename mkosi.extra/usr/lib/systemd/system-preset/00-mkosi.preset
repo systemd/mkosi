@@ -4,7 +4,7 @@
 disable ssh.service
 disable sshd.service
 
-# Make sure dbus-broker is started by default on Debian/Ubuntu.
+# Make sure dbus-broker is started by default on Debian/Kali/Ubuntu.
 enable dbus-broker.service
 
 # Make sure we have networking available.

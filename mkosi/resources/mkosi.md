@@ -392,8 +392,8 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `Distribution=`, `--distribution=`, `-d`
 :   The distribution to install in the image. Takes one of the following
-    arguments: `fedora`, `debian`, `ubuntu`, `arch`, `opensuse`, `mageia`,
-    `centos`, `rhel`, `rhel-ubi`, `openmandriva`, `rocky`, `alma`,
+    arguments: `fedora`, `debian`, `kali`, `ubuntu`, `arch`, `opensuse`,
+    `mageia`, `centos`, `rhel`, `rhel-ubi`, `openmandriva`, `rocky`, `alma`,
     `custom`. If not specified, defaults to the distribution of the host
     or `custom` if the distribution of the host is not a supported
     distribution.
@@ -402,8 +402,8 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   The release of the distribution to install in the image. The precise
     syntax of the argument this takes depends on the distribution used,
     and is either a numeric string (in case of Fedora Linux, CentOS, …,
-    e.g. `29`), or a distribution version name (in case of Debian, Ubuntu,
-    …, e.g. `artful`). Defaults to a recent version of the chosen
+    e.g. `29`), or a distribution version name (in case of Debian, Kali,
+    Ubuntu, …, e.g. `artful`). Defaults to a recent version of the chosen
     distribution, or the version of the distribution running on the host
     if it matches the configured distribution.
 
@@ -432,6 +432,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     | `debian`       | http://deb.debian.org/debian      |                                |
     | `arch`         | https://geo.mirror.pkgbuild.com   | http://mirror.archlinuxarm.org |
     | `opensuse`     | http://download.opensuse.org      |                                |
+    | `kali`         | http://http.kali.org/kali         |                                |
     | `ubuntu`       | http://archive.ubuntu.com         | http://ports.ubuntu.com        |
     | `centos`       | https://mirrors.centos.org        |                                |
     | `rocky`        | https://mirrors.rockylinux.org    |                                |
@@ -467,11 +468,12 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     up locally regardless of the value of this setting. To make the distribution GPG keys
     for distributions available without enabling this setting, the corresponding package
     has to be installed on the host. This is usually one of `archlinux-keyring`,
-    `debian-keyring`, `ubuntu-keyring` or `distribution-gpg-keys` (for rpm-based distributions).
+    `debian-keyring`, `kali-archive-keyring`, `ubuntu-keyring` or `distribution-gpg-keys`
+    (for rpm-based distributions).
 
 `Repositories=`, `--repositories=`
 :   Enable package repositories that are disabled by default. This can be used to enable the EPEL repos for
-    CentOS or different components of the Debian/Ubuntu repositories.
+    CentOS or different components of the Debian/Kali/Ubuntu repositories.
 
 `CacheOnly=`, `--cache-only=`
 :   Takes one of `auto`, `metadata`, `always` or `never`. Defaults to
@@ -1493,62 +1495,63 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     packages are defined and which packages are included in those default
     tools trees:
 
-    |                         | Fedora | CentOS | Debian | Ubuntu | Arch | openSUSE |
-    |-------------------------|:------:|:------:|:------:|:------:|:----:|:--------:|
-    | `acl`                   | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `apt`                   | ✓      | ✓      | ✓      | ✓      | ✓    |          |
-    | `archlinux-keyring`     | ✓      | ✓      | ✓      | ✓      | ✓    |          |
-    | `attr`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `bash`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `btrfs-progs`           | ✓      |        | ✓      | ✓      | ✓    | ✓        |
-    | `bubblewrap`            | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `ca-certificates`       | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `coreutils`             | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `cpio`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `curl`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `debian-keyring`        | ✓      | ✓      | ✓      | ✓      | ✓    |          |
-    | `diffutils`             | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `distribution-gpg-keys` | ✓      | ✓      |        |        | ✓    | ✓        |
-    | `dnf`                   | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `dnf-plugins-core`      | ✓      | ✓      |        |        |      | ✓        |
-    | `dnf5`                  | ✓      |        |        |        |      |          |
-    | `dnf5-plugins`          | ✓      |        |        |        |      |          |
-    | `dosfstools`            | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `e2fsprogs`             | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `edk2-ovmf`             | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `erofs-utils`           | ✓      |        | ✓      | ✓      | ✓    | ✓        |
-    | `findutils`             | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `git`                   | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `grep`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `grub-tools`            | ✓      | ✓      | ✓      | ✓      | ✓    |          |
-    | `jq`                    | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `kmod`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `less`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `mtools`                | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `nano`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `openssh`               | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `openssl`               | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `sed`                   | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `pacman`                | ✓      | ✓      | ✓      | ✓      | ✓    |          |
-    | `pesign`                | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `policycoreutils`       | ✓      | ✓      | ✓      | ✓      |      | ✓        |
-    | `qemu`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `sbsigntools`           | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `socat`                 | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `squashfs-tools`        | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `strace`                | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `swtpm`                 | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `systemd`               | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `ukify`                 | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `tar`                   | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `ubuntu-keyring`        | ✓      | ✓      | ✓      | ✓      | ✓    |          |
-    | `util-linux`            | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `virtiofsd`             | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `virt-firmware`         | ✓      | ✓      |        |        | ✓    |          |
-    | `xfsprogs`              | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `xz`                    | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `zstd`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `zypper`                | ✓      |        | ✓      | ✓      | ✓    |          |
+    |                         | Fedora | CentOS | Debian | Kali | Ubuntu | Arch | openSUSE |
+    |-------------------------|:------:|:------:|:------:|:----:|:------:|:----:|:--------:|
+    | `acl`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `apt`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
+    | `archlinux-keyring`     | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
+    | `attr`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `bash`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `btrfs-progs`           | ✓      |        | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `bubblewrap`            | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `ca-certificates`       | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `coreutils`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `cpio`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `curl`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `debian-keyring`        | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
+    | `diffutils`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `distribution-gpg-keys` | ✓      | ✓      |        |      |        | ✓    | ✓        |
+    | `dnf`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `dnf-plugins-core`      | ✓      | ✓      |        |      |        |      | ✓        |
+    | `dnf5`                  | ✓      |        |        |      |        |      |          |
+    | `dnf5-plugins`          | ✓      |        |        |      |        |      |          |
+    | `dosfstools`            | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `e2fsprogs`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `edk2-ovmf`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `erofs-utils`           | ✓      |        | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `findutils`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `git`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `grep`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `grub-tools`            | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
+    | `jq`                    | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `kali-archive-keyring`  |        |        |        | ✓    |        |      |          |
+    | `kmod`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `less`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `mtools`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `nano`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `openssh`               | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `openssl`               | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `sed`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `pacman`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
+    | `pesign`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `policycoreutils`       | ✓      | ✓      | ✓      | ✓    | ✓      |      | ✓        |
+    | `qemu`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `sbsigntools`           | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `socat`                 | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `squashfs-tools`        | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `strace`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `swtpm`                 | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `systemd`               | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `ukify`                 | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `tar`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `ubuntu-keyring`        | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
+    | `util-linux`            | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `virtiofsd`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `virt-firmware`         | ✓      | ✓      |        |      |        | ✓    |          |
+    | `xfsprogs`              | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `xz`                    | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `zstd`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `zypper`                | ✓      |        | ✓      | ✓    | ✓      | ✓    |          |
 
 `ToolsTreeDistribution=`, `--tools-tree-distribution=`
 :   Set the distribution to use for the default tools tree. By default,
@@ -1895,6 +1898,8 @@ distributions:
 
 * *Debian*
 
+* *Kali Linux*
+
 * *Ubuntu*
 
 * *Arch Linux*
@@ -1921,7 +1926,7 @@ In theory, any distribution may be used on the host for building images
 containing any other distribution, as long as the necessary tools are
 available.
 Specifically,
-any distribution that packages `apt` may be used to build *Debian* or *Ubuntu* images.
+any distribution that packages `apt` may be used to build *Debian*, *Kali* or *Ubuntu* images.
 Any distribution that packages `dnf` may be used to build images for any of the rpm-based distributions.
 Any distro that packages `pacman` may be used to build *Arch Linux* images.
 Any distribution that packages `zypper` may be used to build *openSUSE* images.
@@ -2683,7 +2688,7 @@ In this scenario, the kernel is loaded from the ESP in the image by `systemd-boo
 
 # REQUIREMENTS
 
-mkosi is packaged for various distributions: Debian, Ubuntu, Arch
+mkosi is packaged for various distributions: Debian, Kali, Ubuntu, Arch
 Linux, Fedora Linux, OpenMandriva, Gentoo. Note that it has been a while
 since the last release and the packages shipped by distributions are
 very out of date. We currently recommend running mkosi from git until a
@@ -2698,19 +2703,19 @@ necessary dependencies. For example, on *Fedora Linux* you need:
 # dnf install bubblewrap btrfs-progs apt dosfstools mtools edk2-ovmf e2fsprogs squashfs-tools gnupg python3 tar xfsprogs xz zypper sbsigntools
 ```
 
-On Debian/Ubuntu it might be necessary to install the `ubuntu-keyring`,
-`ubuntu-archive-keyring` and/or `debian-archive-keyring` packages explicitly,
-in addition to `apt`, depending on what kind of distribution images you want
-to build.
+On Debian/Kali/Ubuntu it might be necessary to install the `ubuntu-keyring`,
+`ubuntu-archive-keyring`, `kali-archive-keyring` and/or `debian-archive-keyring`
+packages explicitly, in addition to `apt`, depending on what kind of distribution
+images you want to build.
 
 Note that the minimum required Python version is 3.9.
 
 # Frequently Asked Questions (FAQ)
 
-- Why does `mkosi qemu` with KVM not work on Debian/Ubuntu?
+- Why does `mkosi qemu` with KVM not work on Debian/Kali/Ubuntu?
 
   While other distributions are OK with allowing access to `/dev/kvm`, on
-  Debian/Ubuntu this is only allowed for users in the `kvm` group. Because
+  Debian/Kali/Ubuntu this is only allowed for users in the `kvm` group. Because
   mkosi unshares a user namespace when running unprivileged, even if the
   calling user was in the kvm group, when mkosi unshares the user
   namespace to run unprivileged, it loses access to the `kvm` group and by
