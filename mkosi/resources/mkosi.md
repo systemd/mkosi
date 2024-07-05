@@ -1837,6 +1837,12 @@ There are also specifiers that are independent of settings:
 | `%P`      | Current working directory               |
 | `%D`      | Directory that mkosi was invoked in     |
 
+Finally, there are specifiers that are derived from a setting:
+
+| Specifier | Value                                                 |
+|-----------|-------------------------------------------------------|
+| `%F`      | The default filesystem of the configured distribution |
+
 Note that the current working directory changes as mkosi parses its
 configuration. Specifically, each time mkosi parses a directory
 containing a `mkosi.conf` file, mkosi changes its working directory to

@@ -966,6 +966,7 @@ def test_specifiers(tmp_path: Path) -> None:
                     ConfigRootDirectory=%D
                     ConfigRootConfdir=%C
                     ConfigRootPwd=%P
+                    Filesystem=%F
         """
     )
 
@@ -1008,6 +1009,7 @@ def test_specifiers(tmp_path: Path) -> None:
             "ConfigQedDirectory": os.fspath(d),
             "ConfigQedConfdir": os.fspath(d / "mkosi.conf.d/qed"),
             "ConfigQedPwd": os.fspath(d / "mkosi.conf.d/qed"),
+            "Filesystem": "ext4",
         }
 
         assert {k: v for k, v in config.environment.items() if k in expected} == expected
