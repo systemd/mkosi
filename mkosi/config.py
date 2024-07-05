@@ -1174,6 +1174,7 @@ class Match:
 class Specifier:
     char: str
     callback: Callable[[argparse.Namespace, Path], str]
+    depends: tuple[str, ...] = tuple()
 
 
 class CustomHelpFormatter(argparse.HelpFormatter):
@@ -3072,6 +3073,11 @@ SPECIFIERS = (
         char="D",
         callback=lambda ns, config: os.fspath(ns.directory.resolve()),
     ),
+    Specifier(
+        char="F",
+        callback=lambda ns, config: ns.distribution.filesystem(),
+        depends=("distribution",),
+    ),
 )
 
 SPECIFIERS_LOOKUP_BY_CHAR = {s.char: s for s in SPECIFIERS}
@@ -3313,7 +3319,17 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
 
                     result += str(v)
                 elif specifier := SPECIFIERS_LOOKUP_BY_CHAR.get(c):
-                    result += specifier.callback(namespace, path)
+                    for d in specifier.depends:
+                        setting = SETTINGS_LOOKUP_BY_DEST[d]
+
+                        if finalize_default(setting) is None:
+                            logging.warning(
+                                f"Setting {setting.name} which specifier '%{c}' in {text} depends on is not yet set, "
+                                "ignoring"
+                            )
+                            break
+                    else:
+                        result += specifier.callback(namespace, path)
                 else:
                     logging.warning(f"Unknown specifier '%{c}' found in {text}, ignoring")
             elif c == "%":
