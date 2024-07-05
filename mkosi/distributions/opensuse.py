@@ -7,7 +7,7 @@ from xml.etree import ElementTree
 
 from mkosi.config import Architecture, Config
 from mkosi.context import Context
-from mkosi.distributions import Distribution, DistributionInstaller, PackageType
+from mkosi.distributions import Distribution, DistributionInstaller, PackageType, join_mirror
 from mkosi.installer import PackageManager
 from mkosi.installer.dnf import Dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey, setup_rpm
@@ -97,49 +97,87 @@ class Installer(DistributionInstaller):
     @classmethod
     @listify
     def repositories(cls, context: Context) -> Iterable[RpmRepository]:
+        if context.config.local_mirror:
+            yield RpmRepository(id="local-mirror", url=f"baseurl={context.config.local_mirror}", gpgurls=())
+            return
+
         zypper = context.config.find_binary("zypper")
-
-        release = context.config.release
-        if release == "leap":
-            release = "stable"
-
         mirror = context.config.mirror or "https://download.opensuse.org"
 
-        # If the release looks like a timestamp, it's Tumbleweed. 13.x is legacy
-        # (14.x won't ever appear). For anything else, let's default to Leap.
-        if context.config.local_mirror:
-            release_url = f"{context.config.local_mirror}"
-            updates_url = None
-        if release.isdigit() or release == "tumbleweed":
-            release_url = f"{mirror}/tumbleweed/repo/oss/"
-            updates_url = f"{mirror}/update/tumbleweed/"
+        if context.config.release == "tumbleweed" or context.config.release.isdigit():
             gpgurls = (
                 *([p] if (p := find_rpm_gpgkey(context, key="RPM-GPG-KEY-openSUSE-Tumbleweed")) else []),
                 *([p] if (p := find_rpm_gpgkey(context, key="RPM-GPG-KEY-openSUSE")) else []),
             )
-        elif release in ("current", "stable"):
-            release_url = f"{mirror}/distribution/openSUSE-{release}/repo/oss/"
-            updates_url = f"{mirror}/update/openSUSE-{release}/"
-            gpgurls=()
-        else:
-            release_url = f"{mirror}/distribution/leap/{release}/repo/oss/"
-            updates_url = f"{mirror}/update/leap/{release}/oss/"
-            gpgurls=()
 
-        if context.config.local_mirror:
-            yield RpmRepository(id="local-mirror", url=f"baseurl={context.config.local_mirror}", gpgurls=())
-        else:
-            yield RpmRepository(
-                id="repo-oss",
-                url=f"baseurl={release_url}",
-                gpgurls=gpgurls or (fetch_gpgurls(context, release_url) if not zypper else ()),
-            )
-            if updates_url is not None:
+            if context.config.release == "tumbleweed":
+                subdir = "tumbleweed"
+            else:
+                subdir = f"history/{context.config.release}/tumbleweed"
+
+            for repo in ("oss", "non-oss", "debug", "src-oss", "src-non-oss"):
+                url = join_mirror(mirror, f"{subdir}/repo/{repo}")
                 yield RpmRepository(
-                    id="repo-update",
-                    url=f"baseurl={updates_url}",
-                    gpgurls=gpgurls or (fetch_gpgurls(context, updates_url) if not zypper else ()),
+                    id=repo,
+                    url=f"baseurl={url}",
+                    gpgurls=gpgurls or (fetch_gpgurls(context, url) if not zypper else ()),
+                    enabled=repo == "oss",
                 )
+
+            if context.config.release == "tumbleweed":
+                url = join_mirror(mirror, "update/tumbleweed")
+                yield RpmRepository(
+                    id="oss-updates",
+                    url=f"baseurl={url}",
+                    gpgurls=gpgurls or (fetch_gpgurls(context, url) if not zypper else ()),
+                    enabled=True,
+                )
+
+                url = join_mirror(mirror, "update/tumbleweed-non-oss")
+                yield RpmRepository(
+                    id="non-oss-updates",
+                    url=f"baseurl={url}",
+                    gpgurls=gpgurls or (fetch_gpgurls(context, url) if not zypper else ()),
+                )
+        else:
+            if context.config.release in ("current", "stable", "leap"):
+                subdir = "openSUSE-current"
+            else:
+                subdir = f"leap/{context.config.release}"
+
+            for repo in ("oss", "non-oss"):
+                url = join_mirror(mirror, f"distribution/{subdir}/repo/{repo}")
+                yield RpmRepository(
+                    id=repo,
+                    url=f"baseurl={url}",
+                    gpgurls=fetch_gpgurls(context, url) if not zypper else (),
+                    enabled=repo == "oss",
+                )
+
+            if context.config.release in ("current", "stable", "leap"):
+                url = join_mirror(mirror, "update/openSUSE-current")
+                yield RpmRepository(
+                    id="oss-updates",
+                    url=f"baseurl={url}",
+                    gpgurls=fetch_gpgurls(context, url) if not zypper else (),
+                    enabled=True,
+                )
+
+                url = join_mirror(mirror, "update/openSUSE-non-oss-current")
+                yield RpmRepository(
+                    id="non-oss-updates",
+                    url=f"baseurl={url}",
+                    gpgurls=fetch_gpgurls(context, url) if not zypper else (),
+                )
+            else:
+                for repo in ("oss", "non-oss"):
+                    url = join_mirror(mirror, f"update/{subdir}/{repo}")
+                    yield RpmRepository(
+                        id=repo,
+                        url=f"baseurl={url}",
+                        gpgurls=fetch_gpgurls(context, url) if not zypper else (),
+                        enabled=repo == "oss",
+                    )
 
     @classmethod
     def architecture(cls, arch: Architecture) -> str:
