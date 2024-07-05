@@ -142,7 +142,32 @@ jobs:
 
     - name: Configure
       run: |
-        tee mkosi.local.conf <<EOF
+        cat >ubuntu-noble-proposed.sources <<EOF
+        Types: deb
+        URIs: http://archive.ubuntu.com/ubuntu/
+        Suites: noble-proposed
+        Components: main universe restricted multiverse
+        Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+        EOF
+
+        cat >ubuntu-noble-proposed.updates <<EOF
+        # Configure apt to allow selective installs of packages from proposed
+        Package: *
+        Pin: release a=noble-proposed
+        Pin-Priority: 800
+        EOF
+
+        cat >mkosi.conf.d/30-ubuntu-tools-proposed.conf <<EOF
+        [Match]
+        ToolsTreeDistribution=ubuntu
+
+        [Host]
+        ToolsTreePackageManagerTrees=
+                ubuntu-noble-proposed.sources:/etc/apt/sources.list.d/ubuntu-noble-proposed.sources
+                ubuntu-noble-proposed.updates:/etc/apt/preferences.d/ubuntu-noble-proposed.updates
+        EOF
+
+        cat >mkosi.local.conf <<EOF
         [Output]
         ManifestFormat=json
 
@@ -156,7 +181,7 @@ jobs:
 
         # TODO: Remove once all distros have recent enough systemd that knows systemd.default_device_timeout_sec.
         mkdir -p mkosi-initrd/mkosi.extra/usr/lib/systemd/system.conf.d
-        tee mkosi-initrd/mkosi.extra/usr/lib/systemd/system.conf.d/device-timeout.conf <<EOF
+        cat >mkosi-initrd/mkosi.extra/usr/lib/systemd/system.conf.d/device-timeout.conf <<EOF
         [Manager]
         DefaultDeviceTimeoutSec=180
         EOF
