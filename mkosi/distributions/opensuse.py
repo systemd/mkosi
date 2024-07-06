@@ -111,42 +111,70 @@ class Installer(DistributionInstaller):
             )
 
             if context.config.release == "tumbleweed":
-                subdir = "tumbleweed"
+                if context.config.architecture == Architecture.x86_64:
+                    subdir = ""
+                else:
+                    subdir = f"ports/{cls.architecture(context.config.architecture)}"
             else:
-                subdir = f"history/{context.config.release}/tumbleweed"
+                if context.config.architecture != Architecture.x86_64:
+                    die(f"Old snapshots are only supported for x86-64 on {cls.pretty_name()}")
 
-            for repo in ("oss", "non-oss", "debug", "src-oss", "src-non-oss"):
-                url = join_mirror(mirror, f"{subdir}/repo/{repo}")
-                yield RpmRepository(
-                    id=repo,
-                    url=f"baseurl={url}",
-                    gpgurls=gpgurls or (fetch_gpgurls(context, url) if not zypper else ()),
-                    enabled=repo == "oss",
-                )
-
-            if context.config.release == "tumbleweed":
-                url = join_mirror(mirror, "update/tumbleweed")
-                yield RpmRepository(
-                    id="oss-updates",
-                    url=f"baseurl={url}",
-                    gpgurls=gpgurls or (fetch_gpgurls(context, url) if not zypper else ()),
-                    enabled=True,
-                )
-
-                url = join_mirror(mirror, "update/tumbleweed-non-oss")
-                yield RpmRepository(
-                    id="non-oss-updates",
-                    url=f"baseurl={url}",
-                    gpgurls=gpgurls or (fetch_gpgurls(context, url) if not zypper else ()),
-                )
-        else:
-            if context.config.release in ("current", "stable", "leap"):
-                subdir = "openSUSE-current"
-            else:
-                subdir = f"leap/{context.config.release}"
+                subdir = f"history/{context.config.release}"
 
             for repo in ("oss", "non-oss"):
-                url = join_mirror(mirror, f"distribution/{subdir}/repo/{repo}")
+                url = join_mirror(mirror, f"{subdir}/tumbleweed/repo/{repo}")
+                yield RpmRepository(
+                    id=repo,
+                    url=f"baseurl={url}",
+                    gpgurls=gpgurls or (fetch_gpgurls(context, url) if not zypper else ()),
+                    enabled=repo == "oss",
+                )
+
+                if context.config.release == "tumbleweed":
+                    for d in ("debug", "source"):
+                        url = join_mirror(mirror, f"{subdir}/{d}/tumbleweed/repo/{repo}")
+                        yield RpmRepository(
+                            id=f"{repo}-{d}",
+                            url=f"baseurl={url}",
+                            gpgurls=gpgurls or (fetch_gpgurls(context, url) if not zypper else ()),
+                            enabled=False,
+                        )
+
+            if context.config.release == "tumbleweed":
+                url = join_mirror(mirror, f"{subdir}/update/tumbleweed")
+                yield RpmRepository(
+                    id="oss-update",
+                    url=f"baseurl={url}",
+                    gpgurls=gpgurls or (fetch_gpgurls(context, url) if not zypper else ()),
+                )
+
+                url = join_mirror(mirror, f"{subdir}/update/tumbleweed-non-oss")
+                yield RpmRepository(
+                    id="non-oss-update",
+                    url=f"baseurl={url}",
+                    gpgurls=gpgurls or (fetch_gpgurls(context, url) if not zypper else ()),
+                    enabled=False,
+                )
+        else:
+            if (
+                context.config.release in ("current", "stable", "leap") and
+                context.config.architecture != Architecture.x86_64
+            ):
+                die(f"{cls.pretty_name()} only supports current and stable releases for the x86-64 architecture",
+                    hint="Specify either tumbleweed or a specific leap release such as 15.6")
+
+            if context.config.release in ("current", "stable", "leap"):
+                release = "openSUSE-current"
+            else:
+                release = f"leap/{context.config.release}"
+
+            if context.config.architecture == Architecture.x86_64:
+                subdir = ""
+            else:
+                subdir = f"ports/{cls.architecture(context.config.architecture)}"
+
+            for repo in ("oss", "non-oss"):
+                url = join_mirror(mirror, f"{subdir}/distribution/{release}/repo/{repo}")
                 yield RpmRepository(
                     id=repo,
                     url=f"baseurl={url}",
@@ -154,26 +182,36 @@ class Installer(DistributionInstaller):
                     enabled=repo == "oss",
                 )
 
+            for d in ("debug", "source"):
+                for repo in ("oss", "non-oss"):
+                    url = join_mirror(mirror, f"{subdir}/{d}/distribution/{release}/repo/{repo}")
+                    yield RpmRepository(
+                        id=f"{repo}-{d}",
+                        url=f"baseurl={url}",
+                        gpgurls=fetch_gpgurls(context, url) if not zypper else (),
+                        enabled=False,
+                    )
+
             if context.config.release in ("current", "stable", "leap"):
-                url = join_mirror(mirror, "update/openSUSE-current")
+                url = join_mirror(mirror, f"{subdir}/update/openSUSE-current")
                 yield RpmRepository(
-                    id="oss-updates",
+                    id="oss-update",
                     url=f"baseurl={url}",
                     gpgurls=fetch_gpgurls(context, url) if not zypper else (),
-                    enabled=True,
                 )
 
-                url = join_mirror(mirror, "update/openSUSE-non-oss-current")
+                url = join_mirror(mirror, f"{subdir}/update/openSUSE-non-oss-current")
                 yield RpmRepository(
-                    id="non-oss-updates",
+                    id="non-oss-update",
                     url=f"baseurl={url}",
                     gpgurls=fetch_gpgurls(context, url) if not zypper else (),
+                    enabled=False,
                 )
             else:
                 for repo in ("oss", "non-oss"):
-                    url = join_mirror(mirror, f"update/{subdir}/{repo}")
+                    url = join_mirror(mirror, f"{subdir}/update/{release}/{repo}")
                     yield RpmRepository(
-                        id=repo,
+                        id=f"{repo}-update",
                         url=f"baseurl={url}",
                         gpgurls=fetch_gpgurls(context, url) if not zypper else (),
                         enabled=repo == "oss",
@@ -183,6 +221,7 @@ class Installer(DistributionInstaller):
     def architecture(cls, arch: Architecture) -> str:
         a = {
             Architecture.x86_64 : "x86_64",
+            Architecture.arm64  : "aarch64",
         }.get(arch)
 
         if not a:
