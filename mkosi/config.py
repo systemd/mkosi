@@ -4314,11 +4314,11 @@ def want_selinux_relabel(config: Config, root: Path, fatal: bool = True) -> Opti
     return setfiles, policy, fc, binpolicy
 
 
-def systemd_tool_version(config: Config, tool: PathString) -> GenericVersion:
+def systemd_tool_version(config: Config, *tool: PathString) -> GenericVersion:
     return GenericVersion(
         run(
-            [tool, "--version"],
+            [*tool, "--version"],
             stdout=subprocess.PIPE,
-            sandbox=config.sandbox(binary=tool),
+            sandbox=config.sandbox(binary=tool[-1]),
         ).stdout.split()[2].strip("()").removeprefix("v")
     )

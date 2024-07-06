@@ -419,6 +419,10 @@ def finalize_host_scripts(
     for binary in ("useradd", "groupadd"):
         if context.config.find_binary(binary):
             scripts[binary] = (binary, "--root", "/buildroot")
+    if ukify := context.config.find_binary("ukify"):
+        # A script will always run with the tools tree mounted so we pass binary=None to disable the conditional search
+        # logic of python_binary() depending on whether the binary is in an extra search path or not.
+        scripts["ukify"] = (python_binary(context.config, binary=None), ukify)
     return finalize_scripts(context.config, scripts | dict(helpers))
 
 
@@ -2022,10 +2026,16 @@ def join_initrds(initrds: Sequence[Path], output: Path) -> Path:
     return output
 
 
-def python_binary(config: Config) -> str:
+def python_binary(config: Config, *, binary: Optional[PathString]) -> str:
+    tools = (
+        not binary or
+        not (path := config.find_binary(binary)) or
+        not any(path.is_relative_to(d) for d in config.extra_search_paths)
+    )
+
     # If there's no tools tree, prefer the interpreter from MKOSI_INTERPRETER. If there is a tools
     # tree, just use the default python3 interpreter.
-    return "python3" if config.tools_tree else os.getenv("MKOSI_INTERPRETER", "python3")
+    return "python3" if tools and config.tools_tree else os.getenv("MKOSI_INTERPRETER", "python3")
 
 
 def extract_pe_section(context: Context, binary: Path, section: str, output: Path) -> Path:
@@ -2050,10 +2060,13 @@ def extract_pe_section(context: Context, binary: Path, section: str, output: Pat
 
     with open(output, "wb") as f:
         result = run(
-            [python_binary(context.config)],
+            [python_binary(context.config, binary=None)],
             input=pefile,
             stdout=f,
-            sandbox=context.sandbox(binary=python_binary(context.config), mounts=[Mount(binary, binary, ro=True)]),
+            sandbox=context.sandbox(
+                binary=python_binary(context.config, binary=None),
+                mounts=[Mount(binary, binary, ro=True),
+            ]),
             success_exit_status=(0, 67),
         )
         if result.returncode == 67:
@@ -2093,6 +2106,7 @@ def build_uki(
         die("Could not find ukify")
 
     cmd: list[PathString] = [
+        python_binary(context.config, binary=ukify),
         ukify,
         "--cmdline", f"@{context.workspace / 'cmdline'}",
         "--os-release", f"@{context.root / 'usr/lib/os-release'}",
@@ -2165,7 +2179,7 @@ def build_uki(
     if microcodes:
         # new .ucode section support?
         if (
-            systemd_tool_version(context.config, ukify) >= "256" and
+            systemd_tool_version(context.config, python_binary(context.config, binary=ukify), ukify) >= "256" and
             (version := systemd_stub_version(context, stub)) and
             version >= "256"
         ):
@@ -2864,6 +2878,20 @@ def check_systemd_tool(
             hint=f"Use ToolsTree=default to get a newer version of '{tools[0]}'.")
 
 
+def check_ukify(
+    config: Config,
+    version: str,
+    reason: str,
+    hint: Optional[str] = None,
+) -> None:
+    ukify = check_tool(config, "ukify", "/usr/lib/systemd/ukify", reason=reason, hint=hint)
+
+    v = systemd_tool_version(config, python_binary(config, binary=ukify), ukify)
+    if v < version:
+        die(f"Found '{ukify}' with version {v} but version {version} or newer is required to {reason}.",
+            hint="Use ToolsTree=default to get a newer version of 'ukify'.")
+
+
 def check_tools(config: Config, verb: Verb) -> None:
     check_tool(config, "bwrap", reason="execute sandboxed commands")
 
@@ -2872,9 +2900,8 @@ def check_tools(config: Config, verb: Verb) -> None:
             check_tool(config, "depmod", reason="generate kernel module dependencies")
 
         if want_efi(config) and config.unified_kernel_images == ConfigFeature.enabled:
-            check_systemd_tool(
+            check_ukify(
                 config,
-                "ukify", "/usr/lib/systemd/ukify",
                 version="254",
                 reason="build bootable images",
                 hint="Use ToolsTree=default to download most required tools including ukify automatically or use "
@@ -2888,9 +2915,8 @@ def check_tools(config: Config, verb: Verb) -> None:
             check_tool(config, "setfiles", reason="relabel files")
 
         if config.secure_boot_key_source.type != KeySource.Type.file:
-            check_systemd_tool(
+            check_ukify(
                 config,
-                "ukify", "/usr/lib/systemd/ukify",
                 version="256",
                 reason="sign Unified Kernel Image with OpenSSL engine",
             )
@@ -4238,10 +4264,10 @@ def run_serve(args: Args, config: Config) -> None:
     """Serve the output directory via a tiny HTTP server"""
 
     run(
-        [python_binary(config), "-m", "http.server", "8081"],
+        [python_binary(config, binary=None), "-m", "http.server", "8081"],
         stdin=sys.stdin, stdout=sys.stdout,
         sandbox=config.sandbox(
-            binary=python_binary(config),
+            binary=python_binary(config, binary=None),
             network=True,
             relaxed=True,
             options=["--chdir", config.output_dir_or_cwd()],
