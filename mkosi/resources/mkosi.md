@@ -1683,6 +1683,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     and no architecture has been explicitly configured yet, the host
     architecture is used.
 
+`Repositories=`
+:   Matches against repositories enabled with the `Repositories=` setting.
+    Takes a single repository name.
+
 `PathExists=`
 :   This condition is satisfied if the given path exists. Relative paths are interpreted relative to the parent
     directory of the config file that the condition is read from.

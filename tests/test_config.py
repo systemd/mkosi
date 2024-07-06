@@ -753,6 +753,25 @@ def test_match_build_sources(tmp_path: Path) -> None:
     assert config.output == "abc"
 
 
+def test_match_repositories(tmp_path: Path) -> None:
+    d = tmp_path
+
+    (d / "mkosi.conf").write_text(
+        """\
+        [Match]
+        Repositories=epel
+
+        [Content]
+        Output=qed
+        """
+    )
+
+    with chdir(d):
+        _, [config] = parse_config(["--repositories", "epel,epel-next"])
+
+    assert config.output == "qed"
+
+
 @pytest.mark.parametrize(
     "image1,image2", itertools.combinations_with_replacement(
         ["image_a", "image_b", "image_c"], 2
