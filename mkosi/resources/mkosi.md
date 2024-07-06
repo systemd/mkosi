@@ -1481,7 +1481,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     |                         | Fedora | CentOS | Debian | Ubuntu | Arch | openSUSE |
     |-------------------------|:------:|:------:|:------:|:------:|:----:|:--------:|
     | `acl`                   | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `apt`                   | ✓      | ✓      | ✓      | ✓      | ✓    |          |
+    | `apt`                   | ✓      |        | ✓      | ✓      | ✓    |          |
     | `archlinux-keyring`     | ✓      |        | ✓      | ✓      | ✓    |          |
     | `attr`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
     | `bash`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
@@ -1491,9 +1491,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     | `coreutils`             | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
     | `cpio`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
     | `curl`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `debian-keyring`        | ✓      | ✓      | ✓      | ✓      | ✓    |          |
+    | `debian-keyring`        | ✓      |        | ✓      | ✓      | ✓    |          |
     | `diffutils`             | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `distribution-gpg-keys` | ✓      | ✓      |        |        | ✓    | ✓        |
+    | `distribution-gpg-keys` | ✓      |        |        |        | ✓    | ✓        |
     | `dnf`                   | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
     | `dnf-plugins-core`      | ✓      | ✓      |        |        |      | ✓        |
     | `dnf5`                  | ✓      |        |        |        |      |          |
@@ -1525,7 +1525,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     | `systemd`               | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
     | `ukify`                 | ✓      |        | ✓      | ✓      | ✓    | ✓        |
     | `tar`                   | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `ubuntu-keyring`        | ✓      | ✓      | ✓      | ✓      | ✓    |          |
+    | `ubuntu-keyring`        | ✓      |        | ✓      | ✓      | ✓    |          |
     | `util-linux`            | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
     | `virtiofsd`             | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
     | `virt-firmware`         | ✓      | ✓      |        |        | ✓    |          |
