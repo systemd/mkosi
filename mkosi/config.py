@@ -105,7 +105,7 @@ class Verb(StrEnum):
         return self in (Verb.summary, Verb.qemu, Verb.boot, Verb.shell)
 
     def needs_config(self) -> bool:
-        return self not in (Verb.help, Verb.genkey, Verb.documentation)
+        return self not in (Verb.help, Verb.genkey, Verb.documentation, Verb.dependencies)
 
 
 class ConfigFeature(StrEnum):
