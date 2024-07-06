@@ -1277,7 +1277,11 @@ def find_grub_directory(context: Context, *, target: str) -> Optional[Path]:
 
 def find_grub_binary(config: Config, binary: str) -> Optional[Path]:
     assert "grub" not in binary
-    return config.find_binary(f"grub-{binary}", f"grub2-{binary}")
+
+    # Debian has a bespoke setup where if only grub-pc-bin is installed, grub-bios-setup is installed in
+    # /usr/lib/i386-pc instead of in /usr/bin. Let's take that into account and look for binaries in
+    # /usr/lib/grub/i386-pc as well.
+    return config.find_binary(f"grub-{binary}", f"grub2-{binary}", f"/usr/lib/grub/i386-pc/grub-{binary}")
 
 
 def want_grub_efi(context: Context) -> bool:
