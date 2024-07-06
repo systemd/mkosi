@@ -12,6 +12,7 @@ import json
 import logging
 import os
 import random
+import resource
 import shutil
 import signal
 import socket
@@ -47,7 +48,7 @@ from mkosi.sandbox import Mount
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
 from mkosi.user import INVOKING_USER, become_root, become_root_cmd
-from mkosi.util import StrEnum, flock, flock_or_die, groupby, try_or
+from mkosi.util import StrEnum, flock, flock_or_die, groupby, round_up, try_or
 from mkosi.versioncomp import GenericVersion
 
 QEMU_KVM_DEVICE_VERSION = GenericVersion("9.0")
@@ -654,7 +655,8 @@ def apply_runtime_size(config: Config, image: Path) -> None:
             "systemd-repart",
             "--definitions", "",
             "--no-pager",
-            f"--size={config.runtime_size}",
+            # To use qemu's cache.direct option, the drive size has to be a multiple of the page size.
+            f"--size={round_up(config.runtime_size, resource.getpagesize())}",
             "--pretty=no",
             "--offline=yes",
             image,
@@ -1093,7 +1095,9 @@ def run_qemu(args: Args, config: Config) -> None:
             cmdline += ["-initrd", config.output_dir_or_cwd() / config.output_split_initrd]
 
         if config.output_format in (OutputFormat.disk, OutputFormat.esp):
-            cache = f"cache.writeback=on,cache.direct=on,cache.no-flush={yes_no(config.ephemeral)},aio=io_uring"
+            direct = fname.stat().st_size % resource.getpagesize() == 0
+            ephemeral = config.ephemeral
+            cache = f"cache.writeback=on,cache.direct={yes_no(direct)},cache.no-flush={yes_no(ephemeral)},aio=io_uring"
             cmdline += ["-drive", f"if=none,id=mkosi,file={fname},format=raw,discard=on,{cache}",
                         "-device", f"scsi-{'cd' if config.qemu_cdrom else 'hd'},drive=mkosi,bootindex=1"]
 
