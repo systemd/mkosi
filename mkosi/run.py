@@ -296,13 +296,14 @@ def spawn(
             os.close(w)
             w = q
             # dash doesn't support working with file descriptors higher than 9 so make sure we use bash.
-            prefix += ["bash", "-c", f"echo $$ >&{w} && exec {w}>&- && exec $0 \"$@\""]
+            innerpidcmd = ["bash", "-c", f"echo $$ >&{w} && exec {w}>&- && exec $0 \"$@\""]
         else:
+            innerpidcmd = []
             r, w = (None, None)
 
         try:
             with subprocess.Popen(
-                [*scope, *prefix, *cmdline],
+                [*scope, *prefix, *innerpidcmd, *cmdline],
                 stdin=stdin,
                 stdout=stdout,
                 stderr=stderr,
