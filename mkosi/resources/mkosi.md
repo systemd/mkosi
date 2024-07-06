@@ -1505,6 +1505,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     | `findutils`             | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
     | `git`                   | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
     | `grep`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
+    | `grub-tools`            | ✓      | ✓      | ✓      | ✓      | ✓    |          |
     | `jq`                    | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
     | `kmod`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
     | `less`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
