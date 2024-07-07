@@ -3702,7 +3702,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
         die("No images defined in mkosi.images/")
 
     images = resolve_deps(images, include)
-    images = [load_config(args, ns) for ns in images]
+    images = [load_config(ns) for ns in images]
 
     return args, tuple(images)
 
@@ -3849,7 +3849,7 @@ def load_args(args: argparse.Namespace) -> Args:
     return Args.from_namespace(args)
 
 
-def load_config(args: Args, config: argparse.Namespace) -> Config:
+def load_config(config: argparse.Namespace) -> Config:
     if config.build_dir:
         config.build_dir = config.build_dir / f"{config.distribution}~{config.release}~{config.architecture}"
 
@@ -3859,17 +3859,6 @@ def load_config(args: Args, config: argparse.Namespace) -> Config:
     config.credentials = load_credentials(config)
     config.kernel_command_line_extra = load_kernel_command_line_extra(config)
     config.environment = load_environment(config)
-
-    if config.secure_boot and args.verb != Verb.genkey:
-        if config.secure_boot_key is None and config.secure_boot_certificate is None:
-            die("UEFI SecureBoot enabled, but couldn't find the certificate and private key.",
-                hint="Consider generating them with 'mkosi genkey'.")
-        if config.secure_boot_key is None:
-            die("UEFI SecureBoot enabled, certificate was found, but not the private key.",
-                hint="Consider placing it in mkosi.key")
-        if config.secure_boot_certificate is None:
-            die("UEFI SecureBoot enabled, private key was found, but not the certificate.",
-                hint="Consider placing it in mkosi.crt")
 
     if config.overlay and not config.base_trees:
         die("--overlay can only be used with --base-tree")
