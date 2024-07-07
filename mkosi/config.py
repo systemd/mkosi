@@ -3311,7 +3311,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
                 if c == "%":
                     result += "%"
                 elif setting := SETTINGS_LOOKUP_BY_SPECIFIER.get(c):
-                    if (v := finalize_default(setting)) is None:
+                    if (v := finalize_value(setting)) is None:
                         logging.warning(
                             f"Setting {setting.name} specified by specifier '%{c}' in {text} is not yet set, ignoring"
                         )
@@ -3322,7 +3322,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
                     for d in specifier.depends:
                         setting = SETTINGS_LOOKUP_BY_DEST[d]
 
-                        if finalize_default(setting) is None:
+                        if finalize_value(setting) is None:
                             logging.warning(
                                 f"Setting {setting.name} which specifier '%{c}' in {text} depends on is not yet set, "
                                 "ignoring"
@@ -3409,12 +3409,12 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
                         assert isinstance(v, str)
                         setattr(namespace, s.dest, s.parse(v, getattr(namespace, self.dest, None)))
 
-    def finalize_default(setting: ConfigSetting) -> Optional[Any]:
+    def finalize_value(setting: ConfigSetting) -> Optional[Any]:
         if (v := getattr(namespace, setting.dest, None)) is not None:
             return v
 
         for d in setting.default_factory_depends:
-            finalize_default(SETTINGS_LOOKUP_BY_DEST[d])
+            finalize_value(SETTINGS_LOOKUP_BY_DEST[d])
 
         # If the setting was assigned the empty string, we don't use any configured default value.
         if not hasattr(namespace, setting.dest) and setting.dest in defaults:
@@ -3475,7 +3475,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
 
                 # If we encounter a setting that has not been explicitly configured yet, we assign the default value
                 # first so that we can match on default values for settings.
-                if finalize_default(s) is None:
+                if finalize_value(s) is None:
                     result = False
                 else:
                     result = s.match(v, getattr(namespace, s.dest))
@@ -3559,7 +3559,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
                     setattr(ns, s.dest, s.parse(v, getattr(ns, s.dest, None)))
 
         if profiles:
-            finalize_default(SETTINGS_LOOKUP_BY_DEST["profile"])
+            finalize_value(SETTINGS_LOOKUP_BY_DEST["profile"])
             profile = getattr(namespace, "profile")
             immutable_settings.add("Profile")
 
@@ -3584,9 +3584,9 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
 
         return True
 
-    def finalize_defaults() -> None:
+    def finalize_values() -> None:
         for s in SETTINGS:
-            finalize_default(s)
+            finalize_value(s)
 
     images = []
     argv = list(argv)
@@ -3630,7 +3630,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
     if args.directory is not None:
         parse_config_one(Path("."), profiles=True)
 
-        finalize_default(SETTINGS_LOOKUP_BY_DEST["images"])
+        finalize_value(SETTINGS_LOOKUP_BY_DEST["images"])
         include = getattr(namespace, "images")
         immutable_settings.add("Images")
 
@@ -3660,7 +3660,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
                     if not parse_config_one(p if p.is_file() else Path(".")):
                         continue
 
-                finalize_defaults()
+                finalize_values()
                 images += [namespace]
 
                 namespace = ns_copy
@@ -3669,7 +3669,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
 
     if not images:
         setattr(namespace, "image", None)
-        finalize_defaults()
+        finalize_values()
         images = [namespace]
 
     append = True
