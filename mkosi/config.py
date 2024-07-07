@@ -3474,10 +3474,10 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
 
                 # If we encounter a setting that has not been explicitly configured yet, we assign the default value
                 # first so that we can match on default values for settings.
-                if finalize_value(s) is None:
+                if (value := finalize_value(s)) is None:
                     result = False
                 else:
-                    result = s.match(v, getattr(namespace, s.dest))
+                    result = s.match(v, value)
 
             elif m := MATCH_LOOKUP.get(k):
                 result = m.match(v)
