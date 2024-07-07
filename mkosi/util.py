@@ -182,6 +182,10 @@ class StrEnum(enum.Enum):
     def values(cls) -> list[str]:
         return list(s.replace("_", "-") for s in map(str, cls.__members__))
 
+    @classmethod
+    def choices(cls) -> list[str]:
+        return [*cls.values(), ""]
+
 
 @contextlib.contextmanager
 def umask(mask: int) -> Iterator[None]:

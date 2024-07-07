@@ -23,7 +23,7 @@ from mkosi.config import (
     parse_config,
     parse_ini,
 )
-from mkosi.distributions import Distribution
+from mkosi.distributions import Distribution, detect_distribution
 from mkosi.util import chdir
 
 
@@ -97,16 +97,20 @@ def test_parse_config(tmp_path: Path) -> None:
     (d / "mkosi.conf").write_text(
         """\
         [Distribution]
-
-        @Distribution = ubuntu
-        Architecture  = arm64
+        Distribution=ubuntu
+        Architecture=arm64
+        Repositories=epel,epel-next
 
         [Content]
         Packages=abc
+        Environment=MY_KEY=MY_VALUE
 
         [Output]
-        @Format = cpio
-        ImageId = base
+        Format=cpio
+        ImageId=base
+
+        [Host]
+        Credentials=my.cred=my.value
         """
     )
 
@@ -120,44 +124,68 @@ def test_parse_config(tmp_path: Path) -> None:
     assert config.image_id == "base"
 
     with chdir(d):
-        _, [config] = parse_config(["--distribution", "fedora"])
+        _, [config] = parse_config(
+            [
+                "--distribution", "fedora",
+                "--environment", "MY_KEY=CLI_VALUE",
+                "--credential", "my.cred=cli.value",
+                "--repositories", "universe",
+            ]
+        )
 
-    # mkosi.conf sets a default distribution, so the CLI should take priority.
+    # Values from the CLI should take priority.
     assert config.distribution == Distribution.fedora
+    assert config.environment["MY_KEY"] == "CLI_VALUE"
+    assert config.credentials["my.cred"] == "cli.value"
+    assert config.repositories == ["epel", "epel-next", "universe"]
 
-    # Any architecture set on the CLI is overridden by the config file, and we should complain loudly about that.
-    with chdir(d), pytest.raises(SystemExit):
-        _, [config] = parse_config(["--architecture", "x86-64"])
+    with chdir(d):
+        _, [config] = parse_config(
+            [
+                "--distribution", "",
+                "--environment", "",
+                "--credential", "",
+                "--repositories", "",
+            ]
+        )
+
+    # Empty values on the CLIs resets non-collection based settings to their defaults and collection based settings to
+    # empty collections.
+    assert config.distribution == detect_distribution()[0]
+    assert "MY_KEY" not in config.environment
+    assert "my.cred" not in config.credentials
+    assert config.repositories == []
 
     (d / "mkosi.conf.d").mkdir()
     (d / "mkosi.conf.d/d1.conf").write_text(
         """\
         [Distribution]
-        Distribution = debian
-        @Architecture = x86-64
+        Distribution=debian
 
         [Content]
-        Packages = qed
-                   def
+        Packages=qed
+                 def
 
         [Output]
-        ImageId = 00-dropin
-        ImageVersion = 0
+        ImageId=00-dropin
+        ImageVersion=0
+        @Output=abc
         """
     )
 
     with chdir(d):
-        _, [config] = parse_config()
+        _, [config] = parse_config(["--package", "last"])
 
     # Setting a value explicitly in a dropin should override the default from mkosi.conf.
     assert config.distribution == Distribution.debian
-    # Setting a default in a dropin should be ignored since mkosi.conf sets the architecture explicitly.
-    assert config.architecture == Architecture.arm64
-    # Lists should be merged by appending the new values to the existing values.
-    assert config.packages == ["abc", "qed", "def"]
+    # Lists should be merged by appending the new values to the existing values. Any values from the CLI should be
+    # appended to the values from the configuration files.
+    assert config.packages == ["abc", "qed", "def", "last"]
     assert config.output_format == OutputFormat.cpio
     assert config.image_id == "00-dropin"
     assert config.image_version == "0"
+    # '@' specifier should be automatically dropped.
+    assert config.output == "abc"
 
     (d / "mkosi.version").write_text("1.2.3")
 
@@ -221,6 +249,38 @@ def test_parse_config(tmp_path: Path) -> None:
         assert config.bootable == ConfigFeature.enabled
         assert config.split_artifacts is False
 
+    (d / "mkosi.images").mkdir()
+
+    for n in ("one", "two"):
+        (d / "mkosi.images" / f"{n}.conf").write_text(
+            f"""\
+            [Distribution]
+            Release=bla
+
+            [Content]
+            Packages={n}
+            """
+        )
+
+    with chdir(d):
+        _, [one, two, config] = parse_config(["--package", "qed", "--build-package", "def"])
+
+    # Universal settings should always come from the main image.
+    assert one.distribution == config.distribution
+    assert two.distribution == config.distribution
+    assert one.release == config.release
+    assert two.release == config.release
+
+    # Non-universal settings should not be passed to the subimages.
+    assert one.packages == ["one"]
+    assert two.packages == ["two"]
+    assert one.build_packages == []
+    assert two.build_packages == []
+
+    # But should apply to the main image of course.
+    assert config.packages == ["qed"]
+    assert config.build_packages == ["def"]
+
 
 def test_parse_includes_once(tmp_path: Path) -> None:
     d = tmp_path
@@ -254,9 +314,9 @@ def test_parse_includes_once(tmp_path: Path) -> None:
         )
 
     with chdir(d):
-        _, [one, two] = parse_config([])
-        assert one.build_packages == ["abc", "def"]
-        assert two.build_packages == ["abc", "def"]
+        _, [one, two, config] = parse_config([])
+        assert one.build_packages == ["def"]
+        assert two.build_packages == ["def"]
 
 
 def test_profiles(tmp_path: Path) -> None:
@@ -302,15 +362,19 @@ def test_override_default(tmp_path: Path) -> None:
 
     (d / "mkosi.conf").write_text(
         """\
+        [Content]
+        Environment=MY_KEY=MY_VALUE
+
         [Host]
-        @ToolsTree=default
+        ToolsTree=default
         """
     )
 
     with chdir(d):
-        _, [config] = parse_config(["--tools-tree", ""])
+        _, [config] = parse_config(["--tools-tree", "", "--environment", ""])
 
     assert config.tools_tree is None
+    assert "MY_KEY" not in config.environment
 
 
 def test_local_config(tmp_path: Path) -> None:
@@ -320,6 +384,9 @@ def test_local_config(tmp_path: Path) -> None:
         """\
         [Distribution]
         Distribution=debian
+
+        [Content]
+        WithTests=yes
         """
     )
 
@@ -332,13 +399,24 @@ def test_local_config(tmp_path: Path) -> None:
         """\
         [Distribution]
         Distribution=fedora
+
+        [Content]
+        WithTests=no
         """
     )
 
     with chdir(d):
         _, [config] = parse_config()
 
+    # Local config should take precedence over non-local config.
+    assert config.distribution == Distribution.debian
+    assert config.with_tests
+
+    with chdir(d):
+        _, [config] = parse_config(["--distribution", "fedora", "-T"])
+
     assert config.distribution == Distribution.fedora
+    assert not config.with_tests
 
 
 def test_parse_load_verb(tmp_path: Path) -> None:

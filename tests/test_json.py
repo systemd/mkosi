@@ -40,7 +40,6 @@ def test_args(path: Optional[Path]) -> None:
     dump = textwrap.dedent(
         f"""\
         {{
-            "Append": true,
             "AutoBump": false,
             "Cmdline": [
                 "foo",
@@ -62,7 +61,6 @@ def test_args(path: Optional[Path]) -> None:
     )
 
     args = Args(
-        append = True,
         auto_bump = False,
         cmdline = ["foo", "bar"],
         debug = False,
@@ -145,10 +143,6 @@ def test_config() -> None:
             "Image": "default",
             "ImageId": "myimage",
             "ImageVersion": "5",
-            "Images": [
-                "default",
-                "initrd"
-            ],
             "Include": [],
             "Incremental": false,
             "InitrdInclude": [
@@ -396,7 +390,6 @@ def test_config() -> None:
         image="default",
         image_id="myimage",
         image_version="5",
-        images=["default", "initrd"],
         include=[],
         incremental=False,
         initrd_include=[Path("/foo/bar"),],
