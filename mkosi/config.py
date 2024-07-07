@@ -3344,13 +3344,11 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
 
     @contextlib.contextmanager
     def parse_new_includes() -> Iterator[None]:
-        current_num_of_includes = len(getattr(namespace, "include", []))
-
         try:
             yield
         finally:
             # Parse any includes that were added after yielding.
-            for p in getattr(namespace, "include", [])[current_num_of_includes:]:
+            for p in getattr(namespace, "include", []):
                 for c in BUILTIN_CONFIGS:
                     if p == Path(c):
                         path = resources / c
@@ -3362,6 +3360,8 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
 
                 if (st.st_dev, st.st_ino) in parsed_includes:
                     continue
+
+                parsed_includes.add((st.st_dev, st.st_ino))
 
                 if any(p == Path(c) for c in BUILTIN_CONFIGS):
                     _, [config] = parse_config(["--directory", "", "--include", os.fspath(path)])
@@ -3378,7 +3378,6 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
 
                 with chdir(path if path.is_dir() else Path.cwd()):
                     parse_config_one(path if path.is_file() else Path("."))
-                parsed_includes.add((st.st_dev, st.st_ino))
 
     class ConfigAction(argparse.Action):
         def __call__(
