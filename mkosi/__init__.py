@@ -102,6 +102,8 @@ def mount_base_trees(context: Context) -> Iterator[None]:
         for path in context.config.base_trees:
             d = context.workspace / f"bases/{path.name}-{uuid.uuid4().hex}"
 
+            path = path.resolve()
+
             if path.is_dir():
                 bases += [path]
             elif can_extract_tar(path):
