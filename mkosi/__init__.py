@@ -28,6 +28,7 @@ from typing import Optional, Union, cast
 from mkosi.archive import can_extract_tar, extract_tar, make_cpio, make_tar
 from mkosi.burn import run_burn
 from mkosi.config import (
+    PACKAGE_GLOBS,
     Args,
     BiosBootloader,
     Bootloader,
@@ -1653,13 +1654,7 @@ def install_package_directories(context: Context) -> None:
 
     with complete_step("Copying in extra packages…"):
         for d in context.config.package_directories:
-            for p in itertools.chain(
-                d.glob("*.rpm"),
-                d.glob("*.pkg.tar*"),
-                d.glob("*.deb*"),
-                d.glob("*.ddeb*"),
-                d.glob("*.udeb*"),
-            ):
+            for p in itertools.chain(*(d.glob(glob) for glob in PACKAGE_GLOBS)):
                 shutil.copy(p, context.packages, follow_symlinks=True)
 
     if context.want_local_repo():

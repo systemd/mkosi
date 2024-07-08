@@ -1357,6 +1357,15 @@ class Args:
 CACHE_UID = os.getuid()
 CACHE_GID = os.getgid()
 
+PACKAGE_GLOBS = (
+    "*.rpm",
+    "*.pkg.tar*",
+    "*.deb*",
+    "*.ddeb*",
+    "*.udeb*",
+)
+
+
 @dataclasses.dataclass(frozen=True)
 class Config:
     """Type-hinted storage for command line arguments.
