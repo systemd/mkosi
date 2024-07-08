@@ -4651,6 +4651,12 @@ def run_sync(args: Args, config: Config, *, resources: Path) -> None:
 
 
 def run_build(args: Args, config: Config, *, resources: Path) -> None:
+    if (uid := os.getuid()) != 0:
+        become_root()
+    unshare(CLONE_NEWNS)
+    if uid == 0:
+        run(["mount", "--make-rslave", "/"])
+
     for p in (
         config.output_dir,
         config.cache_dir,
@@ -4663,12 +4669,6 @@ def run_build(args: Args, config: Config, *, resources: Path) -> None:
 
         p.mkdir(parents=True, exist_ok=True)
         INVOKING_USER.chown(p)
-
-    if (uid := os.getuid()) != 0:
-        become_root()
-    unshare(CLONE_NEWNS)
-    if uid == 0:
-        run(["mount", "--make-rslave", "/"])
 
     if config.build_dir:
         # Make sure the build directory is owned by root (in the user namespace) so that the correct uid-mapping is
