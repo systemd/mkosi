@@ -1347,8 +1347,8 @@ class Config:
     profile: Optional[str]
     include: list[Path]
     initrd_include: list[Path]
-    images: tuple[str, ...]
-    dependencies: tuple[str, ...]
+    images: list[str]
+    dependencies: list[str]
     minimum_version: Optional[GenericVersion]
 
     distribution: Distribution
@@ -4171,9 +4171,6 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         enumtype = fieldtype.__args__[0]  # type: ignore
         return [enumtype[e] for e in enumlist]
 
-    def str_tuple_transformer(strtup: list[str], fieldtype: list[tuple[str, ...]]) -> tuple[str, ...]:
-        return tuple(strtup)
-
     def config_drive_transformer(drives: list[dict[str, Any]], fieldtype: type[QemuDrive]) -> list[QemuDrive]:
         # TODO: exchange for TypeGuard and list comprehension once on 3.10
         ret = []
@@ -4217,7 +4214,6 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         uuid.UUID: uuid_transformer,
         Optional[tuple[str, bool]]: root_password_transformer,
         list[ConfigTree]: config_tree_transformer,
-        tuple[str, ...]: str_tuple_transformer,
         Architecture: enum_transformer,
         BiosBootloader: enum_transformer,
         ShimBootloader: enum_transformer,
