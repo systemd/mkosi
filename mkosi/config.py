@@ -778,18 +778,20 @@ def config_make_list_parser(delimiter: str,
         if value is None:
             return []
 
+        # Empty strings reset the list.
+
         if unescape:
             lex = shlex.shlex(value, posix=True)
             lex.whitespace_split = True
             lex.whitespace = f"\n{delimiter}"
             lex.commenters = ""
             values = list(lex)
+            if reset and not values:
+                return None
         else:
             values = value.replace(delimiter, "\n").split("\n")
-
-        # Empty strings reset the list.
-        if reset and len(values) == 1 and values[0] == "":
-            return []
+            if reset and len(values) == 1 and values[0] == "":
+                return None
 
         return new + [parse(v) for v in values if v]
 
@@ -855,18 +857,20 @@ def config_make_dict_parser(delimiter: str,
 
             return new
 
+        # Empty strings reset the dict.
+
         if unescape:
             lex = shlex.shlex(value, posix=True)
             lex.whitespace_split = True
             lex.whitespace = f"\n{delimiter}"
             lex.commenters = ""
             values = list(lex)
+            if reset and not values:
+                return None
         else:
             values = value.replace(delimiter, "\n").split("\n")
-
-        # Empty strings reset the dict.
-        if reset and len(values) == 1 and values[0] == "":
-            return {}
+            if reset and len(values) == 1 and values[0] == "":
+                return None
 
         return new | dict(parse(v) for v in values if v)
 
