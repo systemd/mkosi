@@ -1657,6 +1657,11 @@ class Config:
             "package_manager": self.distribution.package_manager(self).executable(self),
             "packages": sorted(self.packages),
             "build_packages": sorted(self.build_packages),
+            "package_directories": [
+                (p.name, p.stat().st_mtime_ns)
+                for d in self.package_directories
+                for p in sorted(flatten(d.glob(glob) for glob in PACKAGE_GLOBS))
+            ],
             "repositories": sorted(self.repositories),
             "overlay": self.overlay,
             "prepare_scripts": sorted(
