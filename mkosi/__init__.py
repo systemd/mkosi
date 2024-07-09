@@ -102,6 +102,8 @@ def mount_base_trees(context: Context) -> Iterator[None]:
         for path in context.config.base_trees:
             d = context.workspace / f"bases/{path.name}-{uuid.uuid4().hex}"
 
+            path = path.resolve()
+
             if path.is_dir():
                 bases += [path]
             elif can_extract_tar(path):
@@ -326,20 +328,6 @@ def configure_autologin(context: Context) -> None:
         configure_autologin_service(context,
                                     "serial-getty@hvc0.service",
                                     "--keep-baud 115200,57600,38400,9600 -")
-
-
-@contextlib.contextmanager
-def mount_cache_overlay(context: Context, cached: bool) -> Iterator[None]:
-    if not context.config.incremental or not context.config.base_trees or context.config.overlay or cached:
-        yield
-        return
-
-    d = context.workspace / "cache-overlay"
-    with umask(~0o755):
-        d.mkdir(exist_ok=True)
-
-    with mount_overlay([context.root], d, context.root):
-        yield
 
 
 @contextlib.contextmanager
@@ -3235,7 +3223,7 @@ def need_build_overlay(config: Config) -> bool:
 
 
 def save_cache(context: Context) -> None:
-    if not context.config.incremental or context.config.overlay:
+    if not context.config.incremental or context.config.base_trees or context.config.overlay:
         return
 
     final, build, manifest = cache_tree_paths(context.config)
@@ -3243,20 +3231,11 @@ def save_cache(context: Context) -> None:
     with complete_step("Installing cache copies"):
         rmtree(final, sandbox=context.sandbox)
 
-        # We only use the cache-overlay directory for caching if we have a base tree, otherwise we just
-        # cache the root directory.
-        if (context.workspace / "cache-overlay").exists():
-            move_tree(
-                context.workspace / "cache-overlay", final,
-                use_subvolumes=context.config.use_subvolumes,
-                sandbox=context.sandbox,
-            )
-        else:
-            move_tree(
-                context.root, final,
-                use_subvolumes=context.config.use_subvolumes,
-                sandbox=context.sandbox,
-            )
+        move_tree(
+            context.root, final,
+            use_subvolumes=context.config.use_subvolumes,
+            sandbox=context.sandbox,
+        )
 
         if need_build_overlay(context.config) and (context.workspace / "build-overlay").exists():
             rmtree(build, sandbox=context.sandbox)
@@ -3277,7 +3256,7 @@ def save_cache(context: Context) -> None:
 
 
 def have_cache(config: Config) -> bool:
-    if not config.incremental or config.overlay:
+    if not config.incremental or config.base_trees or config.overlay:
         return False
 
     final, build, manifest = cache_tree_paths(config)
@@ -3850,21 +3829,19 @@ def build_image(context: Context) -> None:
         install_base_trees(context)
         cached = reuse_cache(context)
 
-        with mount_cache_overlay(context, cached):
-            copy_repository_metadata(context)
+        copy_repository_metadata(context)
 
         context.config.distribution.setup(context)
         install_package_directories(context)
 
         if not cached:
-            with mount_cache_overlay(context, cached):
-                install_skeleton_trees(context)
-                install_distribution(context)
-                run_prepare_scripts(context, build=False)
-                install_build_packages(context)
-                run_prepare_scripts(context, build=True)
-                fixup_vmlinuz_location(context)
-                run_depmod(context, cache=True)
+            install_skeleton_trees(context)
+            install_distribution(context)
+            run_prepare_scripts(context, build=False)
+            install_build_packages(context)
+            run_prepare_scripts(context, build=True)
+            fixup_vmlinuz_location(context)
+            run_depmod(context, cache=True)
 
             save_cache(context)
             reuse_cache(context)
@@ -4649,6 +4626,12 @@ def run_sync(args: Args, config: Config, *, resources: Path) -> None:
 
 
 def run_build(args: Args, config: Config, *, resources: Path) -> None:
+    if (uid := os.getuid()) != 0:
+        become_root()
+    unshare(CLONE_NEWNS)
+    if uid == 0:
+        run(["mount", "--make-rslave", "/"])
+
     for p in (
         config.output_dir,
         config.cache_dir,
@@ -4661,12 +4644,6 @@ def run_build(args: Args, config: Config, *, resources: Path) -> None:
 
         p.mkdir(parents=True, exist_ok=True)
         INVOKING_USER.chown(p)
-
-    if (uid := os.getuid()) != 0:
-        become_root()
-    unshare(CLONE_NEWNS)
-    if uid == 0:
-        run(["mount", "--make-rslave", "/"])
 
     if config.build_dir:
         # Make sure the build directory is owned by root (in the user namespace) so that the correct uid-mapping is

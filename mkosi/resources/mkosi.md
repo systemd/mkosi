@@ -297,26 +297,27 @@ Configuration is parsed in the following order:
 * `mkosi.conf` is parsed if it exists in the directory configured with
   `--directory=` or the current working directory if `--directory=` is
   not used.
+* If a profile is defined, its configuration is parsed from the
+  `mkosi.profiles/` directory.
 * `mkosi.conf.d/` is parsed in the same directory if it exists. Each
   directory and each file with the `.conf` extension in `mkosi.conf.d/`
   is parsed. Any directory in `mkosi.conf.d` is parsed as if it were
   a regular top level directory.
+* Subimages are parsed from the `mkosi.images` directory if it exists.
 
-Note that if the same setting is configured twice, the later assignment
-overrides the earlier assignment unless the setting is a list based
-setting. Also note that before v16, we used to do the opposite, where
-the earlier assignment would be used instead of later assignments.
+Note that settings configured via the command line always override
+settings configured via configuration files. If the same setting is
+configured more than once via configuration files, later assignments
+override earlier assignments except for settings that take a collection
+of values. Also, settings read from `mkosi.local.conf` will override
+settings from configuration files that are parsed later but not settings
+specified on the CLI.
 
-Settings that take a list of values are merged by appending the new
-values to the previously configured values. Assigning the empty string
-to such a setting removes all previously assigned values, and overrides
-any configured default values as well.
-
-If a setting's name in the configuration file is prefixed with `@`, it
-configures the default value used for that setting if no explicit
-default value is set. This can be used to set custom default values in
-configuration files that can still be overridden by specifying the
-setting explicitly via the CLI.
+Settings that take a collection of values are merged by appending the
+new values to the previously configured values. Assigning the empty
+string to such a setting removes all previously assigned values, and
+overrides any configured default values as well. The values specified
+on the CLI are appended after all the values from configuration files.
 
 To conditionally include configuration files, the `[Match]` section can
 be used. A `[Match]` section consists of individual conditions.
@@ -331,9 +332,10 @@ exclamation second.
 
 Note that `[Match]` conditions compare against the current values of
 specific settings, and do not take into account changes made to the
-setting in configuration files that have not been parsed yet. Also note
-that matching against a setting and then changing its value afterwards
-in a different config file may lead to unexpected results.
+setting in configuration files that have not been parsed yet (settings
+specified on the CLI are taken into account). Also note that matching
+against a setting and then changing its value afterwards in a different
+config file may lead to unexpected results.
 
 The `[Match]` section of a `mkosi.conf` file in a directory applies to
 the entire directory. If the conditions are not satisfied, the entire
@@ -2422,19 +2424,62 @@ be recompiled.
 # Building multiple images
 
 If the `mkosi.images/` directory exists, mkosi will load individual
-image configurations from it and build each of them. Image
+subimage configurations from it and build each of them. Image
 configurations can be either directories containing mkosi configuration
 files or regular files with the `.conf` extension.
 
 When image configurations are found in `mkosi.images/`, mkosi will build
-the configured images and all of their dependencies (or all of them if
-no images were explicitly configured using `Images=`). To add
-dependencies between images, the `Dependencies=` setting can be used.
+the images specified in the `Dependencies=` setting of the main image
+and all of their dependencies (or all of them if no images were
+explicitly configured using `Dependencies=` in the main image
+configuration). To add dependencies between subimages, the
+`Dependencies=` setting can be used as well. Subimages are always built
+before the main image.
 
-When images are defined, mkosi will first read the global configuration
-(configuration outside of the `mkosi.images/` directory), followed by
-the image specific configuration. This means that global configuration
-takes precedence over image specific configuration.
+When images are defined, mkosi will first read the main image
+configuration (configuration outside of the `mkosi.images/` directory),
+followed by the image specific configuration. Several "universal"
+settings apply to the main image and all its subimages and cannot be
+configured separately in subimages. The following settings are universal
+and cannot be configured in subimages (except for settings which take a
+collection of values which can be extended in subimages but not
+overridden):
+
+- `Profile=`
+- `Distribution=`
+- `Release=`
+- `Architecture=`
+- `Mirror=`
+- `LocalMirror=`
+- `RepositoryKeyCheck=`
+- `Repositories=`
+- `CacheOnly=`
+- `PackageManagerTrees=`
+- `OutputDirectory=`
+- `WorkspaceDirectory=`
+- `CacheDirectory=`
+- `PackageCacheDirectory=`
+- `BuildDirectory=`
+- `ImageId=`
+- `ImageVersion=`
+- `SectorSize=`
+- `RepartOffline=`
+- `UseSubvolumes=`
+- `PackageDirectories=`
+- `SourceDateEpoch=`
+- `VerityKey=`
+- `VerityKeySource=`
+- `VerityCertificate=`
+- `ProxyUrl=`
+- `ProxyExclude=`
+- `ProxyPeerCertificate=`
+- `ProxyClientCertificate=`
+- `ProxyClientKey=`
+- `Incremental=`
+- `ExtraSearchPaths=`
+- `Acl=`
+- `ToolsTree=`
+- `ToolsTreeCertificates=`
 
 Images can refer to outputs of images they depend on. Specifically,
 for the following options, mkosi will only check whether the inputs

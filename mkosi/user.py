@@ -89,10 +89,11 @@ class INVOKING_USER:
     def chown(cls, path: Path) -> None:
         # If we created a file/directory in a parent directory owned by the invoking user, make sure the path and any
         # parent directories are owned by the invoking user as well.
-        if (
-            cls.is_regular_user() and
-            (q := next((parent for parent in path.parents if parent.stat().st_uid == cls.uid), None))
-        ):
+
+        def is_valid_dir(path: Path) -> bool:
+            return path.stat().st_uid == cls.uid or path in (Path("/tmp"), Path("/var/tmp"))
+
+        if cls.is_regular_user() and (q := next((parent for parent in path.parents if is_valid_dir(parent)), None)):
             os.chown(path, INVOKING_USER.uid, INVOKING_USER.gid)
 
             for parent in parents_below(path, q):
