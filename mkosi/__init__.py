@@ -591,7 +591,7 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
                             Mount(json, "/work/config.json", ro=True),
                             Mount(context.root, "/buildroot"),
                             Mount(context.artifacts, "/work/artifacts"),
-                            Mount(context.repository, "/work/packages"),
+                            Mount(context.packages, "/work/packages"),
                             *context.config.distribution.package_manager(context.config).mounts(context),
                         ],
                         options=["--dir", "/work/src", "--chdir", "/work/src"],
@@ -674,7 +674,7 @@ def run_build_scripts(context: Context) -> None:
                             Mount(context.install_dir, "/work/dest"),
                             Mount(context.staging, "/work/out"),
                             Mount(context.artifacts, "/work/artifacts"),
-                            Mount(context.repository, "/work/packages"),
+                            Mount(context.packages, "/work/packages"),
                             *(
                                 [Mount(context.config.build_dir, "/work/build")]
                                 if context.config.build_dir
@@ -687,10 +687,6 @@ def run_build_scripts(context: Context) -> None:
                         extra=chroot if script.suffix == ".chroot" else [],
                     ),
                 )
-
-    if context.want_local_repo() and context.config.output_format != OutputFormat.none:
-        with complete_step("Rebuilding local package repository"):
-            context.config.distribution.createrepo(context)
 
 
 def run_postinst_scripts(context: Context) -> None:
@@ -752,7 +748,7 @@ def run_postinst_scripts(context: Context) -> None:
                             Mount(context.root, "/buildroot"),
                             Mount(context.staging, "/work/out"),
                             Mount(context.artifacts, "/work/artifacts"),
-                            Mount(context.repository, "/work/packages"),
+                            Mount(context.packages, "/work/packages"),
                             *context.config.distribution.package_manager(context.config).mounts(context),
                         ],
                         options=["--dir", "/work/src", "--chdir", "/work/src"],
@@ -819,7 +815,7 @@ def run_finalize_scripts(context: Context) -> None:
                             Mount(context.root, "/buildroot"),
                             Mount(context.staging, "/work/out"),
                             Mount(context.artifacts, "/work/artifacts"),
-                            Mount(context.repository, "/work/packages"),
+                            Mount(context.packages, "/work/packages"),
                             *context.config.distribution.package_manager(context.config).mounts(context),
                         ],
                         options=["--dir", "/work/src", "--chdir", "/work/src"],
@@ -1652,18 +1648,16 @@ def install_package_manager_trees(context: Context) -> None:
             install_tree(context.config, tree.source, context.pkgmngr, target=tree.target, preserve=False)
 
 
-def install_package_directories(context: Context) -> None:
-    if not context.config.package_directories:
+def install_package_directories(context: Context, directories: Sequence[Path]) -> None:
+    directories = [d for d in directories if any(d.iterdir())]
+
+    if not directories:
         return
 
     with complete_step("Copying in extra packages…"):
-        for d in context.config.package_directories:
+        for d in directories:
             for p in itertools.chain(*(d.glob(glob) for glob in PACKAGE_GLOBS)):
                 shutil.copy(p, context.repository, follow_symlinks=True)
-
-    if context.want_local_repo():
-        with complete_step("Building local package repository"):
-            context.config.distribution.createrepo(context)
 
 
 def install_extra_trees(context: Context) -> None:
@@ -1786,7 +1780,9 @@ def finalize_default_initrd(
         "--acl", str(config.acl),
         *(f"--package={package}" for package in config.initrd_packages),
         *(f"--volatile-package={package}" for package in config.initrd_volatile_packages),
-        *(["--package-directory", str(package_dir)] if package_dir else []),
+        *(f"--package-directory={d}" for d in config.package_directories),
+        *(f"--volatile-package-directory={d}" for d in config.volatile_package_directories),
+        *([f"--volatile-package-directory={package_dir}"] if package_dir else []),
         "--output", "initrd",
         *(["--image-id", config.image_id] if config.image_id else []),
         *(["--image-version", config.image_version] if config.image_version else []),
@@ -1834,7 +1830,7 @@ def build_default_initrd(context: Context) -> Path:
         context.config,
         resources=context.resources,
         output_dir=context.workspace,
-        package_dir=context.repository,
+        package_dir=context.packages,
     )
 
     assert config.output_dir
@@ -3818,6 +3814,16 @@ def copy_repository_metadata(context: Context) -> None:
                     sandbox=sandbox,
                 )
 
+@contextlib.contextmanager
+def createrepo(context: Context) -> Iterator[None]:
+    st = context.repository.stat()
+    try:
+        yield
+    finally:
+        if context.repository.stat().st_mtime_ns != st.st_mtime_ns:
+            with complete_step("Rebuilding local package repository"):
+                context.config.distribution.createrepo(context)
+
 
 def build_image(context: Context) -> None:
     manifest = Manifest(context) if context.config.manifest_format else None
@@ -3831,7 +3837,8 @@ def build_image(context: Context) -> None:
         copy_repository_metadata(context)
 
         context.config.distribution.setup(context)
-        install_package_directories(context)
+        with createrepo(context):
+            install_package_directories(context, context.config.package_directories)
 
         if not cached:
             install_skeleton_trees(context)
@@ -3852,6 +3859,10 @@ def build_image(context: Context) -> None:
             finalize_staging(context)
             rmtree(context.root)
             return
+
+        with createrepo(context):
+            install_package_directories(context, context.config.volatile_package_directories)
+            install_package_directories(context, [context.packages])
 
         install_volatile_packages(context)
         install_build_dest(context)

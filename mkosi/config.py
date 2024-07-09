@@ -1415,6 +1415,7 @@ class Config:
     build_packages: list[str]
     volatile_packages: list[str]
     package_directories: list[Path]
+    volatile_package_directories: list[Path]
     with_recommends: bool
     with_docs: bool
 
@@ -2188,6 +2189,15 @@ SETTINGS = (
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         paths=("mkosi.packages",),
         help="Specify a directory containing extra packages",
+        universal=True,
+    ),
+    ConfigSetting(
+        dest="volatile_package_directories",
+        long="--volatile-package-directory",
+        metavar="PATH",
+        section="Content",
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        help="Specify a directory containing extra volatile packages",
         universal=True,
     ),
     ConfigSetting(
@@ -4048,6 +4058,8 @@ def summary(config: Config) -> str:
                            Packages: {line_join_list(config.packages)}
                      Build Packages: {line_join_list(config.build_packages)}
                   Volatile Packages: {line_join_list(config.volatile_packages)}
+                Package Directories: {line_join_list(config.package_directories)}
+       Volatile Package Directories: {line_join_list(config.volatile_package_directories)}
                  With Documentation: {yes_no(config.with_docs)}
 
                          Base Trees: {line_join_list(config.base_trees)}

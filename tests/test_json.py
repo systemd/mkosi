@@ -342,6 +342,9 @@ def test_config() -> None:
                 "Type": "file"
             },
             "VirtualMachineMonitor": "qemu",
+            "VolatilePackageDirectories": [
+                "def"
+            ],
             "VolatilePackages": [
                 "abc"
             ],
@@ -500,6 +503,7 @@ def test_config() -> None:
         verity_certificate=Path("/path/to/cert"),
         verity_key=None,
         verity_key_source=KeySource(type=KeySource.Type.file),
+        volatile_package_directories=[Path("def")],
         volatile_packages=["abc"],
         with_docs=True,
         with_network=False,
