@@ -1483,8 +1483,8 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     |                         | Fedora | CentOS | Debian | Ubuntu | Arch | openSUSE |
     |-------------------------|:------:|:------:|:------:|:------:|:----:|:--------:|
     | `acl`                   | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `apt`                   | ✓      |        | ✓      | ✓      | ✓    |          |
-    | `archlinux-keyring`     | ✓      |        | ✓      | ✓      | ✓    |          |
+    | `apt`                   | ✓      | ✓      | ✓      | ✓      | ✓    |          |
+    | `archlinux-keyring`     | ✓      | ✓      | ✓      | ✓      | ✓    |          |
     | `attr`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
     | `bash`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
     | `btrfs-progs`           | ✓      |        | ✓      | ✓      | ✓    | ✓        |
@@ -1493,9 +1493,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     | `coreutils`             | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
     | `cpio`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
     | `curl`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `debian-keyring`        | ✓      |        | ✓      | ✓      | ✓    |          |
+    | `debian-keyring`        | ✓      | ✓      | ✓      | ✓      | ✓    |          |
     | `diffutils`             | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `distribution-gpg-keys` | ✓      |        |        |        | ✓    | ✓        |
+    | `distribution-gpg-keys` | ✓      | ✓      |        |        | ✓    | ✓        |
     | `dnf`                   | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
     | `dnf-plugins-core`      | ✓      | ✓      |        |        |      | ✓        |
     | `dnf5`                  | ✓      |        |        |        |      |          |
@@ -1516,19 +1516,19 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     | `openssh`               | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
     | `openssl`               | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
     | `sed`                   | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `pacman`                | ✓      |        | ✓      | ✓      | ✓    |          |
+    | `pacman`                | ✓      | ✓      | ✓      | ✓      | ✓    |          |
     | `pesign`                | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
     | `policycoreutils`       | ✓      | ✓      | ✓      | ✓      |      | ✓        |
     | `qemu`                  | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `sbsigntools`           | ✓      |        | ✓      | ✓      | ✓    | ✓        |
+    | `sbsigntools`           | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
     | `socat`                 | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
     | `squashfs-tools`        | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
     | `strace`                | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
     | `swtpm`                 | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
     | `systemd`               | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `ukify`                 | ✓      |        | ✓      | ✓      | ✓    | ✓        |
+    | `ukify`                 | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
     | `tar`                   | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
-    | `ubuntu-keyring`        | ✓      |        | ✓      | ✓      | ✓    |          |
+    | `ubuntu-keyring`        | ✓      | ✓      | ✓      | ✓      | ✓    |          |
     | `util-linux`            | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
     | `virtiofsd`             | ✓      | ✓      | ✓      | ✓      | ✓    | ✓        |
     | `virt-firmware`         | ✓      | ✓      |        |        | ✓    |          |
@@ -1682,6 +1682,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   Matches against the configured architecture. If this condition is used
     and no architecture has been explicitly configured yet, the host
     architecture is used.
+
+`Repositories=`
+:   Matches against repositories enabled with the `Repositories=` setting.
+    Takes a single repository name.
 
 `PathExists=`
 :   This condition is satisfied if the given path exists. Relative paths are interpreted relative to the parent

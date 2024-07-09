@@ -557,6 +557,10 @@ def config_match_build_sources(match: str, value: list[ConfigTree]) -> bool:
     return Path(match.lstrip("/")) in [tree.target for tree in value if tree.target]
 
 
+def config_match_repositories(match: str, value: list[str]) -> bool:
+    return match in value
+
+
 def config_parse_string(value: Optional[str], old: Optional[str]) -> Optional[str]:
     return value or None
 
@@ -1927,6 +1931,7 @@ SETTINGS = (
         metavar="REPOS",
         section="Distribution",
         parse=config_make_list_parser(delimiter=","),
+        match=config_match_repositories,
         help="Repositories to use",
         universal=True,
     ),

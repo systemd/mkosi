@@ -4695,7 +4695,10 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         return bump_image_version()
 
     if args.verb == Verb.dependencies:
-        _, [deps] = parse_config(["--directory", "", "--include=mkosi-tools", "build"], resources=resources)
+        _, [deps] = parse_config(
+            ["--directory", "", "--repositories", "", "--include=mkosi-tools", "build"],
+            resources=resources,
+        )
 
         for p in deps.packages:
             print(p)
