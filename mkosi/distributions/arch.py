@@ -37,10 +37,6 @@ class Installer(DistributionInstaller):
         return Pacman
 
     @classmethod
-    def createrepo(cls, context: Context) -> None:
-        Pacman.createrepo(context)
-
-    @classmethod
     def setup(cls, context: Context) -> None:
         Pacman.setup(context, cls.repositories(context))
 

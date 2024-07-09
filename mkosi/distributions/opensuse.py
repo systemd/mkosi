@@ -52,13 +52,6 @@ class Installer(DistributionInstaller):
             return Dnf
 
     @classmethod
-    def createrepo(cls, context: Context) -> None:
-        if context.config.find_binary("zypper"):
-            Zypper.createrepo(context)
-        else:
-            Dnf.createrepo(context)
-
-    @classmethod
     def setup(cls, context: Context) -> None:
         zypper = context.config.find_binary("zypper")
         if zypper:

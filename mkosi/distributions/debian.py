@@ -104,10 +104,6 @@ class Installer(DistributionInstaller):
         Apt.setup(context, cls.repositories(context))
 
     @classmethod
-    def createrepo(cls, context: Context) -> None:
-        Apt.createrepo(context)
-
-    @classmethod
     def install(cls, context: Context) -> None:
         # Instead of using debootstrap, we replicate its core functionality here. Because dpkg does not have
         # an option to delay running pre-install maintainer scripts when it installs a package, it's

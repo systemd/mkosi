@@ -87,6 +87,10 @@ class PackageManager:
     def sync(cls, context: Context) -> None:
         pass
 
+    @classmethod
+    def createrepo(cls, context: Context) -> None:
+        pass
+
 
 def clean_package_manager_metadata(context: Context) -> None:
     """
