@@ -44,7 +44,7 @@ class Context:
 
         self.staging.mkdir()
         self.pkgmngr.mkdir()
-        self.packages.mkdir()
+        self.repository.mkdir()
         self.artifacts.mkdir()
         self.install_dir.mkdir()
 
@@ -61,8 +61,8 @@ class Context:
         return self.workspace / "pkgmngr"
 
     @property
-    def packages(self) -> Path:
-        return self.workspace / "packages"
+    def repository(self) -> Path:
+        return self.workspace / "repository"
 
     @property
     def artifacts(self) -> Path:
@@ -117,4 +117,4 @@ class Context:
         )
 
     def want_local_repo(self) -> bool:
-        return any(self.packages.iterdir())
+        return any(self.repository.iterdir())

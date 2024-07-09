@@ -591,6 +591,7 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
                             Mount(json, "/work/config.json", ro=True),
                             Mount(context.root, "/buildroot"),
                             Mount(context.artifacts, "/work/artifacts"),
+                            Mount(context.repository, "/work/packages"),
                             *context.config.distribution.package_manager(context.config).mounts(context),
                         ],
                         options=["--dir", "/work/src", "--chdir", "/work/src"],
@@ -673,6 +674,7 @@ def run_build_scripts(context: Context) -> None:
                             Mount(context.install_dir, "/work/dest"),
                             Mount(context.staging, "/work/out"),
                             Mount(context.artifacts, "/work/artifacts"),
+                            Mount(context.repository, "/work/packages"),
                             *(
                                 [Mount(context.config.build_dir, "/work/build")]
                                 if context.config.build_dir
@@ -750,6 +752,7 @@ def run_postinst_scripts(context: Context) -> None:
                             Mount(context.root, "/buildroot"),
                             Mount(context.staging, "/work/out"),
                             Mount(context.artifacts, "/work/artifacts"),
+                            Mount(context.repository, "/work/packages"),
                             *context.config.distribution.package_manager(context.config).mounts(context),
                         ],
                         options=["--dir", "/work/src", "--chdir", "/work/src"],
@@ -816,6 +819,7 @@ def run_finalize_scripts(context: Context) -> None:
                             Mount(context.root, "/buildroot"),
                             Mount(context.staging, "/work/out"),
                             Mount(context.artifacts, "/work/artifacts"),
+                            Mount(context.repository, "/work/packages"),
                             *context.config.distribution.package_manager(context.config).mounts(context),
                         ],
                         options=["--dir", "/work/src", "--chdir", "/work/src"],
@@ -1655,7 +1659,7 @@ def install_package_directories(context: Context) -> None:
     with complete_step("Copying in extra packages…"):
         for d in context.config.package_directories:
             for p in itertools.chain(*(d.glob(glob) for glob in PACKAGE_GLOBS)):
-                shutil.copy(p, context.packages, follow_symlinks=True)
+                shutil.copy(p, context.repository, follow_symlinks=True)
 
     if context.want_local_repo():
         with complete_step("Building local package repository"):
@@ -1830,7 +1834,7 @@ def build_default_initrd(context: Context) -> Path:
         context.config,
         resources=context.resources,
         output_dir=context.workspace,
-        package_dir=context.packages,
+        package_dir=context.repository,
     )
 
     assert config.output_dir
