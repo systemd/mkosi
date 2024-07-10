@@ -1754,6 +1754,8 @@ def finalize_default_initrd(
     else:
         rootpwopt = None
 
+    relabel = ConfigFeature.auto if config.selinux_relabel == ConfigFeature.enabled else config.selinux_relabel
+
     # Default values are assigned via the parser so we go via the argument parser to construct
     # the config for the initrd.
     cmdline = [
@@ -1805,7 +1807,7 @@ def finalize_default_initrd(
         *(["--proxy-peer-certificate", str(p)] if (p := config.proxy_peer_certificate) else []),
         *(["--proxy-client-certificate", str(p)] if (p := config.proxy_client_certificate) else []),
         *(["--proxy-client-key", str(p)] if (p := config.proxy_client_key) else []),
-        "--selinux-relabel", str(config.selinux_relabel),
+        "--selinux-relabel", str(relabel),
         *(["-f"] * args.force),
     ]
 
