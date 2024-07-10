@@ -309,12 +309,13 @@ def resource_path(mod: ModuleType) -> Iterator[Path]:
 
 def hash_file(path: Path) -> str:
     # TODO Replace with hashlib.file_digest after dropping support for Python 3.10.
-    bs = 16 * 1024**2
     h = hashlib.sha256()
+    b  = bytearray(16 * 1024**2)
+    mv = memoryview(b)
 
-    with path.open("rb") as sf:
-        while (buf := sf.read(bs)):
-            h.update(buf)
+    with path.open("rb", buffering=0) as f:
+        while n := f.readinto(mv):
+            h.update(mv[:n])
 
     return h.hexdigest()
 

@@ -154,15 +154,15 @@ class Zypper(PackageManager):
 
     @classmethod
     def createrepo(cls, context: Context) -> None:
-        run(["createrepo_c", context.packages],
-            sandbox=context.sandbox(binary="createrepo_c", mounts=[Mount(context.packages, context.packages)]))
+        run(["createrepo_c", context.repository],
+            sandbox=context.sandbox(binary="createrepo_c", mounts=[Mount(context.repository, context.repository)]))
 
         (context.pkgmngr / "etc/zypp/repos.d/mkosi-local.repo").write_text(
             textwrap.dedent(
                 """\
                 [mkosi]
                 name=mkosi
-                baseurl=file:///work/packages
+                baseurl=file:///repository
                 gpgcheck=0
                 autorefresh=0
                 keeppackages=0

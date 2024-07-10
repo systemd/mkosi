@@ -54,7 +54,7 @@ class PackageManager:
     def mounts(cls, context: Context) -> list[Mount]:
         mounts = [
             *finalize_crypto_mounts(context.config),
-            Mount(context.packages, "/work/packages"),
+            Mount(context.repository, "/repository"),
         ]
 
         if context.config.local_mirror and (mirror := startswith(context.config.local_mirror, "file://")):
@@ -85,6 +85,10 @@ class PackageManager:
 
     @classmethod
     def sync(cls, context: Context) -> None:
+        pass
+
+    @classmethod
+    def createrepo(cls, context: Context) -> None:
         pass
 
 

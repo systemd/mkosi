@@ -237,7 +237,7 @@ class Apt(PackageManager):
 
     @classmethod
     def createrepo(cls, context: Context) -> None:
-        if not (conf := context.packages / "conf/distributions").exists():
+        if not (conf := context.repository / "conf/distributions").exists():
             conf.parent.mkdir(exist_ok=True)
             conf.write_text(
                 textwrap.dedent(
@@ -258,13 +258,13 @@ class Apt(PackageManager):
                 "--ignore=extension",
                 "includedeb",
                 "mkosi",
-                *(d.name for d in context.packages.glob("*.deb")),
-                *(d.name for d in context.packages.glob("*.ddeb")),
+                *(d.name for d in context.repository.glob("*.deb")),
+                *(d.name for d in context.repository.glob("*.ddeb")),
             ],
             sandbox=context.sandbox(
                 binary="reprepro",
-                mounts=[Mount(context.packages, context.packages)],
-                options=["--chdir", context.packages],
+                mounts=[Mount(context.repository, context.repository)],
+                options=["--chdir", context.repository],
             ),
         )
 
@@ -274,7 +274,7 @@ class Apt(PackageManager):
                 """\
                 Enabled: yes
                 Types: deb
-                URIs: file:///work/packages
+                URIs: file:///repository
                 Suites: mkosi
                 Components: main
                 Trusted: yes

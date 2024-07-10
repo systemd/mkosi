@@ -53,7 +53,7 @@ class Pacman(PackageManager):
             *super().mounts(context),
             # pacman writes downloaded packages to the first writable cache directory. We don't want it to write to our
             # local repository directory so we expose it as a read-only directory to pacman.
-            Mount(context.packages, "/var/cache/pacman/mkosi", ro=True),
+            Mount(context.repository, "/var/cache/pacman/mkosi", ro=True),
         ]
 
         if (context.root / "var/lib/pacman/local").exists():
@@ -198,10 +198,10 @@ class Pacman(PackageManager):
             [
                 "repo-add",
                 "--quiet",
-                context.packages / "mkosi.db.tar",
-                *sorted(context.packages.glob("*.pkg.tar*"), key=lambda p: GenericVersion(Path(p).name))
+                context.repository / "mkosi.db.tar",
+                *sorted(context.repository.glob("*.pkg.tar*"), key=lambda p: GenericVersion(Path(p).name))
             ],
-            sandbox=context.sandbox(binary="repo-add", mounts=[Mount(context.packages, context.packages)]),
+            sandbox=context.sandbox(binary="repo-add", mounts=[Mount(context.repository, context.repository)]),
         )
 
         (context.pkgmngr / "etc/mkosi-local.conf").write_text(
@@ -217,6 +217,6 @@ class Pacman(PackageManager):
 
         # pacman can't sync a single repository, so we go behind its back and do it ourselves.
         shutil.move(
-            context.packages / "mkosi.db.tar",
+            context.repository / "mkosi.db.tar",
             context.package_cache_dir / "lib/pacman/sync/mkosi.db"
         )

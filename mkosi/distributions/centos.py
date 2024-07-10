@@ -50,10 +50,6 @@ class Installer(DistributionInstaller):
         return "grub2"
 
     @classmethod
-    def createrepo(cls, context: Context) -> None:
-        Dnf.createrepo(context)
-
-    @classmethod
     def dbpath(cls, context: Context) -> str:
         # The Hyperscale SIG uses /usr/lib/sysimage/rpm in its rebuild of rpm for C9S that's shipped in the
         # hyperscale-packages-experimental repository.

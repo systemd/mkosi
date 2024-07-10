@@ -778,9 +778,15 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     running scripts. If the `mkosi.packages/` directory is found in the local
     directory it is also used for this purpose.
 
-    Note that this local repository is also made available when running
-    scripts. Build scripts can add more packages to the local repository
-    by placing the built packages in `$PACKAGEDIR`.
+    Build scripts can add more packages to the local repository by
+    placing the built packages in `$PACKAGEDIR`.
+
+`VolatilePackageDirectories=`, `--volatile-package-directory=`
+
+:   Like `PackageDirectories=`, but the packages in these directories
+    are only made available in the local repository just before volatile
+    packages are installed. Specifically, if `Incremental=` is enabled,
+    the packages from these directories will not be cached.
 
 `WithRecommends=`, `--with-recommends=`
 :   Configures whether to install recommended or weak dependencies,
@@ -2485,6 +2491,7 @@ overridden):
 - `RepartOffline=`
 - `UseSubvolumes=`
 - `PackageDirectories=`
+- `VolatilePackageDirectories=`
 - `SourceDateEpoch=`
 - `VerityKey=`
 - `VerityKeySource=`

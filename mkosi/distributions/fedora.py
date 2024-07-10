@@ -75,10 +75,6 @@ class Installer(DistributionInstaller):
         return Dnf
 
     @classmethod
-    def createrepo(cls, context: Context) -> None:
-        Dnf.createrepo(context)
-
-    @classmethod
     def setup(cls, context: Context) -> None:
         Dnf.setup(context, cls.repositories(context), filelists=False)
         setup_rpm(context)

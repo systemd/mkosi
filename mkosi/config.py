@@ -1357,6 +1357,15 @@ class Args:
 CACHE_UID = os.getuid()
 CACHE_GID = os.getgid()
 
+PACKAGE_GLOBS = (
+    "*.rpm",
+    "*.pkg.tar*",
+    "*.deb*",
+    "*.ddeb*",
+    "*.udeb*",
+)
+
+
 @dataclasses.dataclass(frozen=True)
 class Config:
     """Type-hinted storage for command line arguments.
@@ -1406,6 +1415,7 @@ class Config:
     build_packages: list[str]
     volatile_packages: list[str]
     package_directories: list[Path]
+    volatile_package_directories: list[Path]
     with_recommends: bool
     with_docs: bool
 
@@ -1647,6 +1657,11 @@ class Config:
             "package_manager": self.distribution.package_manager(self).executable(self),
             "packages": sorted(self.packages),
             "build_packages": sorted(self.build_packages),
+            "package_directories": [
+                (p.name, p.stat().st_mtime_ns)
+                for d in self.package_directories
+                for p in sorted(flatten(d.glob(glob) for glob in PACKAGE_GLOBS))
+            ],
             "repositories": sorted(self.repositories),
             "overlay": self.overlay,
             "prepare_scripts": sorted(
@@ -2180,6 +2195,15 @@ SETTINGS = (
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         paths=("mkosi.packages",),
         help="Specify a directory containing extra packages",
+        universal=True,
+    ),
+    ConfigSetting(
+        dest="volatile_package_directories",
+        long="--volatile-package-directory",
+        metavar="PATH",
+        section="Content",
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        help="Specify a directory containing extra volatile packages",
         universal=True,
     ),
     ConfigSetting(
@@ -4040,6 +4064,8 @@ def summary(config: Config) -> str:
                            Packages: {line_join_list(config.packages)}
                      Build Packages: {line_join_list(config.build_packages)}
                   Volatile Packages: {line_join_list(config.volatile_packages)}
+                Package Directories: {line_join_list(config.package_directories)}
+       Volatile Package Directories: {line_join_list(config.volatile_package_directories)}
                  With Documentation: {yes_no(config.with_docs)}
 
                          Base Trees: {line_join_list(config.base_trees)}

@@ -104,10 +104,6 @@ class Installer(DistributionInstaller):
         Apt.setup(context, cls.repositories(context))
 
     @classmethod
-    def createrepo(cls, context: Context) -> None:
-        Apt.createrepo(context)
-
-    @classmethod
     def install(cls, context: Context) -> None:
         # Instead of using debootstrap, we replicate its core functionality here. Because dpkg does not have
         # an option to delay running pre-install maintainer scripts when it installs a package, it's
@@ -165,12 +161,12 @@ class Installer(DistributionInstaller):
 
         for deb in essential:
             # If a deb path is in the form of "/var/cache/apt/<deb>", we transform it to the corresponding path in
-            # mkosi's package cache directory. If it's relative to /work/packages, we transform it to the corresponding
+            # mkosi's package cache directory. If it's relative to /repository, we transform it to the corresponding
             # path in mkosi's local package repository. Otherwise, we use the path as is.
             if Path(deb).is_relative_to("/var/cache"):
                 path = context.config.package_cache_dir_or_default() / Path(deb).relative_to("/var")
-            elif Path(deb).is_relative_to("/work/packages"):
-                path = context.packages / Path(deb).relative_to("/work/packages")
+            elif Path(deb).is_relative_to("/repository"):
+                path = context.repository / Path(deb).relative_to("/repository")
             else:
                 path = Path(deb)
 
