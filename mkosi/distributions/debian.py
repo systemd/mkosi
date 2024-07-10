@@ -177,7 +177,17 @@ class Installer(DistributionInstaller):
                     stdout=o,
                     sandbox=context.sandbox(binary="dpkg-deb"),
                 )
-                extract_tar(Path(o.name), context.root, log=False, sandbox=context.sandbox)
+                extract_tar(
+                    Path(o.name),
+                    context.root,
+                    log=False,
+                    options=(
+                        [f"--exclude=./{glob}" for glob in Apt.documentation_exclude_globs]
+                        if not context.config.with_docs
+                        else []
+                    ),
+                    sandbox=context.sandbox
+                )
 
         # Finally, run apt to properly install packages in the chroot without having to worry that maintainer
         # scripts won't find basic tools that they depend on.
