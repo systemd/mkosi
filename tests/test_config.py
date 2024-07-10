@@ -977,6 +977,29 @@ def test_package_manager_tree(tmp_path: Path, skel: Optional[Path], pkgmngr: Opt
         assert conf.package_manager_trees == pkgmngr_expected
 
 
+def test_paths_with_default_factory(tmp_path: Path) -> None:
+    """
+    If both paths= and default_factory= are defined, default_factory= should not
+    be used when at least one of the files/directories from paths= has been found.
+    """
+
+    with chdir(tmp_path):
+
+        Path("mkosi.skeleton.tar").touch()
+        _, [config] = parse_config()
+
+        assert config.package_manager_trees == [
+            ConfigTree(Path.cwd() / "mkosi.skeleton.tar", None),
+        ]
+
+        Path("mkosi.pkgmngr.tar").touch()
+        _, [config] = parse_config()
+
+        assert config.package_manager_trees == [
+            ConfigTree(Path.cwd() / "mkosi.pkgmngr.tar", None),
+        ]
+
+
 @pytest.mark.parametrize(
     "sections,args,warning_count",
     [
