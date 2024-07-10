@@ -40,6 +40,14 @@ class AptRepository:
 
 
 class Apt(PackageManager):
+    documentation_exclude_globs = [
+        "usr/share/doc/*",
+        "usr/share/man/*",
+        "usr/share/groff/*",
+        "usr/share/gtk-doc/*",
+        "usr/share/info/*",
+    ]
+
     @classmethod
     def executable(cls, config: Config) -> str:
         return "apt"
@@ -183,14 +191,8 @@ class Apt(PackageManager):
             ]
 
         if not context.config.with_docs:
-            cmdline += [
-                "-o", "DPkg::Options::=--path-exclude=/usr/share/doc/*",
-                "-o", "DPkg::Options::=--path-include=/usr/share/doc/*/copyright",
-                "-o", "DPkg::Options::=--path-exclude=/usr/share/man/*",
-                "-o", "DPkg::Options::=--path-exclude=/usr/share/groff/*",
-                "-o", "DPkg::Options::=--path-exclude=/usr/share/gtk-doc/*",
-                "-o", "DPkg::Options::=--path-exclude=/usr/share/info/*",
-            ]
+            cmdline += [f"--option=DPkg::Options::=--path-exclude=/{glob}" for glob in cls.documentation_exclude_globs]
+            cmdline += ["--option=DPkg::Options::=--path-include=/usr/share/doc/*/copyright"]
 
         if context.config.proxy_url:
             cmdline += [

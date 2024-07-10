@@ -1,13 +1,14 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import os
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Optional
 
 from mkosi.log import log_step
 from mkosi.run import run
 from mkosi.sandbox import Mount, SandboxProtocol, finalize_passwd_mounts, nosandbox
+from mkosi.types import PathString
 from mkosi.util import umask
 
 
@@ -59,6 +60,7 @@ def extract_tar(
     dst: Path,
     *,
     log: bool = True,
+    options: Sequence[PathString] = (),
     sandbox: SandboxProtocol = nosandbox,
 ) -> None:
     if log:
@@ -83,6 +85,7 @@ def extract_tar(
             "--xattrs",
             "--force-local",
             *tar_exclude_apivfs_tmp(),
+            *options,
         ],
         sandbox=sandbox(
             binary="tar",
