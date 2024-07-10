@@ -1955,6 +1955,7 @@ SETTINGS = (
         default_factory=lambda ns: ns.skeleton_trees,
         default_factory_depends=("skeleton_trees",),
         help="Use a package manager tree to configure the package manager",
+        paths=("mkosi.pkgmngr", "mkosi.pkgmngr.tar",),
         universal=True,
     ),
 

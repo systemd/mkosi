@@ -477,10 +477,16 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     the build.
 
 `PackageManagerTrees=`, `--package-manager-tree=`
-:   This option mirrors the above `SkeletonTrees=` option and defaults to the
-    same value if not configured otherwise, but installs the files to a
-    subdirectory of the workspace directory instead of the OS tree. This
-    subdirectory of the workspace is used to configure the package manager.
+:   Takes a comma separated list of colon separated path pairs. The first
+    path of each pair refers to a directory to copy into the OS tree
+    before invoking the package manager. This option is similar to the
+    `SkeletonTrees=` option, but installs the files to a subdirectory of
+    the workspace directory instead of the OS tree. This subdirectory of
+    the workspace is used to configure the package manager. If the
+    `mkosi.pkgmngr/` directory is found in the local directory it is used
+    for this purpose with the root directory as target (also see the **Files**
+    section below). If not configured in any way this value will default to
+    the same value of `SkeletonTrees=`.
 
     `mkosi` will look for the package manager configuration and related
     files in the configured package manager trees. Unless specified
@@ -2292,6 +2298,15 @@ local directory:
   what the distribution includes in its packages. They are similar to
   `mkosi.skeleton/` and `mkosi.skeleton.tar`, but the files are copied
   into the directory tree of the image *after* the OS was installed.
+
+  When using the directory, file ownership is not preserved: all files
+  copied will be owned by root. To preserve ownership, use a tar
+  archive.
+
+* The **`mkosi.pkgmngr/`** directory or **`mkosi.pkgmngr.tar`** archive
+  may be used to configure the package manager without the files being
+  inserted into the image. If the files should be included in the image
+  `mkosi.skeleton/` and `mkosi.skeleton.tar` should be used instead.
 
   When using the directory, file ownership is not preserved: all files
   copied will be owned by root. To preserve ownership, use a tar
