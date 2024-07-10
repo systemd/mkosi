@@ -2808,9 +2808,15 @@ def check_inputs(config: Config) -> None:
     if config.tools_tree and not config.tools_tree.exists():
         die(f"Tools tree {config.tools_tree} not found")
 
-    for name, trees in (("skeleton", config.skeleton_trees),
-                        ("package manager", config.package_manager_trees),
-                        ("extra", config.extra_trees)):
+    trees = [
+        ("skeleton", config.skeleton_trees),
+        ("package manager", config.package_manager_trees),
+    ]
+
+    if config.output_format != OutputFormat.none:
+        trees += [("extra", config.extra_trees)]
+
+    for name, trees in trees:
         for tree in trees:
             if not tree.source.exists():
                 die(f"{name.capitalize()} tree {tree.source} not found")
@@ -2818,7 +2824,7 @@ def check_inputs(config: Config) -> None:
             if tree.source.is_file() and tree.source.suffix == ".raw" and not tree.target and os.getuid() != 0:
                 die(f"Must run as root to use disk images in {name} trees")
 
-    if config.bootable != ConfigFeature.disabled:
+    if config.output_format != OutputFormat.none and config.bootable != ConfigFeature.disabled:
         for p in config.initrds:
             if not p.exists():
                 die(f"Initrd {p} not found")
