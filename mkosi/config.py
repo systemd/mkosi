@@ -3666,8 +3666,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
                     setattr(ParseContext.config, s.dest, s.parse(v, getattr(ParseContext.config, s.dest, None)))
 
         if profiles:
-            finalize_value(SETTINGS_LOOKUP_BY_DEST["profile"])
-            profile = getattr(ParseContext.config, "profile")
+            profile = finalize_value(SETTINGS_LOOKUP_BY_DEST["profile"])
             ParseContext.immutable.add("Profile")
 
             if profile:
