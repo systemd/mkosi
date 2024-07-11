@@ -2296,7 +2296,8 @@ def finalize_cmdline(context: Context, partitions: Sequence[Partition], roothash
 
     if not roothash:
         for name in ("root", "mount.usr"):
-            if not (root := next((p.uuid for p in partitions if p.type.startswith(name)), None)):
+            type_prefix = name.removeprefix("mount.")
+            if not (root := next((p.uuid for p in partitions if p.type.startswith(type_prefix)), None)):
                 continue
 
             cmdline = [f"{name}=PARTUUID={root}" if c == f"{name}=PARTUUID" else c for c in cmdline]
