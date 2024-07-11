@@ -2805,7 +2805,7 @@ def print_output_size(path: Path) -> None:
 
 
 def cache_tree_paths(config: Config) -> tuple[Path, Path, Path]:
-    fragments = [config.distribution, config.release, config.architecture]
+    fragments = [config.cache_key]
 
     if config.image:
         fragments += [config.image]
