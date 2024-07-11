@@ -108,6 +108,12 @@ class Dnf(PackageManager):
                     f.write("\n")
 
     @classmethod
+    def finalize_environment(cls, context: Context) -> dict[str, str]:
+        return super().finalize_environment(context) | {
+            "RPM_FORCE_DEBIAN": "1",
+        }
+
+    @classmethod
     def cmd(
             cls,
             context: Context,

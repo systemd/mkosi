@@ -100,7 +100,10 @@ class Zypper(PackageManager):
 
     @classmethod
     def finalize_environment(cls, context: Context) -> dict[str, str]:
-        return super().finalize_environment(context) | {"ZYPP_CONF": "/etc/zypp/zypp.conf"}
+        return super().finalize_environment(context) | {
+            "ZYPP_CONF": "/etc/zypp/zypp.conf",
+            "RPM_FORCE_DEBIAN": "1",
+        }
 
     @classmethod
     def cmd(cls, context: Context) -> list[PathString]:
