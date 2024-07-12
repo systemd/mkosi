@@ -1822,6 +1822,12 @@ config file is read:
     the configure scripts for this image. See the **Scripts** section for
     more information.
 
+`PassEnvironment=`, `--pass-environment=`
+:   Takes a list of environment variable names separated by spaces. When
+    building multiple images, pass the listed environment variables to
+    each individual subimage as if they were "universal" settings. See
+    the **Building multiple images** section for more information.
+
 ## Specifiers
 
 The current value of various settings can be accessed when parsing

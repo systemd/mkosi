@@ -206,6 +206,9 @@ def test_config() -> None:
                 }
             ],
             "Packages": [],
+            "PassEnvironment": [
+                "abc"
+            ],
             "Passphrase": null,
             "PostInstallationScripts": [
                 "/bar/qux"
@@ -428,6 +431,7 @@ def test_config() -> None:
         package_directories=[],
         package_manager_trees=[ConfigTree(Path("/foo/bar"), None)],
         packages=[],
+        pass_environment=["abc"],
         passphrase=None,
         postinst_scripts=[Path("/bar/qux")],
         postoutput_scripts=[Path("/foo/src")],

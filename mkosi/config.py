@@ -1380,6 +1380,7 @@ class Config:
     initrd_include: list[Path]
     dependencies: list[str]
     minimum_version: Optional[GenericVersion]
+    pass_environment: list[str]
 
     distribution: Distribution
     release: str
@@ -1882,6 +1883,13 @@ SETTINGS = (
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         paths=("mkosi.configure",),
         help="Configure script to run before doing anything",
+    ),
+    ConfigSetting(
+        dest="pass_environment",
+        metavar="NAME",
+        section="Config",
+        parse=config_make_list_parser(delimiter=" "),
+        help="Environment variables to pass to subimages",
     ),
     ConfigSetting(
         dest="distribution",
@@ -3763,6 +3771,16 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
             elif hasattr(ParseContext.cli, s.dest):
                 delattr(ParseContext.cli, s.dest)
 
+        setattr(
+            ParseContext.cli,
+            "environment",
+            {
+                name: getattr(ParseContext.config, "environment")[name]
+                for name in getattr(ParseContext.config, "pass_environment", {})
+                if name in getattr(ParseContext.config, "environment", {})
+            }
+        )
+
         for p in sorted(Path("mkosi.images").iterdir()):
             if not p.is_dir() and not p.suffix == ".conf":
                 continue
@@ -4025,6 +4043,7 @@ def summary(config: Config) -> str:
                        Dependencies: {line_join_list(config.dependencies)}
                     Minimum Version: {none_to_none(config.minimum_version)}
                   Configure Scripts: {line_join_list(config.configure_scripts)}
+                   Pass Environment: {line_join_list(config.pass_environment)}
 
     {bold("DISTRIBUTION")}:
                        Distribution: {bold(config.distribution)}
