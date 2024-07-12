@@ -1757,9 +1757,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   Matches against the configured tools tree distribution.
 
 `Environment=`
-:    Matches against a specific key/value pair configured with
-     `Environment=`. If no value is provided, check if the given key is in
-     the environment regardless of which value it has.
+:   Matches against a specific key/value pair configured with
+    `Environment=`. If no value is provided, check if the given key is in
+    the environment regardless of which value it has.
 
 This table shows which matchers support globs, rich comparisons and the default
 value that is matched against if no value has been configured at the time the
@@ -1809,33 +1809,33 @@ config file is read:
     `contrib-` are reserved for use by mkosi itself.
 
 `InitrdInclude=`, `--initrd-include=`
-:    Same as `Include=`, but the extra configuration files or directories
-     are included when building the default initrd.
+:   Same as `Include=`, but the extra configuration files or directories
+    are included when building the default initrd.
 
 `Images=`, `--image=`
-:    If specified, only build the given image. Can be specified multiple
-     times to build multiple images. All the given images and their
-     dependencies are built. If not specified, all images are built. See
-     the **Building multiple images** section for more information.
+:   If specified, only build the given image. Can be specified multiple
+    times to build multiple images. All the given images and their
+    dependencies are built. If not specified, all images are built. See
+    the **Building multiple images** section for more information.
 
-     Note that this section only takes effect when specified in the global
-     configuration files. It has no effect if specified as an image
-     specific setting.
+    Note that this section only takes effect when specified in the global
+    configuration files. It has no effect if specified as an image
+    specific setting.
 
 `Dependencies=`, `--dependency=`
-:    The images that this image depends on specified as a comma-separated
-     list. All images configured in this option will be built before this
-     image and will be pulled in as dependencies of this image when
-     `Images=` is used.
+:   The images that this image depends on specified as a comma-separated
+    list. All images configured in this option will be built before this
+    image and will be pulled in as dependencies of this image when
+    `Images=` is used.
 
 `MinimumVersion=`, `--minimum-version=`
 :   The minimum mkosi version required to build this configuration. If
     specified multiple times, the highest specified version is used.
 
 `ConfigureScripts=`, `--configure-script=`
-:    Takes a comma-separated list of paths to executables that are used as
-     the configure scripts for this image. See the **Scripts** section for
-     more information.
+:   Takes a comma-separated list of paths to executables that are used as
+    the configure scripts for this image. See the **Scripts** section for
+    more information.
 
 ## Specifiers
 
