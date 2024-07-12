@@ -3961,8 +3961,6 @@ def load_config(config: argparse.Namespace) -> Config:
 
     if config.build_dir:
         config.build_dir /= config.build_dir / f"{config.distribution}~{config.release}~{config.architecture}"
-        if config.image:
-            config.build_dir /= config.image
 
     if config.sign:
         config.checksum = True
