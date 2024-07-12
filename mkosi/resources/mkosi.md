@@ -1812,21 +1812,14 @@ config file is read:
 :   Same as `Include=`, but the extra configuration files or directories
     are included when building the default initrd.
 
-`Images=`, `--image=`
-:   If specified, only build the given image. Can be specified multiple
-    times to build multiple images. All the given images and their
-    dependencies are built. If not specified, all images are built. See
-    the **Building multiple images** section for more information.
-
-    Note that this section only takes effect when specified in the global
-    configuration files. It has no effect if specified as an image
-    specific setting.
-
 `Dependencies=`, `--dependency=`
 :   The images that this image depends on specified as a comma-separated
     list. All images configured in this option will be built before this
-    image and will be pulled in as dependencies of this image when
-    `Images=` is used.
+    image.
+
+    When this setting is specified for the "main" image, it specifies
+    which subimages should be built. See the
+    **Building multiple images** section for more information.
 
 `MinimumVersion=`, `--minimum-version=`
 :   The minimum mkosi version required to build this configuration. If
