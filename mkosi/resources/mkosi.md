@@ -249,14 +249,6 @@ Those settings cannot be configured in the configuration files.
 `--json`
 :   Show the summary output as JSON-SEQ.
 
-`--append`
-:   All settings passed after this argument will be parsed after all
-    configuration files have been parsed.
-
-    Note that any setting passed this way will not have any affect on
-    `[Match]` sections as they will only be parsed after all `[Match]`
-    sections have already been evaluated.
-
 ## Supported output formats
 
 The following output formats are supported:
