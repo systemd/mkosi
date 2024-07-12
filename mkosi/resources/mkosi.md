@@ -2194,7 +2194,7 @@ Consult this table for which script receives which environment variables:
 | `CHROOT_SCRIPT`     |             |        | ✓         | ✓       | ✓          | ✓          |              |         |
 | `SRCDIR`            | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
 | `CHROOT_SRCDIR`     |             |        | ✓         | ✓       | ✓          | ✓          |              |         |
-| `BUILDDIR`          |             |        |           | ✓       |            |            |              |         |
+| `BUILDDIR`          |             |        | ✓         | ✓       | ✓          | ✓          |              |         |
 | `CHROOT_BUILDDIR`   |             |        |           | ✓       |            |            |              |         |
 | `DESTDIR`           |             |        |           | ✓       |            |            |              |         |
 | `CHROOT_DESTDIR`    |             |        |           | ✓       |            |            |              |         |
