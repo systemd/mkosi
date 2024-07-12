@@ -2357,6 +2357,7 @@ SETTINGS = (
         match=config_match_build_sources,
         default_factory=lambda ns: [ConfigTree(ns.directory, None)] if ns.directory else [],
         help="Path for sources to build",
+        universal=True,
     ),
     ConfigSetting(
         dest="build_sources_ephemeral",
@@ -2364,6 +2365,7 @@ SETTINGS = (
         section="Content",
         parse=config_parse_boolean,
         help="Make build sources ephemeral when running scripts",
+        universal=True,
     ),
     ConfigSetting(
         dest="environment",
@@ -2393,6 +2395,7 @@ SETTINGS = (
         parse=config_parse_boolean,
         default=True,
         help="Do not run tests as part of build scripts, if supported",
+        universal=True,
     ),
     ConfigSetting(
         dest="with_network",
@@ -2401,6 +2404,7 @@ SETTINGS = (
         section="Content",
         parse=config_parse_boolean,
         help="Run build and postinst scripts with network access (instead of private network)",
+        universal=True,
     ),
     ConfigSetting(
         dest="bootable",

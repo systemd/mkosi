@@ -2484,6 +2484,10 @@ overridden):
 - `PackageDirectories=`
 - `VolatilePackageDirectories=`
 - `SourceDateEpoch=`
+- `BuildSources=`
+- `BuildSourcesEphemeral=`
+- `WithTests`
+- `WithNetwork=`
 - `VerityKey=`
 - `VerityKeySource=`
 - `VerityCertificate=`
