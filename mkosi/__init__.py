@@ -594,7 +594,7 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
                             Mount(json, "/work/config.json", ro=True),
                             Mount(context.root, "/buildroot"),
                             Mount(context.artifacts, "/work/artifacts"),
-                            Mount(context.packages, "/work/packages"),
+                            Mount(context.package_dir, "/work/packages"),
                             *(
                                 [Mount(context.config.build_dir, "/work/build", ro=True)]
                                 if context.config.build_dir
@@ -682,7 +682,7 @@ def run_build_scripts(context: Context) -> None:
                             Mount(context.install_dir, "/work/dest"),
                             Mount(context.staging, "/work/out"),
                             Mount(context.artifacts, "/work/artifacts"),
-                            Mount(context.packages, "/work/packages"),
+                            Mount(context.package_dir, "/work/packages"),
                             *(
                                 [Mount(context.config.build_dir, "/work/build")]
                                 if context.config.build_dir
@@ -759,7 +759,7 @@ def run_postinst_scripts(context: Context) -> None:
                             Mount(context.root, "/buildroot"),
                             Mount(context.staging, "/work/out"),
                             Mount(context.artifacts, "/work/artifacts"),
-                            Mount(context.packages, "/work/packages"),
+                            Mount(context.package_dir, "/work/packages"),
                             *(
                                 [Mount(context.config.build_dir, "/work/build", ro=True)]
                                 if context.config.build_dir
@@ -834,7 +834,7 @@ def run_finalize_scripts(context: Context) -> None:
                             Mount(context.root, "/buildroot"),
                             Mount(context.staging, "/work/out"),
                             Mount(context.artifacts, "/work/artifacts"),
-                            Mount(context.packages, "/work/packages"),
+                            Mount(context.package_dir, "/work/packages"),
                             *(
                                 [Mount(context.config.build_dir, "/work/build", ro=True)]
                                 if context.config.build_dir
@@ -1770,7 +1770,6 @@ def finalize_default_initrd(
     *,
     resources: Path,
     output_dir: Optional[Path] = None,
-    package_dir: Optional[Path] = None,
 ) -> Config:
     if config.root_password:
         password, hashed = config.root_password
@@ -1808,7 +1807,6 @@ def finalize_default_initrd(
         *(f"--volatile-package={package}" for package in config.initrd_volatile_packages),
         *(f"--package-directory={d}" for d in config.package_directories),
         *(f"--volatile-package-directory={d}" for d in config.volatile_package_directories),
-        *([f"--volatile-package-directory={package_dir}"] if package_dir else []),
         "--output", "initrd",
         *(["--image-id", config.image_id] if config.image_id else []),
         *(["--image-version", config.image_version] if config.image_version else []),
@@ -1856,7 +1854,6 @@ def build_default_initrd(context: Context) -> Path:
         context.config,
         resources=context.resources,
         output_dir=context.workspace,
-        package_dir=context.packages,
     )
 
     assert config.output_dir
@@ -1878,6 +1875,7 @@ def build_default_initrd(context: Context) -> Path:
                 resources=context.resources,
                 # Re-use the repository metadata snapshot from the main image for the initrd.
                 package_cache_dir=context.package_cache_dir,
+                package_dir=context.package_dir,
             )
         )
 
@@ -3895,7 +3893,7 @@ def build_image(context: Context) -> None:
 
         with createrepo(context):
             install_package_directories(context, context.config.volatile_package_directories)
-            install_package_directories(context, [context.packages])
+            install_package_directories(context, [context.package_dir])
 
         install_volatile_packages(context)
         install_build_dest(context)
@@ -4668,7 +4666,7 @@ def run_sync(args: Args, config: Config, *, resources: Path) -> None:
         run_sync_scripts(context)
 
 
-def run_build(args: Args, config: Config, *, resources: Path) -> None:
+def run_build(args: Args, config: Config, *, resources: Path, package_dir: Optional[Path] = None) -> None:
     if (uid := os.getuid()) != 0:
         become_root()
     unshare(CLONE_NEWNS)
@@ -4719,7 +4717,7 @@ def run_build(args: Args, config: Config, *, resources: Path) -> None:
             rchown_package_manager_dirs(config),
             setup_workspace(args, config) as workspace,
         ):
-            build_image(Context(args, config, workspace=workspace, resources=resources))
+            build_image(Context(args, config, workspace=workspace, resources=resources, package_dir=package_dir))
 
 
 def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
@@ -4820,32 +4818,33 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
 
     build = False
 
-    for i, config in enumerate(images):
-        images[i] = config = dataclasses.replace(
-            config,
-            tools_tree=(
-                tools.output_dir_or_cwd() / tools.output
-                if tools and config.tools_tree == Path("default")
-                else config.tools_tree
+    with tempfile.TemporaryDirectory(dir=last.workspace_dir_or_default(), prefix="mkosi-packages-") as package_dir:
+        for i, config in enumerate(images):
+            images[i] = config = dataclasses.replace(
+                config,
+                tools_tree=(
+                    tools.output_dir_or_cwd() / tools.output
+                    if tools and config.tools_tree == Path("default")
+                    else config.tools_tree
+                )
             )
-        )
 
-        images[i] = config = run_configure_scripts(config)
+            images[i] = config = run_configure_scripts(config)
 
-        if args.verb != Verb.build and args.force == 0:
-            continue
+            if args.verb != Verb.build and args.force == 0:
+                continue
 
-        if (
-            config.output_format != OutputFormat.none and
-            (config.output_dir_or_cwd() / config.output_with_compression).exists()
-        ):
-            continue
+            if (
+                config.output_format != OutputFormat.none and
+                (config.output_dir_or_cwd() / config.output_with_compression).exists()
+            ):
+                continue
 
-        check_inputs(config)
-        fork_and_wait(run_sync, args, config, resources=resources)
-        fork_and_wait(run_build, args, config, resources=resources)
+            check_inputs(config)
+            fork_and_wait(run_sync, args, config, resources=resources)
+            fork_and_wait(run_build, args, config, resources=resources, package_dir=Path(package_dir))
 
-        build = True
+            build = True
 
     if build and args.auto_bump:
         bump_image_version()
