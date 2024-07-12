@@ -249,14 +249,6 @@ Those settings cannot be configured in the configuration files.
 `--json`
 :   Show the summary output as JSON-SEQ.
 
-`--append`
-:   All settings passed after this argument will be parsed after all
-    configuration files have been parsed.
-
-    Note that any setting passed this way will not have any affect on
-    `[Match]` sections as they will only be parsed after all `[Match]`
-    sections have already been evaluated.
-
 ## Supported output formats
 
 The following output formats are supported:
@@ -1757,9 +1749,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   Matches against the configured tools tree distribution.
 
 `Environment=`
-:    Matches against a specific key/value pair configured with
-     `Environment=`. If no value is provided, check if the given key is in
-     the environment regardless of which value it has.
+:   Matches against a specific key/value pair configured with
+    `Environment=`. If no value is provided, check if the given key is in
+    the environment regardless of which value it has.
 
 This table shows which matchers support globs, rich comparisons and the default
 value that is matched against if no value has been configured at the time the
@@ -1809,33 +1801,32 @@ config file is read:
     `contrib-` are reserved for use by mkosi itself.
 
 `InitrdInclude=`, `--initrd-include=`
-:    Same as `Include=`, but the extra configuration files or directories
-     are included when building the default initrd.
-
-`Images=`, `--image=`
-:    If specified, only build the given image. Can be specified multiple
-     times to build multiple images. All the given images and their
-     dependencies are built. If not specified, all images are built. See
-     the **Building multiple images** section for more information.
-
-     Note that this section only takes effect when specified in the global
-     configuration files. It has no effect if specified as an image
-     specific setting.
+:   Same as `Include=`, but the extra configuration files or directories
+    are included when building the default initrd.
 
 `Dependencies=`, `--dependency=`
-:    The images that this image depends on specified as a comma-separated
-     list. All images configured in this option will be built before this
-     image and will be pulled in as dependencies of this image when
-     `Images=` is used.
+:   The images that this image depends on specified as a comma-separated
+    list. All images configured in this option will be built before this
+    image.
+
+    When this setting is specified for the "main" image, it specifies
+    which subimages should be built. See the
+    **Building multiple images** section for more information.
 
 `MinimumVersion=`, `--minimum-version=`
 :   The minimum mkosi version required to build this configuration. If
     specified multiple times, the highest specified version is used.
 
 `ConfigureScripts=`, `--configure-script=`
-:    Takes a comma-separated list of paths to executables that are used as
-     the configure scripts for this image. See the **Scripts** section for
-     more information.
+:   Takes a comma-separated list of paths to executables that are used as
+    the configure scripts for this image. See the **Scripts** section for
+    more information.
+
+`PassEnvironment=`, `--pass-environment=`
+:   Takes a list of environment variable names separated by spaces. When
+    building multiple images, pass the listed environment variables to
+    each individual subimage as if they were "universal" settings. See
+    the **Building multiple images** section for more information.
 
 ## Specifiers
 
@@ -2194,7 +2185,7 @@ Consult this table for which script receives which environment variables:
 | `CHROOT_SCRIPT`     |             |        | ✓         | ✓       | ✓          | ✓          |              |         |
 | `SRCDIR`            | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
 | `CHROOT_SRCDIR`     |             |        | ✓         | ✓       | ✓          | ✓          |              |         |
-| `BUILDDIR`          |             |        |           | ✓       |            |            |              |         |
+| `BUILDDIR`          |             |        | ✓         | ✓       | ✓          | ✓          |              |         |
 | `CHROOT_BUILDDIR`   |             |        |           | ✓       |            |            |              |         |
 | `DESTDIR`           |             |        |           | ✓       |            |            |              |         |
 | `CHROOT_DESTDIR`    |             |        |           | ✓       |            |            |              |         |
@@ -2493,6 +2484,10 @@ overridden):
 - `PackageDirectories=`
 - `VolatilePackageDirectories=`
 - `SourceDateEpoch=`
+- `BuildSources=`
+- `BuildSourcesEphemeral=`
+- `WithTests`
+- `WithNetwork=`
 - `VerityKey=`
 - `VerityKeySource=`
 - `VerityCertificate=`

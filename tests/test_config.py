@@ -1196,9 +1196,13 @@ def test_environment(tmp_path: Path) -> None:
 
     (d / "mkosi.conf").write_text(
         """\
+        [Config]
+        PassEnvironment=PassThisEnv
+
         [Content]
         Environment=TestValue2=300
                     TestValue3=400
+                    PassThisEnv=abc
         EnvironmentFiles=other.env
         """
     )
@@ -1217,8 +1221,11 @@ def test_environment(tmp_path: Path) -> None:
         """
     )
 
+    (d / "mkosi.images").mkdir()
+    (d / "mkosi.images/sub.conf").touch()
+
     with chdir(d):
-        _, [config] = parse_config()
+        _, [sub, config] = parse_config()
 
         expected = {
             "TestValue1": "100", # from other.env
@@ -1231,3 +1238,6 @@ def test_environment(tmp_path: Path) -> None:
         assert {k: config.environment[k] for k in expected.keys()} == expected
 
         assert config.environment_files == [Path.cwd() / "mkosi.env", Path.cwd() / "other.env"]
+
+        assert sub.environment["PassThisEnv"] == "abc"
+        assert "TestValue2" not in sub.environment

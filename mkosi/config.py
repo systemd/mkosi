@@ -1380,6 +1380,7 @@ class Config:
     initrd_include: list[Path]
     dependencies: list[str]
     minimum_version: Optional[GenericVersion]
+    pass_environment: list[str]
 
     distribution: Distribution
     release: str
@@ -1884,6 +1885,13 @@ SETTINGS = (
         help="Configure script to run before doing anything",
     ),
     ConfigSetting(
+        dest="pass_environment",
+        metavar="NAME",
+        section="Config",
+        parse=config_make_list_parser(delimiter=" "),
+        help="Environment variables to pass to subimages",
+    ),
+    ConfigSetting(
         dest="distribution",
         short="-d",
         section="Distribution",
@@ -2349,6 +2357,7 @@ SETTINGS = (
         match=config_match_build_sources,
         default_factory=lambda ns: [ConfigTree(ns.directory, None)] if ns.directory else [],
         help="Path for sources to build",
+        universal=True,
     ),
     ConfigSetting(
         dest="build_sources_ephemeral",
@@ -2356,6 +2365,7 @@ SETTINGS = (
         section="Content",
         parse=config_parse_boolean,
         help="Make build sources ephemeral when running scripts",
+        universal=True,
     ),
     ConfigSetting(
         dest="environment",
@@ -2385,6 +2395,7 @@ SETTINGS = (
         parse=config_parse_boolean,
         default=True,
         help="Do not run tests as part of build scripts, if supported",
+        universal=True,
     ),
     ConfigSetting(
         dest="with_network",
@@ -2393,6 +2404,7 @@ SETTINGS = (
         section="Content",
         parse=config_parse_boolean,
         help="Run build and postinst scripts with network access (instead of private network)",
+        universal=True,
     ),
     ConfigSetting(
         dest="bootable",
@@ -3763,6 +3775,16 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
             elif hasattr(ParseContext.cli, s.dest):
                 delattr(ParseContext.cli, s.dest)
 
+        setattr(
+            ParseContext.cli,
+            "environment",
+            {
+                name: getattr(ParseContext.config, "environment")[name]
+                for name in getattr(ParseContext.config, "pass_environment", {})
+                if name in getattr(ParseContext.config, "environment", {})
+            }
+        )
+
         for p in sorted(Path("mkosi.images").iterdir()):
             if not p.is_dir() and not p.suffix == ".conf":
                 continue
@@ -3939,8 +3961,6 @@ def load_config(config: argparse.Namespace) -> Config:
 
     if config.build_dir:
         config.build_dir /= config.build_dir / f"{config.distribution}~{config.release}~{config.architecture}"
-        if config.image:
-            config.build_dir /= config.image
 
     if config.sign:
         config.checksum = True
@@ -4025,6 +4045,7 @@ def summary(config: Config) -> str:
                        Dependencies: {line_join_list(config.dependencies)}
                     Minimum Version: {none_to_none(config.minimum_version)}
                   Configure Scripts: {line_join_list(config.configure_scripts)}
+                   Pass Environment: {line_join_list(config.pass_environment)}
 
     {bold("DISTRIBUTION")}:
                        Distribution: {bold(config.distribution)}

@@ -552,6 +552,9 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
     if context.config.profile:
         env["PROFILE"] = context.config.profile
 
+    if context.config.build_dir is not None:
+        env |= dict(BUILDDIR="/work/build")
+
     with (
         mount_build_overlay(context) if build else contextlib.nullcontext(),
         finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources,
@@ -592,6 +595,11 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
                             Mount(context.root, "/buildroot"),
                             Mount(context.artifacts, "/work/artifacts"),
                             Mount(context.packages, "/work/packages"),
+                            *(
+                                [Mount(context.config.build_dir, "/work/build", ro=True)]
+                                if context.config.build_dir
+                                else []
+                            ),
                             *context.config.distribution.package_manager(context.config).mounts(context),
                         ],
                         options=["--dir", "/work/src", "--chdir", "/work/src"],
@@ -716,6 +724,9 @@ def run_postinst_scripts(context: Context) -> None:
     if context.config.profile:
         env["PROFILE"] = context.config.profile
 
+    if context.config.build_dir is not None:
+        env |= dict(BUILDDIR="/work/build")
+
     with (
         finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources,
     ):
@@ -749,6 +760,11 @@ def run_postinst_scripts(context: Context) -> None:
                             Mount(context.staging, "/work/out"),
                             Mount(context.artifacts, "/work/artifacts"),
                             Mount(context.packages, "/work/packages"),
+                            *(
+                                [Mount(context.config.build_dir, "/work/build", ro=True)]
+                                if context.config.build_dir
+                                else []
+                            ),
                             *context.config.distribution.package_manager(context.config).mounts(context),
                         ],
                         options=["--dir", "/work/src", "--chdir", "/work/src"],
@@ -785,6 +801,9 @@ def run_finalize_scripts(context: Context) -> None:
     if context.config.profile:
         env["PROFILE"] = context.config.profile
 
+    if context.config.build_dir is not None:
+        env |= dict(BUILDDIR="/work/build")
+
     with finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources:
         for script in context.config.finalize_scripts:
             chroot = chroot_cmd(resolve=context.config.with_network, work=True)
@@ -816,6 +835,11 @@ def run_finalize_scripts(context: Context) -> None:
                             Mount(context.staging, "/work/out"),
                             Mount(context.artifacts, "/work/artifacts"),
                             Mount(context.packages, "/work/packages"),
+                            *(
+                                [Mount(context.config.build_dir, "/work/build", ro=True)]
+                                if context.config.build_dir
+                                else []
+                            ),
                             *context.config.distribution.package_manager(context.config).mounts(context),
                         ],
                         options=["--dir", "/work/src", "--chdir", "/work/src"],
