@@ -744,6 +744,7 @@ def scope_cmd(
         "--description", description,
         "--scope",
         "--collect",
+        "--expand-environment=no",
         *(["--uid", str(user)] if user is not None else []),
         *(["--gid", str(group)] if group is not None else []),
         *([f"--property={p}" for p in properties]),
