@@ -772,10 +772,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `VolatilePackageDirectories=`, `--volatile-package-directory=`
 
-:   Like `PackageDirectories=`, but the packages in these directories
-    are only made available in the local repository just before volatile
-    packages are installed. Specifically, if `Incremental=` is enabled,
-    the packages from these directories will not be cached.
+:   Like `PackageDirectories=`, but any changes to the packages in these
+    directories will not invalidate the cached images if `Incremental=`
+    is enabled.
 
     Additionally, build scripts can add more packages to the local
     repository by placing the built packages in `$PACKAGEDIR`. The

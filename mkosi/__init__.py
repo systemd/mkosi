@@ -3870,6 +3870,8 @@ def build_image(context: Context) -> None:
         context.config.distribution.setup(context)
         with createrepo(context):
             install_package_directories(context, context.config.package_directories)
+            install_package_directories(context, context.config.volatile_package_directories)
+            install_package_directories(context, [context.package_dir])
 
         if not cached:
             install_skeleton_trees(context)
@@ -3892,7 +3894,6 @@ def build_image(context: Context) -> None:
             return
 
         with createrepo(context):
-            install_package_directories(context, context.config.volatile_package_directories)
             install_package_directories(context, [context.package_dir])
 
         install_volatile_packages(context)
