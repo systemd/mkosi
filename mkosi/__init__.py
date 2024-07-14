@@ -436,6 +436,7 @@ def run_configure_scripts(config: Config) -> Config:
         RELEASE=config.release,
         ARCHITECTURE=str(config.architecture),
         QEMU_ARCHITECTURE=config.architecture.to_qemu(),
+        DISTRIBUTION_ARCHITECTURE=config.distribution.architecture(config.architecture),
         SRCDIR="/work/src",
         MKOSI_UID=str(INVOKING_USER.uid),
         MKOSI_GID=str(INVOKING_USER.gid),
@@ -473,6 +474,7 @@ def run_sync_scripts(context: Context) -> None:
         DISTRIBUTION=str(context.config.distribution),
         RELEASE=context.config.release,
         ARCHITECTURE=str(context.config.architecture),
+        DISTRIBUTION_ARCHITECTURE=context.config.distribution.architecture(context.config.architecture),
         SRCDIR="/work/src",
         MKOSI_UID=str(INVOKING_USER.uid),
         MKOSI_GID=str(INVOKING_USER.gid),
@@ -533,6 +535,7 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
         DISTRIBUTION=str(context.config.distribution),
         RELEASE=context.config.release,
         ARCHITECTURE=str(context.config.architecture),
+        DISTRIBUTION_ARCHITECTURE=context.config.distribution.architecture(context.config.architecture),
         BUILDROOT="/buildroot",
         SRCDIR="/work/src",
         CHROOT_SRCDIR="/work/src",
@@ -617,6 +620,7 @@ def run_build_scripts(context: Context) -> None:
         DISTRIBUTION=str(context.config.distribution),
         RELEASE=context.config.release,
         ARCHITECTURE=str(context.config.architecture),
+        DISTRIBUTION_ARCHITECTURE=context.config.distribution.architecture(context.config.architecture),
         BUILDROOT="/buildroot",
         DESTDIR="/work/dest",
         CHROOT_DESTDIR="/work/dest",
@@ -705,6 +709,7 @@ def run_postinst_scripts(context: Context) -> None:
         DISTRIBUTION=str(context.config.distribution),
         RELEASE=context.config.release,
         ARCHITECTURE=str(context.config.architecture),
+        DISTRIBUTION_ARCHITECTURE=context.config.distribution.architecture(context.config.architecture),
         BUILDROOT="/buildroot",
         OUTPUTDIR="/work/out",
         CHROOT_OUTPUTDIR="/work/out",
@@ -782,6 +787,7 @@ def run_finalize_scripts(context: Context) -> None:
         DISTRIBUTION=str(context.config.distribution),
         RELEASE=context.config.release,
         ARCHITECTURE=str(context.config.architecture),
+        DISTRIBUTION_ARCHITECTURE=context.config.distribution.architecture(context.config.architecture),
         BUILDROOT="/buildroot",
         OUTPUTDIR="/work/out",
         CHROOT_OUTPUTDIR="/work/out",
@@ -857,6 +863,7 @@ def run_postoutput_scripts(context: Context) -> None:
         DISTRIBUTION=str(context.config.distribution),
         RELEASE=context.config.release,
         ARCHITECTURE=str(context.config.architecture),
+        DISTRIBUTION_ARCHITECTURE=context.config.distribution.architecture(context.config.architecture),
         SRCDIR="/work/src",
         OUTPUTDIR="/work/out",
         MKOSI_UID=str(INVOKING_USER.uid),
@@ -3870,6 +3877,8 @@ def build_image(context: Context) -> None:
         context.config.distribution.setup(context)
         with createrepo(context):
             install_package_directories(context, context.config.package_directories)
+            install_package_directories(context, context.config.volatile_package_directories)
+            install_package_directories(context, [context.package_dir])
 
         if not cached:
             install_skeleton_trees(context)
@@ -3892,7 +3901,6 @@ def build_image(context: Context) -> None:
             return
 
         with createrepo(context):
-            install_package_directories(context, context.config.volatile_package_directories)
             install_package_directories(context, [context.package_dir])
 
         install_volatile_packages(context)
@@ -4482,6 +4490,7 @@ def run_clean_scripts(config: Config) -> None:
         DISTRIBUTION=str(config.distribution),
         RELEASE=config.release,
         ARCHITECTURE=str(config.architecture),
+        DISTRIBUTION_ARCHITECTURE=config.distribution.architecture(config.architecture),
         SRCDIR="/work/src",
         OUTPUTDIR="/work/out",
         MKOSI_UID=str(INVOKING_USER.uid),
