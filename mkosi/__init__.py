@@ -3871,14 +3871,28 @@ def build_image(context: Context) -> None:
     with mount_base_trees(context):
         install_base_trees(context)
         cached = reuse_cache(context)
+        wantrepo = (
+            (
+                not cached
+                and (
+                    context.config.packages
+                    or context.config.build_packages
+                    or context.config.prepare_scripts
+                )
+            )
+            or context.config.volatile_packages
+            or context.config.postinst_scripts
+            or context.config.finalize_scripts
+        )
 
         copy_repository_metadata(context)
 
         context.config.distribution.setup(context)
-        with createrepo(context):
-            install_package_directories(context, context.config.package_directories)
-            install_package_directories(context, context.config.volatile_package_directories)
-            install_package_directories(context, [context.package_dir])
+        if wantrepo:
+            with createrepo(context):
+                install_package_directories(context, context.config.package_directories)
+                install_package_directories(context, context.config.volatile_package_directories)
+                install_package_directories(context, [context.package_dir])
 
         if not cached:
             install_skeleton_trees(context)
@@ -3900,8 +3914,9 @@ def build_image(context: Context) -> None:
             rmtree(context.root)
             return
 
-        with createrepo(context):
-            install_package_directories(context, [context.package_dir])
+        if wantrepo:
+            with createrepo(context):
+                install_package_directories(context, [context.package_dir])
 
         install_volatile_packages(context)
         install_build_dest(context)
