@@ -4649,7 +4649,10 @@ def sync_repository_metadata(context: Context) -> None:
         complete_step(f"Syncing package manager metadata for {context.config.name()} image"),
         lock_repository_metadata(context.config),
     ):
-        context.config.distribution.package_manager(context.config).sync(context)
+        context.config.distribution.package_manager(context.config).sync(
+            context,
+            force=context.args.force > 1 or context.config.cacheonly == Cacheonly.never,
+        )
 
 
 def run_sync(args: Args, config: Config, *, resources: Path) -> None:
