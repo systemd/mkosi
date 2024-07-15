@@ -222,14 +222,11 @@ class Dnf(PackageManager):
                         p.unlink()
 
     @classmethod
-    def sync(cls, context: Context, options: Sequence[str] = ()) -> None:
+    def sync(cls, context: Context, force: bool, arguments: Sequence[str] = ()) -> None:
         cls.invoke(
             context,
             "makecache",
-            arguments=[
-                *(["--refresh"] if context.args.force > 1 or context.config.cacheonly == Cacheonly.never else []),
-                *options,
-            ],
+            arguments=[*(["--refresh"] if force else []), *arguments],
             cached_metadata=False,
         )
 
@@ -251,4 +248,4 @@ class Dnf(PackageManager):
             )
         )
 
-        cls.sync(context, options=["--disablerepo=*", "--enablerepo=mkosi"])
+        cls.sync(context, force=True, arguments=["--disablerepo=*", "--enablerepo=mkosi"])

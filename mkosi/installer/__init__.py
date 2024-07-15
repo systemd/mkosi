@@ -84,7 +84,7 @@ class PackageManager:
         return mounts
 
     @classmethod
-    def sync(cls, context: Context) -> None:
+    def sync(cls, context: Context, force: bool) -> None:
         pass
 
     @classmethod

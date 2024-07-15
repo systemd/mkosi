@@ -234,7 +234,7 @@ class Apt(PackageManager):
             )
 
     @classmethod
-    def sync(cls, context: Context) -> None:
+    def sync(cls, context: Context, force: bool) -> None:
         cls.invoke(context, "update")
 
     @classmethod
