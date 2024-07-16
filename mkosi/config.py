@@ -3663,6 +3663,12 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
 
                 if not (s := SETTINGS_LOOKUP_BY_NAME.get(name)):
                     die(f"Unknown setting {name}")
+                if (
+                    s.universal and
+                    not isinstance(s.parse(None, None), (list, set, dict)) and
+                    (image := getattr(ParseContext.config, "image", None)) is not None
+                ):
+                    die(f"Setting {name} cannot be configured in subimage {image}")
                 if name in ParseContext.immutable:
                     die(f"Setting {name} cannot be modified anymore at this point")
 

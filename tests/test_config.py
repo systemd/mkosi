@@ -255,7 +255,7 @@ def test_parse_config(tmp_path: Path) -> None:
         (d / "mkosi.images" / f"{n}.conf").write_text(
             f"""\
             [Distribution]
-            Release=bla
+            Repositories=append
 
             [Content]
             Packages={n}
@@ -263,7 +263,7 @@ def test_parse_config(tmp_path: Path) -> None:
         )
 
     with chdir(d):
-        _, [one, two, config] = parse_config(["--package", "qed", "--build-package", "def"])
+        _, [one, two, config] = parse_config(["--package", "qed", "--build-package", "def", "--repositories", "cli"])
 
     # Universal settings should always come from the main image.
     assert one.distribution == config.distribution
@@ -280,6 +280,10 @@ def test_parse_config(tmp_path: Path) -> None:
     # But should apply to the main image of course.
     assert config.packages == ["qed"]
     assert config.build_packages == ["def"]
+
+    # list based settings should be appended to in subimages
+    assert one.repositories == ["append", "epel", "epel-next", "cli"]
+    assert two.repositories == ["append", "epel", "epel-next", "cli"]
 
 
 def test_parse_includes_once(tmp_path: Path) -> None:
