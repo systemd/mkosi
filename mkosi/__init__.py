@@ -4724,14 +4724,15 @@ def run_build(args: Args, config: Config, *, resources: Path, package_dir: Optio
     # For extra safety when running as root, remount a bunch of stuff read-only.
     # Because some build systems use output directories in /usr, we only remount
     # /usr read-only if the output directory is not relative to it.
-    remount = ["/etc", "/opt", "/boot", "/efi", "/media"]
-    if not config.output_dir_or_cwd().is_relative_to("/usr"):
-        remount += ["/usr"]
+    if INVOKING_USER.invoked_as_root:
+        remount = ["/etc", "/opt", "/boot", "/efi", "/media"]
+        if not config.output_dir_or_cwd().is_relative_to("/usr"):
+            remount += ["/usr"]
 
-    for d in remount:
-        if Path(d).exists():
-            options = "ro" if d in ("/usr", "/opt") else "ro,nosuid,nodev,noexec"
-            run(["mount", "--rbind", d, d, "--options", options])
+        for d in remount:
+            if Path(d).exists():
+                options = "ro" if d in ("/usr", "/opt") else "ro,nosuid,nodev,noexec"
+                run(["mount", "--rbind", d, d, "--options", options])
 
     with (
         complete_step(f"Building {config.name()} image"),
