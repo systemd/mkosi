@@ -97,6 +97,8 @@ def test_initrd_lvm(initrd: Image) -> None:
         options=[
             "--initrd", Path(initrd.output_dir) / "initrd",
             "--kernel-command-line=systemd.unit=mkosi-check-and-shutdown.service",
+            # LVM confuses systemd-repart so we mask it for this test.
+            "--kernel-command-line=systemd.mask=systemd-repart.service",
             "--kernel-command-line=root=LABEL=root",
             "--kernel-command-line=rw",
             "--incremental",
