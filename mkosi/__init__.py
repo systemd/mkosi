@@ -2126,7 +2126,7 @@ def build_uki(
     cmd: list[PathString] = [
         python_binary(context.config, binary=ukify),
         ukify,
-        "--cmdline", f"@{context.workspace / 'cmdline'}",
+        *(["--cmdline", f"@{context.workspace / 'cmdline'}"] if cmdline else []),
         "--os-release", f"@{context.root / 'usr/lib/os-release'}",
         "--stub", stub,
         "--output", output,
