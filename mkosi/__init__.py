@@ -2291,6 +2291,7 @@ def want_uki(context: Context) -> bool:
 
 def find_entry_token(context: Context) -> str:
     if (
+        not context.config.find_binary("kernel-install") or
         "--version" not in run(["kernel-install", "--help"],
                                stdout=subprocess.PIPE, sandbox=context.sandbox(binary="kernel-install")).stdout or
         systemd_tool_version(context.config, "kernel-install") < "255.1"
