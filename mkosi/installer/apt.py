@@ -7,7 +7,7 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Optional
 
-from mkosi.config import Config, ConfigFeature
+from mkosi.config import PACKAGE_GLOBS, Config, ConfigFeature
 from mkosi.context import Context
 from mkosi.installer import PackageManager
 from mkosi.log import die
@@ -260,8 +260,7 @@ class Apt(PackageManager):
                 "--ignore=extension",
                 "includedeb",
                 "mkosi",
-                *(d.name for d in context.repository.glob("*.deb")),
-                *(d.name for d in context.repository.glob("*.ddeb")),
+                *(d.name for glob in PACKAGE_GLOBS for d in context.repository.glob(glob) if "deb" in glob),
             ],
             sandbox=context.sandbox(
                 binary="reprepro",
