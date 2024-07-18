@@ -1360,9 +1360,8 @@ CACHE_GID = os.getgid()
 PACKAGE_GLOBS = (
     "*.rpm",
     "*.pkg.tar*",
-    "*.deb*",
-    "*.ddeb*",
-    "*.udeb*",
+    "*.deb",
+    "*.ddeb",
 )
 
 
