@@ -3358,19 +3358,42 @@ def resolve_deps(images: Sequence[argparse.Namespace], include: Sequence[str]) -
     return sorted(images, key=lambda i: order.index(i.image))
 
 
-def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tuple[Args, tuple[Config, ...]]:
+class ConfigAction(argparse.Action):
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: Union[str, Sequence[Any], None],
+        option_string: Optional[str] = None
+    ) -> None:
+        assert option_string is not None
 
-    class ParseContext:
+        if values is None and self.nargs == "?":
+            values = self.const or "yes"
+
+        s = SETTINGS_LOOKUP_BY_DEST[self.dest]
+
+        if values is None or isinstance(values, str):
+            setattr(namespace, s.dest, s.parse(values, getattr(namespace, self.dest, None)))
+        else:
+            for v in values:
+                assert isinstance(v, str)
+                setattr(namespace, s.dest, s.parse(v, getattr(namespace, self.dest, None)))
+
+
+class ParseContext:
+    def __init__(self, resources: Path = Path("/")) -> None:
+        self.resources = resources
         # We keep two namespaces around, one for the settings specified on the CLI and one for the settings specified
         # in configuration files. This is required to implement both [Match] support and the behavior where settings
         # specified on the CLI always override settings specified in configuration files.
-        cli = argparse.Namespace()
-        config = argparse.Namespace()
+        self.cli = argparse.Namespace()
+        self.config = argparse.Namespace()
         # Compare inodes instead of paths so we can't get tricked by bind mounts and such.
-        includes: set[tuple[int, int]] = set()
-        immutable: set[str] = set()
+        self.includes: set[tuple[int, int]] = set()
+        self.immutable: set[str] = set()
 
-    def expand_specifiers(text: str, path: Path) -> str:
+    def expand_specifiers(self, text: str, path: Path) -> str:
         percent = False
         result: list[str] = []
 
@@ -3381,7 +3404,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
                 if c == "%":
                     result += "%"
                 elif setting := SETTINGS_LOOKUP_BY_SPECIFIER.get(c):
-                    if (v := finalize_value(setting)) is None:
+                    if (v := self.finalize_value(setting)) is None:
                         logging.warning(
                             f"Setting {setting.name} specified by specifier '%{c}' in {text} is not yet set, ignoring"
                         )
@@ -3393,13 +3416,13 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
 
                     # Some specifier methods might want to access the image name or directory mkosi was invoked in so
                     # let's make sure those are available.
-                    setattr(specifierns, "image", getattr(ParseContext.config, "image", None))
-                    setattr(specifierns, "directory", ParseContext.cli.directory)
+                    setattr(specifierns, "image", getattr(self.config, "image", None))
+                    setattr(specifierns, "directory", self.cli.directory)
 
                     for d in specifier.depends:
                         setting = SETTINGS_LOOKUP_BY_DEST[d]
 
-                        if (v := finalize_value(setting)) is None:
+                        if (v := self.finalize_value(setting)) is None:
                             logging.warning(
                                 f"Setting {setting.name} which specifier '%{c}' in {text} depends on is not yet set, "
                                 "ignoring"
@@ -3422,25 +3445,25 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
         return "".join(result)
 
     @contextlib.contextmanager
-    def parse_new_includes() -> Iterator[None]:
+    def parse_new_includes(self) -> Iterator[None]:
         try:
             yield
         finally:
             # Parse any includes that were added after yielding.
-            for p in getattr(ParseContext.cli, "include", []) + getattr(ParseContext.config, "include", []):
+            for p in getattr(self.cli, "include", []) + getattr(self.config, "include", []):
                 for c in BUILTIN_CONFIGS:
                     if p == Path(c):
-                        path = resources / c
+                        path = self.resources / c
                         break
                 else:
                     path = p
 
                 st = path.stat()
 
-                if (st.st_dev, st.st_ino) in ParseContext.includes:
+                if (st.st_dev, st.st_ino) in self.includes:
                     continue
 
-                ParseContext.includes.add((st.st_dev, st.st_ino))
+                self.includes.add((st.st_dev, st.st_ino))
 
                 if any(p == Path(c) for c in BUILTIN_CONFIGS):
                     _, [config] = parse_config(["--directory", "", "--include", os.fspath(path)])
@@ -3456,48 +3479,22 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
                     )
 
                 with chdir(path if path.is_dir() else Path.cwd()):
-                    parse_config_one(path if path.is_file() else Path("."))
+                    self.parse_config_one(path if path.is_file() else Path("."))
 
-    class ConfigAction(argparse.Action):
-        def __call__(
-            self,
-            parser: argparse.ArgumentParser,
-            namespace: argparse.Namespace,
-            values: Union[str, Sequence[Any], None],
-            option_string: Optional[str] = None
-        ) -> None:
-            assert option_string is not None
-
-            if values is None and self.nargs == "?":
-                values = self.const or "yes"
-
-            try:
-                s = SETTINGS_LOOKUP_BY_DEST[self.dest]
-            except KeyError:
-                die(f"Unknown setting {option_string}")
-
-            with parse_new_includes():
-                if values is None or isinstance(values, str):
-                    setattr(namespace, s.dest, s.parse(values, getattr(namespace, self.dest, None)))
-                else:
-                    for v in values:
-                        assert isinstance(v, str)
-                        setattr(namespace, s.dest, s.parse(v, getattr(namespace, self.dest, None)))
-
-    def finalize_value(setting: ConfigSetting) -> Optional[Any]:
+    def finalize_value(self, setting: ConfigSetting) -> Optional[Any]:
         # If a value was specified on the CLI, it always takes priority. If the setting is a collection of values, we
         # merge the value from the CLI with the value from the configuration, making sure that the value from the CLI
         # always takes priority.
         if (
-            hasattr(ParseContext.cli, setting.dest) and
-            (v := getattr(ParseContext.cli, setting.dest)) is not None
+            hasattr(self.cli, setting.dest) and
+            (v := getattr(self.cli, setting.dest)) is not None
         ):
             if isinstance(v, list):
-                return (getattr(ParseContext.config, setting.dest, None) or []) + v
+                return (getattr(self.config, setting.dest, None) or []) + v
             elif isinstance(v, dict):
-                return (getattr(ParseContext.config, setting.dest, None) or {}) | v
+                return (getattr(self.config, setting.dest, None) or {}) | v
             elif isinstance(v, set):
-                return (getattr(ParseContext.config, setting.dest, None) or set()) | v
+                return (getattr(self.config, setting.dest, None) or set()) | v
             else:
                 return v
 
@@ -3506,14 +3503,14 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
         # value either if the setting is set to the empty string on the command line.
 
         if (
-            not hasattr(ParseContext.cli, setting.dest) and
-            hasattr(ParseContext.config, setting.dest) and
-            (v := getattr(ParseContext.config, setting.dest)) is not None
+            not hasattr(self.cli, setting.dest) and
+            hasattr(self.config, setting.dest) and
+            (v := getattr(self.config, setting.dest)) is not None
         ):
             return v
 
         if (
-            (hasattr(ParseContext.cli, setting.dest) or hasattr(ParseContext.config, setting.dest)) and
+            (hasattr(self.cli, setting.dest) or hasattr(self.config, setting.dest)) and
             isinstance(setting.parse(None, None), (dict, list, set))
         ):
             default = setting.parse(None, None)
@@ -3522,13 +3519,13 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
             # a namespace object, but we don't want to copy the final values into the config
             # namespace object just yet so we create a new namespace object instead.
             factoryns = argparse.Namespace(
-                **{d: finalize_value(SETTINGS_LOOKUP_BY_DEST[d]) for d in setting.default_factory_depends}
+                **{d: self.finalize_value(SETTINGS_LOOKUP_BY_DEST[d]) for d in setting.default_factory_depends}
             )
 
             # Some default factory methods want to access the image name or directory mkosi
             # was invoked in so let's make sure those are available.
-            setattr(factoryns, "image", getattr(ParseContext.config, "image", None))
-            setattr(factoryns, "directory", ParseContext.cli.directory)
+            setattr(factoryns, "image", getattr(self.config, "image", None))
+            setattr(factoryns, "directory", self.cli.directory)
 
             default = setting.default_factory(factoryns)
         elif setting.default is not None:
@@ -3536,11 +3533,11 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
         else:
             default = setting.parse(None, None)
 
-        setattr(ParseContext.config, setting.dest, default)
+        setattr(self.config, setting.dest, default)
 
         return default
 
-    def match_config(path: Path) -> bool:
+    def match_config(self, path: Path) -> bool:
         condition_triggered: Optional[bool] = None
         match_triggered: Optional[bool] = None
         skip = False
@@ -3570,7 +3567,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
             negate = v.startswith("!")
             v = v.removeprefix("!")
 
-            v = expand_specifiers(v, path)
+            v = self.expand_specifiers(v, path)
 
             if not v:
                 die("Match value cannot be empty")
@@ -3584,7 +3581,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
 
                 # If we encounter a setting that has not been explicitly configured yet, we assign the default value
                 # first so that we can match on default values for settings.
-                if (value := finalize_value(s)) is None:
+                if (value := self.finalize_value(s)) is None:
                     result = False
                 else:
                     result = s.match(v, value)
@@ -3608,26 +3605,26 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
 
         return match_triggered is not False
 
-    def parse_config_one(path: Path, profiles: bool = False, local: bool = False) -> bool:
+    def parse_config_one(self, path: Path, profiles: bool = False, local: bool = False) -> bool:
         s: Optional[ConfigSetting] # Make mypy happy
         extras = path.is_dir()
 
         if path.is_dir():
             path = path / "mkosi.conf"
 
-        if not match_config(path):
+        if not self.match_config(path):
             return False
 
         if extras:
             if local and (path.parent / "mkosi.local.conf").exists():
-                parse_config_one(path.parent / "mkosi.local.conf")
+                self.parse_config_one(path.parent / "mkosi.local.conf")
 
                 # Configuration from mkosi.local.conf should override other file based configuration but not the CLI
                 # itself so move the finalized values to the CLI namespace.
                 for s in SETTINGS:
-                    if hasattr(ParseContext.config, s.dest):
-                        setattr(ParseContext.cli, s.dest, finalize_value(s))
-                        delattr(ParseContext.config, s.dest)
+                    if hasattr(self.config, s.dest):
+                        setattr(self.cli, s.dest, self.finalize_value(s))
+                        delattr(self.config, s.dest)
 
             for s in SETTINGS:
                 for f in s.paths:
@@ -3641,11 +3638,11 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
                     )
                     if p.exists():
                         setattr(
-                            ParseContext.config,
+                            self.config,
                             s.dest,
                             s.parse(
                                 p.read_text().rstrip("\n") if s.path_read_text else f,
-                                getattr(ParseContext.config, s.dest, None)
+                                getattr(self.config, s.dest, None)
                             ),
                         )
 
@@ -3665,10 +3662,10 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
                 if (
                     s.universal and
                     not isinstance(s.parse(None, None), (list, set, dict)) and
-                    (image := getattr(ParseContext.config, "image", None)) is not None
+                    (image := getattr(self.config, "image", None)) is not None
                 ):
                     die(f"Setting {name} cannot be configured in subimage {image}")
-                if name in ParseContext.immutable:
+                if name in self.immutable:
                     die(f"Setting {name} cannot be modified anymore at this point")
 
                 if section != s.section:
@@ -3677,14 +3674,14 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
                 if name != s.name:
                     logging.warning(f"Setting {name} is deprecated, please use {s.name} instead.")
 
-                v = expand_specifiers(v, path)
+                v = self.expand_specifiers(v, path)
 
-                with parse_new_includes():
-                    setattr(ParseContext.config, s.dest, s.parse(v, getattr(ParseContext.config, s.dest, None)))
+                with self.parse_new_includes():
+                    setattr(self.config, s.dest, s.parse(v, getattr(self.config, s.dest, None)))
 
         if profiles:
-            profile = finalize_value(SETTINGS_LOOKUP_BY_DEST["profile"])
-            ParseContext.immutable.add("Profile")
+            profile = self.finalize_value(SETTINGS_LOOKUP_BY_DEST["profile"])
+            self.immutable.add("Profile")
 
             if profile:
                 for p in (profile, f"{profile}.conf"):
@@ -3694,19 +3691,21 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
                 else:
                     die(f"Profile '{profile}' not found in mkosi.profiles/")
 
-                setattr(ParseContext.config, "profile", profile)
+                setattr(self.config, "profile", profile)
 
                 with chdir(p if p.is_dir() else Path.cwd()):
-                    parse_config_one(p if p.is_file() else Path("."))
+                    self.parse_config_one(p if p.is_file() else Path("."))
 
         if extras and (path.parent / "mkosi.conf.d").exists():
             for p in sorted((path.parent / "mkosi.conf.d").iterdir()):
                 if p.is_dir() or p.suffix == ".conf":
                     with chdir(p if p.is_dir() else Path.cwd()):
-                        parse_config_one(p if p.is_file() else Path("."))
+                        self.parse_config_one(p if p.is_file() else Path("."))
 
         return True
 
+
+def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tuple[Args, tuple[Config, ...]]:
     argv = list(argv)
 
     # Make sure the verb command gets explicitly passed. Insert a -- before the positional verb argument
@@ -3728,15 +3727,18 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
     else:
         argv += ["--", "build"]
 
+    context = ParseContext(resources)
+
     # The "image" field does not directly map to a setting but is required
     # to determine some default values for settings, so let's set it on the
     # config namespace immediately so it's available.
-    setattr(ParseContext.config, "image", None)
+    setattr(context.config, "image", None)
 
     # First, we parse the command line arguments into a separate namespace.
     argparser = create_argument_parser(ConfigAction)
-    argparser.parse_args(argv, ParseContext.cli)
-    args = load_args(ParseContext.cli)
+    with context.parse_new_includes():
+        argparser.parse_args(argv, context.cli)
+    args = load_args(context.cli)
 
     # If --debug was passed, apply it as soon as possible.
     if ARG_DEBUG.get():
@@ -3744,27 +3746,27 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
 
     # Do the same for help.
     if args.verb == Verb.help:
-        PagerHelpAction.__call__(None, argparser, ParseContext.cli)  # type: ignore
+        PagerHelpAction.__call__(None, argparser, context.cli)  # type: ignore
 
     if not args.verb.needs_config():
         return args, ()
 
     # One of the specifiers needs access to the directory so let's make sure it
     # is available.
-    setattr(ParseContext.config, "directory", args.directory)
+    setattr(context.config, "directory", args.directory)
 
     # Parse the global configuration unless the user explicitly asked us not to.
     if args.directory is not None:
-        parse_config_one(Path("."), profiles=True, local=True)
+        context.parse_config_one(Path("."), profiles=True, local=True)
 
     # After we've finished parsing the configuration, we'll have values in both
-    # namespaces (ParseContext.cli, ParseContext.config). To be able to parse the values from a
+    # namespaces (context.cli, context.config). To be able to parse the values from a
     # single namespace, we merge the final values of each setting into one namespace.
     for s in SETTINGS:
-        setattr(ParseContext.config, s.dest, finalize_value(s))
+        setattr(context.config, s.dest, context.finalize_value(s))
 
     # Load the configuration for the main image.
-    config = load_config(ParseContext.config)
+    config = load_config(context.config)
 
     images = []
 
@@ -3776,17 +3778,17 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
         # that are not marked as "universal" are deleted from the CLI namespace.
         for s in SETTINGS:
             if s.universal:
-                setattr(ParseContext.cli, s.dest, getattr(ParseContext.config, s.dest))
-            elif hasattr(ParseContext.cli, s.dest):
-                delattr(ParseContext.cli, s.dest)
+                setattr(context.cli, s.dest, getattr(context.config, s.dest))
+            elif hasattr(context.cli, s.dest):
+                delattr(context.cli, s.dest)
 
         setattr(
-            ParseContext.cli,
+            context.cli,
             "environment",
             {
-                name: getattr(ParseContext.config, "environment")[name]
-                for name in getattr(ParseContext.config, "pass_environment", {})
-                if name in getattr(ParseContext.config, "environment", {})
+                name: getattr(context.config, "environment")[name]
+                for name in getattr(context.config, "pass_environment", {})
+                if name in getattr(context.config, "environment", {})
             }
         )
 
@@ -3798,22 +3800,22 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
             if not name:
                 die(f"{p} is not a valid image name")
 
-            ParseContext.config = argparse.Namespace()
-            setattr(ParseContext.config, "image", name)
-            setattr(ParseContext.config, "directory", args.directory)
+            context.config = argparse.Namespace()
+            setattr(context.config, "image", name)
+            setattr(context.config, "directory", args.directory)
 
             # Allow subimage configuration to include everything again.
-            ParseContext.includes = set()
+            context.includes = set()
 
             with chdir(p if p.is_dir() else Path.cwd()):
-                if not parse_config_one(p if p.is_file() else Path("."), local=True):
+                if not context.parse_config_one(p if p.is_file() else Path("."), local=True):
                     continue
 
             # Consolidate all settings into one namespace again.
             for s in SETTINGS:
-                setattr(ParseContext.config, s.dest, finalize_value(s))
+                setattr(context.config, s.dest, context.finalize_value(s))
 
-            images += [ParseContext.config]
+            images += [context.config]
 
     images = resolve_deps(images, config.dependencies)
     images = [load_config(ns) for ns in images]
