@@ -1788,9 +1788,8 @@ config file is read:
 `Include=`, `--include=`, `-I`
 :   Include extra configuration from the given file or directory. The
     extra configuration is included immediately after parsing the setting,
-    except when a default is set using `@Include=`, in which case the
-    configuration is included after parsing all the other configuration
-    files.
+    except when used on the command line, in which case the extra
+    configuration is included after parsing all command line arguments.
 
     Note that each path containing extra configuration is only parsed
     once, even if included more than once with `Include=`.
