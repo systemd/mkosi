@@ -707,6 +707,15 @@ def config_default_release(namespace: argparse.Namespace) -> str:
     return cast(str, namespace.distribution.default_release())
 
 
+def config_default_tools_tree_distribution(namespace: argparse.Namespace) -> Distribution:
+    detected = detect_distribution()[0]
+
+    if not detected:
+        return Distribution.custom
+
+    return detected.default_tools_tree_distribution()
+
+
 def config_default_source_date_epoch(namespace: argparse.Namespace) -> Optional[int]:
     for env in namespace.environment:
         if s := startswith(env, "SOURCE_DATE_EPOCH="):
@@ -2871,7 +2880,7 @@ SETTINGS = (
         match=config_make_enum_matcher(Distribution),
         choices=Distribution.choices(),
         default_factory_depends=("distribution",),
-        default_factory=lambda ns: ns.distribution.default_tools_tree_distribution(),
+        default_factory=config_default_tools_tree_distribution,
         help="Set the distribution to use for the default tools tree",
     ),
     ConfigSetting(

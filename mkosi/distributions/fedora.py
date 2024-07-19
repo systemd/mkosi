@@ -7,7 +7,6 @@ from pathlib import Path
 from mkosi.config import Architecture, Config
 from mkosi.context import Context
 from mkosi.distributions import (
-    Distribution,
     DistributionInstaller,
     PackageType,
     join_mirror,
@@ -61,10 +60,6 @@ class Installer(DistributionInstaller):
     @classmethod
     def default_release(cls) -> str:
         return "40"
-
-    @classmethod
-    def default_tools_tree_distribution(cls) -> Distribution:
-        return Distribution.fedora
 
     @classmethod
     def grub_prefix(cls) -> str:

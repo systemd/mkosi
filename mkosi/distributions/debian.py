@@ -7,7 +7,7 @@ from pathlib import Path
 from mkosi.archive import extract_tar
 from mkosi.config import Architecture, Config
 from mkosi.context import Context
-from mkosi.distributions import Distribution, DistributionInstaller, PackageType
+from mkosi.distributions import DistributionInstaller, PackageType
 from mkosi.installer import PackageManager
 from mkosi.installer.apt import Apt, AptRepository
 from mkosi.log import die
@@ -32,10 +32,6 @@ class Installer(DistributionInstaller):
     @classmethod
     def default_release(cls) -> str:
         return "testing"
-
-    @classmethod
-    def default_tools_tree_distribution(cls) -> Distribution:
-        return Distribution.debian
 
     @classmethod
     def package_manager(cls, config: Config) -> type[PackageManager]:

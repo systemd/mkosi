@@ -7,7 +7,7 @@ from xml.etree import ElementTree
 
 from mkosi.config import Architecture, Config
 from mkosi.context import Context
-from mkosi.distributions import Distribution, DistributionInstaller, PackageType, join_mirror
+from mkosi.distributions import DistributionInstaller, PackageType, join_mirror
 from mkosi.installer import PackageManager
 from mkosi.installer.dnf import Dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey, setup_rpm
@@ -35,10 +35,6 @@ class Installer(DistributionInstaller):
     @classmethod
     def default_release(cls) -> str:
         return "tumbleweed"
-
-    @classmethod
-    def default_tools_tree_distribution(cls) -> Distribution:
-        return Distribution.opensuse
 
     @classmethod
     def grub_prefix(cls) -> str:
