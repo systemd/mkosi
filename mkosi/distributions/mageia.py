@@ -4,7 +4,7 @@ from collections.abc import Iterable
 
 from mkosi.config import Architecture
 from mkosi.context import Context
-from mkosi.distributions import Distribution, fedora, join_mirror
+from mkosi.distributions import fedora, join_mirror
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey
 from mkosi.log import die
 from mkosi.util import listify
@@ -22,10 +22,6 @@ class Installer(fedora.Installer):
     @classmethod
     def default_release(cls) -> str:
         return "cauldron"
-
-    @classmethod
-    def default_tools_tree_distribution(cls) -> Distribution:
-        return Distribution.mageia
 
     @classmethod
     def install(cls, context: Context) -> None:

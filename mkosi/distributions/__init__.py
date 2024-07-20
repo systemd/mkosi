@@ -131,8 +131,8 @@ class Distribution(StrEnum):
     def default_release(self) -> str:
         return self.installer().default_release()
 
-    def default_tools_tree_distribution(self) -> Optional["Distribution"]:
-        return self.installer().default_tools_tree_distribution()
+    def default_tools_tree_distribution(self) -> "Distribution":
+        return self.installer().default_tools_tree_distribution() or self
 
     def grub_prefix(self) -> str:
         return self.installer().grub_prefix()

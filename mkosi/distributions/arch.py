@@ -4,7 +4,7 @@ from collections.abc import Iterable, Sequence
 
 from mkosi.config import Architecture, Config
 from mkosi.context import Context
-from mkosi.distributions import Distribution, DistributionInstaller, PackageType
+from mkosi.distributions import DistributionInstaller, PackageType
 from mkosi.installer import PackageManager
 from mkosi.installer.pacman import Pacman, PacmanRepository
 from mkosi.log import die
@@ -27,10 +27,6 @@ class Installer(DistributionInstaller):
     @classmethod
     def default_release(cls) -> str:
         return "rolling"
-
-    @classmethod
-    def default_tools_tree_distribution(cls) -> Distribution:
-        return Distribution.arch
 
     @classmethod
     def package_manager(cls, config: "Config") -> type[PackageManager]:
