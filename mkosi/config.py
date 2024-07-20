@@ -3628,7 +3628,7 @@ class ParseContext:
 
             for s in SETTINGS:
                 for f in s.paths:
-                    p = parse_path(
+                    extra = parse_path(
                         f,
                         secret=s.path_secret,
                         required=False,
@@ -3636,12 +3636,12 @@ class ParseContext:
                         expanduser=False,
                         expandvars=False,
                     )
-                    if p.exists():
+                    if extra.exists():
                         setattr(
                             self.config,
                             s.dest,
                             s.parse(
-                                p.read_text().rstrip("\n") if s.path_read_text else f,
+                                extra.read_text().rstrip("\n") if s.path_read_text else f,
                                 getattr(self.config, s.dest, None)
                             ),
                         )
