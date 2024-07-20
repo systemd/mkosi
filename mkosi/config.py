@@ -104,7 +104,13 @@ class Verb(StrEnum):
         return self in (Verb.shell, Verb.boot, Verb.burn)
 
     def needs_config(self) -> bool:
-        return self not in (Verb.help, Verb.genkey, Verb.documentation, Verb.dependencies)
+        return self not in (
+            Verb.help,
+            Verb.genkey,
+            Verb.documentation,
+            Verb.dependencies,
+            Verb.completion,
+        )
 
 
 class ConfigFeature(StrEnum):
@@ -473,49 +479,6 @@ class Architecture(StrEnum):
     @classmethod
     def native(cls) -> "Architecture":
         return cls.from_uname(platform.machine())
-
-
-class CompGen(StrEnum):
-    default = enum.auto()
-    files   = enum.auto()
-    dirs    = enum.auto()
-
-    @staticmethod
-    def from_action(action: argparse.Action) -> "CompGen":
-        if isinstance(action.default, Path):
-            if action.default.is_dir():
-                return CompGen.dirs
-            else:
-                return CompGen.files
-        # TODO: the type of action.type is Union[Callable[[str], Any], FileType]
-        # the type of Path is type, but Path also works in this position,
-        # because the constructor is a callable from str -> Path
-        elif action.type is not None and (isinstance(action.type, type) and issubclass(action.type, Path)):  # type: ignore
-            if isinstance(action.default, Path) and action.default.is_dir():  # type: ignore
-                return CompGen.dirs
-            else:
-                return CompGen.files
-
-        return CompGen.default
-
-    def to_bash(self) -> str:
-        return f"_mkosi_compgen_{self}"
-
-    def to_fish(self) -> str:
-        if self == CompGen.files:
-            return "--force-files"
-        elif self == CompGen.dirs:
-            return "--force-files -a '(__fish_complete_directories)'"
-        else:
-            return "-f"
-
-    def to_zsh(self) -> str:
-        if self == CompGen.files:
-            return ":path:_files -/"
-        elif self == CompGen.dirs:
-            return ":directory:_files -f"
-        else:
-            return ""
 
 
 def parse_boolean(s: str) -> bool:
@@ -1221,7 +1184,6 @@ class ConfigSetting:
     path_secret: bool = False
     specifier: str = ""
     universal: bool = False
-    compgen: CompGen = CompGen.default
 
     # settings for argparse
     short: Optional[str] = None
