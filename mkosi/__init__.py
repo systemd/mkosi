@@ -4659,8 +4659,8 @@ def sync_repository_metadata(context: Context) -> None:
 def run_sync(args: Args, config: Config, *, resources: Path) -> None:
     if os.getuid() == 0:
         os.setgroups(INVOKING_USER.extra_groups())
-        os.setgid(INVOKING_USER.gid)
-        os.setuid(INVOKING_USER.uid)
+        os.setresgid(INVOKING_USER.gid, INVOKING_USER.gid, INVOKING_USER.gid)
+        os.setresuid(INVOKING_USER.uid, INVOKING_USER.gid, INVOKING_USER.gid)
 
     if not (p := config.package_cache_dir_or_default()).exists():
         p.mkdir(parents=True, exist_ok=True)
