@@ -115,7 +115,8 @@ def finalize_completion_bash(options: list[CompletionItem], resources: Path) -> 
     options_by_key = {o.short: o for o in options if o.short} | {o.long: o for o in options if o.long}
 
     with io.StringIO() as c:
-        c.write("# SPDX-License-Identifier: LGPL-2.1-or-later\n\n")
+        c.write(completion.read_text())
+
         c.write(to_bash_array("_mkosi_options", options_by_key.keys()))
         c.write("\n\n")
 
@@ -138,8 +139,6 @@ def finalize_completion_bash(options: list[CompletionItem], resources: Path) -> 
 
         c.write(to_bash_array("_mkosi_verbs", [str(v) for v in config.Verb]))
         c.write("\n\n\n")
-
-        c.write(completion.read_text())
 
         return c.getvalue()
 
@@ -184,14 +183,11 @@ def finalize_completion_zsh(options: list[CompletionItem], resources: Path) -> s
     completion = resources / "completion.zsh"
 
     with io.StringIO() as c:
-        c.write("#compdef mkosi\n")
-        c.write("# SPDX-License-Identifier: LGPL-2.1-or-later\n\n")
+        c.write(completion.read_text())
+        c.write("\n")
 
         c.write(to_zsh_array("_mkosi_verbs", [str(v) for v in config.Verb]))
         c.write("\n\n")
-
-        c.write(completion.read_text())
-        c.write("\n")
 
         c.write("_arguments -s \\\n")
         c.write("    '(- *)'{-h,--help}'[Show this help]' \\\n")
