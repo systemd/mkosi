@@ -73,6 +73,8 @@ class Installer(DistributionInstaller):
                     "extra-testing-debug",
                     "core-debug",
                     "extra-debug",
+                    "multilib-testing",
+                    "multilib",
                 ) if repo in context.config.repositories
             ] + ["core", "extra"]
 
