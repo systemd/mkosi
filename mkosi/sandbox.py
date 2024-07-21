@@ -153,6 +153,11 @@ def sandbox_cmd(
         # We mounted a subdirectory of TMPDIR to /var/tmp so we unset TMPDIR so that /tmp or /var/tmp are used instead.
         "--unsetenv", "TMPDIR",
     ]
+
+    # Make sure that bubblewrap uses a user namespace even if it's installed as setuid.
+    if os.getuid() != 0:
+        cmdline += ["--unshare-user"]
+
     mounts += [Mount(tools / "usr", "/usr", ro=True)]
 
     if relaxed:
