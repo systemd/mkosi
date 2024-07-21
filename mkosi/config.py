@@ -3172,7 +3172,7 @@ SPECIFIERS_LOOKUP_BY_CHAR = {s.char: s for s in SPECIFIERS}
 FALLBACK_NAME_TO_DEST_SPLITTER = re.compile("(?<=[a-z])(?=[A-Z])")
 
 
-def create_argument_parser(action: type[argparse.Action], chdir: bool = True) -> argparse.ArgumentParser:
+def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="mkosi",
         description="Build Bespoke OS Images",
@@ -3327,7 +3327,7 @@ def create_argument_parser(action: type[argparse.Action], chdir: bool = True) ->
             nargs=s.nargs,     # type: ignore
             const=s.const,
             help=s.help,
-            action=action,
+            action=ConfigAction,
         )
 
     return parser
@@ -3736,7 +3736,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
     setattr(context.config, "image", None)
 
     # First, we parse the command line arguments into a separate namespace.
-    argparser = create_argument_parser(ConfigAction)
+    argparser = create_argument_parser()
     with context.parse_new_includes():
         argparser.parse_args(argv, context.cli)
     args = load_args(context.cli)
