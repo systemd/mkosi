@@ -9,7 +9,7 @@ from mkosi.log import log_step
 from mkosi.run import run
 from mkosi.sandbox import Mount, SandboxProtocol, finalize_passwd_mounts, nosandbox
 from mkosi.types import PathString
-from mkosi.util import umask
+from mkosi.util import chdir, umask
 
 
 def tar_exclude_apivfs_tmp() -> list[str]:
@@ -103,8 +103,10 @@ def make_cpio(
     sandbox: SandboxProtocol = nosandbox,
 ) -> None:
     if not files:
-        files = src.rglob("*")
-    files = sorted(files)
+        with chdir(src):
+            files = sorted(Path(".").rglob("*"))
+    else:
+        files = sorted(files)
 
     log_step(f"Creating cpio archive {dst}…")
 
@@ -119,7 +121,7 @@ def make_cpio(
                 "--quiet",
                 "--directory", src,
             ],
-            input="\0".join(os.fspath(f.relative_to(src)) for f in files),
+            input="\0".join(os.fspath(f) for f in files),
             stdout=f,
             sandbox=sandbox(binary="cpio", mounts=[Mount(src, src, ro=True), *finalize_passwd_mounts(src)]),
         )
