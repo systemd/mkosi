@@ -11,7 +11,7 @@ from pathlib import Path
 from mkosi.log import complete_step, log_step
 from mkosi.run import run
 from mkosi.sandbox import Mount, SandboxProtocol, chroot_cmd, nosandbox
-from mkosi.util import parents_below
+from mkosi.util import chdir, parents_below
 
 
 def loaded_modules() -> list[str]:
@@ -19,14 +19,15 @@ def loaded_modules() -> list[str]:
 
 
 def filter_kernel_modules(root: Path, kver: str, *, include: Iterable[str], exclude: Iterable[str]) -> list[Path]:
-    modulesd = root / "usr/lib/modules" / kver
-    modules = set(modulesd.rglob("*.ko*"))
+    modulesd = Path("usr/lib/modules") / kver
+    with chdir(root):
+        modules = set(modulesd.rglob("*.ko*"))
 
     keep = set()
     if include:
         regex = re.compile("|".join(include))
         for m in modules:
-            rel = os.fspath(Path(*m.relative_to(modulesd).parts[1:]))
+            rel = os.fspath(Path(*m.parts[1:]))
             if regex.search(rel):
                 logging.debug(f"Including module {rel}")
                 keep.add(rel)
@@ -35,7 +36,7 @@ def filter_kernel_modules(root: Path, kver: str, *, include: Iterable[str], excl
         remove = set()
         regex = re.compile("|".join(exclude))
         for m in modules:
-            rel = os.fspath(Path(*m.relative_to(modulesd).parts[1:]))
+            rel = os.fspath(Path(*m.parts[1:]))
             if rel not in keep and regex.search(rel):
                 logging.debug(f"Excluding module {rel}")
                 remove.add(m)
@@ -65,12 +66,13 @@ def resolve_module_dependencies(
     of module names (including the given module paths themselves). The paths are returned relative to the
     root directory.
     """
-    modulesd = root / "usr/lib/modules" / kver
-    if (modulesd / "modules.builtin").exists():
-        builtin = set(module_path_to_name(Path(m)) for m in (modulesd / "modules.builtin").read_text().splitlines())
+    modulesd = Path("usr/lib/modules") / kver
+    if (p := root / modulesd / "modules.builtin").exists():
+        builtin = set(module_path_to_name(Path(m)) for m in p.read_text().splitlines())
     else:
         builtin = set()
-    allmodules = set(modulesd.rglob("*.ko*"))
+    with chdir(root):
+        allmodules = set(modulesd.rglob("*.ko*"))
     nametofile = {module_path_to_name(m): m for m in allmodules}
 
     log_step("Running modinfo to fetch kernel module dependencies")
@@ -87,6 +89,7 @@ def resolve_module_dependencies(
             ["modinfo", "--set-version", kver, "--null", *chunk],
             stdout=subprocess.PIPE,
             sandbox=sandbox(binary="modinfo", mounts=[Mount(root, "/buildroot", ro=True)], extra=chroot_cmd()),
+            cwd=root,
         ).stdout.strip()
 
     log_step("Calculating required kernel modules and firmware")
@@ -96,32 +99,34 @@ def resolve_module_dependencies(
 
     depends = []
     firmware = []
-    for line in info.split("\0"):
-        key, sep, value = line.partition(":")
-        if not sep:
-            key, sep, value = line.partition("=")
 
-        if key in ("depends", "softdep"):
-            depends += [normalize_module_name(d) for d in value.strip().split(",") if d]
+    with chdir(root):
+        for line in info.split("\0"):
+            key, sep, value = line.partition(":")
+            if not sep:
+                key, sep, value = line.partition("=")
 
-        elif key == "firmware":
-            fw = [f for f in (root / "usr/lib/firmware").glob(f"{value.strip()}*")]
-            if not fw:
-                logging.debug(f"Not including missing firmware /usr/lib/firmware/{value} in the initrd")
+            if key in ("depends", "softdep"):
+                depends += [normalize_module_name(d) for d in value.strip().split(",") if d]
 
-            firmware += fw
+            elif key == "firmware":
+                fw = [f for f in Path("usr/lib/firmware").glob(f"{value.strip()}*")]
+                if not fw:
+                    logging.debug(f"Not including missing firmware /usr/lib/firmware/{value} in the initrd")
 
-        elif key == "name":
-            # The file names use dashes, but the module names use underscores. We track the names
-            # in terms of the file names, since the depends use dashes and therefore filenames as
-            # well.
-            name = normalize_module_name(value.strip())
+                firmware += fw
 
-            moddep[name] = depends
-            firmwaredep[name] = firmware
+            elif key == "name":
+                # The file names use dashes, but the module names use underscores. We track the names
+                # in terms of the file names, since the depends use dashes and therefore filenames as
+                # well.
+                name = normalize_module_name(value.strip())
 
-            depends = []
-            firmware = []
+                moddep[name] = depends
+                firmwaredep[name] = firmware
+
+                depends = []
+                firmware = []
 
     todo = [*builtin, *modules]
     mods = set()
@@ -152,7 +157,7 @@ def gen_required_kernel_modules(
     exclude: Iterable[str],
     sandbox: SandboxProtocol = nosandbox,
 ) -> Iterator[Path]:
-    modulesd = root / "usr/lib/modules" / kver
+    modulesd = Path("usr/lib/modules") / kver
 
     # There is firmware in /usr/lib/firmware that is not depended on by any modules so if any firmware was installed
     # we have to take the slow path to make sure we don't copy firmware into the initrd that is not depended on by any
@@ -163,24 +168,25 @@ def gen_required_kernel_modules(
         mods, firmware = resolve_module_dependencies(root, kver, names, sandbox=sandbox)
     else:
         logging.debug("No modules excluded and no firmware installed, using kernel modules generation fast path")
-        mods = set(modulesd.rglob("*.ko*"))
+        with chdir(root):
+            mods = set(modulesd.rglob("*.ko*"))
         firmware = set()
 
     yield from sorted(
         itertools.chain(
-            {p for f in mods | firmware for p in parents_below(f, root / "usr/lib")},
+            {p.relative_to(root) for f in mods | firmware for p in parents_below(root / f, root / "usr/lib")},
             mods,
             firmware,
-            modulesd.glob("modules*"),
+            (p.relative_to(root) for p in (root / modulesd).glob("modules*")),
         )
     )
 
     if (modulesd / "vdso").exists():
         if not mods:
-            yield from parents_below(modulesd / "vdso", root / "usr/lib")
+            yield from (p.relative_to(root) for p in parents_below(root / modulesd / "vdso", root / "usr/lib"))
 
         yield modulesd / "vdso"
-        yield from sorted((modulesd / "vdso").iterdir())
+        yield from sorted(p.relative_to(root) for p in (root / modulesd / "vdso").iterdir())
 
 
 def process_kernel_modules(
@@ -194,28 +200,37 @@ def process_kernel_modules(
     if not exclude:
         return
 
+    modulesd = Path("usr/lib/modules") / kver
+    firmwared = Path("usr/lib/firmware")
+
     with complete_step("Applying kernel module filters"):
         required = set(gen_required_kernel_modules(root, kver, include=include, exclude=exclude, sandbox=sandbox))
 
-        for m in sorted((root / "usr/lib/modules" / kver).rglob("*.ko*"), reverse=True):
+        with chdir(root):
+            modules = sorted(modulesd.rglob("*.ko*"), reverse=True)
+            firmware = sorted(firmwared.rglob("*"), reverse=True)
+
+        for m in modules:
             if m in required:
                 continue
 
-            if m.is_file() or m.is_symlink():
+            p = root / m
+            if p.is_file() or p.is_symlink():
                 logging.debug(f"Removing module {m}")
-                m.unlink()
+                p.unlink()
             else:
-                m.rmdir()
+                p.rmdir()
 
-        for fw in sorted((root / "usr/lib/firmware").rglob("*"), reverse=True):
+        for fw in firmware:
             if fw in required:
                 continue
 
-            if any(fw.is_relative_to(root / "usr/lib/firmware" / d) for d in ("amd-ucode", "intel-ucode")):
+            if any(fw.is_relative_to(Path("usr/lib/firmware") / d) for d in ("amd-ucode", "intel-ucode")):
                 continue
 
-            if fw.is_file() or fw.is_symlink():
+            p = root / fw
+            if p.is_file() or p.is_symlink():
                 logging.debug(f"Removing firmware {fw}")
-                fw.unlink()
+                p.unlink()
             else:
-                fw.rmdir()
+                p.rmdir()
