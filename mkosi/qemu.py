@@ -153,7 +153,7 @@ class KernelType(StrEnum):
             logging.warning("bootctl is not installed, assuming 'unknown' kernel type")
             return KernelType.unknown
 
-        if (v := systemd_tool_version(config, "bootctl")) < 253:
+        if (v := systemd_tool_version("bootctl", sandbox=config.sandbox)) < 253:
             logging.warning(f"bootctl {v} doesn't know kernel-identify verb, assuming 'unknown' kernel type")
             return KernelType.unknown
 
@@ -744,7 +744,7 @@ def scope_cmd(
         "--description", description,
         "--scope",
         "--collect",
-        "--expand-environment=no",
+        *(["--expand-environment=no"] if systemd_tool_version("systemd-run") >= 254 else []),
         *(["--uid", str(user)] if user is not None else []),
         *(["--gid", str(group)] if group is not None else []),
         *([f"--property={p}" for p in properties]),

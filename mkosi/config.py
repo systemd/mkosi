@@ -35,7 +35,7 @@ from mkosi.distributions import Distribution, detect_distribution
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, Style, die
 from mkosi.pager import page
 from mkosi.run import find_binary, run
-from mkosi.sandbox import Mount, sandbox_cmd
+from mkosi.sandbox import Mount, SandboxProtocol, nosandbox, sandbox_cmd
 from mkosi.types import PathString, SupportsRead
 from mkosi.user import INVOKING_USER
 from mkosi.util import (
@@ -4427,11 +4427,11 @@ def want_selinux_relabel(config: Config, root: Path, fatal: bool = True) -> Opti
     return setfiles, policy, fc, binpolicy
 
 
-def systemd_tool_version(config: Config, *tool: PathString) -> GenericVersion:
+def systemd_tool_version(*tool: PathString, sandbox: SandboxProtocol = nosandbox) -> GenericVersion:
     return GenericVersion(
         run(
             [*tool, "--version"],
             stdout=subprocess.PIPE,
-            sandbox=config.sandbox(binary=tool[-1]),
+            sandbox=sandbox(binary=tool[-1]),
         ).stdout.split()[2].strip("()").removeprefix("v")
     )
