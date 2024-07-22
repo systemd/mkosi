@@ -714,9 +714,11 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     The types and syntax of *package specifications* that are allowed
     depend on the package installer (e.g. `dnf` for `rpm`-based distros or
     `apt` for `deb`-based distros), but may include package names, package
-    names with version and/or architecture, package name globs, paths to
-    packages in the file system, package groups, and virtual provides,
-    including file paths.
+    names with version and/or architecture, package name globs, package
+    groups, and virtual provides, including file paths.
+
+    See `PackageDirectories=` for information on how to make local
+    packages available for installation with `Packages=`.
 
     **Example**: when using a distro that uses `dnf`, the following configuration
     would install the `meson` package (in the latest version), the 32-bit version
@@ -729,7 +731,6 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     Packages=meson
              libfdisk-devel.i686
              git-*
-             prebuilt/rpms/systemd-249-rc1.local.rpm
              /usr/bin/ld
              @development-tools
              python3dist(mypy)
