@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 import dataclasses
-import os
 import shutil
 import textwrap
 from collections.abc import Iterable, Sequence
@@ -10,7 +9,6 @@ from pathlib import Path
 from mkosi.config import Config
 from mkosi.context import Context
 from mkosi.installer import PackageManager
-from mkosi.mounts import finalize_source_mounts
 from mkosi.run import run
 from mkosi.sandbox import Mount, apivfs_cmd
 from mkosi.types import _FILE, CompletedProcess, PathString
@@ -162,25 +160,20 @@ class Pacman(PackageManager):
         apivfs: bool = False,
         stdout: _FILE = None,
     ) -> CompletedProcess:
-        with finalize_source_mounts(
-            context.config,
-            ephemeral=os.getuid() == 0 and context.config.build_sources_ephemeral,
-        ) as sources:
-            return run(
-                cls.cmd(context) + [operation, *arguments],
-                sandbox=(
-                    context.sandbox(
-                        binary="pacman",
-                        network=True,
-                        vartmp=True,
-                        mounts=[Mount(context.root, "/buildroot"), *cls.mounts(context), *sources],
-                        options=["--dir", "/work/src", "--chdir", "/work/src"],
-                        extra=apivfs_cmd() if apivfs else [],
-                    )
-                ),
-                env=context.config.environment | cls.finalize_environment(context),
-                stdout=stdout,
-            )
+        return run(
+            cls.cmd(context) + [operation, *arguments],
+            sandbox=(
+                context.sandbox(
+                    binary="pacman",
+                    network=True,
+                    vartmp=True,
+                    mounts=[Mount(context.root, "/buildroot"), *cls.mounts(context)],
+                    extra=apivfs_cmd() if apivfs else [],
+                )
+            ),
+            env=context.config.environment | cls.finalize_environment(context),
+            stdout=stdout,
+        )
 
     @classmethod
     def sync(cls, context: Context, force: bool) -> None:

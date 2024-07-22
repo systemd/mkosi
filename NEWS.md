@@ -6,6 +6,15 @@
   other architectures) has been removed. The required `console=`
   argument to have the kernel output to the serial console has to be
   added manually from `v24` onwards.
+- Support for installing local packages located in directories in
+  `BuildSources=` was dropped. Instead, the packages can be made
+  available for installation via `PackageManagerTrees=`.
+- Configuration parsing was reworked to remove the need for the `@`
+  specifier and to streamline building multiple images with
+  `mkosi.images/`. If you were building multiple images with
+  `mkosi.images/`, you'll need to adapt your configuration to the
+  rework. Read the **Building multiple images** section in the
+  documentation for more information.
 
 ## v23.1
 
