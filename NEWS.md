@@ -6,6 +6,9 @@
   other architectures) has been removed. The required `console=`
   argument to have the kernel output to the serial console has to be
   added manually from `v24` onwards.
+- Support for installing local packages located in directories in
+  `BuildSources=` was dropped. Instead, the packages can be made
+  available for installation via `PackageManagerTrees=`.
 
 ## v23.1
 

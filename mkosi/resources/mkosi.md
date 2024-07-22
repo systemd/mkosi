@@ -736,17 +736,6 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
              python3dist(mypy)
     ```
 
-    Note that since mkosi runs in a sandbox with most of the host files
-    unavailable, any local packages have to be mounted into the sandbox
-    explicitly using `BuildSources=`. For example, let's say we have a
-    local package located at `../my-packages/abc.rpm` relative to the mkosi
-    working directory, then we'd be able to install it as follows:
-
-    ```ini
-    BuildSources=../my-packages:my-packages-in-sandbox
-    Packages=my-packages-in-sandbox/abc.rpm
-    ```
-
 `BuildPackages=`, `--build-package=`
 :   Similar to `Packages=`, but configures packages to install only in an
     overlay that is made available on top of the image to the prepare
