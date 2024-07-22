@@ -1720,6 +1720,9 @@ def fixup_vmlinuz_location(context: Context) -> None:
     # Some architectures ship an uncompressed vmlinux (ppc64el, riscv64)
     for type in ("vmlinuz", "vmlinux"):
         for d in context.root.glob(f"boot/{type}-*"):
+            if d.is_symlink():
+                continue
+
             kver = d.name.removeprefix(f"{type}-")
             vmlinuz = context.root / "usr/lib/modules" / kver / type
             if not vmlinuz.parent.exists():
