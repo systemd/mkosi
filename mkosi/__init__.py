@@ -2200,7 +2200,11 @@ def build_uki(
     if microcodes:
         # new .ucode section support?
         if (
-            systemd_tool_version(context.config, python_binary(context.config, binary=ukify), ukify) >= "256" and
+            systemd_tool_version(
+                python_binary(context.config, binary=ukify),
+                ukify,
+                sandbox=context.sandbox,
+            ) >= "256" and
             (version := systemd_stub_version(context, stub)) and
             version >= "256"
         ):
@@ -2297,7 +2301,7 @@ def find_entry_token(context: Context) -> str:
         not context.config.find_binary("kernel-install") or
         "--version" not in run(["kernel-install", "--help"],
                                stdout=subprocess.PIPE, sandbox=context.sandbox(binary="kernel-install")).stdout or
-        systemd_tool_version(context.config, "kernel-install") < "255.1"
+        systemd_tool_version("kernel-install", sandbox=context.sandbox) < "255.1"
     ):
         return context.config.image_id or context.config.distribution.name
 
@@ -2901,7 +2905,7 @@ def check_systemd_tool(
 ) -> None:
     tool = check_tool(config, *tools, reason=reason, hint=hint)
 
-    v = systemd_tool_version(config, tool)
+    v = systemd_tool_version(tool, sandbox=config.sandbox)
     if v < version:
         die(f"Found '{tool}' with version {v} but version {version} or newer is required to {reason}.",
             hint=f"Use ToolsTree=default to get a newer version of '{tools[0]}'.")
@@ -2915,7 +2919,7 @@ def check_ukify(
 ) -> None:
     ukify = check_tool(config, "ukify", "/usr/lib/systemd/ukify", reason=reason, hint=hint)
 
-    v = systemd_tool_version(config, python_binary(config, binary=ukify), ukify)
+    v = systemd_tool_version(python_binary(config, binary=ukify), ukify, sandbox=config.sandbox)
     if v < version:
         die(f"Found '{ukify}' with version {v} but version {version} or newer is required to {reason}.",
             hint="Use ToolsTree=default to get a newer version of 'ukify'.")
@@ -3412,7 +3416,7 @@ def make_image(
         cmdline += ["--split=yes"]
     if context.config.sector_size:
         cmdline += ["--sector-size", str(context.config.sector_size)]
-    if tabs and systemd_tool_version(context.config, "systemd-repart") >= 256:
+    if tabs and systemd_tool_version("systemd-repart", sandbox=context.sandbox) >= 256:
         cmdline += [
             "--generate-fstab=/etc/fstab",
             "--generate-crypttab=/etc/crypttab",
