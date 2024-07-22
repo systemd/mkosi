@@ -4756,6 +4756,34 @@ def run_build(args: Args, config: Config, *, resources: Path, package_dir: Optio
             build_image(Context(args, config, workspace=workspace, resources=resources, package_dir=package_dir))
 
 
+def ensure_root_is_mountpoint() -> None:
+    """
+    bubblewrap uses pivot_root() which doesn't work in the initramfs as pivot_root() requires / to be a mountpoint
+    which is not the case in the initramfs. So, to make sure mkosi works from within the initramfs, let's make / a
+    mountpoint by recursively bind-mounting / (the directory) to another location and then switching root into the bind
+    mount directory.
+    """
+    fstype = run(
+        ["findmnt", "--target", "/", "--output", "FSTYPE", "--noheadings"],
+        stdout=subprocess.PIPE,
+    ).stdout.strip()
+
+    if fstype != "rootfs":
+        return
+
+    if os.getuid() != 0:
+        die("mkosi can only be run as root from the initramfs")
+
+    unshare(CLONE_NEWNS)
+    run(["mount", "--make-rslave", "/"])
+    mountpoint = Path("/run/mkosi/mkosi-root")
+    mountpoint.mkdir(parents=True, exist_ok=True)
+    run(["mount", "--rbind", "/", mountpoint])
+    os.chdir(mountpoint)
+    run(["mount", "--move", ".", "/"])
+    os.chroot(".")
+
+
 def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
     images = list(images)
 
@@ -4799,6 +4827,8 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
 
         page(text, args.pager)
         return
+
+    ensure_root_is_mountpoint()
 
     if args.verb in (Verb.journalctl, Verb.coredumpctl, Verb.ssh):
         # We don't use a tools tree for verbs that don't need an image build.
