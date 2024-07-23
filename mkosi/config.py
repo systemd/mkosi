@@ -1363,8 +1363,6 @@ class Args:
         j = cls._load_json(s)
         return dataclasses.replace(cls.default(), **j)
 
-CACHE_UID = os.getuid()
-CACHE_GID = os.getgid()
 
 PACKAGE_GLOBS = (
     "*.rpm",
@@ -1657,8 +1655,6 @@ class Config:
 
     def cache_manifest(self) -> dict[str, Any]:
         return {
-            "uid": CACHE_UID,
-            "gid": CACHE_GID,
             "distribution": self.distribution,
             "release": self.release,
             "mirror": self.mirror,

@@ -3332,6 +3332,9 @@ def reuse_cache(context: Context) -> bool:
 
     final, build, _ = cache_tree_paths(context.config)
 
+    if final.stat().st_uid != os.getuid():
+        return False
+
     with complete_step("Copying cached trees"):
         copy_tree(
             final, context.root,
