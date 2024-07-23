@@ -3,6 +3,7 @@
 import contextlib
 import dataclasses
 import datetime
+import errno
 import hashlib
 import io
 import itertools
@@ -4738,9 +4739,20 @@ def run_build(args: Args, config: Config, *, resources: Path, package_dir: Optio
             remount += ["/usr"]
 
         for d in remount:
-            if Path(d).exists():
-                options = "ro" if d in ("/usr", "/opt") else "ro,nosuid,nodev,noexec"
-                run(["mount", "--rbind", d, d, "--options", options])
+            options = "ro" if d in ("/usr", "/opt") else "ro,nosuid,nodev,noexec"
+
+            try:
+                dest = os.readlink(d)
+            except FileNotFoundError:
+                continue
+            except OSError as e:
+                if e.errno != errno.EINVAL:
+                    raise
+
+                dest = d
+
+            d = os.path.join(os.path.dirname(d), dest)
+            run(["mount", "--rbind", d, d, "--options", options])
 
     with (
         complete_step(f"Building {config.name()} image"),
