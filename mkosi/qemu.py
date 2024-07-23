@@ -533,6 +533,19 @@ def copy_ephemeral(config: Config, src: Path) -> Iterator[Path]:
         def copy() -> None:
             if config.output_format == OutputFormat.directory:
                 become_root()
+            elif config.output_format in (OutputFormat.disk, OutputFormat.esp):
+                attr = run(
+                    ["lsattr", "-l", src],
+                    sandbox=config.sandbox(binary="lsattr", mounts=[Mount(src, src, ro=True)]),
+                    stdout=subprocess.PIPE,
+                ).stdout
+
+                if "No_COW" in attr:
+                    tmp.touch()
+                    run(
+                        ["chattr", "+C", tmp],
+                        sandbox=config.sandbox(binary="chattr", mounts=[Mount(tmp, tmp)]),
+                    )
 
             copy_tree(
                 src, tmp,
