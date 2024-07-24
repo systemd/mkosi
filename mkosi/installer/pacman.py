@@ -36,6 +36,10 @@ class Pacman(PackageManager):
         return [cache / "pkg"]
 
     @classmethod
+    def state_subdirs(cls, state: Path) -> list[Path]:
+        return [state / "local"]
+
+    @classmethod
     def scripts(cls, context: Context) -> dict[str, list[PathString]]:
         return {
             "pacman": apivfs_cmd() + cls.env_cmd(context) + cls.cmd(context),
