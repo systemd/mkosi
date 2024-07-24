@@ -75,6 +75,7 @@ class Verb(StrEnum):
     coredumpctl   = enum.auto()
     burn          = enum.auto()
     dependencies  = enum.auto()
+    completion    = enum.auto()
 
     def supports_cmdline(self) -> bool:
         return self in (
@@ -86,6 +87,7 @@ class Verb(StrEnum):
             Verb.journalctl,
             Verb.coredumpctl,
             Verb.burn,
+            Verb.completion,
         )
 
     def needs_build(self) -> bool:
@@ -102,7 +104,13 @@ class Verb(StrEnum):
         return self in (Verb.shell, Verb.boot, Verb.burn)
 
     def needs_config(self) -> bool:
-        return self not in (Verb.help, Verb.genkey, Verb.documentation, Verb.dependencies)
+        return self not in (
+            Verb.help,
+            Verb.genkey,
+            Verb.documentation,
+            Verb.dependencies,
+            Verb.completion,
+        )
 
 
 class ConfigFeature(StrEnum):
@@ -2972,6 +2980,7 @@ SETTINGS = (
         metavar="PROPERTY",
         section="Host",
         parse=config_make_list_parser(delimiter=" ", unescape=True),
+        help="Set properties on the scopes spawned by systemd-nspawn or systemd-run",
     ),
     ConfigSetting(
         dest="ssh_key",
@@ -3168,7 +3177,7 @@ SPECIFIERS_LOOKUP_BY_CHAR = {s.char: s for s in SPECIFIERS}
 FALLBACK_NAME_TO_DEST_SPLITTER = re.compile("(?<=[a-z])(?=[A-Z])")
 
 
-def create_argument_parser(action: type[argparse.Action], chdir: bool = True) -> argparse.ArgumentParser:
+def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="mkosi",
         description="Build Bespoke OS Images",
@@ -3265,6 +3274,7 @@ def create_argument_parser(action: type[argparse.Action], chdir: bool = True) ->
         help="The format to show documentation in",
         default=DocFormat.auto,
         type=DocFormat,
+        choices=list(DocFormat),
     )
     parser.add_argument(
         "--json",
@@ -3323,16 +3333,8 @@ def create_argument_parser(action: type[argparse.Action], chdir: bool = True) ->
             nargs=s.nargs,     # type: ignore
             const=s.const,
             help=s.help,
-            action=action,
+            action=ConfigAction,
         )
-
-
-    try:
-        import argcomplete
-
-        argcomplete.autocomplete(parser)
-    except ImportError:
-        pass
 
     return parser
 
@@ -3740,7 +3742,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
     setattr(context.config, "image", None)
 
     # First, we parse the command line arguments into a separate namespace.
-    argparser = create_argument_parser(ConfigAction)
+    argparser = create_argument_parser()
     with context.parse_new_includes():
         argparser.parse_args(argv, context.cli)
     args = load_args(context.cli)

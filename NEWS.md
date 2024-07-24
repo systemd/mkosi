@@ -15,6 +15,9 @@
   `mkosi.images/`, you'll need to adapt your configuration to the
   rework. Read the **Building multiple images** section in the
   documentation for more information.
+- mkosi has gained the option to generate completion scripts for bash,
+  fish and zsh. Packagers should generate the scripts during packaging
+  and ship them in the appropriate places.
 
 ## v23.1
 

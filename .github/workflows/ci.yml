@@ -78,10 +78,11 @@ jobs:
         ./builddir/mkosi -h
         ./builddir/mkosi documentation
 
-    - name: Test shell scripts
+    - name: Run shellcheck on scripts
       run: |
         sudo apt-get update && sudo apt-get install --no-install-recommends shellcheck
         bash -c 'shopt -s globstar; shellcheck bin/mkosi tools/*.sh'
+        bin/mkosi completion bash | shellcheck -
 
     - name: Test man page generation
       run: pandoc -s mkosi.md -o mkosi.1

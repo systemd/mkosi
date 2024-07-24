@@ -27,6 +27,7 @@ from typing import Optional, Union, cast
 
 from mkosi.archive import can_extract_tar, extract_tar, make_cpio, make_tar
 from mkosi.burn import run_burn
+from mkosi.completion import print_completion
 from mkosi.config import (
     PACKAGE_GLOBS,
     Args,
@@ -4793,6 +4794,9 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
 
     if args.verb.needs_root() and os.getuid() != 0:
         die(f"Must be root to run the {args.verb} command")
+
+    if args.verb == Verb.completion:
+        return print_completion(args, resources=resources)
 
     if args.verb == Verb.documentation:
         return show_docs(args, resources=resources)
