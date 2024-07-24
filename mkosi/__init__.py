@@ -3832,17 +3832,21 @@ def copy_repository_metadata(context: Context) -> None:
                 logging.debug(f"{src} does not exist, not copying repository metadata from it")
                 continue
 
-            if d == "cache":
-                caches = context.config.distribution.package_manager(context.config).cache_subdirs(src)
-            else:
-                caches = []
-
             with tempfile.TemporaryDirectory() as tmp:
                 os.chmod(tmp, 0o755)
 
                 # cp doesn't support excluding directories but we can imitate it by bind mounting an empty directory
                 # over the directories we want to exclude.
-                exclude = [Mount(tmp, p, ro=True) for p in caches]
+                if d == "cache":
+                    exclude = [
+                        Mount(tmp, p, ro=True)
+                        for p in context.config.distribution.package_manager(context.config).cache_subdirs(src)
+                    ]
+                else:
+                    exclude = [
+                        Mount(tmp, p, ro=True)
+                        for p in context.config.distribution.package_manager(context.config).state_subdirs(src)
+                    ]
 
                 dst = context.package_cache_dir / d / subdir
                 with umask(~0o755):

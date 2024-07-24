@@ -26,6 +26,10 @@ class PackageManager:
         return []
 
     @classmethod
+    def state_subdirs(cls, state: Path) -> list[Path]:
+        return  []
+
+    @classmethod
     def scripts(cls, context: Context) -> dict[str, list[PathString]]:
         return {}
 
