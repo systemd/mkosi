@@ -4854,9 +4854,13 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
     if last.tools_tree and last.tools_tree == Path("default"):
         tools = finalize_default_tools(args, last, resources=resources)
 
-        # If we're doing an incremental tools tree and the cache is not out of date, don't clean up the tools tree
+        # If we're doing an incremental build and the cache is not out of date, don't clean up the tools tree
         # so that we can reuse the previous one.
-        if not tools.incremental or not have_cache(tools) or needs_clean(args, tools, force=2):
+        if (
+            not tools.incremental or
+            ((args.verb == Verb.build or args.force > 0) and not have_cache(tools)) or
+            needs_clean(args, tools, force=2)
+        ):
             fork_and_wait(run_clean, args, tools, resources=resources)
     else:
         tools = None
