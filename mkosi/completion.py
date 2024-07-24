@@ -102,11 +102,11 @@ def collect_completion_arguments() -> list[CompletionItem]:
 
 def finalize_completion_bash(options: list[CompletionItem], resources: Path) -> str:
     def to_bash_array(name: str, entries: Iterable[str]) -> str:
-        return f"declare -a {name.replace('-', '_')}=(" + " ".join(shlex.quote(str(e)) for e in entries) + ")"
+        return f"{name.replace('-', '_')}=(" + " ".join(shlex.quote(str(e)) for e in entries) + ")"
 
     def to_bash_hasharray(name: str, entries: Mapping[str, Union[str, int]]) -> str:
         return (
-            f"declare -A {name.replace('-', '_')}=(" +
+            f"{name.replace('-', '_')}=(" +
             " ".join(f"[{shlex.quote(str(k))}]={shlex.quote(str(v))}" for k, v in entries.items()) + ")"
         )
 
@@ -116,6 +116,7 @@ def finalize_completion_bash(options: list[CompletionItem], resources: Path) -> 
 
     with io.StringIO() as c:
         c.write(completion.read_text())
+        c.write("\n")
 
         c.write(to_bash_array("_mkosi_options", options_by_key.keys()))
         c.write("\n\n")

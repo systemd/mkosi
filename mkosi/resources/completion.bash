@@ -1,6 +1,12 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 # shellcheck shell=bash
 
+declare -a _mkosi_options
+declare -A _mkosi_nargs
+declare -A _mkosi_choices
+declare -A _mkosi_compgen
+declare -a _mkosi_verbs
+
 _mkosi_compgen_files() {
     compgen -f -- "$1"
 }
