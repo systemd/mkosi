@@ -4667,7 +4667,7 @@ def run_sync(args: Args, config: Config, *, resources: Path) -> None:
     if os.getuid() == 0:
         os.setgroups(INVOKING_USER.extra_groups())
         os.setresgid(INVOKING_USER.gid, INVOKING_USER.gid, INVOKING_USER.gid)
-        os.setresuid(INVOKING_USER.uid, INVOKING_USER.gid, INVOKING_USER.gid)
+        os.setresuid(INVOKING_USER.uid, INVOKING_USER.uid, INVOKING_USER.uid)
 
     if not (p := config.package_cache_dir_or_default()).exists():
         p.mkdir(parents=True, exist_ok=True)
