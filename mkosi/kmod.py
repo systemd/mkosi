@@ -106,8 +106,13 @@ def resolve_module_dependencies(
             if not sep:
                 key, sep, value = line.partition("=")
 
-            if key in ("depends", "softdep"):
+            if key == "depends":
                 depends += [normalize_module_name(d) for d in value.strip().split(",") if d]
+
+            elif key == "softdep":
+                # softdep is delimited by spaces and can contain strings like pre: and post: so discard anything that
+                # ends with a colon.
+                depends += [normalize_module_name(d) for d in value.strip().split() if not d.endswith(":")]
 
             elif key == "firmware":
                 fw = [f for f in Path("usr/lib/firmware").glob(f"{value.strip()}*")]
