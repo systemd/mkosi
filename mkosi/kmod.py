@@ -29,7 +29,6 @@ def filter_kernel_modules(root: Path, kver: str, *, include: Iterable[str], excl
         for m in modules:
             rel = os.fspath(Path(*m.parts[1:]))
             if regex.search(rel):
-                logging.debug(f"Including module {rel}")
                 keep.add(rel)
 
     if exclude:
@@ -38,7 +37,6 @@ def filter_kernel_modules(root: Path, kver: str, *, include: Iterable[str], excl
         for m in modules:
             rel = os.fspath(Path(*m.parts[1:]))
             if rel not in keep and regex.search(rel):
-                logging.debug(f"Excluding module {rel}")
                 remove.add(m)
 
         modules -= remove
@@ -221,7 +219,6 @@ def process_kernel_modules(
 
             p = root / m
             if p.is_file() or p.is_symlink():
-                logging.debug(f"Removing module {m}")
                 p.unlink()
             else:
                 p.rmdir()
@@ -235,7 +232,6 @@ def process_kernel_modules(
 
             p = root / fw
             if p.is_file() or p.is_symlink():
-                logging.debug(f"Removing firmware {fw}")
                 p.unlink()
             else:
                 p.rmdir()

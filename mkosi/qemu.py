@@ -170,16 +170,6 @@ class KernelType(StrEnum):
             return KernelType.unknown
 
 
-def find_qemu_binary(config: Config) -> str:
-    binaries = [f"qemu-system-{config.architecture.to_qemu()}"]
-    binaries += ["qemu", "qemu-kvm"] if config.architecture.is_native() else []
-    for binary in binaries:
-        if config.find_binary(binary) is not None:
-            return binary
-
-    die("Couldn't find QEMU/KVM binary")
-
-
 @dataclasses.dataclass(frozen=True)
 class OvmfConfig:
     description: Path
@@ -189,13 +179,15 @@ class OvmfConfig:
     vars_format: str
 
 
-def find_ovmf_firmware(config: Config, firmware: QemuFirmware) -> Optional[OvmfConfig]:
+def find_ovmf_firmware(config: Config, qemu: Path, firmware: QemuFirmware) -> Optional[OvmfConfig]:
     if not firmware.is_uefi():
         return None
 
-    desc = list((config.tools() / "usr/share/qemu/firmware").glob("*"))
-    if config.tools() == Path("/"):
-        desc += list((config.tools() / "etc/qemu/firmware").glob("*"))
+    tools = Path("/") if any(qemu.is_relative_to(d) for d in config.extra_search_paths) else config.tools()
+
+    desc = list((tools / "usr/share/qemu/firmware").glob("*"))
+    if tools == Path("/"):
+        desc += list((tools / "etc/qemu/firmware").glob("*"))
 
     arch = config.architecture.to_qemu()
     machine = config.architecture.default_qemu_machine()
@@ -243,7 +235,7 @@ def find_ovmf_firmware(config: Config, firmware: QemuFirmware) -> Optional[OvmfC
         logging.debug(f"Using {p.name} firmware description")
 
         return OvmfConfig(
-            description=Path("/") / p.relative_to(config.tools()),
+            description=Path("/") / p.relative_to(tools),
             firmware=Path(j["mapping"]["executable"]["filename"]),
             format=j["mapping"]["executable"]["format"],
             vars=Path(j["mapping"]["nvram-template"]["filename"]),
@@ -567,8 +559,7 @@ def copy_ephemeral(config: Config, src: Path) -> Iterator[Path]:
         fork_and_wait(rm)
 
 
-def qemu_version(config: Config) -> GenericVersion:
-    binary = find_qemu_binary(config)
+def qemu_version(config: Config, binary: Path) -> GenericVersion:
     return GenericVersion(
         run(
             [binary, "--version"],
@@ -620,7 +611,12 @@ def finalize_qemu_firmware(config: Config, kernel: Optional[Path]) -> QemuFirmwa
         return config.qemu_firmware
 
 
-def finalize_firmware_variables(config: Config, ovmf: OvmfConfig, stack: contextlib.ExitStack) -> tuple[Path, str]:
+def finalize_firmware_variables(
+    config: Config,
+    qemu: Path,
+    ovmf: OvmfConfig,
+    stack: contextlib.ExitStack,
+) -> tuple[Path, str]:
     ovmf_vars = stack.enter_context(tempfile.NamedTemporaryFile(prefix="mkosi-ovmf-vars-"))
     if config.qemu_firmware_variables in (None, Path("custom"), Path("microsoft")):
         ovmf_vars_format = ovmf.vars_format
@@ -641,7 +637,7 @@ def finalize_firmware_variables(config: Config, ovmf: OvmfConfig, stack: context
                 "--loglevel", "WARNING",
             ],
             sandbox=config.sandbox(
-                binary=None,
+                binary=qemu,
                 mounts=[
                     Mount(ovmf_vars.name, ovmf_vars.name),
                     Mount(config.secure_boot_certificate, config.secure_boot_certificate, ro=True),
@@ -649,8 +645,9 @@ def finalize_firmware_variables(config: Config, ovmf: OvmfConfig, stack: context
             ),
         )
     else:
+        tools = Path("/") if any(qemu.is_relative_to(d) for d in config.extra_search_paths) else config.tools()
         vars = (
-            config.tools() / ovmf.vars.relative_to("/")
+            tools / ovmf.vars.relative_to("/")
             if config.qemu_firmware_variables == Path("microsoft") or not config.qemu_firmware_variables
             else config.qemu_firmware_variables
         )
@@ -833,8 +830,11 @@ def run_qemu(args: Args, config: Config) -> None:
         if d.feature(config) != ConfigFeature.disabled and d.available(log=True)
     }
 
-    have_kvm = ((qemu_version(config) < QEMU_KVM_DEVICE_VERSION and QemuDeviceNode.kvm.available()) or
-                (qemu_version(config) >= QEMU_KVM_DEVICE_VERSION and QemuDeviceNode.kvm in qemu_device_fds))
+    if not (qemu := config.find_binary(f"qemu-system-{config.architecture.to_qemu()}")):
+        die("qemu not found.", hint=f"Is qemu-system-{config.architecture.to_qemu()} installed on the host system?")
+
+    have_kvm = ((qemu_version(config, qemu) < QEMU_KVM_DEVICE_VERSION and QemuDeviceNode.kvm.available()) or
+                (qemu_version(config, qemu) >= QEMU_KVM_DEVICE_VERSION and QemuDeviceNode.kvm in qemu_device_fds))
     if config.qemu_kvm == ConfigFeature.enabled and not have_kvm:
         die("KVM acceleration requested but cannot access /dev/kvm")
 
@@ -877,7 +877,7 @@ def run_qemu(args: Args, config: Config) -> None:
                 "or provide a -kernel argument to mkosi qemu"
             )
 
-    ovmf = find_ovmf_firmware(config, firmware)
+    ovmf = find_ovmf_firmware(config, qemu, firmware)
 
     # A shared memory backend might increase ram usage so only add one if actually necessary for virtiofsd.
     shm = []
@@ -891,7 +891,7 @@ def run_qemu(args: Args, config: Config) -> None:
         machine += ",memory-backend=mem"
 
     cmdline: list[PathString] = [
-        find_qemu_binary(config),
+        qemu,
         "-machine", machine,
         "-smp", str(config.qemu_smp or os.cpu_count()),
         "-m", f"{config.qemu_mem // 1024**2}M",
@@ -914,7 +914,7 @@ def run_qemu(args: Args, config: Config) -> None:
 
     if config.qemu_kvm != ConfigFeature.disabled and have_kvm and config.architecture.can_kvm():
         accel = "kvm"
-        if qemu_version(config) >= QEMU_KVM_DEVICE_VERSION:
+        if qemu_version(config, qemu) >= QEMU_KVM_DEVICE_VERSION:
             index = list(qemu_device_fds.keys()).index(QemuDeviceNode.kvm)
             cmdline += ["--add-fd", f"fd={SD_LISTEN_FDS_START + index},set=1,opaque=/dev/kvm"]
             accel += ",device=/dev/fdset/1"
@@ -967,7 +967,7 @@ def run_qemu(args: Args, config: Config) -> None:
     with contextlib.ExitStack() as stack:
         if firmware.is_uefi():
             assert ovmf
-            ovmf_vars, ovmf_vars_format = finalize_firmware_variables(config, ovmf, stack)
+            ovmf_vars, ovmf_vars_format = finalize_firmware_variables(config, qemu, ovmf, stack)
 
             cmdline += ["-drive", f"file={ovmf_vars},if=pflash,format={ovmf_vars_format}"]
             if firmware == QemuFirmware.uefi_secure_boot:
@@ -1215,7 +1215,7 @@ def run_qemu(args: Args, config: Config) -> None:
             env=os.environ | config.environment,
             log=False,
             foreground=True,
-            sandbox=config.sandbox(binary=None, network=True, devices=True, relaxed=True),
+            sandbox=config.sandbox(binary=qemu, network=True, devices=True, relaxed=True),
             scope=scope_cmd(
                 name=name,
                 description=f"mkosi Virtual Machine {name}",
