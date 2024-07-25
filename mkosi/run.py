@@ -80,8 +80,8 @@ def uncaught_exception_handler(exit: Callable[[int], NoReturn] = sys.exit) -> It
         if (
             ARG_DEBUG.get() and
             e.cmd and
-            e.cmd[0] not in ("self", "ssh", "systemd-nspawn") and
-            not e.cmd[0].startswith("qemu")
+            str(e.cmd[0]) not in ("self", "ssh", "systemd-nspawn") and
+            "qemu-system" not in str(e.cmd[0])
         ):
             sys.excepthook(*ensure_exc_info())
     except BaseException:
