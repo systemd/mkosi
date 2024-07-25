@@ -59,18 +59,21 @@ def uncaught_exception_handler(exit: Callable[[int], NoReturn] = sys.exit) -> It
     try:
         yield
     except SystemExit as e:
+        rc = e.code if isinstance(e.code, int) else 1
+
         if ARG_DEBUG.get():
             sys.excepthook(*ensure_exc_info())
-
-        rc = e.code if isinstance(e.code, int) else 1
     except KeyboardInterrupt:
+        rc = 1
+
         if ARG_DEBUG.get():
             sys.excepthook(*ensure_exc_info())
         else:
             logging.error("Interrupted")
-
-        rc = 1
     except subprocess.CalledProcessError as e:
+        # We always log when subprocess.CalledProcessError is raised, so we don't log again here.
+        rc = e.returncode
+
         # Failures from qemu, ssh and systemd-nspawn are expected and we won't log stacktraces for those.
         # Failures from self come from the forks we spawn to build images in a user namespace. We've already done all
         # the logging for those failures so we don't log stacktraces for those either.
@@ -81,9 +84,6 @@ def uncaught_exception_handler(exit: Callable[[int], NoReturn] = sys.exit) -> It
             not e.cmd[0].startswith("qemu")
         ):
             sys.excepthook(*ensure_exc_info())
-
-        # We always log when subprocess.CalledProcessError is raised, so we don't log again here.
-        rc = e.returncode
     except BaseException:
         sys.excepthook(*ensure_exc_info())
         rc = 1
