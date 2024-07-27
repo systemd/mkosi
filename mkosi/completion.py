@@ -7,6 +7,7 @@ import io
 import shlex
 from collections.abc import Iterable, Mapping
 from pathlib import Path
+from textwrap import indent
 from typing import Optional, Union
 
 from mkosi import config
@@ -114,10 +115,8 @@ def finalize_completion_bash(options: list[CompletionItem], resources: Path) -> 
 
     options_by_key = {o.short: o for o in options if o.short} | {o.long: o for o in options if o.long}
 
+    template = completion.read_text()
     with io.StringIO() as c:
-        c.write(completion.read_text())
-        c.write("\n")
-
         c.write(to_bash_array("_mkosi_options", options_by_key.keys()))
         c.write("\n\n")
 
@@ -139,9 +138,10 @@ def finalize_completion_bash(options: list[CompletionItem], resources: Path) -> 
         c.write("\n\n")
 
         c.write(to_bash_array("_mkosi_verbs", [str(v) for v in config.Verb]))
-        c.write("\n\n\n")
 
-        return c.getvalue()
+        definitions = c.getvalue()
+
+    return template.replace("##VARIABLEDEFINITIONS##", indent(definitions, " " * 4))
 
 
 def finalize_completion_fish(options: list[CompletionItem], resources: Path) -> str:
