@@ -77,7 +77,11 @@ class INVOKING_USER:
     def cache_dir(cls) -> Path:
         if (env := os.getenv("XDG_CACHE_HOME")) or (env := os.getenv("CACHE_DIRECTORY")):
             cache = Path(env)
-        elif cls.is_regular_user() and (Path.cwd().is_relative_to(INVOKING_USER.home()) or not cls.invoked_as_root):
+        elif (
+            cls.is_regular_user() and
+            INVOKING_USER.home() != Path("/") and
+            (Path.cwd().is_relative_to(INVOKING_USER.home()) or not cls.invoked_as_root)
+        ):
             cache = INVOKING_USER.home() / ".cache"
         else:
             cache = Path("/var/cache")
