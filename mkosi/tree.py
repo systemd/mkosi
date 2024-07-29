@@ -158,7 +158,7 @@ def rmtree(*paths: Path, sandbox: SandboxProtocol = nosandbox) -> None:
             stdout=subprocess.DEVNULL if not ARG_DEBUG.get() else None,
             stderr=subprocess.DEVNULL if not ARG_DEBUG.get() else None)
 
-    filtered = sorted({p for p in paths if p.exists()})
+    filtered = sorted({p for p in paths if p.exists() or p.is_symlink()})
     if filtered:
         run(["rm", "-rf", "--", *filtered],
             sandbox=sandbox(binary="rm", mounts=[Mount(p.parent, p.parent) for p in filtered]))

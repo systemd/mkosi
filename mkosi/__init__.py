@@ -4587,7 +4587,7 @@ def run_clean(args: Args, config: Config, *, resources: Path) -> None:
         outputs = {
             config.output_dir_or_cwd() / output
             for output in config.outputs
-            if (config.output_dir_or_cwd() / output).exists()
+            if (config.output_dir_or_cwd() / output).exists() or (config.output_dir_or_cwd() / output).is_symlink()
         }
 
         # Make sure we resolve the symlink we create in the output directory and remove its target as well as it might
