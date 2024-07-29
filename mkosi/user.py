@@ -39,7 +39,16 @@ class INVOKING_USER:
     @classmethod
     @functools.lru_cache(maxsize=1)
     def name(cls) -> str:
-        return os.getenv("USER", pwd.getpwuid(cls.uid).pw_name)
+        try:
+            return pwd.getpwuid(cls.uid).pw_name
+        except KeyError:
+            if cls.uid == 0:
+                return "root"
+
+            if not (user := os.getenv("USER")):
+                die(f"Could not find user name for UID {cls.uid}")
+
+            return user
 
     @classmethod
     @functools.lru_cache(maxsize=1)
