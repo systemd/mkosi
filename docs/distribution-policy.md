@@ -37,3 +37,24 @@ these requirements. However, you can still use mkosi with the
 distribution by setting the `Distribution` setting to `custom` and
 implementing either providing the rootfs via a skeleton tree or base
 tree, or by providing the rootfs via a prepare script.
+
+# Implementing new distributions
+
+To actually implement a new distribution, the following checklist can be
+used:
+
+- Add the distribution to the `Distribution` enum
+- Add the implementation of the distribution in `mkosi/distributions`.
+  If the distribution is a variant of an existing distribution, inherit
+  from the existing distribution's installer class and only override the
+  necessary methods.
+- Update any relevant methods on the `Distribution` enum to take the new
+  distribution into account.
+- Update the documentation in `mkosi/resources/mkosi.md`
+- Update the default initrd, tools and default image configurations in
+  `mkosi/resources/mkosi-initrd`, `mkosi/resources/mkosi-tools` and
+  `mkosi.conf.d` respectively. If the distribution is a variant of
+  another existing distribution, update the `[Match]` blocks for the
+  existing distribution to also match against the new distribution. To
+  test whether all necessary changes were made, you can run
+  `mkosi -d <distribution> --tools-tree -t disk -f qemu`.
