@@ -22,7 +22,8 @@ git commit -m "Release $VERSION"
 
 git tag -s "v$VERSION" -m "mkosi $VERSION"
 
-VERSION="$((VERSION + 1))~devel"
+VERSION_MAJOR=${VERSION%%.*}
+VERSION="$((VERSION_MAJOR + 1))~devel"
 
 sed -r -i "s/^__version__ = \".*\"$/__version__ = \"$VERSION\"/" mkosi/config.py
 
