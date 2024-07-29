@@ -56,7 +56,13 @@ class INVOKING_USER:
         if cls.invoked_as_root and Path.cwd().is_relative_to("/home") and len(Path.cwd().parents) > 2:
             return list(Path.cwd().parents)[-3]
 
-        return Path(f"~{cls.name()}").expanduser()
+        try:
+            return Path(pwd.getpwuid(cls.uid).pw_dir or "/")
+        except KeyError:
+            if not (home := os.getenv("HOME")):
+                die(f"Could not find home directory for UID {cls.uid}")
+
+            return Path(home)
 
     @classmethod
     @functools.lru_cache(maxsize=1)
