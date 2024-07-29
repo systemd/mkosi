@@ -2311,7 +2311,7 @@ def find_entry_token(context: Context) -> str:
             ["kernel-install", "--root=/buildroot", "--json=pretty", "inspect"],
             sandbox=context.sandbox(binary="kernel-install", mounts=[Mount(context.root, "/buildroot", ro=True)]),
             stdout=subprocess.PIPE,
-            env={"SYSTEMD_ESP_PATH": "/efi", "SYSTEMD_XBOOTLDR_PATH": "/boot"},
+            env={"BOOT_ROOT": "/boot"},
         ).stdout
     )
 
