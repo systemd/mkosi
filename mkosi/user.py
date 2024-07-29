@@ -39,7 +39,7 @@ class INVOKING_USER:
     @classmethod
     @functools.lru_cache(maxsize=1)
     def name(cls) -> str:
-        return pwd.getpwuid(cls.uid).pw_name
+        return os.getenv("USER", pwd.getpwuid(cls.uid).pw_name)
 
     @classmethod
     @functools.lru_cache(maxsize=1)
