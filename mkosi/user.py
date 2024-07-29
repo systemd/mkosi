@@ -39,7 +39,16 @@ class INVOKING_USER:
     @classmethod
     @functools.lru_cache(maxsize=1)
     def name(cls) -> str:
-        return os.getenv("USER", pwd.getpwuid(cls.uid).pw_name)
+        try:
+            return pwd.getpwuid(cls.uid).pw_name
+        except KeyError:
+            if cls.uid == 0:
+                return "root"
+
+            if not (user := os.getenv("USER")):
+                die(f"Could not find user name for UID {cls.uid}")
+
+            return user
 
     @classmethod
     @functools.lru_cache(maxsize=1)
@@ -47,7 +56,13 @@ class INVOKING_USER:
         if cls.invoked_as_root and Path.cwd().is_relative_to("/home") and len(Path.cwd().parents) > 2:
             return list(Path.cwd().parents)[-3]
 
-        return Path(f"~{cls.name()}").expanduser()
+        try:
+            return Path(pwd.getpwuid(cls.uid).pw_dir or "/")
+        except KeyError:
+            if not (home := os.getenv("HOME")):
+                die(f"Could not find home directory for UID {cls.uid}")
+
+            return Path(home)
 
     @classmethod
     @functools.lru_cache(maxsize=1)
@@ -62,7 +77,11 @@ class INVOKING_USER:
     def cache_dir(cls) -> Path:
         if (env := os.getenv("XDG_CACHE_HOME")) or (env := os.getenv("CACHE_DIRECTORY")):
             cache = Path(env)
-        elif cls.is_regular_user() and (Path.cwd().is_relative_to(INVOKING_USER.home()) or not cls.invoked_as_root):
+        elif (
+            cls.is_regular_user() and
+            INVOKING_USER.home() != Path("/") and
+            (Path.cwd().is_relative_to(INVOKING_USER.home()) or not cls.invoked_as_root)
+        ):
             cache = INVOKING_USER.home() / ".cache"
         else:
             cache = Path("/var/cache")
