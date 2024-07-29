@@ -47,6 +47,14 @@ class PackageManager:
             context.config.bootable != ConfigFeature.disabled
         ):
             env["KERNEL_INSTALL_BYPASS"] = "1"
+        else:
+            env |= {
+                "BOOT_ROOT": "/boot",
+                # Required to make 90-loaderentry.install put the right paths into the bootloader entry.
+                "BOOT_MNT": "/boot",
+                # Hack to tell dracut to not create a hostonly initrd when it's invoked by kernel-install.
+                "hostonly_l": "no",
+            }
 
         return env
 
