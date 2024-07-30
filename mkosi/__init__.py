@@ -162,6 +162,14 @@ def install_distribution(context: Context) -> None:
             # should not be read from or written to.
             with umask(~0o500):
                 (context.root / "efi").mkdir(exist_ok=True)
+                (context.root / "boot").mkdir(exist_ok=True)
+
+            # Ensure /boot/loader/entries.srel exists and has type1 written to it to nudge kernel-install towards using
+            # the boot loader specification layout.
+            with umask(~0o700):
+                (context.root / "boot/loader").mkdir(exist_ok=True)
+            with umask(~0o600):
+                (context.root / "boot/loader/entries.srel").write_text("type1\n")
 
             if context.config.packages:
                 context.config.distribution.install_packages(context, context.config.packages)
@@ -2311,7 +2319,7 @@ def find_entry_token(context: Context) -> str:
             ["kernel-install", "--root=/buildroot", "--json=pretty", "inspect"],
             sandbox=context.sandbox(binary="kernel-install", mounts=[Mount(context.root, "/buildroot", ro=True)]),
             stdout=subprocess.PIPE,
-            env={"SYSTEMD_ESP_PATH": "/efi", "SYSTEMD_XBOOTLDR_PATH": "/boot"},
+            env={"BOOT_ROOT": "/boot"},
         ).stdout
     )
 
