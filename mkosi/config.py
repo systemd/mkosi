@@ -3832,8 +3832,6 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
 
 def load_credentials(args: argparse.Namespace) -> dict[str, str]:
     creds = {
-        "agetty.autologin": "root",
-        "login.noauth": "yes",
         "firstboot.locale": "C.UTF-8",
         **args.credentials,
     }
