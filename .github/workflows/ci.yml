@@ -170,13 +170,24 @@ jobs:
         EOF
         chmod +x mkosi.configure
 
+        [[ -f mkosi.sync ]] && exit 1
+        tee mkosi.sync <<EOF
+        echo "Hello from inside mkosi.sync!" >&2
+        touch "\${SRCDIR}/sync.test"
+        rm "\${SRCDIR}/sync.test"
+        cat
+        EOF
+        chmod +x mkosi.sync
+
         # prepare and postinst are already used in CI
-        for script in sync build finalize postoutput clean
+        for script in build finalize postoutput clean
         do
             [[ -f "mkosi.${script}" ]] && exit 1
-            tee "mkosi.${script}" <<TOK
+            tee "mkosi.${script}" <<EOF
         echo "Hello from inside mkosi.${script}" >&2
-        TOK
+        touch "\${OUTPUTDIR}/${script}.test"
+        rm "\${OUTPUTDIR}/${script}.test"
+        EOF
             chmod +x "mkosi.${script}"
         done
 
