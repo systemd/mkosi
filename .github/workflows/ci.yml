@@ -162,6 +162,24 @@ jobs:
         DefaultDeviceTimeoutSec=180
         EOF
 
+        # fail if the script already exists, to avoid hard to debug CI errors
+        [[ -f mkosi.configure ]] && exit 1
+        tee mkosi.configure <<EOF
+        echo "Hello from inside mkosi.configure!" >&2
+        cat
+        EOF
+        chmod +x mkosi.configure
+
+        # prepare and postinst are already used in CI
+        for script in sync build finalize postoutput clean
+        do
+            [[ -f "mkosi.${script}" ]] && exit 1
+            tee "mkosi.${script}" <<TOK
+        echo "Hello from inside mkosi.${script}" >&2
+        TOK
+            chmod +x "mkosi.${script}"
+        done
+
     - name: Run integration tests
       run: |
         sudo --preserve-env \
