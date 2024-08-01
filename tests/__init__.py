@@ -96,7 +96,7 @@ class Image:
             "--qemu-mem=2G",
             verb,
             *args,
-        ], check=check, stdin=stdin, stdout=sys.stdout, user=user, group=group)
+        ], check=check, stdin=stdin, stdout=sys.stdout, user=user, group=group, env=os.environ)
 
     def build(self, options: Sequence[str] = (), args: Sequence[str] = ()) -> CompletedProcess:
         return self.mkosi(
