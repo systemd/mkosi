@@ -226,7 +226,8 @@ def sandbox_cmd(
     # bubblewrap creates everything with a restricted mode so relax stuff as needed.
     ops = []
     if not relaxed:
-        ops += ["chmod 1777 /tmp"]
+        if not any(Path(m.dst) == Path("/tmp") for m in mounts):
+            ops += ["chmod 1777 /tmp"]
         if not devices:
             ops += ["chmod 1777 /dev/shm"]
     if vartmpdir:
