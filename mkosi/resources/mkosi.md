@@ -450,7 +450,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `RepositoryKeyCheck=`, `--repository-key-check=`
 :   Controls signature/key checks when using repositories, enabled by default.
     Useful to disable checks when combined with `--local-mirror=` and using only
-    a repository from a local filesystem. Not used for DNF-based distros yet.
+    a repository from a local filesystem.
 
 `Repositories=`, `--repositories=`
 :   Enable package repositories that are disabled by default. This can be used to enable the EPEL repos for
