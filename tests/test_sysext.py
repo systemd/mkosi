@@ -13,7 +13,6 @@ def test_sysext(config: ImageConfig) -> None:
     with Image(
         config,
         options=[
-            "--incremental",
             "--clean-package-metadata=no",
             "--format=directory",
         ],
@@ -24,6 +23,7 @@ def test_sysext(config: ImageConfig) -> None:
             image.config,
             options=[
                 "--directory", "",
+                "--incremental=no",
                 "--base-tree", Path(image.output_dir) / "image",
                 "--overlay",
                 "--package=dnsmasq",

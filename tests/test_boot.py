@@ -26,14 +26,7 @@ def have_vmspawn() -> bool:
 
 @pytest.mark.parametrize("format", [f for f in OutputFormat if f not in (OutputFormat.confext, OutputFormat.sysext)])
 def test_format(config: ImageConfig, format: OutputFormat) -> None:
-    with Image(
-        config,
-        options=[
-            "--kernel-command-line=systemd.unit=mkosi-check-and-shutdown.service",
-            "--incremental",
-            "--ephemeral",
-        ],
-    ) as image:
+    with Image(config) as image:
         if image.config.distribution == Distribution.rhel_ubi and format in (OutputFormat.esp, OutputFormat.uki):
             pytest.skip("Cannot build RHEL-UBI images with format 'esp' or 'uki'")
 
@@ -91,9 +84,6 @@ def test_bootloader(config: ImageConfig, bootloader: Bootloader) -> None:
     with Image(
         config,
         options=[
-            "--kernel-command-line=systemd.unit=mkosi-check-and-shutdown.service",
-            "--incremental",
-            "--ephemeral",
             "--format=disk",
             "--bootloader", str(bootloader),
             "--qemu-firmware", str(firmware)

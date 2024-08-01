@@ -13,7 +13,6 @@ from typing import Any, Optional
 
 import pytest
 
-from mkosi.config import finalize_term
 from mkosi.distributions import Distribution
 from mkosi.run import run
 from mkosi.types import _FILE, CompletedProcess, PathString
@@ -58,18 +57,14 @@ class Image:
         check: bool = True,
     ) -> CompletedProcess:
         kcl = [
-            f"TERM={finalize_term()}",
             "loglevel=6",
-            "systemd.crash_shell",
             "systemd.log_level=debug",
             "udev.log_level=info",
-            "systemd.log_ratelimit_kmsg=0",
             "systemd.show_status=false",
             "systemd.journald.forward_to_console",
             "systemd.journald.max_level_console=info",
-            "printk.devkmsg=on",
-            "systemd.early_core_pattern=/core",
             "systemd.firstboot=no",
+            "systemd.unit=mkosi-check-and-shutdown.service",
         ]
 
         return run([
@@ -83,12 +78,12 @@ class Image:
                 else []
             ),
             *(["--tools-tree-release", self.config.tools_tree_release] if self.config.tools_tree_release else []),
+            "--incremental",
+            "--ephemeral",
+            "--runtime-build-sources=no",
             *self.options,
             *options,
             "--output-dir", self.output_dir,
-            # Some tests ignore the default image config but we still want them to reuse the cache directory for the
-            # tools tree cache.
-            "--cache-dir", "mkosi.cache",
             *(f"--kernel-command-line={i}" for i in kcl),
             "--qemu-vsock=yes",
             # TODO: Drop once both Hyper-V bugs are fixed in Github Actions.

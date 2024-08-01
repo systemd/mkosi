@@ -35,15 +35,7 @@ def passphrase() -> Iterator[Path]:
 
 
 def test_initrd(config: ImageConfig) -> None:
-    with Image(
-        config,
-        options=[
-            "--kernel-command-line=systemd.unit=mkosi-check-and-shutdown.service",
-            "--incremental",
-            "--ephemeral",
-            "--format=disk",
-        ]
-    ) as image:
+    with Image(config, options=["--format=disk"]) as image:
         image.build()
         image.qemu()
 
@@ -53,13 +45,9 @@ def test_initrd_lvm(config: ImageConfig) -> None:
     with Image(
         config,
         options=[
-            "--kernel-command-line=systemd.unit=mkosi-check-and-shutdown.service",
             # LVM confuses systemd-repart so we mask it for this test.
             "--kernel-command-line=systemd.mask=systemd-repart.service",
             "--kernel-command-line=root=LABEL=root",
-            "--kernel-command-line=rw",
-            "--incremental",
-            "--ephemeral",
             "--qemu-firmware=linux",
         ]
     ) as image, contextlib.ExitStack() as stack:
@@ -142,10 +130,7 @@ def test_initrd_luks(config: ImageConfig, passphrase: Path) -> None:
             options=[
                 "--repart-dir", repartd,
                 "--passphrase", passphrase,
-                "--kernel-command-line=systemd.unit=mkosi-check-and-shutdown.service",
                 "--credential=cryptsetup.passphrase=mkosi",
-                "--incremental",
-                "--ephemeral",
                 "--format=disk",
             ]
         ) as image:
@@ -158,12 +143,8 @@ def test_initrd_luks_lvm(config: ImageConfig, passphrase: Path) -> None:
     with Image(
         config,
         options=[
-            "--kernel-command-line=systemd.unit=mkosi-check-and-shutdown.service",
             "--kernel-command-line=root=LABEL=root",
-            "--kernel-command-line=rw",
             "--credential=cryptsetup.passphrase=mkosi",
-            "--incremental",
-            "--ephemeral",
             "--qemu-firmware=linux",
         ]
     ) as image, contextlib.ExitStack() as stack:
@@ -215,10 +196,7 @@ def test_initrd_luks_lvm(config: ImageConfig, passphrase: Path) -> None:
 
 
 def test_initrd_size(config: ImageConfig) -> None:
-    with Image(
-        config,
-        options=["--incremental", "--format=directory"],
-    ) as image:
+    with Image(config) as image:
         image.build()
 
         # The fallback value is for CentOS and related distributions.
