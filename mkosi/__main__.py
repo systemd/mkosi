@@ -16,13 +16,14 @@ from mkosi.user import INVOKING_USER
 from mkosi.util import resource_path
 
 
-def onsigterm(signal: int, frame: Optional[FrameType]) -> None:
+def onsignal(signal: int, frame: Optional[FrameType]) -> None:
     raise KeyboardInterrupt()
 
 
 @uncaught_exception_handler()
 def main() -> None:
-    signal.signal(signal.SIGTERM, onsigterm)
+    signal.signal(signal.SIGTERM, onsignal)
+    signal.signal(signal.SIGHUP, onsignal)
 
     log_setup()
     # Ensure that the name and home of the user we are running as are resolved as early as possible.
