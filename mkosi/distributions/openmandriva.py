@@ -36,7 +36,8 @@ class Installer(fedora.Installer):
             find_rpm_gpgkey(
                 context,
                 "RPM-GPG-KEY-OpenMandriva",
-            ) or "https://raw.githubusercontent.com/OpenMandrivaAssociation/openmandriva-repos/master/RPM-GPG-KEY-OpenMandriva",
+                "https://raw.githubusercontent.com/OpenMandrivaAssociation/openmandriva-repos/master/RPM-GPG-KEY-OpenMandriva",
+            ),
         )
 
         if context.config.local_mirror:

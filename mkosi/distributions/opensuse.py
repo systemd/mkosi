@@ -94,10 +94,27 @@ class Installer(DistributionInstaller):
         mirror = context.config.mirror or "https://download.opensuse.org"
 
         if context.config.release == "tumbleweed" or context.config.release.isdigit():
-            gpgkeys = (
-                *([p] if (p := find_rpm_gpgkey(context, key="RPM-GPG-KEY-openSUSE-Tumbleweed")) else []),
-                *([p] if (p := find_rpm_gpgkey(context, key="RPM-GPG-KEY-openSUSE")) else []),
+            gpgkeys = tuple(
+                p
+                for key in ("RPM-GPG-KEY-openSUSE-Tumbleweed", "RPM-GPG-KEY-openSUSE")
+                if (p := find_rpm_gpgkey(context, key, required=False))
             )
+
+            if not gpgkeys and not context.config.repository_key_fetch:
+                die("OpenSUSE GPG keys not found in /usr/share/distribution-gpg-keys",
+                    hint="Make sure the distribution-gpg-keys package is installed")
+
+            if zypper and gpgkeys:
+                run(
+                    ["rpm", "--root=/buildroot", "--import", *(key.removeprefix("file://") for key in gpgkeys)],
+                    sandbox=context.sandbox(
+                        binary="rpm",
+                        mounts=[
+                            Mount(context.root, "/buildroot"),
+                            *finalize_crypto_mounts(context.config)
+                        ],
+                    )
+                )
 
             if context.config.release == "tumbleweed":
                 if context.config.architecture == Architecture.x86_64:

@@ -4,9 +4,10 @@ import dataclasses
 import subprocess
 import textwrap
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional, overload
 
 from mkosi.context import Context
+from mkosi.log import die
 from mkosi.run import run
 from mkosi.types import PathString
 
@@ -23,7 +24,33 @@ class RpmRepository:
     priority: Optional[int] = None
 
 
-def find_rpm_gpgkey(context: Context, key: str) -> Optional[str]:
+@overload
+def find_rpm_gpgkey(
+    context: Context,
+    key: str,
+    fallback: Optional[str] = None,
+    *,
+    required: Literal[True] = True,
+) -> str: ...
+
+
+@overload
+def find_rpm_gpgkey(
+    context: Context,
+    key: str,
+    fallback: Optional[str] = None,
+    *,
+    required: Literal[False]
+) -> Optional[str]: ...
+
+
+def find_rpm_gpgkey(
+    context: Context,
+    key: str,
+    fallback: Optional[str] = None,
+    *,
+    required: bool = True
+) -> Optional[str]:
     root = context.config.tools() if context.config.tools_tree_certificates else Path("/")
 
     if gpgpath := next((root / "usr/share/distribution-gpg-keys").rglob(key), None):
@@ -31,6 +58,13 @@ def find_rpm_gpgkey(context: Context, key: str) -> Optional[str]:
 
     if gpgpath := next(Path(context.pkgmngr / "etc/pki/rpm-gpg").rglob(key), None):
         return (Path("/") / gpgpath.relative_to(context.pkgmngr)).as_uri()
+
+    if context.config.repository_key_fetch:
+        return fallback
+
+    if required:
+        die(f"{key} GPG key not found in /usr/share/distribution-gpg-keys",
+            hint="Make sure the distribution-gpg-keys package is installed")
 
     return None
 
