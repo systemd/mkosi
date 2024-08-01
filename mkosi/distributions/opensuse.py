@@ -94,7 +94,7 @@ class Installer(DistributionInstaller):
         mirror = context.config.mirror or "https://download.opensuse.org"
 
         if context.config.release == "tumbleweed" or context.config.release.isdigit():
-            gpgurls = (
+            gpgkeys = (
                 *([p] if (p := find_rpm_gpgkey(context, key="RPM-GPG-KEY-openSUSE-Tumbleweed")) else []),
                 *([p] if (p := find_rpm_gpgkey(context, key="RPM-GPG-KEY-openSUSE")) else []),
             )
@@ -115,7 +115,7 @@ class Installer(DistributionInstaller):
                 yield RpmRepository(
                     id=repo,
                     url=f"baseurl={url}",
-                    gpgurls=gpgurls or (fetch_gpgurls(context, url) if not zypper else ()),
+                    gpgurls=gpgkeys or (fetch_gpgurls(context, url) if not zypper else ()),
                     enabled=repo == "oss",
                 )
 
@@ -125,7 +125,7 @@ class Installer(DistributionInstaller):
                         yield RpmRepository(
                             id=f"{repo}-{d}",
                             url=f"baseurl={url}",
-                            gpgurls=gpgurls or (fetch_gpgurls(context, url) if not zypper else ()),
+                            gpgurls=gpgkeys or (fetch_gpgurls(context, url) if not zypper else ()),
                             enabled=False,
                         )
 
@@ -134,14 +134,14 @@ class Installer(DistributionInstaller):
                 yield RpmRepository(
                     id="oss-update",
                     url=f"baseurl={url}",
-                    gpgurls=gpgurls or (fetch_gpgurls(context, url) if not zypper else ()),
+                    gpgurls=gpgkeys or (fetch_gpgurls(context, url) if not zypper else ()),
                 )
 
                 url = join_mirror(mirror, f"{subdir}/update/tumbleweed-non-oss")
                 yield RpmRepository(
                     id="non-oss-update",
                     url=f"baseurl={url}",
-                    gpgurls=gpgurls or (fetch_gpgurls(context, url) if not zypper else ()),
+                    gpgurls=gpgkeys or (fetch_gpgurls(context, url) if not zypper else ()),
                     enabled=False,
                 )
         else:
