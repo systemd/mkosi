@@ -101,6 +101,19 @@ class Distribution(StrEnum):
     def is_apt_distribution(self) -> bool:
         return self in (Distribution.debian, Distribution.ubuntu)
 
+    def is_rpm_distribution(self) -> bool:
+        return self in (
+            Distribution.fedora,
+            Distribution.opensuse,
+            Distribution.mageia,
+            Distribution.centos,
+            Distribution.rhel,
+            Distribution.rhel_ubi,
+            Distribution.openmandriva,
+            Distribution.rocky,
+            Distribution.alma,
+        )
+
     def pretty_name(self) -> str:
         return self.installer().pretty_name()
 

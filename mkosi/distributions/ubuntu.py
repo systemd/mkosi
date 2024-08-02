@@ -4,7 +4,7 @@ from collections.abc import Iterable
 from pathlib import Path
 
 from mkosi.context import Context
-from mkosi.distributions import debian
+from mkosi.distributions import Distribution, debian
 from mkosi.installer.apt import AptRepository
 from mkosi.util import listify
 
@@ -17,6 +17,10 @@ class Installer(debian.Installer):
     @classmethod
     def default_release(cls) -> str:
         return "noble"
+
+    @classmethod
+    def default_tools_tree_distribution(cls) -> Distribution:
+        return Distribution.debian
 
     @staticmethod
     @listify

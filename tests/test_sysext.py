@@ -24,7 +24,6 @@ def test_sysext(config: ImageConfig) -> None:
             options=[
                 "--directory", "",
                 "--incremental=no",
-                "--repository-key-fetch=yes",
                 "--base-tree", Path(image.output_dir) / "image",
                 "--overlay",
                 "--package=dnsmasq",
