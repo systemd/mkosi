@@ -155,14 +155,6 @@ jobs:
         QemuKvm=yes
         EOF
 
-        # TODO: Drop once distribution-gpg-keys is in noble-backports.
-        if [[ "${{ matrix.tools }}" =~ opensuse|fedora|ubuntu ]]; then
-            tee --append mkosi.local.conf <<EOF
-        [Distribution]
-        RepositoryKeyFetch=yes
-        EOF
-        fi
-
         # TODO: Remove once all distros have recent enough systemd that knows systemd.default_device_timeout_sec.
         mkdir -p mkosi-initrd/mkosi.extra/usr/lib/systemd/system.conf.d
         tee mkosi-initrd/mkosi.extra/usr/lib/systemd/system.conf.d/device-timeout.conf <<EOF

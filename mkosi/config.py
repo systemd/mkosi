@@ -724,6 +724,23 @@ def config_default_tools_tree_distribution(namespace: argparse.Namespace) -> Dis
     return detected.default_tools_tree_distribution()
 
 
+def config_default_repository_key_fetch(namespace: argparse.Namespace) -> bool:
+    if detect_distribution()[0] != Distribution.ubuntu:
+        return False
+
+    if namespace.tools_tree is None:
+        return cast(bool, namespace.distribution.is_rpm_distribution())
+
+    if namespace.tools_tree != Path("default"):
+        return False
+
+    return cast(
+        bool,
+        (namespace.tools_tree_distribution == Distribution.ubuntu and namespace.distribution.is_rpm_distribution()) or
+        namespace.tools_tree_distribution.is_rpm_distribution()
+    )
+
+
 def config_default_source_date_epoch(namespace: argparse.Namespace) -> Optional[int]:
     for env in namespace.environment:
         if s := startswith(env, "SOURCE_DATE_EPOCH="):
@@ -1967,7 +1984,8 @@ SETTINGS = (
         metavar="BOOL",
         nargs="?",
         section="Distribution",
-        default=False,
+        default_factory_depends=("distribution", "tools_tree", "tools_tree_distribution"),
+        default_factory=config_default_repository_key_fetch,
         parse=config_parse_boolean,
         help="Controls whether distribution GPG keys can be fetched remotely",
         universal=True,

@@ -453,8 +453,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     a repository from a local filesystem.
 
 `RepositoryKeyFetch=`, `--repository-key-fetch=`
-:   Controls whether mkosi will fetch distribution GPG keys remotely. Disabled
-    by default. When disabled, the distribution GPG keys for the target distribution
+:   Controls whether mkosi will fetch distribution GPG keys remotely. Enabled by
+    default on Ubuntu when not using a tools tree, disabled by default on all
+    other distributions. When disabled, the distribution GPG keys for the target distribution
     have to be installed locally on the host system alongside the package manager for
     that distribution.
 
