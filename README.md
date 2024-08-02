@@ -111,6 +111,7 @@ tests locally as well.
 * [mkosi-initrd: Building initrds out of distribution packages](https://video.fosdem.org/2024/ua2118/fosdem-2024-2888-mkosi-initrd-building-initrds-out-of-distribution-packages.av1.webm)
 * [Running systemd integration tests with mkosi](https://video.fosdem.org/2024/ud2208/fosdem-2024-3431-running-systemd-integration-tests-with-mkosi.av1.webm)
 * [Arch Linux rescue image with mkosi](https://swsnr.de/archlinux-rescue-image-with-mkosi)
+* [Building vagrant images with mkosi](https://vdwaa.nl/mkosi-vagrant-images.html#mkosi-vagrant-images)
 
 ## Community
 
