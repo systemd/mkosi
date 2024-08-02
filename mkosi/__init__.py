@@ -4929,6 +4929,10 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
             ):
                 continue
 
+            # If the output format is "none" and there are no build scripts, there's nothing to do so exit early.
+            if config.output_format == OutputFormat.none and not config.build_scripts:
+                return
+
             check_inputs(config)
             fork_and_wait(run_sync, args, config, resources=resources)
             fork_and_wait(run_build, args, config, resources=resources, package_dir=Path(package_dir))
