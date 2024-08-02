@@ -264,6 +264,7 @@ def test_config() -> None:
             "RepartOffline": true,
             "Repositories": [],
             "RepositoryKeyCheck": false,
+            "RepositoryKeyFetch": true,
             "RootPassword": [
                 "test1234",
                 false
@@ -465,6 +466,7 @@ def test_config() -> None:
         repart_offline=True,
         repositories=[],
         repository_key_check=False,
+        repository_key_fetch=True,
         root_password=("test1234", False),
         root_shell="/bin/tcsh",
         runtime_build_sources=True,

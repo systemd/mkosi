@@ -1402,6 +1402,7 @@ class Config:
     mirror: Optional[str]
     local_mirror: Optional[str]
     repository_key_check: bool
+    repository_key_fetch: bool
     repositories: list[str]
     cacheonly: Cacheonly
     package_manager_trees: list[ConfigTree]
@@ -1959,6 +1960,16 @@ SETTINGS = (
         default=True,
         parse=config_parse_boolean,
         help="Controls signature and key checks on repositories",
+        universal=True,
+    ),
+    ConfigSetting(
+        dest="repository_key_fetch",
+        metavar="BOOL",
+        nargs="?",
+        section="Distribution",
+        default=False,
+        parse=config_parse_boolean,
+        help="Controls whether distribution GPG keys can be fetched remotely",
         universal=True,
     ),
     ConfigSetting(
@@ -4066,6 +4077,7 @@ def summary(config: Config) -> str:
                              Mirror: {none_to_default(config.mirror)}
                Local Mirror (build): {none_to_none(config.local_mirror)}
            Repo Signature/Key check: {yes_no(config.repository_key_check)}
+              Fetch Repository Keys: {yes_no(config.repository_key_fetch)}
                        Repositories: {line_join_list(config.repositories)}
              Use Only Package Cache: {config.cacheonly}
               Package Manager Trees: {line_join_list(config.package_manager_trees)}

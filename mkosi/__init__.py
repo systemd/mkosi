@@ -1807,6 +1807,7 @@ def finalize_default_initrd(
         "--architecture", str(config.architecture),
         *(["--mirror", config.mirror] if config.mirror else []),
         "--repository-key-check", str(config.repository_key_check),
+        "--repository-key-fetch", str(config.repository_key_fetch),
         "--repositories", ",".join(config.repositories),
         "--package-manager-tree", ",".join(str(t) for t in config.package_manager_trees),
         # Note that when compress_output == Compression.none == 0 we don't pass --compress-output which means the
@@ -4477,6 +4478,7 @@ def finalize_default_tools(args: Args, config: Config, *, resources: Path) -> Co
         "--repositories", ",".join(config.tools_tree_repositories),
         "--package-manager-tree", ",".join(str(t) for t in config.tools_tree_package_manager_trees),
         "--repository-key-check", str(config.repository_key_check),
+        "--repository-key-fetch", str(config.repository_key_fetch),
         "--cache-only", str(config.cacheonly),
         *(["--output-dir", str(config.output_dir)] if config.output_dir else []),
         *(["--workspace-dir", str(config.workspace_dir)] if config.workspace_dir else []),

@@ -20,8 +20,8 @@ from mkosi.util import listify, startswith, tuplify
 
 @tuplify
 def find_fedora_rpm_gpgkeys(context: Context) -> Iterable[str]:
-    key1 = find_rpm_gpgkey(context, key=f"RPM-GPG-KEY-fedora-{context.config.release}-primary")
-    key2 = find_rpm_gpgkey(context, key=f"RPM-GPG-KEY-fedora-{context.config.release}-secondary")
+    key1 = find_rpm_gpgkey(context, key=f"RPM-GPG-KEY-fedora-{context.config.release}-primary", required=False)
+    key2 = find_rpm_gpgkey(context, key=f"RPM-GPG-KEY-fedora-{context.config.release}-secondary", required=False)
 
     if key1:
         # During branching, there is always a kerfuffle with the key transition.
@@ -38,9 +38,15 @@ def find_fedora_rpm_gpgkeys(context: Context) -> Iterable[str]:
                     yield key3
 
         yield key1
+
     if key2:
         yield key2
+
     if not key1 and not key2:
+        if not context.config.repository_key_fetch:
+            die("Fedora GPG keys not found in /usr/share/distribution-gpg-keys",
+                hint="Make sure the distribution-gpg-keys package is installed")
+
         yield "https://fedoraproject.org/fedora.gpg"
 
 

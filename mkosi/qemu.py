@@ -351,8 +351,9 @@ def start_virtiofsd(config: Config, directory: PathString, *, name: str, selinux
             gid = INVOKING_USER.gid if os.getgid() != INVOKING_USER.gid else None
             scope = scope_cmd(name=name, description=description, user=uid, group=gid)
         elif not uidmap and (os.getuid() == 0 or unshare_version() >= "2.38"):
-            runas = become_root_cmd()
             scope = scope_cmd(name=name, description=description)
+            if scope:
+                runas = become_root_cmd()
 
         with spawn(
             cmdline,

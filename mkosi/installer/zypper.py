@@ -109,9 +109,10 @@ class Zypper(PackageManager):
             "zypper",
             "--installroot=/buildroot",
             "--cache-dir=/var/cache/zypp",
-            "--gpg-auto-import-keys" if context.config.repository_key_check else "--no-gpg-checks",
             "--non-interactive",
             "--no-refresh",
+            *(["--gpg-auto-import-keys"] if context.config.repository_key_fetch else []),
+            *(["--no-gpg-checks"] if not context.config.repository_key_check else []),
             *([f"--plus-content={repo}" for repo in context.config.repositories]),
         ]
 

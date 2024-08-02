@@ -5,23 +5,18 @@ import os
 import subprocess
 import tempfile
 import textwrap
-import time
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
 
 import pytest
 
 from mkosi.distributions import Distribution
-from mkosi.log import die
 from mkosi.mounts import mount
-from mkosi.run import find_binary, run
+from mkosi.run import run
 from mkosi.tree import copy_tree
-from mkosi.types import PathString
 from mkosi.user import INVOKING_USER
-from mkosi.versioncomp import GenericVersion
 
-from . import Image, ImageConfig, ci_group
+from . import Image, ImageConfig
 
 pytestmark = pytest.mark.integration
 
@@ -39,70 +34,20 @@ def passphrase() -> Iterator[Path]:
         yield Path(passphrase.name)
 
 
-@pytest.fixture(scope="module")
-def initrd(request: Any, config: ImageConfig) -> Iterator[Image]:
-    with (
-        ci_group(f"Initrd image {config.distribution}/{config.release}"),
-        Image(
-            config,
-            options=[
-                "--directory", "",
-                "--include=mkosi-initrd/",
-            ],
-        ) as initrd
-    ):
-        if initrd.config.distribution == Distribution.rhel_ubi:
-            pytest.skip("Cannot build RHEL-UBI initrds")
-
-        initrd.build()
-        yield initrd
-
-
-def test_initrd(initrd: Image) -> None:
-    with Image(
-        initrd.config,
-        options=[
-            "--initrd", Path(initrd.output_dir) / "initrd",
-            "--kernel-command-line=systemd.unit=mkosi-check-and-shutdown.service",
-            "--incremental",
-            "--ephemeral",
-            "--format=disk",
-        ]
-    ) as image:
+def test_initrd(config: ImageConfig) -> None:
+    with Image(config, options=["--format=disk"]) as image:
         image.build()
         image.qemu()
 
 
-def wait_for_device(device: PathString) -> None:
-    if (
-        find_binary("udevadm") and
-        GenericVersion(run(["udevadm", "--version"], stdout=subprocess.PIPE).stdout.strip()) >= 251
-    ):
-        run(["udevadm", "wait", "--timeout=30", "/dev/vg_mkosi/lv0"])
-        return
-
-    for i in range(30):
-        if Path(device).exists():
-            return
-
-        time.sleep(1)
-
-    die(f"Device {device} did not appear within 30 seconds")
-
-
 @pytest.mark.skipif(os.getuid() != 0, reason="mkosi-initrd LVM test can only be executed as root")
-def test_initrd_lvm(initrd: Image) -> None:
+def test_initrd_lvm(config: ImageConfig) -> None:
     with Image(
-        initrd.config,
+        config,
         options=[
-            "--initrd", Path(initrd.output_dir) / "initrd",
-            "--kernel-command-line=systemd.unit=mkosi-check-and-shutdown.service",
             # LVM confuses systemd-repart so we mask it for this test.
             "--kernel-command-line=systemd.mask=systemd-repart.service",
             "--kernel-command-line=root=LABEL=root",
-            "--kernel-command-line=rw",
-            "--incremental",
-            "--ephemeral",
             "--qemu-firmware=linux",
         ]
     ) as image, contextlib.ExitStack() as stack:
@@ -123,7 +68,7 @@ def test_initrd_lvm(initrd: Image) -> None:
         stack.callback(lambda: run(["vgchange", "-an", "vg_mkosi"]))
         run(["lvm", "lvcreate", "-l", "100%FREE", "-n", "lv0", "vg_mkosi"])
         run(["lvm", "lvs"])
-        wait_for_device("/dev/vg_mkosi/lv0")
+        run(["udevadm", "wait", "--timeout=30", "/dev/vg_mkosi/lv0"])
         run([f"mkfs.{image.config.distribution.filesystem()}", "-L", "root", "/dev/vg_mkosi/lv0"])
 
         with tempfile.TemporaryDirectory() as mnt, mount(Path("/dev/vg_mkosi/lv0"), Path(mnt)):
@@ -136,7 +81,7 @@ def test_initrd_lvm(initrd: Image) -> None:
         image.qemu(["--format=disk"])
 
 
-def test_initrd_luks(initrd: Image, passphrase: Path) -> None:
+def test_initrd_luks(config: ImageConfig, passphrase: Path) -> None:
     with tempfile.TemporaryDirectory() as repartd:
         os.chown(repartd, INVOKING_USER.uid, INVOKING_USER.gid)
 
@@ -172,7 +117,7 @@ def test_initrd_luks(initrd: Image, passphrase: Path) -> None:
                 f"""\
                 [Partition]
                 Type=root
-                Format={initrd.config.distribution.filesystem()}
+                Format={config.distribution.filesystem()}
                 Minimize=guess
                 Encrypt=key-file
                 CopyFiles=/
@@ -181,15 +126,11 @@ def test_initrd_luks(initrd: Image, passphrase: Path) -> None:
         )
 
         with Image(
-            initrd.config,
+            config,
             options=[
-                "--initrd", Path(initrd.output_dir) / "initrd",
                 "--repart-dir", repartd,
                 "--passphrase", passphrase,
-                "--kernel-command-line=systemd.unit=mkosi-check-and-shutdown.service",
                 "--credential=cryptsetup.passphrase=mkosi",
-                "--incremental",
-                "--ephemeral",
                 "--format=disk",
             ]
         ) as image:
@@ -198,17 +139,12 @@ def test_initrd_luks(initrd: Image, passphrase: Path) -> None:
 
 
 @pytest.mark.skipif(os.getuid() != 0, reason="mkosi-initrd LUKS+LVM test can only be executed as root")
-def test_initrd_luks_lvm(config: ImageConfig, initrd: Image, passphrase: Path) -> None:
+def test_initrd_luks_lvm(config: ImageConfig, passphrase: Path) -> None:
     with Image(
         config,
         options=[
-            "--initrd", Path(initrd.output_dir) / "initrd",
-            "--kernel-command-line=systemd.unit=mkosi-check-and-shutdown.service",
             "--kernel-command-line=root=LABEL=root",
-            "--kernel-command-line=rw",
             "--credential=cryptsetup.passphrase=mkosi",
-            "--incremental",
-            "--ephemeral",
             "--qemu-firmware=linux",
         ]
     ) as image, contextlib.ExitStack() as stack:
@@ -243,7 +179,7 @@ def test_initrd_luks_lvm(config: ImageConfig, initrd: Image, passphrase: Path) -
         stack.callback(lambda: run(["vgchange", "-an", "vg_mkosi"]))
         run(["lvm", "lvcreate", "-l", "100%FREE", "-n", "lv0", "vg_mkosi"])
         run(["lvm", "lvs"])
-        wait_for_device("/dev/vg_mkosi/lv0")
+        run(["udevadm", "wait", "--timeout=30", "/dev/vg_mkosi/lv0"])
         run([f"mkfs.{image.config.distribution.filesystem()}", "-L", "root", "/dev/vg_mkosi/lv0"])
 
         with tempfile.TemporaryDirectory() as mnt, mount(Path("/dev/vg_mkosi/lv0"), Path(mnt)):
@@ -259,14 +195,17 @@ def test_initrd_luks_lvm(config: ImageConfig, initrd: Image, passphrase: Path) -
         ])
 
 
-def test_initrd_size(initrd: Image) -> None:
-    # The fallback value is for CentOS and related distributions.
-    maxsize = 1024**2 * {
-        Distribution.fedora: 46,
-        Distribution.debian: 40,
-        Distribution.ubuntu: 36,
-        Distribution.arch: 67,
-        Distribution.opensuse: 39,
-    }.get(initrd.config.distribution, 48)
+def test_initrd_size(config: ImageConfig) -> None:
+    with Image(config) as image:
+        image.build()
 
-    assert (Path(initrd.output_dir) / "initrd").stat().st_size <= maxsize
+        # The fallback value is for CentOS and related distributions.
+        maxsize = 1024**2 * {
+            Distribution.fedora: 55,
+            Distribution.debian: 55,
+            Distribution.ubuntu: 50,
+            Distribution.arch: 80,
+            Distribution.opensuse: 55,
+        }.get(config.distribution, 55)
+
+        assert (Path(image.output_dir) / "image.initrd").stat().st_size <= maxsize

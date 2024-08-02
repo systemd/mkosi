@@ -450,7 +450,20 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `RepositoryKeyCheck=`, `--repository-key-check=`
 :   Controls signature/key checks when using repositories, enabled by default.
     Useful to disable checks when combined with `--local-mirror=` and using only
-    a repository from a local filesystem. Not used for DNF-based distros yet.
+    a repository from a local filesystem.
+
+`RepositoryKeyFetch=`, `--repository-key-fetch=`
+:   Controls whether mkosi will fetch distribution GPG keys remotely. Disabled
+    by default. When disabled, the distribution GPG keys for the target distribution
+    have to be installed locally on the host system alongside the package manager for
+    that distribution.
+
+    This setting is only implemented for distributions using dnf or zypper as their
+    package manager. For other distributions the distribution GPG keys are always looked
+    up locally regardless of the value of this setting. To make the distribution GPG keys
+    for distributions available without enabling this setting, the corresponding package
+    has to be installed on the host. This is usually one of `archlinux-keyring`,
+    `debian-keyring`, `ubuntu-keyring` or `distribution-gpg-keys` (for rpm-based distributions).
 
 `Repositories=`, `--repositories=`
 :   Enable package repositories that are disabled by default. This can be used to enable the EPEL repos for
