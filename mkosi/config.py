@@ -1186,6 +1186,15 @@ def config_parse_key_source(value: Optional[str], old: Optional[KeySource]) -> O
     return KeySource(type=type, source=source)
 
 
+class SettingScope(StrEnum):
+    # Not passed down to subimages
+    local = enum.auto()
+    # Passed down to subimages, cannot be overridden
+    universal = enum.auto()
+    # Passed down to subimages, can be overridden
+    inherit = enum.auto()
+
+
 @dataclasses.dataclass(frozen=True)
 class ConfigSetting:
     dest: str
@@ -1200,7 +1209,7 @@ class ConfigSetting:
     path_read_text: bool = False
     path_secret: bool = False
     specifier: str = ""
-    universal: bool = False
+    scope: SettingScope = SettingScope.local
 
     # settings for argparse
     short: Optional[str] = None
@@ -1889,7 +1898,7 @@ SETTINGS = (
         help="Build the specified profile",
         parse=config_parse_profile,
         match=config_make_string_matcher(),
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="dependencies",
@@ -1931,7 +1940,7 @@ SETTINGS = (
         default_factory=config_default_distribution,
         choices=Distribution.choices(),
         help="Distribution to install",
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="release",
@@ -1943,7 +1952,7 @@ SETTINGS = (
         default_factory=config_default_release,
         default_factory_depends=("distribution",),
         help="Distribution release to install",
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="architecture",
@@ -1954,20 +1963,20 @@ SETTINGS = (
         default=Architecture.native(),
         choices=Architecture.choices(),
         help="Override the architecture of installation",
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="mirror",
         short="-m",
         section="Distribution",
         help="Distribution mirror to use",
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="local_mirror",
         section="Distribution",
         help="Use a single local, flat and plain mirror to build the image",
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="repository_key_check",
@@ -1977,7 +1986,7 @@ SETTINGS = (
         default=True,
         parse=config_parse_boolean,
         help="Controls signature and key checks on repositories",
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="repository_key_fetch",
@@ -1988,7 +1997,7 @@ SETTINGS = (
         default_factory=config_default_repository_key_fetch,
         parse=config_parse_boolean,
         help="Controls whether distribution GPG keys can be fetched remotely",
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="repositories",
@@ -1997,7 +2006,7 @@ SETTINGS = (
         parse=config_make_list_parser(delimiter=","),
         match=config_match_repositories,
         help="Repositories to use",
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="cacheonly",
@@ -2008,7 +2017,7 @@ SETTINGS = (
         default=Cacheonly.auto,
         help="Only use the package cache when installing packages",
         choices=Cacheonly.choices(),
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="package_manager_trees",
@@ -2020,7 +2029,7 @@ SETTINGS = (
         default_factory_depends=("skeleton_trees",),
         help="Use a package manager tree to configure the package manager",
         paths=("mkosi.pkgmngr", "mkosi.pkgmngr.tar",),
-        universal=True,
+        scope=SettingScope.universal,
     ),
 
     ConfigSetting(
@@ -2085,7 +2094,7 @@ SETTINGS = (
         parse=config_make_path_parser(required=False),
         paths=("mkosi.output",),
         help="Output directory",
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="workspace_dir",
@@ -2094,7 +2103,7 @@ SETTINGS = (
         section="Output",
         parse=config_make_path_parser(required=False),
         help="Workspace directory",
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="cache_dir",
@@ -2104,7 +2113,7 @@ SETTINGS = (
         parse=config_make_path_parser(required=False),
         paths=("mkosi.cache",),
         help="Incremental cache directory",
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="package_cache_dir",
@@ -2113,7 +2122,7 @@ SETTINGS = (
         section="Output",
         parse=config_make_path_parser(required=False),
         help="Package cache directory",
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="build_dir",
@@ -2123,7 +2132,7 @@ SETTINGS = (
         parse=config_make_path_parser(required=False),
         paths=("mkosi.builddir",),
         help="Path to use as persistent build directory",
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="image_version",
@@ -2133,7 +2142,7 @@ SETTINGS = (
         help="Set version for image",
         paths=("mkosi.version",),
         path_read_text=True,
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="image_id",
@@ -2141,7 +2150,7 @@ SETTINGS = (
         section="Output",
         specifier="i",
         help="Set ID for image",
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="split_artifacts",
@@ -2166,7 +2175,7 @@ SETTINGS = (
         section="Output",
         parse=config_parse_sector_size,
         help="Set the disk image sector size",
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="repart_offline",
@@ -2174,7 +2183,7 @@ SETTINGS = (
         parse=config_parse_boolean,
         help="Build disk images without using loopback devices",
         default=True,
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="overlay",
@@ -2191,7 +2200,7 @@ SETTINGS = (
         section="Output",
         parse=config_parse_feature,
         help="Use btrfs subvolumes for faster directory operations where possible",
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="seed",
@@ -2244,7 +2253,7 @@ SETTINGS = (
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         paths=("mkosi.packages",),
         help="Specify a directory containing extra packages",
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="volatile_package_directories",
@@ -2253,7 +2262,7 @@ SETTINGS = (
         section="Content",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         help="Specify a directory containing extra volatile packages",
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="with_recommends",
@@ -2328,7 +2337,7 @@ SETTINGS = (
         default_factory=config_default_source_date_epoch,
         default_factory_depends=("environment",),
         help="Set the $SOURCE_DATE_EPOCH timestamp",
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="sync_scripts",
@@ -2398,7 +2407,7 @@ SETTINGS = (
         match=config_match_build_sources,
         default_factory=lambda ns: [ConfigTree(ns.directory, None)] if ns.directory else [],
         help="Path for sources to build",
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="build_sources_ephemeral",
@@ -2406,7 +2415,7 @@ SETTINGS = (
         section="Content",
         parse=config_parse_boolean,
         help="Make build sources ephemeral when running scripts",
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="environment",
@@ -2436,7 +2445,7 @@ SETTINGS = (
         parse=config_parse_boolean,
         default=True,
         help="Do not run tests as part of build scripts, if supported",
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="with_network",
@@ -2445,7 +2454,7 @@ SETTINGS = (
         section="Content",
         parse=config_parse_boolean,
         help="Run build and postinst scripts with network access (instead of private network)",
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="bootable",
@@ -2731,7 +2740,7 @@ SETTINGS = (
         parse=config_parse_key,
         paths=("mkosi.key",),
         help="Private key for signing verity signature",
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="verity_key_source",
@@ -2740,7 +2749,7 @@ SETTINGS = (
         parse=config_parse_key_source,
         default=KeySource(type=KeySource.Type.file),
         help="The source to use to retrieve the verity signing key",
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="verity_certificate",
@@ -2749,7 +2758,7 @@ SETTINGS = (
         parse=config_make_path_parser(),
         paths=("mkosi.crt",),
         help="Certificate for signing verity signature in X509 format",
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="sign_expected_pcr",
@@ -2795,7 +2804,7 @@ SETTINGS = (
         default_factory_depends=("environment",),
         metavar="URL",
         help="Set the proxy to use",
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="proxy_exclude",
@@ -2803,7 +2812,7 @@ SETTINGS = (
         metavar="HOST",
         parse=config_make_list_parser(delimiter=","),
         help="Don't use the configured proxy for the specified host(s)",
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="proxy_peer_certificate",
@@ -2814,14 +2823,14 @@ SETTINGS = (
             "/etc/ssl/certs/ca-certificates.crt",
         ),
         help="Set the proxy peer certificate",
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="proxy_client_certificate",
         section="Host",
         parse=config_make_path_parser(secret=True),
         help="Set the proxy client certificate",
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="proxy_client_key",
@@ -2830,7 +2839,7 @@ SETTINGS = (
         default_factory_depends=("proxy_client_certificate",),
         parse=config_make_path_parser(secret=True),
         help="Set the proxy client key",
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="incremental",
@@ -2840,7 +2849,7 @@ SETTINGS = (
         section="Host",
         parse=config_parse_boolean,
         help="Make use of and generate intermediary cache images",
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="nspawn_settings",
@@ -2859,7 +2868,7 @@ SETTINGS = (
         section="Host",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         help="List of comma-separated paths to look for programs before looking in PATH",
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="ephemeral",
@@ -2893,7 +2902,7 @@ SETTINGS = (
         section="Host",
         parse=config_parse_boolean,
         help="Set ACLs on generated directories to permit the user running mkosi to remove them",
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="tools_tree",
@@ -2904,7 +2913,7 @@ SETTINGS = (
         help="Look up programs to execute inside the given tree",
         nargs="?",
         const="default",
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="tools_tree_distribution",
@@ -2964,7 +2973,7 @@ SETTINGS = (
         parse=config_parse_boolean,
         help="Use certificates from the tools tree",
         default=True,
-        universal=True,
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="runtime_trees",
@@ -3696,7 +3705,7 @@ class ParseContext:
                 if not (s := SETTINGS_LOOKUP_BY_NAME.get(name)):
                     die(f"Unknown setting {name}")
                 if (
-                    s.universal and
+                    s.scope == SettingScope.universal and
                     not isinstance(s.parse(None, None), (list, set, dict)) and
                     (image := getattr(self.config, "image", None)) is not None
                 ):
@@ -3801,9 +3810,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
     for s in SETTINGS:
         setattr(context.config, s.dest, context.finalize_value(s))
 
-    # Load the configuration for the main image.
-    config = load_config(context.config)
-
+    config = copy.deepcopy(context.config)
     images = []
 
     if args.directory is not None and Path("mkosi.images").exists():
@@ -3813,8 +3820,8 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
         # were specified on the CLI by copying them to the CLI namespace. Any settings
         # that are not marked as "universal" are deleted from the CLI namespace.
         for s in SETTINGS:
-            if s.universal:
-                setattr(context.cli, s.dest, getattr(context.config, s.dest))
+            if s.scope == SettingScope.universal:
+                setattr(context.cli, s.dest, copy.deepcopy(getattr(config, s.dest)))
             elif hasattr(context.cli, s.dest):
                 delattr(context.cli, s.dest)
 
@@ -3822,9 +3829,9 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
             context.cli,
             "environment",
             {
-                name: getattr(context.config, "environment")[name]
-                for name in getattr(context.config, "pass_environment", {})
-                if name in getattr(context.config, "environment", {})
+                name: getattr(config, "environment")[name]
+                for name in getattr(config, "pass_environment", {})
+                if name in getattr(config, "environment", {})
             }
         )
 
@@ -3839,6 +3846,13 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
             context.config = argparse.Namespace()
             setattr(context.config, "image", name)
             setattr(context.config, "directory", args.directory)
+
+            # Settings that are marked as "inherit" are passed down to subimages but can
+            # be overridden, so we copy these to the config namespace so that they'll be
+            # overridden if the setting is explicitly configured by the subimage.
+            for s in SETTINGS:
+                if s.scope == SettingScope.inherit and hasattr(config, s.dest):
+                    setattr(context.config, s.dest, copy.deepcopy(getattr(config, s.dest)))
 
             # Allow subimage configuration to include everything again.
             context.includes = set()
@@ -3856,7 +3870,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
     images = resolve_deps(images, config.dependencies)
     images = [load_config(ns) for ns in images]
 
-    return args, tuple(images + [config])
+    return args, tuple(images + [load_config(config)])
 
 
 def load_credentials(args: argparse.Namespace) -> dict[str, str]:
