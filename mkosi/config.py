@@ -1471,6 +1471,7 @@ class Config:
     clean_package_metadata: ConfigFeature
     source_date_epoch: Optional[int]
 
+    bump_script: Optional[Path]
     configure_scripts: list[Path]
     sync_scripts: list[Path]
     prepare_scripts: list[Path]
@@ -2144,6 +2145,14 @@ SETTINGS = (
         paths=("mkosi.version",),
         path_read_text=True,
         scope=SettingScope.inherit,
+    ),
+    ConfigSetting(
+        dest="bump_script",
+        metavar="PATH",
+        section="Output",
+        parse=config_make_path_parser(),
+        paths=("mkosi.bump",),
+        help="Bump script to increment the version number",
     ),
     ConfigSetting(
         dest="image_id",
@@ -4150,6 +4159,7 @@ def summary(config: Config) -> str:
                     Build Directory: {none_to_none(config.build_dir)}
                            Image ID: {config.image_id}
                       Image Version: {config.image_version}
+                        Bump Script: {none_to_none(config.bump_script)}
                     Split Artifacts: {yes_no(config.split_artifacts)}
                  Repart Directories: {line_join_list(config.repart_dirs)}
                         Sector Size: {none_to_default(config.sector_size)}

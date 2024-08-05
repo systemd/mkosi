@@ -110,6 +110,7 @@ def test_config() -> None:
                 }
             ],
             "BuildSourcesEphemeral": true,
+            "BumpScript": "/mkosi.bump",
             "CacheDirectory": "/is/this/the/cachedir",
             "CacheOnly": "always",
             "Checksum": false,
@@ -376,6 +377,7 @@ def test_config() -> None:
         build_scripts=[Path("/path/to/buildscript")],
         build_sources=[ConfigTree(Path("/qux"), Path("/frob"))],
         build_sources_ephemeral=True,
+        bump_script=Path("/mkosi.bump"),
         cache_dir=Path("/is/this/the/cachedir"),
         cacheonly=Cacheonly.always,
         checksum= False,

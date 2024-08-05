@@ -432,6 +432,49 @@ def finalize_config_json(config: Config) -> Iterator[Path]:
         yield Path(f.name)
 
 
+def run_bump_script(config: Config, version: str) -> str:
+    assert config.bump_script
+    script = config.bump_script
+
+    if not os.access(script, os.X_OK):
+        die(f"{script} is not executable")
+
+    env = dict(
+        DISTRIBUTION=str(config.distribution),
+        RELEASE=config.release,
+        ARCHITECTURE=str(config.architecture),
+        DISTRIBUTION_ARCHITECTURE=config.distribution.architecture(config.architecture),
+        SRCDIR="/work/src",
+        MKOSI_UID=str(INVOKING_USER.uid),
+        MKOSI_GID=str(INVOKING_USER.gid),
+        MKOSI_CONFIG="/work/config.json",
+        **GIT_ENV,
+    )
+
+    if config.profile:
+        env["PROFILE"] = config.profile
+
+    with (
+        complete_step(f"Running bump script {script}…"),
+        finalize_source_mounts(config, ephemeral=False) as sources,
+        finalize_config_json(config) as json,
+    ):
+        return run(
+            ["/work/bump", version],
+            env=env | config.environment,
+            sandbox=config.sandbox(
+                binary=None,
+                mounts=[
+                    *sources,
+                    Mount(script, "/work/bump", ro=True),
+                    Mount(json, "/work/config.json", ro=True),
+                ],
+                options=["--dir", "/work/src", "--chdir", "/work/src"],
+            ),
+            stdout=subprocess.PIPE,
+        ).stdout.strip()
+
+
 def run_configure_scripts(config: Config) -> Config:
     if not config.configure_scripts:
         return config
@@ -4384,23 +4427,32 @@ def generate_key_cert_pair(args: Args) -> None:
     )
 
 
-def bump_image_version() -> None:
-    """Write current image version plus one to mkosi.version"""
+def bump_image_version(config: Config) -> None:
+    """
+    Run 'BumpScript=' to increment to next version if available or
+    fall back to incrementing the last component of the current version.
+    """
+
+    version = config.image_version
+    if not version:
+        die("Cannot bump image version, 'ImageVersion=' not set")
 
     version_file = Path("mkosi.version")
     if not version_file.exists():
         die(f"Cannot bump image version, '{version_file}' not found")
 
-    version = version_file.read_text().strip()
-    v = version.split(".")
+    if config.bump_script:
+        new_version = run_bump_script(config, version=version)
+    else:
+        v = version.split(".")
 
-    try:
-        v[-1] = str(int(v[-1]) + 1)
-    except ValueError:
-        v += ["2"]
-        logging.warning("Last component of current version is not a decimal integer, appending '.2'")
+        try:
+            v[-1] = str(int(v[-1]) + 1)
+        except ValueError:
+            v += ["2"]
+            logging.warning("Last component of current version is not a decimal integer, appending '.2'")
 
-    new_version = ".".join(v)
+        new_version = ".".join(v)
 
     logging.info(f"Bumping version: '{version}' → '{new_version}'")
     version_file.write_text(f"{new_version}\n")
@@ -4816,9 +4868,6 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
     if args.verb == Verb.genkey:
         return generate_key_cert_pair(args)
 
-    if args.verb == Verb.bump:
-        return bump_image_version()
-
     if args.verb == Verb.dependencies:
         _, [deps] = parse_config(
             ["--directory", "", "--repositories", "", "--include=mkosi-tools", "build"],
@@ -4849,6 +4898,9 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         return
 
     ensure_root_is_mountpoint()
+
+    if args.verb == Verb.bump:
+        return bump_image_version(images[-1])
 
     if args.verb in (Verb.journalctl, Verb.coredumpctl, Verb.ssh):
         # We don't use a tools tree for verbs that don't need an image build.
@@ -4941,14 +4993,14 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
 
             build = True
 
+    # The images array has been modified so we need to reevaluate last again.
+    last = images[-1]
+
     if build and args.auto_bump:
-        bump_image_version()
+        bump_image_version(last)
 
     if args.verb == Verb.build:
         return
-
-    # The images array has been modified so we need to reevaluate last again.
-    last = images[-1]
 
     if not (last.output_dir_or_cwd() / last.output_with_compression).exists():
         die(f"Image '{last.name()}' has not been built yet",
