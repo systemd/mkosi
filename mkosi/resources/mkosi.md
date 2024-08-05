@@ -2557,6 +2557,10 @@ repository.
   if the mirror is set to `https://mirror.net/centos-stream` mkosi will
   look for the epel repositories in `https://mirror.net/fedora/epel`.
 
+* `SYSEXT_SCOPE` and `CONFEXT_SCOPE` can be used to override the default
+  value of the respecive `extension-release` file when building a sysext
+  or confext. By default the value is set to `initrd system portable`.
+
 # EXAMPLES
 
 Create and run a raw *GPT* image with *ext4*, as `image.raw`:

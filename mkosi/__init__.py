@@ -300,7 +300,7 @@ def configure_extension_release(context: Context) -> None:
             f.write(f"{prefix}_VERSION_ID={context.config.image_version}\n")
 
         if f"{prefix}_SCOPE" not in extrelease:
-            f.write(f"{prefix}_SCOPE=initrd system portable\n")
+            f.write(f"{prefix}_SCOPE={context.config.environment.get(f'{prefix}_SCOPE', 'initrd system portable')}\n")
 
         if "ARCHITECTURE" not in extrelease:
             f.write(f"ARCHITECTURE={context.config.architecture}\n")
