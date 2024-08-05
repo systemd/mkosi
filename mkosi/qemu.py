@@ -300,8 +300,25 @@ def unshare_version() -> str:
     return run(["unshare", "--version"], stdout=subprocess.PIPE).stdout.strip().split()[-1]
 
 
+def systemd_escape(config: Config, s: PathString, path: bool = False) -> str:
+    cmdline = ["systemd-escape", s]
+    if path:
+        cmdline += ["--path"]
+
+    return run(cmdline, stdout=subprocess.PIPE, sandbox=config.sandbox(binary="systemd-escape")).stdout.strip()
+
+
 @contextlib.contextmanager
-def start_virtiofsd(config: Config, directory: PathString, *, name: str, selinux: bool = False) -> Iterator[Path]:
+def start_virtiofsd(
+    config: Config,
+    directory: PathString,
+    *,
+    name: Optional[str] = None,
+    selinux: bool = False,
+) -> Iterator[Path]:
+    if name is None:
+        name = systemd_escape(config, directory, path=True)
+
     uidmap = Path(directory).stat().st_uid == INVOKING_USER.uid
 
     virtiofsd = find_virtiofsd(root=config.tools(), extra=config.extra_search_paths)
@@ -1071,15 +1088,15 @@ def run_qemu(args: Args, config: Config) -> None:
         if config.runtime_build_sources:
             with finalize_source_mounts(config, ephemeral=False) as mounts:
                 for mount in mounts:
-                    sock = stack.enter_context(start_virtiofsd(config, mount.src, name=os.fspath(mount.src)))
+                    sock = stack.enter_context(start_virtiofsd(config, mount.src))
                     add_virtiofs_mount(sock, mount.dst, cmdline, credentials, tag=Path(mount.src).name)
 
             if config.build_dir:
-                sock = stack.enter_context(start_virtiofsd(config, config.build_dir, name=os.fspath(config.build_dir)))
+                sock = stack.enter_context(start_virtiofsd(config, config.build_dir))
                 add_virtiofs_mount(sock, "/work/build", cmdline, credentials, tag="build")
 
         for tree in config.runtime_trees:
-            sock = stack.enter_context(start_virtiofsd(config, tree.source, name=os.fspath(tree.source)))
+            sock = stack.enter_context(start_virtiofsd(config, tree.source))
             add_virtiofs_mount(
                 sock,
                 Path("/root/src") / (tree.target or ""),
