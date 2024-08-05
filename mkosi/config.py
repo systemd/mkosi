@@ -2175,7 +2175,7 @@ SETTINGS = (
         section="Output",
         parse=config_parse_sector_size,
         help="Set the disk image sector size",
-        scope=SettingScope.universal,
+        scope=SettingScope.inherit,
     ),
     ConfigSetting(
         dest="repart_offline",

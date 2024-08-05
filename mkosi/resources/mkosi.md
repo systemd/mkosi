@@ -2491,7 +2491,6 @@ overridden):
 - `CacheDirectory=`
 - `PackageCacheDirectory=`
 - `BuildDirectory=`
-- `SectorSize=`
 - `RepartOffline=`
 - `UseSubvolumes=`
 - `PackageDirectories=`
@@ -2521,6 +2520,7 @@ subimages but can be overridden:
 
 - `ImageId=`
 - `ImageVersion=`
+- `SectorSize=`
 
 Images can refer to outputs of images they depend on. Specifically,
 for the following options, mkosi will only check whether the inputs
