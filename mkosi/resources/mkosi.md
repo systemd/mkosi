@@ -2491,8 +2491,6 @@ overridden):
 - `CacheDirectory=`
 - `PackageCacheDirectory=`
 - `BuildDirectory=`
-- `ImageId=`
-- `ImageVersion=`
 - `SectorSize=`
 - `RepartOffline=`
 - `UseSubvolumes=`
@@ -2516,6 +2514,13 @@ overridden):
 - `Acl=`
 - `ToolsTree=`
 - `ToolsTreeCertificates=`
+
+There are also settings which are passed down to subimages but can
+be overridden. Currently the following settings are passed down to
+subimages but can be overridden:
+
+- `ImageId=`
+- `ImageVersion=`
 
 Images can refer to outputs of images they depend on. Specifically,
 for the following options, mkosi will only check whether the inputs

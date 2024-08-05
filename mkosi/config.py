@@ -2142,7 +2142,7 @@ SETTINGS = (
         help="Set version for image",
         paths=("mkosi.version",),
         path_read_text=True,
-        scope=SettingScope.universal,
+        scope=SettingScope.inherit,
     ),
     ConfigSetting(
         dest="image_id",
@@ -2150,7 +2150,7 @@ SETTINGS = (
         section="Output",
         specifier="i",
         help="Set ID for image",
-        scope=SettingScope.universal,
+        scope=SettingScope.inherit,
     ),
     ConfigSetting(
         dest="split_artifacts",

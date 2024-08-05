@@ -262,6 +262,14 @@ def test_parse_config(tmp_path: Path) -> None:
             """
         )
 
+    with (d / "mkosi.images" / "two.conf").open("a") as f:
+        f.write(
+            """
+            [Output]
+            ImageVersion=4.5.6
+            """
+        )
+
     with chdir(d):
         _, [one, two, config] = parse_config(["--package", "qed", "--build-package", "def", "--repositories", "cli"])
 
@@ -284,6 +292,10 @@ def test_parse_config(tmp_path: Path) -> None:
     # list based settings should be appended to in subimages
     assert one.repositories == ["append", "epel", "epel-next", "cli"]
     assert two.repositories == ["append", "epel", "epel-next", "cli"]
+
+    # Inherited settings should be passed down to subimages but overridable by subimages.
+    assert one.image_version == "1.2.3"
+    assert two.image_version == "4.5.6"
 
 
 def test_parse_includes_once(tmp_path: Path) -> None:
