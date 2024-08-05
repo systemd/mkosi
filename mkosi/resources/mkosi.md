@@ -2515,8 +2515,10 @@ overridden):
 - `ToolsTreeCertificates=`
 
 There are also settings which are passed down to subimages but can
-be overridden. Currently the following settings are passed down to
-subimages but can be overridden:
+be overridden. For these settings, values configured explicitly in
+the subimage will take priority over values configured on the CLI or
+in the main image config. Currently the following settings are passed
+down to subimages but can be overridden:
 
 - `ImageId=`
 - `ImageVersion=`

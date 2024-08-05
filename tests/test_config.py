@@ -297,6 +297,14 @@ def test_parse_config(tmp_path: Path) -> None:
     assert one.image_version == "1.2.3"
     assert two.image_version == "4.5.6"
 
+    with chdir(d):
+        _, [one, two, config] = parse_config(["--image-version", "7.8.9"])
+
+    # Inherited settings specified on the CLI should not override subimages that configure the setting explicitly.
+    assert config.image_version == "7.8.9"
+    assert one.image_version == "7.8.9"
+    assert two.image_version == "4.5.6"
+
 
 def test_parse_includes_once(tmp_path: Path) -> None:
     d = tmp_path
