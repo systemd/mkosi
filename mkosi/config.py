@@ -3807,13 +3807,14 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
     if args.directory is not None:
         context.parse_config_one(Path("."), profiles=True, local=True)
 
+    config = copy.deepcopy(context.config)
+
     # After we've finished parsing the configuration, we'll have values in both
     # namespaces (context.cli, context.config). To be able to parse the values from a
     # single namespace, we merge the final values of each setting into one namespace.
     for s in SETTINGS:
-        setattr(context.config, s.dest, context.finalize_value(s))
+        setattr(config, s.dest, context.finalize_value(s))
 
-    config = copy.deepcopy(context.config)
     images = []
 
     if args.directory is not None and Path("mkosi.images").exists():
