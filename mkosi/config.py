@@ -3434,6 +3434,7 @@ class ParseContext:
         # specified on the CLI always override settings specified in configuration files.
         self.cli = argparse.Namespace()
         self.config = argparse.Namespace()
+        self.defaults = argparse.Namespace()
         # Compare inodes instead of paths so we can't get tricked by bind mounts and such.
         self.includes: set[tuple[int, int]] = set()
         self.immutable: set[str] = set()
@@ -3559,6 +3560,8 @@ class ParseContext:
             isinstance(setting.parse(None, None), (dict, list, set))
         ):
             default = setting.parse(None, None)
+        elif hasattr(self.defaults, setting.dest):
+            default = getattr(self.defaults, setting.dest)
         elif setting.default_factory:
             # To determine default values, we need the final values of various settings in
             # a namespace object, but we don't want to copy the final values into the config
@@ -3578,7 +3581,7 @@ class ParseContext:
         else:
             default = setting.parse(None, None)
 
-        setattr(self.config, setting.dest, default)
+        setattr(self.defaults, setting.dest, default)
 
         return default
 
@@ -3856,6 +3859,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
 
             # Allow subimage configuration to include everything again.
             context.includes = set()
+            context.defaults = argparse.Namespace()
 
             with chdir(p if p.is_dir() else Path.cwd()):
                 if not context.parse_config_one(p if p.is_file() else Path("."), local=True):
