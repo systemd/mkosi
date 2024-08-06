@@ -702,14 +702,16 @@ def finalize_drive(drive: QemuDrive) -> Iterator[Path]:
 
 @contextlib.contextmanager
 def finalize_state(config: Config, cid: int) -> Iterator[None]:
-    (INVOKING_USER.runtime_dir() / "machine").mkdir(parents=True, exist_ok=True)
+    mkosi_pid = os.getpid()
+    machine_folder = INVOKING_USER.runtime_dir() / "machine"
+    machine_folder.mkdir(parents=True, exist_ok=True)
 
     if INVOKING_USER.is_regular_user():
         os.chown(INVOKING_USER.runtime_dir(), INVOKING_USER.uid, INVOKING_USER.gid)
-        os.chown(INVOKING_USER.runtime_dir() / "machine", INVOKING_USER.uid, INVOKING_USER.gid)
+        os.chown(machine_folder, INVOKING_USER.uid, INVOKING_USER.gid)
 
-    with flock(INVOKING_USER.runtime_dir() / "machine"):
-        if (p := INVOKING_USER.runtime_dir() / "machine" / f"{config.machine_or_name()}.json").exists():
+    with flock(machine_folder):
+        if (p := machine_folder / f"{config.machine_or_name()}-{mkosi_pid:d}.json").exists():
             die(f"Another virtual machine named {config.machine_or_name()} is already running",
                 hint="Use --machine to specify a different virtual machine name")
 
@@ -731,7 +733,7 @@ def finalize_state(config: Config, cid: int) -> Iterator[None]:
     try:
         yield
     finally:
-        with flock(INVOKING_USER.runtime_dir() / "machine"):
+        with flock(machine_folder):
             p.unlink(missing_ok=True)
 
 
@@ -1251,8 +1253,10 @@ def run_qemu(args: Args, config: Config) -> None:
 
 
 def run_ssh(args: Args, config: Config) -> None:
-    with flock(INVOKING_USER.runtime_dir() / "machine"):
-        if not (p := INVOKING_USER.runtime_dir() / "machine" / f"{config.machine_or_name()}.json").exists():
+    mkosi_pid = os.getpid()
+    machine_folder = INVOKING_USER.runtime_dir() / "machine"
+    with flock(machine_folder):
+        if not (p := machine_folder / f"{config.machine_or_name()}-{mkosi_pid:d}.json").exists():
             die(f"{p} not found, cannot SSH into virtual machine {config.machine_or_name()}",
                 hint="Is the machine running and was it built with Ssh=yes and QemuVsock=yes?")
 
