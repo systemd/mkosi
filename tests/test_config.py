@@ -251,24 +251,29 @@ def test_parse_config(tmp_path: Path) -> None:
 
     (d / "mkosi.images").mkdir()
 
-    for n in ("one", "two"):
-        (d / "mkosi.images" / f"{n}.conf").write_text(
-            f"""\
-            [Distribution]
-            Repositories=append
+    (d / "mkosi.images/one.conf").write_text(
+        """\
+        [Distribution]
+        Repositories=append
 
-            [Content]
-            Packages={n}
-            """
-        )
+        [Content]
+        Packages=one
+        """
+    )
 
-    with (d / "mkosi.images" / "two.conf").open("a") as f:
-        f.write(
-            """
-            [Output]
-            ImageVersion=4.5.6
-            """
-        )
+    (d / "mkosi.images/two").mkdir()
+    (d / "mkosi.images/two/mkosi.conf").write_text(
+        """
+        [Distribution]
+        Repositories=append
+
+        [Content]
+        Packages=two
+
+        [Output]
+        ImageVersion=4.5.6
+        """
+    )
 
     with chdir(d):
         _, [one, two, config] = parse_config(["--package", "qed", "--build-package", "def", "--repositories", "cli"])
