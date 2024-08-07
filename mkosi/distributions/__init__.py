@@ -163,9 +163,12 @@ class Distribution(StrEnum):
 
 def detect_distribution() -> tuple[Optional[Distribution], Optional[str]]:
     try:
-        os_release = read_env_file("/usr/lib/os-release")
+        os_release = read_env_file("/etc/os-release")
     except FileNotFoundError:
-        return None, None
+        try:
+            os_release = read_env_file("/usr/lib/os-release")
+        except FileNotFoundError:
+            return None, None
 
     dist_id = os_release.get("ID", "linux")
     dist_id_like = os_release.get("ID_LIKE", "").split()
