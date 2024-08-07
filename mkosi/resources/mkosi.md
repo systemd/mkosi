@@ -620,13 +620,14 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `ImageVersion=`, `--image-version=`
 :   Configure the image version. This accepts any string, but it is
     recommended to specify a series of dot separated components. The
-    version may also be configured in a file `mkosi.version` in which
-    case it may be conveniently managed via the `bump` verb or the
-    `--auto-bump` option. When specified the image version is included
-    in the default output file name, i.e. instead of `image.raw` the
-    default will be `image_0.1.raw` for version `0.1` of the image, and
-    similar. The version is also passed via the `$IMAGE_VERSION` to any
-    build scripts invoked (which may be useful to patch it into
+    version may also be configured by reading a `mkosi.version` file (in
+    which case it may be conveniently managed via the `bump` verb or the
+    `--auto-bump` option) or by reading stdout if it is executable (see
+    the **Scripts** section below). When specified the image version is
+    included in the default output file name, i.e. instead of `image.raw`
+    the default will be `image_0.1.raw` for version `0.1` of the image,
+    and similar. The version is also passed via the `$IMAGE_VERSION` to
+    any build scripts invoked (which may be useful to patch it into
     `/usr/lib/os-release` or similar, in particular the `IMAGE_VERSION=`
     field of it).
 
@@ -1137,9 +1138,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `RootPassword=`, `--root-password=`,
 :   Set the system root password. If this option is not used, but a `mkosi.rootpw` file is found in the local
-    directory, the password is automatically read from it. If the password starts with `hashed:`, it is treated
-    as an already hashed root password. The root password is also stored in `/usr/lib/credstore` under the
-    appropriate systemd credential so that it applies even if only `/usr` is shipped in the image. To create
+    directory, the password is automatically read from it or if the file is executable it is run as a script
+    and stdout is read instead (see the **Scripts** section below). If the password starts with `hashed:`, it is
+    treated as an already hashed root password. The root password is also stored in `/usr/lib/credstore` under
+    the appropriate systemd credential so that it applies even if only `/usr` is shipped in the image. To create
     an unlocked account without any password use `hashed:` without a hash.
 
 `Autologin=`, `--autologin`
@@ -2075,6 +2077,19 @@ current working directory. The following scripts are supported:
   script can clean up any outputs that mkosi does not know about (e.g.
   artifacts from `SplitArtifacts=yes` or RPMs built in a build script).
   Note that this script does not use the tools tree even if one is configured.
+
+* If **`mkosi.version`** exists and is executable, it is run during
+  configuration parsing and populates `ImageVersion=` with the output on stdout.
+  This can be used for external version tracking, e.g. with `git describe` or
+  `date '+%Y-%m-%d'`. Note that this script is executed on the host system
+  without any sandboxing.
+
+* If **`mkosi.rootpw`** exists and is executable, it is run during
+  configuration parsing and populates `RootPassword=` with the output
+  on stdout. This can be used to randomly generate a password and can
+  be remembered by outputting it to stderr or by reading `$MKOSI_CONFIG`
+  in another script (e.g. `mkosi.postoutput`). Note that this script is
+  executed on the host system without any sandboxing.
 
 If a script uses the `.chroot` extension, mkosi will chroot into the
 image using `mkosi-chroot` (see below) before executing the script. For
