@@ -2,7 +2,6 @@
 
 import enum
 import importlib
-import re
 import urllib.parse
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Optional, cast
@@ -172,16 +171,8 @@ def detect_distribution() -> tuple[Optional[Distribution], Optional[str]]:
 
     dist_id = os_release.get("ID", "linux")
     dist_id_like = os_release.get("ID_LIKE", "").split()
-    version = os_release.get("VERSION", None)
     version_id = os_release.get("VERSION_ID", None)
     version_codename = os_release.get("VERSION_CODENAME", None)
-    extracted_codename = None
-
-    if version:
-        # extract Debian release codename
-        m = re.search(r"\((.*?)\)", version)
-        if m:
-            extracted_codename = m.group(1)
 
     d: Optional[Distribution] = None
     for the_id in [dist_id, *dist_id_like]:
@@ -189,8 +180,8 @@ def detect_distribution() -> tuple[Optional[Distribution], Optional[str]]:
         if d is not None:
             break
 
-    if d in {Distribution.debian, Distribution.ubuntu} and (version_codename or extracted_codename):
-        version_id = version_codename or extracted_codename
+    if d in {Distribution.debian, Distribution.ubuntu} and version_codename:
+        version_id = version_codename
 
     return d, version_id
 
