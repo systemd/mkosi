@@ -3434,6 +3434,7 @@ class ParseContext:
         # specified on the CLI always override settings specified in configuration files.
         self.cli = argparse.Namespace()
         self.config = argparse.Namespace()
+        self.defaults = argparse.Namespace()
         # Compare inodes instead of paths so we can't get tricked by bind mounts and such.
         self.includes: set[tuple[int, int]] = set()
         self.immutable: set[str] = set()
@@ -3559,6 +3560,8 @@ class ParseContext:
             isinstance(setting.parse(None, None), (dict, list, set))
         ):
             default = setting.parse(None, None)
+        elif hasattr(self.defaults, setting.dest):
+            default = getattr(self.defaults, setting.dest)
         elif setting.default_factory:
             # To determine default values, we need the final values of various settings in
             # a namespace object, but we don't want to copy the final values into the config
@@ -3578,7 +3581,7 @@ class ParseContext:
         else:
             default = setting.parse(None, None)
 
-        setattr(self.config, setting.dest, default)
+        setattr(self.defaults, setting.dest, default)
 
         return default
 
@@ -3804,13 +3807,14 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
     if args.directory is not None:
         context.parse_config_one(Path("."), profiles=True, local=True)
 
+    config = copy.deepcopy(context.config)
+
     # After we've finished parsing the configuration, we'll have values in both
     # namespaces (context.cli, context.config). To be able to parse the values from a
     # single namespace, we merge the final values of each setting into one namespace.
     for s in SETTINGS:
-        setattr(context.config, s.dest, context.finalize_value(s))
+        setattr(config, s.dest, context.finalize_value(s))
 
-    config = copy.deepcopy(context.config)
     images = []
 
     if args.directory is not None and Path("mkosi.images").exists():
@@ -3820,7 +3824,18 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
         # were specified on the CLI by copying them to the CLI namespace. Any settings
         # that are not marked as "universal" are deleted from the CLI namespace.
         for s in SETTINGS:
-            if s.scope == SettingScope.universal:
+            if (
+                s.scope == SettingScope.universal and (
+                    # For list-based settings, don't pass down empty lists unless it came
+                    # explicitly from the config file or the CLI. This makes sure that default
+                    # values from subimages are still used if no value is explicitly configured
+                    # in the main image or on the CLI.
+                    not isinstance(getattr(config, s.dest), (list, dict, set)) or
+                    getattr(config, s.dest) or
+                    hasattr(context.cli, s.dest) or
+                    hasattr(context.config, s.dest)
+                )
+            ):
                 setattr(context.cli, s.dest, copy.deepcopy(getattr(config, s.dest)))
             elif hasattr(context.cli, s.dest):
                 delattr(context.cli, s.dest)
@@ -3856,6 +3871,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
 
             # Allow subimage configuration to include everything again.
             context.includes = set()
+            context.defaults = argparse.Namespace()
 
             with chdir(p if p.is_dir() else Path.cwd()):
                 if not context.parse_config_one(p if p.is_file() else Path("."), local=True):

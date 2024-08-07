@@ -251,24 +251,30 @@ def test_parse_config(tmp_path: Path) -> None:
 
     (d / "mkosi.images").mkdir()
 
-    for n in ("one", "two"):
-        (d / "mkosi.images" / f"{n}.conf").write_text(
-            f"""\
-            [Distribution]
-            Repositories=append
+    (d / "mkosi.images/one.conf").write_text(
+        """\
+        [Distribution]
+        Repositories=append
 
-            [Content]
-            Packages={n}
-            """
-        )
+        [Content]
+        Packages=one
+        """
+    )
 
-    with (d / "mkosi.images" / "two.conf").open("a") as f:
-        f.write(
-            """
-            [Output]
-            ImageVersion=4.5.6
-            """
-        )
+    (d / "mkosi.images/two").mkdir()
+    (d / "mkosi.images/two/mkosi.skeleton").mkdir()
+    (d / "mkosi.images/two/mkosi.conf").write_text(
+        """
+        [Distribution]
+        Repositories=append
+
+        [Content]
+        Packages=two
+
+        [Output]
+        ImageVersion=4.5.6
+        """
+    )
 
     with chdir(d):
         _, [one, two, config] = parse_config(["--package", "qed", "--build-package", "def", "--repositories", "cli"])
@@ -296,6 +302,10 @@ def test_parse_config(tmp_path: Path) -> None:
     # Inherited settings should be passed down to subimages but overridable by subimages.
     assert one.image_version == "1.2.3"
     assert two.image_version == "4.5.6"
+
+    # Default values from subimages should be picked up.
+    assert len(one.package_manager_trees) == 0
+    assert len(two.package_manager_trees) == 1 and two.package_manager_trees[0].source.name == "mkosi.skeleton"
 
     with chdir(d):
         _, [one, two, config] = parse_config(["--image-version", "7.8.9"])
