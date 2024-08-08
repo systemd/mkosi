@@ -240,7 +240,7 @@ def configure_os_release(context: Context) -> None:
     if context.config.overlay or context.config.output_format in (OutputFormat.sysext, OutputFormat.confext):
         return
 
-    for candidate in ["usr/lib/os-release", "usr/lib/initrd-release"]:
+    for candidate in ["usr/lib/os-release", "usr/lib/initrd-release", "etc/os-release"]:
         osrelease = context.root / candidate
         # at this point we know we will either change or add to the file
         newosrelease = osrelease.with_suffix(".new")
