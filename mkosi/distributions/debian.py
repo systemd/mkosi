@@ -190,6 +190,8 @@ class Installer(DistributionInstaller):
 
         cls.install_packages(context, [Path(deb).name.partition("_")[0].removesuffix(".deb") for deb in essential])
 
+        fixup_os_release(context)
+
     @classmethod
     def install_packages(cls, context: Context, packages: Sequence[str], apivfs: bool = True) -> None:
         # Debian policy is to start daemons by default. The policy-rc.d script can be used choose which ones to
@@ -253,3 +255,48 @@ def install_apt_sources(context: Context, repos: Iterable[AptRepository]) -> Non
         with sources.open("w") as f:
             for repo in repos:
                 f.write(str(repo))
+
+
+def fixup_os_release(context: Context) -> None:
+    if context.config.release not in ("unstable", "sid"):
+        return
+
+    # Debian being Debian means we need to special case handling os-release. Fix the content to actually
+    # match what we are building, and set up a diversion so that dpkg doesn't overwrite it on package updates.
+    # Upstream bug report: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1008735.
+    for candidate in ["etc/os-release", "usr/lib/os-release", "usr/lib/initrd-release"]:
+        osrelease = context.root / candidate
+        newosrelease = osrelease.with_suffix(".new")
+
+        if not osrelease.is_file():
+            continue
+
+        if osrelease.is_symlink() and candidate != "etc/os-release":
+            continue
+
+        with osrelease.open("r") as old, newosrelease.open("w") as new:
+            for line in old.readlines():
+                if line.startswith("VERSION_CODENAME="):
+                    new.write('VERSION_CODENAME=sid\n')
+                else:
+                    new.write(line)
+
+        # On dpkg distributions we cannot simply overwrite /etc/os-release as it is owned by a package.
+        # We need to set up a diversion first, so that it is not overwritten by package updates.
+        # We do this for /etc/os-release as that will be overwritten on package updates and has
+        # precedence over /usr/lib/os-release, and ignore the latter and assume that if an usr-only
+        # image is built then the package manager will not run on it.
+        if candidate == "etc/os-release":
+            run([
+                "dpkg-divert",
+                "--quiet",
+                "--root=/buildroot",
+                "--local",
+                "--add",
+                "--rename",
+                "--divert",
+                f"/{candidate}.dpkg",
+                f"/{candidate}",
+            ], sandbox=context.sandbox(binary="dpkg-divert", mounts=[Mount(context.root, "/buildroot")]))
+
+        newosrelease.rename(osrelease)
