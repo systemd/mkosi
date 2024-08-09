@@ -249,6 +249,9 @@ Those settings cannot be configured in the configuration files.
 `--json`
 :   Show the summary output as JSON-SEQ.
 
+`--wipe-build-dir`, `-w`
+:   Wipe the build directory if one is configured before building the image.
+
 ## Supported output formats
 
 The following output formats are supported:
