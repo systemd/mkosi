@@ -1340,6 +1340,7 @@ class Args:
     auto_bump: bool
     doc_format: DocFormat
     json: bool
+    wipe_build_dir: bool
 
     @classmethod
     def default(cls) -> "Args":
@@ -3317,6 +3318,12 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
     parser.add_argument(
         "--json",
         help="Show summary as JSON",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
+        "-w", "--wipe-build-dir",
+        help="Remove the build directory before building the image",
         action="store_true",
         default=False,
     )
