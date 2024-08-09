@@ -69,6 +69,22 @@ Packages=linux-image-generic
          dbus
 ```
 
+## Kali
+
+```conf
+[Distribution]
+Distribution=kali
+
+[Content]
+Bootable=yes
+Packages=linux-image-generic
+         systemd
+         systemd-boot
+         systemd-sysv
+         udev
+         dbus
+```
+
 ## Ubuntu
 
 ```conf
