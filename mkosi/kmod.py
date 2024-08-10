@@ -15,7 +15,8 @@ from mkosi.util import chdir, parents_below
 
 
 def loaded_modules() -> list[str]:
-    return [fr"{line.split()[0]}\.ko" for line in Path("/proc/modules").read_text().splitlines()]
+    # Loaded modules are listed with underscores but the filenames might use dashes instead.
+    return [fr"/{line.split()[0].replace('_', '[_-]')}\.ko" for line in Path("/proc/modules").read_text().splitlines()]
 
 
 def filter_kernel_modules(root: Path, kver: str, *, include: Iterable[str], exclude: Iterable[str]) -> list[Path]:
