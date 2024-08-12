@@ -4760,15 +4760,11 @@ def run_build(args: Args, config: Config, *, resources: Path, package_dir: Optio
     with (
         complete_step(f"Building {config.name()} image"),
         prepend_to_environ_path(config),
+        acl_toggle_build(config, INVOKING_USER.uid),
+        rchown_package_manager_dirs(config),
+        setup_workspace(args, config) as workspace,
     ):
-        check_tools(config, Verb.build)
-
-        with (
-            acl_toggle_build(config, INVOKING_USER.uid),
-            rchown_package_manager_dirs(config),
-            setup_workspace(args, config) as workspace,
-        ):
-            build_image(Context(args, config, workspace=workspace, resources=resources, package_dir=package_dir))
+        build_image(Context(args, config, workspace=workspace, resources=resources, package_dir=package_dir))
 
 
 def ensure_root_is_mountpoint() -> None:
@@ -4899,6 +4895,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
 
     if tools and not (tools.output_dir_or_cwd() / tools.output).exists():
         if args.verb == Verb.build or args.force > 0:
+            check_tools(tools, Verb.build)
             fork_and_wait(run_sync, args, tools, resources=resources)
             fork_and_wait(run_build, args, tools, resources=resources)
         else:
@@ -4918,6 +4915,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
                 )
             )
 
+            check_tools(config, args.verb)
             images[i] = config = run_configure_scripts(config)
 
             if args.verb != Verb.build and args.force == 0:
@@ -4932,6 +4930,9 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
             # If the output format is "none" and there are no build scripts, there's nothing to do so exit early.
             if config.output_format == OutputFormat.none and not config.build_scripts:
                 return
+
+            if args.verb != Verb.build:
+                check_tools(config, Verb.build)
 
             check_inputs(config)
             fork_and_wait(run_sync, args, config, resources=resources)
@@ -4953,8 +4954,6 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
             hint="Make sure to build the image first with 'mkosi build' or use '--force'")
 
     with prepend_to_environ_path(last):
-        check_tools(last, args.verb)
-
         with (
             acl_toggle_boot(last, INVOKING_USER.uid)
             if args.verb in (Verb.shell, Verb.boot)
