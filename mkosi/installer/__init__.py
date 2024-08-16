@@ -145,10 +145,13 @@ def clean_package_manager_metadata(context: Context) -> None:
     # the corresponding package manager is installed in the image.
 
     executable = context.config.distribution.package_manager(context.config).executable(context.config)
+    remove = []
 
     for tool, paths in (("rpm",      ["var/lib/rpm", "usr/lib/sysimage/rpm"]),
                         ("dnf5",     ["usr/lib/sysimage/libdnf5"]),
                         ("dpkg",     ["var/lib/dpkg"]),
                         (executable, [f"var/lib/{subdir}", f"var/cache/{subdir}"])):
         if context.config.clean_package_metadata == ConfigFeature.enabled or not find_binary(tool, root=context.root):
-            rmtree(*(context.root / p for p in paths if (context.root / p).exists()), sandbox=context.sandbox)
+            remove += [context.root / p for p in paths if (context.root / p).exists()]
+
+    rmtree(*remove, sandbox=context.sandbox)
