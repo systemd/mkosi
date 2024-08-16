@@ -37,6 +37,8 @@ class PackageManager:
     def finalize_environment(cls, context: Context) -> dict[str, str]:
         env = {
             "HOME": "/", # Make sure rpm doesn't pick up ~/.rpmmacros and ~/.rpmrc.
+            # systemd's chroot detection doesn't work when unprivileged so tell it explicitly.
+            "SYSTEMD_IN_CHROOT": "1",
         }
 
         if "SYSTEMD_HWDB_UPDATE_BYPASS" not in context.config.environment:
