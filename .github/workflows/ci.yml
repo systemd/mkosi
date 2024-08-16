@@ -165,6 +165,7 @@ jobs:
           # fail if the script already exists, to avoid hard to debug CI errors
           [[ -f mkosi.configure ]] && exit 1
           tee mkosi.configure <<EOF
+          #!/bin/bash
           echo "Hello from inside mkosi.configure!" >&2
           cat
           EOF
@@ -175,6 +176,7 @@ jobs:
           do
               [[ -f "mkosi.${script}" ]] && exit 1
               tee "mkosi.${script}" <<TOK
+          #!/bin/bash
           echo "Hello from inside mkosi.${script}" >&2
           TOK
               chmod +x "mkosi.${script}"
