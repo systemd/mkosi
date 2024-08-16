@@ -187,15 +187,6 @@ class StrEnum(enum.Enum):
         return [*cls.values(), ""]
 
 
-@contextlib.contextmanager
-def umask(mask: int) -> Iterator[None]:
-    old = os.umask(mask)
-    try:
-        yield
-    finally:
-        os.umask(old)
-
-
 def parents_below(path: Path, below: Path) -> list[Path]:
     parents = list(path.parents)
     return parents[:parents.index(below)]

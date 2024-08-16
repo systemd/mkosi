@@ -9,7 +9,6 @@ from mkosi.installer import PackageManager
 from mkosi.installer.rpm import RpmRepository, rpm_cmd
 from mkosi.log import ARG_DEBUG
 from mkosi.run import run
-from mkosi.sandbox import Mount, apivfs_cmd
 from mkosi.types import _FILE, CompletedProcess, PathString
 
 
@@ -35,8 +34,8 @@ class Dnf(PackageManager):
     @classmethod
     def scripts(cls, context: Context) -> dict[str, list[PathString]]:
         return {
-            "dnf": apivfs_cmd() + cls.env_cmd(context) + cls.cmd(context),
-            "rpm": apivfs_cmd() + rpm_cmd(),
+            "dnf": cls.apivfs_script_cmd(context) + cls.env_cmd(context) + cls.cmd(context),
+            "rpm": cls.apivfs_script_cmd(context) + rpm_cmd(),
             "mkosi-install"  : ["dnf", "install"],
             "mkosi-upgrade"  : ["dnf", "upgrade"],
             "mkosi-remove"   : ["dnf", "remove"],
@@ -194,16 +193,8 @@ class Dnf(PackageManager):
         try:
             return run(
                 cls.cmd(context, cached_metadata=cached_metadata) + [operation, *arguments],
-                sandbox=(
-                    context.sandbox(
-                        binary=cls.executable(context.config),
-                        network=True,
-                        vartmp=True,
-                        mounts=[Mount(context.root, "/buildroot"), *cls.mounts(context)],
-                        extra=apivfs_cmd() if apivfs else [],
-                    )
-                ),
-                env=context.config.environment | cls.finalize_environment(context),
+                sandbox=cls.sandbox(context, apivfs=apivfs),
+                env=cls.finalize_environment(context),
                 stdout=stdout,
             )
         finally:
@@ -226,7 +217,7 @@ class Dnf(PackageManager):
     @classmethod
     def createrepo(cls, context: Context) -> None:
         run(["createrepo_c", context.repository],
-            sandbox=context.sandbox(binary="createrepo_c", mounts=[Mount(context.repository, context.repository)]))
+            sandbox=context.sandbox(binary="createrepo_c", options=["--bind", context.repository, context.repository]))
 
         (context.pkgmngr / "etc/yum.repos.d/mkosi-local.repo").write_text(
             textwrap.dedent(

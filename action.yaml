@@ -66,7 +66,6 @@ runs:
         sudo apt-get update
         sudo apt-get install --assume-yes --no-install-recommends \
           archlinux-keyring \
-          bubblewrap \
           debian-archive-keyring \
           dnf \
           makepkg \

@@ -86,7 +86,6 @@ def test_config() -> None:
     dump = textwrap.dedent(
         """\
         {
-            "Acl": true,
             "Architecture": "ia64",
             "Autologin": false,
             "BaseTrees": [
@@ -364,7 +363,6 @@ def test_config() -> None:
     )
 
     args = Config(
-        acl=True,
         architecture=Architecture.ia64,
         autologin=False,
         base_trees=[Path("/hello/world")],

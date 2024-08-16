@@ -7,9 +7,10 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from mkosi.config import OutputFormat, __version__
+from mkosi.config import OutputFormat
 from mkosi.log import log_setup
 from mkosi.run import find_binary, run, uncaught_exception_handler
+from mkosi.sandbox import __version__
 from mkosi.types import PathString
 
 
@@ -130,4 +131,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

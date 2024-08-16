@@ -6,8 +6,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from mkosi.log import die
-from mkosi.run import run
-from mkosi.sandbox import Mount, SandboxProtocol, nosandbox
+from mkosi.run import SandboxProtocol, nosandbox, run
 
 
 @dataclasses.dataclass(frozen=True)
@@ -37,7 +36,7 @@ def find_partitions(image: Path, *, sandbox: SandboxProtocol = nosandbox) -> lis
             ["systemd-repart", "--json=short", image],
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
-            sandbox=sandbox(binary="systemd-repart", mounts=[Mount(image, image, ro=True)]),
+            sandbox=sandbox(binary="systemd-repart", options=["--ro-bind", image, image]),
         ).stdout
     )
     return [Partition.from_dict(d) for d in output]

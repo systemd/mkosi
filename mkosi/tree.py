@@ -11,22 +11,15 @@ from pathlib import Path
 
 from mkosi.config import ConfigFeature
 from mkosi.log import ARG_DEBUG, die
-from mkosi.run import run
-from mkosi.sandbox import Mount, SandboxProtocol, nosandbox
+from mkosi.run import SandboxProtocol, nosandbox, run
+from mkosi.sandbox import BTRFS_SUPER_MAGIC, statfs
 from mkosi.types import PathString
+from mkosi.util import flatten
 from mkosi.versioncomp import GenericVersion
 
 
-def statfs(path: Path, *, sandbox: SandboxProtocol = nosandbox) -> str:
-    return run(
-        ["stat", "--file-system", "--format", "%T", path],
-        stdout=subprocess.PIPE,
-        sandbox=sandbox(binary="stat", mounts=[Mount(path, path, ro=True)]),
-    ).stdout.strip()
-
-
-def is_subvolume(path: Path, *, sandbox: SandboxProtocol = nosandbox) -> bool:
-    return path.is_dir() and path.stat().st_ino == 256 and statfs(path, sandbox=sandbox) == "btrfs"
+def is_subvolume(path: Path) -> bool:
+    return path.is_dir() and path.stat().st_ino == 256 and statfs(str(path)) == BTRFS_SUPER_MAGIC
 
 
 def cp_version(*, sandbox: SandboxProtocol = nosandbox) -> GenericVersion:
@@ -45,7 +38,7 @@ def make_tree(
     use_subvolumes: ConfigFeature = ConfigFeature.disabled,
     sandbox: SandboxProtocol = nosandbox,
 ) -> Path:
-    if statfs(path.parent, sandbox=sandbox) != "btrfs":
+    if statfs(str(path.parent)) != BTRFS_SUPER_MAGIC:
         if use_subvolumes == ConfigFeature.enabled:
             die(f"Subvolumes requested but {path} is not located on a btrfs filesystem")
 
@@ -54,7 +47,7 @@ def make_tree(
 
     if use_subvolumes != ConfigFeature.disabled:
         result = run(["btrfs", "subvolume", "create", path],
-                     sandbox=sandbox(binary="btrfs", mounts=[Mount(path.parent, path.parent)]),
+                     sandbox=sandbox(binary="btrfs", options=["--bind", path.parent, path.parent]),
                      check=use_subvolumes == ConfigFeature.enabled).returncode
     else:
         result = 1
@@ -101,7 +94,7 @@ def copy_tree(
     if cp_version(sandbox=sandbox) >= "9.5":
         copy += ["--keep-directory-symlink"]
 
-    mounts = [Mount(src, src, ro=True), Mount(dst.parent, dst.parent)]
+    options: list[PathString] = ["--ro-bind", src, src, "--bind", dst.parent, dst.parent]
 
     # If the source and destination are both directories, we want to merge the source directory with the
     # destination directory. If the source if a file and the destination is a directory, we want to copy
@@ -113,7 +106,7 @@ def copy_tree(
     if (
         use_subvolumes == ConfigFeature.disabled or
         not preserve or
-        not is_subvolume(src, sandbox=sandbox) or
+        not is_subvolume(src) or
         (dst.exists() and any(dst.iterdir()))
     ):
         with (
@@ -121,7 +114,7 @@ def copy_tree(
             if not preserve
             else contextlib.nullcontext()
         ):
-            run(copy, sandbox=sandbox(binary="cp", mounts=mounts))
+            run(copy, sandbox=sandbox(binary="cp", options=options))
         return dst
 
     # btrfs can't snapshot to an existing directory so make sure the destination does not exist.
@@ -131,7 +124,7 @@ def copy_tree(
     result = run(
         ["btrfs", "subvolume", "snapshot", src, dst],
         check=use_subvolumes == ConfigFeature.enabled,
-        sandbox=sandbox(binary="btrfs", mounts=mounts),
+        sandbox=sandbox(binary="btrfs", options=options),
     ).returncode
 
     if result != 0:
@@ -140,7 +133,7 @@ def copy_tree(
             if not preserve
             else contextlib.nullcontext()
         ):
-            run(copy, sandbox=sandbox(binary="cp", mounts=mounts))
+            run(copy, sandbox=sandbox(binary="cp", options=options))
 
     return dst
 
@@ -149,19 +142,19 @@ def rmtree(*paths: Path, sandbox: SandboxProtocol = nosandbox) -> None:
     if not paths:
         return
 
-    if subvolumes := sorted({p for p in paths if p.exists() and is_subvolume(p, sandbox=sandbox)}):
+    if subvolumes := sorted({p for p in paths if p.exists() and is_subvolume(p)}):
         # Silence and ignore failures since when not running as root, this will fail with a permission error unless the
         # btrfs filesystem is mounted with user_subvol_rm_allowed.
         run(["btrfs", "subvolume", "delete", *subvolumes],
             check=False,
-            sandbox=sandbox(binary="btrfs", mounts=[Mount(p.parent, p.parent) for p in subvolumes]),
+            sandbox=sandbox(binary="btrfs", options=flatten(("--bind", p.parent, p.parent) for p in subvolumes)),
             stdout=subprocess.DEVNULL if not ARG_DEBUG.get() else None,
             stderr=subprocess.DEVNULL if not ARG_DEBUG.get() else None)
 
     filtered = sorted({p for p in paths if p.exists() or p.is_symlink()})
     if filtered:
         run(["rm", "-rf", "--", *filtered],
-            sandbox=sandbox(binary="rm", mounts=[Mount(p.parent, p.parent) for p in filtered]))
+            sandbox=sandbox(binary="rm", options=flatten(("--bind", p.parent, p.parent) for p in filtered)))
 
 
 def move_tree(

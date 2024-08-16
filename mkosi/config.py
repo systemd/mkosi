@@ -34,8 +34,8 @@ from typing import Any, Callable, Optional, TypeVar, Union, cast
 from mkosi.distributions import Distribution, detect_distribution
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, Style, die
 from mkosi.pager import page
-from mkosi.run import find_binary, run
-from mkosi.sandbox import Mount, SandboxProtocol, nosandbox, sandbox_cmd
+from mkosi.run import SandboxProtocol, find_binary, nosandbox, run, sandbox_cmd
+from mkosi.sandbox import __version__
 from mkosi.types import PathString, SupportsRead
 from mkosi.user import INVOKING_USER
 from mkosi.util import (
@@ -47,8 +47,6 @@ from mkosi.util import (
     startswith,
 )
 from mkosi.versioncomp import GenericVersion
-
-__version__ = "25~devel"
 
 ConfigParseCallback = Callable[[Optional[str], Optional[Any]], Any]
 ConfigMatchCallback = Callable[[str, Any], bool]
@@ -131,8 +129,8 @@ class ConfigTree:
     source: Path
     target: Optional[Path]
 
-    def with_prefix(self, prefix: Path = Path("/")) -> tuple[Path, Path]:
-        return (self.source, prefix / os.fspath(self.target).lstrip("/") if self.target else prefix)
+    def with_prefix(self, prefix: PathString = "/") -> tuple[Path, Path]:
+        return (self.source, Path(prefix) / os.fspath(self.target).lstrip("/") if self.target else Path(prefix))
 
     def __str__(self) -> str:
         return f"{self.source}:{self.target}" if self.target else f"{self.source}"
@@ -512,8 +510,6 @@ def parse_path(value: str,
     path = Path(value)
 
     if expanduser:
-        if path.is_relative_to("~") and not INVOKING_USER.is_running_user():
-            path = INVOKING_USER.home() / path.relative_to("~")
         path = path.expanduser()
 
     if required and not path.exists():
@@ -1542,7 +1538,6 @@ class Config:
     ephemeral: bool
     credentials: dict[str, str]
     kernel_command_line_extra: list[str]
-    acl: bool
     tools_tree: Optional[Path]
     tools_tree_distribution: Optional[Distribution]
     tools_tree_release: Optional[str]
@@ -1767,16 +1762,15 @@ class Config:
         relaxed: bool = False,
         tools: bool = True,
         scripts: Optional[Path] = None,
-        mounts: Sequence[Mount] = (),
+        usroverlaydirs: Sequence[PathString] = (),
         options: Sequence[PathString] = (),
         setup: Sequence[PathString] = (),
-        extra: Sequence[PathString] = (),
     ) -> AbstractContextManager[list[PathString]]:
-        mounts = [
-            *([Mount(p, "/proxy.cacert", ro=True)] if (p := self.proxy_peer_certificate) else []),
-            *([Mount(p, "/proxy.clientcert", ro=True)] if (p := self.proxy_client_certificate) else []),
-            *([Mount(p, "/proxy.clientkey", ro=True)] if (p := self.proxy_client_key) else []),
-            *mounts,
+        opt: list[PathString] = [
+            *options,
+            *(["--ro-bind", str(p), "/proxy.cacert"] if (p := self.proxy_peer_certificate) else []),
+            *(["--ro-bind", str(p), "/proxy.clientcert"] if (p := self.proxy_client_certificate) else []),
+            *(["--ro-bind", str(p), "/proxy.clientkey"] if (p := self.proxy_client_key) else []),
         ]
 
         if (
@@ -1785,7 +1779,7 @@ class Config:
             any(path.is_relative_to(d) for d in self.extra_search_paths)
         ):
             tools = False
-            mounts += [Mount(d, d, ro=True) for d in self.extra_search_paths if not relaxed]
+            opt += flatten(("--ro-bind", d, d) for d in self.extra_search_paths if not relaxed)
 
         return sandbox_cmd(
             network=network,
@@ -1794,10 +1788,9 @@ class Config:
             relaxed=relaxed,
             scripts=scripts,
             tools=self.tools() if tools else Path("/"),
-            mounts=mounts,
-            options=options,
+            usroverlaydirs=usroverlaydirs,
+            options=opt,
             setup=setup,
-            extra=extra,
         )
 
 
@@ -2891,15 +2884,6 @@ SETTINGS = (
         section="Host",
         parse=config_make_list_parser(delimiter=" "),
         help="Append extra entries to the kernel command line when booting the image",
-    ),
-    ConfigSetting(
-        dest="acl",
-        metavar="BOOL",
-        nargs="?",
-        section="Host",
-        parse=config_parse_boolean,
-        help="Set ACLs on generated directories to permit the user running mkosi to remove them",
-        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="tools_tree",
@@ -4273,7 +4257,6 @@ def summary(config: Config) -> str:
                           Ephemeral: {config.ephemeral}
                         Credentials: {line_join_list(config.credentials.keys())}
           Extra Kernel Command Line: {line_join_list(config.kernel_command_line_extra)}
-                           Use ACLs: {yes_no(config.acl)}
                          Tools Tree: {config.tools_tree}
             Tools Tree Distribution: {none_to_none(config.tools_tree_distribution)}
                  Tools Tree Release: {none_to_none(config.tools_tree_release)}
@@ -4470,7 +4453,7 @@ def want_selinux_relabel(config: Config, root: Path, fatal: bool = True) -> Opti
         return None
 
     policy = run(["sh", "-c", f". {selinux} && echo $SELINUXTYPE"],
-                 sandbox=config.sandbox(binary="sh", mounts=[Mount(selinux, selinux, ro=True)]),
+                 sandbox=config.sandbox(binary="sh", options=["--ro-bind", selinux, selinux]),
                  stdout=subprocess.PIPE).stdout.strip()
     if not policy:
         if fatal and config.selinux_relabel == ConfigFeature.enabled:

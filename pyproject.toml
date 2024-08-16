@@ -21,6 +21,7 @@ bootable = [
 [project.scripts]
 mkosi = "mkosi.__main__:main"
 mkosi-initrd = "mkosi.initrd.__main__:main"
+mkosi-sandbox = "mkosi.sandbox.__main__:main"
 
 [tool.setuptools]
 packages = [
@@ -30,11 +31,14 @@ packages = [
     "mkosi.initrd.resources",
     "mkosi.installer",
     "mkosi.resources",
+    "mkosi.sandbox",
+    "mkosi.sandbox.resources",
 ]
 
 [tool.setuptools.package-data]
 "mkosi.resources" = ["repart/**/*", "mkosi.md", "mkosi.1", "mkosi-initrd/**/*", "mkosi-tools/**/*"]
 "mkosi.initrd.resources" = ["mkosi-initrd.md", "mkosi-initrd.1"]
+"mkosi.sandbox.resources" = ["mkosi-sandbox.md", "mkosi-sandbox.1"]
 
 [tool.isort]
 profile = "black"

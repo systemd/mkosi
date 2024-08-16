@@ -12,8 +12,8 @@ from mkosi.installer import PackageManager
 from mkosi.installer.apt import Apt, AptRepository
 from mkosi.log import die
 from mkosi.run import run
-from mkosi.sandbox import Mount
-from mkosi.util import listify, umask
+from mkosi.sandbox import umask
+from mkosi.util import listify
 
 
 class Installer(DistributionInstaller):
@@ -297,6 +297,6 @@ def fixup_os_release(context: Context) -> None:
                 "--divert",
                 f"/{candidate}.dpkg",
                 f"/{candidate}",
-            ], sandbox=context.sandbox(binary="dpkg-divert", mounts=[Mount(context.root, "/buildroot")]))
+            ], sandbox=context.sandbox(binary="dpkg-divert", options=["--bind", context.root, "/buildroot"]))
 
         newosrelease.rename(osrelease)

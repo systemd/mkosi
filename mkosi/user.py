@@ -1,88 +1,58 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
-import ctypes
-import ctypes.util
 import fcntl
 import functools
-import logging
 import os
 import pwd
 import tempfile
-from collections.abc import Sequence
 from pathlib import Path
 
 from mkosi.log import die
-from mkosi.run import run, spawn
+from mkosi.run import spawn
+from mkosi.sandbox import CLONE_NEWUSER, unshare
 from mkosi.util import flock, parents_below
 
 SUBRANGE = 65536
 
 
 class INVOKING_USER:
-    uid = int(os.getenv("SUDO_UID") or os.getenv("PKEXEC_UID") or os.getuid())
-    gid = int(os.getenv("SUDO_GID") or os.getgid())
-    invoked_as_root = os.getuid() == 0
-
-    @classmethod
-    def init(cls) -> None:
-        name = cls.name()
-        home = cls.home()
-        extra_groups = cls.extra_groups()
-        logging.debug(
-            f"Running as user '{name}' ({cls.uid}:{cls.gid}) with home {home} "
-            f"and extra groups {extra_groups}."
-        )
-
-    @classmethod
-    def is_running_user(cls) -> bool:
-        return cls.uid == os.getuid()
-
     @classmethod
     @functools.lru_cache(maxsize=1)
     def name(cls) -> str:
         try:
-            return pwd.getpwuid(cls.uid).pw_name
+            return pwd.getpwuid(os.getuid()).pw_name
         except KeyError:
-            if cls.uid == 0:
+            if os.getuid() == 0:
                 return "root"
 
             if not (user := os.getenv("USER")):
-                die(f"Could not find user name for UID {cls.uid}")
+                die(f"Could not find user name for UID {os.getuid()}")
 
             return user
 
     @classmethod
     @functools.lru_cache(maxsize=1)
     def home(cls) -> Path:
-        if cls.invoked_as_root and Path.cwd().is_relative_to("/home") and len(Path.cwd().parents) > 2:
+        if os.getuid() == 0 and Path.cwd().is_relative_to("/home") and len(Path.cwd().parents) > 2:
             return list(Path.cwd().parents)[-3]
 
         try:
-            return Path(pwd.getpwuid(cls.uid).pw_dir or "/")
+            return Path(pwd.getpwuid(os.getuid()).pw_dir or "/")
         except KeyError:
             if not (home := os.getenv("HOME")):
-                die(f"Could not find home directory for UID {cls.uid}")
+                die(f"Could not find home directory for UID {os.getuid()}")
 
             return Path(home)
 
     @classmethod
-    @functools.lru_cache(maxsize=1)
-    def extra_groups(cls) -> Sequence[int]:
-        return os.getgrouplist(cls.name(), cls.gid)
-
-    @classmethod
-    def is_regular_user(cls) -> bool:
-        return cls.uid >= 1000
+    def is_regular_user(cls, uid: int) -> bool:
+        return uid >= 1000
 
     @classmethod
     def cache_dir(cls) -> Path:
         if (env := os.getenv("XDG_CACHE_HOME")) or (env := os.getenv("CACHE_DIRECTORY")):
             cache = Path(env)
-        elif (
-            cls.is_regular_user() and
-            INVOKING_USER.home() != Path("/") and
-            (Path.cwd().is_relative_to(INVOKING_USER.home()) or not cls.invoked_as_root)
-        ):
-            cache = INVOKING_USER.home() / ".cache"
+        elif cls.is_regular_user(os.getuid()) and cls.home() != Path("/"):
+            cache = cls.home() / ".cache"
         else:
             cache = Path("/var/cache")
 
@@ -92,31 +62,24 @@ class INVOKING_USER:
     def runtime_dir(cls) -> Path:
         if (env := os.getenv("XDG_RUNTIME_DIR")) or (env := os.getenv("RUNTIME_DIRECTORY")):
             d = Path(env)
-        elif cls.is_regular_user():
-            d = Path("/run/user") / str(cls.uid)
+        elif cls.is_regular_user(os.getuid()):
+            d = Path(f"/run/user/{os.getuid()}")
         else:
             d = Path("/run")
 
         return d / "mkosi"
 
     @classmethod
-    def rchown(cls, path: Path) -> None:
-        if cls.is_regular_user() and any(p.stat().st_uid == cls.uid for p in path.parents) and path.exists():
-            run(["chown", "--recursive", f"{INVOKING_USER.uid}:{INVOKING_USER.gid}", path])
-
-    @classmethod
     def chown(cls, path: Path) -> None:
-        # If we created a file/directory in a parent directory owned by the invoking user, make sure the path and any
+        # If we created a file/directory in a parent directory owned by a regular user, make sure the path and any
         # parent directories are owned by the invoking user as well.
 
-        def is_valid_dir(path: Path) -> bool:
-            return path.stat().st_uid == cls.uid or path in (Path("/tmp"), Path("/var/tmp"))
-
-        if cls.is_regular_user() and (q := next((parent for parent in path.parents if is_valid_dir(parent)), None)):
-            os.chown(path, INVOKING_USER.uid, INVOKING_USER.gid)
+        if (q := next((parent for parent in path.parents if cls.is_regular_user(parent.stat().st_uid)), None)):
+            st = q.stat()
+            os.chown(path, st.st_uid, st.st_gid)
 
             for parent in parents_below(path, q):
-                os.chown(parent, INVOKING_USER.uid, INVOKING_USER.gid)
+                os.chown(parent, st.st_uid, st.st_gid)
 
 
 def read_subrange(path: Path) -> int:
@@ -143,30 +106,12 @@ def read_subrange(path: Path) -> int:
     return int(start)
 
 
-CLONE_NEWNS = 0x00020000
-CLONE_NEWUSER = 0x10000000
-
-
-def unshare(flags: int) -> None:
-    libc_name = ctypes.util.find_library("c")
-    if libc_name is None:
-        die("Could not find libc")
-    libc = ctypes.CDLL(libc_name, use_errno=True)
-
-    if libc.unshare(ctypes.c_int(flags)) != 0:
-        e = ctypes.get_errno()
-        raise OSError(e, os.strerror(e))
-
-
-def become_root() -> None:
+def become_root_in_subuid_range() -> None:
     """
     Set up a new user namespace mapping using /etc/subuid and /etc/subgid.
 
-    The current user will be mapped to root and 65436 will be mapped to the UID/GID of the invoking user.
-    The other IDs will be mapped through.
-
-    The function modifies the uid, gid of the INVOKING_USER object to the uid, gid of the invoking user in the user
-    namespace.
+    The current process becomes the root user in the new user namespace and the current user and group will be mapped
+    to 65436. The other IDs will be mapped through.
     """
     if os.getuid() == 0:
         return
@@ -179,11 +124,11 @@ def become_root() -> None:
     with tempfile.NamedTemporaryFile(prefix="mkosi-uidmap-lock-") as lockfile:
         lock = Path(lockfile.name)
 
-        # We map the private UID range configured in /etc/subuid and /etc/subgid into the container using
+        # We map the private UID range configured in /etc/subuid and /etc/subgid into the user namespace using
         # newuidmap and newgidmap. On top of that, we also make sure to map in the user running mkosi so that
-        # we can run still chown stuff to that user or run stuff as that user which will make sure any
-        # generated files are owned by that user. We don't map to the last user in the range as the last user
-        # is sometimes used in tests as a default value and mapping to that user might break those tests.
+        # we can access files and directories from the current user from within the user namespace. We don't map to the
+        # last user in the range as the last user is sometimes used in tests as a default value and mapping to that
+        # user might break those tests.
         newuidmap = [
             "flock", "--exclusive", "--close", lock, "newuidmap", pid,
             0, subuid, SUBRANGE - 100,
@@ -207,11 +152,7 @@ def become_root() -> None:
         # execute using flock so they don't execute before they can get a lock on the same temporary file, then we
         # unshare the user namespace and finally we unlock the temporary file, which allows the newuidmap and newgidmap
         # processes to execute. we then wait for the processes to finish before continuing.
-        with (
-            flock(lock) as fd,
-            spawn(newuidmap, innerpid=False) as (uidmap, _),
-            spawn(newgidmap, innerpid=False) as (gidmap, _)
-        ):
+        with flock(lock) as fd, spawn(newuidmap) as uidmap, spawn(newgidmap) as gidmap:
             unshare(CLONE_NEWUSER)
             fcntl.flock(fd, fcntl.LOCK_UN)
             uidmap.wait()
@@ -223,11 +164,8 @@ def become_root() -> None:
     os.setresgid(0, 0, 0)
     os.setgroups([0])
 
-    INVOKING_USER.uid = SUBRANGE - 100
-    INVOKING_USER.gid = SUBRANGE - 100
 
-
-def become_root_cmd() -> list[str]:
+def become_root_in_subuid_range_cmd() -> list[str]:
     if os.getuid() == 0:
         return []
 
