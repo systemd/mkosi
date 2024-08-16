@@ -4,80 +4,79 @@ description: Install mkosi
 runs:
   using: composite
   steps:
+    - name: Permit unprivileged access to kvm, vhost-vsock and vhost-net devices
+      shell: bash
+      run: |
+        sudo mkdir -p /etc/tmpfiles.d
+        sudo cp /usr/lib/tmpfiles.d/static-nodes-permissions.conf /etc/tmpfiles.d/
+        sudo sed -i '/kvm/s/0660/0666/g'   /etc/tmpfiles.d/static-nodes-permissions.conf
+        sudo sed -i '/vhost/s/0660/0666/g' /etc/tmpfiles.d/static-nodes-permissions.conf
+        sudo tee /etc/udev/rules.d/99-kvm4all.rules <<- EOF
+        KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"
+        KERNEL=="vhost-vsock", GROUP="kvm", MODE="0666", OPTIONS+="static_node=vhost-vsock"
+        KERNEL=="vhost-net", GROUP="kvm", MODE="0666", OPTIONS+="static_node=vhost-net"
+        EOF
+        sudo udevadm control --reload-rules
+        sudo modprobe kvm
+        sudo modprobe vhost_vsock
+        sudo modprobe vhost_net
+        [[ -e /dev/kvm ]] && sudo udevadm trigger --name-match=kvm
+        sudo udevadm trigger --name-match=vhost-vsock
+        sudo udevadm trigger --name-match=vhost-net
+        [[ -e /dev/kvm ]] && sudo chmod 666 /dev/kvm
+        sudo chmod 666 /dev/vhost-vsock
+        sudo chmod 666 /dev/vhost-net
+        lsmod
+        [[ -e /dev/kvm ]] && ls -l /dev/kvm
+        ls -l /dev/vhost-*
+        id
 
-  - name: Permit unprivileged access to kvm, vhost-vsock and vhost-net devices
-    shell: bash
-    run: |
-      sudo mkdir -p /etc/tmpfiles.d
-      sudo cp /usr/lib/tmpfiles.d/static-nodes-permissions.conf /etc/tmpfiles.d/
-      sudo sed -i '/kvm/s/0660/0666/g'   /etc/tmpfiles.d/static-nodes-permissions.conf
-      sudo sed -i '/vhost/s/0660/0666/g' /etc/tmpfiles.d/static-nodes-permissions.conf
-      sudo tee /etc/udev/rules.d/99-kvm4all.rules <<- EOF
-      KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"
-      KERNEL=="vhost-vsock", GROUP="kvm", MODE="0666", OPTIONS+="static_node=vhost-vsock"
-      KERNEL=="vhost-net", GROUP="kvm", MODE="0666", OPTIONS+="static_node=vhost-net"
-      EOF
-      sudo udevadm control --reload-rules
-      sudo modprobe kvm
-      sudo modprobe vhost_vsock
-      sudo modprobe vhost_net
-      [[ -e /dev/kvm ]] && sudo udevadm trigger --name-match=kvm
-      sudo udevadm trigger --name-match=vhost-vsock
-      sudo udevadm trigger --name-match=vhost-net
-      [[ -e /dev/kvm ]] && sudo chmod 666 /dev/kvm
-      sudo chmod 666 /dev/vhost-vsock
-      sudo chmod 666 /dev/vhost-net
-      lsmod
-      [[ -e /dev/kvm ]] && ls -l /dev/kvm
-      ls -l /dev/vhost-*
-      id
+    - name: Check clock source
+      shell: bash
+      run: cat /sys/devices/system/clocksource/clocksource0/current_clocksource
 
-  - name: Check clock source
-    shell: bash
-    run: cat /sys/devices/system/clocksource/clocksource0/current_clocksource
+    - name: Show environment
+      shell: bash
+      run: env
 
-  - name: Show environment
-    shell: bash
-    run: env
-
-  - name: Enable unprivileged user namespaces
-    shell: bash
-    run: |
+    - name: Enable unprivileged user namespaces
+      shell: bash
+      run: |
         sudo sysctl --ignore --write kernel.apparmor_restrict_unprivileged_unconfined=0
         sudo sysctl --ignore --write kernel.apparmor_restrict_unprivileged_userns=0
 
-  # Both the unix-chkpwd and swtpm profiles are broken (https://gitlab.com/apparmor/apparmor/-/issues/402) so let's
-  # just disable and remove apparmor completely. It's not relevant in this context anyway.
-  # TODO: Remove if https://github.com/actions/runner-images/issues/10015 is ever fixed.
-  - name: Disable and mask apparmor service
-    shell: bash
-    run: |
+    # Both the unix-chkpwd and swtpm profiles are broken (https://gitlab.com/apparmor/apparmor/-/issues/402) so let's
+    # just disable and remove apparmor completely. It's not relevant in this context anyway.
+    # TODO: Remove if https://github.com/actions/runner-images/issues/10015 is ever fixed.
+    - name: Disable and mask apparmor service
+      shell: bash
+      run: |
         # This command fails with a non-zero error code even though it unloads the apparmor profiles.
         # https://gitlab.com/apparmor/apparmor/-/issues/403
         sudo aa-teardown || true
         sudo apt-get remove apparmor
 
-  - name: Dependencies
-    shell: bash
-    run: |
-      # This is added by default, and it is often broken, but we don't need anything from it
-      sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
-      # For archlinux-keyring and pacman
-      sudo add-apt-repository ppa:michel-slm/kernel-utils
-      sudo apt-get update
-      sudo apt-get install --assume-yes --no-install-recommends \
-        archlinux-keyring \
-        bubblewrap \
-        debian-archive-keyring \
-        dnf \
-        makepkg \
-        pacman-package-manager \
-        systemd-container \
-        zypper
+    - name: Dependencies
+      shell: bash
+      run: |
+        # This is added by default, and it is often broken, but we don't need anything from it
+        sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
+        # For archlinux-keyring and pacman
+        sudo add-apt-repository ppa:michel-slm/kernel-utils
+        sudo apt-get update
+        sudo apt-get install --assume-yes --no-install-recommends \
+          archlinux-keyring \
+          bubblewrap \
+          debian-archive-keyring \
+          dnf \
+          makepkg \
+          pacman-package-manager \
+          systemd-container \
+          zypper
 
-      sudo pacman-key --init
-      sudo pacman-key --populate archlinux
+        sudo pacman-key --init
+        sudo pacman-key --populate archlinux
 
-  - name: Install
-    shell: bash
-    run: sudo ln -svf ${{ github.action_path }}/bin/mkosi /usr/bin/mkosi
+    - name: Install
+      shell: bash
+      run: sudo ln -svf ${{ github.action_path }}/bin/mkosi /usr/bin/mkosi
