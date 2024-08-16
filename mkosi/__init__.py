@@ -130,8 +130,8 @@ def remove_files(context: Context) -> None:
         return
 
     with complete_step("Removing files…"):
-        for pattern in context.config.remove_files:
-            rmtree(*context.root.glob(pattern.lstrip("/")), sandbox=context.sandbox)
+        remove = flatten(context.root.glob(pattern.lstrip("/")) for pattern in context.config.remove_files)
+        rmtree(*remove, sandbox=context.sandbox)
 
 
 def install_distribution(context: Context) -> None:
