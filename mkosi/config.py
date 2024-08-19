@@ -765,24 +765,6 @@ def config_default_proxy_url(namespace: argparse.Namespace) -> Optional[str]:
     return None
 
 
-def config_default_dependencies(namespace: argparse.Namespace) -> Optional[list[str]]:
-    if namespace.directory is None or not Path("mkosi.images").exists():
-        return []
-
-    if namespace.image:
-        return []
-
-    dependencies = []
-
-    for p in sorted(Path("mkosi.images").iterdir()):
-        if not p.is_dir() and not p.suffix == ".conf":
-            continue
-
-        dependencies += [p.name.removesuffix(".conf")]
-
-    return dependencies
-
-
 def make_enum_parser(type: type[StrEnum]) -> Callable[[str], StrEnum]:
     def parse_enum(value: str) -> StrEnum:
         try:
@@ -1906,7 +1888,6 @@ SETTINGS = (
         long="--dependency",
         section="Config",
         parse=config_make_list_parser(delimiter=","),
-        default_factory=config_default_dependencies,
         help="Specify other images that this image depends on",
     ),
     ConfigSetting(
@@ -3824,6 +3805,18 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
 
     images = []
 
+    # If Dependencies= was not explicitly specified on the CLI or in the configuration,
+    # we want to default to all subimages. However, if a subimage has a [Match] section
+    # and does not succesfully match, we don't want to add it to the default dependencies.
+    # To make this work, we can't use default_factory as it is evaluated too early, so
+    # we check here to see if dependendencies were explicitly provided and if not we gather
+    # the list of default dependencies while we parse the subimages.
+    dependencies: Optional[list[str]] = (
+        None
+        if hasattr(context.cli, "dependencies") or hasattr(context.config, "dependencies")
+        else []
+    )
+
     if args.directory is not None and Path("mkosi.images").exists():
         # For the subimages in mkosi.images/, we want settings that are marked as
         # "universal" to override whatever settings are specified in the subimage
@@ -3889,6 +3882,12 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
                 setattr(context.config, s.dest, context.finalize_value(s))
 
             images += [context.config]
+
+            if dependencies is not None:
+                dependencies += [name]
+
+    if dependencies is not None:
+        setattr(config, "dependencies", dependencies)
 
     images = resolve_deps(images, config.dependencies)
     images = [load_config(ns) for ns in images]
