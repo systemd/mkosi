@@ -15,77 +15,77 @@ jobs:
       group: ${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: true
     steps:
-    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
 
-    - name: Install
-      run: |
-        # This is added by default, and it is often broken, but we don't need anything from it
-        sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
-        sudo apt-get update
-        sudo apt-get install pandoc python3-pytest
-        python3 -m pip install --break-system-packages --upgrade setuptools wheel pip
-        python3 -m pip install --break-system-packages mypy ruff
-        npm install -g pyright
+      - name: Install
+        run: |
+          # This is added by default, and it is often broken, but we don't need anything from it
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
+          sudo apt-get update
+          sudo apt-get install pandoc python3-pytest
+          python3 -m pip install --break-system-packages --upgrade setuptools wheel pip
+          python3 -m pip install --break-system-packages mypy ruff
+          npm install -g pyright
 
-    - name: Run ruff
-      run: |
-        ruff --version
-        ruff check mkosi/ tests/ kernel-install/50-mkosi.install
+      - name: Run ruff
+        run: |
+          ruff --version
+          ruff check mkosi/ tests/ kernel-install/50-mkosi.install
 
-    - name: Check that tabs are not used in code
-      run: sh -c '! git grep -P "\\t" "*.py"'
+      - name: Check that tabs are not used in code
+        run: sh -c '! git grep -P "\\t" "*.py"'
 
-    - name: Type Checking (mypy)
-      run: |
-        python3 -m mypy --version
-        python3 -m mypy mkosi/ tests/ kernel-install/50-mkosi.install
+      - name: Type Checking (mypy)
+        run: |
+          python3 -m mypy --version
+          python3 -m mypy mkosi/ tests/ kernel-install/50-mkosi.install
 
-    - name: Type Checking (pyright)
-      run: |
-        pyright --version
-        pyright mkosi/ tests/ kernel-install/50-mkosi.install
+      - name: Type Checking (pyright)
+        run: |
+          pyright --version
+          pyright mkosi/ tests/ kernel-install/50-mkosi.install
 
-    - name: Unit Tests
-      run: |
-        python3 -m pytest --version
-        python3 -m pytest -sv tests/
+      - name: Unit Tests
+        run: |
+          python3 -m pytest --version
+          python3 -m pytest -sv tests/
 
-    - name: Test execution from current working directory
-      run: python3 -m mkosi -h
+      - name: Test execution from current working directory
+        run: python3 -m mkosi -h
 
-    - name: Test execution from current working directory (sudo call)
-      run: sudo python3 -m mkosi -h
+      - name: Test execution from current working directory (sudo call)
+        run: sudo python3 -m mkosi -h
 
-    - name: Test venv installation
-      run: |
-        python3 -m venv testvenv
-        testvenv/bin/python3 -m pip install --upgrade setuptools wheel pip
-        testvenv/bin/python3 -m pip install .
-        testvenv/bin/mkosi -h
-        rm -rf testvenv
+      - name: Test venv installation
+        run: |
+          python3 -m venv testvenv
+          testvenv/bin/python3 -m pip install --upgrade setuptools wheel pip
+          testvenv/bin/python3 -m pip install .
+          testvenv/bin/mkosi -h
+          rm -rf testvenv
 
-    - name: Test editable venv installation
-      run: |
-        python3 -m venv testvenv
-        testvenv/bin/python3 -m pip install --upgrade setuptools wheel pip
-        testvenv/bin/python3 -m pip install --editable .
-        testvenv/bin/mkosi -h
-        rm -rf testvenv
+      - name: Test editable venv installation
+        run: |
+          python3 -m venv testvenv
+          testvenv/bin/python3 -m pip install --upgrade setuptools wheel pip
+          testvenv/bin/python3 -m pip install --editable .
+          testvenv/bin/mkosi -h
+          rm -rf testvenv
 
-    - name: Test zipapp creation
-      run: |
-        ./tools/generate-zipapp.sh
-        ./builddir/mkosi -h
-        ./builddir/mkosi documentation
+      - name: Test zipapp creation
+        run: |
+          ./tools/generate-zipapp.sh
+          ./builddir/mkosi -h
+          ./builddir/mkosi documentation
 
-    - name: Run shellcheck on scripts
-      run: |
-        sudo apt-get update && sudo apt-get install --no-install-recommends shellcheck
-        bash -c 'shopt -s globstar; shellcheck bin/mkosi tools/*.sh'
-        bin/mkosi completion bash | shellcheck -
+      - name: Run shellcheck on scripts
+        run: |
+          sudo apt-get update && sudo apt-get install --no-install-recommends shellcheck
+          bash -c 'shopt -s globstar; shellcheck bin/mkosi tools/*.sh'
+          bin/mkosi completion bash | shellcheck -
 
-    - name: Test man page generation
-      run: pandoc -s mkosi.md -o mkosi.1
+      - name: Test man page generation
+        run: pandoc -s mkosi.md -o mkosi.1
 
   integration-test:
     runs-on: ubuntu-24.04
@@ -121,73 +121,75 @@ jobs:
             tools: opensuse
 
     steps:
-    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
-    - uses: ./
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      - uses: ./
 
-    # Freeing up disk space with rm -rf can take multiple minutes. Since we don't need the extra free space
-    # immediately, we remove the files in the background. However, we first move them to a different location so that
-    # nothing tries to use anything in these directories anymore while we're busy deleting them.
-    - name: Free disk space
-      run: |
-        sudo mv /usr/local /usr/local.trash
-        sudo mv /opt/hostedtoolcache /opt/hostedtoolcache.trash
-        sudo systemd-run rm -rf /usr/local.trash /opt/hostedtoolcache.trash
+      # Freeing up disk space with rm -rf can take multiple minutes. Since we don't need the extra free space
+      # immediately, we remove the files in the background. However, we first move them to a different location so that
+      # nothing tries to use anything in these directories anymore while we're busy deleting them.
+      - name: Free disk space
+        run: |
+          sudo mv /usr/local /usr/local.trash
+          sudo mv /opt/hostedtoolcache /opt/hostedtoolcache.trash
+          sudo systemd-run rm -rf /usr/local.trash /opt/hostedtoolcache.trash
 
-    - name: Install
-      run: |
-        sudo apt-get update
-        sudo apt-get install python3-pytest lvm2 cryptsetup-bin btrfs-progs
-        # Make sure the latest changes from the pull request are used.
-        sudo ln -svf $PWD/bin/mkosi /usr/bin/mkosi
-      working-directory: ./
+      - name: Install
+        run: |
+          sudo apt-get update
+          sudo apt-get install python3-pytest lvm2 cryptsetup-bin btrfs-progs
+          # Make sure the latest changes from the pull request are used.
+          sudo ln -svf $PWD/bin/mkosi /usr/bin/mkosi
+        working-directory: ./
 
-    - name: Configure
-      run: |
-        tee mkosi.local.conf <<EOF
-        [Output]
-        ManifestFormat=json
+      - name: Configure
+        run: |
+          tee mkosi.local.conf <<EOF
+          [Output]
+          ManifestFormat=json
 
-        [Content]
-        KernelCommandLine=systemd.default_device_timeout_sec=180
-        Environment=SYSTEMD_REPART_MKFS_OPTIONS_EROFS="--quiet"
+          [Content]
+          KernelCommandLine=systemd.default_device_timeout_sec=180
+          Environment=SYSTEMD_REPART_MKFS_OPTIONS_EROFS="--quiet"
 
-        [Host]
-        QemuKvm=yes
-        EOF
+          [Host]
+          QemuKvm=yes
+          EOF
 
-        # TODO: Remove once all distros have recent enough systemd that knows systemd.default_device_timeout_sec.
-        mkdir -p mkosi-initrd/mkosi.extra/usr/lib/systemd/system.conf.d
-        tee mkosi-initrd/mkosi.extra/usr/lib/systemd/system.conf.d/device-timeout.conf <<EOF
-        [Manager]
-        DefaultDeviceTimeoutSec=180
-        EOF
+          # TODO: Remove once all distros have recent enough systemd that knows systemd.default_device_timeout_sec.
+          mkdir -p mkosi-initrd/mkosi.extra/usr/lib/systemd/system.conf.d
+          tee mkosi-initrd/mkosi.extra/usr/lib/systemd/system.conf.d/device-timeout.conf <<EOF
+          [Manager]
+          DefaultDeviceTimeoutSec=180
+          EOF
 
-        # fail if the script already exists, to avoid hard to debug CI errors
-        [[ -f mkosi.configure ]] && exit 1
-        tee mkosi.configure <<EOF
-        echo "Hello from inside mkosi.configure!" >&2
-        cat
-        EOF
-        chmod +x mkosi.configure
+          # fail if the script already exists, to avoid hard to debug CI errors
+          [[ -f mkosi.configure ]] && exit 1
+          tee mkosi.configure <<EOF
+          #!/bin/bash
+          echo "Hello from inside mkosi.configure!" >&2
+          cat
+          EOF
+          chmod +x mkosi.configure
 
-        # prepare and postinst are already used in CI
-        for script in sync build finalize postoutput clean
-        do
-            [[ -f "mkosi.${script}" ]] && exit 1
-            tee "mkosi.${script}" <<TOK
-        echo "Hello from inside mkosi.${script}" >&2
-        TOK
-            chmod +x "mkosi.${script}"
-        done
+          # prepare and postinst are already used in CI
+          for script in sync build finalize postoutput clean
+          do
+              [[ -f "mkosi.${script}" ]] && exit 1
+              tee "mkosi.${script}" <<TOK
+          #!/bin/bash
+          echo "Hello from inside mkosi.${script}" >&2
+          TOK
+              chmod +x "mkosi.${script}"
+          done
 
-    - name: Run integration tests
-      run: |
-        sudo --preserve-env \
-            timeout -k 30 1h python3 -m pytest \
-            --tb=no \
-            --capture=no \
-            --verbose \
-            -m integration \
-            --distribution ${{ matrix.distro }} \
-            --tools-tree-distribution ${{ matrix.tools }} \
-            tests/
+      - name: Run integration tests
+        run: |
+          sudo --preserve-env \
+              timeout -k 30 1h python3 -m pytest \
+              --tb=no \
+              --capture=no \
+              --verbose \
+              -m integration \
+              --distribution ${{ matrix.distro }} \
+              --tools-tree-distribution ${{ matrix.tools }} \
+              tests/
