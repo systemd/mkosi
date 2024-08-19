@@ -1112,6 +1112,8 @@ def install_systemd_boot(context: Context) -> None:
             env={"SYSTEMD_ESP_PATH": "/efi", "SYSTEMD_XBOOTLDR_PATH": "/boot"},
             sandbox=context.sandbox(binary="bootctl", mounts=[Mount(context.root, "/buildroot")]),
         )
+        # TODO: Use --random-seed=no when we can depend on systemd 256.
+        Path(context.root / "efi/loader/random-seed").unlink(missing_ok=True)
 
         if context.config.shim_bootloader != ShimBootloader.none:
             shutil.copy2(
