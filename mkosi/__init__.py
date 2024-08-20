@@ -234,7 +234,7 @@ def check_root_populated(context: Context) -> None:
 
 def configure_os_release(context: Context) -> None:
     """Write IMAGE_ID and IMAGE_VERSION to /usr/lib/os-release in the image."""
-    if not context.config.image_id and not context.config.image_version:
+    if not (context.config.image_id or context.config.image_version or context.config.hostname):
         return
 
     if context.config.overlay or context.config.output_format in (OutputFormat.sysext, OutputFormat.confext):
@@ -242,13 +242,14 @@ def configure_os_release(context: Context) -> None:
 
     for candidate in ["usr/lib/os-release", "usr/lib/initrd-release", "etc/os-release"]:
         osrelease = context.root / candidate
-        # at this point we know we will either change or add to the file
-        newosrelease = osrelease.with_suffix(".new")
 
         if not osrelease.is_file() or osrelease.is_symlink():
             continue
 
-        image_id_written = image_version_written = False
+        # at this point we know we will either change or add to the file
+        newosrelease = osrelease.with_suffix(".new")
+
+        image_id_written = image_version_written = default_hostname_written = False
         with osrelease.open("r") as old, newosrelease.open("w") as new:
             # fix existing values
             for line in old.readlines():
@@ -258,6 +259,9 @@ def configure_os_release(context: Context) -> None:
                 elif context.config.image_version and line.startswith("IMAGE_VERSION="):
                     new.write(f'IMAGE_VERSION="{context.config.image_version}"\n')
                     image_version_written = True
+                elif context.config.hostname and line.startswith("DEFAULT_HOSTNAME="):
+                    new.write(f'DEFAULT_HOSTNAME="{context.config.hostname}"\n')
+                    default_hostname_written = True
                 else:
                     new.write(line)
 
@@ -266,6 +270,8 @@ def configure_os_release(context: Context) -> None:
                 new.write(f'IMAGE_ID="{context.config.image_id}"\n')
             if context.config.image_version and not image_version_written:
                 new.write(f'IMAGE_VERSION="{context.config.image_version}"\n')
+            if context.config.hostname and not default_hostname_written:
+                new.write(f'DEFAULT_HOSTNAME="{context.config.hostname}"\n')
 
         newosrelease.rename(osrelease)
 
