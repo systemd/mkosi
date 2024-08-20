@@ -1142,6 +1142,21 @@ def config_parse_minimum_version(value: Optional[str], old: Optional[GenericVers
     return max(old, new)
 
 
+def file_run_or_read(file: Path) -> str:
+    "Run the specified file and capture its output if it's executable, else read file contents"
+
+    if os.access(file, os.X_OK):
+        return run([file.absolute()], stdout=subprocess.PIPE, env=os.environ).stdout
+
+    content = file.read_text()
+
+    if content.startswith("#!/"):
+        die(f"{file} starts with a shebang ({content.splitlines()[0]})",
+            hint="This file should be executable")
+
+    return content
+
+
 @dataclasses.dataclass(frozen=True)
 class KeySource:
     class Type(StrEnum):
@@ -3677,7 +3692,7 @@ class ParseContext:
                             self.config,
                             s.dest,
                             s.parse(
-                                extra.read_text().rstrip("\n") if s.path_read_text else f,
+                                file_run_or_read(extra).rstrip("\n") if s.path_read_text else f,
                                 getattr(self.config, s.dest, None)
                             ),
                         )

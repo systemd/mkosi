@@ -1275,3 +1275,23 @@ def test_environment(tmp_path: Path) -> None:
 
         assert sub.environment["PassThisEnv"] == "abc"
         assert "TestValue2" not in sub.environment
+
+
+def test_mkosi_version_executable(tmp_path: Path) -> None:
+    d = tmp_path
+
+    version = d / "mkosi.version"
+    version.write_text("#!/bin/sh\necho '1.2.3'\n")
+
+    with chdir(d):
+        with pytest.raises(SystemExit) as error:
+            _, [config] = parse_config()
+
+        assert error.type is SystemExit
+        assert error.value.code != 0
+
+    version.chmod(0o755)
+
+    with chdir(d):
+        _, [config] = parse_config()
+        assert config.image_version == "1.2.3"

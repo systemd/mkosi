@@ -4388,23 +4388,28 @@ def generate_key_cert_pair(args: Args) -> None:
 
 def bump_image_version() -> None:
     """Write current image version plus one to mkosi.version"""
-    version = Path("mkosi.version").read_text().strip()
+
+    version_file = Path("mkosi.version")
+    if not version_file.exists():
+        die(f"Cannot bump image version, '{version_file}' not found")
+
+    if os.access(version_file, os.X_OK):
+        die(f"Cannot bump image version, '{version_file}' is executable")
+
+    version = version_file.read_text().strip()
     v = version.split(".")
 
     try:
-        m = int(v[-1])
+        v[-1] = str(int(v[-1]) + 1)
     except ValueError:
-        new_version = version + ".2"
-        logging.info(
-            "Last component of current version is not a decimal integer, "
-            f"appending '.2', bumping '{version}' → '{new_version}'."
-        )
-    else:
-        new_version = ".".join(v[:-1] + [str(m + 1)])
-        logging.info(f"Increasing last component of version by one, bumping '{version}' → '{new_version}'.")
+        v += ["2"]
+        logging.warning("Last component of current version is not a decimal integer, appending '.2'")
 
-    Path("mkosi.version").write_text(f"{new_version}\n")
-    os.chown("mkosi.version", INVOKING_USER.uid, INVOKING_USER.gid)
+    new_version = ".".join(v)
+
+    logging.info(f"Bumping version: '{version}' → '{new_version}'")
+    version_file.write_text(f"{new_version}\n")
+    os.chown(version_file, INVOKING_USER.uid, INVOKING_USER.gid)
 
 
 def show_docs(args: Args, *, resources: Path) -> None:
