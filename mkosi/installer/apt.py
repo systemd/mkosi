@@ -208,7 +208,6 @@ class Apt(PackageManager):
         arguments: Sequence[str] = (),
         *,
         apivfs: bool = False,
-        mounts: Sequence[Mount] = (),
         stdout: _FILE = None,
     ) -> CompletedProcess:
         return run(
@@ -218,7 +217,7 @@ class Apt(PackageManager):
                     binary="apt-get",
                     network=True,
                     vartmp=True,
-                    mounts=[Mount(context.root, "/buildroot"), *cls.mounts(context), *mounts],
+                    mounts=[Mount(context.root, "/buildroot"), *cls.mounts(context)],
                     extra=apivfs_cmd() if apivfs else []
                 )
             ),

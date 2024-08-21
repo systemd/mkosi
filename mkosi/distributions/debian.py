@@ -136,21 +136,21 @@ class Installer(DistributionInstaller):
         # By configuring Debug::pkgDpkgPm=1, apt-get install will not actually execute any dpkg commands, so
         # all it does is download the essential debs and tell us their full in the apt cache without actually
         # installing them.
-        with tempfile.NamedTemporaryFile(mode="r") as f:
-            Apt.invoke(
-                context,
-                "install",
-                [
-                    "-oDebug::pkgDPkgPm=1",
-                    f"-oDPkg::Pre-Install-Pkgs::=cat >{f.name}",
-                    "?essential",
-                    "?exact-name(usr-is-merged)",
-                    "base-files",
-                ],
-                mounts=[Mount(f.name, f.name)],
-            )
+        Apt.invoke(
+            context,
+            "install",
+            [
+                "-oDebug::pkgDPkgPm=1",
+                # context.pkgmngr is always mounted writable to /etc so let's use that as a channel to get the list of
+                # essential packages out of the sandbox.
+                "-oDPkg::Pre-Install-Pkgs::=cat >/etc/apt/essential",
+                "?essential",
+                "?exact-name(usr-is-merged)",
+                "base-files",
+            ],
+        )
 
-            essential = f.read().strip().splitlines()
+        essential = (context.pkgmngr / "etc/apt/essential").read_text().strip().splitlines()
 
         # Now, extract the debs to the chroot by first extracting the sources tar file out of the deb and
         # then extracting the tar file into the chroot.
