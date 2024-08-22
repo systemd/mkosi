@@ -4622,10 +4622,7 @@ def run_sync(args: Args, config: Config, *, resources: Path) -> None:
     for d in ("cache", "lib"):
         (config.package_cache_dir_or_default() / d / subdir).mkdir(parents=True, exist_ok=True)
 
-    with (
-        prepend_to_environ_path(config),
-        setup_workspace(args, config) as workspace,
-    ):
+    with setup_workspace(args, config) as workspace:
         context = Context(
             args,
             config,
@@ -4692,7 +4689,6 @@ def run_build(args: Args, config: Config, *, resources: Path, package_dir: Optio
 
     with (
         complete_step(f"Building {config.name()} image"),
-        prepend_to_environ_path(config),
         setup_workspace(args, config) as workspace,
     ):
         build_image(Context(args, config, workspace=workspace, resources=resources, package_dir=package_dir))
@@ -4796,9 +4792,10 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
 
     if tools and not (tools.output_dir_or_cwd() / tools.output).exists():
         if args.verb == Verb.build or args.force > 0:
-            check_tools(tools, Verb.build)
-            run_sync(args, tools, resources=resources)
-            fork_and_wait(run_build, args, tools, resources=resources)
+            with prepend_to_environ_path(tools):
+                check_tools(tools, Verb.build)
+                run_sync(args, tools, resources=resources)
+                fork_and_wait(run_build, args, tools, resources=resources)
         else:
             die(f"Default tools tree requested for image '{last.name()}' but it has not been built yet",
                 hint="Make sure to build the image first with 'mkosi build' or use '--force'")
@@ -4816,30 +4813,31 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
                 )
             )
 
-            check_tools(config, args.verb)
-            images[i] = config = run_configure_scripts(config)
+            with prepend_to_environ_path(config):
+                check_tools(config, args.verb)
+                images[i] = config = run_configure_scripts(config)
 
-            if args.verb != Verb.build and args.force == 0:
-                continue
+                if args.verb != Verb.build and args.force == 0:
+                    continue
 
-            if (
-                config.output_format != OutputFormat.none and
-                (config.output_dir_or_cwd() / config.output_with_compression).exists()
-            ):
-                continue
+                if (
+                    config.output_format != OutputFormat.none and
+                    (config.output_dir_or_cwd() / config.output_with_compression).exists()
+                ):
+                    continue
 
-            # If the output format is "none" and there are no build scripts, there's nothing to do so exit early.
-            if config.output_format == OutputFormat.none and not config.build_scripts:
-                return
+                # If the output format is "none" and there are no build scripts, there's nothing to do so exit early.
+                if config.output_format == OutputFormat.none and not config.build_scripts:
+                    return
 
-            if args.verb != Verb.build:
-                check_tools(config, Verb.build)
+                if args.verb != Verb.build:
+                    check_tools(config, Verb.build)
 
-            check_inputs(config)
-            run_sync(args, config, resources=resources)
-            fork_and_wait(run_build, args, config, resources=resources, package_dir=Path(package_dir))
+                check_inputs(config)
+                run_sync(args, config, resources=resources)
+                fork_and_wait(run_build, args, config, resources=resources, package_dir=Path(package_dir))
 
-            build = True
+                build = True
 
     if build and args.auto_bump:
         bump_image_version()
