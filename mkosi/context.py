@@ -6,10 +6,9 @@ from pathlib import Path
 from typing import Optional
 
 from mkosi.config import Args, Config
-from mkosi.sandbox import Mount
+from mkosi.sandbox import umask
 from mkosi.tree import make_tree
 from mkosi.types import PathString
-from mkosi.util import umask
 
 
 class Context:
@@ -83,38 +82,21 @@ class Context:
         devices: bool = False,
         vartmp: bool = False,
         scripts: Optional[Path] = None,
-        mounts: Sequence[Mount] = (),
         options: Sequence[PathString] = (),
-        extra: Sequence[PathString] = (),
     ) -> AbstractContextManager[list[PathString]]:
-        if (self.pkgmngr / "usr").exists():
-            extra = [
-                "sh",
-                "-c",
-                f"mount -t overlay -o lowerdir={self.pkgmngr / 'usr'}:/usr overlayfs /usr && exec $0 \"$@\"",
-                *extra,
-            ]
-
         return self.config.sandbox(
             binary=binary,
             network=network,
             devices=devices,
             vartmp=vartmp,
             scripts=scripts,
-            mounts=[
-                # This mount is writable so bubblewrap can create extra directories or symlinks inside of it as needed.
+            usroverlaydirs=[self.pkgmngr / "usr"] if (self.pkgmngr / "usr").exists() else [],
+            options=[
+                *options,
+                # This mount is writable so we can create extra directories or symlinks inside of it as needed.
                 # This isn't a problem as the package manager directory is created by mkosi and thrown away when the
                 # build finishes.
-                Mount(self.pkgmngr / "etc", "/etc"),
-                Mount(self.pkgmngr / "var/log", "/var/log"),
-                *([Mount(p, p, ro=True)] if (p := self.pkgmngr / "usr").exists() else []),
-                *mounts,
+                "--bind", self.pkgmngr / "etc", "/etc",
+                "--bind", self.pkgmngr / "var/log", "/var/log",
             ],
-            options=[
-                "--uid", "0",
-                "--gid", "0",
-                "--cap-add", "ALL",
-                *options,
-            ],
-            extra=extra,
         )

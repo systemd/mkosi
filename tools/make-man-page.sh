@@ -4,3 +4,4 @@ set -ex
 
 pandoc -t man -s -o mkosi/resources/mkosi.1 mkosi/resources/mkosi.md
 pandoc -t man -s -o mkosi/initrd/resources/mkosi-initrd.1 mkosi/initrd/resources/mkosi-initrd.md
+pandoc -t man -s -o mkosi/sandbox/resources/mkosi-sandbox.1 mkosi/sandbox/resources/mkosi-sandbox.md

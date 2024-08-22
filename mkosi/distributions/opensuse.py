@@ -15,7 +15,6 @@ from mkosi.installer.zypper import Zypper
 from mkosi.log import die
 from mkosi.mounts import finalize_crypto_mounts
 from mkosi.run import run
-from mkosi.sandbox import Mount
 from mkosi.util import listify, sort_packages
 
 
@@ -109,9 +108,9 @@ class Installer(DistributionInstaller):
                     ["rpm", "--root=/buildroot", "--import", *(key.removeprefix("file://") for key in gpgkeys)],
                     sandbox=context.sandbox(
                         binary="rpm",
-                        mounts=[
-                            Mount(context.root, "/buildroot"),
-                            *finalize_crypto_mounts(context.config)
+                        options=[
+                            "--bind", context.root, "/buildroot",
+                            *finalize_crypto_mounts(context.config),
                         ],
                     )
                 )
@@ -258,7 +257,7 @@ def fetch_gpgurls(context: Context, repourl: str) -> tuple[str, ...]:
             sandbox=context.sandbox(
                 binary="curl",
                 network=True,
-                mounts=[Mount(d, d), *finalize_crypto_mounts(context.config)],
+                options=["--bind", d, d, *finalize_crypto_mounts(context.config)],
             ),
         )
         xml = (Path(d) / "repomd.xml").read_text()

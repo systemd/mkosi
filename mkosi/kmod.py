@@ -9,8 +9,7 @@ from collections.abc import Iterable, Iterator
 from pathlib import Path
 
 from mkosi.log import complete_step, log_step
-from mkosi.run import run
-from mkosi.sandbox import Mount, SandboxProtocol, chroot_cmd, nosandbox
+from mkosi.run import chroot_cmd, run
 from mkosi.util import chdir, parents_below
 
 
@@ -57,8 +56,6 @@ def resolve_module_dependencies(
     root: Path,
     kver: str,
     modules: Iterable[str],
-    *,
-    sandbox: SandboxProtocol = nosandbox,
 ) -> tuple[set[Path], set[Path]]:
     """
     Returns a tuple of lists containing the paths to the module and firmware dependencies of the given list
@@ -76,19 +73,17 @@ def resolve_module_dependencies(
 
     log_step("Running modinfo to fetch kernel module dependencies")
 
-    # We could run modinfo once for each module but that's slow. Luckily we can pass multiple modules to
-    # modinfo and it'll process them all in a single go. We get the modinfo for all modules to build two maps
-    # that map the path of the module to its module dependencies and its firmware dependencies respectively.
-    # Because there's more kernel modules than the max number of accepted CLI arguments for bwrap, we split the modules
-    # list up into chunks.
+    # We could run modinfo once for each module but that's slow. Luckily we can pass multiple modules to modinfo and
+    # it'll process them all in a single go. We get the modinfo for all modules to build two maps that map the path of
+    # the module to its module dependencies and its firmware dependencies respectively. Because there's more kernel
+    # modules than the max number of accepted CLI arguments, we split the modules list up into chunks.
     info = ""
     for i in range(0, len(nametofile.keys()), 8500):
         chunk = list(nametofile.keys())[i:i+8500]
         info += run(
             ["modinfo", "--set-version", kver, "--null", *chunk],
             stdout=subprocess.PIPE,
-            sandbox=sandbox(binary="modinfo", mounts=[Mount(root, "/buildroot", ro=True)], extra=chroot_cmd()),
-            cwd=root,
+            sandbox=chroot_cmd(root=root),
         ).stdout.strip()
 
     log_step("Calculating required kernel modules and firmware")
@@ -159,7 +154,6 @@ def gen_required_kernel_modules(
     *,
     include: Iterable[str],
     exclude: Iterable[str],
-    sandbox: SandboxProtocol = nosandbox,
 ) -> Iterator[Path]:
     modulesd = Path("usr/lib/modules") / kver
 
@@ -169,7 +163,7 @@ def gen_required_kernel_modules(
     if exclude or (root / "usr/lib/firmware").glob("*"):
         modules = filter_kernel_modules(root, kver, include=include, exclude=exclude)
         names = [module_path_to_name(m) for m in modules]
-        mods, firmware = resolve_module_dependencies(root, kver, names, sandbox=sandbox)
+        mods, firmware = resolve_module_dependencies(root, kver, names)
     else:
         logging.debug("No modules excluded and no firmware installed, using kernel modules generation fast path")
         with chdir(root):
@@ -199,7 +193,6 @@ def process_kernel_modules(
     *,
     include: Iterable[str],
     exclude: Iterable[str],
-    sandbox: SandboxProtocol = nosandbox,
 ) -> None:
     if not exclude:
         return
@@ -208,7 +201,8 @@ def process_kernel_modules(
     firmwared = Path("usr/lib/firmware")
 
     with complete_step("Applying kernel module filters"):
-        required = set(gen_required_kernel_modules(root, kver, include=include, exclude=exclude, sandbox=sandbox))
+        required = set(
+            gen_required_kernel_modules(root, kver, include=include, exclude=exclude))
 
         with chdir(root):
             modules = sorted(modulesd.rglob("*.ko*"), reverse=True)

@@ -16,7 +16,6 @@ import pytest
 from mkosi.distributions import Distribution
 from mkosi.run import run
 from mkosi.types import _FILE, CompletedProcess, PathString
-from mkosi.user import INVOKING_USER
 
 
 @dataclasses.dataclass(frozen=True)
@@ -32,6 +31,9 @@ class Image:
     def __init__(self, config: ImageConfig, options: Sequence[PathString] = []) -> None:
         self.options = options
         self.config = config
+        st = Path.cwd().stat()
+        self.uid = st.st_uid
+        self.gid = st.st_gid
 
     def __enter__(self) -> "Image":
         self.output_dir = Path(os.getenv("TMPDIR", "/var/tmp")) / uuid.uuid4().hex[:16]
@@ -44,7 +46,7 @@ class Image:
         value: Optional[BaseException],
         traceback: Optional[TracebackType],
     ) -> None:
-        self.mkosi("clean", user=INVOKING_USER.uid, group=INVOKING_USER.gid)
+        self.mkosi("clean", user=self.uid, group=self.gid)
 
     def mkosi(
         self,
@@ -99,8 +101,8 @@ class Image:
             [*options, "--debug", "--force", *(["--debug-shell"] if self.config.debug_shell else [])],
             args,
             stdin=sys.stdin if sys.stdin.isatty() else None,
-            user=INVOKING_USER.uid,
-            group=INVOKING_USER.gid,
+            user=self.uid,
+            group=self.gid,
         )
 
     def boot(self, options: Sequence[str] = (), args: Sequence[str] = ()) -> CompletedProcess:
@@ -122,8 +124,8 @@ class Image:
             [*options, "--debug"],
             args,
             stdin=sys.stdin if sys.stdin.isatty() else None,
-            user=INVOKING_USER.uid,
-            group=INVOKING_USER.gid,
+            user=self.uid,
+            group=self.gid,
             check=False,
         )
 
@@ -151,10 +153,10 @@ class Image:
         return result
 
     def summary(self, options: Sequence[str] = ()) -> CompletedProcess:
-        return self.mkosi("summary", options, user=INVOKING_USER.uid, group=INVOKING_USER.gid)
+        return self.mkosi("summary", options, user=self.uid, group=self.gid)
 
     def genkey(self) -> CompletedProcess:
-        return self.mkosi("genkey", ["--force"], user=INVOKING_USER.uid, group=INVOKING_USER.gid)
+        return self.mkosi("genkey", ["--force"], user=self.uid, group=self.gid)
 
 
 @pytest.fixture(scope="session", autouse=True)

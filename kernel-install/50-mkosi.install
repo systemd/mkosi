@@ -12,11 +12,11 @@ from typing import Optional
 
 from mkosi import identify_cpu
 from mkosi.archive import make_cpio
-from mkosi.config import OutputFormat, __version__
+from mkosi.config import OutputFormat
 from mkosi.log import die, log_setup
 from mkosi.run import run, uncaught_exception_handler
+from mkosi.sandbox import __version__, umask
 from mkosi.types import PathString
-from mkosi.util import umask
 
 
 @dataclasses.dataclass(frozen=True)

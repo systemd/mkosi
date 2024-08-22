@@ -14,7 +14,6 @@ import os
 import random
 import resource
 import shutil
-import signal
 import socket
 import struct
 import subprocess
@@ -41,13 +40,11 @@ from mkosi.config import (
     yes_no,
 )
 from mkosi.log import ARG_DEBUG, die
-from mkosi.mounts import finalize_source_mounts
 from mkosi.partition import finalize_root, find_partitions
-from mkosi.run import SD_LISTEN_FDS_START, AsyncioThread, find_binary, fork_and_wait, kill, run, spawn
-from mkosi.sandbox import Mount
+from mkosi.run import SD_LISTEN_FDS_START, AsyncioThread, find_binary, fork_and_wait, run, spawn
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
-from mkosi.user import INVOKING_USER, become_root, become_root_cmd
+from mkosi.user import INVOKING_USER, become_root_in_subuid_range, become_root_in_subuid_range_cmd
 from mkosi.util import StrEnum, flock, flock_or_die, groupby, round_up, try_or
 from mkosi.versioncomp import GenericVersion
 
@@ -160,7 +157,7 @@ class KernelType(StrEnum):
         type = run(
             ["bootctl", "kernel-identify", path],
             stdout=subprocess.PIPE,
-            sandbox=config.sandbox(binary="bootctl", mounts=[Mount(path, path, ro=True)]),
+            sandbox=config.sandbox(binary="bootctl", options=["--ro-bind", path, path]),
         ).stdout.strip()
 
         try:
@@ -253,13 +250,12 @@ def start_swtpm(config: Config) -> Iterator[Path]:
             ["swtpm_setup", "--tpm-state", state, "--tpm2", "--pcr-banks", "sha256", "--config", "/dev/null"],
             sandbox=config.sandbox(
                 binary="swtpm_setup",
-                mounts=[Mount(state, state)],
+                options=["--bind", state, state],
+                setup=scope_cmd(
+                    name=f"mkosi-swtpm-{config.machine_or_name()}",
+                    description=f"swtpm for {config.machine_or_name()}",
+                ),
             ),
-            scope=scope_cmd(
-                name=f"mkosi-swtpm-{config.machine_or_name()}",
-                description=f"swtpm for {config.machine_or_name()}",
-            ),
-            env=scope_env(),
             stdout=None if ARG_DEBUG.get() else subprocess.DEVNULL,
         )
 
@@ -277,10 +273,10 @@ def start_swtpm(config: Config) -> Iterator[Path]:
             with spawn(
                 cmdline,
                 pass_fds=(sock.fileno(),),
-                sandbox=config.sandbox(binary="swtpm", mounts=[Mount(state, state)]),
-            ) as (proc, innerpid):
+                sandbox=config.sandbox(binary="swtpm", options=["--bind", state, state]),
+            ) as proc:
                 yield path
-                kill(proc, innerpid, signal.SIGTERM)
+                proc.terminate()
 
 
 def find_virtiofsd(*, root: Path = Path("/"), extra: Sequence[Path] = ()) -> Optional[Path]:
@@ -313,13 +309,12 @@ def start_virtiofsd(
     config: Config,
     directory: PathString,
     *,
+    uidmap: bool = True,
     name: Optional[str] = None,
     selinux: bool = False,
 ) -> Iterator[Path]:
     if name is None:
         name = systemd_escape(config, directory, path=True)
-
-    uidmap = Path(directory).stat().st_uid == INVOKING_USER.uid
 
     virtiofsd = find_virtiofsd(root=config.tools(), extra=config.extra_search_paths)
     if virtiofsd is None:
@@ -338,14 +333,24 @@ def start_virtiofsd(
     if selinux:
         cmdline += ["--security-label"]
 
+    st = None
+    if uidmap:
+        st = Path(directory).stat()
+
+        # If we're already running as the same user that we'll be running virtiofsd as, don't bother doing any explicit
+        # user switching or chown()'ing as it's not needed in this case.
+        if st.st_uid == os.getuid() and st.st_gid == os.getgid():
+            st = None
+
     # We create the socket ourselves and pass the fd to virtiofsd to avoid race conditions where we start qemu
     # before virtiofsd has had the chance to create the socket (or where we try to chown it first).
     with (
         tempfile.TemporaryDirectory(prefix="mkosi-virtiofsd-") as context,
         socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock,
     ):
-        # Make sure virtiofsd can access the socket in this directory.
-        os.chown(context, INVOKING_USER.uid, INVOKING_USER.gid)
+        if st:
+            # Make sure virtiofsd can access the socket in this directory.
+            os.chown(context, st.st_uid, st.st_gid)
 
         # Make sure we can use the socket name as a unique identifier for the fs as well but make sure it's not too
         # long as virtiofs tag names are limited to 36 bytes.
@@ -353,46 +358,44 @@ def start_virtiofsd(
         sock.bind(os.fspath(path))
         sock.listen()
 
-        # Make sure virtiofsd can connect to the socket.
-        os.chown(path, INVOKING_USER.uid, INVOKING_USER.gid)
+        if st:
+            # Make sure virtiofsd can connect to the socket.
+            os.chown(path, st.st_uid, st.st_gid)
 
         cmdline += ["--fd", str(SD_LISTEN_FDS_START)]
 
+        # We want RuntimeBuildSources= and RuntimeTrees= to do the right thing even when running mkosi qemu as root
+        # without the source directories necessarily being owned by root. We achieve this by running virtiofsd as the
+        # owner of the source directory and then mapping that uid to root.
+
         name = f"mkosi-virtiofsd-{name}"
         description = f"virtiofsd for {directory}"
-        uid = gid = None
-        runas = []
         scope = []
-        if uidmap:
-            uid = INVOKING_USER.uid if os.getuid() != INVOKING_USER.uid else None
-            gid = INVOKING_USER.gid if os.getgid() != INVOKING_USER.gid else None
-            scope = scope_cmd(name=name, description=description, user=uid, group=gid)
+        if st:
+            scope = scope_cmd(name=name, description=description, user=st.st_uid, group=st.st_gid)
         elif not uidmap and (os.getuid() == 0 or unshare_version() >= "2.38"):
             scope = scope_cmd(name=name, description=description)
-            if scope:
-                runas = become_root_cmd()
 
         with spawn(
             cmdline,
             pass_fds=(sock.fileno(),),
-            # When not invoked as root, bubblewrap will automatically map the current uid/gid to the requested uid/gid
-            # in the user namespace it spawns, so by specifying --uid 0 --gid 0 we'll get a userns with the current
-            # uid/gid mapped to root in the userns. --cap-add=all is required to make virtiofsd work. Since it drops
-            # capabilities itself, we don't bother figuring out the exact set of capabilities it needs.
-            user=uid if not scope else None,
-            group=gid if not scope else None,
-            preexec_fn=become_root if not scope and not uidmap else None,
-            env=scope_env() if scope else {},
+            user=st.st_uid if st and not scope else None,
+            group=st.st_gid if st and not scope else None,
+            # If we're booting from virtiofs and unshare is too old, we don't set up a scope so we can use our own
+            # function to become root in the subuid range.
+            # TODO: Drop this as soon as we drop CentOS Stream 9 support and can rely on newer unshare features.
+            preexec_fn=become_root_in_subuid_range if not scope and not uidmap else None,
             sandbox=config.sandbox(
                 binary=virtiofsd,
-                mounts=[Mount(directory, directory)],
-                options=["--uid", "0", "--gid", "0", "--cap-add", "all"],
-                setup=runas,
+                options=[
+                    "--bind", directory, directory,
+                    *(["--become-root"] if uidmap else []),
+                ],
+                setup=scope + become_root_in_subuid_range_cmd() if scope and not uidmap else [],
             ),
-            scope=scope,
-        ) as (proc, innerpid):
+        ) as proc:
             yield path
-            kill(proc, innerpid, signal.SIGTERM)
+            proc.terminate()
 
 
 @contextlib.contextmanager
@@ -481,8 +484,8 @@ def start_journal_remote(config: Config, sockfd: int) -> Iterator[None]:
 
         f.flush()
 
-        user = config.forward_journal.parent.stat().st_uid if INVOKING_USER.invoked_as_root else None
-        group = config.forward_journal.parent.stat().st_gid if INVOKING_USER.invoked_as_root else None
+        user = d.stat().st_uid if os.getuid() == 0 else None
+        group = d.stat().st_gid if os.getuid() == 0 else None
         scope = scope_cmd(
             name=f"mkosi-journal-remote-{config.machine_or_name()}",
             description=f"mkosi systemd-journal-remote for {config.machine_or_name()}",
@@ -499,19 +502,18 @@ def start_journal_remote(config: Config, sockfd: int) -> Iterator[None]:
             pass_fds=(sockfd,),
             sandbox=config.sandbox(
                 binary=bin,
-                mounts=[
-                    Mount(config.forward_journal.parent, config.forward_journal.parent),
-                    Mount(f.name, "/etc/systemd/journal-remote.conf"),
+                options=[
+                    "--bind", config.forward_journal.parent, config.forward_journal.parent,
+                    "--ro-bind", f.name, "/etc/systemd/journal-remote.conf",
                 ],
+                setup=scope,
             ),
             user=user if not scope else None,
             group=group if not scope else None,
-            scope=scope,
-            env=scope_env(),
             foreground=False,
-        ) as (proc, innerpid):
+        ) as proc:
             yield
-            kill(proc, innerpid, signal.SIGTERM)
+            proc.terminate()
 
 
 
@@ -527,7 +529,14 @@ def start_journal_remote_vsock(config: Config) -> Iterator[str]:
 
 @contextlib.contextmanager
 def copy_ephemeral(config: Config, src: Path) -> Iterator[Path]:
-    if not config.ephemeral or config.output_format in (OutputFormat.cpio, OutputFormat.uki):
+    if config.output_format in (OutputFormat.cpio, OutputFormat.uki):
+        yield src
+        return
+
+    # If we're booting a directory image that was not built as root, we have to make an ephemeral copy so that we can
+    # ensure the files in the directory are either owned by the actual root user or a fake one in a subuid user
+    # namespace which we'll run virtiofsd as.
+    if not config.ephemeral and (config.output_format != OutputFormat.directory or src.stat().st_uid == 0):
         with flock_or_die(src):
             yield src
 
@@ -542,11 +551,11 @@ def copy_ephemeral(config: Config, src: Path) -> Iterator[Path]:
     try:
         def copy() -> None:
             if config.output_format == OutputFormat.directory:
-                become_root()
+                become_root_in_subuid_range()
             elif config.output_format in (OutputFormat.disk, OutputFormat.esp):
                 attr = run(
                     ["lsattr", "-l", src],
-                    sandbox=config.sandbox(binary="lsattr", mounts=[Mount(src, src, ro=True)]),
+                    sandbox=config.sandbox(binary="lsattr", options=["--ro-bind", src, src]),
                     stdout=subprocess.PIPE,
                 ).stdout
 
@@ -554,12 +563,13 @@ def copy_ephemeral(config: Config, src: Path) -> Iterator[Path]:
                     tmp.touch()
                     run(
                         ["chattr", "+C", tmp],
-                        sandbox=config.sandbox(binary="chattr", mounts=[Mount(tmp, tmp)]),
+                        sandbox=config.sandbox(binary="chattr", options=["--bind", tmp, tmp]),
                     )
 
             copy_tree(
                 src, tmp,
-                preserve=config.output_format == OutputFormat.directory,
+                # Make sure the ownership is changed to the (fake) root user if the directory was not built as root.
+                preserve=config.output_format == OutputFormat.directory and src.stat().st_uid == 0,
                 use_subvolumes=config.use_subvolumes,
                 sandbox=config.sandbox,
             )
@@ -570,7 +580,7 @@ def copy_ephemeral(config: Config, src: Path) -> Iterator[Path]:
     finally:
         def rm() -> None:
             if config.output_format == OutputFormat.directory:
-                become_root()
+                become_root_in_subuid_range()
 
             rmtree(tmp, sandbox=config.sandbox)
 
@@ -603,7 +613,7 @@ def generate_scratch_fs(config: Config) -> Iterator[Path]:
         run(
             [f"mkfs.{fs}", "-L", "scratch", *extra.split(), scratch.name],
             stdout=subprocess.DEVNULL,
-            sandbox=config.sandbox(binary= f"mkfs.{fs}", mounts=[Mount(scratch.name, scratch.name)]),
+            sandbox=config.sandbox(binary= f"mkfs.{fs}", options=["--bind", scratch.name, scratch.name]),
         )
         yield Path(scratch.name)
 
@@ -656,9 +666,9 @@ def finalize_firmware_variables(
             ],
             sandbox=config.sandbox(
                 binary=qemu,
-                mounts=[
-                    Mount(ovmf_vars.name, ovmf_vars.name),
-                    Mount(config.secure_boot_certificate, config.secure_boot_certificate, ro=True),
+                options=[
+                    "--bind", ovmf_vars.name, ovmf_vars.name,
+                    "--ro-bind", config.secure_boot_certificate, config.secure_boot_certificate,
                 ],
             ),
         )
@@ -689,7 +699,7 @@ def apply_runtime_size(config: Config, image: Path) -> None:
             "--offline=yes",
             image,
         ],
-        sandbox=config.sandbox(binary="systemd-repart", mounts=[Mount(image, image)]),
+        sandbox=config.sandbox(binary="systemd-repart", options=["--bind", image, image]),
     )
 
 
@@ -703,10 +713,6 @@ def finalize_drive(drive: QemuDrive) -> Iterator[Path]:
 @contextlib.contextmanager
 def finalize_state(config: Config, cid: int) -> Iterator[None]:
     (INVOKING_USER.runtime_dir() / "machine").mkdir(parents=True, exist_ok=True)
-
-    if INVOKING_USER.is_regular_user():
-        os.chown(INVOKING_USER.runtime_dir(), INVOKING_USER.uid, INVOKING_USER.gid)
-        os.chown(INVOKING_USER.runtime_dir() / "machine", INVOKING_USER.uid, INVOKING_USER.gid)
 
     with flock(INVOKING_USER.runtime_dir() / "machine"):
         if (p := INVOKING_USER.runtime_dir() / "machine" / f"{config.machine_or_name()}.json").exists():
@@ -724,34 +730,11 @@ def finalize_state(config: Config, cid: int) -> Iterator[None]:
                 indent=4,
             )
         )
-
-        if INVOKING_USER.is_regular_user():
-            os.chown(p, INVOKING_USER.uid, INVOKING_USER.gid)
-
     try:
         yield
     finally:
         with flock(INVOKING_USER.runtime_dir() / "machine"):
             p.unlink(missing_ok=True)
-
-
-def scope_env() -> dict[str, str]:
-    if not find_binary("systemd-run"):
-        return {}
-    elif os.getuid() != 0 and "DBUS_SESSION_BUS_ADDRESS" in os.environ and "XDG_RUNTIME_DIR" in os.environ:
-        return {
-            "DBUS_SESSION_BUS_ADDRESS": os.environ["DBUS_SESSION_BUS_ADDRESS"],
-            "XDG_RUNTIME_DIR": os.environ["XDG_RUNTIME_DIR"]
-        }
-    elif os.getuid() == 0:
-        if "DBUS_SYSTEM_ADDRESS" in os.environ:
-            return {"DBUS_SYSTEM_ADDRESS": os.environ["DBUS_SYSTEM_ADDRESS"]}
-        elif Path("/run/dbus/system_bus_socket").exists():
-            return {"DBUS_SYSTEM_ADDRESS": "/run/dbus/system_bus_socket"}
-        else:
-            return {}
-    else:
-        return {}
 
 
 def scope_cmd(
@@ -760,11 +743,29 @@ def scope_cmd(
     user: Optional[int] = None,
     group: Optional[int] = None,
     properties: Sequence[str] = (),
+    environment: bool = True,
 ) -> list[str]:
-    if not scope_env():
+    if not find_binary("systemd-run"):
+        return []
+
+    if os.getuid() != 0 and "DBUS_SESSION_BUS_ADDRESS" in os.environ and "XDG_RUNTIME_DIR" in os.environ:
+        env = {
+            "DBUS_SESSION_BUS_ADDRESS": os.environ["DBUS_SESSION_BUS_ADDRESS"],
+            "XDG_RUNTIME_DIR": os.environ["XDG_RUNTIME_DIR"]
+        }
+    elif os.getuid() == 0:
+        if "DBUS_SYSTEM_ADDRESS" in os.environ:
+            env = {"DBUS_SYSTEM_ADDRESS": os.environ["DBUS_SYSTEM_ADDRESS"]}
+        elif Path("/run/dbus/system_bus_socket").exists():
+            env = {"DBUS_SYSTEM_ADDRESS": "/run/dbus/system_bus_socket"}
+        else:
+            return []
+    else:
         return []
 
     return [
+        "env",
+        *(f"{k}={v}" for k, v in env.items() if environment),
         "systemd-run",
         "--system" if os.getuid() == 0 else "--user",
         *(["--quiet"] if not ARG_DEBUG.get() else []),
@@ -1014,7 +1015,7 @@ def run_qemu(args: Args, config: Config) -> None:
                 sandbox=config.sandbox(
                     binary="systemd-repart",
                     vartmp=True,
-                    mounts=[Mount(fname.parent, fname.parent), Mount(src, src, ro=True)],
+                    options=["--bind", fname.parent, fname.parent, "--ro-bind", src, src],
                 ),
             )
             stack.callback(lambda: fname.unlink())
@@ -1055,6 +1056,7 @@ def run_qemu(args: Args, config: Config) -> None:
                         config,
                         fname,
                         name=config.machine_or_name(),
+                        uidmap=False,
                         selinux=bool(want_selinux_relabel(config, fname, fatal=False))),
                 )
                 cmdline += [
@@ -1086,10 +1088,10 @@ def run_qemu(args: Args, config: Config) -> None:
             credentials["fstab.extra"] += f"{tag} {dst} virtiofs x-initrd.mount\n"
 
         if config.runtime_build_sources:
-            with finalize_source_mounts(config, ephemeral=False) as mounts:
-                for mount in mounts:
-                    sock = stack.enter_context(start_virtiofsd(config, mount.src))
-                    add_virtiofs_mount(sock, mount.dst, cmdline, credentials, tag=Path(mount.src).name)
+            for t in config.build_sources:
+                src, dst = t.with_prefix("/work/src")
+                sock = stack.enter_context(start_virtiofsd(config, src))
+                add_virtiofs_mount(sock, dst, cmdline, credentials, tag=src.name)
 
             if config.build_dir:
                 sock = stack.enter_context(start_virtiofsd(config, config.build_dir))
@@ -1233,18 +1235,24 @@ def run_qemu(args: Args, config: Config) -> None:
             env=os.environ | config.environment,
             log=False,
             foreground=True,
-            sandbox=config.sandbox(binary=qemu, network=True, devices=True, relaxed=True),
-            scope=scope_cmd(
-                name=name,
-                description=f"mkosi Virtual Machine {name}",
-                properties=config.unit_properties,
+            sandbox=config.sandbox(
+                binary=qemu,
+                network=True,
+                devices=True,
+                relaxed=True,
+                setup=scope_cmd(
+                    name=name,
+                    description=f"mkosi Virtual Machine {name}",
+                    properties=config.unit_properties,
+                    environment=False,
+                ),
             ),
-        ) as (proc, innerpid):
+        ) as proc:
             # We have to close these before we wait for qemu otherwise we'll deadlock as qemu will never exit.
             for fd in qemu_device_fds.values():
                 os.close(fd)
 
-            register_machine(config, innerpid, fname)
+            register_machine(config, proc.pid, fname)
 
             if proc.wait() == 0 and (status := int(notifications.get("EXIT_STATUS", 0))):
                 raise subprocess.CalledProcessError(status, cmdline)

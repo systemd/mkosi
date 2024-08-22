@@ -1468,10 +1468,6 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     OEM string. This will only be picked up by systemd-boot/systemd-stub versions
     newer than or equal to v254.
 
-`Acl=`, `--acl=`
-:   If specified, ACLs will be set on any generated root filesystem directories that
-    allow the user running mkosi to remove them without needing privileges.
-
 `ToolsTree=`, `--tools-tree=`
 :   If specified, programs executed by mkosi to build and boot an image
     are looked up inside the given tree instead of in the host system. Use
@@ -2194,10 +2190,7 @@ Scripts executed by mkosi receive the following environment variables:
   for more information.
 
 * `$MKOSI_UID` and `$MKOSI_GID` are the respectively the uid, gid of the
-  user that invoked mkosi, potentially translated to a uid in the user
-  namespace that mkosi is running in. These can be used in combination
-  with `setpriv` to run commands as the user that invoked mkosi (e.g.
-  `setpriv --reuid=$MKOSI_UID --regid=$MKOSI_GID --clear-groups <command>`)
+  user that invoked mkosi.
 
 * `$MKOSI_CONFIG` is a file containing a json summary of the settings of the
   current image. This file can be parsed inside scripts to gain access to all
@@ -2274,22 +2267,6 @@ available via `$PATH` to simplify common usecases.
   Additionally, `mkosi-install`, `mkosi-reinstall`, `mkosi-upgrade` and
   `mkosi-remove` will invoke the corresponding operation of the package
   manager being used to built the image.
-
-* `mkosi-as-caller`: This script uses `setpriv` to switch from
-  the user `root` in the user namespace used for various build steps
-  back to the original user that called mkosi. This is useful when
-  we want to invoke build steps which will write to `$BUILDDIR` and
-  we want to have the files owned by the calling user.
-
-  For example, a complete `mkosi.build` script might be the following:
-
-  ```sh
-  set -ex
-
-  mkosi-as-caller meson setup "$BUILDDIR/build" "$SRCDIR"
-  mkosi-as-caller meson compile -C "$BUILDDIR/build"
-  meson install -C "$BUILDDIR/build" --no-rebuild
-  ```
 
 * `git` is automatically invoked with `safe.directory=*` to avoid
   permissions errors when running as the root user in a user namespace.
@@ -2533,7 +2510,6 @@ overridden):
 - `ProxyClientKey=`
 - `Incremental=`
 - `ExtraSearchPaths=`
-- `Acl=`
 - `ToolsTree=`
 - `ToolsTreeCertificates=`
 
@@ -2715,7 +2691,7 @@ When not using distribution packages make sure to install the
 necessary dependencies. For example, on *Fedora Linux* you need:
 
 ```bash
-# dnf install bubblewrap btrfs-progs apt dosfstools mtools edk2-ovmf e2fsprogs squashfs-tools gnupg python3 tar xfsprogs xz zypper sbsigntools
+# dnf install btrfs-progs apt dosfstools mtools edk2-ovmf e2fsprogs squashfs-tools gnupg python3 tar xfsprogs xz zypper sbsigntools
 ```
 
 On Debian/Kali/Ubuntu it might be necessary to install the `ubuntu-keyring`,
@@ -2753,6 +2729,33 @@ Note that the minimum required Python version is 3.9.
   Note that from systemd v256 onwards, if enabled,
   `systemd-homed-firstboot.service` will prompt to create a regular user
   on first boot if there are no regular users.
+
+- Why do I see failures to chown files when building images?
+
+  When not running as root, your user is not able to change ownership of
+  files to arbitrary owners. Various distributions still ship files in their
+  packages that are not owned by the root user. When not running as root, mkosi
+  maps the current user to root when invoking package managers, which means that
+  changing ownership to root will work but changing ownership to any other user
+  or group will fail.
+
+  If this behavior causes applications running in your image to misbehave, you
+  can consider running `mkosi` as root which avoids this problem. Alternatively,
+  if running `mkosi` as root is not desired, you can use
+  `unshare --map-auto --map-current-user --setuid 0 --setgid 0` to become root in
+  a user namespace with more than one user assuming the UID/GID mappings in
+  `/etc/subuid` and `/etc/subgid` are configured correctly. Note that running mkosi
+  as root or with `unshare` means that all output files produced by mkosi will not
+  be owned by your current user anymore.
+
+  Note that for systemd services that need directories in `/var` owned by the service
+  user and group, an alternative to shipping these directories in packages or
+  creating them via systemd-tmpfiles is to use `StateDirectory=`, `CacheDirectory=` or
+  `LogsDirectory=` in the service file which instructs systemd to create the directory
+  when it first starts the service.
+
+  Alternatively, the `z` or `Z` directives for `systemd-tmpfiles` can be used to chown
+  various directories and files to their owning user when the system first boots up.
 
 # REFERENCES
 * [Primary mkosi git repository on GitHub](https://github.com/systemd/mkosi/)

@@ -14,7 +14,6 @@ from mkosi.distributions import PackageType
 from mkosi.installer.apt import Apt
 from mkosi.log import complete_step
 from mkosi.run import run
-from mkosi.sandbox import Mount
 
 
 @dataclasses.dataclass
@@ -111,7 +110,7 @@ class Manifest:
                 "--queryformat", r"%{NEVRA}\t%{SOURCERPM}\t%{NAME}\t%{ARCH}\t%{LONGSIZE}\t%{INSTALLTIME}\n",
             ],
             stdout=subprocess.PIPE,
-            sandbox=self.context.sandbox(binary="rpm", mounts=[Mount(self.context.root, "/buildroot")]),
+            sandbox=self.context.sandbox(binary="rpm", options=["--ro-bind", self.context.root, "/buildroot"]),
         )
 
         packages = sorted(c.stdout.splitlines())
@@ -159,7 +158,7 @@ class Manifest:
                     stderr=subprocess.DEVNULL,
                     sandbox=self.context.sandbox(
                         binary="rpm",
-                        mounts=[Mount(self.context.root, "/buildroot", ro=True)]
+                        options=["--ro-bind", self.context.root, "/buildroot"],
                     ),
                 )
                 changelog = c.stdout.strip()
@@ -180,7 +179,7 @@ class Manifest:
             stdout=subprocess.PIPE,
             sandbox=self.context.sandbox(
                 binary="dpkg-query",
-                mounts=[Mount(self.context.root, "/buildroot", ro=True)],
+                options=["--ro-bind", self.context.root, "/buildroot"],
             ),
         )
 

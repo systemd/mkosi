@@ -1,15 +1,15 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
+from contextlib import AbstractContextManager
 from pathlib import Path
 
 from mkosi.config import Config, ConfigFeature, OutputFormat
 from mkosi.context import Context
 from mkosi.mounts import finalize_crypto_mounts
-from mkosi.run import find_binary
-from mkosi.sandbox import Mount
+from mkosi.run import apivfs_options, apivfs_script_cmd, finalize_passwd_mounts, find_binary
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
-from mkosi.util import startswith
+from mkosi.util import flatten, startswith
 
 
 class PackageManager:
@@ -58,27 +58,27 @@ class PackageManager:
                 "hostonly_l": "no",
             }
 
-        return env
+        return context.config.environment | env
 
     @classmethod
     def env_cmd(cls, context: Context) -> list[PathString]:
         return ["env", *([f"{k}={v}" for k, v in cls.finalize_environment(context).items()])]
 
     @classmethod
-    def mounts(cls, context: Context) -> list[Mount]:
+    def mounts(cls, context: Context) -> list[PathString]:
         mounts = [
             *finalize_crypto_mounts(context.config),
-            Mount(context.repository, "/repository"),
+            "--bind", context.repository, "/repository",
         ]
 
         if context.config.local_mirror and (mirror := startswith(context.config.local_mirror, "file://")):
-            mounts += [Mount(mirror, mirror, ro=True)]
+            mounts += ["--ro-bind", mirror, mirror]
 
         subdir = context.config.distribution.package_manager(context.config).subdir(context.config)
 
         for d in ("cache", "lib"):
             src = context.package_cache_dir / d / subdir
-            mounts += [Mount(src, Path("/var") / d / subdir)]
+            mounts += ["--bind", src, Path("/var") / d / subdir]
 
             # If we're not operating on the configured package cache directory, we're operating on a snapshot of the
             # repository metadata in the image root directory. To make sure any downloaded packages are still cached in
@@ -86,16 +86,48 @@ class PackageManager:
             # configured package cache directory.
             if d == "cache" and context.package_cache_dir != context.config.package_cache_dir_or_default():
                 caches = context.config.distribution.package_manager(context.config).cache_subdirs(src)
-                mounts += [
-                    Mount(
+                mounts += flatten(
+                    (
+                        "--bind",
                         context.config.package_cache_dir_or_default() / d / subdir / p.relative_to(src),
                         Path("/var") / d / subdir / p.relative_to(src),
                     )
                     for p in caches
                     if (context.config.package_cache_dir_or_default() / d / subdir / p.relative_to(src)).exists()
-                ]
+                )
 
         return mounts
+
+    @classmethod
+    def options(cls, *, root: PathString, apivfs: bool = True) -> list[PathString]:
+        return [
+            *(apivfs_options() if apivfs else []),
+            "--become-root",
+            "--suppress-chown",
+            # Make sure /etc/machine-id is not overwritten by any package manager post install scripts.
+            "--ro-bind-try", Path(root) / "etc/machine-id", "/buildroot/etc/machine-id",
+            # If we're already in the sandbox, we want to pick up use the passwd files from /buildroot since the
+            # original root won't be available anymore. If we're not in the sandbox yet, we want to pick up the passwd
+            # files from the original root.
+            *finalize_passwd_mounts(root),
+        ]
+
+    @classmethod
+    def apivfs_script_cmd(cls, context: Context) -> list[PathString]:
+        return apivfs_script_cmd(tools=bool(context.config.tools_tree), options=cls.options(root="/buildroot"))
+
+    @classmethod
+    def sandbox(cls, context: Context, *, apivfs: bool) -> AbstractContextManager[list[PathString]]:
+        return context.sandbox(
+            binary=cls.executable(context.config),
+            network=True,
+            vartmp=True,
+            options=[
+                "--bind", context.root, "/buildroot",
+                *cls.mounts(context),
+                *cls.options(root=context.root, apivfs=apivfs),
+            ],
+        )
 
     @classmethod
     def sync(cls, context: Context, force: bool) -> None:

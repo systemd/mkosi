@@ -9,7 +9,6 @@ from mkosi.context import Context
 from mkosi.installer import PackageManager
 from mkosi.installer.rpm import RpmRepository, rpm_cmd
 from mkosi.run import run
-from mkosi.sandbox import Mount, apivfs_cmd
 from mkosi.types import _FILE, CompletedProcess, PathString
 
 
@@ -36,8 +35,8 @@ class Zypper(PackageManager):
         ]
 
         return {
-            "zypper": apivfs_cmd() + cls.env_cmd(context) + cls.cmd(context),
-            "rpm"   : apivfs_cmd() + rpm_cmd(),
+            "zypper": cls.apivfs_script_cmd(context) + cls.env_cmd(context) + cls.cmd(context),
+            "rpm"   : cls.apivfs_script_cmd(context) + rpm_cmd(),
             "mkosi-install"  : install,
             "mkosi-upgrade"  : ["zypper", "update"],
             "mkosi-remove"   : ["zypper", "remove", "--clean-deps"],
@@ -128,16 +127,8 @@ class Zypper(PackageManager):
     ) -> CompletedProcess:
         return run(
             cls.cmd(context) + [operation, *arguments],
-            sandbox=(
-                context.sandbox(
-                    binary="zypper",
-                    network=True,
-                    vartmp=True,
-                    mounts=[Mount(context.root, "/buildroot"), *cls.mounts(context)],
-                    extra=apivfs_cmd() if apivfs else [],
-                )
-            ),
-            env=context.config.environment | cls.finalize_environment(context),
+            sandbox=cls.sandbox(context, apivfs=apivfs),
+            env=cls.finalize_environment(context),
             stdout=stdout,
         )
 
@@ -148,7 +139,7 @@ class Zypper(PackageManager):
     @classmethod
     def createrepo(cls, context: Context) -> None:
         run(["createrepo_c", context.repository],
-            sandbox=context.sandbox(binary="createrepo_c", mounts=[Mount(context.repository, context.repository)]))
+            sandbox=context.sandbox(binary="createrepo_c", options=["--bind", context.repository, context.repository]))
 
         (context.pkgmngr / "etc/zypp/repos.d/mkosi-local.repo").write_text(
             textwrap.dedent(

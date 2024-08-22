@@ -11,14 +11,29 @@ from pathlib import Path
 import pytest
 
 from mkosi.distributions import Distribution
-from mkosi.mounts import mount
 from mkosi.run import run
+from mkosi.sandbox import umask
 from mkosi.tree import copy_tree
-from mkosi.user import INVOKING_USER
+from mkosi.types import PathString
 
 from . import Image, ImageConfig
 
 pytestmark = pytest.mark.integration
+
+
+@contextlib.contextmanager
+def mount(what: PathString, where: PathString) -> Iterator[Path]:
+    where = Path(where)
+
+    if not where.exists():
+        with umask(~0o755):
+            where.mkdir(parents=True)
+
+    run(["mount", "--no-mtab", what, where])
+    try:
+        yield where
+    finally:
+        run(["umount", "--no-mtab", where])
 
 
 @pytest.fixture(scope="module")
@@ -29,7 +44,8 @@ def passphrase() -> Iterator[Path]:
     with tempfile.NamedTemporaryFile(prefix="mkosi.passphrase", mode="w") as passphrase:
         passphrase.write("mkosi")
         passphrase.flush()
-        os.fchown(passphrase.fileno(), INVOKING_USER.uid, INVOKING_USER.gid)
+        st = Path.cwd().stat()
+        os.fchown(passphrase.fileno(), st.st_uid, st.st_gid)
         os.fchmod(passphrase.fileno(), 0o600)
         yield Path(passphrase.name)
 
@@ -83,7 +99,8 @@ def test_initrd_lvm(config: ImageConfig) -> None:
 
 def test_initrd_luks(config: ImageConfig, passphrase: Path) -> None:
     with tempfile.TemporaryDirectory() as repartd:
-        os.chown(repartd, INVOKING_USER.uid, INVOKING_USER.gid)
+        st = Path.cwd().stat()
+        os.chown(repartd, st.st_uid, st.st_gid)
 
         (Path(repartd) / "00-esp.conf").write_text(
             textwrap.dedent(

@@ -14,7 +14,6 @@ from mkosi.config import (
     yes_no,
 )
 from mkosi.log import die
-from mkosi.mounts import finalize_source_mounts
 from mkosi.qemu import (
     apply_runtime_size,
     copy_ephemeral,
@@ -74,9 +73,9 @@ def run_vmspawn(args: Args, config: Config) -> None:
         apply_runtime_size(config, fname)
 
         if config.runtime_build_sources:
-            with finalize_source_mounts(config, ephemeral=False) as mounts:
-                for mount in mounts:
-                    cmdline += ["--bind", f"{mount.src}:{mount.dst}"]
+            for t in config.build_sources:
+                src, dst = t.with_prefix("/work/src")
+                cmdline += ["--bind", f"{src}:{dst}"]
 
             if config.build_dir:
                 cmdline += ["--bind", f"{config.build_dir}:/work/build"]

@@ -6,10 +6,10 @@ from pathlib import Path
 from typing import Optional
 
 from mkosi.log import log_step
-from mkosi.run import run
-from mkosi.sandbox import Mount, SandboxProtocol, finalize_passwd_mounts, nosandbox
+from mkosi.run import SandboxProtocol, finalize_passwd_mounts, nosandbox, run
+from mkosi.sandbox import umask
 from mkosi.types import PathString
-from mkosi.util import chdir, umask
+from mkosi.util import chdir
 
 
 def tar_exclude_apivfs_tmp() -> list[str]:
@@ -42,12 +42,14 @@ def make_tar(src: Path, dst: Path, *, sandbox: SandboxProtocol = nosandbox) -> N
                 "--pax-option=delete=atime,delete=ctime,delete=mtime",
                 "--sparse",
                 "--force-local",
+                *(["--owner=root:0"] if os.getuid() != 0 else []),
+                *(["--group=root:0"] if os.getuid() != 0 else []),
                 *tar_exclude_apivfs_tmp(),
                 ".",
             ],
             stdout=f,
             # Make sure tar uses user/group information from the root directory instead of the host.
-            sandbox=sandbox(binary="tar", mounts=[Mount(src, src, ro=True), *finalize_passwd_mounts(src)]),
+            sandbox=sandbox(binary="tar", options=["--ro-bind", src, src, *finalize_passwd_mounts(src)]),
         )
 
 
@@ -78,7 +80,7 @@ def extract_tar(
             "--keep-directory-symlink",
             "--no-overwrite-dir",
             "--same-permissions",
-            "--same-owner" if (dst / "etc/passwd").exists() else "--numeric-owner",
+            "--same-owner" if (dst / "etc/passwd").exists() and os.getuid() == 0 else "--numeric-owner",
             "--same-order",
             "--acls",
             "--selinux",
@@ -90,7 +92,7 @@ def extract_tar(
         sandbox=sandbox(
             binary="tar",
             # Make sure tar uses user/group information from the root directory instead of the host.
-            mounts=[Mount(src, src, ro=True), Mount(dst, dst), *finalize_passwd_mounts(dst)]
+            options=["--ro-bind", src, src, "--bind", dst, dst, *finalize_passwd_mounts(dst)]
         ),
     )
 
@@ -120,8 +122,9 @@ def make_cpio(
                 "--format=newc",
                 "--quiet",
                 "--directory", src,
+                *(["--owner=0:0"] if os.getuid() != 0 else []),
             ],
             input="\0".join(os.fspath(f) for f in files),
             stdout=f,
-            sandbox=sandbox(binary="cpio", mounts=[Mount(src, src, ro=True), *finalize_passwd_mounts(src)]),
+            sandbox=sandbox(binary="cpio", options=["--ro-bind", src, src, *finalize_passwd_mounts(src)]),
         )

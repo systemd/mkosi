@@ -15,14 +15,17 @@ import signal
 import subprocess
 import sys
 import threading
+import uuid
 from collections.abc import Awaitable, Collection, Iterator, Mapping, Sequence
 from contextlib import AbstractContextManager
 from pathlib import Path
 from types import TracebackType
-from typing import Any, Callable, NoReturn, Optional
+from typing import Any, Callable, NoReturn, Optional, Protocol
 
+import mkosi.sandbox
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, die
 from mkosi.types import _FILE, CompletedProcess, PathString, Popen
+from mkosi.util import flatten, one_zero
 
 SD_LISTEN_FDS_START = 3
 
@@ -117,6 +120,8 @@ def fork_and_wait(target: Callable[..., None], *args: Any, **kwargs: Any) -> Non
 def log_process_failure(sandbox: Sequence[str], cmdline: Sequence[str], returncode: int) -> None:
     if returncode < 0:
         logging.error(f"Interrupted by {signal.Signals(-returncode).name} signal")
+    elif returncode == 127:
+        logging.error(f"{cmdline[0]} not found.")
     else:
         logging.error(
             f"\"{shlex.join([*sandbox, *cmdline] if ARG_DEBUG.get() else cmdline)}\" returned non-zero exit code "
@@ -134,40 +139,30 @@ def run(
     user: Optional[int] = None,
     group: Optional[int] = None,
     env: Mapping[str, str] = {},
-    cwd: Optional[Path] = None,
     log: bool = True,
     foreground: bool = True,
-    preexec_fn: Optional[Callable[[], None]] = None,
     success_exit_status: Sequence[int] = (0,),
     sandbox: AbstractContextManager[Sequence[PathString]] = contextlib.nullcontext([]),
-    scope: Sequence[str] = (),
 ) -> CompletedProcess:
     if input is not None:
         assert stdin is None  # stdin and input cannot be specified together
         stdin = subprocess.PIPE
 
-    try:
-        with spawn(
-            cmdline,
-            check=check,
-            stdin=stdin,
-            stdout=stdout,
-            stderr=stderr,
-            user=user,
-            group=group,
-            env=env,
-            cwd=cwd,
-            log=log,
-            foreground=foreground,
-            preexec_fn=preexec_fn,
-            success_exit_status=success_exit_status,
-            sandbox=sandbox,
-            scope=scope,
-            innerpid=False,
-        ) as (process, _):
-            out, err = process.communicate(input)
-    except FileNotFoundError:
-        return CompletedProcess(cmdline, 1, "", "")
+    with spawn(
+        cmdline,
+        check=check,
+        stdin=stdin,
+        stdout=stdout,
+        stderr=stderr,
+        user=user,
+        group=group,
+        env=env,
+        log=log,
+        foreground=foreground,
+        success_exit_status=success_exit_status,
+        sandbox=sandbox,
+    ) as process:
+        out, err = process.communicate(input)
 
     return CompletedProcess(cmdline, process.returncode, out, err)
 
@@ -183,15 +178,12 @@ def spawn(
     group: Optional[int] = None,
     pass_fds: Collection[int] = (),
     env: Mapping[str, str] = {},
-    cwd: Optional[Path] = None,
     log: bool = True,
     foreground: bool = False,
     preexec_fn: Optional[Callable[[], None]] = None,
     success_exit_status: Sequence[int] = (0,),
     sandbox: AbstractContextManager[Sequence[PathString]] = contextlib.nullcontext([]),
-    scope: Sequence[str] = (),
-    innerpid: bool = True,
-) -> Iterator[tuple[Popen, int]]:
+) -> Iterator[Popen]:
     assert sorted(set(pass_fds)) == list(pass_fds)
 
     cmdline = [os.fspath(x) for x in cmdline]
@@ -224,6 +216,10 @@ def spawn(
 
     if "HOME" not in env:
         env["HOME"] = "/"
+
+    # sandbox.py takes care of setting $LISTEN_PID
+    if pass_fds:
+        env["LISTEN_FDS"] = str(len(pass_fds))
 
     def preexec() -> None:
         if foreground:
@@ -259,51 +255,9 @@ def spawn(
     with sandbox as sbx:
         prefix = [os.fspath(x) for x in sbx]
 
-        # First, check if the sandbox works at all before executing the command.
-        if prefix and (rc := subprocess.run(prefix + ["true"]).returncode) != 0:
-            log_process_failure(prefix, cmdline, rc)
-            raise subprocess.CalledProcessError(rc, prefix + cmdline)
-
-        if subprocess.run(
-            prefix + ["sh", "-c", f"command -v {cmdline[0]}"],
-            stdout=subprocess.DEVNULL,
-        ).returncode != 0:
-            if check:
-                die(f"{cmdline[0]} not found.", hint=f"Is {cmdline[0]} installed on the host system?")
-
-            # We can't really return anything in this case, so we raise a specific exception that we can catch in
-            # run().
-            logging.debug(f"{cmdline[0]} not found, not running {shlex.join(cmdline)}")
-            raise FileNotFoundError(cmdline[0])
-
-        if (
-            foreground and
-            prefix and
-            subprocess.run(prefix + ["sh", "-c", "command -v setpgid"], stdout=subprocess.DEVNULL).returncode == 0
-        ):
-            prefix += ["setpgid", "--foreground", "--"]
-
-        if pass_fds:
-            # We don't know the PID before we start the process and we can't modify the environment in preexec_fn so we
-            # have to spawn a temporary shell to set the necessary environment variables before spawning the actual
-            # command.
-            prefix += ["sh", "-c", f"LISTEN_FDS={len(pass_fds)} LISTEN_PID=$$ exec $0 \"$@\""]
-
-        if prefix and innerpid:
-            r, w = os.pipe2(os.O_CLOEXEC)
-            # Make sure that the write end won't be overridden in preexec() when we're moving fds forward.
-            q = fcntl.fcntl(w, fcntl.F_DUPFD_CLOEXEC, SD_LISTEN_FDS_START + len(pass_fds) + 1)
-            os.close(w)
-            w = q
-            # dash doesn't support working with file descriptors higher than 9 so make sure we use bash.
-            innerpidcmd = ["bash", "-c", f"echo $$ >&{w} && exec {w}>&- && exec $0 \"$@\""]
-        else:
-            innerpidcmd = []
-            r, w = (None, None)
-
         try:
             with subprocess.Popen(
-                [*scope, *prefix, *innerpidcmd, *cmdline],
+                [*prefix, *cmdline],
                 stdin=stdin,
                 stdout=stdout,
                 stderr=stderr,
@@ -312,24 +266,14 @@ def spawn(
                 group=group,
                 # pass_fds only comes into effect after python has invoked the preexec function, so we make sure that
                 # pass_fds contains the file descriptors to keep open after we've done our transformation in preexec().
-                pass_fds=[SD_LISTEN_FDS_START + i for i in range(len(pass_fds))] + ([w] if w else []),
+                pass_fds=[SD_LISTEN_FDS_START + i for i in range(len(pass_fds))],
                 env=env,
-                cwd=cwd,
                 preexec_fn=preexec,
             ) as proc:
-                if w:
-                    os.close(w)
-                pid = proc.pid
                 try:
-                    if r:
-                        with open(r) as f:
-                            s = f.read()
-                            if s:
-                                pid = int(s)
-
-                    yield proc, pid
+                    yield proc
                 except BaseException:
-                    kill(proc, pid, signal.SIGTERM)
+                    proc.terminate()
                     raise
                 finally:
                     returncode = proc.wait()
@@ -339,14 +283,13 @@ def spawn(
                         log_process_failure(prefix, cmdline, returncode)
                     if ARG_DEBUG_SHELL.get():
                         subprocess.run(
-                            [*scope, *prefix, "bash"],
+                            [*prefix, "bash"],
                             check=False,
                             stdin=sys.stdin,
                             text=True,
                             user=user,
                             group=group,
                             env=env,
-                            cwd=cwd,
                             preexec_fn=preexec,
                         )
                     raise subprocess.CalledProcessError(returncode, cmdline)
@@ -383,18 +326,6 @@ def find_binary(*names: PathString, root: Path = Path("/"), extra: Sequence[Path
                 return Path("/") / Path(binary).relative_to(root)
 
     return None
-
-
-def kill(process: Popen, innerpid: int, signal: int) -> None:
-    process.poll()
-    if process.returncode is not None:
-        return
-
-    try:
-        os.kill(innerpid, signal)
-    # Handle the race condition where the process might exit between us calling poll() and us calling os.kill().
-    except ProcessLookupError:
-        pass
 
 
 class AsyncioThread(threading.Thread):
@@ -448,3 +379,246 @@ class AsyncioThread(threading.Thread):
                 raise self.exc.get_nowait()
             except queue.Empty:
                 pass
+
+
+class SandboxProtocol(Protocol):
+    def __call__(
+        self,
+        *,
+        binary: Optional[PathString],
+        vartmp: bool = False,
+        options: Sequence[PathString] = (),
+    ) -> AbstractContextManager[list[PathString]]: ...
+
+
+def nosandbox(
+    *,
+    binary: Optional[PathString],
+    vartmp: bool = False,
+    options: Sequence[PathString] = (),
+) -> AbstractContextManager[list[PathString]]:
+    return contextlib.nullcontext([])
+
+
+def finalize_passwd_mounts(root: PathString) -> list[PathString]:
+    """
+    If passwd or a related file exists in the apivfs directory, bind mount it over the host files while we
+    run the command, to make sure that the command we run uses user/group information from the apivfs
+    directory instead of from the host.
+    """
+    return flatten(
+        ("--ro-bind-try", Path(root) / "etc" / f, f"/etc/{f}")
+        for f in ("passwd", "group", "shadow", "gshadow")
+    )
+
+
+def network_options(*, network: bool) -> list[PathString]:
+    return [
+        "--setenv", "SYSTEMD_OFFLINE", one_zero(network),
+        *(["--unshare-net"] if not network else []),
+    ]
+
+
+@contextlib.contextmanager
+def vartmpdir(condition: bool = True) -> Iterator[Optional[Path]]:
+    if not condition:
+        yield None
+        return
+
+    # We want to use an empty subdirectory in the host's temporary directory as the sandbox's /var/tmp.
+    d = Path(os.getenv("TMPDIR", "/var/tmp")) / f"mkosi-var-tmp-{uuid.uuid4().hex[:16]}"
+    d.mkdir(mode=0o1777)
+
+    try:
+        yield d
+    finally:
+        shutil.rmtree(d)
+
+
+@contextlib.contextmanager
+def sandbox_cmd(
+    *,
+    network: bool = False,
+    devices: bool = False,
+    vartmp: bool = False,
+    scripts: Optional[Path] = None,
+    tools: Path = Path("/"),
+    relaxed: bool = False,
+    usroverlaydirs: Sequence[PathString] = (),
+    options: Sequence[PathString] = (),
+    setup: Sequence[PathString] = (),
+) -> Iterator[list[PathString]]:
+    cmdline: list[PathString] = [
+        *setup,
+        sys.executable, "-SI", mkosi.sandbox.__file__,
+        "--proc", "/proc",
+        # We mounted a subdirectory of TMPDIR to /var/tmp so we unset TMPDIR so that /tmp or /var/tmp are used instead.
+        "--unsetenv", "TMPDIR",
+        *network_options(network=network),
+        # apivfs_script_cmd() and chroot_script_cmd() are executed from within the sandbox, but they still use
+        # sandbox.py, so we make sure it is available inside the sandbox so it can be executed there as well.
+        "--ro-bind", Path(mkosi.sandbox.__file__), "/sandbox.py",
+    ]
+
+    if usroverlaydirs:
+        cmdline += ["--overlay-lowerdir", tools / "usr"]
+
+        for d in usroverlaydirs:
+            cmdline += ["--overlay-lowerdir", d]
+
+        cmdline += ["--overlay", "/usr"]
+    else:
+        cmdline += ["--ro-bind", tools / "usr", "/usr"]
+
+    if relaxed:
+        cmdline += ["--bind", "/tmp", "/tmp"]
+    else:
+        cmdline += ["--dir", "/tmp", "--dir", "/var/tmp", "--unshare-ipc"]
+
+    if (tools / "nix/store").exists():
+        cmdline += ["--bind", tools / "nix/store", "/nix/store"]
+
+    if devices or relaxed:
+        cmdline += [
+            "--bind", "/sys", "/sys",
+            "--bind", "/run", "/run",
+            "--bind", "/dev", "/dev",
+        ]
+    else:
+        cmdline += ["--dev", "/dev"]
+
+    if relaxed:
+        dirs = ("/etc", "/opt", "/srv", "/media", "/mnt", "/var")
+
+        for d in dirs:
+            if Path(d).exists():
+                cmdline += ["--bind", d, d]
+
+        # Either add the home directory we're running from or the current working directory if we're not running from
+        # inside a home directory.
+        if Path.cwd() == Path("/"):
+            d = ""
+        if Path.cwd().is_relative_to("/root"):
+            d = "/root"
+        elif Path.cwd() == Path("/home"):
+            d = "/home"
+        elif Path.cwd().is_relative_to("/home"):
+            # `Path.parents` only supports slices and negative indexing from Python 3.10 onwards.
+            # TODO: Remove list() when we depend on Python 3.10 or newer.
+            d = os.fspath(list(Path.cwd().parents)[-2])
+        else:
+            d = os.fspath(Path.cwd())
+
+        if d and not any(Path(d).is_relative_to(dir) for dir in (*dirs, "/usr", "/nix", "/tmp")):
+            cmdline += ["--bind", d, d]
+
+    for d in ("bin", "sbin", "lib", "lib32", "lib64"):
+        if (p := tools / d).is_symlink():
+            cmdline += ["--symlink", p.readlink(), Path("/") / p.relative_to(tools)]
+        elif p.is_dir():
+            cmdline += ["--ro-bind", p, Path("/") / p.relative_to(tools)]
+
+    path = "/usr/bin:/usr/sbin" if tools != Path("/") else os.environ["PATH"]
+
+    cmdline += ["--setenv", "PATH", f"/scripts:{path}", *options]
+
+    # If we're using /usr from a tools tree, we have to use /etc/alternatives from the tools tree as well if it
+    # exists since that points directly back to /usr. Apply this after the options so the caller can mount
+    # something else to /etc without overriding this mount. In relaxed mode, we only do this if /etc/alternatives
+    # already exists on the host as otherwise we'd modify the host's /etc by creating the mountpoint ourselves (or
+    # fail when trying to create it).
+    if (tools / "etc/alternatives").exists() and (not relaxed or Path("/etc/alternatives").exists()):
+        cmdline += ["--ro-bind", tools / "etc/alternatives", "/etc/alternatives"]
+
+    if scripts:
+        cmdline += ["--ro-bind", scripts, "/scripts"]
+
+    if network and not relaxed and Path("/etc/resolv.conf").exists():
+        cmdline += ["--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf"]
+
+    with vartmpdir(condition=vartmp and not relaxed) as dir:
+        if dir:
+            cmdline += ["--bind", dir, "/var/tmp"]
+
+        yield [*cmdline, "--"]
+
+
+def apivfs_options(*, root: Path = Path("/buildroot")) -> list[PathString]:
+    return [
+        "--tmpfs", root / "run",
+        "--tmpfs", root / "tmp",
+        "--bind", "/var/tmp", root / "var/tmp",
+        "--proc", root / "proc",
+        "--dev", root / "dev",
+        # Nudge gpg to create its sockets in /run by making sure /run/user/0 exists.
+        "--dir", root / "run/user/0",
+        # Make sure anything running in the root directory thinks it's in a container. $container can't always
+        # be accessed so we write /run/host/container-manager as well which is always accessible.
+        "--write", "mkosi", root / "run/host/container-manager",
+    ]
+
+
+def apivfs_script_cmd(*, tools: bool, options: Sequence[PathString] = ()) -> list[PathString]:
+    return [
+        "python3" if tools else sys.executable, "-SI", "/sandbox.py",
+        "--bind", "/", "/",
+        "--same-dir",
+        *apivfs_options(),
+        *options,
+        "--",
+    ]
+
+
+def chroot_options(*, network: bool = False) -> list[PathString]:
+    return [
+        # Let's always run as (fake) root when we chroot inside the image as tools executed within the image could
+        # have builtin assumptions about files being owned by root.
+        "--become-root",
+        # Unshare IPC namespace so any tests that exercise IPC related features don't fail with permission errors as
+        # --become-root implies unsharing a user namespace which won't have access to the parent's IPC namespace
+        # anymore.
+        "--unshare-ipc",
+        "--setenv", "container", "mkosi",
+        "--setenv", "HOME", "/",
+        "--setenv", "PATH", "/usr/bin:/usr/sbin",
+        *(["--ro-bind-try", "/etc/resolv.conf", "/etc/resolv.conf"] if network else []),
+        "--setenv", "BUILDROOT", "/",
+    ]
+
+
+@contextlib.contextmanager
+def chroot_cmd(
+    *,
+    root: Path,
+    network: bool = False,
+    options: Sequence[PathString] = (),
+) -> Iterator[list[PathString]]:
+    cmdline: list[PathString] = [
+        sys.executable, "-SI", mkosi.sandbox.__file__,
+        "--bind", root, "/",
+        # We mounted a subdirectory of TMPDIR to /var/tmp so we unset TMPDIR so that /tmp or /var/tmp are used instead.
+        "--unsetenv", "TMPDIR",
+        *network_options(network=network),
+        *apivfs_options(root=Path("/")),
+        *chroot_options(network=network),
+    ]
+
+    if network and Path("/etc/resolv.conf").exists():
+        cmdline += ["--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf"]
+
+    with vartmpdir() as dir:
+        if dir:
+            cmdline += ["--bind", dir, "/var/tmp"]
+
+        yield [*cmdline, *options, "--"]
+
+
+def chroot_script_cmd(*, tools: bool, network: bool = False, work: bool = False) -> list[PathString]:
+    return [
+        "python3" if tools else sys.executable, "-SI", "/sandbox.py",
+        "--bind", "/buildroot", "/",
+        *apivfs_options(root=Path("/")),
+        *chroot_options(network=network),
+        *(["--bind", "/work", "/work", "--chdir", "/work/src"] if work else []),
+        "--",
+    ]

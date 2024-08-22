@@ -14,7 +14,7 @@ if ! git diff-index --quiet HEAD; then
 fi
 
 sed -r -i "s/^version = \".*\"$/version = \"$VERSION\"/" pyproject.toml
-sed -r -i "s/^__version__ = \".*\"$/__version__ = \"$VERSION\"/" mkosi/config.py
+sed -r -i "s/^__version__ = \".*\"$/__version__ = \"$VERSION\"/" mkosi/sandbox.py
 
 git add -p pyproject.toml mkosi
 
@@ -25,7 +25,7 @@ git tag -s "v$VERSION" -m "mkosi $VERSION"
 VERSION_MAJOR=${VERSION%%.*}
 VERSION="$((VERSION_MAJOR + 1))~devel"
 
-sed -r -i "s/^__version__ = \".*\"$/__version__ = \"$VERSION\"/" mkosi/config.py
+sed -r -i "s/^__version__ = \".*\"$/__version__ = \"$VERSION\"/" mkosi/sandbox.py
 
 git add -p mkosi
 

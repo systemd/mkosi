@@ -11,9 +11,8 @@ from mkosi.context import Context
 from mkosi.installer import PackageManager
 from mkosi.log import die
 from mkosi.run import run
-from mkosi.sandbox import Mount, apivfs_cmd
+from mkosi.sandbox import umask
 from mkosi.types import _FILE, CompletedProcess, PathString
-from mkosi.util import umask
 
 
 @dataclasses.dataclass(frozen=True)
@@ -48,7 +47,7 @@ class Apt(PackageManager):
 
     @classmethod
     def executable(cls, config: Config) -> str:
-        return "apt"
+        return "apt-get"
 
     @classmethod
     def subdir(cls, config: Config) -> Path:
@@ -68,9 +67,11 @@ class Apt(PackageManager):
 
     @classmethod
     def scripts(cls, context: Context) -> dict[str, list[PathString]]:
+        cmd = cls.apivfs_script_cmd(context)
+
         return {
             **{
-                command: apivfs_cmd() + cls.env_cmd(context) + cls.cmd(context, command) for command in (
+                command: cmd + cls.env_cmd(context) + cls.cmd(context, command) for command in (
                     "apt",
                     "apt-cache",
                     "apt-cdrom",
@@ -83,7 +84,7 @@ class Apt(PackageManager):
                 )
             },
             **{
-                command: apivfs_cmd() + cls.dpkg_cmd(command) for command in(
+                command: cmd + cls.dpkg_cmd(command) for command in(
                     "dpkg",
                     "dpkg-query",
                 )
@@ -150,7 +151,7 @@ class Apt(PackageManager):
         return super().finalize_environment(context) | env
 
     @classmethod
-    def cmd(cls, context: Context, command: str) -> list[PathString]:
+    def cmd(cls, context: Context, command: str = "apt-get") -> list[PathString]:
         debarch = context.config.distribution.architecture(context.config.architecture)
 
         cmdline: list[PathString] = [
@@ -208,21 +209,12 @@ class Apt(PackageManager):
         arguments: Sequence[str] = (),
         *,
         apivfs: bool = False,
-        mounts: Sequence[Mount] = (),
         stdout: _FILE = None,
     ) -> CompletedProcess:
         return run(
-            cls.cmd(context, "apt-get") + [operation, *arguments],
-            sandbox=(
-                context.sandbox(
-                    binary="apt-get",
-                    network=True,
-                    vartmp=True,
-                    mounts=[Mount(context.root, "/buildroot"), *cls.mounts(context), *mounts],
-                    extra=apivfs_cmd() if apivfs else []
-                )
-            ),
-            env=context.config.environment | cls.finalize_environment(context),
+            cls.cmd(context) + [operation, *arguments],
+            sandbox=cls.sandbox(context, apivfs=apivfs),
+            env=cls.finalize_environment(context),
             stdout=stdout,
         )
 
@@ -257,8 +249,7 @@ class Apt(PackageManager):
             ],
             sandbox=context.sandbox(
                 binary="reprepro",
-                mounts=[Mount(context.repository, context.repository)],
-                options=["--chdir", context.repository],
+                options=["--bind", context.repository, context.repository, "--chdir", context.repository],
             ),
         )
 
