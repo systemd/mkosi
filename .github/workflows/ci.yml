@@ -120,6 +120,10 @@ jobs:
             tools: opensuse
           - distro: ubuntu
             tools: opensuse
+          # archlinux-keyring on Ubuntu is too old
+          # TODO: Re-enable if https://bugs.launchpad.net/ubuntu/+source/archlinux-keyring/+bug/2076416/ is resolved.
+          - distro: arch
+            tools: ubuntu
 
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
