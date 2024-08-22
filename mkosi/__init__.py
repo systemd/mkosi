@@ -4797,7 +4797,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
     if tools and not (tools.output_dir_or_cwd() / tools.output).exists():
         if args.verb == Verb.build or args.force > 0:
             check_tools(tools, Verb.build)
-            fork_and_wait(run_sync, args, tools, resources=resources)
+            run_sync(args, tools, resources=resources)
             fork_and_wait(run_build, args, tools, resources=resources)
         else:
             die(f"Default tools tree requested for image '{last.name()}' but it has not been built yet",
@@ -4836,7 +4836,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
                 check_tools(config, Verb.build)
 
             check_inputs(config)
-            fork_and_wait(run_sync, args, config, resources=resources)
+            run_sync(args, config, resources=resources)
             fork_and_wait(run_build, args, config, resources=resources, package_dir=Path(package_dir))
 
             build = True
