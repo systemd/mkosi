@@ -7,6 +7,7 @@ from xml.etree import ElementTree
 
 from mkosi.config import Architecture, Config
 from mkosi.context import Context
+from mkosi.curl import curl
 from mkosi.distributions import DistributionInstaller, PackageType, join_mirror
 from mkosi.installer import PackageManager
 from mkosi.installer.dnf import Dnf
@@ -239,27 +240,7 @@ def fetch_gpgurls(context: Context, repourl: str) -> tuple[str, ...]:
     gpgurls = [f"{repourl}/repodata/repomd.xml.key"]
 
     with tempfile.TemporaryDirectory() as d:
-        run(
-            [
-                "curl",
-                "--location",
-                "--output-dir", d,
-                "--remote-name",
-                "--no-progress-meter",
-                "--fail",
-                *(["--proxy", context.config.proxy_url] if context.config.proxy_url else []),
-                *(["--noproxy", ",".join(context.config.proxy_exclude)] if context.config.proxy_exclude else []),
-                *(["--proxy-capath", "/proxy.cacert"] if context.config.proxy_peer_certificate else []),
-                *(["--proxy-cert", "/proxy.clientcert"] if context.config.proxy_client_certificate else []),
-                *(["--proxy-key", "/proxy.clientkey"] if context.config.proxy_client_key else []),
-                f"{repourl}/repodata/repomd.xml",
-            ],
-            sandbox=context.sandbox(
-                binary="curl",
-                network=True,
-                options=["--bind", d, d, *finalize_crypto_mounts(context.config)],
-            ),
-        )
+        curl(context.config, f"{repourl}/repodata/repomd.xml", Path(d))
         xml = (Path(d) / "repomd.xml").read_text()
 
     root = ElementTree.fromstring(xml)

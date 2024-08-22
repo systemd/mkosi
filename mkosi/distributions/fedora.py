@@ -1,11 +1,13 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 import re
+import tempfile
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 
 from mkosi.config import Architecture, Config
 from mkosi.context import Context
+from mkosi.curl import curl
 from mkosi.distributions import (
     DistributionInstaller,
     PackageType,
@@ -47,7 +49,22 @@ def find_fedora_rpm_gpgkeys(context: Context) -> Iterable[str]:
             die("Fedora GPG keys not found in /usr/share/distribution-gpg-keys",
                 hint="Make sure the distribution-gpg-keys package is installed")
 
-        yield "https://fedoraproject.org/fedora.gpg"
+        if context.config.release == "rawhide":
+            # https://fedoraproject.org/fedora.gpg is always outdated when the rawhide key changes. Instead, let's
+            # fetch it from distribution-gpg-keys on github, which is generally up-to-date.
+            keys = "https://raw.githubusercontent.com/rpm-software-management/distribution-gpg-keys/main/keys/fedora"
+
+            # The rawhide key is a symlink and github doesn't redirect those to the actual file for some reason, so we
+            # fetch the file and read the release it points to ourselves.
+            with tempfile.TemporaryDirectory() as d:
+                curl(context.config, f"{keys}/RPM-GPG-KEY-fedora-rawhide-primary", Path(d))
+                key = (Path(d) / "RPM-GPG-KEY-fedora-rawhide-primary").read_text()
+
+            keyurl = f"{keys}/{key}"
+        else:
+            keyurl = "https://fedoraproject.org/fedora.gpg"
+
+        yield keyurl
 
 
 class Installer(DistributionInstaller):
