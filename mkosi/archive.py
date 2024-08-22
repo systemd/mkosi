@@ -118,6 +118,7 @@ def make_cpio(
                 "cpio",
                 "--create",
                 "--reproducible",
+                "--renumber-inodes",
                 "--null",
                 "--format=newc",
                 "--quiet",
