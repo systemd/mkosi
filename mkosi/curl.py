@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
+from pathlib import Path
+
+from mkosi.config import Config
+from mkosi.mounts import finalize_crypto_mounts
+from mkosi.run import run
+
+
+def curl(config: Config, url: str, output_dir: Path) -> None:
+    run(
+        [
+            "curl",
+            "--location",
+            "--output-dir", output_dir,
+            "--remote-name",
+            "--no-progress-meter",
+            "--fail",
+            *(["--proxy", config.proxy_url] if config.proxy_url else []),
+            *(["--noproxy", ",".join(config.proxy_exclude)] if config.proxy_exclude else []),
+            *(["--proxy-capath", "/proxy.cacert"] if config.proxy_peer_certificate else []),
+            *(["--proxy-cert", "/proxy.clientcert"] if config.proxy_client_certificate else []),
+            *(["--proxy-key", "/proxy.clientkey"] if config.proxy_client_key else []),
+            url,
+        ],
+        sandbox=config.sandbox(
+            binary="curl",
+            network=True,
+            options=["--bind", output_dir, output_dir, *finalize_crypto_mounts(config)],
+        ),
+    )
