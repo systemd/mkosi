@@ -82,25 +82,29 @@ def copy_tree(
     use_subvolumes: ConfigFeature = ConfigFeature.disabled,
     sandbox: SandboxProtocol = nosandbox,
 ) -> Path:
-    copy: list[PathString] = [
-        "cp",
-        "--recursive",
-        "--dereference" if dereference else "--no-dereference",
-        f"--preserve=mode,links{',timestamps,ownership,xattr' if preserve else ''}",
-        "--reflink=auto",
-        "--copy-contents",
-        src, dst,
-    ]
-    if cp_version(sandbox=sandbox) >= "9.5":
-        copy += ["--keep-directory-symlink"]
-
     options: list[PathString] = ["--ro-bind", src, src, "--bind", dst.parent, dst.parent]
 
-    # If the source and destination are both directories, we want to merge the source directory with the
-    # destination directory. If the source if a file and the destination is a directory, we want to copy
-    # the source inside the directory.
-    if src.is_dir():
-        copy += ["--no-target-directory"]
+    def copy() -> None:
+        cmdline: list[PathString] = [
+            "cp",
+            "--recursive",
+            "--dereference" if dereference else "--no-dereference",
+            f"--preserve=mode,links{',timestamps,ownership,xattr' if preserve else ''}",
+            "--reflink=auto",
+            "--copy-contents",
+            src, dst,
+        ]
+
+        if dst.exists() and any(dst.iterdir()) and cp_version(sandbox=sandbox) >= "9.5":
+            cmdline += ["--keep-directory-symlink"]
+
+        # If the source and destination are both directories, we want to merge the source directory with the
+        # destination directory. If the source if a file and the destination is a directory, we want to copy
+        # the source inside the directory.
+        if src.is_dir():
+            cmdline += ["--no-target-directory"]
+
+        run(cmdline, sandbox=sandbox(binary="cp", options=options))
 
     # Subvolumes always have inode 256 so we can use that to check if a directory is a subvolume.
     if (
@@ -114,7 +118,8 @@ def copy_tree(
             if not preserve
             else contextlib.nullcontext()
         ):
-            run(copy, sandbox=sandbox(binary="cp", options=options))
+            copy()
+
         return dst
 
     # btrfs can't snapshot to an existing directory so make sure the destination does not exist.
@@ -133,7 +138,7 @@ def copy_tree(
             if not preserve
             else contextlib.nullcontext()
         ):
-            run(copy, sandbox=sandbox(binary="cp", options=options))
+            copy()
 
     return dst
 
