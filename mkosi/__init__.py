@@ -89,7 +89,7 @@ from mkosi.sandbox import (
     unshare,
     userns_has_single_user,
 )
-from mkosi.tree import copy_tree, move_tree, rmtree
+from mkosi.tree import copy_tree, make_tree, move_tree, rmtree
 from mkosi.types import PathString
 from mkosi.user import INVOKING_USER
 from mkosi.util import (
@@ -3877,6 +3877,19 @@ def createrepo(context: Context) -> Iterator[None]:
                 context.config.distribution.createrepo(context)
 
 
+def make_rootdir(context: Context) -> None:
+    if context.root.exists():
+        return
+
+    with umask(~0o755):
+        # Using a btrfs subvolume as the upperdir in an overlayfs results in EXDEV so make sure we create
+        # the root directory as a regular directory if the Overlay= option is enabled.
+        if context.config.overlay:
+            context.root.mkdir()
+        else:
+            make_tree(context.root, use_subvolumes=context.config.use_subvolumes, sandbox=context.sandbox)
+
+
 def build_image(context: Context) -> None:
     manifest = Manifest(context) if context.config.manifest_format else None
 
@@ -3885,6 +3898,8 @@ def build_image(context: Context) -> None:
     with mount_base_trees(context):
         install_base_trees(context)
         cached = reuse_cache(context)
+        make_rootdir(context)
+
         wantrepo = (
             (
                 not cached
@@ -4618,6 +4633,7 @@ def run_sync(args: Args, config: Config, *, resources: Path) -> None:
             resources=resources,
             package_cache_dir=config.package_cache_dir_or_default(),
         )
+        context.root.mkdir(mode=0o755)
 
         install_package_manager_trees(context)
         context.config.distribution.setup(context)

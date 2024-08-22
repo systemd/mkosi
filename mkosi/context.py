@@ -6,8 +6,6 @@ from pathlib import Path
 from typing import Optional
 
 from mkosi.config import Args, Config
-from mkosi.sandbox import umask
-from mkosi.tree import make_tree
 from mkosi.types import PathString
 
 
@@ -30,20 +28,8 @@ class Context:
         self.resources = resources
         self.package_cache_dir = package_cache_dir or (self.root / "var")
         self.package_dir = package_dir or (self.workspace / "packages")
+
         self.package_dir.mkdir(exist_ok=True)
-
-        with umask(~0o755):
-            # Using a btrfs subvolume as the upperdir in an overlayfs results in EXDEV so make sure we create
-            # the root directory as a regular directory if the Overlay= option is enabled.
-            if config.overlay:
-                self.root.mkdir()
-            else:
-                make_tree(
-                    self.root,
-                    use_subvolumes=self.config.use_subvolumes,
-                    sandbox=config.sandbox,
-                )
-
         self.staging.mkdir()
         self.pkgmngr.mkdir()
         self.repository.mkdir()
