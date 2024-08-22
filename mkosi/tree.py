@@ -95,7 +95,7 @@ def copy_tree(
             src, dst,
         ]
 
-        if dst.exists() and any(dst.iterdir()) and cp_version(sandbox=sandbox) >= "9.5":
+        if dst.exists() and dst.is_dir() and any(dst.iterdir()) and cp_version(sandbox=sandbox) >= "9.5":
             cmdline += ["--keep-directory-symlink"]
 
         # If the source and destination are both directories, we want to merge the source directory with the
@@ -111,7 +111,7 @@ def copy_tree(
         use_subvolumes == ConfigFeature.disabled or
         not preserve or
         not is_subvolume(src) or
-        (dst.exists() and any(dst.iterdir()))
+        (dst.exists() and (not dst.is_dir() or any(dst.iterdir())))
     ):
         with (
             preserve_target_directories_stat(src, dst)
