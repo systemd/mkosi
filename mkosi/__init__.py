@@ -1737,7 +1737,7 @@ def fixup_vmlinuz_location(context: Context) -> None:
                 continue
             # Some distributions (OpenMandriva) symlink /usr/lib/modules/<kver>/vmlinuz to /boot/vmlinuz-<kver>, so
             # get rid of the symlink and copy the actual vmlinuz to /usr/lib/modules/<kver>.
-            if vmlinuz.is_symlink() and vmlinuz.is_relative_to("/boot"):
+            if vmlinuz.is_symlink() and vmlinuz.resolve().is_relative_to("/boot"):
                 vmlinuz.unlink()
             if not vmlinuz.exists():
                 shutil.copy2(d, vmlinuz)

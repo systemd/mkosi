@@ -87,6 +87,7 @@ class Distribution(StrEnum):
     openmandriva = enum.auto()
     rocky        = enum.auto()
     alma         = enum.auto()
+    azure        = enum.auto()
     custom       = enum.auto()
 
     def is_centos_variant(self) -> bool:
@@ -103,6 +104,7 @@ class Distribution(StrEnum):
 
     def is_rpm_distribution(self) -> bool:
         return self in (
+            Distribution.azure,
             Distribution.fedora,
             Distribution.opensuse,
             Distribution.mageia,

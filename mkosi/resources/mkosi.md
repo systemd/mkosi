@@ -394,8 +394,8 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   The distribution to install in the image. Takes one of the following
     arguments: `fedora`, `debian`, `kali`, `ubuntu`, `arch`, `opensuse`,
     `mageia`, `centos`, `rhel`, `rhel-ubi`, `openmandriva`, `rocky`, `alma`,
-    `custom`. If not specified, defaults to the distribution of the host
-    or `custom` if the distribution of the host is not a supported
+    `azure` or `custom`. If not specified, defaults to the distribution of
+    the host or `custom` if the distribution of the host is not a supported
     distribution.
 
 `Release=`, `--release=`, `-r`
@@ -441,6 +441,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     | `rhel-ubi`     | https://cdn-ubi.redhat.com        |                                |
     | `mageia`       | https://www.mageia.org            |                                |
     | `openmandriva` | http://mirrors.openmandriva.org   |                                |
+    | `azure`        | https://packages.microsoft.com/   |                                |
 
 `LocalMirror=`, `--local-mirror=`
 :   The mirror will be used as a local, plain and direct mirror instead
@@ -1917,6 +1918,8 @@ distributions:
 * *Rocky Linux*
 
 * *Alma Linux*
+
+* *Azure Linux*
 
 * *None* (**Requires the user to provide a pre-built rootfs**)
 
