@@ -3662,6 +3662,12 @@ class ParseContext:
                         delattr(self.config, s.dest)
 
             for s in SETTINGS:
+                if (
+                    s.scope == SettingScope.universal and
+                    (image := getattr(self.config, "image", None)) is not None
+                ):
+                    continue
+
                 for f in s.paths:
                     extra = parse_path(
                         f,
@@ -3696,7 +3702,6 @@ class ParseContext:
                     die(f"Unknown setting {name}")
                 if (
                     s.scope == SettingScope.universal and
-                    not isinstance(s.parse(None, None), (list, set, dict)) and
                     (image := getattr(self.config, "image", None)) is not None
                 ):
                     die(f"Setting {name} cannot be configured in subimage {image}")
@@ -3823,18 +3828,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
         # were specified on the CLI by copying them to the CLI namespace. Any settings
         # that are not marked as "universal" are deleted from the CLI namespace.
         for s in SETTINGS:
-            if (
-                s.scope == SettingScope.universal and (
-                    # For list-based settings, don't pass down empty lists unless it came
-                    # explicitly from the config file or the CLI. This makes sure that default
-                    # values from subimages are still used if no value is explicitly configured
-                    # in the main image or on the CLI.
-                    not isinstance(getattr(config, s.dest), (list, dict, set)) or
-                    getattr(config, s.dest) or
-                    hasattr(context.cli, s.dest) or
-                    hasattr(context.config, s.dest)
-                )
-            ):
+            if s.scope == SettingScope.universal:
                 setattr(context.cli, s.dest, copy.deepcopy(getattr(config, s.dest)))
             elif hasattr(context.cli, s.dest):
                 delattr(context.cli, s.dest)

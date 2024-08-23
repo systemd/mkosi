@@ -2475,9 +2475,7 @@ configuration (configuration outside of the `mkosi.images/` directory),
 followed by the image specific configuration. Several "universal"
 settings apply to the main image and all its subimages and cannot be
 configured separately in subimages. The following settings are universal
-and cannot be configured in subimages (except for settings which take a
-collection of values which can be extended in subimages but not
-overridden):
+and cannot be configured in subimages:
 
 - `Profile=`
 - `Distribution=`

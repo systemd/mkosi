@@ -76,6 +76,7 @@ def main() -> None:
         "--remove-files=/usr/lib/firmware/*-ucode",
         "--kernel-modules-exclude=.*",
         "--kernel-modules-include=host",
+        "--build-sources", "",
         "--include=mkosi-initrd",
     ]
 

@@ -1,5 +1,12 @@
 # mkosi Changelog
 
+## v25
+
+- Universal settings that take a collection of values cannot be
+  appended to anymore in subimages. Usage of package manager trees in
+  subimages will have to be moved to the top level image. Similarly,
+  repositories will have to be enabled in the top level image.
+
 ## v24
 
 - The default kernel command line of `console=ttyS0` (or equivalent for

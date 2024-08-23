@@ -253,9 +253,6 @@ def test_parse_config(tmp_path: Path) -> None:
 
     (d / "mkosi.images/one.conf").write_text(
         """\
-        [Distribution]
-        Repositories=append
-
         [Content]
         Packages=one
         """
@@ -265,9 +262,6 @@ def test_parse_config(tmp_path: Path) -> None:
     (d / "mkosi.images/two/mkosi.skeleton").mkdir()
     (d / "mkosi.images/two/mkosi.conf").write_text(
         """
-        [Distribution]
-        Repositories=append
-
         [Content]
         Packages=two
 
@@ -295,17 +289,13 @@ def test_parse_config(tmp_path: Path) -> None:
     assert config.packages == ["qed"]
     assert config.build_packages == ["def"]
 
-    # list based settings should be appended to in subimages
-    assert one.repositories == ["append", "epel", "epel-next", "cli"]
-    assert two.repositories == ["append", "epel", "epel-next", "cli"]
-
     # Inherited settings should be passed down to subimages but overridable by subimages.
     assert one.image_version == "1.2.3"
     assert two.image_version == "4.5.6"
 
-    # Default values from subimages should be picked up.
+    # Default values from subimages for univeral settings should not be picked up.
     assert len(one.package_manager_trees) == 0
-    assert len(two.package_manager_trees) == 1 and two.package_manager_trees[0].source.name == "mkosi.skeleton"
+    assert len(two.package_manager_trees) == 0
 
     with chdir(d):
         _, [one, two, config] = parse_config(["--image-version", "7.8.9"])
