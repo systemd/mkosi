@@ -488,30 +488,19 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     metadata is always synced and and packages can be downloaded during
     the build.
 
-`PackageManagerTrees=`, `--package-manager-tree=`
+`SandboxTrees=`, `--sandbox-tree=`
 :   Takes a comma separated list of colon separated path pairs. The first
-    path of each pair refers to a directory to copy into the OS tree
-    before invoking the package manager. This option is similar to the
-    `SkeletonTrees=` option, but installs the files to a subdirectory of
-    the workspace directory instead of the OS tree. This subdirectory of
-    the workspace is used to configure the package manager. If the
-    `mkosi.pkgmngr/` directory is found in the local directory it is used
-    for this purpose with the root directory as target (also see the **Files**
-    section below). If not configured in any way this value will default to
-    the same value of `SkeletonTrees=`.
+    path of each pair refers to a directory to copy into the mkosi
+    sandbox before executing a tool. If the `mkosi.sandbox/` directory
+    is found in the local directory it is used for this purpose with the
+    root directory as target (also see the **Files** section below).
 
     `mkosi` will look for the package manager configuration and related
-    files in the configured package manager trees. Unless specified
-    otherwise, it will use the configuration files from their canonical
-    locations in `/usr` or `/etc` in the package manager trees. For
-    example, it will look for `etc/dnf/dnf.conf` in the package manager
-    trees if `dnf` is used to install packages.
-
-    `SkeletonTrees=` and `PackageManagerTrees=` fulfill similar roles. Use
-    `SkeletonTrees=` if you want the files to be present in the final image. Use
-    `PackageManagerTrees=` if you don't want the files to be present in the final
-    image, e.g. when building an initrd or if you want to refer to paths outside
-    of the image in your repository configuration.
+    files in the configured sandbox trees. Unless specified otherwise,
+    it will use the configuration files from their canonical locations
+    in `/usr` or `/etc` in the sandbox trees. For example, it  will look
+    for `/etc/dnf/dnf.conf` in the sandbox trees  if `dnf` is used to
+    install packages.
 
 ### [Output] Section
 
@@ -1570,8 +1559,8 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `ToolsTreeRepositories=`, `--tools-tree-repository`
 :   Same as `Repositories=` but for the default tools tree.
 
-`ToolsTreePackageManagerTrees=`, `--tools-tree-package-manager-tree=`
-:   Same as `PackageManagerTrees=` but for the default tools tree.
+`ToolsTreeSandboxTrees=`, `--tools-tree-sandbox-tree`
+:   Same as `SandboxTrees=` but for the default tools tree.
 
 `ToolsTreePackages=`, `--tools-tree-packages=`
 :   Extra packages to install into the default tools tree. Takes a comma
@@ -1967,7 +1956,7 @@ in consecutive runs with data from the cached one.
 
 Then, for each image, we execute the following steps:
 
-1. Copy package manager trees into the workspace
+1. Copy sandbox trees into the workspace
 1. Sync the package manager repository metadata
 1. Run sync scripts (`mkosi.sync`)
 1. Copy base trees (`--base-tree=`) into the image
@@ -2486,7 +2475,7 @@ and cannot be configured in subimages:
 - `RepositoryKeyCheck=`
 - `Repositories=`
 - `CacheOnly=`
-- `PackageManagerTrees=`
+- `SandboxTrees=`
 - `OutputDirectory=`
 - `WorkspaceDirectory=`
 - `CacheDirectory=`
@@ -2529,7 +2518,7 @@ for the following options, mkosi will only check whether the inputs
 exist just before building the image:
 
 - `BaseTrees=`
-- `PackageManagerTrees=`
+- `SandboxTrees=`
 - `SkeletonTrees=`
 - `ExtraTrees=`
 - `ToolsTree=`

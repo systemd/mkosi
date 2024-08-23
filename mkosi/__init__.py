@@ -1656,8 +1656,8 @@ def install_skeleton_trees(context: Context) -> None:
             install_tree(context.config, tree.source, context.root, target=tree.target, preserve=False)
 
 
-def install_package_manager_trees(context: Context) -> None:
-    # Ensure /etc exists in the package manager tree
+def install_sandbox_trees(context: Context) -> None:
+    # Ensure /etc exists in the sandbox
     (context.pkgmngr / "etc").mkdir(exist_ok=True)
 
     # Required to be able to access certificates in the sandbox when running from nix.
@@ -1679,11 +1679,11 @@ def install_package_manager_trees(context: Context) -> None:
             sandbox=context.config.sandbox,
         )
 
-    if not context.config.package_manager_trees:
+    if not context.config.sandbox_trees:
         return
 
     with complete_step("Copying in package manager file trees…"):
-        for tree in context.config.package_manager_trees:
+        for tree in context.config.sandbox_trees:
             install_tree(context.config, tree.source, context.pkgmngr, target=tree.target, preserve=False)
 
 
@@ -1808,7 +1808,7 @@ def finalize_default_initrd(
         "--repository-key-check", str(config.repository_key_check),
         "--repository-key-fetch", str(config.repository_key_fetch),
         "--repositories", ",".join(config.repositories),
-        "--package-manager-tree", ",".join(str(t) for t in config.package_manager_trees),
+        "--sandbox-tree", ",".join(str(t) for t in config.sandbox_trees),
         # Note that when compress_output == Compression.none == 0 we don't pass --compress-output which means the
         # default compression will get picked. This is exactly what we want so that initrds are always compressed.
         *(["--compress-output", str(config.compress_output)] if config.compress_output else []),
@@ -2847,7 +2847,7 @@ def check_inputs(config: Config) -> None:
 
     trees = [
         ("skeleton", config.skeleton_trees),
-        ("package manager", config.package_manager_trees),
+        ("package manager", config.sandbox_trees),
     ]
 
     if config.output_format != OutputFormat.none:
@@ -3868,7 +3868,7 @@ def make_rootdir(context: Context) -> None:
 def build_image(context: Context) -> None:
     manifest = Manifest(context) if context.config.manifest_format else None
 
-    install_package_manager_trees(context)
+    install_sandbox_trees(context)
 
     with mount_base_trees(context):
         install_base_trees(context)
@@ -4391,7 +4391,7 @@ def finalize_default_tools(args: Args, config: Config, *, resources: Path) -> Co
         *(["--release", config.tools_tree_release] if config.tools_tree_release else []),
         *(["--mirror", config.tools_tree_mirror] if config.tools_tree_mirror else []),
         "--repositories", ",".join(config.tools_tree_repositories),
-        "--package-manager-tree", ",".join(str(t) for t in config.tools_tree_package_manager_trees),
+        "--sandbox-tree", ",".join(str(t) for t in config.tools_tree_sandbox_trees),
         "--repository-key-check", str(config.repository_key_check),
         "--repository-key-fetch", str(config.repository_key_fetch),
         "--cache-only", str(config.cacheonly),
@@ -4604,7 +4604,7 @@ def run_sync(args: Args, config: Config, *, resources: Path) -> None:
         )
         context.root.mkdir(mode=0o755)
 
-        install_package_manager_trees(context)
+        install_sandbox_trees(context)
         context.config.distribution.setup(context)
 
         sync_repository_metadata(context)

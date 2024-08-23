@@ -6,7 +6,6 @@ import logging
 import operator
 import os
 from pathlib import Path
-from typing import Optional
 
 import pytest
 
@@ -294,8 +293,8 @@ def test_parse_config(tmp_path: Path) -> None:
     assert two.image_version == "4.5.6"
 
     # Default values from subimages for univeral settings should not be picked up.
-    assert len(one.package_manager_trees) == 0
-    assert len(two.package_manager_trees) == 0
+    assert len(one.sandbox_trees) == 0
+    assert len(two.sandbox_trees) == 0
 
     with chdir(d):
         _, [one, two, config] = parse_config(["--image-version", "7.8.9"])
@@ -986,31 +985,6 @@ def test_match_environment(tmp_path: Path) -> None:
         assert conf.image_id != "matched"
 
 
-@pytest.mark.parametrize(
-    "skel,pkgmngr", itertools.product(
-        [None, Path("/foo"), Path("/bar")],
-        [None, Path("/foo"), Path("/bar")],
-    )
-)
-def test_package_manager_tree(tmp_path: Path, skel: Optional[Path], pkgmngr: Optional[Path]) -> None:
-    with chdir(tmp_path):
-        config = Path("mkosi.conf")
-        with config.open("w") as f:
-            f.write("[Content]\n")
-            if skel is not None:
-                f.write(f"SkeletonTrees={skel}\n")
-            if pkgmngr is not None:
-                f.write(f"PackageManagerTrees={pkgmngr}\n")
-
-        _, [conf] = parse_config()
-
-        skel_expected = [ConfigTree(skel, None)] if skel is not None else []
-        pkgmngr_expected = [ConfigTree(pkgmngr, None)] if pkgmngr is not None else skel_expected
-
-        assert conf.skeleton_trees == skel_expected
-        assert conf.package_manager_trees == pkgmngr_expected
-
-
 def test_paths_with_default_factory(tmp_path: Path) -> None:
     """
     If both paths= and default_factory= are defined, default_factory= should not
@@ -1018,18 +992,10 @@ def test_paths_with_default_factory(tmp_path: Path) -> None:
     """
 
     with chdir(tmp_path):
-
-        Path("mkosi.skeleton.tar").touch()
-        _, [config] = parse_config()
-
-        assert config.package_manager_trees == [
-            ConfigTree(Path.cwd() / "mkosi.skeleton.tar", None),
-        ]
-
         Path("mkosi.pkgmngr.tar").touch()
         _, [config] = parse_config()
 
-        assert config.package_manager_trees == [
+        assert config.sandbox_trees == [
             ConfigTree(Path.cwd() / "mkosi.pkgmngr.tar", None),
         ]
 

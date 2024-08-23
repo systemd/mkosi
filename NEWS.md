@@ -8,6 +8,9 @@
   repositories will have to be enabled in the top level image.
 - Repository metadata is not copied into images anymore.
 - Repository metadata from base trees is not used anymore.
+- Package manager trees are now named sandbox trees.
+- Package manager trees (sandbox trees) do not use the skeleton trees as
+  their default anymore if unset.
 
 ## v24
 
