@@ -39,7 +39,7 @@ class Installer(centos.Installer):
         elif (Path("/") / p).exists():
             p = Path("/") / p
         else:
-            die("redhat-uep.pem certificate not found in host system or package manager tree")
+            die("redhat-uep.pem certificate not found in host system or sandbox tree")
 
         return p
 
@@ -54,7 +54,7 @@ class Installer(centos.Installer):
         if not p:
             p = next((p for p in Path("/").glob(pattern)), None)
         if not p:
-            die("Entitlement key not found in host system or package manager tree")
+            die("Entitlement key not found in host system or sandbox tree")
 
         return p
 
@@ -69,7 +69,7 @@ class Installer(centos.Installer):
         if not p:
             p = next((p for p in sorted(Path("/").glob(pattern)) if "key" not in p.name), None)
         if not p:
-            die("Entitlement certificate not found in host system or package manager tree")
+            die("Entitlement certificate not found in host system or sandbox tree")
 
         return p
 

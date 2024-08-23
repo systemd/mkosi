@@ -200,12 +200,6 @@ def test_config() -> None:
             "Overlay": true,
             "PackageCacheDirectory": "/a/b/c",
             "PackageDirectories": [],
-            "PackageManagerTrees": [
-                {
-                    "Source": "/foo/bar",
-                    "Target": null
-                }
-            ],
             "Packages": [],
             "PassEnvironment": [
                 "abc"
@@ -286,6 +280,12 @@ def test_config() -> None:
                 }
             ],
             "SELinuxRelabel": "disabled",
+            "SandboxTrees": [
+                {
+                    "Source": "/foo/bar",
+                    "Target": null
+                }
+            ],
             "SectorSize": null,
             "SecureBoot": true,
             "SecureBootAutoEnroll": true,
@@ -323,16 +323,16 @@ def test_config() -> None:
             "ToolsTreeCertificates": true,
             "ToolsTreeDistribution": "fedora",
             "ToolsTreeMirror": null,
-            "ToolsTreePackageManagerTrees": [
-                {
-                    "Source": "/a/b/c",
-                    "Target": "/"
-                }
-            ],
             "ToolsTreePackages": [],
             "ToolsTreeRelease": null,
             "ToolsTreeRepositories": [
                 "abc"
+            ],
+            "ToolsTreeSandboxTrees": [
+                {
+                    "Source": "/a/b/c",
+                    "Target": "/"
+                }
             ],
             "UnifiedKernelImageFormat": "myuki",
             "UnifiedKernelImages": "auto",
@@ -430,7 +430,7 @@ def test_config() -> None:
         overlay=True,
         package_cache_dir=Path("/a/b/c"),
         package_directories=[],
-        package_manager_trees=[ConfigTree(Path("/foo/bar"), None)],
+        sandbox_trees=[ConfigTree(Path("/foo/bar"), None)],
         packages=[],
         pass_environment=["abc"],
         passphrase=None,
@@ -498,7 +498,7 @@ def test_config() -> None:
         tools_tree_certificates=True,
         tools_tree_distribution=Distribution.fedora,
         tools_tree_mirror=None,
-        tools_tree_package_manager_trees=[ConfigTree(Path("/a/b/c"), Path("/"))],
+        tools_tree_sandbox_trees=[ConfigTree(Path("/a/b/c"), Path("/"))],
         tools_tree_packages=[],
         tools_tree_release=None,
         tools_tree_repositories=["abc"],

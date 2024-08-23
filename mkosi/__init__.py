@@ -1656,8 +1656,8 @@ def install_skeleton_trees(context: Context) -> None:
             install_tree(context.config, tree.source, context.root, target=tree.target, preserve=False)
 
 
-def install_package_manager_trees(context: Context) -> None:
-    # Ensure /etc exists in the package manager tree
+def install_sandbox_trees(context: Context) -> None:
+    # Ensure /etc exists in the sandbox
     (context.pkgmngr / "etc").mkdir(exist_ok=True)
 
     # Required to be able to access certificates in the sandbox when running from nix.
@@ -1679,11 +1679,11 @@ def install_package_manager_trees(context: Context) -> None:
             sandbox=context.config.sandbox,
         )
 
-    if not context.config.package_manager_trees:
+    if not context.config.sandbox_trees:
         return
 
     with complete_step("Copying in package manager file trees…"):
-        for tree in context.config.package_manager_trees:
+        for tree in context.config.sandbox_trees:
             install_tree(context.config, tree.source, context.pkgmngr, target=tree.target, preserve=False)
 
 
@@ -1808,7 +1808,7 @@ def finalize_default_initrd(
         "--repository-key-check", str(config.repository_key_check),
         "--repository-key-fetch", str(config.repository_key_fetch),
         "--repositories", ",".join(config.repositories),
-        "--package-manager-tree", ",".join(str(t) for t in config.package_manager_trees),
+        "--sandbox-tree", ",".join(str(t) for t in config.sandbox_trees),
         # Note that when compress_output == Compression.none == 0 we don't pass --compress-output which means the
         # default compression will get picked. This is exactly what we want so that initrds are always compressed.
         *(["--compress-output", str(config.compress_output)] if config.compress_output else []),
@@ -1892,7 +1892,7 @@ def build_default_initrd(context: Context) -> Path:
                 workspace=workspace,
                 resources=context.resources,
                 # Re-use the repository metadata snapshot from the main image for the initrd.
-                package_cache_dir=context.package_cache_dir,
+                metadata_dir=context.metadata_dir,
                 package_dir=context.package_dir,
             )
         )
@@ -2847,7 +2847,7 @@ def check_inputs(config: Config) -> None:
 
     trees = [
         ("skeleton", config.skeleton_trees),
-        ("package manager", config.package_manager_trees),
+        ("package manager", config.sandbox_trees),
     ]
 
     if config.output_format != OutputFormat.none:
@@ -2878,16 +2878,6 @@ def check_inputs(config: Config) -> None:
     ):
         if not os.access(script, os.X_OK):
             die(f"{script} is not executable")
-
-
-def check_outputs(config: Config) -> None:
-    if config.output_format == OutputFormat.none:
-        return
-
-    f = config.output_dir_or_cwd() / config.output_with_compression
-
-    if f.exists() and not f.is_symlink():
-        logging.info(f"Output path {f} exists already. (Use --force to rebuild.)")
 
 
 def check_tool(config: Config, *tools: PathString, reason: str, hint: Optional[str] = None) -> Path:
@@ -3809,24 +3799,12 @@ def lock_repository_metadata(config: Config) -> Iterator[None]:
         yield
 
 
-def copy_repository_metadata(context: Context) -> None:
-    subdir = context.config.distribution.package_manager(context.config).subdir(context.config)
+def copy_repository_metadata(config: Config, dst: Path) -> None:
+    subdir = config.distribution.package_manager(config).subdir(config)
 
-    # Don't copy anything if the repository metadata directories are already populated and we're not explicitly asked
-    # to sync repository metadata.
-    if (
-        context.config.cacheonly != Cacheonly.never and
-        (
-            any((context.package_cache_dir / "cache" / subdir).glob("*")) or
-            any((context.package_cache_dir / "lib" / subdir).glob("*"))
-        )
-    ):
-        logging.debug(f"Found repository metadata in {context.package_cache_dir}, not copying repository metadata")
-        return
-
-    with lock_repository_metadata(context.config):
+    with lock_repository_metadata(config):
         for d in ("cache", "lib"):
-            src = context.config.package_cache_dir_or_default() / d / subdir
+            src = config.package_cache_dir_or_default() / d / subdir
             if not src.exists():
                 logging.debug(f"{src} does not exist, not copying repository metadata from it")
                 continue
@@ -3840,17 +3818,17 @@ def copy_repository_metadata(context: Context) -> None:
                 if d == "cache":
                     exclude = flatten(
                         ("--ro-bind", tmp, p)
-                        for p in context.config.distribution.package_manager(context.config).cache_subdirs(src)
+                        for p in config.distribution.package_manager(config).cache_subdirs(src)
                     )
                 else:
                     exclude = flatten(
                         ("--ro-bind", tmp, p)
-                        for p in context.config.distribution.package_manager(context.config).state_subdirs(src)
+                        for p in config.distribution.package_manager(config).state_subdirs(src)
                     )
 
-                dst = context.package_cache_dir / d / subdir
+                subdst = dst / d / subdir
                 with umask(~0o755):
-                    dst.mkdir(parents=True, exist_ok=True)
+                    subdst.mkdir(parents=True, exist_ok=True)
 
                 def sandbox(
                     *,
@@ -3858,13 +3836,10 @@ def copy_repository_metadata(context: Context) -> None:
                     vartmp: bool = False,
                     options: Sequence[PathString] = (),
                 ) -> AbstractContextManager[list[PathString]]:
-                    return context.sandbox(binary=binary, vartmp=vartmp, options=[*options, *exclude])
+                    return config.sandbox(binary=binary, vartmp=vartmp, options=[*options, *exclude])
 
-                copy_tree(
-                    src, dst,
-                    preserve=False,
-                    sandbox=sandbox,
-                )
+                copy_tree(src, subdst, preserve=False, sandbox=sandbox)
+
 
 @contextlib.contextmanager
 def createrepo(context: Context) -> Iterator[None]:
@@ -3893,7 +3868,7 @@ def make_rootdir(context: Context) -> None:
 def build_image(context: Context) -> None:
     manifest = Manifest(context) if context.config.manifest_format else None
 
-    install_package_manager_trees(context)
+    install_sandbox_trees(context)
 
     with mount_base_trees(context):
         install_base_trees(context)
@@ -3913,8 +3888,6 @@ def build_image(context: Context) -> None:
             or context.config.postinst_scripts
             or context.config.finalize_scripts
         )
-
-        copy_repository_metadata(context)
 
         context.config.distribution.setup(context)
         if wantrepo:
@@ -4418,7 +4391,7 @@ def finalize_default_tools(args: Args, config: Config, *, resources: Path) -> Co
         *(["--release", config.tools_tree_release] if config.tools_tree_release else []),
         *(["--mirror", config.tools_tree_mirror] if config.tools_tree_mirror else []),
         "--repositories", ",".join(config.tools_tree_repositories),
-        "--package-manager-tree", ",".join(str(t) for t in config.tools_tree_package_manager_trees),
+        "--sandbox-tree", ",".join(str(t) for t in config.tools_tree_sandbox_trees),
         "--repository-key-check", str(config.repository_key_check),
         "--repository-key-fetch", str(config.repository_key_fetch),
         "--cache-only", str(config.cacheonly),
@@ -4510,9 +4483,8 @@ def run_clean_scripts(config: Config) -> None:
                 )
 
 
-def needs_clean(args: Args, config: Config, force: int = 1) -> bool:
+def needs_build(args: Args, config: Config, force: int = 1) -> bool:
     return (
-        args.verb == Verb.clean or
         args.force >= force or
         not (config.output_dir_or_cwd() / config.output_with_compression).exists() or
         # When the output is a directory, its name is the same as the symlink we create that points to the actual
@@ -4628,11 +4600,11 @@ def run_sync(args: Args, config: Config, *, resources: Path) -> None:
             config,
             workspace=workspace,
             resources=resources,
-            package_cache_dir=config.package_cache_dir_or_default(),
+            metadata_dir=config.package_cache_dir_or_default(),
         )
         context.root.mkdir(mode=0o755)
 
-        install_package_manager_trees(context)
+        install_sandbox_trees(context)
         context.config.distribution.setup(context)
 
         sync_repository_metadata(context)
@@ -4644,7 +4616,14 @@ def run_sync(args: Args, config: Config, *, resources: Path) -> None:
         run_sync_scripts(context)
 
 
-def run_build(args: Args, config: Config, *, resources: Path, package_dir: Optional[Path] = None) -> None:
+def run_build(
+    args: Args,
+    config: Config,
+    *,
+    resources: Path,
+    metadata_dir: Path,
+    package_dir: Optional[Path] = None,
+) -> None:
     if os.getuid() != 0:
         acquire_privileges()
 
@@ -4691,7 +4670,16 @@ def run_build(args: Args, config: Config, *, resources: Path, package_dir: Optio
         complete_step(f"Building {config.name()} image"),
         setup_workspace(args, config) as workspace,
     ):
-        build_image(Context(args, config, workspace=workspace, resources=resources, package_dir=package_dir))
+        build_image(
+            Context(
+                args,
+                config,
+                workspace=workspace,
+                resources=resources,
+                metadata_dir=metadata_dir,
+                package_dir=package_dir,
+            )
+        )
 
 
 def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
@@ -4741,6 +4729,11 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         page(text, args.pager)
         return
 
+    last = images[-1]
+
+    if (minversion := last.minimum_version) and minversion > __version__:
+        die(f"mkosi {minversion} or newer is required by this configuration (found {__version__})")
+
     if args.verb in (Verb.journalctl, Verb.coredumpctl, Verb.ssh):
         # We don't use a tools tree for verbs that don't need an image build.
         last = dataclasses.replace(images[-1], tools_tree=None)
@@ -4750,107 +4743,125 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
             Verb.coredumpctl: run_coredumpctl,
         }[args.verb](args, last)
 
-    assert args.verb.needs_build() or args.verb == Verb.clean
-
-    for config in images:
-        if args.verb == Verb.build and not args.force:
-            check_outputs(config)
-
-    last = images[-1]
-
     if last.tools_tree and last.tools_tree == Path("default"):
         tools = finalize_default_tools(args, last, resources=resources)
-
-        # If we're doing an incremental build and the cache is not out of date, don't clean up the tools tree
-        # so that we can reuse the previous one.
-        if (
-            not tools.incremental or
-            ((args.verb == Verb.build or args.force > 0) and not have_cache(tools)) or
-            needs_clean(args, tools, force=2)
-        ):
-            run_clean(args, tools, resources=resources)
     else:
         tools = None
 
-    # First, process all directory removals because otherwise if different images share directories a later
-    # image build could end up deleting the output generated by an earlier image build.
-    for config in images:
-        if needs_clean(args, config) or args.wipe_build_dir:
+    if args.verb == Verb.clean:
+        if tools:
+            run_clean(args, tools, resources=resources)
+
+        for config in images:
             run_clean(args, config, resources=resources)
 
-    if args.verb == Verb.clean:
         return
 
-    for config in images:
-        if (minversion := config.minimum_version) and minversion > __version__:
-            die(f"mkosi {minversion} or newer is required to build this configuration (found {__version__})")
+    assert args.verb.needs_build()
 
-        if not config.repart_offline and os.getuid() != 0:
-            die(f"Must be root to build {config.name()} image configured with RepartOffline=no")
+    if (
+        tools and
+        not (tools.output_dir_or_cwd() / tools.output).exists() and
+        args.verb != Verb.build and
+        not args.force
+    ):
+        die(f"Default tools tree requested for image '{last.name()}' but it has not been built yet",
+            hint="Make sure to build the image first with 'mkosi build' or use '--force'")
 
-        check_workspace_directory(config)
+    if not last.repart_offline and os.getuid() != 0:
+        die(f"Must be root to build {last.name()} image configured with RepartOffline=no")
+
+    output = last.output_dir_or_cwd() / last.output_with_compression
+
+    if args.verb == Verb.build and not args.force and output.exists() and not output.is_symlink():
+        logging.info(f"Output path {output} exists already. (Use --force to rebuild.)")
+        return
+
+    if args.verb != Verb.build and not args.force and not output.exists():
+        die(f"Image '{last.name()}' has not been built yet",
+            hint="Make sure to build the image first with 'mkosi build' or use '--force'")
+
+    check_workspace_directory(last)
+
+    # If we're doing an incremental build and the cache is not out of date, don't clean up the tools tree
+    # so that we can reuse the previous one.
+    if (
+        tools and
+        (
+            not tools.incremental or
+            ((args.verb == Verb.build or args.force > 0) and not have_cache(tools)) or
+            needs_build(args, tools, force=2)
+        )
+    ):
+        run_clean(args, tools, resources=resources)
+
+    # First, process all directory removals because otherwise if different images share directories a later
+    # image build could end up deleting the output generated by an earlier image build.
+    if needs_build(args, last) or args.wipe_build_dir:
+        for config in images:
+            run_clean(args, config, resources=resources)
 
     if tools and not (tools.output_dir_or_cwd() / tools.output).exists():
-        if args.verb == Verb.build or args.force > 0:
-            with prepend_to_environ_path(tools):
-                check_tools(tools, Verb.build)
-                run_sync(args, tools, resources=resources)
-                fork_and_wait(run_build, args, tools, resources=resources)
-        else:
-            die(f"Default tools tree requested for image '{last.name()}' but it has not been built yet",
-                hint="Make sure to build the image first with 'mkosi build' or use '--force'")
+        with prepend_to_environ_path(tools):
+            check_tools(tools, Verb.build)
+            run_sync(args, tools, resources=resources)
 
-    build = False
+            with tempfile.TemporaryDirectory(
+                dir=tools.workspace_dir_or_default(),
+                prefix="mkosi-metadata-",
+            ) as metadata_dir:
+                copy_repository_metadata(tools, Path(metadata_dir))
+                fork_and_wait(run_build, args, tools, resources=resources, metadata_dir=Path(metadata_dir))
 
-    with tempfile.TemporaryDirectory(dir=last.workspace_dir_or_default(), prefix="mkosi-packages-") as package_dir:
-        for i, config in enumerate(images):
-            images[i] = config = dataclasses.replace(
-                config,
-                tools_tree=(
-                    tools.output_dir_or_cwd() / tools.output
-                    if tools and config.tools_tree == Path("default")
-                    else config.tools_tree
-                )
+    for i, config in enumerate(images):
+        images[i] = config = dataclasses.replace(
+            config,
+            tools_tree=(
+                tools.output_dir_or_cwd() / tools.output
+                if tools and config.tools_tree == Path("default")
+                else config.tools_tree
             )
+        )
 
-            with prepend_to_environ_path(config):
-                check_tools(config, args.verb)
-                images[i] = config = run_configure_scripts(config)
-
-                if args.verb != Verb.build and args.force == 0:
-                    continue
-
-                if (
-                    config.output_format != OutputFormat.none and
-                    (config.output_dir_or_cwd() / config.output_with_compression).exists()
-                ):
-                    continue
-
-                # If the output format is "none" and there are no build scripts, there's nothing to do so exit early.
-                if config.output_format == OutputFormat.none and not config.build_scripts:
-                    return
-
-                if args.verb != Verb.build:
-                    check_tools(config, Verb.build)
-
-                check_inputs(config)
-                run_sync(args, config, resources=resources)
-                fork_and_wait(run_build, args, config, resources=resources, package_dir=Path(package_dir))
-
-                build = True
-
-    if build and args.auto_bump:
-        bump_image_version()
-
-    if args.verb == Verb.build:
-        return
+        with prepend_to_environ_path(config):
+            check_tools(config, args.verb)
+            images[i] = config = run_configure_scripts(config)
 
     # The images array has been modified so we need to reevaluate last again.
     last = images[-1]
 
-    if not (last.output_dir_or_cwd() / last.output_with_compression).exists():
-        die(f"Image '{last.name()}' has not been built yet",
-            hint="Make sure to build the image first with 'mkosi build' or use '--force'")
+    if not (last.output_dir_or_cwd() / last.output).exists():
+        with (
+            tempfile.TemporaryDirectory(dir=last.workspace_dir_or_default(), prefix="mkosi-metadata-") as metadata_dir,
+            tempfile.TemporaryDirectory(dir=last.workspace_dir_or_default(), prefix="mkosi-packages-") as package_dir,
+        ):
+            run_sync(args, last, resources=resources)
+            copy_repository_metadata(last, Path(metadata_dir))
+
+            for config in images:
+                # If the output format is "none" and there are no build scripts, there's nothing to do so exit early.
+                if config.output_format == OutputFormat.none and not config.build_scripts:
+                    continue
+
+                with prepend_to_environ_path(config):
+                    if args.verb != Verb.build:
+                        check_tools(config, Verb.build)
+
+                    check_inputs(config)
+                    fork_and_wait(
+                        run_build,
+                        args,
+                        config,
+                        resources=resources,
+                        metadata_dir=Path(metadata_dir),
+                        package_dir=Path(package_dir),
+                    )
+
+            if args.auto_bump:
+                bump_image_version()
+
+    if args.verb == Verb.build:
+        return
 
     if (
         last.output_format == OutputFormat.directory and

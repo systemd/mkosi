@@ -19,14 +19,14 @@ class Context:
         *,
         workspace: Path,
         resources: Path,
-        package_cache_dir: Optional[Path] = None,
+        metadata_dir: Path,
         package_dir: Optional[Path] = None,
     ) -> None:
         self.args = args
         self.config = config
         self.workspace = workspace
         self.resources = resources
-        self.package_cache_dir = package_cache_dir or (self.root / "var")
+        self.metadata_dir = metadata_dir
         self.package_dir = package_dir or (self.workspace / "packages")
 
         self.package_dir.mkdir(exist_ok=True)

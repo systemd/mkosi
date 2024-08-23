@@ -76,6 +76,7 @@ def main() -> None:
         "--remove-files=/usr/lib/firmware/*-ucode",
         "--kernel-modules-exclude=.*",
         "--kernel-modules-include=host",
+        "--build-sources", "",
         "--include=mkosi-initrd",
     ]
 
@@ -122,7 +123,7 @@ def main() -> None:
                 shutil.copytree(Path("/etc") / p, Path(d) / "etc" / p,
                                 ignore=shutil.ignore_patterns("S.*"), dirs_exist_ok=True)
 
-        cmdline += ["--package-manager-tree", d]
+        cmdline += ["--sandbox-tree", d]
 
         # Prefer dnf as dnf5 has not yet officially replaced it and there's a much bigger chance that there will be a
         # populated dnf cache directory.

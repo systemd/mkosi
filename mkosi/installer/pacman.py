@@ -200,5 +200,5 @@ class Pacman(PackageManager):
         # pacman can't sync a single repository, so we go behind its back and do it ourselves.
         shutil.move(
             context.repository / "mkosi.db.tar",
-            context.package_cache_dir / "lib/pacman/sync/mkosi.db"
+            context.metadata_dir / "lib/pacman/sync/mkosi.db"
         )

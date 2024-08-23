@@ -539,12 +539,12 @@ def config_parse_key(value: Optional[str], old: Optional[str]) -> Optional[Path]
     return parse_path(value, secret=True) if Path(value).exists() else Path(value)
 
 
-def make_tree_parser(absolute: bool = True) -> Callable[[str], ConfigTree]:
+def make_tree_parser(absolute: bool = True, required: bool = False) -> Callable[[str], ConfigTree]:
     def parse_tree(value: str) -> ConfigTree:
         src, sep, tgt = value.partition(':')
 
         return ConfigTree(
-            source=parse_path(src, required=False),
+            source=parse_path(src, required=required),
             target=parse_path(
                 tgt,
                 required=False,
@@ -1215,6 +1215,7 @@ class ConfigSetting:
 
     # backward compatibility
     compat_names: tuple[str, ...] = ()
+    compat_longs: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.name:
@@ -1425,7 +1426,7 @@ class Config:
     repository_key_fetch: bool
     repositories: list[str]
     cacheonly: Cacheonly
-    package_manager_trees: list[ConfigTree]
+    sandbox_trees: list[ConfigTree]
 
     output_format: OutputFormat
     manifest_format: list[ManifestFormat]
@@ -1543,7 +1544,7 @@ class Config:
     tools_tree_release: Optional[str]
     tools_tree_mirror: Optional[str]
     tools_tree_repositories: list[str]
-    tools_tree_package_manager_trees: list[ConfigTree]
+    tools_tree_sandbox_trees: list[ConfigTree]
     tools_tree_packages: list[str]
     tools_tree_certificates: bool
     runtime_trees: list[ConfigTree]
@@ -2010,15 +2011,15 @@ SETTINGS = (
         scope=SettingScope.universal,
     ),
     ConfigSetting(
-        dest="package_manager_trees",
-        long="--package-manager-tree",
+        dest="sandbox_trees",
+        long="--sandbox-tree",
+        compat_names=("PackageManagerTrees",),
+        compat_longs=("--package-manager-tree",),
         metavar="PATH",
         section="Distribution",
-        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser()),
-        default_factory=lambda ns: ns.skeleton_trees,
-        default_factory_depends=("skeleton_trees",),
-        help="Use a package manager tree to configure the package manager",
-        paths=("mkosi.pkgmngr", "mkosi.pkgmngr.tar",),
+        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(required=True)),
+        help="Use a sandbox tree to configure the various tools that mkosi executes",
+        paths=("mkosi.sandbox", "mkosi.sandbox.tar", "mkosi.pkgmngr", "mkosi.pkgmngr.tar",),
         scope=SettingScope.universal,
     ),
 
@@ -2284,7 +2285,7 @@ SETTINGS = (
         long="--skeleton-tree",
         metavar="PATH",
         section="Content",
-        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser()),
+        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(required=True)),
         paths=("mkosi.skeleton", "mkosi.skeleton.tar"),
         help="Use a skeleton tree to bootstrap the image before installing anything",
     ),
@@ -2393,7 +2394,7 @@ SETTINGS = (
         dest="build_sources",
         metavar="PATH",
         section="Content",
-        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(absolute=False)),
+        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(absolute=False, required=True)),
         match=config_match_build_sources,
         default_factory=lambda ns: [ConfigTree(ns.directory, None)] if ns.directory else [],
         help="Path for sources to build",
@@ -2889,7 +2890,7 @@ SETTINGS = (
         dest="tools_tree",
         metavar="PATH",
         section="Host",
-        parse=config_make_path_parser(required=False, constants=("default",)),
+        parse=config_make_path_parser(constants=("default",)),
         paths=("mkosi.tools",),
         help="Look up programs to execute inside the given tree",
         nargs="?",
@@ -2932,12 +2933,14 @@ SETTINGS = (
         help="Repositories to use for the default tools tree",
     ),
     ConfigSetting(
-        dest="tools_tree_package_manager_trees",
-        long="--tools-tree-package-manager-tree",
+        dest="tools_tree_sandbox_trees",
+        long="--tools-tree-sandbox-tree",
+        compat_names=("ToolsTreePackageManagerTrees",),
+        compat_longs=("--tools-tree-package-manager-tree",),
         metavar="PATH",
         section="Host",
-        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser()),
-        help="Package manager trees for the default tools tree",
+        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(required=True)),
+        help="Sandbox trees for the default tools tree",
     ),
     ConfigSetting(
         dest="tools_tree_packages",
@@ -3348,18 +3351,19 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
             group = parser.add_argument_group(f"{s.section} configuration options")
             last_section = s.section
 
-        opts = [s.short, s.long] if s.short else [s.long]
+        for long in [s.long, *s.compat_longs]:
+            opts = [s.short, long] if s.short and long == s.long else [long]
 
-        group.add_argument(    # type: ignore
-            *opts,
-            dest=s.dest,
-            choices=s.choices,
-            metavar=s.metavar,
-            nargs=s.nargs,     # type: ignore
-            const=s.const,
-            help=s.help,
-            action=ConfigAction,
-        )
+            group.add_argument(    # type: ignore
+                *opts,
+                dest=s.dest,
+                choices=s.choices,
+                metavar=s.metavar,
+                nargs=s.nargs,     # type: ignore
+                const=s.const,
+                help=s.help if long == s.long else argparse.SUPPRESS,
+                action=ConfigAction,
+            )
 
     return parser
 
@@ -3662,6 +3666,12 @@ class ParseContext:
                         delattr(self.config, s.dest)
 
             for s in SETTINGS:
+                if (
+                    s.scope == SettingScope.universal and
+                    (image := getattr(self.config, "image", None)) is not None
+                ):
+                    continue
+
                 for f in s.paths:
                     extra = parse_path(
                         f,
@@ -3696,7 +3706,6 @@ class ParseContext:
                     die(f"Unknown setting {name}")
                 if (
                     s.scope == SettingScope.universal and
-                    not isinstance(s.parse(None, None), (list, set, dict)) and
                     (image := getattr(self.config, "image", None)) is not None
                 ):
                     die(f"Setting {name} cannot be configured in subimage {image}")
@@ -3823,18 +3832,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
         # were specified on the CLI by copying them to the CLI namespace. Any settings
         # that are not marked as "universal" are deleted from the CLI namespace.
         for s in SETTINGS:
-            if (
-                s.scope == SettingScope.universal and (
-                    # For list-based settings, don't pass down empty lists unless it came
-                    # explicitly from the config file or the CLI. This makes sure that default
-                    # values from subimages are still used if no value is explicitly configured
-                    # in the main image or on the CLI.
-                    not isinstance(getattr(config, s.dest), (list, dict, set)) or
-                    getattr(config, s.dest) or
-                    hasattr(context.cli, s.dest) or
-                    hasattr(context.config, s.dest)
-                )
-            ):
+            if s.scope == SettingScope.universal:
                 setattr(context.cli, s.dest, copy.deepcopy(getattr(config, s.dest)))
             elif hasattr(context.cli, s.dest):
                 delattr(context.cli, s.dest)
@@ -4133,7 +4131,7 @@ def summary(config: Config) -> str:
               Fetch Repository Keys: {yes_no(config.repository_key_fetch)}
                        Repositories: {line_join_list(config.repositories)}
              Use Only Package Cache: {config.cacheonly}
-              Package Manager Trees: {line_join_list(config.package_manager_trees)}
+                      Sandbox Trees: {line_join_list(config.sandbox_trees)}
 
     {bold("OUTPUT")}:
                       Output Format: {config.output_format}
@@ -4262,7 +4260,7 @@ def summary(config: Config) -> str:
                  Tools Tree Release: {none_to_none(config.tools_tree_release)}
                   Tools Tree Mirror: {none_to_default(config.tools_tree_mirror)}
             Tools Tree Repositories: {line_join_list(config.tools_tree_repositories)}
-   Tools Tree Package Manager Trees: {line_join_list(config.tools_tree_package_manager_trees)}
+           Tools Tree Sandbox Trees: {line_join_list(config.tools_tree_sandbox_trees)}
                 Tools Tree Packages: {line_join_list(config.tools_tree_packages)}
             Tools Tree Certificates: {yes_no(config.tools_tree_certificates)}
                       Runtime Trees: {line_join_list(config.runtime_trees)}
