@@ -2518,10 +2518,7 @@ for the following options, mkosi will only check whether the inputs
 exist just before building the image:
 
 - `BaseTrees=`
-- `SandboxTrees=`
-- `SkeletonTrees=`
 - `ExtraTrees=`
-- `ToolsTree=`
 - `Initrds=`
 
 To refer to outputs of a image's dependencies, simply configure any of

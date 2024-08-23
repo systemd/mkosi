@@ -539,12 +539,12 @@ def config_parse_key(value: Optional[str], old: Optional[str]) -> Optional[Path]
     return parse_path(value, secret=True) if Path(value).exists() else Path(value)
 
 
-def make_tree_parser(absolute: bool = True) -> Callable[[str], ConfigTree]:
+def make_tree_parser(absolute: bool = True, required: bool = False) -> Callable[[str], ConfigTree]:
     def parse_tree(value: str) -> ConfigTree:
         src, sep, tgt = value.partition(':')
 
         return ConfigTree(
-            source=parse_path(src, required=False),
+            source=parse_path(src, required=required),
             target=parse_path(
                 tgt,
                 required=False,
@@ -2017,7 +2017,7 @@ SETTINGS = (
         compat_longs=("--package-manager-tree",),
         metavar="PATH",
         section="Distribution",
-        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser()),
+        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(required=True)),
         help="Use a sandbox tree to configure the various tools that mkosi executes",
         paths=("mkosi.sandbox", "mkosi.sandbox.tar", "mkosi.pkgmngr", "mkosi.pkgmngr.tar",),
         scope=SettingScope.universal,
@@ -2285,7 +2285,7 @@ SETTINGS = (
         long="--skeleton-tree",
         metavar="PATH",
         section="Content",
-        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser()),
+        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(required=True)),
         paths=("mkosi.skeleton", "mkosi.skeleton.tar"),
         help="Use a skeleton tree to bootstrap the image before installing anything",
     ),
@@ -2394,7 +2394,7 @@ SETTINGS = (
         dest="build_sources",
         metavar="PATH",
         section="Content",
-        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(absolute=False)),
+        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(absolute=False, required=True)),
         match=config_match_build_sources,
         default_factory=lambda ns: [ConfigTree(ns.directory, None)] if ns.directory else [],
         help="Path for sources to build",
@@ -2890,7 +2890,7 @@ SETTINGS = (
         dest="tools_tree",
         metavar="PATH",
         section="Host",
-        parse=config_make_path_parser(required=False, constants=("default",)),
+        parse=config_make_path_parser(constants=("default",)),
         paths=("mkosi.tools",),
         help="Look up programs to execute inside the given tree",
         nargs="?",
@@ -2939,7 +2939,7 @@ SETTINGS = (
         compat_longs=("--tools-tree-package-manager-tree",),
         metavar="PATH",
         section="Host",
-        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser()),
+        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(required=True)),
         help="Sandbox trees for the default tools tree",
     ),
     ConfigSetting(
