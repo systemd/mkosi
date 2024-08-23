@@ -6,6 +6,8 @@
   appended to anymore in subimages. Usage of package manager trees in
   subimages will have to be moved to the top level image. Similarly,
   repositories will have to be enabled in the top level image.
+- Repository metadata is not copied into images anymore.
+- Repository metadata from base trees is not used anymore.
 
 ## v24
 

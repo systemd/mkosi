@@ -1892,7 +1892,7 @@ def build_default_initrd(context: Context) -> Path:
                 workspace=workspace,
                 resources=context.resources,
                 # Re-use the repository metadata snapshot from the main image for the initrd.
-                package_cache_dir=context.package_cache_dir,
+                metadata_dir=context.metadata_dir,
                 package_dir=context.package_dir,
             )
         )
@@ -3799,24 +3799,12 @@ def lock_repository_metadata(config: Config) -> Iterator[None]:
         yield
 
 
-def copy_repository_metadata(context: Context) -> None:
-    subdir = context.config.distribution.package_manager(context.config).subdir(context.config)
+def copy_repository_metadata(config: Config, dst: Path) -> None:
+    subdir = config.distribution.package_manager(config).subdir(config)
 
-    # Don't copy anything if the repository metadata directories are already populated and we're not explicitly asked
-    # to sync repository metadata.
-    if (
-        context.config.cacheonly != Cacheonly.never and
-        (
-            any((context.package_cache_dir / "cache" / subdir).glob("*")) or
-            any((context.package_cache_dir / "lib" / subdir).glob("*"))
-        )
-    ):
-        logging.debug(f"Found repository metadata in {context.package_cache_dir}, not copying repository metadata")
-        return
-
-    with lock_repository_metadata(context.config):
+    with lock_repository_metadata(config):
         for d in ("cache", "lib"):
-            src = context.config.package_cache_dir_or_default() / d / subdir
+            src = config.package_cache_dir_or_default() / d / subdir
             if not src.exists():
                 logging.debug(f"{src} does not exist, not copying repository metadata from it")
                 continue
@@ -3830,17 +3818,17 @@ def copy_repository_metadata(context: Context) -> None:
                 if d == "cache":
                     exclude = flatten(
                         ("--ro-bind", tmp, p)
-                        for p in context.config.distribution.package_manager(context.config).cache_subdirs(src)
+                        for p in config.distribution.package_manager(config).cache_subdirs(src)
                     )
                 else:
                     exclude = flatten(
                         ("--ro-bind", tmp, p)
-                        for p in context.config.distribution.package_manager(context.config).state_subdirs(src)
+                        for p in config.distribution.package_manager(config).state_subdirs(src)
                     )
 
-                dst = context.package_cache_dir / d / subdir
+                subdst = dst / d / subdir
                 with umask(~0o755):
-                    dst.mkdir(parents=True, exist_ok=True)
+                    subdst.mkdir(parents=True, exist_ok=True)
 
                 def sandbox(
                     *,
@@ -3848,13 +3836,10 @@ def copy_repository_metadata(context: Context) -> None:
                     vartmp: bool = False,
                     options: Sequence[PathString] = (),
                 ) -> AbstractContextManager[list[PathString]]:
-                    return context.sandbox(binary=binary, vartmp=vartmp, options=[*options, *exclude])
+                    return config.sandbox(binary=binary, vartmp=vartmp, options=[*options, *exclude])
 
-                copy_tree(
-                    src, dst,
-                    preserve=False,
-                    sandbox=sandbox,
-                )
+                copy_tree(src, subdst, preserve=False, sandbox=sandbox)
+
 
 @contextlib.contextmanager
 def createrepo(context: Context) -> Iterator[None]:
@@ -3903,8 +3888,6 @@ def build_image(context: Context) -> None:
             or context.config.postinst_scripts
             or context.config.finalize_scripts
         )
-
-        copy_repository_metadata(context)
 
         context.config.distribution.setup(context)
         if wantrepo:
@@ -4617,7 +4600,7 @@ def run_sync(args: Args, config: Config, *, resources: Path) -> None:
             config,
             workspace=workspace,
             resources=resources,
-            package_cache_dir=config.package_cache_dir_or_default(),
+            metadata_dir=config.package_cache_dir_or_default(),
         )
         context.root.mkdir(mode=0o755)
 
@@ -4633,7 +4616,14 @@ def run_sync(args: Args, config: Config, *, resources: Path) -> None:
         run_sync_scripts(context)
 
 
-def run_build(args: Args, config: Config, *, resources: Path, package_dir: Optional[Path] = None) -> None:
+def run_build(
+    args: Args,
+    config: Config,
+    *,
+    resources: Path,
+    metadata_dir: Path,
+    package_dir: Optional[Path] = None,
+) -> None:
     if os.getuid() != 0:
         acquire_privileges()
 
@@ -4680,7 +4670,16 @@ def run_build(args: Args, config: Config, *, resources: Path, package_dir: Optio
         complete_step(f"Building {config.name()} image"),
         setup_workspace(args, config) as workspace,
     ):
-        build_image(Context(args, config, workspace=workspace, resources=resources, package_dir=package_dir))
+        build_image(
+            Context(
+                args,
+                config,
+                workspace=workspace,
+                resources=resources,
+                metadata_dir=metadata_dir,
+                package_dir=package_dir,
+            )
+        )
 
 
 def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
@@ -4806,7 +4805,13 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         with prepend_to_environ_path(tools):
             check_tools(tools, Verb.build)
             run_sync(args, tools, resources=resources)
-            fork_and_wait(run_build, args, tools, resources=resources)
+
+            with tempfile.TemporaryDirectory(
+                dir=tools.workspace_dir_or_default(),
+                prefix="mkosi-metadata-",
+            ) as metadata_dir:
+                copy_repository_metadata(tools, Path(metadata_dir))
+                fork_and_wait(run_build, args, tools, resources=resources, metadata_dir=Path(metadata_dir))
 
     for i, config in enumerate(images):
         images[i] = config = dataclasses.replace(
@@ -4827,8 +4832,12 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
 
     if not (last.output_dir_or_cwd() / last.output).exists():
         with (
+            tempfile.TemporaryDirectory(dir=last.workspace_dir_or_default(), prefix="mkosi-metadata-") as metadata_dir,
             tempfile.TemporaryDirectory(dir=last.workspace_dir_or_default(), prefix="mkosi-packages-") as package_dir,
         ):
+            run_sync(args, last, resources=resources)
+            copy_repository_metadata(last, Path(metadata_dir))
+
             for config in images:
                 # If the output format is "none" and there are no build scripts, there's nothing to do so exit early.
                 if config.output_format == OutputFormat.none and not config.build_scripts:
@@ -4839,8 +4848,14 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
                         check_tools(config, Verb.build)
 
                     check_inputs(config)
-                    run_sync(args, last, resources=resources)
-                    fork_and_wait(run_build, args, config, resources=resources, package_dir=Path(package_dir))
+                    fork_and_wait(
+                        run_build,
+                        args,
+                        config,
+                        resources=resources,
+                        metadata_dir=Path(metadata_dir),
+                        package_dir=Path(package_dir),
+                    )
 
             if args.auto_bump:
                 bump_image_version()

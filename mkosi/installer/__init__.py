@@ -7,7 +7,7 @@ from mkosi.config import Config, ConfigFeature, OutputFormat
 from mkosi.context import Context
 from mkosi.mounts import finalize_crypto_mounts
 from mkosi.run import apivfs_options, apivfs_script_cmd, finalize_passwd_mounts, find_binary
-from mkosi.tree import copy_tree, rmtree
+from mkosi.tree import rmtree
 from mkosi.types import PathString
 from mkosi.util import flatten, startswith
 
@@ -77,14 +77,14 @@ class PackageManager:
         subdir = context.config.distribution.package_manager(context.config).subdir(context.config)
 
         for d in ("cache", "lib"):
-            src = context.package_cache_dir / d / subdir
+            src = context.metadata_dir / d / subdir
             mounts += ["--bind", src, Path("/var") / d / subdir]
 
             # If we're not operating on the configured package cache directory, we're operating on a snapshot of the
-            # repository metadata in the image root directory. To make sure any downloaded packages are still cached in
-            # the configured package cache directory in this scenario, we mount in the relevant directories from the
-            # configured package cache directory.
-            if d == "cache" and context.package_cache_dir != context.config.package_cache_dir_or_default():
+            # repository metadata. To make sure any downloaded packages are still cached in the configured package
+            # cache directory in this scenario, we mount in the relevant directories from the configured package cache
+            # directory.
+            if d == "cache" and context.metadata_dir != context.config.package_cache_dir_or_default():
                 caches = context.config.distribution.package_manager(context.config).cache_subdirs(src)
                 mounts += flatten(
                     (
@@ -146,21 +146,6 @@ def clean_package_manager_metadata(context: Context) -> None:
     the package manager is not present in the image.
     """
     subdir = context.config.distribution.package_manager(context.config).subdir(context.config)
-
-    if context.package_cache_dir.is_relative_to(context.root):
-        # Copy the package manager repository metadata to the workspace so it stays available for later steps even if
-        # it is removed from the image by a later step.
-        for d in ("cache", "lib"):
-            src = context.package_cache_dir / d / subdir
-            if not src.exists():
-                continue
-
-            dst = context.workspace / "package-cache-dir" / d / subdir
-            dst.mkdir(parents=True, exist_ok=True)
-
-            copy_tree(src, dst, sandbox=context.sandbox)
-
-        context.package_cache_dir = context.workspace / "package-cache-dir"
 
     if context.config.overlay:
         return
