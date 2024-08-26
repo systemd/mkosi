@@ -695,16 +695,6 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     builds, where deterministic UUIDs and other partition metadata should be
     derived on each build.
 
-`SourceDateEpoch=`, `--source-date-epoch=`
-:   Takes a timestamp in seconds since the UNIX epoch as argument.
-    File modification times of all files will be clamped to this value.
-    The variable is also propagated to systemd-repart and
-    scripts executed by mkosi. If not set explicitly, `SOURCE_DATE_EPOCH` from
-    `--environment` and from the host environment are tried in that order.
-    This is useful to make builds reproducible. See
-    [SOURCE_DATE_EPOCH](https://reproducible-builds.org/specs/source-date-epoch/)
-    for more information.
-
 `CleanScripts=`, `--clean-script=`
 :   Takes a comma-separated list of paths to executables that are used as
     the clean scripts for this image. See the **Scripts** section for
@@ -867,6 +857,16 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     databases and repository metadata will be removed if the respective
     package manager executable is *not* present at the end of the
     installation.
+
+`SourceDateEpoch=`, `--source-date-epoch=`
+:   Takes a timestamp in seconds since the UNIX epoch as argument.
+    File modification times of all files will be clamped to this value.
+    The variable is also propagated to systemd-repart and
+    scripts executed by mkosi. If not set explicitly, `SOURCE_DATE_EPOCH` from
+    `--environment` and from the host environment are tried in that order.
+    This is useful to make builds reproducible. See
+    [SOURCE_DATE_EPOCH](https://reproducible-builds.org/specs/source-date-epoch/)
+    for more information.
 
 `SyncScripts=`, `--sync-script=`
 :   Takes a comma-separated list of paths to executables that are used as
