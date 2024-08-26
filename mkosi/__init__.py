@@ -2425,16 +2425,16 @@ def install_type1(
             cmdline = [root] + cmdline
 
         with config.open("a") as f:
-            f.write("if ")
+            f.write("if [ ")
 
             conditions = []
             if want_grub_efi(context) and not want_uki(context):
-                conditions += ['[ "${grub_platform}" = efi ]']
+                conditions += ['"${grub_platform}" == "efi"']
             if want_grub_bios(context, partitions):
-                conditions += ['[ "${grub_platform}" = pc ]']
+                conditions += ['"${grub_platform}" == "pc"']
 
-            f.write(" || ".join(conditions))
-            f.write("; then\n")
+            f.write(" -o ".join(conditions))
+            f.write(" ]; then\n")
 
             f.write(
                 textwrap.dedent(
@@ -2542,7 +2542,7 @@ def install_uki(context: Context, kver: str, kimg: Path, token: str, partitions:
         assert config
 
         with config.open("a") as f:
-            f.write('if [ "${grub_platform}" = efi ]; then\n')
+            f.write('if [ "${grub_platform}" == "efi" ]; then\n')
 
             f.write(
                 textwrap.dedent(
