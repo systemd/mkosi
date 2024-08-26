@@ -21,7 +21,7 @@ class Installer(fedora.Installer):
 
     @classmethod
     def default_release(cls) -> str:
-        return "3.0-prod"
+        return "3.0"
 
     @classmethod
     def filesystem(cls) -> str:
@@ -52,26 +52,33 @@ class Installer(fedora.Installer):
             return
 
         mirror = context.config.mirror or "https://packages.microsoft.com/azurelinux"
+        url = join_mirror(mirror, context.config.release)
 
-        if any(context.config.release.endswith(f"-{suffix}") for suffix in ("prod", "preview")):
-            rel = context.config.release
-        else:
-            rel = f"{context.config.release}-prod"
-
-        url = join_mirror(mirror, rel.replace("-", "/"))
-
-        nvidia = "nvidia" if rel.endswith("-prod") else "NVIDIA"
-        for repo in ("base", "extended", "ms-oss", "ms-non-oss", "cloud-native", nvidia):
+        for repo in ("base", "extended", "ms-oss", "ms-non-oss", "cloud-native", "nvidia"):
             yield RpmRepository(
                 repo,
-                f"baseurl={url}/{repo}/$basearch",
+                f"baseurl={url}/prod/{repo}/$basearch",
                 gpgurls,
+            )
+
+            repo = "NVIDIA" if repo == "nvidia" else repo
+            yield RpmRepository(
+                f"{repo}-preview",
+                f"baseurl={url}/preview/{repo}/$basearch",
+                gpgurls,
+                enabled=False,
             )
 
         for repo in ("base", "cloud-native", "extended"):
             yield RpmRepository(
                 f"{repo}-debuginfo",
-                f"baseurl={url}/{repo}/debuginfo/$basearch",
+                f"baseurl={url}/prod/{repo}/debuginfo/$basearch",
+                gpgurls,
+                enabled=False,
+            )
+            yield RpmRepository(
+                f"{repo}-preview-debuginfo",
+                f"baseurl={url}/preview/{repo}/debuginfo/$basearch",
                 gpgurls,
                 enabled=False,
             )
@@ -79,7 +86,13 @@ class Installer(fedora.Installer):
         for repo in ("base", "cloud-native", "extended", "ms-oss"):
             yield RpmRepository(
                 f"{repo}-source",
-                f"baseurl={url}/{repo}/srpms",
+                f"baseurl={url}/prod/{repo}/srpms",
+                gpgurls,
+                enabled=False,
+            )
+            yield RpmRepository(
+                f"{repo}-source",
+                f"baseurl={url}/preview/{repo}/srpms",
                 gpgurls,
                 enabled=False,
             )
