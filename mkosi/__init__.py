@@ -4830,7 +4830,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
     # The images array has been modified so we need to reevaluate last again.
     last = images[-1]
 
-    if not (last.output_dir_or_cwd() / last.output).exists():
+    if not (last.output_dir_or_cwd() / last.output).exists() or last.output_format == OutputFormat.none:
         with (
             tempfile.TemporaryDirectory(dir=last.workspace_dir_or_default(), prefix="mkosi-metadata-") as metadata_dir,
             tempfile.TemporaryDirectory(dir=last.workspace_dir_or_default(), prefix="mkosi-packages-") as package_dir,
