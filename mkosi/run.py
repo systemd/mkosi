@@ -559,8 +559,9 @@ def apivfs_options(*, root: Path = Path("/buildroot")) -> list[PathString]:
 
 
 def apivfs_script_cmd(*, tools: bool, options: Sequence[PathString] = ()) -> list[PathString]:
+    exe = Path(sys.executable)
     return [
-        "python3" if tools else sys.executable, "-SI", "/sandbox.py",
+        "python3" if tools or not exe.is_relative_to("/usr") else exe, "-SI", "/sandbox.py",
         "--bind", "/", "/",
         "--same-dir",
         *apivfs_options(),
@@ -614,8 +615,9 @@ def chroot_cmd(
 
 
 def chroot_script_cmd(*, tools: bool, network: bool = False, work: bool = False) -> list[PathString]:
+    exe = Path(sys.executable)
     return [
-        "python3" if tools else sys.executable, "-SI", "/sandbox.py",
+        "python3" if tools or not exe.is_relative_to("/usr") else exe, "-SI", "/sandbox.py",
         "--bind", "/buildroot", "/",
         *apivfs_options(root=Path("/")),
         *chroot_options(network=network),
