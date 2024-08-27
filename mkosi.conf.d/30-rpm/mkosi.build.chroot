@@ -4,6 +4,7 @@ set -ex
 
 rpmbuild \
     -bb \
+    --noprep \
     --build-in-place \
     $([ "$WITH_TESTS" = "0" ] && echo --nocheck) \
     --define "_topdir /var/tmp" \
