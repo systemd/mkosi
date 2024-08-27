@@ -2466,42 +2466,42 @@ settings apply to the main image and all its subimages and cannot be
 configured separately in subimages. The following settings are universal
 and cannot be configured in subimages:
 
-- `Profile=`
-- `Distribution=`
-- `Release=`
 - `Architecture=`
-- `Mirror=`
-- `LocalMirror=`
-- `RepositoryKeyCheck=`
-- `Repositories=`
-- `CacheOnly=`
-- `SandboxTrees=`
-- `OutputDirectory=`
-- `WorkspaceDirectory=`
-- `CacheDirectory=`
-- `PackageCacheDirectory=`
 - `BuildDirectory=`
-- `RepartOffline=`
-- `UseSubvolumes=`
-- `PackageDirectories=`
-- `VolatilePackageDirectories=`
-- `SourceDateEpoch=`
 - `BuildSources=`
 - `BuildSourcesEphemeral=`
-- `WithTests`
-- `WithNetwork=`
-- `VerityKey=`
-- `VerityKeySource=`
-- `VerityCertificate=`
-- `ProxyUrl=`
-- `ProxyExclude=`
-- `ProxyPeerCertificate=`
+- `CacheDirectory=`
+- `CacheOnly=`
+- `Distribution=`
+- `ExtraSearchPaths=`
+- `Incremental=`
+- `LocalMirror=`
+- `Mirror=`
+- `OutputDirectory=`
+- `PackageCacheDirectory=`
+- `PackageDirectories=`
+- `Profile=`
 - `ProxyClientCertificate=`
 - `ProxyClientKey=`
-- `Incremental=`
-- `ExtraSearchPaths=`
+- `ProxyExclude=`
+- `ProxyPeerCertificate=`
+- `ProxyUrl=`
+- `Release=`
+- `RepartOffline=`
+- `Repositories=`
+- `RepositoryKeyCheck=`
+- `SandboxTrees=`
+- `SourceDateEpoch=`
 - `ToolsTree=`
 - `ToolsTreeCertificates=`
+- `UseSubvolumes=`
+- `VerityCertificate=`
+- `VerityKey=`
+- `VerityKeySource=`
+- `VolatilePackageDirectories=`
+- `WithNetwork=`
+- `WithTests`
+- `WorkspaceDirectory=`
 
 There are also settings which are passed down to subimages but can
 be overridden. For these settings, values configured explicitly in
