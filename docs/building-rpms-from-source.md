@@ -81,6 +81,7 @@ until mkosi-chroot \
     env --chdir=mkosi \
     rpmbuild \
     -bd \
+    --noprep \
     --build-in-place \
     --define "_topdir /var/tmp" \
     --define "_sourcedir $PWD/mkosi/rpm" \
@@ -154,6 +155,7 @@ set -e
 env --chdir=mkosi \
     rpmbuild \
     -bb \
+    --noprep \
     --build-in-place \
     $([ "$WITH_TESTS" = "0" ] && echo --nocheck) \
     --define "_topdir /var/tmp" \
