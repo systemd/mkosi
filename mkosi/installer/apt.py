@@ -97,10 +97,10 @@ class Apt(PackageManager):
 
     @classmethod
     def setup(cls, context: Context, repos: Iterable[AptRepository]) -> None:
-        (context.pkgmngr / "etc/apt").mkdir(exist_ok=True, parents=True)
-        (context.pkgmngr / "etc/apt/apt.conf.d").mkdir(exist_ok=True, parents=True)
-        (context.pkgmngr / "etc/apt/preferences.d").mkdir(exist_ok=True, parents=True)
-        (context.pkgmngr / "etc/apt/sources.list.d").mkdir(exist_ok=True, parents=True)
+        (context.sandbox_tree / "etc/apt").mkdir(exist_ok=True, parents=True)
+        (context.sandbox_tree / "etc/apt/apt.conf.d").mkdir(exist_ok=True, parents=True)
+        (context.sandbox_tree / "etc/apt/preferences.d").mkdir(exist_ok=True, parents=True)
+        (context.sandbox_tree / "etc/apt/sources.list.d").mkdir(exist_ok=True, parents=True)
 
         with umask(~0o755):
             # TODO: Drop once apt 2.5.4 is widely available.
@@ -109,11 +109,11 @@ class Apt(PackageManager):
 
             (context.root / "var/lib/dpkg/available").touch()
 
-        # We have a special apt.conf outside of pkgmngr dir that only configures "Dir::Etc" that we pass to APT_CONFIG
-        # to tell apt it should read config files from /etc/apt in case this is overridden by distributions. This is
-        # required because apt parses CLI configuration options after parsing its configuration files and as such we
-        # can't use CLI options to tell apt where to look for configuration files.
-        config = context.pkgmngr / "etc/apt.conf"
+        # We have a special apt.conf outside of the sandbox tree that only configures "Dir::Etc" that we pass to
+        # APT_CONFIG to tell apt it should read config files from /etc/apt in case this is overridden by distributions.
+        # This is required because apt parses CLI configuration options after parsing its configuration files and as
+        # such we can't use CLI options to tell apt where to look for configuration files.
+        config = context.sandbox_tree / "etc/apt.conf"
         if not config.exists():
             config.write_text(
                 textwrap.dedent(
@@ -123,7 +123,7 @@ class Apt(PackageManager):
                 )
             )
 
-        sources = context.pkgmngr / "etc/apt/sources.list.d/mkosi.sources"
+        sources = context.sandbox_tree / "etc/apt/sources.list.d/mkosi.sources"
         if not sources.exists():
             for repo in repos:
                 if repo.signedby and not repo.signedby.exists():
@@ -253,8 +253,8 @@ class Apt(PackageManager):
             ),
         )
 
-        (context.pkgmngr / "etc/apt/sources.list.d").mkdir(parents=True, exist_ok=True)
-        (context.pkgmngr / "etc/apt/sources.list.d/mkosi-local.sources").write_text(
+        (context.sandbox_tree / "etc/apt/sources.list.d").mkdir(parents=True, exist_ok=True)
+        (context.sandbox_tree / "etc/apt/sources.list.d/mkosi-local.sources").write_text(
             textwrap.dedent(
                 """\
                 Enabled: yes

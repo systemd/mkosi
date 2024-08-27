@@ -1763,7 +1763,7 @@ class Config:
         relaxed: bool = False,
         tools: bool = True,
         scripts: Optional[Path] = None,
-        usroverlaydirs: Sequence[PathString] = (),
+        sandbox_tree: Optional[Path] = None,
         options: Sequence[PathString] = (),
         setup: Sequence[PathString] = (),
     ) -> AbstractContextManager[list[PathString]]:
@@ -1782,6 +1782,15 @@ class Config:
             tools = False
             opt += flatten(("--ro-bind", d, d) for d in self.extra_search_paths if not relaxed)
 
+        if sandbox_tree:
+            opt += [
+                # This mount is writable so we can create extra directories or symlinks inside of it as needed.
+                # This isn't a problem as the sandbox tree directory is created by mkosi and thrown away when the
+                # build finishes.
+                *(["--bind", str(p), "/etc"] if (p := sandbox_tree / "etc").exists() else []),
+                *(["--bind", str(p), "/var/log"] if (p := sandbox_tree / "var/log").exists() else []),
+            ]
+
         return sandbox_cmd(
             network=network,
             devices=devices,
@@ -1789,7 +1798,7 @@ class Config:
             relaxed=relaxed,
             scripts=scripts,
             tools=self.tools() if tools else Path("/"),
-            usroverlaydirs=usroverlaydirs,
+            usroverlaydirs=[sandbox_tree / "usr"] if sandbox_tree and (sandbox_tree / "usr").exists() else [],
             options=opt,
             setup=setup,
         )

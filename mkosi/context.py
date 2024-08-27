@@ -31,7 +31,7 @@ class Context:
 
         self.package_dir.mkdir(exist_ok=True)
         self.staging.mkdir()
-        self.pkgmngr.mkdir()
+        self.sandbox_tree.mkdir()
         self.repository.mkdir()
         self.artifacts.mkdir()
         self.install_dir.mkdir()
@@ -45,8 +45,8 @@ class Context:
         return self.workspace / "staging"
 
     @property
-    def pkgmngr(self) -> Path:
-        return self.workspace / "pkgmngr"
+    def sandbox_tree(self) -> Path:
+        return self.workspace / "sandbox"
 
     @property
     def repository(self) -> Path:
@@ -76,13 +76,6 @@ class Context:
             devices=devices,
             vartmp=vartmp,
             scripts=scripts,
-            usroverlaydirs=[self.pkgmngr / "usr"] if (self.pkgmngr / "usr").exists() else [],
-            options=[
-                *options,
-                # This mount is writable so we can create extra directories or symlinks inside of it as needed.
-                # This isn't a problem as the package manager directory is created by mkosi and thrown away when the
-                # build finishes.
-                "--bind", self.pkgmngr / "etc", "/etc",
-                "--bind", self.pkgmngr / "var/log", "/var/log",
-            ],
+            sandbox_tree=self.sandbox_tree,
+            options=options,
         )

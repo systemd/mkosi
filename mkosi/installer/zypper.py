@@ -45,7 +45,7 @@ class Zypper(PackageManager):
 
     @classmethod
     def setup(cls, context: Context, repos: Iterable[RpmRepository]) -> None:
-        config = context.pkgmngr / "etc/zypp/zypp.conf"
+        config = context.sandbox_tree / "etc/zypp/zypp.conf"
         config.parent.mkdir(exist_ok=True, parents=True)
 
         # rpm.install.excludedocs can only be configured in zypp.conf so we append
@@ -62,7 +62,7 @@ class Zypper(PackageManager):
                 )
             )
 
-        repofile = context.pkgmngr / "etc/zypp/repos.d/mkosi.repo"
+        repofile = context.sandbox_tree / "etc/zypp/repos.d/mkosi.repo"
         if not repofile.exists():
             repofile.parent.mkdir(exist_ok=True, parents=True)
             with repofile.open("w") as f:
@@ -141,7 +141,7 @@ class Zypper(PackageManager):
         run(["createrepo_c", context.repository],
             sandbox=context.sandbox(binary="createrepo_c", options=["--bind", context.repository, context.repository]))
 
-        (context.pkgmngr / "etc/zypp/repos.d/mkosi-local.repo").write_text(
+        (context.sandbox_tree / "etc/zypp/repos.d/mkosi-local.repo").write_text(
             textwrap.dedent(
                 """\
                 [mkosi]

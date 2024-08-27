@@ -494,36 +494,39 @@ def run_configure_scripts(config: Config) -> Config:
     return config
 
 
-def run_sync_scripts(context: Context) -> None:
-    if not context.config.sync_scripts:
+def run_sync_scripts(config: Config) -> None:
+    if not config.sync_scripts:
         return
 
     env = dict(
-        DISTRIBUTION=str(context.config.distribution),
-        RELEASE=context.config.release,
-        ARCHITECTURE=str(context.config.architecture),
-        DISTRIBUTION_ARCHITECTURE=context.config.distribution.architecture(context.config.architecture),
+        DISTRIBUTION=str(config.distribution),
+        RELEASE=config.release,
+        ARCHITECTURE=str(config.architecture),
+        DISTRIBUTION_ARCHITECTURE=config.distribution.architecture(config.architecture),
         SRCDIR="/work/src",
         MKOSI_UID=str(os.getuid()),
         MKOSI_GID=str(os.getgid()),
         MKOSI_CONFIG="/work/config.json",
-        CACHED=one_zero(have_cache(context.config)),
+        CACHED=one_zero(have_cache(config)),
     )
 
-    if context.config.profile:
-        env["PROFILE"] = context.config.profile
+    if config.profile:
+        env["PROFILE"] = config.profile
 
     # We make sure to mount everything in to make ssh work since syncing might involve git which could invoke ssh.
     if agent := os.getenv("SSH_AUTH_SOCK"):
         env["SSH_AUTH_SOCK"] = agent
 
     with (
-        finalize_source_mounts(context.config, ephemeral=False) as sources,
-        finalize_config_json(context.config) as json,
+        finalize_source_mounts(config, ephemeral=False) as sources,
+        finalize_config_json(config) as json,
+        tempfile.TemporaryDirectory(dir=config.workspace_dir_or_default(), prefix="mkosi-metadata-") as sandbox_tree,
     ):
-        for script in context.config.sync_scripts:
+        install_sandbox_trees(config, Path(sandbox_tree))
+
+        for script in config.sync_scripts:
             options = [
-                *finalize_crypto_mounts(context.config),
+                *finalize_crypto_mounts(config),
                 "--ro-bind", script, "/work/sync",
                 "--ro-bind", json, "/work/config.json",
                 "--dir", "/work/src",
@@ -543,13 +546,14 @@ def run_sync_scripts(context: Context) -> None:
             with complete_step(f"Running sync script {script}…"):
                 run(
                     ["/work/sync", "final"],
-                    env=env | context.config.environment,
+                    env=env | config.environment,
                     stdin=sys.stdin,
-                    sandbox=context.sandbox(
+                    sandbox=config.sandbox(
                         binary=None,
                         network=True,
                         vartmp=True,
                         options=options,
+                        sandbox_tree=Path(sandbox_tree),
                     ),
                 )
 
@@ -1656,35 +1660,35 @@ def install_skeleton_trees(context: Context) -> None:
             install_tree(context.config, tree.source, context.root, target=tree.target, preserve=False)
 
 
-def install_sandbox_trees(context: Context) -> None:
+def install_sandbox_trees(config: Config, dst: Path) -> None:
     # Ensure /etc exists in the sandbox
-    (context.pkgmngr / "etc").mkdir(exist_ok=True)
+    (dst / "etc").mkdir(exist_ok=True)
 
     # Required to be able to access certificates in the sandbox when running from nix.
     if Path("/etc/static").is_symlink():
-        (context.pkgmngr / "etc/static").symlink_to(Path("/etc/static").readlink())
+        (dst / "etc/static").symlink_to(Path("/etc/static").readlink())
 
-    (context.pkgmngr / "var/log").mkdir(parents=True)
+    (dst / "var/log").mkdir(parents=True)
 
     if Path("/etc/passwd").exists():
-        shutil.copy("/etc/passwd", context.pkgmngr / "etc/passwd")
+        shutil.copy("/etc/passwd", dst / "etc/passwd")
     if Path("/etc/group").exists():
-        shutil.copy("/etc/passwd", context.pkgmngr / "etc/group")
+        shutil.copy("/etc/passwd", dst / "etc/group")
 
-    if (p := context.config.tools() / "etc/crypto-policies").exists():
+    if (p := config.tools() / "etc/crypto-policies").exists():
         copy_tree(
-            p, context.pkgmngr / "etc/crypto-policies",
+            p, dst / "etc/crypto-policies",
             preserve=False,
             dereference=True,
-            sandbox=context.config.sandbox,
+            sandbox=config.sandbox,
         )
 
-    if not context.config.sandbox_trees:
+    if not config.sandbox_trees:
         return
 
-    with complete_step("Copying in package manager file trees…"):
-        for tree in context.config.sandbox_trees:
-            install_tree(context.config, tree.source, context.pkgmngr, target=tree.target, preserve=False)
+    with complete_step("Copying in sandbox trees…"):
+        for tree in config.sandbox_trees:
+            install_tree(config, tree.source, dst, target=tree.target, preserve=False)
 
 
 def install_package_directories(context: Context, directories: Sequence[Path]) -> None:
@@ -2847,7 +2851,7 @@ def check_inputs(config: Config) -> None:
 
     trees = [
         ("skeleton", config.skeleton_trees),
-        ("package manager", config.sandbox_trees),
+        ("sandbox", config.sandbox_trees),
     ]
 
     if config.output_format != OutputFormat.none:
@@ -3868,7 +3872,7 @@ def make_rootdir(context: Context) -> None:
 def build_image(context: Context) -> None:
     manifest = Manifest(context) if context.config.manifest_format else None
 
-    install_sandbox_trees(context)
+    install_sandbox_trees(context.config, context.sandbox_tree)
 
     with mount_base_trees(context):
         install_base_trees(context)
@@ -4604,7 +4608,7 @@ def run_sync(args: Args, config: Config, *, resources: Path) -> None:
         )
         context.root.mkdir(mode=0o755)
 
-        install_sandbox_trees(context)
+        install_sandbox_trees(context.config, context.sandbox_tree)
         context.config.distribution.setup(context)
 
         sync_repository_metadata(context)
@@ -4612,8 +4616,6 @@ def run_sync(args: Args, config: Config, *, resources: Path) -> None:
         src = config.package_cache_dir_or_default() / "cache" / subdir
         for p in config.distribution.package_manager(config).cache_subdirs(src):
             p.mkdir(parents=True, exist_ok=True)
-
-        run_sync_scripts(context)
 
 
 def run_build(
@@ -4826,6 +4828,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         with prepend_to_environ_path(config):
             check_tools(config, args.verb)
             images[i] = config = run_configure_scripts(config)
+            run_sync_scripts(config)
 
     # The images array has been modified so we need to reevaluate last again.
     last = images[-1]

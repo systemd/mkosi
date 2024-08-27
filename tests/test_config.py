@@ -992,11 +992,11 @@ def test_paths_with_default_factory(tmp_path: Path) -> None:
     """
 
     with chdir(tmp_path):
-        Path("mkosi.pkgmngr.tar").touch()
+        Path("mkosi.sandbox.tar").touch()
         _, [config] = parse_config()
 
         assert config.sandbox_trees == [
-            ConfigTree(Path.cwd() / "mkosi.pkgmngr.tar", None),
+            ConfigTree(Path.cwd() / "mkosi.sandbox.tar", None),
         ]
 
 

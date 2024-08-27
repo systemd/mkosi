@@ -44,10 +44,10 @@ class Dnf(PackageManager):
 
     @classmethod
     def setup(cls, context: Context, repositories: Iterable[RpmRepository], filelists: bool = True) -> None:
-        (context.pkgmngr / "etc/dnf/vars").mkdir(parents=True, exist_ok=True)
-        (context.pkgmngr / "etc/yum.repos.d").mkdir(parents=True, exist_ok=True)
+        (context.sandbox_tree / "etc/dnf/vars").mkdir(parents=True, exist_ok=True)
+        (context.sandbox_tree / "etc/yum.repos.d").mkdir(parents=True, exist_ok=True)
 
-        config = context.pkgmngr / "etc/dnf/dnf.conf"
+        config = context.sandbox_tree / "etc/dnf/dnf.conf"
 
         if not config.exists():
             config.parent.mkdir(exist_ok=True, parents=True)
@@ -59,7 +59,7 @@ class Dnf(PackageManager):
 
         # The versionlock plugin will fail if enabled without a configuration file so lets' write a noop configuration
         # file to make it happy which can be overridden by users.
-        versionlock = context.pkgmngr / "etc/dnf/plugins/versionlock.conf"
+        versionlock = context.sandbox_tree / "etc/dnf/plugins/versionlock.conf"
         if not versionlock.exists():
             versionlock.parent.mkdir(parents=True, exist_ok=True)
             versionlock.write_text(
@@ -72,7 +72,7 @@ class Dnf(PackageManager):
                 )
             )
 
-        repofile = context.pkgmngr / "etc/yum.repos.d/mkosi.repo"
+        repofile = context.sandbox_tree / "etc/yum.repos.d/mkosi.repo"
         if not repofile.exists():
             repofile.parent.mkdir(exist_ok=True, parents=True)
             with repofile.open("w") as f:
@@ -219,7 +219,7 @@ class Dnf(PackageManager):
         run(["createrepo_c", context.repository],
             sandbox=context.sandbox(binary="createrepo_c", options=["--bind", context.repository, context.repository]))
 
-        (context.pkgmngr / "etc/yum.repos.d/mkosi-local.repo").write_text(
+        (context.sandbox_tree / "etc/yum.repos.d/mkosi-local.repo").write_text(
             textwrap.dedent(
                 """\
                 [mkosi]

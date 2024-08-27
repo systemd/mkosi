@@ -67,7 +67,7 @@ class Installer(DistributionInstaller):
             die(f"{cls.pretty_name()} Stream 8 or earlier variants are not supported")
 
         Dnf.setup(context, cls.repositories(context))
-        (context.pkgmngr / "etc/dnf/vars/stream").write_text(f"{context.config.release}-stream\n")
+        (context.sandbox_tree / "etc/dnf/vars/stream").write_text(f"{context.config.release}-stream\n")
         setup_rpm(context, dbpath=cls.dbpath(context))
 
     @classmethod
