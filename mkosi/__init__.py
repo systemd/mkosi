@@ -4617,8 +4617,6 @@ def run_sync(args: Args, config: Config, *, resources: Path) -> None:
         for p in config.distribution.package_manager(config).cache_subdirs(src):
             p.mkdir(parents=True, exist_ok=True)
 
-        run_sync_scripts(context.config)
-
 
 def run_build(
     args: Args,
@@ -4830,6 +4828,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         with prepend_to_environ_path(config):
             check_tools(config, args.verb)
             images[i] = config = run_configure_scripts(config)
+            run_sync_scripts(config)
 
     # The images array has been modified so we need to reevaluate last again.
     last = images[-1]
