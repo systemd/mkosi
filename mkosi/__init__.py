@@ -2058,7 +2058,7 @@ def join_initrds(initrds: Sequence[Path], output: Path) -> Path:
     return output
 
 
-def python_binary(config: Config, *, binary: Optional[PathString]) -> str:
+def python_binary(config: Config, *, binary: Optional[PathString]) -> PathString:
     tools = (
         not binary or
         not (path := config.find_binary(binary)) or
@@ -2067,7 +2067,8 @@ def python_binary(config: Config, *, binary: Optional[PathString]) -> str:
 
     # If there's no tools tree, prefer the interpreter from MKOSI_INTERPRETER. If there is a tools
     # tree, just use the default python3 interpreter.
-    return "python3" if tools and config.tools_tree else sys.executable
+    exe = Path(sys.executable)
+    return "python3" if (tools and config.tools_tree) or not exe.is_relative_to("/usr") else exe
 
 
 def extract_pe_section(context: Context, binary: Path, section: str, output: Path) -> Path:
