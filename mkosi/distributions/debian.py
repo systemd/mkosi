@@ -141,8 +141,8 @@ class Installer(DistributionInstaller):
             "install",
             [
                 "-oDebug::pkgDPkgPm=1",
-                # context.pkgmngr is always mounted writable to /etc so let's use that as a channel to get the list of
-                # essential packages out of the sandbox.
+                # context.sandbox_tree is always mounted writable to /etc so let's use that as a channel to get the
+                # list of essential packages out of the sandbox.
                 "-oDPkg::Pre-Install-Pkgs::=cat >/etc/apt/essential",
                 "?essential",
                 "?exact-name(usr-is-merged)",
@@ -150,7 +150,7 @@ class Installer(DistributionInstaller):
             ],
         )
 
-        essential = (context.pkgmngr / "etc/apt/essential").read_text().strip().splitlines()
+        essential = (context.sandbox_tree / "etc/apt/essential").read_text().strip().splitlines()
 
         # Now, extract the debs to the chroot by first extracting the sources tar file out of the deb and
         # then extracting the tar file into the chroot.

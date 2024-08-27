@@ -56,8 +56,8 @@ def find_rpm_gpgkey(
     if gpgpath := next((root / "usr/share/distribution-gpg-keys").rglob(key), None):
         return (Path("/") / gpgpath.relative_to(root)).as_uri()
 
-    if gpgpath := next(Path(context.pkgmngr / "etc/pki/rpm-gpg").rglob(key), None):
-        return (Path("/") / gpgpath.relative_to(context.pkgmngr)).as_uri()
+    if gpgpath := next(Path(context.sandbox_tree / "etc/pki/rpm-gpg").rglob(key), None):
+        return (Path("/") / gpgpath.relative_to(context.sandbox_tree)).as_uri()
 
     if context.config.repository_key_fetch:
         return fallback
@@ -70,7 +70,7 @@ def find_rpm_gpgkey(
 
 
 def setup_rpm(context: Context, *, dbpath: str = "/usr/lib/sysimage/rpm") -> None:
-    confdir = context.pkgmngr / "etc/rpm"
+    confdir = context.sandbox_tree / "etc/rpm"
     confdir.mkdir(parents=True, exist_ok=True)
     if not (confdir / "macros.lang").exists() and context.config.locale:
         (confdir / "macros.lang").write_text(f"%_install_langs {context.config.locale}")
@@ -88,7 +88,7 @@ def setup_rpm(context: Context, *, dbpath: str = "/usr/lib/sysimage/rpm") -> Non
     # Write an rpm sequoia policy that allows SHA1 as various distribution GPG keys (OpenSUSE) still use SHA1 for
     # various things.
     # TODO: Remove when all rpm distribution GPG keys have stopped using SHA1.
-    if not (p := context.pkgmngr / "etc/crypto-policies/back-ends/rpm-sequoia.config").exists():
+    if not (p := context.sandbox_tree / "etc/crypto-policies/back-ends/rpm-sequoia.config").exists():
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(
             textwrap.dedent(

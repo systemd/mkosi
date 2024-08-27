@@ -34,8 +34,8 @@ class Installer(centos.Installer):
             return None
 
         p = Path("etc/rhsm/ca/redhat-uep.pem")
-        if (context.pkgmngr / p).exists():
-            p = context.pkgmngr / p
+        if (context.sandbox_tree / p).exists():
+            p = context.sandbox_tree / p
         elif (Path("/") / p).exists():
             p = Path("/") / p
         else:
@@ -50,7 +50,7 @@ class Installer(centos.Installer):
 
         pattern = "etc/pki/entitlement/*-key.pem"
 
-        p = next((p for p in sorted(context.pkgmngr.glob(pattern))), None)
+        p = next((p for p in sorted(context.sandbox_tree.glob(pattern))), None)
         if not p:
             p = next((p for p in Path("/").glob(pattern)), None)
         if not p:
@@ -65,7 +65,7 @@ class Installer(centos.Installer):
 
         pattern = "etc/pki/entitlement/*.pem"
 
-        p = next((p for p in sorted(context.pkgmngr.glob(pattern)) if "key" not in p.name), None)
+        p = next((p for p in sorted(context.sandbox_tree.glob(pattern)) if "key" not in p.name), None)
         if not p:
             p = next((p for p in sorted(Path("/").glob(pattern)) if "key" not in p.name), None)
         if not p:

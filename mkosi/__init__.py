@@ -1658,22 +1658,22 @@ def install_skeleton_trees(context: Context) -> None:
 
 def install_sandbox_trees(context: Context) -> None:
     # Ensure /etc exists in the sandbox
-    (context.pkgmngr / "etc").mkdir(exist_ok=True)
+    (context.sandbox_tree / "etc").mkdir(exist_ok=True)
 
     # Required to be able to access certificates in the sandbox when running from nix.
     if Path("/etc/static").is_symlink():
-        (context.pkgmngr / "etc/static").symlink_to(Path("/etc/static").readlink())
+        (context.sandbox_tree / "etc/static").symlink_to(Path("/etc/static").readlink())
 
-    (context.pkgmngr / "var/log").mkdir(parents=True)
+    (context.sandbox_tree / "var/log").mkdir(parents=True)
 
     if Path("/etc/passwd").exists():
-        shutil.copy("/etc/passwd", context.pkgmngr / "etc/passwd")
+        shutil.copy("/etc/passwd", context.sandbox_tree / "etc/passwd")
     if Path("/etc/group").exists():
-        shutil.copy("/etc/passwd", context.pkgmngr / "etc/group")
+        shutil.copy("/etc/passwd", context.sandbox_tree / "etc/group")
 
     if (p := context.config.tools() / "etc/crypto-policies").exists():
         copy_tree(
-            p, context.pkgmngr / "etc/crypto-policies",
+            p, context.sandbox_tree / "etc/crypto-policies",
             preserve=False,
             dereference=True,
             sandbox=context.config.sandbox,
@@ -1682,9 +1682,9 @@ def install_sandbox_trees(context: Context) -> None:
     if not context.config.sandbox_trees:
         return
 
-    with complete_step("Copying in package manager file trees…"):
+    with complete_step("Copying in sandbox trees…"):
         for tree in context.config.sandbox_trees:
-            install_tree(context.config, tree.source, context.pkgmngr, target=tree.target, preserve=False)
+            install_tree(context.config, tree.source, context.sandbox_tree, target=tree.target, preserve=False)
 
 
 def install_package_directories(context: Context, directories: Sequence[Path]) -> None:
@@ -2847,7 +2847,7 @@ def check_inputs(config: Config) -> None:
 
     trees = [
         ("skeleton", config.skeleton_trees),
-        ("package manager", config.sandbox_trees),
+        ("sandbox", config.sandbox_trees),
     ]
 
     if config.output_format != OutputFormat.none:

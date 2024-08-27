@@ -77,9 +77,9 @@ class Pacman(PackageManager):
         with umask(~0o755):
             (context.root / "var/lib/pacman/local").mkdir(parents=True, exist_ok=True)
 
-        (context.pkgmngr / "etc/mkosi-local.conf").touch()
+        (context.sandbox_tree / "etc/mkosi-local.conf").touch()
 
-        config = context.pkgmngr / "etc/pacman.conf"
+        config = context.sandbox_tree / "etc/pacman.conf"
         if config.exists():
             return
 
@@ -126,7 +126,7 @@ class Pacman(PackageManager):
                     )
                 )
 
-            if any((context.pkgmngr / "etc/pacman.d/").glob("*.conf")):
+            if any((context.sandbox_tree / "etc/pacman.d/").glob("*.conf")):
                 f.write(
                     textwrap.dedent(
                         """\
@@ -186,7 +186,7 @@ class Pacman(PackageManager):
             sandbox=context.sandbox(binary="repo-add", options=["--bind", context.repository, context.repository]),
         )
 
-        (context.pkgmngr / "etc/mkosi-local.conf").write_text(
+        (context.sandbox_tree / "etc/mkosi-local.conf").write_text(
             textwrap.dedent(
                 """\
                 [mkosi]
