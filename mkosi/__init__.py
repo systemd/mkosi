@@ -49,6 +49,7 @@ from mkosi.config import (
     Verb,
     Vmm,
     format_bytes,
+    parse_boolean,
     parse_config,
     summary,
     systemd_tool_version,
@@ -66,8 +67,10 @@ from mkosi.pager import page
 from mkosi.partition import Partition, finalize_root, finalize_roothash
 from mkosi.qemu import KernelType, copy_ephemeral, run_qemu, run_ssh, start_journal_remote
 from mkosi.run import (
+    apivfs_options,
     chroot_cmd,
-    chroot_script_cmd,
+    chroot_options,
+    finalize_interpreter,
     finalize_passwd_mounts,
     find_binary,
     fork_and_wait,
@@ -567,9 +570,21 @@ def script_maybe_chroot_sandbox(
     network: bool,
 ) -> Iterator[list[PathString]]:
     options = ["--dir", "/work/src", "--chdir", "/work/src", *options]
+    suppress_chown = parse_boolean(context.config.environment.get("MKOSI_CHROOT_SUPPRESS_CHOWN", "0"))
 
     helpers = {
-        "mkosi-chroot": chroot_script_cmd(tools=bool(context.config.tools_tree), network=network, work=True),
+        "mkosi-chroot": [
+            finalize_interpreter(bool(context.config.tools_tree)), "-SI", "/sandbox.py",
+            "--bind", "/buildroot", "/",
+            "--bind", "/var/tmp", "/var/tmp",
+            *apivfs_options(root=Path("/")),
+            *chroot_options(),
+            "--bind", "/work", "/work",
+            "--chdir", "/work/src",
+            *(["--ro-bind-try", "/etc/resolv.conf", "/etc/resolv.conf"] if network else []),
+            *(["--suppress-chown"] if suppress_chown else []),
+            "--",
+        ],
         "mkosi-as-caller": mkosi_as_caller(),
         **context.config.distribution.package_manager(context.config).scripts(context),
     }
@@ -589,6 +604,9 @@ def script_maybe_chroot_sandbox(
             ) as sandbox:
                 yield sandbox
         else:
+            if suppress_chown:
+                options += ["--suppress-chown"]
+
             with chroot_cmd(
                 root=context.root,
                 network=network,

@@ -616,15 +616,12 @@ def chroot_cmd(
         yield [*cmdline, *options, "--"]
 
 
-def chroot_script_cmd(*, tools: bool, network: bool = False, work: bool = False) -> list[PathString]:
-    exe = Path(sys.executable)
-    return [
-        "python3" if tools or not exe.is_relative_to("/usr") else exe, "-SI", "/sandbox.py",
-        "--bind", "/buildroot", "/",
-        "--bind", "/var/tmp", "/var/tmp",
-        *apivfs_options(root=Path("/")),
-        *chroot_options(),
-        *(["--bind", "/work", "/work", "--chdir", "/work/src"] if work else []),
-        *(["--ro-bind-try", "/etc/resolv.conf", "/etc/resolv.conf"] if network else []),
-        "--",
-    ]
+def finalize_interpreter(tools: bool) -> str:
+    if tools:
+        return "python3"
+
+    exe = sys.executable
+    if Path(exe).is_relative_to("/usr"):
+        return exe
+
+    return "python3"

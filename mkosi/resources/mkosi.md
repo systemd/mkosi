@@ -2730,6 +2730,11 @@ Note that the minimum required Python version is 3.9.
   changing ownership to root will work but changing ownership to any other user
   or group will fail.
 
+  Note that chown calls are only suppressed when running package managers, but
+  not when running scripts. If this is required, e.g. for a build script, you
+  can set the `MKOSI_CHROOT_SUPPRESS_CHOWN` variable to a true value (`1`,
+  `yes`, `true`) to suppress chown calls in `mkosi-chroot` and `.chroot` scripts.
+
   If this behavior causes applications running in your image to misbehave, you
   can consider running `mkosi` as root which avoids this problem. Alternatively,
   if running `mkosi` as root is not desired, you can use
