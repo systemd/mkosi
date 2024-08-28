@@ -470,6 +470,9 @@ def sandbox_cmd(
     else:
         cmdline += ["--ro-bind", tools / "usr", "/usr"]
 
+    if (tools / "etc/ld.so.cache").exists():
+        cmdline += ["--ro-bind", tools / "etc/ld.so.cache", "/etc/ld.so.cache"]
+
     if relaxed:
         cmdline += ["--bind", "/tmp", "/tmp"]
     else:
