@@ -63,8 +63,6 @@ def finalize_source_mounts(config: Config, *, ephemeral: bool) -> Iterator[list[
             src, dst = t.with_prefix("/work/src")
 
             if ephemeral:
-                options = []
-
                 upperdir = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="volatile-overlay")))
                 os.chmod(upperdir, src.stat().st_mode)
 
