@@ -547,7 +547,6 @@ def apivfs_options(*, root: Path = Path("/buildroot")) -> list[PathString]:
     return [
         "--tmpfs", root / "run",
         "--tmpfs", root / "tmp",
-        "--bind", "/var/tmp", root / "var/tmp",
         "--proc", root / "proc",
         "--dev", root / "dev",
         # Nudge gpg to create its sockets in /run by making sure /run/user/0 exists.
@@ -564,13 +563,14 @@ def apivfs_script_cmd(*, tools: bool, options: Sequence[PathString] = ()) -> lis
         "python3" if tools or not exe.is_relative_to("/usr") else exe, "-SI", "/sandbox.py",
         "--bind", "/", "/",
         "--same-dir",
+        "--bind", "/var/tmp", "/buildroot/var/tmp",
         *apivfs_options(),
         *options,
         "--",
     ]
 
 
-def chroot_options(*, network: bool = False) -> list[PathString]:
+def chroot_options() -> list[PathString]:
     return [
         # Let's always run as (fake) root when we chroot inside the image as tools executed within the image could
         # have builtin assumptions about files being owned by root.
@@ -582,7 +582,6 @@ def chroot_options(*, network: bool = False) -> list[PathString]:
         "--setenv", "container", "mkosi",
         "--setenv", "HOME", "/",
         "--setenv", "PATH", "/usr/bin:/usr/sbin",
-        *(["--ro-bind-try", "/etc/resolv.conf", "/etc/resolv.conf"] if network else []),
         "--setenv", "BUILDROOT", "/",
     ]
 
@@ -601,7 +600,7 @@ def chroot_cmd(
         "--unsetenv", "TMPDIR",
         *network_options(network=network),
         *apivfs_options(root=Path("/")),
-        *chroot_options(network=network),
+        *chroot_options(),
     ]
 
     if network and Path("/etc/resolv.conf").exists():
@@ -619,8 +618,10 @@ def chroot_script_cmd(*, tools: bool, network: bool = False, work: bool = False)
     return [
         "python3" if tools or not exe.is_relative_to("/usr") else exe, "-SI", "/sandbox.py",
         "--bind", "/buildroot", "/",
+        "--bind", "/var/tmp", "/var/tmp",
         *apivfs_options(root=Path("/")),
-        *chroot_options(network=network),
+        *chroot_options(),
         *(["--bind", "/work", "/work", "--chdir", "/work/src"] if work else []),
+        *(["--ro-bind-try", "/etc/resolv.conf", "/etc/resolv.conf"] if network else []),
         "--",
     ]
