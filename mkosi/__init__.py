@@ -4829,7 +4829,6 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         with prepend_to_environ_path(config):
             check_tools(config, args.verb)
             images[i] = config = run_configure_scripts(config)
-            run_sync_scripts(config)
 
     # The images array has been modified so we need to reevaluate last again.
     last = images[-1]
@@ -4841,6 +4840,9 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         ):
             run_sync(args, last, resources=resources)
             copy_repository_metadata(last, Path(metadata_dir))
+
+            for config in images:
+                run_sync_scripts(config)
 
             for config in images:
                 # If the output format is "none" and there are no build scripts, there's nothing to do so exit early.
