@@ -177,9 +177,13 @@ def detect_distribution() -> tuple[Optional[Distribution], Optional[str]]:
     version_id = os_release.get("VERSION_ID", None)
     version_codename = os_release.get("VERSION_CODENAME", None)
 
+    quirks = {
+        "azurelinux": Distribution.azure,
+    }
+
     d: Optional[Distribution] = None
     for the_id in [dist_id, *dist_id_like]:
-        d = Distribution.__members__.get(the_id, None)
+        d = Distribution.__members__.get(the_id, quirks.get(the_id))
         if d is not None:
             break
 
