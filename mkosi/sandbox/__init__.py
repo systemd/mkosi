@@ -254,7 +254,7 @@ def mount_rbind(src: str, dst: str, attrs: int = 0) -> None:
 
 
 class umask:
-    def __init__(self, mask: int):
+    def __init__(self, mask: int) -> None:
         self.mask = mask
 
     def __enter__(self) -> None:
@@ -331,6 +331,7 @@ def userns_has_single_user() -> bool:
 
 
 def chase(root: str, path: str) -> str:
+    cwd = os.getcwd()
     fd = os.open("/", os.O_CLOEXEC | os.O_PATH | os.O_DIRECTORY)
 
     try:
@@ -341,6 +342,7 @@ def chase(root: str, path: str) -> str:
         os.fchdir(fd)
         os.close(fd)
         os.chroot(".")
+        os.chdir(cwd)
 
 
 def splitpath(path: str) -> tuple[str, ...]:
