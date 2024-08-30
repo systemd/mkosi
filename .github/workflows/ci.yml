@@ -85,7 +85,7 @@ jobs:
           bin/mkosi completion bash | shellcheck -
 
       - name: Test man page generation
-        run: pandoc -s mkosi.md -o mkosi.1
+        run: tools/make-man-page.sh
 
   integration-test:
     runs-on: ubuntu-24.04
