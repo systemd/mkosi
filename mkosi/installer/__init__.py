@@ -6,7 +6,7 @@ from pathlib import Path
 from mkosi.config import Config, ConfigFeature, OutputFormat
 from mkosi.context import Context
 from mkosi.mounts import finalize_crypto_mounts
-from mkosi.run import apivfs_options, apivfs_script_cmd, finalize_passwd_mounts, find_binary
+from mkosi.run import apivfs_options, finalize_interpreter, finalize_passwd_mounts, find_binary
 from mkosi.tree import rmtree
 from mkosi.types import PathString
 from mkosi.util import flatten, startswith
@@ -114,7 +114,15 @@ class PackageManager:
 
     @classmethod
     def apivfs_script_cmd(cls, context: Context) -> list[PathString]:
-        return apivfs_script_cmd(tools=bool(context.config.tools_tree), options=cls.options(root="/buildroot"))
+        return [
+            finalize_interpreter(bool(context.config.tools_tree)), "-SI", "/sandbox.py",
+            "--bind", "/", "/",
+            "--same-dir",
+            "--bind", "/var/tmp", "/buildroot/var/tmp",
+            *apivfs_options(),
+            *cls.options(root="/buildroot"),
+            "--",
+        ]
 
     @classmethod
     def sandbox(cls, context: Context, *, apivfs: bool) -> AbstractContextManager[list[PathString]]:

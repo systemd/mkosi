@@ -560,19 +560,6 @@ def apivfs_options(*, root: Path = Path("/buildroot")) -> list[PathString]:
     ]
 
 
-def apivfs_script_cmd(*, tools: bool, options: Sequence[PathString] = ()) -> list[PathString]:
-    exe = Path(sys.executable)
-    return [
-        "python3" if tools or not exe.is_relative_to("/usr") else exe, "-SI", "/sandbox.py",
-        "--bind", "/", "/",
-        "--same-dir",
-        "--bind", "/var/tmp", "/buildroot/var/tmp",
-        *apivfs_options(),
-        *options,
-        "--",
-    ]
-
-
 def chroot_options() -> list[PathString]:
     return [
         # Let's always run as (fake) root when we chroot inside the image as tools executed within the image could
@@ -616,15 +603,12 @@ def chroot_cmd(
         yield [*cmdline, *options, "--"]
 
 
-def chroot_script_cmd(*, tools: bool, network: bool = False, work: bool = False) -> list[PathString]:
-    exe = Path(sys.executable)
-    return [
-        "python3" if tools or not exe.is_relative_to("/usr") else exe, "-SI", "/sandbox.py",
-        "--bind", "/buildroot", "/",
-        "--bind", "/var/tmp", "/var/tmp",
-        *apivfs_options(root=Path("/")),
-        *chroot_options(),
-        *(["--bind", "/work", "/work", "--chdir", "/work/src"] if work else []),
-        *(["--ro-bind-try", "/etc/resolv.conf", "/etc/resolv.conf"] if network else []),
-        "--",
-    ]
+def finalize_interpreter(tools: bool) -> str:
+    if tools:
+        return "python3"
+
+    exe = sys.executable
+    if Path(exe).is_relative_to("/usr"):
+        return exe
+
+    return "python3"
