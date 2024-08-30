@@ -254,7 +254,7 @@ def mount_rbind(src: str, dst: str, attrs: int = 0) -> None:
 
 
 class umask:
-    def __init__(self, mask: int):
+    def __init__(self, mask: int) -> None:
         self.mask = mask
 
     def __enter__(self) -> None:
