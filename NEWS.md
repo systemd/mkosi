@@ -36,6 +36,9 @@
 - Package manager trees are now named sandbox trees.
 - Package manager trees (sandbox trees) do not use the skeleton trees as
   their default anymore if unset.
+- Note to packagers: The manual pages have been moved to resources/man
+  and now include man pages for mkosi-initrd and mkosi-sandbox as
+  well.
 
 ## v24
 
