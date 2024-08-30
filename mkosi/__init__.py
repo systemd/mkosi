@@ -3592,11 +3592,13 @@ def show_docs(args: Args, *, resources: Path) -> None:
     else:
         formats = [args.doc_format]
 
+    manual = args.cmdline[0] if args.cmdline else "mkosi"
+
     while formats:
         form = formats.pop(0)
         try:
             if form == DocFormat.man:
-                man = resources / "man/mkosi.1"
+                man = resources / f"man/{manual}.1"
                 if not man.exists():
                     raise FileNotFoundError()
                 run(["man", "--local-file", man])
@@ -3604,19 +3606,24 @@ def show_docs(args: Args, *, resources: Path) -> None:
             elif form == DocFormat.pandoc:
                 if not find_binary("pandoc"):
                     logging.error("pandoc is not available")
-                pandoc = run(["pandoc", "-t", "man", "-s", resources / "man/mkosi.md"], stdout=subprocess.PIPE)
+                pandoc = run(
+                    ["pandoc", "-t", "man", "-s", resources / f"man/{manual}.md"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,
+                    log=False,
+                )
                 run(["man", "--local-file", "-"], input=pandoc.stdout)
                 return
             elif form == DocFormat.markdown:
-                page((resources / "man/mkosi.md").read_text(), args.pager)
+                page((resources / f"man/{manual}.md").read_text(), args.pager)
                 return
             elif form == DocFormat.system:
-                run(["man", "mkosi"])
+                run(["man", manual], log=False)
                 return
         except (FileNotFoundError, subprocess.CalledProcessError) as e:
             if not formats:
                 if isinstance(e, FileNotFoundError):
-                    die("The mkosi package does not contain the man page.")
+                    die("The mkosi package does not contain the man page {manual:r}.")
                 raise e
 
 
