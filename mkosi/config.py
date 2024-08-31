@@ -3766,7 +3766,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
     # summary would be treated as -i=summary.
     for verb in Verb:
         try:
-            v_i = argv.index(verb.name)
+            v_i = argv.index(verb.value)
         except ValueError:
             continue
 
