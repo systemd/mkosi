@@ -10,6 +10,7 @@ import fnmatch
 import functools
 import graphlib
 import inspect
+import io
 import json
 import logging
 import math
@@ -60,6 +61,7 @@ class Verb(StrEnum):
     build         = enum.auto()
     clean         = enum.auto()
     summary       = enum.auto()
+    cat_config    = enum.auto()
     shell         = enum.auto()
     boot          = enum.auto()
     qemu          = enum.auto()
@@ -1411,6 +1413,7 @@ class Config:
     """
 
     profile: Optional[str]
+    files: list[Path]
     include: list[Path]
     initrd_include: list[Path]
     dependencies: list[str]
@@ -3215,6 +3218,7 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
         # the synopsis below is supposed to be indented by two spaces
         usage="\n  " + textwrap.dedent("""\
               mkosi [options...] {b}summary{e}
+                mkosi [options...] {b}cat-config{e}
                 mkosi [options...] {b}build{e}       [command line...]
                 mkosi [options...] {b}shell{e}       [command line...]
                 mkosi [options...] {b}boot{e}        [nspawn settings...]
@@ -3433,7 +3437,9 @@ class ParseContext:
         # in configuration files. This is required to implement both [Match] support and the behavior where settings
         # specified on the CLI always override settings specified in configuration files.
         self.cli = argparse.Namespace()
-        self.config = argparse.Namespace()
+        self.config = argparse.Namespace(
+            files = [],
+        )
         self.defaults = argparse.Namespace()
         # Compare inodes instead of paths so we can't get tricked by bind mounts and such.
         self.includes: set[tuple[int, int]] = set()
@@ -3701,7 +3707,10 @@ class ParseContext:
                         )
 
         if path.exists():
-            logging.debug(f"Including configuration file {Path.cwd() / path}")
+            abs_path = Path.cwd() / path
+            logging.debug(f"Loading configuration file {abs_path}")
+            files = getattr(self.config, 'files')
+            files += [abs_path]
 
             for section, k, v in parse_ini(path, only_sections={s.section for s in SETTINGS}):
                 if not k and not v:
@@ -3807,6 +3816,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
     # One of the specifiers needs access to the directory so let's make sure it
     # is available.
     setattr(context.config, "directory", args.directory)
+    setattr(context.config, "files", [])
 
     # Parse the global configuration unless the user explicitly asked us not to.
     if args.directory is not None:
@@ -3867,6 +3877,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
             context.config = argparse.Namespace()
             setattr(context.config, "image", name)
             setattr(context.config, "directory", args.directory)
+            setattr(context.config, "files", [])
 
             # Settings that are marked as "inherit" are passed down to subimages but can
             # be overridden, so we copy these to the config namespace so that they'll be
@@ -4111,10 +4122,29 @@ def format_bytes_or_none(num_bytes: Optional[int]) -> str:
     return format_bytes(num_bytes) if num_bytes is not None else "none"
 
 
-def summary(config: Config) -> str:
-    def bold(s: Any) -> str:
-        return f"{Style.bold}{s}{Style.reset}"
+def bold(s: Any) -> str:
+    return f"{Style.bold}{s}{Style.reset}"
 
+
+def cat_config(images: Sequence[Config]) -> str:
+    c = io.StringIO()
+    for n, config in enumerate(images):
+        if n > 0:
+            print(file=c)
+
+        print(bold(f"### IMAGE: {config.image or 'default'}"), file=c)
+
+        for path in config.files:
+            # Display the paths as relative to ., if underneath.
+            if path.is_relative_to(Path.cwd()):
+                path = path.relative_to(Path.cwd())
+            print(f'{Style.blue}# {path}{Style.reset}', file=c)
+            print(path.read_text(), file=c)
+
+    return c.getvalue()
+
+
+def summary(config: Config) -> str:
     maniformats = (" ".join(i.name for i in config.manifest_format)) or "(none)"
     env = [f"{k}={v}" for k, v in config.environment.items()]
 
