@@ -331,6 +331,9 @@ def userns_has_single_user() -> bool:
 
 
 def chase(root: str, path: str) -> str:
+    if root == "/":
+        return os.path.realpath(path)
+
     cwd = os.getcwd()
     fd = os.open("/", os.O_CLOEXEC | os.O_PATH | os.O_DIRECTORY)
 
