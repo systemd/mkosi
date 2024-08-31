@@ -3433,9 +3433,10 @@ class ConfigAction(argparse.Action):
 class ParseContext:
     def __init__(self, resources: Path = Path("/")) -> None:
         self.resources = resources
-        # We keep two namespaces around, one for the settings specified on the CLI and one for the settings specified
-        # in configuration files. This is required to implement both [Match] support and the behavior where settings
-        # specified on the CLI always override settings specified in configuration files.
+        # We keep two namespaces around, one for the settings specified on the CLI and one for
+        # the settings specified in configuration files. This is required to implement both [Match]
+        # support and the behavior where settings specified on the CLI always override settings
+        # specified in configuration files.
         self.cli = argparse.Namespace()
         self.config = argparse.Namespace(
             files = [],
@@ -3813,8 +3814,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
     if not args.verb.needs_config():
         return args, ()
 
-    # One of the specifiers needs access to the directory so let's make sure it
-    # is available.
+    # One of the specifiers needs access to the directory, so make sure it is available.
     setattr(context.config, "directory", args.directory)
     setattr(context.config, "files", [])
 
@@ -4031,7 +4031,11 @@ def load_environment(args: argparse.Namespace) -> dict[str, str]:
     if gnupghome := os.getenv("GNUPGHOME"):
         env["GNUPGHOME"] = gnupghome
 
-    env |= dict(parse_environment(line) for f in args.environment_files for line in f.read_text().strip().splitlines())
+    env |= dict(
+        parse_environment(line)
+        for f in args.environment_files
+        for line in f.read_text().strip().splitlines()
+    )
     env |= args.environment
 
     return env

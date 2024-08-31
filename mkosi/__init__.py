@@ -4735,7 +4735,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
 
     if all(config == Config.default() for config in images):
         die("No configuration found",
-            hint="Make sure you're running mkosi from a directory with configuration files")
+            hint="Make sure mkosi is run from a directory with configuration files")
 
     if args.verb == Verb.summary:
         if args.json:
