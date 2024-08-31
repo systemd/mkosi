@@ -10,6 +10,8 @@ mkosi — Build Bespoke OS Images
 
 `mkosi [options…] summary`
 
+`mkosi [options…] cat-config`
+
 `mkosi [options…] build [command line…]`
 
 `mkosi [options…] shell [command line…]`
@@ -51,17 +53,20 @@ that may generate disk images with a number of bells and whistles.
 The following command line verbs are known:
 
 `summary`
-:   Outputs a human-readable summary of all options used for building an
-    image. This will parse the command line and `mkosi.conf` file as it
-    would do on `build`, but only output what it is configured for and not
-    actually build anything.
+:   Show a human-readable summary of all options used for building the images.
+    This will parse the command line and configuration files, but only print
+    what it is configured for and not actually build or run anything.
+
+`cat-config`
+:   Output the names and contents of all loaded configuration files. `mkosi`
+    loads a bunch of files from different locations and this command makes
+    it easier to figure out what is configured where.
 
 `build`
-:   This builds the image based on the settings passed in on the command
-    line or read from configuration files. This command is the default if
-    no verb is explicitly specified. If any command line arguments are
-    specified, these are passed directly to the build script if one is
-    defined.
+:   Build the image based on the settings passed on the command line and in the
+    configuration files. This command is the default if no verb is specified.
+    Any command line arguments specified after the verb will be passed directly
+    to the build script, if one is defined.
 
 `shell`
 :   This builds the image if it is not built yet, and then invokes
@@ -80,7 +85,7 @@ The following command line verbs are known:
 `qemu`
 :   Similar to `boot`, but uses the configured virtual machine monitor (by
     default `qemu`) to boot up the image, i.e. instead of container
-    virtualization virtual machine virtualization is used. How extra
+    virtualization, virtual machine virtualization is used. How extra
     command line arguments are interpreted depends on the configured
     virtual machine monitor. See `VirtualMachineMonitor=` for more
     information.
