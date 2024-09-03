@@ -1600,7 +1600,7 @@ class Config:
     def package_cache_dir_or_default(self) -> Path:
         key = f"{self.distribution}~{self.release}~{self.architecture}"
         if self.mirror:
-            key += f"-{self.mirror}"
+            key += f"-{base64.b64encode(self.mirror.encode()).decode()}"
         return self.package_cache_dir or (INVOKING_USER.cache_dir() / key)
 
     def tools(self) -> Path:
