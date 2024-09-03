@@ -62,6 +62,7 @@ Distribution=debian
 [Content]
 Bootable=yes
 Packages=linux-image-generic
+         login
          systemd
          systemd-boot
          systemd-sysv
@@ -78,6 +79,7 @@ Distribution=kali
 [Content]
 Bootable=yes
 Packages=linux-image-generic
+         login
          systemd
          systemd-boot
          systemd-sysv
@@ -95,6 +97,7 @@ Repositories=main,universe
 [Content]
 Bootable=yes
 Packages=linux-image-generic
+         login
          systemd
          systemd-sysv
          udev
