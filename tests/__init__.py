@@ -64,7 +64,7 @@ class Image:
             "udev.log_level=info",
             "systemd.show_status=false",
             "systemd.journald.forward_to_console",
-            "systemd.journald.max_level_console=info",
+            "systemd.journald.max_level_console=debug",
             "systemd.firstboot=no",
             "systemd.unit=mkosi-check-and-shutdown.service",
         ]
