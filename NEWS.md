@@ -2,6 +2,31 @@
 
 ## v25
 
+- Instead of using bubblewrap, sandboxing is now done with a new tool
+  `mkosi-sandbox`. This tool has a public API and can be used
+  independently of mkosi.
+- Image builds are now done in a user namespace with a single user when
+  running unprivileged instead of using newuidmap/newgidmap. When
+  running unprivileged, all files and directories in the image will be
+  owned by the invoking user (and by root inside any produced archives).
+  Any attemp to chown files to other users in scripts will fail unless
+  the new environment variable `$MKOSI_CHROOT_SUPPRESS_CHOWN` is set to
+  a true value.
+- `mkosi` does not drop privileges anymore to the invoking user when
+  running as root for various steps.
+- A new `cat-config` verb will show all configuration files that were
+  included for each configured image.
+- Added support for Azure Linux
+- Added support for Kali Linux
+- If `mkosi.version` is executable, we now execute it and read the
+  version from stdout.
+- Added `--wipe-build-dir` to wipe the build directory before rebuilding
+  the image.
+- Introduced `RepositoryKeyFetch=` to control whether to fetch
+  distribution GPG keys remotely. This setting is **disabled** by
+  default for security reasons except when building rpm based
+  distributions on Ubuntu.
+- We now handle `SIGHUP` gracefully
 - Universal settings that take a collection of values cannot be
   appended to anymore in subimages. Usage of package manager trees in
   subimages will have to be moved to the top level image. Similarly,
