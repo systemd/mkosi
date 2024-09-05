@@ -42,6 +42,9 @@ initrds and Unified Kernel Images for the current running system.
 `--debug=`
 :   Enable additional debugging output.
 
+`--debug-shell=`
+:   Spawn debug shell in sandbox if a sandboxed command fails.
+
 `--version`
 :   Show package version.
 

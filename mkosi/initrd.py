@@ -4,6 +4,7 @@ import argparse
 import os
 import platform
 import shutil
+import sys
 import tempfile
 from pathlib import Path
 
@@ -56,6 +57,12 @@ def main() -> None:
         default=False,
     )
     parser.add_argument(
+        "--debug-shell",
+        help="Turn on debugging output",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
         "--version",
         action="version",
         version=f"mkosi {__version__}",
@@ -82,6 +89,8 @@ def main() -> None:
 
     if args.debug:
         cmdline += ["--debug"]
+    if args.debug_shell:
+        cmdline += ["--debug-shell"]
 
     if os.getuid() == 0:
         cmdline += [
@@ -127,7 +136,12 @@ def main() -> None:
 
         # Prefer dnf as dnf5 has not yet officially replaced it and there's a much bigger chance that there will be a
         # populated dnf cache directory.
-        run(cmdline, env={"MKOSI_DNF": dnf.name} if (dnf := find_binary("dnf", "dnf5")) else {})
+        run(
+            cmdline,
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            env={"MKOSI_DNF": dnf.name} if (dnf := find_binary("dnf", "dnf5")) else {}
+        )
 
 
 if __name__ == "__main__":
