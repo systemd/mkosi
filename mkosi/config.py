@@ -88,6 +88,7 @@ class Verb(StrEnum):
             Verb.coredumpctl,
             Verb.burn,
             Verb.completion,
+            Verb.documentation,
         )
 
     def needs_build(self) -> bool:
@@ -245,6 +246,12 @@ class DocFormat(StrEnum):
     man      = enum.auto()
     pandoc   = enum.auto()
     system   = enum.auto()
+
+    @classmethod
+    def all(cls) -> list["DocFormat"]:
+        # this excludes auto and encodes the order in which these should be
+        # checked when searching for docs
+        return [cls.man, cls.pandoc, cls.markdown, cls.system]
 
 
 class Bootloader(StrEnum):
@@ -3220,18 +3227,18 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
         usage="\n  " + textwrap.dedent("""\
               mkosi [options…] {b}summary{e}
                 mkosi [options…] {b}cat-config{e}
-                mkosi [options…] {b}build{e}       [command line…]
-                mkosi [options…] {b}shell{e}       [command line…]
-                mkosi [options…] {b}boot{e}        [nspawn settings…]
-                mkosi [options…] {b}qemu{e}        [qemu parameters…]
-                mkosi [options…] {b}ssh{e}         [command line…]
-                mkosi [options…] {b}journalctl{e}  [command line…]
-                mkosi [options…] {b}coredumpctl{e} [command line…]
+                mkosi [options…] {b}build{e}         [command line…]
+                mkosi [options…] {b}shell{e}         [command line…]
+                mkosi [options…] {b}boot{e}          [nspawn settings…]
+                mkosi [options…] {b}qemu{e}          [qemu parameters…]
+                mkosi [options…] {b}ssh{e}           [command line…]
+                mkosi [options…] {b}journalctl{e}    [command line…]
+                mkosi [options…] {b}coredumpctl{e}   [command line…]
+                mkosi [options…] {b}documentation{e} [manual]
                 mkosi [options…] {b}clean{e}
                 mkosi [options…] {b}serve{e}
                 mkosi [options…] {b}bump{e}
                 mkosi [options…] {b}genkey{e}
-                mkosi [options…] {b}documentation{e}
                 mkosi [options…] {b}help{e}
                 mkosi -h | --help
                 mkosi --version
