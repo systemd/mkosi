@@ -3217,21 +3217,21 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
         description="Build Bespoke OS Images",
         # the synopsis below is supposed to be indented by two spaces
         usage="\n  " + textwrap.dedent("""\
-              mkosi [options...] {b}summary{e}
-                mkosi [options...] {b}cat-config{e}
-                mkosi [options...] {b}build{e}       [command line...]
-                mkosi [options...] {b}shell{e}       [command line...]
-                mkosi [options...] {b}boot{e}        [nspawn settings...]
-                mkosi [options...] {b}qemu{e}        [qemu parameters...]
-                mkosi [options...] {b}ssh{e}         [command line...]
-                mkosi [options...] {b}journalctl{e}  [command line...]
-                mkosi [options...] {b}coredumpctl{e} [command line...]
-                mkosi [options...] {b}clean{e}
-                mkosi [options...] {b}serve{e}
-                mkosi [options...] {b}bump{e}
-                mkosi [options...] {b}genkey{e}
-                mkosi [options...] {b}documentation{e}
-                mkosi [options...] {b}help{e}
+              mkosi [options…] {b}summary{e}
+                mkosi [options…] {b}cat-config{e}
+                mkosi [options…] {b}build{e}       [command line…]
+                mkosi [options…] {b}shell{e}       [command line…]
+                mkosi [options…] {b}boot{e}        [nspawn settings…]
+                mkosi [options…] {b}qemu{e}        [qemu parameters…]
+                mkosi [options…] {b}ssh{e}         [command line…]
+                mkosi [options…] {b}journalctl{e}  [command line…]
+                mkosi [options…] {b}coredumpctl{e} [command line…]
+                mkosi [options…] {b}clean{e}
+                mkosi [options…] {b}serve{e}
+                mkosi [options…] {b}bump{e}
+                mkosi [options…] {b}genkey{e}
+                mkosi [options…] {b}documentation{e}
+                mkosi [options…] {b}help{e}
                 mkosi -h | --help
                 mkosi --version
         """).format(b=Style.bold, e=Style.reset),
