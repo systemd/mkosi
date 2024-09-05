@@ -1155,13 +1155,14 @@ def file_run_or_read(file: Path) -> str:
     return content
 
 
+class KeySourceType(StrEnum):
+    file   = enum.auto()
+    engine = enum.auto()
+
+
 @dataclasses.dataclass(frozen=True)
 class KeySource:
-    class Type(StrEnum):
-        file   = enum.auto()
-        engine = enum.auto()
-
-    type: Type
+    type: KeySourceType
     source: str = ""
 
     def __str__(self) -> str:
@@ -1174,7 +1175,7 @@ def config_parse_key_source(value: Optional[str], old: Optional[KeySource]) -> O
 
     typ, _, source = value.partition(":")
     try:
-        type = KeySource.Type(typ)
+        type = KeySourceType(typ)
     except ValueError:
         die(f"'{value}' is not a valid key source")
 
@@ -2717,7 +2718,7 @@ SETTINGS = (
         section="Validation",
         metavar="SOURCE[:ENGINE]",
         parse=config_parse_key_source,
-        default=KeySource(type=KeySource.Type.file),
+        default=KeySource(type=KeySourceType.file),
         help="The source to use to retrieve the secure boot signing key",
     ),
     ConfigSetting(
@@ -2750,7 +2751,7 @@ SETTINGS = (
         section="Validation",
         metavar="SOURCE[:ENGINE]",
         parse=config_parse_key_source,
-        default=KeySource(type=KeySource.Type.file),
+        default=KeySource(type=KeySourceType.file),
         help="The source to use to retrieve the verity signing key",
         scope=SettingScope.universal,
     ),
@@ -4425,7 +4426,7 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
 
     def key_source_transformer(keysource: dict[str, Any], fieldtype: type[KeySource]) -> KeySource:
         assert "Type" in keysource
-        return KeySource(type=KeySource.Type(keysource["Type"]), source=keysource.get("Source", ""))
+        return KeySource(type=KeySourceType(keysource["Type"]), source=keysource.get("Source", ""))
 
     # The type of this should be
     # dict[type, Callable[a stringy JSON object (str, null, list or dict of str), type of the key], type of the key]
