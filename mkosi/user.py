@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 import fcntl
-import functools
 import os
 import pwd
 import tempfile
@@ -16,7 +15,6 @@ SUBRANGE = 65536
 
 class INVOKING_USER:
     @classmethod
-    @functools.lru_cache(maxsize=1)
     def name(cls) -> str:
         try:
             return pwd.getpwuid(os.getuid()).pw_name
@@ -30,7 +28,6 @@ class INVOKING_USER:
             return user
 
     @classmethod
-    @functools.lru_cache(maxsize=1)
     def home(cls) -> Path:
         if os.getuid() == 0 and Path.cwd().is_relative_to("/home") and len(Path.cwd().parents) > 2:
             return list(Path.cwd().parents)[-3]
