@@ -43,7 +43,8 @@ def find_partitions(image: Path, *, sandbox: SandboxProtocol = nosandbox) -> lis
 
 
 def finalize_roothash(partitions: Sequence[Partition]) -> Optional[str]:
-    roothash = usrhash = None
+    roothash: Optional[str] = None
+    usrhash: Optional[str] = None
 
     for p in partitions:
         if (h := p.roothash) is None:

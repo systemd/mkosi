@@ -3358,7 +3358,7 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
         help=argparse.SUPPRESS,
     )
 
-    last_section = None
+    last_section: Optional[str] = None
 
     for s in SETTINGS:
         if s.section != last_section:
