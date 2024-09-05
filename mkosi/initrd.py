@@ -130,7 +130,7 @@ def main() -> None:
                 shutil.copy2(Path("/etc") / p, Path(d) / "etc" / p)
             else:
                 shutil.copytree(Path("/etc") / p, Path(d) / "etc" / p,
-                                ignore=shutil.ignore_patterns("S.*"), dirs_exist_ok=True)
+                                ignore=shutil.ignore_patterns("gnupg"), dirs_exist_ok=True)
 
         cmdline += ["--sandbox-tree", d]
 
