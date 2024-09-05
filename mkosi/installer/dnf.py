@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 import textwrap
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from pathlib import Path
 
 from mkosi.config import Cacheonly, Config
@@ -43,7 +43,7 @@ class Dnf(PackageManager):
         }
 
     @classmethod
-    def setup(cls, context: Context, repositories: Iterable[RpmRepository], filelists: bool = True) -> None:
+    def setup(cls, context: Context, repositories: Sequence[RpmRepository], filelists: bool = True) -> None:
         (context.sandbox_tree / "etc/dnf/vars").mkdir(parents=True, exist_ok=True)
         (context.sandbox_tree / "etc/yum.repos.d").mkdir(parents=True, exist_ok=True)
 

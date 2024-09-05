@@ -8,7 +8,6 @@ from mkosi.context import Context
 from mkosi.distributions import Distribution, debian
 from mkosi.installer.apt import AptRepository
 from mkosi.log import die
-from mkosi.util import listify
 
 
 class Installer(debian.Installer):
@@ -24,9 +23,8 @@ class Installer(debian.Installer):
     def default_tools_tree_distribution(cls) -> Distribution:
         return Distribution.kali
 
-    @staticmethod
-    @listify
-    def repositories(context: Context, local: bool = True) -> Iterable[AptRepository]:
+    @classmethod
+    def repositories(cls, context: Context, local: bool = True) -> Iterable[AptRepository]:
         if context.config.local_mirror and local:
             yield AptRepository(
                 types=("deb",),

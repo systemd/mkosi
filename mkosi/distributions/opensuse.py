@@ -16,7 +16,7 @@ from mkosi.installer.zypper import Zypper
 from mkosi.log import die
 from mkosi.mounts import finalize_crypto_mounts
 from mkosi.run import run
-from mkosi.util import listify, sort_packages
+from mkosi.util import sort_packages
 
 
 class Installer(DistributionInstaller):
@@ -51,9 +51,9 @@ class Installer(DistributionInstaller):
     def setup(cls, context: Context) -> None:
         zypper = context.config.find_binary("zypper")
         if zypper:
-            Zypper.setup(context, cls.repositories(context))
+            Zypper.setup(context, list(cls.repositories(context)))
         else:
-            Dnf.setup(context, cls.repositories(context))
+            Dnf.setup(context, list(cls.repositories(context)))
 
         setup_rpm(context)
 
@@ -84,7 +84,6 @@ class Installer(DistributionInstaller):
             Dnf.invoke(context, "remove", packages, apivfs=True)
 
     @classmethod
-    @listify
     def repositories(cls, context: Context) -> Iterable[RpmRepository]:
         if context.config.local_mirror:
             yield RpmRepository(id="local-mirror", url=f"baseurl={context.config.local_mirror}", gpgurls=())

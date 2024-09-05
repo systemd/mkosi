@@ -3,7 +3,7 @@
 import dataclasses
 import shutil
 import textwrap
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from pathlib import Path
 
 from mkosi.config import Config
@@ -66,7 +66,7 @@ class Pacman(PackageManager):
         return mounts
 
     @classmethod
-    def setup(cls, context: Context, repositories: Iterable[PacmanRepository]) -> None:
+    def setup(cls, context: Context, repositories: Sequence[PacmanRepository]) -> None:
         if context.config.repository_key_check:
             sig_level = "Required DatabaseOptional"
         else:

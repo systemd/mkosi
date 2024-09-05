@@ -13,7 +13,6 @@ from mkosi.installer.apt import Apt, AptRepository
 from mkosi.log import die
 from mkosi.run import run
 from mkosi.sandbox import umask
-from mkosi.util import listify
 
 
 class Installer(DistributionInstaller):
@@ -37,9 +36,8 @@ class Installer(DistributionInstaller):
     def package_manager(cls, config: Config) -> type[PackageManager]:
         return Apt
 
-    @staticmethod
-    @listify
-    def repositories(context: Context, local: bool = True) -> Iterable[AptRepository]:
+    @classmethod
+    def repositories(cls, context: Context, local: bool = True) -> Iterable[AptRepository]:
         types = ("deb", "deb-src")
         components = ("main", *context.config.repositories)
 
@@ -97,7 +95,7 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def setup(cls, context: Context) -> None:
-        Apt.setup(context, cls.repositories(context))
+        Apt.setup(context, list(cls.repositories(context)))
 
     @classmethod
     def install(cls, context: Context) -> None:

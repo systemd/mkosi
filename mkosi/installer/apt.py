@@ -2,7 +2,7 @@
 
 import dataclasses
 import textwrap
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Optional
 
@@ -96,7 +96,7 @@ class Apt(PackageManager):
         }
 
     @classmethod
-    def setup(cls, context: Context, repos: Iterable[AptRepository]) -> None:
+    def setup(cls, context: Context, repositories: Sequence[AptRepository]) -> None:
         (context.sandbox_tree / "etc/apt").mkdir(exist_ok=True, parents=True)
         (context.sandbox_tree / "etc/apt/apt.conf.d").mkdir(exist_ok=True, parents=True)
         (context.sandbox_tree / "etc/apt/preferences.d").mkdir(exist_ok=True, parents=True)
@@ -125,7 +125,7 @@ class Apt(PackageManager):
 
         sources = context.sandbox_tree / "etc/apt/sources.list.d/mkosi.sources"
         if not sources.exists():
-            for repo in repos:
+            for repo in repositories:
                 if repo.signedby and not repo.signedby.exists():
                     die(
                         f"Keyring for repo {repo.url} not found at {repo.signedby}",
@@ -134,7 +134,7 @@ class Apt(PackageManager):
                     )
 
             with sources.open("w") as f:
-                for repo in repos:
+                for repo in repositories:
                     f.write(str(repo))
 
     @classmethod

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 import hashlib
 import textwrap
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from pathlib import Path
 
 from mkosi.config import Config, yes_no
@@ -44,7 +44,7 @@ class Zypper(PackageManager):
         }
 
     @classmethod
-    def setup(cls, context: Context, repos: Iterable[RpmRepository]) -> None:
+    def setup(cls, context: Context, repositories: Sequence[RpmRepository]) -> None:
         config = context.sandbox_tree / "etc/zypp/zypp.conf"
         config.parent.mkdir(exist_ok=True, parents=True)
 
@@ -66,7 +66,7 @@ class Zypper(PackageManager):
         if not repofile.exists():
             repofile.parent.mkdir(exist_ok=True, parents=True)
             with repofile.open("w") as f:
-                for repo in repos:
+                for repo in repositories:
                     # zypper uses the repo ID as its cache key which is unsafe so add a hash of the url used to it to
                     # make sure a unique cache is used for each repository. We use roughly the same algorithm here that
                     # dnf uses as well.

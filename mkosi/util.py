@@ -37,13 +37,6 @@ def dictify(f: Callable[..., Iterator[tuple[T, V]]]) -> Callable[..., dict[T, V]
     return functools.update_wrapper(wrapper, f)
 
 
-def listify(f: Callable[..., Iterable[T]]) -> Callable[..., list[T]]:
-    def wrapper(*args: Any, **kwargs: Any) -> list[T]:
-        return list(f(*args, **kwargs))
-
-    return functools.update_wrapper(wrapper, f)
-
-
 def tuplify(f: Callable[..., Iterable[T]]) -> Callable[..., tuple[T, ...]]:
     def wrapper(*args: Any, **kwargs: Any) -> tuple[T, ...]:
         return tuple(f(*args, **kwargs))

@@ -6,7 +6,6 @@ from pathlib import Path
 from mkosi.context import Context
 from mkosi.distributions import Distribution, debian
 from mkosi.installer.apt import AptRepository
-from mkosi.util import listify
 
 
 class Installer(debian.Installer):
@@ -22,9 +21,8 @@ class Installer(debian.Installer):
     def default_tools_tree_distribution(cls) -> Distribution:
         return Distribution.debian
 
-    @staticmethod
-    @listify
-    def repositories(context: Context, local: bool = True) -> Iterable[AptRepository]:
+    @classmethod
+    def repositories(cls, context: Context, local: bool = True) -> Iterable[AptRepository]:
         types = ("deb", "deb-src")
 
         # From kinetic onwards, the usr-is-merged package is available in universe and is required by
