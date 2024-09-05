@@ -4,6 +4,7 @@ import argparse
 import os
 import platform
 import shutil
+import sys
 import tempfile
 from pathlib import Path
 
@@ -56,6 +57,12 @@ def main() -> None:
         default=False,
     )
     parser.add_argument(
+        "--debug-shell",
+        help="Turn on debugging output",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
         "--version",
         action="version",
         version=f"mkosi {__version__}",
@@ -70,7 +77,6 @@ def main() -> None:
         "--format", str(args.format),
         "--output", args.output,
         "--output-dir", args.output_dir,
-        "--cache-only=metadata",
         "--extra-tree", f"/usr/lib/modules/{args.kernel_version}:/usr/lib/modules/{args.kernel_version}",
         "--extra-tree=/usr/lib/firmware:/usr/lib/firmware",
         "--remove-files=/usr/lib/firmware/*-ucode",
@@ -82,11 +88,14 @@ def main() -> None:
 
     if args.debug:
         cmdline += ["--debug"]
+    if args.debug_shell:
+        cmdline += ["--debug-shell"]
 
     if os.getuid() == 0:
         cmdline += [
             "--workspace-dir=/var/tmp",
             "--package-cache-dir=/var",
+            "--cache-only=metadata",
         ]
 
     for d in ("/usr/lib/mkosi-initrd", "/etc/mkosi-initrd"):
@@ -121,13 +130,18 @@ def main() -> None:
                 shutil.copy2(Path("/etc") / p, Path(d) / "etc" / p)
             else:
                 shutil.copytree(Path("/etc") / p, Path(d) / "etc" / p,
-                                ignore=shutil.ignore_patterns("S.*"), dirs_exist_ok=True)
+                                ignore=shutil.ignore_patterns("gnupg"), dirs_exist_ok=True)
 
         cmdline += ["--sandbox-tree", d]
 
         # Prefer dnf as dnf5 has not yet officially replaced it and there's a much bigger chance that there will be a
         # populated dnf cache directory.
-        run(cmdline, env={"MKOSI_DNF": dnf.name} if (dnf := find_binary("dnf", "dnf5")) else {})
+        run(
+            cmdline,
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            env={"MKOSI_DNF": dnf.name} if (dnf := find_binary("dnf", "dnf5")) else {}
+        )
 
 
 if __name__ == "__main__":
