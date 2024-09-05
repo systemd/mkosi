@@ -129,16 +129,16 @@ class Manifest:
                 evr = evra
                 arch = ""
 
-            size = int(size)
-            installtime = datetime.datetime.fromtimestamp(int(installtime))
-
             # If we are creating a layer based on a BaseImage=, e.g. a sysext, filter by
             # packages that were installed in this execution of mkosi. We assume that the
             # upper layer is put together in one go, which currently is always true.
-            if self.context.config.base_trees and installtime < self._init_timestamp:
+            if (
+                self.context.config.base_trees and
+                datetime.datetime.fromtimestamp(int(installtime)) < self._init_timestamp
+            ):
                 continue
 
-            manifest = PackageManifest("rpm", name, evr, arch, size)
+            manifest = PackageManifest("rpm", name, evr, arch, int(size))
             self.packages.append(manifest)
 
             if not self.need_source_info():
@@ -192,16 +192,16 @@ class Manifest:
             # db-fsys:Last-Modified is not available in very old dpkg, so just skip creating
             # the manifest for sysext when building on very old distributions by setting the
             # timestamp to epoch. This only affects Ubuntu Bionic which is nearing EOL.
-            size = int(size) * 1024 if size else 0
-            installtime = datetime.datetime.fromtimestamp(int(installtime) if installtime else 0)
-
             # If we are creating a layer based on a BaseImage=, e.g. a sysext, filter by
             # packages that were installed in this execution of mkosi. We assume that the
             # upper layer is put together in one go, which currently is always true.
-            if self.context.config.base_trees and installtime < self._init_timestamp:
+            if (
+                self.context.config.base_trees and
+                datetime.datetime.fromtimestamp(int(installtime) if installtime else 0) < self._init_timestamp
+            ):
                 continue
 
-            manifest = PackageManifest("deb", name, version, arch, size)
+            manifest = PackageManifest("deb", name, version, arch, int(size or 0) * 1024)
             self.packages.append(manifest)
 
             if not self.need_source_info():

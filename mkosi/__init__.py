@@ -57,7 +57,7 @@ from mkosi.config import (
     ConfigFeature,
     DocFormat,
     JsonEncoder,
-    KeySource,
+    KeySourceType,
     ManifestFormat,
     Network,
     OutputFormat,
@@ -1464,7 +1464,7 @@ def build_uki(
             options += [
                 "--ro-bind", context.config.secure_boot_certificate, context.config.secure_boot_certificate,
             ]
-            if context.config.secure_boot_key_source.type == KeySource.Type.engine:
+            if context.config.secure_boot_key_source.type == KeySourceType.engine:
                 cmd += ["--signing-engine", context.config.secure_boot_key_source.source]
             if context.config.secure_boot_key.exists():
                 options += ["--ro-bind", context.config.secure_boot_key, context.config.secure_boot_key]
@@ -1488,7 +1488,7 @@ def build_uki(
             ]
             if context.config.secure_boot_key.exists():
                 options += ["--bind", context.config.secure_boot_key, context.config.secure_boot_key]
-            if context.config.secure_boot_key_source.type == KeySource.Type.engine:
+            if context.config.secure_boot_key_source.type == KeySourceType.engine:
                 cmd += [
                     "--signing-engine", context.config.secure_boot_key_source.source,
                     "--pcr-public-key", context.config.secure_boot_certificate,
@@ -1527,7 +1527,7 @@ def build_uki(
             sandbox=context.sandbox(
                 binary=ukify,
                 options=options,
-                devices=context.config.secure_boot_key_source.type != KeySource.Type.file,
+                devices=context.config.secure_boot_key_source.type != KeySourceType.file,
             ),
         )
 
@@ -2111,15 +2111,15 @@ def check_inputs(config: Config) -> None:
     if config.tools_tree and not config.tools_tree.exists():
         die(f"Tools tree {config.tools_tree} not found")
 
-    trees = [
+    trees_with_name = [
         ("skeleton", config.skeleton_trees),
         ("sandbox", config.sandbox_trees),
     ]
 
     if config.output_format != OutputFormat.none:
-        trees += [("extra", config.extra_trees)]
+        trees_with_name += [("extra", config.extra_trees)]
 
-    for name, trees in trees:
+    for name, trees in trees_with_name:
         for tree in trees:
             if not tree.source.exists():
                 die(f"{name.capitalize()} tree {tree.source} not found")
@@ -2203,7 +2203,7 @@ def check_tools(config: Config, verb: Verb) -> None:
         if config.selinux_relabel == ConfigFeature.enabled:
             check_tool(config, "setfiles", reason="relabel files")
 
-        if config.secure_boot_key_source.type != KeySource.Type.file:
+        if config.secure_boot_key_source.type != KeySourceType.file:
             check_ukify(
                 config,
                 version="256",
@@ -2218,7 +2218,7 @@ def check_tools(config: Config, verb: Verb) -> None:
                     reason="sign PCR hashes with OpenSSL engine",
                 )
 
-        if config.verity_key_source.type != KeySource.Type.file:
+        if config.verity_key_source.type != KeySourceType.file:
             check_systemd_tool(
                 config,
                 "systemd-repart",
@@ -2664,7 +2664,7 @@ def make_image(
         options += ["--ro-bind", context.config.passphrase, context.config.passphrase]
     if context.config.verity_key:
         cmdline += ["--private-key", context.config.verity_key]
-        if context.config.verity_key_source.type != KeySource.Type.file:
+        if context.config.verity_key_source.type != KeySourceType.file:
             cmdline += ["--private-key-source", str(context.config.verity_key_source)]
         if context.config.verity_key.exists():
             options += ["--ro-bind", context.config.verity_key, context.config.verity_key]
@@ -2697,7 +2697,7 @@ def make_image(
                     binary="systemd-repart",
                     devices=(
                         not context.config.repart_offline or
-                        context.config.verity_key_source.type != KeySource.Type.file
+                        context.config.verity_key_source.type != KeySourceType.file
                     ),
                     vartmp=True,
                     options=options,
@@ -2958,7 +2958,7 @@ def make_extension_image(context: Context, output: Path) -> None:
         options += ["--ro-bind", context.config.passphrase, context.config.passphrase]
     if context.config.verity_key:
         cmdline += ["--private-key", context.config.verity_key]
-        if context.config.verity_key_source.type != KeySource.Type.file:
+        if context.config.verity_key_source.type != KeySourceType.file:
             cmdline += ["--private-key-source", str(context.config.verity_key_source)]
         if context.config.verity_key.exists():
             options += ["--ro-bind", context.config.verity_key, context.config.verity_key]
@@ -2980,7 +2980,7 @@ def make_extension_image(context: Context, output: Path) -> None:
                     binary="systemd-repart",
                     devices=(
                         not context.config.repart_offline or
-                        context.config.verity_key_source.type != KeySource.Type.file
+                        context.config.verity_key_source.type != KeySourceType.file
                     ),
                     vartmp=True,
                     options=options,

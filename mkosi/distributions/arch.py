@@ -8,7 +8,7 @@ from mkosi.distributions import DistributionInstaller, PackageType
 from mkosi.installer import PackageManager
 from mkosi.installer.pacman import Pacman, PacmanRepository
 from mkosi.log import die
-from mkosi.util import listify, sort_packages
+from mkosi.util import sort_packages
 
 
 class Installer(DistributionInstaller):
@@ -34,7 +34,7 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def setup(cls, context: Context) -> None:
-        Pacman.setup(context, cls.repositories(context))
+        Pacman.setup(context, list(cls.repositories(context)))
 
     @classmethod
     def install(cls, context: Context) -> None:
@@ -54,7 +54,6 @@ class Installer(DistributionInstaller):
         Pacman.invoke(context, "--remove", ["--nosave", "--recursive", *packages], apivfs=True)
 
     @classmethod
-    @listify
     def repositories(cls, context: Context) -> Iterable[PacmanRepository]:
         if context.config.local_mirror:
             yield PacmanRepository("core", context.config.local_mirror)

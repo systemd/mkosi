@@ -17,7 +17,7 @@ from mkosi.config import (
     Bootloader,
     Config,
     ConfigFeature,
-    KeySource,
+    KeySourceType,
     OutputFormat,
     SecureBootSignTool,
     ShimBootloader,
@@ -518,7 +518,7 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
                 "--ro-bind", context.config.secure_boot_certificate, context.config.secure_boot_certificate,
                 "--ro-bind", input, input,
             ]
-            if context.config.secure_boot_key_source.type == KeySource.Type.engine:
+            if context.config.secure_boot_key_source.type == KeySourceType.engine:
                 cmd += ["--engine", context.config.secure_boot_key_source.source]
             if context.config.secure_boot_key.exists():
                 options += ["--ro-bind", context.config.secure_boot_key, context.config.secure_boot_key]
@@ -529,7 +529,7 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
                 sandbox=context.sandbox(
                     binary="sbsign",
                     options=options,
-                    devices=context.config.secure_boot_key_source.type != KeySource.Type.file,
+                    devices=context.config.secure_boot_key_source.type != KeySourceType.file,
                 )
             )
             output.unlink(missing_ok=True)
@@ -747,7 +747,7 @@ def install_systemd_boot(context: Context) -> None:
                         "--ro-bind", context.config.secure_boot_certificate, context.config.secure_boot_certificate,
                         "--ro-bind", context.workspace / "mkosi.esl", context.workspace / "mkosi.esl",
                     ]
-                    if context.config.secure_boot_key_source.type == KeySource.Type.engine:
+                    if context.config.secure_boot_key_source.type == KeySourceType.engine:
                         cmd += ["--engine", context.config.secure_boot_key_source.source]
                     if context.config.secure_boot_key.exists():
                         options += ["--ro-bind", context.config.secure_boot_key, context.config.secure_boot_key]
@@ -758,7 +758,7 @@ def install_systemd_boot(context: Context) -> None:
                         sandbox=context.sandbox(
                             binary="sbvarsign",
                             options=options,
-                            devices=context.config.secure_boot_key_source.type != KeySource.Type.file,
+                            devices=context.config.secure_boot_key_source.type != KeySourceType.file,
                         ),
                     )
 

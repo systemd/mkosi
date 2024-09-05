@@ -17,7 +17,7 @@ from mkosi.installer import PackageManager
 from mkosi.installer.dnf import Dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey, setup_rpm
 from mkosi.log import die
-from mkosi.util import listify, startswith, tuplify
+from mkosi.util import startswith, tuplify
 
 
 @tuplify
@@ -94,7 +94,7 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def setup(cls, context: Context) -> None:
-        Dnf.setup(context, cls.repositories(context), filelists=False)
+        Dnf.setup(context, list(cls.repositories(context)), filelists=False)
         setup_rpm(context)
 
     @classmethod
@@ -110,7 +110,6 @@ class Installer(DistributionInstaller):
         Dnf.invoke(context, "remove", packages, apivfs=True)
 
     @classmethod
-    @listify
     def repositories(cls, context: Context) -> Iterable[RpmRepository]:
         gpgurls = find_fedora_rpm_gpgkeys(context)
 

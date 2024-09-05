@@ -3,6 +3,7 @@
 import functools
 import itertools
 import string
+from typing import Final
 
 
 @functools.total_ordering
@@ -10,9 +11,9 @@ class GenericVersion:
     # These constants follow the convention of the return value of rpmdev-vercmp that are followe
     # by systemd-analyze compare-versions when called with only two arguments (without a comparison
     # operator), recreated in the compare_versions method.
-    _EQUAL = 0
-    _RIGHT_SMALLER = 1
-    _LEFT_SMALLER = -1
+    _EQUAL: Final[int] = 0
+    _RIGHT_SMALLER: Final[int] = 1
+    _LEFT_SMALLER: Final[int] = -1
 
     def __init__(self, version: str):
         self._version = version

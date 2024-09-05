@@ -11,7 +11,6 @@ from mkosi.distributions import (
 from mkosi.installer.dnf import Dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey, setup_rpm
 from mkosi.log import die
-from mkosi.util import listify
 
 
 class Installer(fedora.Installer):
@@ -29,7 +28,7 @@ class Installer(fedora.Installer):
 
     @classmethod
     def setup(cls, context: Context) -> None:
-        Dnf.setup(context, cls.repositories(context), filelists=False)
+        Dnf.setup(context, list(cls.repositories(context)), filelists=False)
         setup_rpm(context, dbpath="/var/lib/rpm")
 
     @classmethod
@@ -37,7 +36,6 @@ class Installer(fedora.Installer):
         cls.install_packages(context, ["filesystem", "azurelinux-release"], apivfs=False)
 
     @classmethod
-    @listify
     def repositories(cls, context: Context) -> Iterable[RpmRepository]:
         gpgurls = (
             find_rpm_gpgkey(

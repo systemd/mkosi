@@ -14,7 +14,6 @@ from mkosi.installer import PackageManager
 from mkosi.installer.dnf import Dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey, setup_rpm
 from mkosi.log import die
-from mkosi.util import listify
 from mkosi.versioncomp import GenericVersion
 
 CENTOS_SIG_REPO_PRIORITY = 50
@@ -66,7 +65,7 @@ class Installer(DistributionInstaller):
         if GenericVersion(context.config.release) <= 8:
             die(f"{cls.pretty_name()} Stream 8 or earlier variants are not supported")
 
-        Dnf.setup(context, cls.repositories(context))
+        Dnf.setup(context, list(cls.repositories(context)))
         (context.sandbox_tree / "etc/dnf/vars/stream").write_text(f"{context.config.release}-stream\n")
         setup_rpm(context, dbpath=cls.dbpath(context))
 
@@ -176,7 +175,6 @@ class Installer(DistributionInstaller):
                 )
 
     @classmethod
-    @listify
     def repositories(cls, context: Context) -> Iterable[RpmRepository]:
         if context.config.local_mirror:
             yield from cls.repository_variants(context, "AppStream")

@@ -3,7 +3,7 @@ import json
 import subprocess
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Final, Optional
 
 from mkosi.log import die
 from mkosi.run import SandboxProtocol, nosandbox, run
@@ -27,7 +27,7 @@ class Partition:
             roothash=dict.get("roothash"),
         )
 
-    GRUB_BOOT_PARTITION_UUID = "21686148-6449-6e6f-744e-656564454649"
+    GRUB_BOOT_PARTITION_UUID: Final[str] = "21686148-6449-6e6f-744e-656564454649"
 
 
 def find_partitions(image: Path, *, sandbox: SandboxProtocol = nosandbox) -> list[Partition]:
@@ -43,7 +43,8 @@ def find_partitions(image: Path, *, sandbox: SandboxProtocol = nosandbox) -> lis
 
 
 def finalize_roothash(partitions: Sequence[Partition]) -> Optional[str]:
-    roothash = usrhash = None
+    roothash: Optional[str] = None
+    usrhash: Optional[str] = None
 
     for p in partitions:
         if (h := p.roothash) is None:
