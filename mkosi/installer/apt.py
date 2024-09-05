@@ -4,7 +4,7 @@ import dataclasses
 import textwrap
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Optional
+from typing import Final, Optional
 
 from mkosi.config import PACKAGE_GLOBS, Config, ConfigFeature
 from mkosi.context import Context
@@ -37,7 +37,7 @@ class AptRepository:
 
 
 class Apt(PackageManager):
-    documentation_exclude_globs = [
+    documentation_exclude_globs: Final[list[str]] = [
         "usr/share/doc/*",
         "usr/share/man/*",
         "usr/share/groff/*",

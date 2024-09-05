@@ -6,7 +6,7 @@ import logging
 import os
 import sys
 from collections.abc import Iterator
-from typing import Any, NoReturn, Optional
+from typing import Any, Final, NoReturn, Optional
 
 # This global should be initialized after parsing arguments
 ARG_DEBUG = contextvars.ContextVar("debug", default=False)
@@ -15,12 +15,12 @@ LEVEL = 0
 
 
 class Style:
-    bold = "\033[0;1;39m" if sys.stderr.isatty() else ""
-    blue = "\033[0;1;34m" if sys.stderr.isatty() else ""
-    gray = "\033[0;38;5;245m" if sys.stderr.isatty() else ""
-    red = "\033[31;1m" if sys.stderr.isatty() else ""
-    yellow = "\033[33;1m" if sys.stderr.isatty() else ""
-    reset = "\033[0m" if sys.stderr.isatty() else ""
+    bold: Final[str] = "\033[0;1;39m" if sys.stderr.isatty() else ""
+    blue: Final[str] = "\033[0;1;34m" if sys.stderr.isatty() else ""
+    gray: Final[str] = "\033[0;38;5;245m" if sys.stderr.isatty() else ""
+    red: Final[str] = "\033[31;1m" if sys.stderr.isatty() else ""
+    yellow: Final[str] = "\033[33;1m" if sys.stderr.isatty() else ""
+    reset: Final[str] = "\033[0m" if sys.stderr.isatty() else ""
 
 
 def die(message: str,
