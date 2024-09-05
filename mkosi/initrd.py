@@ -77,7 +77,6 @@ def main() -> None:
         "--format", str(args.format),
         "--output", args.output,
         "--output-dir", args.output_dir,
-        "--cache-only=metadata",
         "--extra-tree", f"/usr/lib/modules/{args.kernel_version}:/usr/lib/modules/{args.kernel_version}",
         "--extra-tree=/usr/lib/firmware:/usr/lib/firmware",
         "--remove-files=/usr/lib/firmware/*-ucode",
@@ -96,6 +95,7 @@ def main() -> None:
         cmdline += [
             "--workspace-dir=/var/tmp",
             "--package-cache-dir=/var",
+            "--cache-only=metadata",
         ]
 
     for d in ("/usr/lib/mkosi-initrd", "/etc/mkosi-initrd"):
