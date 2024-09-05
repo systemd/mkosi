@@ -353,7 +353,7 @@ def splitpath(path: str) -> tuple[str, ...]:
 
 
 def joinpath(path: str, *paths: str) -> str:
-    return os.path.join(path, *(p.lstrip("/") for p in paths))
+    return os.path.join(path, *[p.lstrip("/") for p in paths])
 
 
 def is_relative_to(one: str, two: str) -> bool:
@@ -443,7 +443,9 @@ class ProcOperation(FSOperation):
 
 
 class DevOperation(FSOperation):
-    ttyname = os.ttyname(2) if os.isatty(2) else None
+    def __init__(self, ttyname: str, dst: str) -> None:
+        self.ttyname = ttyname
+        super().__init__(dst)
 
     def execute(self, oldroot: str, newroot: str) -> None:
         # We don't put actual devices in /dev, just the API stuff in there that all manner of things depend on,
@@ -626,6 +628,8 @@ def main() -> None:
     chdir = None
     become_root = suppress_chown = unshare_net = unshare_ipc = False
 
+    ttyname = os.ttyname(2) if os.isatty(2) else ""
+
     while argv:
         arg = argv.pop()
 
@@ -641,7 +645,7 @@ def main() -> None:
         if arg == "--tmpfs":
             fsops.append(TmpfsOperation(argv.pop()))
         elif arg == "--dev":
-            fsops.append(DevOperation(argv.pop()))
+            fsops.append(DevOperation(ttyname, argv.pop()))
         elif arg == "--proc":
             fsops.append(ProcOperation(argv.pop()))
         elif arg == "--dir":
