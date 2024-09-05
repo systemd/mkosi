@@ -31,7 +31,6 @@ def _tempfile(
             os.write(fd, reader())
         finally:
             os.close(fd)
-        del reader
         yield Path(raw_path)
     finally:
         try:
