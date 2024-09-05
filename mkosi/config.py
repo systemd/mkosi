@@ -3907,9 +3907,8 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
         setattr(config, "dependencies", dependencies)
 
     images = resolve_deps(images, config.dependencies)
-    images = [load_config(ns) for ns in images]
 
-    return args, tuple(images + [load_config(config)])
+    return args, tuple([load_config(ns) for ns in images] + [load_config(config)])
 
 
 def load_credentials(args: argparse.Namespace) -> dict[str, str]:

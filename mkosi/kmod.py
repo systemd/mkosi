@@ -91,8 +91,8 @@ def resolve_module_dependencies(
     moddep = {}
     firmwaredep = {}
 
-    depends = []
-    firmware = []
+    depends: set[str] = set()
+    firmware: set[Path] = set()
 
     with chdir(root):
         for line in info.split("\0"):
@@ -101,19 +101,19 @@ def resolve_module_dependencies(
                 key, sep, value = line.partition("=")
 
             if key == "depends":
-                depends += [normalize_module_name(d) for d in value.strip().split(",") if d]
+                depends.update(normalize_module_name(d) for d in value.strip().split(",") if d)
 
             elif key == "softdep":
                 # softdep is delimited by spaces and can contain strings like pre: and post: so discard anything that
                 # ends with a colon.
-                depends += [normalize_module_name(d) for d in value.strip().split() if not d.endswith(":")]
+                depends.update(normalize_module_name(d) for d in value.strip().split() if not d.endswith(":"))
 
             elif key == "firmware":
                 fw = [f for f in Path("usr/lib/firmware").glob(f"{value.strip()}*")]
                 if not fw:
                     logging.debug(f"Not including missing firmware /usr/lib/firmware/{value} in the initrd")
 
-                firmware += fw
+                firmware.update(fw)
 
             elif key == "name":
                 # The file names use dashes, but the module names use underscores. We track the names
@@ -124,8 +124,8 @@ def resolve_module_dependencies(
                 moddep[name] = depends
                 firmwaredep[name] = firmware
 
-                depends = []
-                firmware = []
+                depends = set()
+                firmware = set()
 
     todo = [*builtin, *modules]
     mods = set()
@@ -136,14 +136,14 @@ def resolve_module_dependencies(
         if m in mods:
             continue
 
-        depends = moddep.get(m, [])
+        depends = moddep.get(m, set())
         for d in depends:
             if d not in nametofile and d not in builtin:
                 logging.warning(f"{d} is a dependency of {m} but is not installed, ignoring ")
 
         mods.add(m)
         todo += depends
-        firmware.update(firmwaredep.get(m, []))
+        firmware.update(firmwaredep.get(m, set()))
 
     return set(nametofile[m] for m in mods if m in nametofile), set(firmware)
 

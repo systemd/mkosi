@@ -186,10 +186,10 @@ def spawn(
 ) -> Iterator[Popen]:
     assert sorted(set(pass_fds)) == list(pass_fds)
 
-    cmdline = [os.fspath(x) for x in cmdline]
+    cmd = [os.fspath(x) for x in cmdline]
 
     if ARG_DEBUG.get():
-        logging.info(f"+ {shlex.join(cmdline)}")
+        logging.info(f"+ {shlex.join(cmd)}")
 
     if not stdout and not stderr:
         # Unless explicit redirection is done, print all subprocess
@@ -280,7 +280,7 @@ def spawn(
 
                 if check and returncode not in success_exit_status:
                     if log:
-                        log_process_failure(prefix, cmdline, returncode)
+                        log_process_failure(prefix, cmd, returncode)
                     if ARG_DEBUG_SHELL.get():
                         subprocess.run(
                             [*prefix, "bash"],

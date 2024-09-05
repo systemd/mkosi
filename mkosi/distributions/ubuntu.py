@@ -29,8 +29,11 @@ class Installer(debian.Installer):
 
         # From kinetic onwards, the usr-is-merged package is available in universe and is required by
         # mkosi to set up a proper usr-merged system so we add the universe repository unconditionally.
-        components = ["main"] + (["universe"] if context.config.release not in ("focal", "jammy") else [])
-        components = (*components, *context.config.repositories)
+        components = (
+            "main",
+            *(["universe"] if context.config.release not in ("focal", "jammy") else []),
+            *context.config.repositories,
+        )
 
         if context.config.local_mirror and local:
             yield AptRepository(

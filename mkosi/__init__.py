@@ -2111,15 +2111,15 @@ def check_inputs(config: Config) -> None:
     if config.tools_tree and not config.tools_tree.exists():
         die(f"Tools tree {config.tools_tree} not found")
 
-    trees = [
+    trees_with_name = [
         ("skeleton", config.skeleton_trees),
         ("sandbox", config.sandbox_trees),
     ]
 
     if config.output_format != OutputFormat.none:
-        trees += [("extra", config.extra_trees)]
+        trees_with_name += [("extra", config.extra_trees)]
 
-    for name, trees in trees:
+    for name, trees in trees_with_name:
         for tree in trees:
             if not tree.source.exists():
                 die(f"{name.capitalize()} tree {tree.source} not found")

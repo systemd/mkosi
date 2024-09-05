@@ -64,7 +64,6 @@ pretty = true
 show_error_codes = true
 show_column_numbers = true
 warn_unreachable = true
-allow_redefinition = true
 strict_equality = true
 
 [tool.ruff]

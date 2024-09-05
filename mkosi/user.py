@@ -143,16 +143,17 @@ def become_root_in_subuid_range() -> None:
             SUBRANGE - 100 + 1, subgid + SUBRANGE - 100 + 1, 99
         ]
 
-        newuidmap = [str(x) for x in newuidmap]
-        newgidmap = [str(x) for x in newgidmap]
-
         # newuidmap and newgidmap have to run from outside the user namespace to be able to assign a uid mapping to the
         # process in the user namespace. The mapping can only be assigned after the user namespace has been unshared.
         # To make this work, we first lock a temporary file, then spawn the newuidmap and newgidmap processes, which we
         # execute using flock so they don't execute before they can get a lock on the same temporary file, then we
         # unshare the user namespace and finally we unlock the temporary file, which allows the newuidmap and newgidmap
         # processes to execute. we then wait for the processes to finish before continuing.
-        with flock(lock) as fd, spawn(newuidmap) as uidmap, spawn(newgidmap) as gidmap:
+        with (
+            flock(lock) as fd,
+            spawn([str(x) for x in newuidmap]) as uidmap,
+            spawn([str(x) for x in newgidmap]) as gidmap,
+        ):
             unshare(CLONE_NEWUSER)
             fcntl.flock(fd, fcntl.LOCK_UN)
             uidmap.wait()
