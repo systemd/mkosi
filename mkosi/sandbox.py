@@ -380,7 +380,7 @@ class FSOperation:
 
         # Drop all bind mounts that are mounted from beneath another bind mount to the same location within the new
         # rootfs.
-        binds = [
+        optimized = [
             m for m in binds
             if not any(
                 m != n and
@@ -395,7 +395,7 @@ class FSOperation:
 
         # Make sure bind mounts override other operations on the same destination by appending them to the rest and
         # depending on python's stable sort behavior.
-        return sorted([*rest, *binds], key=lambda fsop: splitpath(fsop.dst))
+        return sorted([*rest, *optimized], key=lambda fsop: splitpath(fsop.dst))
 
 
 class BindOperation(FSOperation):
