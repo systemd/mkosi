@@ -8,11 +8,14 @@ import sys
 import tempfile
 from pathlib import Path
 
-from mkosi.config import OutputFormat
+import mkosi.resources
+from mkosi.config import DocFormat, OutputFormat
+from mkosi.documentation import show_docs
 from mkosi.log import log_setup
 from mkosi.run import find_binary, run, uncaught_exception_handler
 from mkosi.sandbox import __version__
 from mkosi.types import PathString
+from mkosi.util import resource_path
 
 
 @uncaught_exception_handler()
@@ -63,12 +66,23 @@ def main() -> None:
         default=False,
     )
     parser.add_argument(
+        "-D", "--show-documentation",
+        help="Show the man page",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
         "--version",
         action="version",
         version=f"mkosi {__version__}",
     )
 
     args = parser.parse_args()
+
+    if args.show_documentation:
+        with resource_path(mkosi.resources) as r:
+            show_docs("mkosi-initrd", DocFormat.all(), resources=r)
+        return
 
     cmdline: list[PathString] = [
         "mkosi",

@@ -55,6 +55,7 @@ from mkosi.config import (
     Compression,
     Config,
     ConfigFeature,
+    DocFormat,
     JsonEncoder,
     KeySourceType,
     ManifestFormat,
@@ -3921,7 +3922,9 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         return print_completion(args, resources=resources)
 
     if args.verb == Verb.documentation:
-        return show_docs(args, resources=resources)
+        manual = args.cmdline[0] if args.cmdline else "mkosi"
+        formats: list[DocFormat] = [args.doc_format] if args.doc_format != DocFormat.auto else DocFormat.all()
+        return show_docs(manual, formats, resources=resources, pager=args.pager)
 
     if args.verb == Verb.genkey:
         return generate_key_cert_pair(args)

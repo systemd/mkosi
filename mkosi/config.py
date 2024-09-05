@@ -247,6 +247,12 @@ class DocFormat(StrEnum):
     pandoc   = enum.auto()
     system   = enum.auto()
 
+    @classmethod
+    def all(cls) -> list["DocFormat"]:
+        # this excludes auto and encodes the order in which these should be
+        # checked when searching for docs
+        return [cls.man, cls.pandoc, cls.markdown, cls.system]
+
 
 class Bootloader(StrEnum):
     none         = enum.auto()

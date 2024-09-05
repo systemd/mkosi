@@ -4,20 +4,13 @@ import logging
 import subprocess
 from pathlib import Path
 
-from mkosi.config import Args, DocFormat
+from mkosi.config import DocFormat
 from mkosi.log import die
 from mkosi.pager import page
 from mkosi.run import find_binary, run
 
 
-def show_docs(args: Args, *, resources: Path) -> None:
-    if args.doc_format == DocFormat.auto:
-        formats = [DocFormat.man, DocFormat.pandoc, DocFormat.markdown, DocFormat.system]
-    else:
-        formats = [args.doc_format]
-
-    manual = args.cmdline[0] if args.cmdline else "mkosi"
-
+def show_docs(manual: str, formats: list[DocFormat], *, resources: Path, pager: bool = True) -> None:
     while formats:
         form = formats.pop(0)
         try:
@@ -39,7 +32,7 @@ def show_docs(args: Args, *, resources: Path) -> None:
                 run(["man", "--local-file", "-"], input=pandoc.stdout)
                 return
             elif form == DocFormat.markdown:
-                page((resources / f"man/{manual}.md").read_text(), args.pager)
+                page((resources / f"man/{manual}.md").read_text(), pager)
                 return
             elif form == DocFormat.system:
                 run(["man", manual], log=False)
