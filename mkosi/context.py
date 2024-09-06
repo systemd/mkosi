@@ -74,6 +74,6 @@ class Context:
             network=network,
             devices=devices,
             scripts=scripts,
-            sandbox_tree=self.sandbox_tree,
+            overlay=self.sandbox_tree,
             options=options,
         )

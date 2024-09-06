@@ -573,7 +573,7 @@ def run_sync_scripts(config: Config) -> None:
                         binary=None,
                         network=True,
                         options=options,
-                        sandbox_tree=Path(sandbox_tree),
+                        overlay=Path(sandbox_tree),
                     ),
                 )
 

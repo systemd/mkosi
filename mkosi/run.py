@@ -24,7 +24,7 @@ from typing import Any, Callable, NoReturn, Optional, Protocol
 
 import mkosi.sandbox
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, die
-from mkosi.sandbox import joinpath
+from mkosi.sandbox import joinpath, umask
 from mkosi.types import _FILE, CompletedProcess, PathString, Popen
 from mkosi.util import flatten, one_zero
 
@@ -424,18 +424,23 @@ def network_options(*, network: bool) -> list[PathString]:
 
 
 @contextlib.contextmanager
-def vartmpdir(condition: bool = True) -> Iterator[Optional[Path]]:
-    if not condition:
-        yield None
-        return
-
+def vartmpdir() -> Iterator[Path]:
     # We want to use an empty subdirectory in the host's temporary directory as the sandbox's /var/tmp.
     d = Path(os.getenv("TMPDIR", "/var/tmp")) / f"mkosi-var-tmp-{uuid.uuid4().hex[:16]}"
-    d.mkdir(mode=0o1777)
+    d.mkdir()
 
     try:
         yield d
     finally:
+        # A directory that's used as an overlayfs workdir will contain a "work" subdirectory after the overlayfs is
+        # unmounted. This "work" subdirectory will have permissions 000 and as such can't be opened or searched unless
+        # the user has the CAP_DAC_OVERRIDE capability. shutil.rmtree() will try to search the "work" subdirectory to
+        # remove anything in it which will fail with a permission error. To circumvent this, let's delete the "work"
+        # subdirectory first and then invoke shutil.rmtree(). Deleting the subdirectory is not a problem because
+        # deleting a subdirectory depends on the permissions of the parent directory and not the directory itself.
+        if (d / "work").exists():
+            (d / "work").rmdir()
+
         shutil.rmtree(d)
 
 
@@ -447,10 +452,12 @@ def sandbox_cmd(
     scripts: Optional[Path] = None,
     tools: Path = Path("/"),
     relaxed: bool = False,
-    usroverlaydirs: Sequence[PathString] = (),
+    overlay: Optional[Path] = None,
     options: Sequence[PathString] = (),
     setup: Sequence[PathString] = (),
 ) -> Iterator[list[PathString]]:
+    assert not (overlay and relaxed)
+
     cmdline: list[PathString] = [
         *setup,
         sys.executable, "-SI", mkosi.sandbox.__file__,
@@ -463,13 +470,12 @@ def sandbox_cmd(
         "--ro-bind", Path(mkosi.sandbox.__file__), "/sandbox.py",
     ]
 
-    if usroverlaydirs:
-        cmdline += ["--overlay-lowerdir", tools / "usr"]
-
-        for d in usroverlaydirs:
-            cmdline += ["--overlay-lowerdir", d]
-
-        cmdline += ["--overlay", "/usr"]
+    if overlay and (overlay / "usr").exists():
+        cmdline += [
+            "--overlay-lowerdir", tools / "usr"
+            "--overlay-lowerdir", overlay / "usr",
+            "--overlay", "/usr",
+        ]
     else:
         cmdline += ["--ro-bind", tools / "usr", "/usr"]
 
@@ -515,7 +521,7 @@ def sandbox_cmd(
         if d and not any(Path(d).is_relative_to(dir) for dir in (*dirs, "/usr", "/nix", "/tmp")):
             cmdline += ["--bind", d, d]
     else:
-        cmdline += ["--dir", "/tmp", "--dir", "/var/tmp", "--unshare-ipc"]
+        cmdline += ["--dir", "/var/tmp", "--unshare-ipc"]
 
         if devices:
             cmdline += ["--bind", "/sys", "/sys", "--bind", "/dev", "/dev"]
@@ -527,16 +533,44 @@ def sandbox_cmd(
 
     path = "/usr/bin:/usr/sbin" if tools != Path("/") else os.environ["PATH"]
 
-    cmdline += ["--setenv", "PATH", f"/scripts:{path}", *options]
+    cmdline += ["--setenv", "PATH", f"/scripts:{path}"]
 
     if scripts:
         cmdline += ["--ro-bind", scripts, "/scripts"]
 
-    with vartmpdir(condition=not relaxed) as dir:
-        if dir:
-            cmdline += ["--bind", dir, "/var/tmp"]
+    with contextlib.ExitStack() as stack:
+        tmp: Optional[Path]
 
-        yield [*cmdline, "--"]
+        if not overlay and not relaxed:
+            tmp = stack.enter_context(vartmpdir())
+            yield [*cmdline, "--bind", tmp, "/var/tmp", *options, "--"]
+            return
+
+        for d in ("etc", "opt", "srv", "media", "mnt", "var", "run", "tmp"):
+            tmp = None
+            if d not in ("run", "tmp"):
+                with umask(~0o755):
+                    tmp = stack.enter_context(vartmpdir())
+
+            if overlay and (overlay / d).exists():
+                work = None
+                if tmp:
+                    with umask(~0o755):
+                        work = stack.enter_context(vartmpdir())
+
+                cmdline += [
+                    "--overlay-lowerdir", overlay / d,
+                    "--overlay-upperdir", tmp or "tmpfs",
+                    *(["--overlay-workdir", str(work)] if work else []),
+                    "--overlay", Path("/") / d,
+                ]
+            elif not relaxed:
+                if tmp:
+                    cmdline += ["--bind", tmp, Path("/") / d]
+                else:
+                    cmdline += ["--tmpfs", Path("/") / d]
+
+        yield [*cmdline, *options, "--"]
 
 
 def apivfs_options(*, root: Path = Path("/buildroot")) -> list[PathString]:
@@ -590,10 +624,7 @@ def chroot_cmd(
         cmdline += ["--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf"]
 
     with vartmpdir() as dir:
-        if dir:
-            cmdline += ["--bind", dir, "/var/tmp"]
-
-        yield [*cmdline, *options, "--"]
+        yield [*cmdline, "--bind", dir, "/var/tmp", *options, "--"]
 
 
 def finalize_interpreter(tools: bool) -> str:
