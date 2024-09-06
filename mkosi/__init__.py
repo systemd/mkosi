@@ -499,7 +499,6 @@ def run_configure_scripts(config: Config) -> Config:
                     env=env | config.environment,
                     sandbox=config.sandbox(
                         binary=None,
-                        vartmp=True,
                         options=[
                             "--dir", "/work/src",
                             "--chdir", "/work/src",
@@ -573,7 +572,6 @@ def run_sync_scripts(config: Config) -> None:
                     sandbox=config.sandbox(
                         binary=None,
                         network=True,
-                        vartmp=True,
                         options=options,
                         sandbox_tree=Path(sandbox_tree),
                     ),
@@ -613,7 +611,6 @@ def script_maybe_chroot_sandbox(
             with context.sandbox(
                 binary=None,
                 network=network,
-                vartmp=True,
                 options=[
                     *options,
                     "--bind", context.root, "/buildroot",
@@ -948,7 +945,6 @@ def run_postoutput_scripts(context: Context) -> None:
                     env=env | context.config.environment,
                     sandbox=context.sandbox(
                         binary=None,
-                        vartmp=True,
                         # postoutput scripts should run as (fake) root so that file ownership is always recorded as if
                         # owned by root.
                         options=[
@@ -2703,7 +2699,6 @@ def make_image(
                         not context.config.repart_offline or
                         context.config.verity_key_source.type != KeySourceType.file
                     ),
-                    vartmp=True,
                     options=options,
                 ),
             ).stdout
@@ -2986,7 +2981,6 @@ def make_extension_image(context: Context, output: Path) -> None:
                         not context.config.repart_offline or
                         context.config.verity_key_source.type != KeySourceType.file
                     ),
-                    vartmp=True,
                     options=options,
                 ),
             ).stdout
@@ -3103,10 +3097,9 @@ def copy_repository_metadata(config: Config, dst: Path) -> None:
                 def sandbox(
                     *,
                     binary: Optional[PathString],
-                    vartmp: bool = False,
                     options: Sequence[PathString] = (),
                 ) -> AbstractContextManager[list[PathString]]:
-                    return config.sandbox(binary=binary, vartmp=vartmp, options=[*options, *exclude])
+                    return config.sandbox(binary=binary, options=[*options, *exclude])
 
                 copy_tree(src, subdst, preserve=False, sandbox=sandbox)
 
@@ -3360,7 +3353,6 @@ def run_shell(args: Args, config: Config) -> None:
                     binary="systemd-repart",
                     network=True,
                     devices=True,
-                    vartmp=True,
                     options=["--bind", fname, fname],
                 ),
             )
@@ -3703,7 +3695,6 @@ def run_clean_scripts(config: Config) -> None:
                     env=env | config.environment,
                     sandbox=config.sandbox(
                         binary=None,
-                        vartmp=True,
                         tools=False,
                         options=[
                             "--dir", "/work/src",

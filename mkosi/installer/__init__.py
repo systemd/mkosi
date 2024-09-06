@@ -129,7 +129,6 @@ class PackageManager:
         return context.sandbox(
             binary=cls.executable(context.config),
             network=True,
-            vartmp=True,
             options=[
                 "--bind", context.root, "/buildroot",
                 *cls.mounts(context),

@@ -1014,7 +1014,6 @@ def run_qemu(args: Args, config: Config) -> None:
                 ],
                 sandbox=config.sandbox(
                     binary="systemd-repart",
-                    vartmp=True,
                     options=[
                         "--bind", fname.parent, workdir(fname.parent),
                         "--ro-bind", src, workdir(src),

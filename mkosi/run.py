@@ -387,7 +387,6 @@ class SandboxProtocol(Protocol):
         self,
         *,
         binary: Optional[PathString],
-        vartmp: bool = False,
         options: Sequence[PathString] = (),
     ) -> AbstractContextManager[list[PathString]]: ...
 
@@ -395,7 +394,6 @@ class SandboxProtocol(Protocol):
 def nosandbox(
     *,
     binary: Optional[PathString],
-    vartmp: bool = False,
     options: Sequence[PathString] = (),
 ) -> AbstractContextManager[list[PathString]]:
     return contextlib.nullcontext([])
@@ -446,7 +444,6 @@ def sandbox_cmd(
     *,
     network: bool = False,
     devices: bool = False,
-    vartmp: bool = False,
     scripts: Optional[Path] = None,
     tools: Path = Path("/"),
     relaxed: bool = False,
@@ -535,7 +532,7 @@ def sandbox_cmd(
     if scripts:
         cmdline += ["--ro-bind", scripts, "/scripts"]
 
-    with vartmpdir(condition=vartmp and not relaxed) as dir:
+    with vartmpdir(condition=not relaxed) as dir:
         if dir:
             cmdline += ["--bind", dir, "/var/tmp"]
 
