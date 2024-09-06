@@ -93,6 +93,7 @@ from mkosi.run import (
     finalize_passwd_mounts,
     fork_and_wait,
     run,
+    workdir,
 )
 from mkosi.sandbox import (
     CLONE_NEWNS,
@@ -996,12 +997,15 @@ def install_tree(
         extract_tar(src, t, sandbox=config.sandbox)
     elif src.suffix == ".raw":
         run(
-            ["systemd-dissect", "--copy-from", src, "/", t],
+            ["systemd-dissect", "--copy-from", workdir(src), "/", workdir(t)],
             sandbox=config.sandbox(
                 binary="systemd-dissect",
                 devices=True,
                 network=True,
-                options=["--ro-bind", src, src, "--bind", t.parent, t.parent],
+                options=[
+                    "--ro-bind", src, workdir(src),
+                    "--bind", t.parent, workdir(t.parent),
+                ],
             ),
         )
     else:
@@ -1435,13 +1439,13 @@ def build_uki(
         *(["--cmdline", f"@{context.workspace / 'cmdline'}"] if cmdline else []),
         "--os-release", f"@{context.root / 'usr/lib/os-release'}",
         "--stub", stub,
-        "--output", output,
+        "--output", workdir(output),
         "--efi-arch", arch,
         "--uname", kver,
     ]
 
     options: list[PathString] = [
-        "--bind", output.parent, output.parent,
+        "--bind", output.parent, workdir(output.parent),
         "--ro-bind", context.workspace / "cmdline", context.workspace / "cmdline",
         "--ro-bind", context.root / "usr/lib/os-release", context.root / "usr/lib/os-release",
         "--ro-bind", stub, stub,
@@ -2940,13 +2944,13 @@ def make_extension_image(context: Context, output: Path) -> None:
         "--empty=create",
         "--size=auto",
         "--definitions", r,
-        output,
+        workdir(output),
     ]
     options: list[PathString] = [
         # Make sure we're root so that the mkfs tools invoked by systemd-repart think the files that go
         # into the disk image are owned by root.
         "--become-root",
-        "--bind", output.parent, output.parent,
+        "--bind", output.parent, workdir(output.parent),
         "--ro-bind", context.root, "/buildroot",
         "--ro-bind", r, r,
     ]

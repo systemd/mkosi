@@ -24,6 +24,7 @@ from typing import Any, Callable, NoReturn, Optional, Protocol
 
 import mkosi.sandbox
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, die
+from mkosi.sandbox import joinpath
 from mkosi.types import _FILE, CompletedProcess, PathString, Popen
 from mkosi.util import flatten, one_zero
 
@@ -398,6 +399,11 @@ def nosandbox(
     options: Sequence[PathString] = (),
 ) -> AbstractContextManager[list[PathString]]:
     return contextlib.nullcontext([])
+
+
+def workdir(path: Path, sandbox: Optional[SandboxProtocol] = None) -> str:
+    subdir = "/" if sandbox and sandbox == nosandbox else "/work"
+    return joinpath(subdir, str(path))
 
 
 def finalize_passwd_mounts(root: PathString) -> list[PathString]:

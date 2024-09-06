@@ -41,7 +41,7 @@ from mkosi.config import (
 )
 from mkosi.log import ARG_DEBUG, die
 from mkosi.partition import finalize_root, find_partitions
-from mkosi.run import SD_LISTEN_FDS_START, AsyncioThread, find_binary, fork_and_wait, run, spawn
+from mkosi.run import SD_LISTEN_FDS_START, AsyncioThread, find_binary, fork_and_wait, run, spawn, workdir
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
 from mkosi.user import INVOKING_USER, become_root_in_subuid_range, become_root_in_subuid_range_cmd
@@ -496,14 +496,14 @@ def start_journal_remote(config: Config, sockfd: int) -> Iterator[None]:
         with spawn(
             [
                 bin,
-                "--output", config.forward_journal,
+                "--output", workdir(config.forward_journal),
                 "--split-mode", "none" if config.forward_journal.suffix == ".journal" else "host",
             ],
             pass_fds=(sockfd,),
             sandbox=config.sandbox(
                 binary=bin,
                 options=[
-                    "--bind", config.forward_journal.parent, config.forward_journal.parent,
+                    "--bind", config.forward_journal.parent, workdir(config.forward_journal.parent),
                     "--ro-bind", f.name, "/etc/systemd/journal-remote.conf",
                 ],
                 setup=scope,
@@ -1009,13 +1009,16 @@ def run_qemu(args: Args, config: Config) -> None:
                     "--empty=create",
                     "--size=auto",
                     "--sector-size=2048",
-                    "--copy-from", src,
-                    fname,
+                    "--copy-from", workdir(src),
+                    workdir(fname),
                 ],
                 sandbox=config.sandbox(
                     binary="systemd-repart",
                     vartmp=True,
-                    options=["--bind", fname.parent, fname.parent, "--ro-bind", src, src],
+                    options=[
+                        "--bind", fname.parent, workdir(fname.parent),
+                        "--ro-bind", src, workdir(src),
+                    ],
                 ),
             )
             stack.callback(lambda: fname.unlink())
