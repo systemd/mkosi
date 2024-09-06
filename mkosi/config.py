@@ -1563,6 +1563,7 @@ class Config:
     runtime_scratch: ConfigFeature
     runtime_network: Network
     runtime_build_sources: bool
+    runtime_home: bool
     unit_properties: list[str]
     ssh_key: Optional[Path]
     ssh_certificate: Optional[Path]
@@ -3006,6 +3007,13 @@ SETTINGS = (
         help="Mount build sources and build directory in /work when booting the image",
     ),
     ConfigSetting(
+        dest="runtime_home",
+        metavar="BOOL",
+        section="Host",
+        parse=config_parse_boolean,
+        help="Mount current home directory to /root when booting the image",
+    ),
+    ConfigSetting(
         dest="unit_properties",
         long="--unit-property",
         metavar="PROPERTY",
@@ -4307,6 +4315,7 @@ def summary(config: Config) -> str:
                     Runtime Scratch: {config.runtime_scratch}
                     Runtime Network: {config.runtime_network}
               Runtime Build Sources: {config.runtime_build_sources}
+  Runtime Home or Working Directory: {yes_no(config.runtime_home)}
                     Unit Properties: {line_join_list(config.unit_properties)}
                     SSH Signing Key: {none_to_none(config.ssh_key)}
                     SSH Certificate: {none_to_none(config.ssh_certificate)}

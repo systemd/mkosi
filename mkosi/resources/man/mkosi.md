@@ -1635,6 +1635,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     they were mounted to when running the build script when using `mkosi
     boot` or `mkosi qemu`.
 
+`RuntimeHome=`, `--runtime-home=`
+:   Mount the current home directory from which mkosi is running to
+    `/root` when using `mkosi boot` or `mkosi qemu`.
+
 `UnitProperties=`, `--unit-property=`
 :   Configure systemd unit properties to add to the systemd scopes
     allocated when using `mkosi boot` or `mkosi qemu`. These are passed

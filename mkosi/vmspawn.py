@@ -21,6 +21,7 @@ from mkosi.qemu import (
 )
 from mkosi.run import run
 from mkosi.types import PathString
+from mkosi.util import current_home_dir
 
 
 def run_vmspawn(args: Args, config: Config) -> None:
@@ -83,6 +84,9 @@ def run_vmspawn(args: Args, config: Config) -> None:
         for tree in config.runtime_trees:
             target = Path("/root/src") / (tree.target or "")
             cmdline += ["--bind", f"{tree.source}:{target}"]
+
+        if config.runtime_home and (p := current_home_dir()):
+            cmdline += ["--bind", f"{p}:/root"]
 
         if kernel:
             cmdline += ["--linux", kernel]

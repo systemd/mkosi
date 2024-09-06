@@ -26,7 +26,7 @@ import mkosi.sandbox
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, die
 from mkosi.sandbox import joinpath, umask
 from mkosi.types import _FILE, CompletedProcess, PathString, Popen
-from mkosi.util import flatten, one_zero
+from mkosi.util import current_home_dir, flatten, one_zero
 
 SD_LISTEN_FDS_START = 3
 
@@ -503,23 +503,14 @@ def sandbox_cmd(
             if Path(d).exists():
                 cmdline += ["--bind", d, d]
 
+        path = current_home_dir()
+        if not path and Path.cwd() not in (Path("/"), Path("/home")):
+            path = Path.cwd()
+
         # Either add the home directory we're running from or the current working directory if we're not running from
         # inside a home directory.
-        if Path.cwd() == Path("/"):
-            d = ""
-        if Path.cwd().is_relative_to("/root"):
-            d = "/root"
-        elif Path.cwd() == Path("/home"):
-            d = "/home"
-        elif Path.cwd().is_relative_to("/home"):
-            # `Path.parents` only supports slices and negative indexing from Python 3.10 onwards.
-            # TODO: Remove list() when we depend on Python 3.10 or newer.
-            d = os.fspath(list(Path.cwd().parents)[-2])
-        else:
-            d = os.fspath(Path.cwd())
-
-        if d and not any(Path(d).is_relative_to(dir) for dir in (*dirs, "/usr", "/nix", "/tmp")):
-            cmdline += ["--bind", d, d]
+        if path and not any(path.is_relative_to(dir) for dir in (*dirs, "/usr", "/nix", "/tmp")):
+            cmdline += ["--bind", path, path]
     else:
         cmdline += ["--dir", "/var/tmp", "--unshare-ipc"]
 
@@ -531,9 +522,7 @@ def sandbox_cmd(
         if network and Path("/etc/resolv.conf").exists():
             cmdline += ["--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf"]
 
-    path = "/usr/bin:/usr/sbin" if tools != Path("/") else os.environ["PATH"]
-
-    cmdline += ["--setenv", "PATH", f"/scripts:{path}"]
+    cmdline += ["--setenv", "PATH", f"/scripts:{'/usr/bin:/usr/sbin' if tools != Path('/') else os.environ['PATH']}"]
 
     if scripts:
         cmdline += ["--ro-bind", scripts, "/scripts"]
