@@ -470,16 +470,27 @@ def sandbox_cmd(
     else:
         cmdline += ["--ro-bind", tools / "usr", "/usr"]
 
-    if (tools / "etc/ld.so.cache").exists():
-        cmdline += ["--ro-bind", tools / "etc/ld.so.cache", "/etc/ld.so.cache"]
+    for d in ("bin", "sbin", "lib", "lib32", "lib64"):
+        if (p := tools / d).is_symlink():
+            cmdline += ["--symlink", p.readlink(), Path("/") / p.relative_to(tools)]
+        elif p.is_dir():
+            cmdline += ["--ro-bind", p, Path("/") / p.relative_to(tools)]
+
+    # If we're using /usr from a tools tree, we have to use /etc/alternatives and /etc/ld.so.cache from the tools tree
+    # as well if they exists since those are directly related  to /usr. In relaxed mode, we only do this if
+    # the mountpoint already exists on the host as otherwise we'd modify the host's /etc by creating the mountpoint
+    # ourselves (or fail when trying to create it).
+    for p in (Path("etc/alternatives"), Path("etc/ld.so.cache")):
+        if (tools / p).exists() and (not relaxed or (Path("/") / p).exists()):
+            cmdline += ["--ro-bind", tools / p, Path("/") / p]
+
+    if (tools / "nix/store").exists():
+        cmdline += ["--bind", tools / "nix/store", "/nix/store"]
 
     if relaxed:
         cmdline += ["--bind", "/tmp", "/tmp"]
     else:
         cmdline += ["--dir", "/tmp", "--dir", "/var/tmp", "--unshare-ipc"]
-
-    if (tools / "nix/store").exists():
-        cmdline += ["--bind", tools / "nix/store", "/nix/store"]
 
     if devices or relaxed:
         cmdline += [
@@ -515,23 +526,9 @@ def sandbox_cmd(
         if d and not any(Path(d).is_relative_to(dir) for dir in (*dirs, "/usr", "/nix", "/tmp")):
             cmdline += ["--bind", d, d]
 
-    for d in ("bin", "sbin", "lib", "lib32", "lib64"):
-        if (p := tools / d).is_symlink():
-            cmdline += ["--symlink", p.readlink(), Path("/") / p.relative_to(tools)]
-        elif p.is_dir():
-            cmdline += ["--ro-bind", p, Path("/") / p.relative_to(tools)]
-
     path = "/usr/bin:/usr/sbin" if tools != Path("/") else os.environ["PATH"]
 
     cmdline += ["--setenv", "PATH", f"/scripts:{path}", *options]
-
-    # If we're using /usr from a tools tree, we have to use /etc/alternatives from the tools tree as well if it
-    # exists since that points directly back to /usr. Apply this after the options so the caller can mount
-    # something else to /etc without overriding this mount. In relaxed mode, we only do this if /etc/alternatives
-    # already exists on the host as otherwise we'd modify the host's /etc by creating the mountpoint ourselves (or
-    # fail when trying to create it).
-    if (tools / "etc/alternatives").exists() and (not relaxed or Path("/etc/alternatives").exists()):
-        cmdline += ["--ro-bind", tools / "etc/alternatives", "/etc/alternatives"]
 
     if scripts:
         cmdline += ["--ro-bind", scripts, "/scripts"]
