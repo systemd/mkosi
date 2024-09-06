@@ -488,21 +488,7 @@ def sandbox_cmd(
         cmdline += ["--bind", tools / "nix/store", "/nix/store"]
 
     if relaxed:
-        cmdline += ["--bind", "/tmp", "/tmp"]
-    else:
-        cmdline += ["--dir", "/tmp", "--dir", "/var/tmp", "--unshare-ipc"]
-
-    if devices or relaxed:
-        cmdline += [
-            "--bind", "/sys", "/sys",
-            "--bind", "/run", "/run",
-            "--bind", "/dev", "/dev",
-        ]
-    else:
-        cmdline += ["--dev", "/dev"]
-
-    if relaxed:
-        dirs = ("/etc", "/opt", "/srv", "/media", "/mnt", "/var")
+        dirs = ("/etc", "/opt", "/srv", "/media", "/mnt", "/var", "/tmp", "/sys", "/run", "/dev")
 
         for d in dirs:
             if Path(d).exists():
@@ -525,6 +511,16 @@ def sandbox_cmd(
 
         if d and not any(Path(d).is_relative_to(dir) for dir in (*dirs, "/usr", "/nix", "/tmp")):
             cmdline += ["--bind", d, d]
+    else:
+        cmdline += ["--dir", "/tmp", "--dir", "/var/tmp", "--unshare-ipc"]
+
+        if devices:
+            cmdline += ["--bind", "/sys", "/sys", "--bind", "/dev", "/dev"]
+        else:
+            cmdline += ["--dev", "/dev"]
+
+        if network and Path("/etc/resolv.conf").exists():
+            cmdline += ["--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf"]
 
     path = "/usr/bin:/usr/sbin" if tools != Path("/") else os.environ["PATH"]
 
@@ -532,9 +528,6 @@ def sandbox_cmd(
 
     if scripts:
         cmdline += ["--ro-bind", scripts, "/scripts"]
-
-    if network and not relaxed and Path("/etc/resolv.conf").exists():
-        cmdline += ["--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf"]
 
     with vartmpdir(condition=vartmp and not relaxed) as dir:
         if dir:
