@@ -551,11 +551,17 @@ class OverlayOperation(FSOperation):
 
     def execute(self, oldroot: str, newroot: str) -> None:
         lowerdirs = tuple(chase(oldroot, p) for p in self.lowerdirs)
-        upperdir = chase(oldroot, self.upperdir) if self.upperdir else None
+        upperdir = chase(oldroot, self.upperdir) if self.upperdir and self.upperdir != "tmpfs" else self.upperdir
         workdir = chase(oldroot, self.workdir) if self.workdir else None
         dst = chase(newroot, self.dst)
+
         with umask(~0o755):
-            os.makedirs(dst, exist_ok=True)
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+
+        mode = 0o1777 if any(dst.endswith(suffix) for suffix in ("/tmp", "/var/tmp")) else 0o755
+        if not os.path.exists(dst):
+            with umask(~mode):
+                os.mkdir(dst, mode=mode)
 
         options = [
             f"lowerdir={':'.join(lowerdirs)}",
@@ -571,10 +577,20 @@ class OverlayOperation(FSOperation):
             "metacopy=off",
         ]
 
-        if upperdir:
-            options += [f"upperdir={upperdir}"]
-        if workdir:
-            options += [f"workdir={workdir}"]
+        if upperdir and upperdir == "tmpfs":
+            mount("tmpfs", dst, "tmpfs", 0, "mode=0755")
+
+            with umask(~mode):
+                os.mkdir(f"{dst}/upper", mode=mode)
+            with umask(~0o755):
+                os.mkdir(f"{dst}/work")
+
+            options += [f"upperdir={dst}/upper", f"workdir={dst}/work"]
+        else:
+            if upperdir:
+                options += [f"upperdir={upperdir}"]
+            if workdir:
+                options += [f"workdir={workdir}"]
 
         mount("overlayfs", dst, "overlay", 0, ",".join(options))
 

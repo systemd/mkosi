@@ -63,7 +63,9 @@ host system.
 :   Adds `DIR` from the host as a new lower directory for the next overlayfs mount.
 
 `--overlay-upperdir DIR`
-:   Sets the upper directory for the next overlayfs mount to `DIR` from the host.
+:   Sets the upper directory for the next overlayfs mount to `DIR` from the host. If
+    set to `tmpfs`, the upperdir and workdir will be subdirectories of a fresh tmpfs
+    mount.
 
 `--overlay-workdir DIR`
 :   Sets the working directory for the next overlayfs mount to `DIR` from the host.
