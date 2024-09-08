@@ -26,6 +26,8 @@ mkosi — Build Bespoke OS Images
 
 `mkosi [options…] coredumpctl [command line…]`
 
+`mkosi [options…] sysupdate [command line…]`
+
 `mkosi [options…] clean`
 
 `mkosi [options…] serve`
@@ -123,6 +125,13 @@ The following command line verbs are known:
     If `ForwardJournal=` is specified, this verb will operate on the
     forwarded journal instead of the image. Note that this requires
     configuring systemd-coredump to store coredumps in the journal.
+
+`sysupdate`
+:   Invokes `systemd-sysupdate` with the `--transfer-source=` option set
+    to the output directory and the `--definitions=` option set to the
+    directory configured with `SysupdateDirectory=`. Any arguments
+    specified after the `sysupdate` verb are passed directly to
+    `systemd-sysupdate` invocation.
 
 `clean`
 :   Remove build artifacts generated on a previous build. If combined
@@ -1698,6 +1707,21 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     journal size is limited to `4G`. Configure an output directory instead
     of file if your workload produces more than `4G` worth of journal
     data.
+
+`SysupdateDirectory=`, `--sysupdate-dir=`
+:   Path to a directory containing systemd-sysupdate transfer definition
+    files that are used by `mkosi sysupdate`. If `mkosi.sysupdate/`
+    exists in the local directory, it will be used for this purpose as
+    well.
+
+    Note that `mkosi sysupdate` invokes `systemd-sysupdate` with
+    `--transfer-source=` set to the mkosi output directory. To make use
+    of this in a transfer definition file, set `PathRelativeTo=explicit`
+    to have the `Path=` setting for the transfer source be interpreted
+    relative to the mkosi output directory. Generally, configuring
+    `PathRelativeTo=explicit` and `Path=/` for the transfer source is
+    sufficient for the match pattern to be interpreted relative to the
+    mkosi output directory.
 
 ### [Match] Section.
 

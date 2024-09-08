@@ -111,6 +111,7 @@ from mkosi.sandbox import (
     unshare,
     userns_has_single_user,
 )
+from mkosi.sysupdate import run_sysupdate
 from mkosi.tree import copy_tree, make_tree, move_tree, rmtree
 from mkosi.types import PathString
 from mkosi.user import INVOKING_USER
@@ -2233,6 +2234,15 @@ def check_tools(config: Config, verb: Verb) -> None:
     if verb == Verb.qemu and config.vmm == Vmm.vmspawn:
         check_systemd_tool(config, "systemd-vmspawn", version="256", reason="boot images with vmspawn")
 
+    if verb == Verb.sysupdate:
+        check_systemd_tool(
+            config,
+            "systemd-sysupdate",
+            "/usr/lib/systemd/systemd-sysupdate",
+            version="257~devel",
+            reason="Update the host system with systemd-sysupdate",
+        )
+
 
 def configure_ssh(context: Context) -> None:
     if not context.config.ssh:
@@ -4128,4 +4138,5 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
             Verb.qemu: run_vm,
             Verb.serve: run_serve,
             Verb.burn: run_burn,
+            Verb.sysupdate: run_sysupdate,
         }[args.verb](args, last)
