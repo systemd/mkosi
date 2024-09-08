@@ -75,6 +75,7 @@ class Verb(StrEnum):
     burn          = enum.auto()
     dependencies  = enum.auto()
     completion    = enum.auto()
+    sysupdate     = enum.auto()
 
     def supports_cmdline(self) -> bool:
         return self in (
@@ -88,6 +89,7 @@ class Verb(StrEnum):
             Verb.burn,
             Verb.completion,
             Verb.documentation,
+            Verb.sysupdate,
         )
 
     def needs_build(self) -> bool:
@@ -98,6 +100,7 @@ class Verb(StrEnum):
             Verb.qemu,
             Verb.serve,
             Verb.burn,
+            Verb.sysupdate,
         )
 
     def needs_root(self) -> bool:
@@ -1445,6 +1448,7 @@ class Config:
     image_version: Optional[str]
     split_artifacts: bool
     repart_dirs: list[Path]
+    sysupdate_dir: Optional[Path]
     sector_size: Optional[int]
     overlay: bool
     seed: uuid.UUID
@@ -3060,6 +3064,16 @@ SETTINGS = (
         section="Host",
         parse=config_make_path_parser(required=False),
         help="Set the path used to store forwarded machine journals",
+    ),
+    ConfigSetting(
+        dest="sysupdate_dir",
+        long="--sysupdate-dir",
+        metavar="PATH",
+        name="SysupdateDirectory",
+        section="Host",
+        parse=config_make_path_parser(),
+        paths=("mkosi.sysupdate",),
+        help="Directory containing systemd-sysupdate transfer definitions",
     ),
     ConfigSetting(
         dest="qemu_gui",
