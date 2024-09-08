@@ -3067,7 +3067,10 @@ def lock_repository_metadata(config: Config) -> Iterator[None]:
 def copy_repository_metadata(config: Config, dst: Path) -> None:
     subdir = config.distribution.package_manager(config).subdir(config)
 
-    with lock_repository_metadata(config):
+    with (
+        lock_repository_metadata(config),
+        complete_step("Copying repository metadata"),
+    ):
         for d in ("cache", "lib"):
             src = config.package_cache_dir_or_default() / d / subdir
             if not src.exists():
