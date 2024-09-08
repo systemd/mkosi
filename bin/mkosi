@@ -3,6 +3,7 @@
 set -e
 PYTHONPATH="$(dirname "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")")"
 export PYTHONPATH
+command="$(basename "${BASH_SOURCE[0]//-/.}")"
 
 if [ -z "$MKOSI_INTERPRETER" ]; then
     # Note the check seems to be inverted here because the if branch is executed when the exit status is 0
@@ -17,4 +18,4 @@ if [ -z "$MKOSI_INTERPRETER" ]; then
     fi
 fi
 
-exec "$MKOSI_INTERPRETER" -B -m mkosi "$@"
+exec "$MKOSI_INTERPRETER" -B -m "$command" "$@"
