@@ -61,7 +61,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--debug-shell",
-        help="Turn on debugging output",
+        help="Spawn debug shell if a sandboxed command fails",
         action="store_true",
         default=False,
     )
