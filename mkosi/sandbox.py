@@ -1,9 +1,11 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 """
-This is a standalone implementation of sandboxing which is used by mkosi. Note that this is invoked many times while
-building the image and as a result, the performance of this script has a substantial impact on the performance of mkosi
-itself. To keep the runtime of this script to a minimum, please don't import any extra modules if it can be avoided.
+This is a standalone implementation of sandboxing which is used by mkosi. Note that this is
+invoked many times while building the image and as a result, the performance of this script has a
+substantial impact on the performance of mkosi itself. To keep the runtime of this script to a
+minimum, please don't import any extra modules if it can be avoided.
+
 """
 
 import ctypes
@@ -101,8 +103,9 @@ def unshare(flags: int) -> None:
 
 
 def statfs(path: str) -> int:
-    # struct statfs is 120 bytes, which equals 15 longs. Since we only care about the first field and the first field
-    # is of type long, we avoid declaring the full struct by just passing an array of 15 longs as the output argument.
+    # struct statfs is 120 bytes, which equals 15 longs. Since we only care about the first field
+    # and the first field is of type long, we avoid declaring the full struct by just passing an
+    # array of 15 longs as the output argument.
     buffer = (ctypes.c_long * 15)()
 
     if libc.statfs(path.encode(), ctypes.byref(buffer)) < 0:
@@ -126,11 +129,12 @@ def umount2(path: str, flags: int = 0) -> None:
 
 def cap_permitted_to_ambient() -> None:
     """
-    When unsharing a user namespace and mapping the current user to itself, the user has a full set of capabilities in
-    the user namespace. This allows the user to do mounts after unsharing a mount namespace for example. However, these
-    capabilities are lost again when the user executes a subprocess. As we also want subprocesses invoked by the user
-    to be able to mount stuff, we make sure the capabilities are inherited by adding all the user's capabilities to the
-    inherited and ambient capabilities set, which makes sure that they are passed down to subprocesses.
+    When unsharing a user namespace and mapping the current user to itself, the user has a full
+    set of capabilities in the user namespace. This allows the user to do mounts after unsharing a
+    mount namespace for example. However, these capabilities are lost again when the user executes
+    a subprocess. As we also want subprocesses invoked by the user to be able to mount stuff, we
+    make sure the capabilities are inherited by adding all the user's capabilities to the inherited
+    and ambient capabilities set, which makes sure that they are passed down to subprocesses.
     """
     header = cap_user_header_t(LINUX_CAPABILITY_VERSION_3, 0)
     payload = (cap_user_data_t * LINUX_CAPABILITY_U32S_3)()
@@ -170,10 +174,11 @@ def have_effective_cap(capability: int) -> bool:
 
 def seccomp_suppress_chown() -> None:
     """
-    There's still a few files and directories left in distributions in /usr and /etc that are not owned by root. This
-    causes package managers to fail to install the corresponding packages when run from a single uid user namespace.
-    Unfortunately, non-root users can only create files owned by their own uid. To still allow non-root users to build
-    images, if requested we install a seccomp filter that makes calls to chown() and friends a noop.
+    There's still a few files and directories left in distributions in /usr and /etc that are
+    not owned by root. This causes package managers to fail to install the corresponding packages
+    when run from a single uid user namespace. Unfortunately, non-root users can only create files
+    owned by their own uid. To still allow non-root users to build images, if requested we install
+    a seccomp filter that makes calls to chown() and friends a noop.
     """
     libseccomp = ctypes.CDLL("libseccomp.so.2")
     if libseccomp is None:
@@ -201,11 +206,11 @@ def seccomp_suppress_chown() -> None:
 
 def mount_rbind(src: str, dst: str, attrs: int = 0) -> None:
     """
-    When using the old mount syscall to do a recursive bind mount, mount options are not applied recursively. Because
-    we want to do recursive read-only bind mounts in some cases, we use the new mount API for that which does allow
-    recursively changing mount options when doing bind mounts.
+    When using the old mount syscall to do a recursive bind mount, mount options are not
+    applied recursively. Because we want to do recursive read-only bind mounts in some cases, we
+    use the new mount API for that which does allow recursively changing mount options when doing
+    bind mounts.
     """
-
     flags = AT_NO_AUTOMOUNT | AT_RECURSIVE | AT_SYMLINK_NOFOLLOW | OPEN_TREE_CLONE
 
     try:
@@ -266,10 +271,11 @@ class umask:
 
 def become_user(uid: int, gid: int) -> None:
     """
-    This function implements the required dance to unshare a user namespace and map the current user to itself or to
-    root within it. The kernel only allows a process running outside of the unshared user namespace to write the
-    necessary uid and gid mappings, so we fork off a child process, make it wait until the parent process has unshared
-    a user namespace, and then writes the necessary uid and gid mappings.
+    This function implements the required dance to unshare a user namespace and map the current
+    user to itself or to root within it. The kernel only allows a process running outside of the
+    unshared user namespace to write the necessary uid and gid mappings, so we fork off a child
+    process, make it wait until the parent process has unshared a user namespace, and then writes
+    the necessary uid and gid mappings.
     """
     ppid = os.getpid()
 
@@ -378,8 +384,8 @@ class FSOperation:
             else:
                 rest.append(fsop)
 
-        # Drop all bind mounts that are mounted from beneath another bind mount to the same location within the new
-        # rootfs.
+        # Drop all bind mounts that are mounted from beneath another bind mount to the same
+        # location within the new rootfs.
         optimized = [
             m for m in binds
             if not any(
@@ -393,8 +399,8 @@ class FSOperation:
             )
         ]
 
-        # Make sure bind mounts override other operations on the same destination by appending them to the rest and
-        # depending on python's stable sort behavior.
+        # Make sure bind mounts override other operations on the same destination by appending them
+        # to the rest and depending on python's stable sort behavior.
         return sorted([*rest, *optimized], key=lambda fsop: splitpath(fsop.dst))
 
 
@@ -448,14 +454,14 @@ class DevOperation(FSOperation):
         super().__init__(dst)
 
     def execute(self, oldroot: str, newroot: str) -> None:
-        # We don't put actual devices in /dev, just the API stuff in there that all manner of things depend on,
-        # like /dev/null.
+        # We don't put actual devices in /dev, just the API stuff in there that all manner of
+        # things depend on, like /dev/null.
         dst = chase(newroot, self.dst)
         with umask(~0o755):
             os.makedirs(dst, exist_ok=True)
 
-        # Note that the mode is curcial here. If the default mode (1777) is used, trying to access /dev/null fails
-        # with EACCESS for unknown reasons.
+        # Note that the mode is curcial here. If the default mode (1777) is used, trying to access
+        # /dev/null fails with EACCESS for unknown reasons.
         mount("tmpfs", dst, "tmpfs", 0, "mode=0755")
 
         for node in ("null", "zero", "full", "random", "urandom", "tty"):
@@ -542,7 +548,8 @@ class OverlayOperation(FSOperation):
         self.workdir = workdir
         super().__init__(dst)
 
-    # This supports being used as a context manager so we can reuse the logic for mount_overlay() in mounts.py.
+    # This supports being used as a context manager so we can reuse the logic for mount_overlay()
+    # in mounts.py.
     def __enter__(self) -> None:
         self.execute("/", "/")
 
@@ -632,8 +639,9 @@ See the mkosi-sandbox(1) man page for details.\
 """
 
 def main() -> None:
-    # We don't use argparse as it takes +- 10ms to import and since this is purely for internal use, it's not necessary
-    # to have good UX for this CLI interface so it's trivial to write ourselves.
+    # We don't use argparse as it takes +- 10ms to import and since this is purely for internal
+    # use, it's not necessary to have good UX for this CLI interface so it's trivial to write
+    # ourselves.
     argv = list(reversed(sys.argv[1:]))
     fsops: list[FSOperation] = []
     setenv = []
@@ -737,8 +745,8 @@ def main() -> None:
 
     userns = acquire_privileges(become_root=become_root)
 
-    # If we're root in a user namespace with a single user, we're still not going to be able to chown() stuff, so check
-    # for that and apply the seccomp filter as well in that case.
+    # If we're root in a user namespace with a single user, we're still not going to be able to
+    # chown() stuff, so check for that and apply the seccomp filter as well in that case.
     if suppress_chown and (userns or userns_has_single_user()):
         seccomp_suppress_chown()
 
@@ -748,9 +756,9 @@ def main() -> None:
     if not userns:
         mount("", "/", "", MS_SLAVE | MS_REC, "")
 
-    # We need a workspace to setup the sandbox, the easiest way to do this in a tmpfs, since it's automatically cleaned
-    # up. We need a mountpoint to put the workspace on and it can't be root, so let's use /tmp which is almost
-    # guaranteed to exist.
+    # We need a workspace to setup the sandbox, the easiest way to do this in a tmpfs, since it's
+    # automatically cleaned up. We need a mountpoint to put the workspace on and it can't be root,
+    # so let's use /tmp which is almost guaranteed to exist.
     mount("tmpfs", "/tmp", "tmpfs", 0, "")
 
     os.chdir("/tmp")
@@ -764,8 +772,8 @@ def main() -> None:
 
     # Make the workspace in /tmp / and put the old rootfs in oldroot.
     if libc.pivot_root(b".", b"oldroot") < 0:
-        # pivot_root() can fail in the initramfs since / isn't a mountpoint there, so let's fall back to MS_MOVE if
-        # that's the case.
+        # pivot_root() can fail in the initramfs since / isn't a mountpoint there, so let's fall
+        # back to MS_MOVE if that's the case.
 
         # First we move the old rootfs to oldroot.
         mount("/", "oldroot", "", MS_BIND | MS_REC, "")
@@ -777,28 +785,29 @@ def main() -> None:
         os.chroot(".")
         os.chdir(".")
 
-        # When we use MS_MOVE we have to unmount oldroot/tmp manually to reveal the original /tmp again as it might
-        # contain stuff that we want to mount into the sandbox.
+        # When we use MS_MOVE we have to unmount oldroot/tmp manually to reveal the original /tmp
+        # again as it might contain stuff that we want to mount into the sandbox.
         umount2("oldroot/tmp", MNT_DETACH)
 
     for fsop in fsops:
         fsop.execute("oldroot", "newroot")
 
-    # Now that we're done setting up the sandbox let's pivot root into newroot to make it the new root. We use the
-    # pivot_root(".", ".") process described in the pivot_root() man page.
+    # Now that we're done setting up the sandbox let's pivot root into newroot to make it the new
+    # root. We use the pivot_root(".", ".") process described in the pivot_root() man page.
 
     os.chdir("newroot")
 
-    # We're guaranteed to have / be a mount when we get here, so pivot_root() won't fail anymore, even if we're in the
-    # initramfs.
+    # We're guaranteed to have / be a mount when we get here, so pivot_root() won't fail anymore,
+    # even if we're in the initramfs.
     if libc.pivot_root(b".", b".") < 0:
         oserror()
 
     # As documented in the pivot_root() man page, this will unmount the old rootfs.
     umount2(".", MNT_DETACH)
 
-    # Avoid surprises by making sure the sandbox's mount propagation is shared. This doesn't actually mean mounts get
-    # propagated into the host. Instead, a new mount propagation peer group is set up.
+    # Avoid surprises by making sure the sandbox's mount propagation is shared. This doesn't
+    # actually mean mounts get propagated into the host. Instead, a new mount propagation peer
+    # group is set up.
     mount("", ".", "", MS_SHARED | MS_REC, "")
 
     if chdir:
@@ -807,8 +816,8 @@ def main() -> None:
     try:
         os.execvp(argv[0], argv)
     except OSError as e:
-        # Let's return a recognizable error when the binary we're going to execute is not found. We use 127 as that's
-        # the exit code used by shells when a program to execute is not found.
+        # Let's return a recognizable error when the binary we're going to execute is not found.
+        # We use 127 as that's the exit code used by shells when a program to execute is not found.
         if e.errno == ENOENT:
             sys.exit(127)
 
