@@ -702,7 +702,7 @@ def main() -> None:
         elif arg == "--unshare-ipc":
             unshare_ipc = True
         elif arg.startswith("-"):
-            raise RuntimeError(f"Unrecognized option {arg}")
+            raise ValueError(f"Unrecognized option {arg}")
         else:
             argv.append(arg)
             break
@@ -714,7 +714,7 @@ def main() -> None:
     # Make sure all destination paths are absolute.
     for fsop in fsops:
         if fsop.dst[0] != "/":
-            raise RuntimeError(f"{fsop.dst} is not an absolute path")
+            raise ValueError(f"{fsop.dst} is not an absolute path")
 
     fsops = FSOperation.optimize(fsops)
 
