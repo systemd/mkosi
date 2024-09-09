@@ -93,6 +93,7 @@ from mkosi.run import (
     finalize_passwd_mounts,
     fork_and_wait,
     run,
+    workdir,
 )
 from mkosi.sandbox import (
     CLONE_NEWNS,
@@ -114,6 +115,7 @@ from mkosi.tree import copy_tree, make_tree, move_tree, rmtree
 from mkosi.types import PathString
 from mkosi.user import INVOKING_USER
 from mkosi.util import (
+    current_home_dir,
     flatten,
     flock,
     flock_or_die,
@@ -498,7 +500,6 @@ def run_configure_scripts(config: Config) -> Config:
                     env=env | config.environment,
                     sandbox=config.sandbox(
                         binary=None,
-                        vartmp=True,
                         options=[
                             "--dir", "/work/src",
                             "--chdir", "/work/src",
@@ -572,9 +573,8 @@ def run_sync_scripts(config: Config) -> None:
                     sandbox=config.sandbox(
                         binary=None,
                         network=True,
-                        vartmp=True,
                         options=options,
-                        sandbox_tree=Path(sandbox_tree),
+                        overlay=Path(sandbox_tree),
                     ),
                 )
 
@@ -612,7 +612,6 @@ def script_maybe_chroot_sandbox(
             with context.sandbox(
                 binary=None,
                 network=network,
-                vartmp=True,
                 options=[
                     *options,
                     "--bind", context.root, "/buildroot",
@@ -947,7 +946,6 @@ def run_postoutput_scripts(context: Context) -> None:
                     env=env | context.config.environment,
                     sandbox=context.sandbox(
                         binary=None,
-                        vartmp=True,
                         # postoutput scripts should run as (fake) root so that file ownership is always recorded as if
                         # owned by root.
                         options=[
@@ -996,12 +994,15 @@ def install_tree(
         extract_tar(src, t, sandbox=config.sandbox)
     elif src.suffix == ".raw":
         run(
-            ["systemd-dissect", "--copy-from", src, "/", t],
+            ["systemd-dissect", "--copy-from", workdir(src), "/", workdir(t)],
             sandbox=config.sandbox(
                 binary="systemd-dissect",
                 devices=True,
                 network=True,
-                options=["--ro-bind", src, src, "--bind", t.parent, t.parent],
+                options=[
+                    "--ro-bind", src, workdir(src),
+                    "--bind", t.parent, workdir(t.parent),
+                ],
             ),
         )
     else:
@@ -1435,13 +1436,13 @@ def build_uki(
         *(["--cmdline", f"@{context.workspace / 'cmdline'}"] if cmdline else []),
         "--os-release", f"@{context.root / 'usr/lib/os-release'}",
         "--stub", stub,
-        "--output", output,
+        "--output", workdir(output),
         "--efi-arch", arch,
         "--uname", kver,
     ]
 
     options: list[PathString] = [
-        "--bind", output.parent, output.parent,
+        "--bind", output.parent, workdir(output.parent),
         "--ro-bind", context.workspace / "cmdline", context.workspace / "cmdline",
         "--ro-bind", context.root / "usr/lib/os-release", context.root / "usr/lib/os-release",
         "--ro-bind", stub, stub,
@@ -2699,7 +2700,6 @@ def make_image(
                         not context.config.repart_offline or
                         context.config.verity_key_source.type != KeySourceType.file
                     ),
-                    vartmp=True,
                     options=options,
                 ),
             ).stdout
@@ -2940,13 +2940,13 @@ def make_extension_image(context: Context, output: Path) -> None:
         "--empty=create",
         "--size=auto",
         "--definitions", r,
-        output,
+        workdir(output),
     ]
     options: list[PathString] = [
         # Make sure we're root so that the mkfs tools invoked by systemd-repart think the files that go
         # into the disk image are owned by root.
         "--become-root",
-        "--bind", output.parent, output.parent,
+        "--bind", output.parent, workdir(output.parent),
         "--ro-bind", context.root, "/buildroot",
         "--ro-bind", r, r,
     ]
@@ -2982,7 +2982,6 @@ def make_extension_image(context: Context, output: Path) -> None:
                         not context.config.repart_offline or
                         context.config.verity_key_source.type != KeySourceType.file
                     ),
-                    vartmp=True,
                     options=options,
                 ),
             ).stdout
@@ -3068,7 +3067,10 @@ def lock_repository_metadata(config: Config) -> Iterator[None]:
 def copy_repository_metadata(config: Config, dst: Path) -> None:
     subdir = config.distribution.package_manager(config).subdir(config)
 
-    with lock_repository_metadata(config):
+    with (
+        lock_repository_metadata(config),
+        complete_step("Copying repository metadata"),
+    ):
         for d in ("cache", "lib"):
             src = config.package_cache_dir_or_default() / d / subdir
             if not src.exists():
@@ -3099,10 +3101,9 @@ def copy_repository_metadata(config: Config, dst: Path) -> None:
                 def sandbox(
                     *,
                     binary: Optional[PathString],
-                    vartmp: bool = False,
                     options: Sequence[PathString] = (),
                 ) -> AbstractContextManager[list[PathString]]:
-                    return config.sandbox(binary=binary, vartmp=vartmp, options=[*options, *exclude])
+                    return config.sandbox(binary=binary, options=[*options, *exclude])
 
                 copy_tree(src, subdst, preserve=False, sandbox=sandbox)
 
@@ -3356,7 +3357,6 @@ def run_shell(args: Args, config: Config) -> None:
                     binary="systemd-repart",
                     network=True,
                     devices=True,
-                    vartmp=True,
                     options=["--bind", fname, fname],
                 ),
             )
@@ -3395,6 +3395,10 @@ def run_shell(args: Args, config: Config) -> None:
             # which means the container root directory mounts will be skipped.
             uidmap = "rootidmap" if tree.source.stat().st_uid != 0 else "noidmap"
             cmdline += ["--bind", f"{tree.source}:{target}:norbind,{uidmap}"]
+
+        if config.runtime_home and (path := current_home_dir()):
+            uidmap = "rootidmap" if path.stat().st_uid != 0 else "noidmap"
+            cmdline += ["--bind", f"{path}:/root:norbind,{uidmap}"]
 
         if config.runtime_scratch == ConfigFeature.enabled or (
             config.runtime_scratch == ConfigFeature.auto and
@@ -3699,7 +3703,6 @@ def run_clean_scripts(config: Config) -> None:
                     env=env | config.environment,
                     sandbox=config.sandbox(
                         binary=None,
-                        vartmp=True,
                         tools=False,
                         options=[
                             "--dir", "/work/src",

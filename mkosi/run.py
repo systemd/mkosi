@@ -24,8 +24,9 @@ from typing import Any, Callable, NoReturn, Optional, Protocol
 
 import mkosi.sandbox
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, die
+from mkosi.sandbox import joinpath, umask
 from mkosi.types import _FILE, CompletedProcess, PathString, Popen
-from mkosi.util import flatten, one_zero
+from mkosi.util import current_home_dir, flatten, one_zero
 
 SD_LISTEN_FDS_START = 3
 
@@ -386,7 +387,6 @@ class SandboxProtocol(Protocol):
         self,
         *,
         binary: Optional[PathString],
-        vartmp: bool = False,
         options: Sequence[PathString] = (),
     ) -> AbstractContextManager[list[PathString]]: ...
 
@@ -394,10 +394,14 @@ class SandboxProtocol(Protocol):
 def nosandbox(
     *,
     binary: Optional[PathString],
-    vartmp: bool = False,
     options: Sequence[PathString] = (),
 ) -> AbstractContextManager[list[PathString]]:
     return contextlib.nullcontext([])
+
+
+def workdir(path: Path, sandbox: Optional[SandboxProtocol] = None) -> str:
+    subdir = "/" if sandbox and sandbox == nosandbox else "/work"
+    return joinpath(subdir, str(path))
 
 
 def finalize_passwd_mounts(root: PathString) -> list[PathString]:
@@ -420,18 +424,23 @@ def network_options(*, network: bool) -> list[PathString]:
 
 
 @contextlib.contextmanager
-def vartmpdir(condition: bool = True) -> Iterator[Optional[Path]]:
-    if not condition:
-        yield None
-        return
-
+def vartmpdir() -> Iterator[Path]:
     # We want to use an empty subdirectory in the host's temporary directory as the sandbox's /var/tmp.
     d = Path(os.getenv("TMPDIR", "/var/tmp")) / f"mkosi-var-tmp-{uuid.uuid4().hex[:16]}"
-    d.mkdir(mode=0o1777)
+    d.mkdir()
 
     try:
         yield d
     finally:
+        # A directory that's used as an overlayfs workdir will contain a "work" subdirectory after the overlayfs is
+        # unmounted. This "work" subdirectory will have permissions 000 and as such can't be opened or searched unless
+        # the user has the CAP_DAC_OVERRIDE capability. shutil.rmtree() will try to search the "work" subdirectory to
+        # remove anything in it which will fail with a permission error. To circumvent this, let's delete the "work"
+        # subdirectory first and then invoke shutil.rmtree(). Deleting the subdirectory is not a problem because
+        # deleting a subdirectory depends on the permissions of the parent directory and not the directory itself.
+        if (d / "work").exists():
+            (d / "work").rmdir()
+
         shutil.rmtree(d)
 
 
@@ -440,14 +449,15 @@ def sandbox_cmd(
     *,
     network: bool = False,
     devices: bool = False,
-    vartmp: bool = False,
     scripts: Optional[Path] = None,
     tools: Path = Path("/"),
     relaxed: bool = False,
-    usroverlaydirs: Sequence[PathString] = (),
+    overlay: Optional[Path] = None,
     options: Sequence[PathString] = (),
     setup: Sequence[PathString] = (),
 ) -> Iterator[list[PathString]]:
+    assert not (overlay and relaxed)
+
     cmdline: list[PathString] = [
         *setup,
         sys.executable, "-SI", mkosi.sandbox.__file__,
@@ -460,60 +470,14 @@ def sandbox_cmd(
         "--ro-bind", Path(mkosi.sandbox.__file__), "/sandbox.py",
     ]
 
-    if usroverlaydirs:
-        cmdline += ["--overlay-lowerdir", tools / "usr"]
-
-        for d in usroverlaydirs:
-            cmdline += ["--overlay-lowerdir", d]
-
-        cmdline += ["--overlay", "/usr"]
-    else:
-        cmdline += ["--ro-bind", tools / "usr", "/usr"]
-
-    if (tools / "etc/ld.so.cache").exists():
-        cmdline += ["--ro-bind", tools / "etc/ld.so.cache", "/etc/ld.so.cache"]
-
-    if relaxed:
-        cmdline += ["--bind", "/tmp", "/tmp"]
-    else:
-        cmdline += ["--dir", "/tmp", "--dir", "/var/tmp", "--unshare-ipc"]
-
-    if (tools / "nix/store").exists():
-        cmdline += ["--bind", tools / "nix/store", "/nix/store"]
-
-    if devices or relaxed:
+    if overlay and (overlay / "usr").exists():
         cmdline += [
-            "--bind", "/sys", "/sys",
-            "--bind", "/run", "/run",
-            "--bind", "/dev", "/dev",
+            "--overlay-lowerdir", tools / "usr"
+            "--overlay-lowerdir", overlay / "usr",
+            "--overlay", "/usr",
         ]
     else:
-        cmdline += ["--dev", "/dev"]
-
-    if relaxed:
-        dirs = ("/etc", "/opt", "/srv", "/media", "/mnt", "/var")
-
-        for d in dirs:
-            if Path(d).exists():
-                cmdline += ["--bind", d, d]
-
-        # Either add the home directory we're running from or the current working directory if we're not running from
-        # inside a home directory.
-        if Path.cwd() == Path("/"):
-            d = ""
-        if Path.cwd().is_relative_to("/root"):
-            d = "/root"
-        elif Path.cwd() == Path("/home"):
-            d = "/home"
-        elif Path.cwd().is_relative_to("/home"):
-            # `Path.parents` only supports slices and negative indexing from Python 3.10 onwards.
-            # TODO: Remove list() when we depend on Python 3.10 or newer.
-            d = os.fspath(list(Path.cwd().parents)[-2])
-        else:
-            d = os.fspath(Path.cwd())
-
-        if d and not any(Path(d).is_relative_to(dir) for dir in (*dirs, "/usr", "/nix", "/tmp")):
-            cmdline += ["--bind", d, d]
+        cmdline += ["--ro-bind", tools / "usr", "/usr"]
 
     for d in ("bin", "sbin", "lib", "lib32", "lib64"):
         if (p := tools / d).is_symlink():
@@ -521,29 +485,81 @@ def sandbox_cmd(
         elif p.is_dir():
             cmdline += ["--ro-bind", p, Path("/") / p.relative_to(tools)]
 
-    path = "/usr/bin:/usr/sbin" if tools != Path("/") else os.environ["PATH"]
+    # If we're using /usr from a tools tree, we have to use /etc/alternatives and /etc/ld.so.cache from the tools tree
+    # as well if they exists since those are directly related  to /usr. In relaxed mode, we only do this if
+    # the mountpoint already exists on the host as otherwise we'd modify the host's /etc by creating the mountpoint
+    # ourselves (or fail when trying to create it).
+    for p in (Path("etc/alternatives"), Path("etc/ld.so.cache")):
+        if (tools / p).exists() and (not relaxed or (Path("/") / p).exists()):
+            cmdline += ["--ro-bind", tools / p, Path("/") / p]
 
-    cmdline += ["--setenv", "PATH", f"/scripts:{path}", *options]
+    if (tools / "nix/store").exists():
+        cmdline += ["--bind", tools / "nix/store", "/nix/store"]
 
-    # If we're using /usr from a tools tree, we have to use /etc/alternatives from the tools tree as well if it
-    # exists since that points directly back to /usr. Apply this after the options so the caller can mount
-    # something else to /etc without overriding this mount. In relaxed mode, we only do this if /etc/alternatives
-    # already exists on the host as otherwise we'd modify the host's /etc by creating the mountpoint ourselves (or
-    # fail when trying to create it).
-    if (tools / "etc/alternatives").exists() and (not relaxed or Path("/etc/alternatives").exists()):
-        cmdline += ["--ro-bind", tools / "etc/alternatives", "/etc/alternatives"]
+    if relaxed:
+        dirs = ("/etc", "/opt", "/srv", "/media", "/mnt", "/var", "/tmp", "/sys", "/run", "/dev")
+
+        for d in dirs:
+            if Path(d).exists():
+                cmdline += ["--bind", d, d]
+
+        path = current_home_dir()
+        if not path and Path.cwd() not in (Path("/"), Path("/home")):
+            path = Path.cwd()
+
+        # Either add the home directory we're running from or the current working directory if we're not running from
+        # inside a home directory.
+        if path and not any(path.is_relative_to(dir) for dir in (*dirs, "/usr", "/nix", "/tmp")):
+            cmdline += ["--bind", path, path]
+    else:
+        cmdline += ["--dir", "/var/tmp", "--unshare-ipc"]
+
+        if devices:
+            cmdline += ["--bind", "/sys", "/sys", "--bind", "/dev", "/dev"]
+        else:
+            cmdline += ["--dev", "/dev"]
+
+        if network and Path("/etc/resolv.conf").exists():
+            cmdline += ["--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf"]
+
+    cmdline += ["--setenv", "PATH", f"/scripts:{'/usr/bin:/usr/sbin' if tools != Path('/') else os.environ['PATH']}"]
 
     if scripts:
         cmdline += ["--ro-bind", scripts, "/scripts"]
 
-    if network and not relaxed and Path("/etc/resolv.conf").exists():
-        cmdline += ["--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf"]
+    with contextlib.ExitStack() as stack:
+        tmp: Optional[Path]
 
-    with vartmpdir(condition=vartmp and not relaxed) as dir:
-        if dir:
-            cmdline += ["--bind", dir, "/var/tmp"]
+        if not overlay and not relaxed:
+            tmp = stack.enter_context(vartmpdir())
+            yield [*cmdline, "--bind", tmp, "/var/tmp", *options, "--"]
+            return
 
-        yield [*cmdline, "--"]
+        for d in ("etc", "opt", "srv", "media", "mnt", "var", "run", "tmp"):
+            tmp = None
+            if d not in ("run", "tmp"):
+                with umask(~0o755):
+                    tmp = stack.enter_context(vartmpdir())
+
+            if overlay and (overlay / d).exists():
+                work = None
+                if tmp:
+                    with umask(~0o755):
+                        work = stack.enter_context(vartmpdir())
+
+                cmdline += [
+                    "--overlay-lowerdir", overlay / d,
+                    "--overlay-upperdir", tmp or "tmpfs",
+                    *(["--overlay-workdir", str(work)] if work else []),
+                    "--overlay", Path("/") / d,
+                ]
+            elif not relaxed:
+                if tmp:
+                    cmdline += ["--bind", tmp, Path("/") / d]
+                else:
+                    cmdline += ["--tmpfs", Path("/") / d]
+
+        yield [*cmdline, *options, "--"]
 
 
 def apivfs_options(*, root: Path = Path("/buildroot")) -> list[PathString]:
@@ -597,10 +613,7 @@ def chroot_cmd(
         cmdline += ["--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf"]
 
     with vartmpdir() as dir:
-        if dir:
-            cmdline += ["--bind", dir, "/var/tmp"]
-
-        yield [*cmdline, *options, "--"]
+        yield [*cmdline, "--bind", dir, "/var/tmp", *options, "--"]
 
 
 def finalize_interpreter(tools: bool) -> str:

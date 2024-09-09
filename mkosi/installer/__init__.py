@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
+from collections.abc import Sequence
 from contextlib import AbstractContextManager
 from pathlib import Path
 
@@ -125,15 +126,21 @@ class PackageManager:
         ]
 
     @classmethod
-    def sandbox(cls, context: Context, *, apivfs: bool) -> AbstractContextManager[list[PathString]]:
+    def sandbox(
+        cls,
+        context: Context,
+        *,
+        apivfs: bool,
+        options: Sequence[PathString] = (),
+    ) -> AbstractContextManager[list[PathString]]:
         return context.sandbox(
             binary=cls.executable(context.config),
             network=True,
-            vartmp=True,
             options=[
                 "--bind", context.root, "/buildroot",
                 *cls.mounts(context),
                 *cls.options(root=context.root, apivfs=apivfs),
+                *options,
             ],
         )
 

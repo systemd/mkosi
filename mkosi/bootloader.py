@@ -1,8 +1,6 @@
 import itertools
 import logging
-import os
 import shutil
-import stat
 import subprocess
 import sys
 import tempfile
@@ -27,7 +25,7 @@ from mkosi.distributions import Distribution
 from mkosi.log import complete_step, die, log_step
 from mkosi.partition import Partition
 from mkosi.qemu import KernelType
-from mkosi.run import run
+from mkosi.run import run, workdir
 from mkosi.sandbox import umask
 from mkosi.types import PathString
 from mkosi.util import flatten
@@ -506,63 +504,55 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
         context.config.secure_boot_sign_tool == SecureBootSignTool.auto and
         context.config.find_binary("sbsign") is not None
     ):
-        with tempfile.NamedTemporaryFile(dir=output.parent, prefix=output.name) as f:
-            os.chmod(f.name, stat.S_IMODE(input.stat().st_mode))
-            cmd: list[PathString] = [
-                "sbsign",
-                "--key", context.config.secure_boot_key,
-                "--cert", context.config.secure_boot_certificate,
-                "--output", "/dev/stdout",
-            ]
-            options: list[PathString] = [
-                "--ro-bind", context.config.secure_boot_certificate, context.config.secure_boot_certificate,
-                "--ro-bind", input, input,
-            ]
-            if context.config.secure_boot_key_source.type == KeySourceType.engine:
-                cmd += ["--engine", context.config.secure_boot_key_source.source]
-            if context.config.secure_boot_key.exists():
-                options += ["--ro-bind", context.config.secure_boot_key, context.config.secure_boot_key]
-            cmd += [input]
-            run(
-                cmd,
-                stdout=f,
-                sandbox=context.sandbox(
-                    binary="sbsign",
-                    options=options,
-                    devices=context.config.secure_boot_key_source.type != KeySourceType.file,
-                )
+        cmd: list[PathString] = [
+            "sbsign",
+            "--key", workdir(context.config.secure_boot_key),
+            "--cert", workdir(context.config.secure_boot_certificate),
+            "--output", workdir(output),
+        ]
+        options: list[PathString] = [
+            "--ro-bind", context.config.secure_boot_certificate, workdir(context.config.secure_boot_certificate),
+            "--ro-bind", input, workdir(input),
+            "--bind", output.parent, workdir(output.parent),
+        ]
+        if context.config.secure_boot_key_source.type == KeySourceType.engine:
+            cmd += ["--engine", context.config.secure_boot_key_source.source]
+        if context.config.secure_boot_key.exists():
+            options += ["--ro-bind", context.config.secure_boot_key, workdir(context.config.secure_boot_key)]
+        cmd += [workdir(input)]
+        run(
+            cmd,
+            sandbox=context.sandbox(
+                binary="sbsign",
+                options=options,
+                devices=context.config.secure_boot_key_source.type != KeySourceType.file,
             )
-            output.unlink(missing_ok=True)
-            os.link(f.name, output)
+        )
     elif (
         context.config.secure_boot_sign_tool == SecureBootSignTool.pesign or
         context.config.secure_boot_sign_tool == SecureBootSignTool.auto and
         context.config.find_binary("pesign") is not None
     ):
         pesign_prepare(context)
-        with tempfile.NamedTemporaryFile(dir=output.parent, prefix=output.name) as f:
-            os.chmod(f.name, stat.S_IMODE(input.stat().st_mode))
-            run(
-                [
-                    "pesign",
-                    "--certdir", context.workspace / "pesign",
-                    "--certificate", certificate_common_name(context, context.config.secure_boot_certificate),
-                    "--sign",
-                    "--force",
-                    "--in", input,
-                    "--out", "/dev/stdout",
-                ],
-                stdout=f,
-                sandbox=context.sandbox(
-                    binary="pesign",
-                    options=[
-                        "--ro-bind", context.workspace / "pesign", context.workspace / "pesign",
-                        "--ro-bind", input, input,
-                    ]
-                ),
-            )
-            output.unlink(missing_ok=True)
-            os.link(f.name, output)
+        run(
+            [
+                "pesign",
+                "--certdir", workdir(context.workspace / "pesign"),
+                "--certificate", certificate_common_name(context, context.config.secure_boot_certificate),
+                "--sign",
+                "--force",
+                "--in", workdir(input),
+                "--out", workdir(output),
+            ],
+            sandbox=context.sandbox(
+                binary="pesign",
+                options=[
+                    "--ro-bind", context.workspace / "pesign", workdir(context.workspace / "pesign"),
+                    "--ro-bind", input, workdir(input),
+                    "--bind", output.parent, workdir(output),
+                ]
+            ),
+        )
     else:
         die("One of sbsign or pesign is required to use SecureBoot=")
 
@@ -697,64 +687,71 @@ def install_systemd_boot(context: Context) -> None:
                 keys.mkdir(parents=True, exist_ok=True)
 
             # sbsiglist expects a DER certificate.
-            with umask(~0o600), open(context.workspace / "mkosi.der", "wb") as f:
+            with umask(~0o600):
                 run(
                     [
                         "openssl",
                         "x509",
                         "-outform", "DER",
-                        "-in", context.config.secure_boot_certificate,
+                        "-in", workdir(context.config.secure_boot_certificate),
+                        "-out", workdir(context.workspace / "mkosi.der"),
                     ],
-                    stdout=f,
                     sandbox=context.sandbox(
                         binary="openssl",
                         options=[
                             "--ro-bind",
                             context.config.secure_boot_certificate,
-                            context.config.secure_boot_certificate,
+                            workdir(context.config.secure_boot_certificate),
+                            "--bind", context.workspace, workdir(context.workspace),
                         ],
                     ),
                 )
 
-            with umask(~0o600), open(context.workspace / "mkosi.esl", "wb") as f:
+            with umask(~0o600):
                 run(
                     [
                         "sbsiglist",
                         "--owner", str(uuid.uuid4()),
                         "--type", "x509",
-                        "--output", "/dev/stdout",
-                        context.workspace / "mkosi.der",
+                        "--output", workdir(context.workspace / "mkosi.esl"),
+                        workdir(context.workspace / "mkosi.der"),
                     ],
-                    stdout=f,
                     sandbox=context.sandbox(
                         binary="sbsiglist",
-                        options=["--ro-bind", context.workspace / "mkosi.der", context.workspace / "mkosi.der"]
+                        options=[
+                            "--bind", context.workspace, workdir(context.workspace),
+                            "--ro-bind", context.workspace / "mkosi.der", workdir(context.workspace / "mkosi.der"),
+                        ]
                     ),
                 )
 
             # We reuse the key for all secure boot databases to keep things simple.
             for db in ["PK", "KEK", "db"]:
-                with umask(~0o600), open(keys / f"{db}.auth", "wb") as f:
+                with umask(~0o600):
                     cmd: list[PathString] = [
                         "sbvarsign",
                         "--attr",
                             "NON_VOLATILE,BOOTSERVICE_ACCESS,RUNTIME_ACCESS,TIME_BASED_AUTHENTICATED_WRITE_ACCESS",
-                        "--key", context.config.secure_boot_key,
-                        "--cert", context.config.secure_boot_certificate,
-                        "--output", "/dev/stdout",
+                        "--key", workdir(context.config.secure_boot_key),
+                        "--cert", workdir(context.config.secure_boot_certificate),
+                        "--output", workdir(keys / f"{db}.auth"),
                     ]
                     options: list[PathString] = [
-                        "--ro-bind", context.config.secure_boot_certificate, context.config.secure_boot_certificate,
-                        "--ro-bind", context.workspace / "mkosi.esl", context.workspace / "mkosi.esl",
+                        "--ro-bind",
+                        context.config.secure_boot_certificate,
+                        workdir(context.config.secure_boot_certificate),
+                        "--ro-bind", context.workspace / "mkosi.esl", workdir(context.workspace / "mkosi.esl"),
+                        "--bind", keys, workdir(keys),
                     ]
                     if context.config.secure_boot_key_source.type == KeySourceType.engine:
                         cmd += ["--engine", context.config.secure_boot_key_source.source]
                     if context.config.secure_boot_key.exists():
-                        options += ["--ro-bind", context.config.secure_boot_key, context.config.secure_boot_key]
-                    cmd += [db, context.workspace / "mkosi.esl"]
+                        options += [
+                            "--ro-bind", context.config.secure_boot_key, workdir(context.config.secure_boot_key),
+                        ]
+                    cmd += [db, workdir(context.workspace / "mkosi.esl")]
                     run(
                         cmd,
-                        stdout=f,
                         sandbox=context.sandbox(
                             binary="sbvarsign",
                             options=options,

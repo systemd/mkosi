@@ -66,7 +66,6 @@ class Context:
         binary: Optional[PathString],
         network: bool = False,
         devices: bool = False,
-        vartmp: bool = False,
         scripts: Optional[Path] = None,
         options: Sequence[PathString] = (),
     ) -> AbstractContextManager[list[PathString]]:
@@ -74,8 +73,7 @@ class Context:
             binary=binary,
             network=network,
             devices=devices,
-            vartmp=vartmp,
             scripts=scripts,
-            sandbox_tree=self.sandbox_tree,
+            overlay=self.sandbox_tree,
             options=options,
         )

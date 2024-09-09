@@ -209,11 +209,12 @@ class Apt(PackageManager):
         arguments: Sequence[str] = (),
         *,
         apivfs: bool = False,
+        options: Sequence[PathString] = (),
         stdout: _FILE = None,
     ) -> CompletedProcess:
         return run(
             cls.cmd(context) + [operation, *arguments],
-            sandbox=cls.sandbox(context, apivfs=apivfs),
+            sandbox=cls.sandbox(context, apivfs=apivfs, options=options),
             env=cls.finalize_environment(context),
             stdout=stdout,
         )

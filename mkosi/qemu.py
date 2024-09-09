@@ -41,11 +41,11 @@ from mkosi.config import (
 )
 from mkosi.log import ARG_DEBUG, die
 from mkosi.partition import finalize_root, find_partitions
-from mkosi.run import SD_LISTEN_FDS_START, AsyncioThread, find_binary, fork_and_wait, run, spawn
+from mkosi.run import SD_LISTEN_FDS_START, AsyncioThread, find_binary, fork_and_wait, run, spawn, workdir
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
 from mkosi.user import INVOKING_USER, become_root_in_subuid_range, become_root_in_subuid_range_cmd
-from mkosi.util import StrEnum, flock, flock_or_die, groupby, round_up, try_or
+from mkosi.util import StrEnum, current_home_dir, flock, flock_or_die, groupby, round_up, try_or
 from mkosi.versioncomp import GenericVersion
 
 QEMU_KVM_DEVICE_VERSION = GenericVersion("9.0")
@@ -496,14 +496,14 @@ def start_journal_remote(config: Config, sockfd: int) -> Iterator[None]:
         with spawn(
             [
                 bin,
-                "--output", config.forward_journal,
+                "--output", workdir(config.forward_journal),
                 "--split-mode", "none" if config.forward_journal.suffix == ".journal" else "host",
             ],
             pass_fds=(sockfd,),
             sandbox=config.sandbox(
                 binary=bin,
                 options=[
-                    "--bind", config.forward_journal.parent, config.forward_journal.parent,
+                    "--bind", config.forward_journal.parent, workdir(config.forward_journal.parent),
                     "--ro-bind", f.name, "/etc/systemd/journal-remote.conf",
                 ],
                 setup=scope,
@@ -900,7 +900,12 @@ def run_qemu(args: Args, config: Config) -> None:
 
     # A shared memory backend might increase ram usage so only add one if actually necessary for virtiofsd.
     shm = []
-    if config.runtime_trees or config.runtime_build_sources or config.output_format == OutputFormat.directory:
+    if (
+        config.runtime_trees or
+        config.runtime_build_sources or
+        config.runtime_home or
+        config.output_format == OutputFormat.directory
+    ):
         shm = ["-object", f"memory-backend-memfd,id=mem,size={config.qemu_mem // 1024**2}M,share=on"]
 
     machine = f"type={config.architecture.default_qemu_machine()}"
@@ -1009,13 +1014,15 @@ def run_qemu(args: Args, config: Config) -> None:
                     "--empty=create",
                     "--size=auto",
                     "--sector-size=2048",
-                    "--copy-from", src,
-                    fname,
+                    "--copy-from", workdir(src),
+                    workdir(fname),
                 ],
                 sandbox=config.sandbox(
                     binary="systemd-repart",
-                    vartmp=True,
-                    options=["--bind", fname.parent, fname.parent, "--ro-bind", src, src],
+                    options=[
+                        "--bind", fname.parent, workdir(fname.parent),
+                        "--ro-bind", src, workdir(src),
+                    ],
                 ),
             )
             stack.callback(lambda: fname.unlink())
@@ -1105,6 +1112,16 @@ def run_qemu(args: Args, config: Config) -> None:
                 cmdline,
                 credentials,
                 tag=tree.target.name if tree.target else tree.source.name,
+            )
+
+        if config.runtime_home and (p := current_home_dir()):
+            sock = stack.enter_context(start_virtiofsd(config, p))
+            add_virtiofs_mount(
+                sock,
+                Path("/root"),
+                cmdline,
+                credentials,
+                tag="user-home",
             )
 
         if want_scratch(config) or config.output_format in (OutputFormat.disk, OutputFormat.esp):

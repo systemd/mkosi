@@ -1563,6 +1563,7 @@ class Config:
     runtime_scratch: ConfigFeature
     runtime_network: Network
     runtime_build_sources: bool
+    runtime_home: bool
     unit_properties: list[str]
     ssh_key: Optional[Path]
     ssh_certificate: Optional[Path]
@@ -1770,11 +1771,10 @@ class Config:
         binary: Optional[PathString],
         network: bool = False,
         devices: bool = False,
-        vartmp: bool = False,
         relaxed: bool = False,
         tools: bool = True,
         scripts: Optional[Path] = None,
-        sandbox_tree: Optional[Path] = None,
+        overlay: Optional[Path] = None,
         options: Sequence[PathString] = (),
         setup: Sequence[PathString] = (),
     ) -> AbstractContextManager[list[PathString]]:
@@ -1793,23 +1793,13 @@ class Config:
             tools = False
             opt += flatten(("--ro-bind", d, d) for d in self.extra_search_paths if not relaxed)
 
-        if sandbox_tree:
-            opt += [
-                # This mount is writable so we can create extra directories or symlinks inside of it as needed.
-                # This isn't a problem as the sandbox tree directory is created by mkosi and thrown away when the
-                # build finishes.
-                *(["--bind", str(p), "/etc"] if (p := sandbox_tree / "etc").exists() else []),
-                *(["--bind", str(p), "/var/log"] if (p := sandbox_tree / "var/log").exists() else []),
-            ]
-
         return sandbox_cmd(
             network=network,
             devices=devices,
-            vartmp=vartmp,
             relaxed=relaxed,
             scripts=scripts,
             tools=self.tools() if tools else Path("/"),
-            usroverlaydirs=[sandbox_tree / "usr"] if sandbox_tree and (sandbox_tree / "usr").exists() else [],
+            overlay=overlay,
             options=opt,
             setup=setup,
         )
@@ -3015,6 +3005,13 @@ SETTINGS = (
         section="Host",
         parse=config_parse_boolean,
         help="Mount build sources and build directory in /work when booting the image",
+    ),
+    ConfigSetting(
+        dest="runtime_home",
+        metavar="BOOL",
+        section="Host",
+        parse=config_parse_boolean,
+        help="Mount current home directory to /root when booting the image",
     ),
     ConfigSetting(
         dest="unit_properties",
@@ -4318,6 +4315,7 @@ def summary(config: Config) -> str:
                     Runtime Scratch: {config.runtime_scratch}
                     Runtime Network: {config.runtime_network}
               Runtime Build Sources: {config.runtime_build_sources}
+  Runtime Home or Working Directory: {yes_no(config.runtime_home)}
                     Unit Properties: {line_join_list(config.unit_properties)}
                     SSH Signing Key: {none_to_none(config.ssh_key)}
                     SSH Certificate: {none_to_none(config.ssh_certificate)}
