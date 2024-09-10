@@ -1422,7 +1422,6 @@ class Config:
 
     profile: Optional[str]
     files: list[Path]
-    include: list[Path]
     dependencies: list[str]
     minimum_version: Optional[GenericVersion]
     pass_environment: list[str]
@@ -4154,7 +4153,6 @@ def summary(config: Config) -> str:
 
     {bold("CONFIG")}:
                             Profile: {none_to_none(config.profile)}
-                            Include: {line_join_list(config.include)}
                        Dependencies: {line_join_list(config.dependencies)}
                     Minimum Version: {none_to_none(config.minimum_version)}
                   Configure Scripts: {line_join_list(config.configure_scripts)}

@@ -146,7 +146,6 @@ def test_config() -> None:
             "Image": "default",
             "ImageId": "myimage",
             "ImageVersion": "5",
-            "Include": [],
             "Incremental": false,
             "InitrdPackages": [
                 "clevis"
@@ -398,7 +397,6 @@ def test_config() -> None:
         image="default",
         image_id="myimage",
         image_version="5",
-        include=[],
         incremental=False,
         initrd_packages=["clevis"],
         initrd_volatile_packages=["abc"],
