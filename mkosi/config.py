@@ -1423,7 +1423,6 @@ class Config:
     profile: Optional[str]
     files: list[Path]
     include: list[Path]
-    initrd_include: list[Path]
     dependencies: list[str]
     minimum_version: Optional[GenericVersion]
     pass_environment: list[str]
@@ -1886,12 +1885,6 @@ SETTINGS = (
             parse=make_path_parser(constants=BUILTIN_CONFIGS),
         ),
         help="Include configuration from the specified file or directory",
-    ),
-    ConfigSetting(
-        dest="initrd_include",
-        section="Config",
-        parse=config_make_list_parser(delimiter=",", reset=False, parse=make_path_parser()),
-        help="Include configuration from the specified file or directory when building the initrd",
     ),
     ConfigSetting(
         dest="profile",
@@ -4162,7 +4155,6 @@ def summary(config: Config) -> str:
     {bold("CONFIG")}:
                             Profile: {none_to_none(config.profile)}
                             Include: {line_join_list(config.include)}
-                     Initrd Include: {line_join_list(config.initrd_include)}
                        Dependencies: {line_join_list(config.dependencies)}
                     Minimum Version: {none_to_none(config.minimum_version)}
                   Configure Scripts: {line_join_list(config.configure_scripts)}

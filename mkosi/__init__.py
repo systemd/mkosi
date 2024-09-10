@@ -1195,12 +1195,8 @@ def finalize_default_initrd(
         *(["--proxy-client-key", str(p)] if (p := config.proxy_client_key) else []),
         "--selinux-relabel", str(relabel),
         *(["-f"] * args.force),
+        "--include=mkosi-initrd",
     ]
-
-    cmdline += ["--include=mkosi-initrd"]
-
-    for include in config.initrd_include:
-        cmdline += ["--include", os.fspath(include)]
 
     _, [config] = parse_config(cmdline + ["build"], resources=resources)
 

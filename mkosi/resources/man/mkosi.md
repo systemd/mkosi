@@ -1812,10 +1812,6 @@ config file is read:
     Note: Include names starting with either of the literals `mkosi-` or
     `contrib-` are reserved for use by mkosi itself.
 
-`InitrdInclude=`, `--initrd-include=`
-:   Same as `Include=`, but the extra configuration files or directories
-    are included when building the default initrd.
-
 `Dependencies=`, `--dependency=`
 :   The images that this image depends on specified as a comma-separated
     list. All images configured in this option will be built before this

@@ -39,6 +39,9 @@
 - Note to packagers: The manual pages have been moved to resources/man
   and now include man pages for mkosi-initrd and mkosi-sandbox as
   well.
+- `InitrdInclude=` was removed. If you're using `InitrdInclude=`, please
+  build your initrd via a subimage in `mkosi.images` containing
+  `Include=mkosi-initrd` and any customizations you wish to add.
 
 ## v24
 
