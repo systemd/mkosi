@@ -2,7 +2,6 @@
 
 import argparse
 import base64
-import contextlib
 import copy
 import dataclasses
 import enum
@@ -3496,42 +3495,38 @@ class ParseContext:
 
         return "".join(result)
 
-    @contextlib.contextmanager
-    def parse_new_includes(self) -> Iterator[None]:
-        try:
-            yield
-        finally:
-            # Parse any includes that were added after yielding.
-            for p in getattr(self.cli, "include", []) + getattr(self.config, "include", []):
-                for c in BUILTIN_CONFIGS:
-                    if p == Path(c):
-                        path = self.resources / c
-                        break
-                else:
-                    path = p
+    def parse_new_includes(self) -> None:
+        # Parse any includes that were added after yielding.
+        for p in getattr(self.cli, "include", []) + getattr(self.config, "include", []):
+            for c in BUILTIN_CONFIGS:
+                if p == Path(c):
+                    path = self.resources / c
+                    break
+            else:
+                path = p
 
-                st = path.stat()
+            st = path.stat()
 
-                if (st.st_dev, st.st_ino) in self.includes:
-                    continue
+            if (st.st_dev, st.st_ino) in self.includes:
+                continue
 
-                self.includes.add((st.st_dev, st.st_ino))
+            self.includes.add((st.st_dev, st.st_ino))
 
-                if any(p == Path(c) for c in BUILTIN_CONFIGS):
-                    _, [config] = parse_config(["--directory", "", "--include", os.fspath(path)])
-                    make_executable(
-                        *config.configure_scripts,
-                        *config.clean_scripts,
-                        *config.sync_scripts,
-                        *config.prepare_scripts,
-                        *config.build_scripts,
-                        *config.postinst_scripts,
-                        *config.finalize_scripts,
-                        *config.postoutput_scripts,
-                    )
+            if any(p == Path(c) for c in BUILTIN_CONFIGS):
+                _, [config] = parse_config(["--directory", "", "--include", os.fspath(path)])
+                make_executable(
+                    *config.configure_scripts,
+                    *config.clean_scripts,
+                    *config.sync_scripts,
+                    *config.prepare_scripts,
+                    *config.build_scripts,
+                    *config.postinst_scripts,
+                    *config.finalize_scripts,
+                    *config.postoutput_scripts,
+                )
 
-                with chdir(path if path.is_dir() else Path.cwd()):
-                    self.parse_config_one(path if path.is_file() else Path("."))
+            with chdir(path if path.is_dir() else Path.cwd()):
+                self.parse_config_one(path if path.is_file() else Path("."))
 
     def finalize_value(self, setting: ConfigSetting) -> Optional[Any]:
         # If a value was specified on the CLI, it always takes priority. If the setting is a collection of values, we
@@ -3738,8 +3733,8 @@ class ParseContext:
 
                 v = self.expand_specifiers(v, path)
 
-                with self.parse_new_includes():
-                    setattr(self.config, s.dest, s.parse(v, getattr(self.config, s.dest, None)))
+                setattr(self.config, s.dest, s.parse(v, getattr(self.config, s.dest, None)))
+                self.parse_new_includes()
 
         if profiles:
             profile = self.finalize_value(SETTINGS_LOOKUP_BY_DEST["profile"])
@@ -3798,8 +3793,8 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
 
     # First, we parse the command line arguments into a separate namespace.
     argparser = create_argument_parser()
-    with context.parse_new_includes():
-        argparser.parse_args(argv, context.cli)
+    argparser.parse_args(argv, context.cli)
+    context.parse_new_includes()
     args = load_args(context.cli)
 
     # If --debug was passed, apply it as soon as possible.
