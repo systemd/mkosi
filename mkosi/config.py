@@ -1546,6 +1546,7 @@ class Config:
     build_dir: Optional[Path]
     use_subvolumes: ConfigFeature
     repart_offline: bool
+    history: bool
 
     proxy_url: Optional[str]
     proxy_exclude: list[str]
@@ -2874,6 +2875,13 @@ SETTINGS = (
         default=True,
         scope=SettingScope.universal,
     ),
+    ConfigSetting(
+        dest="history",
+        metavar="BOOL",
+        section="Build",
+        parse=config_parse_boolean,
+        help="Whether mkosi can store information about previous builds",
+    ),
 
     ConfigSetting(
         dest="proxy_url",
@@ -3444,6 +3452,7 @@ class ParseContext:
         # Compare inodes instead of paths so we can't get tricked by bind mounts and such.
         self.includes: set[tuple[int, int]] = set()
         self.immutable: set[str] = set()
+        self.only_sections: tuple[str, ...] = tuple()
 
     def expand_specifiers(self, text: str, path: Path) -> str:
         percent = False
@@ -3683,6 +3692,9 @@ class ParseContext:
                 ):
                     continue
 
+                if self.only_sections and s.section not in self.only_sections:
+                    continue
+
                 for f in s.paths:
                     extra = parse_path(
                         f,
@@ -3708,7 +3720,7 @@ class ParseContext:
             files = getattr(self.config, 'files')
             files += [abs_path]
 
-            for section, k, v in parse_ini(path, only_sections={s.section for s in SETTINGS}):
+            for section, k, v in parse_ini(path, only_sections=self.only_sections or {s.section for s in SETTINGS}):
                 if not k and not v:
                     continue
 
@@ -3795,7 +3807,6 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
     # First, we parse the command line arguments into a separate namespace.
     argparser = create_argument_parser()
     argparser.parse_args(argv, context.cli)
-    context.parse_new_includes()
     args = load_args(context.cli)
 
     # If --debug was passed, apply it as soon as possible.
@@ -3808,6 +3819,35 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
 
     if not args.verb.needs_config():
         return args, ()
+
+    if (
+        args.verb.needs_build() and
+        args.verb != Verb.build and
+        not args.force and
+        Path(".mkosi-private/history/latest.json").exists()
+    ):
+        prev = Config.from_json(Path(".mkosi-private/history/latest.json").read_text())
+
+        # If we're operating on a previously built image (qemu, boot, shell, ...), we're not rebuilding the
+        # image and the configuration of the latest build is available, we load the config that was used to build the
+        # previous image from there instead of parsing configuration files, except for the Host section settings which
+        # we allow changing without requiring a rebuild of the image.
+        for s in SETTINGS:
+            if s.section in ("Include", "Host"):
+                continue
+
+            if hasattr(context.cli, s.dest) and getattr(context.cli, s.dest) != getattr(prev, s.dest):
+                logging.warning(f"Ignoring {s.long} from the CLI. Run with -f to rebuild the image with this setting")
+
+            setattr(context.cli, s.dest, getattr(prev, s.dest))
+            if hasattr(context.config, s.dest):
+                delattr(context.config, s.dest)
+
+        context.only_sections = ("Include", "Host",)
+    else:
+        prev = None
+
+    context.parse_new_includes()
 
     # One of the specifiers needs access to the directory, so make sure it is available.
     setattr(context.config, "directory", args.directory)
@@ -3824,6 +3864,9 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
     # single namespace, we merge the final values of each setting into one namespace.
     for s in SETTINGS:
         setattr(config, s.dest, context.finalize_value(s))
+
+    if prev:
+        return args, (load_config(config),)
 
     images = []
 
@@ -4290,6 +4333,7 @@ def summary(config: Config) -> str:
                     Build Directory: {none_to_none(config.build_dir)}
                      Use Subvolumes: {config.use_subvolumes}
                      Repart Offline: {yes_no(config.repart_offline)}
+                       Save History: {yes_no(config.history)}
 
     {bold("HOST CONFIGURATION")}:
                           Proxy URL: {none_to_none(config.proxy_url)}

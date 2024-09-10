@@ -1385,6 +1385,20 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     devices have to be used to ensure the SELinux extended attributes end
     up in the generated XFS filesystem.
 
+`History=`, `--history=`
+:   Takes a boolean. If enabled, mkosi will write information about the
+    latest build to the `.mkosi-private` subdirectory in the directory
+    from which it was invoked. This information is then used to restore
+    the config of the latest build when running any verb that needs a
+    build without specifying `--force`.
+
+    To give an example of why this is useful, if you run
+    `mkosi -O my-custom-output-dir -f` followed by `mkosi qemu`, `mkosi`
+    will fail saying the image hasn't been built yet. If you run
+    `mkosi -O my-custom-output-dir --history=yes -f` followed by
+    `mkosi qemu`, it will boot the image built in the previous step as
+    expected.
+
 ### [Host] Section
 
 `ProxyUrl=`, `--proxy-url=`
