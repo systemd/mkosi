@@ -4050,7 +4050,7 @@ def load_config(config: argparse.Namespace) -> Config:
     # Make sure we don't modify the input namespace.
     config = copy.deepcopy(config)
 
-    if config.build_dir:
+    if config.build_dir and config.build_dir.name != f"{config.distribution}~{config.release}~{config.architecture}":
         config.build_dir /= f"{config.distribution}~{config.release}~{config.architecture}"
 
     if config.sign:
