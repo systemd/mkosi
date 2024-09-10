@@ -1789,14 +1789,7 @@ config file is read:
 | `ToolsTreeDistribution=` | no    | no               | match default tools tree distribution |
 | `Environment=`           | no    | no               | n/a                                   |
 
-### [Config] Section
-
-`Profile=`, `--profile=`
-:   Select the given profile. A profile is a configuration file or
-    directory in the `mkosi.profiles/` directory. When selected, this
-    configuration file or directory is included after parsing the
-    `mkosi.conf` file, but before any `mkosi.conf.d/*.conf` drop in
-    configuration.
+### [Include]
 
 `Include=`, `--include=`, `-I`
 :   Include extra configuration from the given file or directory. The
@@ -1813,6 +1806,15 @@ config file is read:
 
     Note: Include names starting with either of the literals `mkosi-` or
     `contrib-` are reserved for use by mkosi itself.
+
+### [Config] Section
+
+`Profile=`, `--profile=`
+:   Select the given profile. A profile is a configuration file or
+    directory in the `mkosi.profiles/` directory. When selected, this
+    configuration file or directory is included after parsing the
+    `mkosi.conf` file, but before any `mkosi.conf.d/*.conf` drop in
+    configuration.
 
 `Dependencies=`, `--dependency=`
 :   The images that this image depends on specified as a comma-separated

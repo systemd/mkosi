@@ -1878,7 +1878,7 @@ SETTINGS = (
     ConfigSetting(
         dest="include",
         short="-I",
-        section="Config",
+        section="Include",
         parse=config_make_list_parser(
             delimiter=",",
             reset=False,
