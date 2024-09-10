@@ -485,32 +485,6 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   Enable package repositories that are disabled by default. This can be used to enable the EPEL repos for
     CentOS or different components of the Debian/Kali/Ubuntu repositories.
 
-`CacheOnly=`, `--cache-only=`
-:   Takes one of `auto`, `metadata`, `always` or `never`. Defaults to
-    `auto`. If `always`, the package manager is instructed not to contact
-    the network. This provides a minimal level of reproducibility, as long
-    as the package cache is already fully populated. If set to `metadata`,
-    the package manager can still download packages, but we won't sync the
-    repository metadata. If set to `auto`, the repository metadata is
-    synced unless we have a cached image (see `Incremental=`) and packages
-    can be downloaded during the build. If set to `never`, repository
-    metadata is always synced and and packages can be downloaded during
-    the build.
-
-`SandboxTrees=`, `--sandbox-tree=`
-:   Takes a comma separated list of colon separated path pairs. The first
-    path of each pair refers to a directory to copy into the mkosi
-    sandbox before executing a tool. If the `mkosi.sandbox/` directory
-    is found in the local directory it is used for this purpose with the
-    root directory as target (also see the **Files** section below).
-
-    `mkosi` will look for the package manager configuration and related
-    files in the configured sandbox trees. Unless specified otherwise,
-    it will use the configuration files from their canonical locations
-    in `/usr` or `/etc` in the sandbox trees. For example, it  will look
-    for `/etc/dnf/dnf.conf` in the sandbox trees  if `dnf` is used to
-    install packages.
-
 ### [Output] Section
 
 `Format=`, `--format=`, `-t`
@@ -579,43 +553,6 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     not specified and the directory `mkosi.output/` exists in the local
     directory, it is automatically used for this purpose.
 
-`WorkspaceDirectory=`, `--workspace-dir=`
-:   Path to a directory where to store data required temporarily while
-    building the image. This directory should have enough space to store
-    the full OS image, though in most modes the actually used disk space
-    is smaller. If not specified, a subdirectory of `$XDG_CACHE_HOME` (if
-    set), `$HOME/.cache` (if set) or `/var/tmp` is used.
-
-    The data in this directory is removed automatically after each
-    build. It's safe to manually remove the contents of this directory
-    should an `mkosi` invocation be aborted abnormally (for example, due
-    to reboot/power failure).
-
-`CacheDirectory=`, `--cache-dir=`
-:   Takes a path to a directory to use as the incremental cache directory
-    for the incremental images produced when the `Incremental=` option is
-    enabled. If this option is not used, but a `mkosi.cache/` directory is
-    found in the local directory it is automatically used for this
-    purpose.
-
-`PackageCacheDirectory=`, `--package-cache-dir`
-:   Takes a path to a directory to use as the package cache directory for
-    the distribution package manager used. If unset, a suitable directory
-    in the user's home directory or system is used.
-
-`BuildDirectory=`, `--build-dir=`
-:   Takes a path to a directory to use as the build directory for build
-    systems that support out-of-tree builds (such as Meson). The directory
-    used this way is shared between repeated builds, and allows the build
-    system to reuse artifacts (such as object files, executable, …)
-    generated on previous invocations. The build scripts can find the path
-    to this directory in the `$BUILDDIR` environment variable. This
-    directory is mounted into the image's root directory when
-    `mkosi-chroot` is invoked during execution of the build scripts. If
-    this option is not specified, but a directory `mkosi.builddir/` exists
-    in the local directory it is automatically used for this purpose (also
-    see the **Files** section below).
-
 `ImageVersion=`, `--image-version=`
 :   Configure the image version. This accepts any string, but it is
     recommended to specify a series of dot separated components. The
@@ -659,25 +596,6 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   Override the default sector size that systemd-repart uses when building a disk
     image.
 
-`RepartOffline=`, `--repart-offline=`
-:   Specifies whether to build disk images using loopback devices. Enabled
-    by default. When enabled, `systemd-repart` will not use loopback
-    devices to build disk images. When disabled, `systemd-repart` will
-    always use loopback devices to build disk images.
-
-    Note that when using `RepartOffline=no` mkosi cannot run unprivileged and
-    the image build has to be done as the root user outside of any
-    containers and with loopback devices available on the host system.
-
-    There are currently two known scenarios where `RepartOffline=no` has to be
-    used. The first is when using `Subvolumes=` in a repart partition
-    definition file, as subvolumes cannot be created without using
-    loopback devices. The second is when creating a system with SELinux
-    and an XFS root partition. Because `mkfs.xfs` does not support
-    populating an XFS filesystem with extended attributes, loopback
-    devices have to be used to ensure the SELinux extended attributes end
-    up in the generated XFS filesystem.
-
 `Overlay=`, `--overlay`
 :   When used together with `BaseTrees=`, the output will consist only out of
     changes to the specified base trees. Each base tree is attached as a lower
@@ -687,15 +605,6 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
     This option may be used to create [systemd *system extensions* or
     *portable services*](https://uapi-group.org/specifications/specs/extension_image).
-
-`UseSubvolumes=`, `--use-subvolumes=`
-:   Takes a boolean or `auto`. Enables or disables use of btrfs subvolumes for
-    directory tree outputs. If enabled, mkosi will create the root directory as
-    a btrfs subvolume and use btrfs subvolume snapshots where possible to copy
-    base or cached trees which is much faster than doing a recursive copy. If
-    explicitly enabled and `btrfs` is not installed or subvolumes cannot be
-    created, an error is raised. If `auto`, missing `btrfs` or failures to
-    create subvolumes are ignored.
 
 `Seed=`, `--seed=`
 :   Takes a UUID as argument or the special value `random`.
@@ -1255,6 +1164,227 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   Select the `gpg` key to use for signing `SHA256SUMS`. This key must
     be already present in the `gpg` keyring.
 
+### [Build] Section
+
+`ToolsTree=`, `--tools-tree=`
+:   If specified, programs executed by mkosi to build and boot an image
+    are looked up inside the given tree instead of in the host system. Use
+    this option to make image builds more reproducible by always using the
+    same versions of programs to build the final image instead of whatever
+    version is installed on the host system. If this option is not used,
+    but the `mkosi.tools/` directory is found in the local directory it is
+    automatically used for this purpose with the root directory as target.
+
+    Note if a binary is found in any of the paths configured with
+    `ExtraSearchPaths=`, the binary will be executed on the host.
+
+    If set to `default`, mkosi will automatically add an extra tools tree
+    image and use it as the tools tree.
+
+    Note that mkosi will only build a single default tools tree per build,
+    even if multiple images are defined in `mkosi.images` with
+    `ToolsTree=default`. The settings of the "last" image will apply to
+    the default tools tree (usually the image defined last in
+    mkosi.images and without any dependencies on other images).
+
+    The following table shows for which distributions default tools tree
+    packages are defined and which packages are included in those default
+    tools trees:
+
+    |                         | Fedora | CentOS | Debian | Kali | Ubuntu | Arch | openSUSE |
+    |-------------------------|:------:|:------:|:------:|:----:|:------:|:----:|:--------:|
+    | `acl`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `apt`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
+    | `archlinux-keyring`     | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
+    | `attr`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `bash`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `btrfs-progs`           | ✓      |        | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `bubblewrap`            | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `ca-certificates`       | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `coreutils`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `cpio`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `curl`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `debian-keyring`        | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
+    | `diffutils`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `distribution-gpg-keys` | ✓      | ✓      |        |      |        | ✓    | ✓        |
+    | `dnf`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `dnf-plugins-core`      | ✓      | ✓      |        |      |        |      | ✓        |
+    | `dnf5`                  | ✓      |        |        |      |        |      |          |
+    | `dnf5-plugins`          | ✓      |        |        |      |        |      |          |
+    | `dosfstools`            | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `e2fsprogs`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `edk2-ovmf`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `erofs-utils`           | ✓      |        | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `findutils`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `git`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `grep`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `grub-tools`            | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
+    | `jq`                    | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `kali-archive-keyring`  |        |        |        | ✓    |        |      |          |
+    | `kmod`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `less`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `mtools`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `nano`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `openssh`               | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `openssl`               | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `sed`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `pacman`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
+    | `pesign`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `policycoreutils`       | ✓      | ✓      | ✓      | ✓    | ✓      |      | ✓        |
+    | `qemu`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `sbsigntools`           | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `socat`                 | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `squashfs-tools`        | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `strace`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `swtpm`                 | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `systemd`               | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `ukify`                 | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `tar`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `ubuntu-keyring`        | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
+    | `util-linux`            | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `virtiofsd`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `virt-firmware`         | ✓      | ✓      |        |      |        | ✓    |          |
+    | `xfsprogs`              | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `xz`                    | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `zstd`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `zypper`                | ✓      |        | ✓      | ✓    | ✓      | ✓    |          |
+
+`ToolsTreeDistribution=`, `--tools-tree-distribution=`
+:   Set the distribution to use for the default tools tree. By default,
+    the same distribution as the image that's being built is used, except
+    for CentOS and Ubuntu images, in which case Fedora and Debian are used
+    respectively.
+
+`ToolsTreeRelease=`, `--tools-tree-release=`
+:   Set the distribution release to use for the default tools tree. By
+    default, the hardcoded default release in mkosi for the distribution
+    is used.
+
+`ToolsTreeMirror=`, `--tools-tree-mirror=`
+:   Set the mirror to use for the default tools tree. By default, the
+    default mirror for the tools tree distribution is used.
+
+`ToolsTreeRepositories=`, `--tools-tree-repository`
+:   Same as `Repositories=` but for the default tools tree.
+
+`ToolsTreeSandboxTrees=`, `--tools-tree-sandbox-tree`
+:   Same as `SandboxTrees=` but for the default tools tree.
+
+`ToolsTreePackages=`, `--tools-tree-packages=`
+:   Extra packages to install into the default tools tree. Takes a comma
+    separated list of package specifications. This option may be used
+    multiple times in which case the specified package lists are combined.
+
+`ToolsTreeCertificates=`, `--tools-tree-certificates=`
+:   Specify whether to use certificates and keys from the tools tree. If
+    enabled, `/usr/share/keyrings`, `/usr/share/distribution-gpg-keys`,
+    `/etc/pki`, `/etc/ssl`, `/etc/ca-certificates`, `/etc/pacman.d/gnupg`
+    and `/var/lib/ca-certificates` from the tools tree are used.
+    Otherwise, these directories are picked up from the host.
+
+`Incremental=`, `--incremental=`, `-i`
+:   Enable incremental build mode. In this mode, a copy of the OS image is
+    created immediately after all OS packages are installed and the
+    prepare scripts have executed but before the `mkosi.build` scripts are
+    invoked (or anything that happens after it). On subsequent invocations
+    of `mkosi` with the `-i` switch this cached image may be used to skip
+    the OS package installation, thus drastically speeding up repetitive
+    build times. Note that while there is some rudimentary cache
+    invalidation, it is definitely not perfect. In order to force
+    rebuilding of the cached image, combine `-i` with `-ff` to ensure the
+    cached image is first removed and then re-created.
+
+`CacheOnly=`, `--cache-only=`
+:   Takes one of `auto`, `metadata`, `always` or `never`. Defaults to
+    `auto`. If `always`, the package manager is instructed not to contact
+    the network. This provides a minimal level of reproducibility, as long
+    as the package cache is already fully populated. If set to `metadata`,
+    the package manager can still download packages, but we won't sync the
+    repository metadata. If set to `auto`, the repository metadata is
+    synced unless we have a cached image (see `Incremental=`) and packages
+    can be downloaded during the build. If set to `never`, repository
+    metadata is always synced and and packages can be downloaded during
+    the build.
+
+`SandboxTrees=`, `--sandbox-tree=`
+:   Takes a comma separated list of colon separated path pairs. The first
+    path of each pair refers to a directory to copy into the mkosi
+    sandbox before executing a tool. If the `mkosi.sandbox/` directory
+    is found in the local directory it is used for this purpose with the
+    root directory as target (also see the **Files** section below).
+
+    `mkosi` will look for the package manager configuration and related
+    files in the configured sandbox trees. Unless specified otherwise,
+    it will use the configuration files from their canonical locations
+    in `/usr` or `/etc` in the sandbox trees. For example, it  will look
+    for `/etc/dnf/dnf.conf` in the sandbox trees  if `dnf` is used to
+    install packages.
+
+`WorkspaceDirectory=`, `--workspace-dir=`
+:   Path to a directory where to store data required temporarily while
+    building the image. This directory should have enough space to store
+    the full OS image, though in most modes the actually used disk space
+    is smaller. If not specified, a subdirectory of `$XDG_CACHE_HOME` (if
+    set), `$HOME/.cache` (if set) or `/var/tmp` is used.
+
+    The data in this directory is removed automatically after each
+    build. It's safe to manually remove the contents of this directory
+    should an `mkosi` invocation be aborted abnormally (for example, due
+    to reboot/power failure).
+
+`CacheDirectory=`, `--cache-dir=`
+:   Takes a path to a directory to use as the incremental cache directory
+    for the incremental images produced when the `Incremental=` option is
+    enabled. If this option is not used, but a `mkosi.cache/` directory is
+    found in the local directory it is automatically used for this
+    purpose.
+
+`PackageCacheDirectory=`, `--package-cache-dir`
+:   Takes a path to a directory to use as the package cache directory for
+    the distribution package manager used. If unset, a suitable directory
+    in the user's home directory or system is used.
+
+`BuildDirectory=`, `--build-dir=`
+:   Takes a path to a directory to use as the build directory for build
+    systems that support out-of-tree builds (such as Meson). The directory
+    used this way is shared between repeated builds, and allows the build
+    system to reuse artifacts (such as object files, executable, …)
+    generated on previous invocations. The build scripts can find the path
+    to this directory in the `$BUILDDIR` environment variable. This
+    directory is mounted into the image's root directory when
+    `mkosi-chroot` is invoked during execution of the build scripts. If
+    this option is not specified, but a directory `mkosi.builddir/` exists
+    in the local directory it is automatically used for this purpose (also
+    see the **Files** section below).
+
+`UseSubvolumes=`, `--use-subvolumes=`
+:   Takes a boolean or `auto`. Enables or disables use of btrfs subvolumes for
+    directory tree outputs. If enabled, mkosi will create the root directory as
+    a btrfs subvolume and use btrfs subvolume snapshots where possible to copy
+    base or cached trees which is much faster than doing a recursive copy. If
+    explicitly enabled and `btrfs` is not installed or subvolumes cannot be
+    created, an error is raised. If `auto`, missing `btrfs` or failures to
+    create subvolumes are ignored.
+
+`RepartOffline=`, `--repart-offline=`
+:   Specifies whether to build disk images using loopback devices. Enabled
+    by default. When enabled, `systemd-repart` will not use loopback
+    devices to build disk images. When disabled, `systemd-repart` will
+    always use loopback devices to build disk images.
+
+    Note that when using `RepartOffline=no` mkosi cannot run unprivileged and
+    the image build has to be done as the root user outside of any
+    containers and with loopback devices available on the host system.
+
+    There are currently two known scenarios where `RepartOffline=no` has to be
+    used. The first is when using `Subvolumes=` in a repart partition
+    definition file, as subvolumes cannot be created without using
+    loopback devices. The second is when creating a system with SELinux
+    and an XFS root partition. Because `mkfs.xfs` does not support
+    populating an XFS filesystem with extended attributes, loopback
+    devices have to be used to ensure the SELinux extended attributes end
+    up in the generated XFS filesystem.
+
 ### [Host] Section
 
 `ProxyUrl=`, `--proxy-url=`
@@ -1289,18 +1419,6 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
     Currently, setting a proxy client key is only supported when `dnf` or
     `dnf5` is used to build the image.
-
-`Incremental=`, `--incremental=`, `-i`
-:   Enable incremental build mode. In this mode, a copy of the OS image is
-    created immediately after all OS packages are installed and the
-    prepare scripts have executed but before the `mkosi.build` scripts are
-    invoked (or anything that happens after it). On subsequent invocations
-    of `mkosi` with the `-i` switch this cached image may be used to skip
-    the OS package installation, thus drastically speeding up repetitive
-    build times. Note that while there is some rudimentary cache
-    invalidation, it is definitely not perfect. In order to force
-    rebuilding of the cached image, combine `-i` with `-ff` to ensure the
-    cached image is first removed and then re-created.
 
 `NSpawnSettings=`, `--settings=`
 :   Specifies a `.nspawn` settings file for `systemd-nspawn` to use in
@@ -1466,122 +1584,6 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     to the kernel command line via the SMBIOS io.systemd.stub.kernel-cmdline-extra
     OEM string. This will only be picked up by systemd-boot/systemd-stub versions
     newer than or equal to v254.
-
-`ToolsTree=`, `--tools-tree=`
-:   If specified, programs executed by mkosi to build and boot an image
-    are looked up inside the given tree instead of in the host system. Use
-    this option to make image builds more reproducible by always using the
-    same versions of programs to build the final image instead of whatever
-    version is installed on the host system. If this option is not used,
-    but the `mkosi.tools/` directory is found in the local directory it is
-    automatically used for this purpose with the root directory as target.
-
-    Note if a binary is found in any of the paths configured with
-    `ExtraSearchPaths=`, the binary will be executed on the host.
-
-    If set to `default`, mkosi will automatically add an extra tools tree
-    image and use it as the tools tree.
-
-    Note that mkosi will only build a single default tools tree per build,
-    even if multiple images are defined in `mkosi.images` with
-    `ToolsTree=default`. The settings of the "last" image will apply to
-    the default tools tree (usually the image defined last in
-    mkosi.images and without any dependencies on other images).
-
-    The following table shows for which distributions default tools tree
-    packages are defined and which packages are included in those default
-    tools trees:
-
-    |                         | Fedora | CentOS | Debian | Kali | Ubuntu | Arch | openSUSE |
-    |-------------------------|:------:|:------:|:------:|:----:|:------:|:----:|:--------:|
-    | `acl`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `apt`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
-    | `archlinux-keyring`     | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
-    | `attr`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `bash`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `btrfs-progs`           | ✓      |        | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `bubblewrap`            | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `ca-certificates`       | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `coreutils`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `cpio`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `curl`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `debian-keyring`        | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
-    | `diffutils`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `distribution-gpg-keys` | ✓      | ✓      |        |      |        | ✓    | ✓        |
-    | `dnf`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `dnf-plugins-core`      | ✓      | ✓      |        |      |        |      | ✓        |
-    | `dnf5`                  | ✓      |        |        |      |        |      |          |
-    | `dnf5-plugins`          | ✓      |        |        |      |        |      |          |
-    | `dosfstools`            | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `e2fsprogs`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `edk2-ovmf`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `erofs-utils`           | ✓      |        | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `findutils`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `git`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `grep`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `grub-tools`            | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
-    | `jq`                    | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `kali-archive-keyring`  |        |        |        | ✓    |        |      |          |
-    | `kmod`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `less`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `mtools`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `nano`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `openssh`               | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `openssl`               | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `sed`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `pacman`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
-    | `pesign`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `policycoreutils`       | ✓      | ✓      | ✓      | ✓    | ✓      |      | ✓        |
-    | `qemu`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `sbsigntools`           | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `socat`                 | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `squashfs-tools`        | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `strace`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `swtpm`                 | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `systemd`               | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `ukify`                 | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `tar`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `ubuntu-keyring`        | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
-    | `util-linux`            | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `virtiofsd`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `virt-firmware`         | ✓      | ✓      |        |      |        | ✓    |          |
-    | `xfsprogs`              | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `xz`                    | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `zstd`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `zypper`                | ✓      |        | ✓      | ✓    | ✓      | ✓    |          |
-
-`ToolsTreeDistribution=`, `--tools-tree-distribution=`
-:   Set the distribution to use for the default tools tree. By default,
-    the same distribution as the image that's being built is used, except
-    for CentOS and Ubuntu images, in which case Fedora and Debian are used
-    respectively.
-
-`ToolsTreeRelease=`, `--tools-tree-release=`
-:   Set the distribution release to use for the default tools tree. By
-    default, the hardcoded default release in mkosi for the distribution
-    is used.
-
-`ToolsTreeMirror=`, `--tools-tree-mirror=`
-:   Set the mirror to use for the default tools tree. By default, the
-    default mirror for the tools tree distribution is used.
-
-`ToolsTreeRepositories=`, `--tools-tree-repository`
-:   Same as `Repositories=` but for the default tools tree.
-
-`ToolsTreeSandboxTrees=`, `--tools-tree-sandbox-tree`
-:   Same as `SandboxTrees=` but for the default tools tree.
-
-`ToolsTreePackages=`, `--tools-tree-packages=`
-:   Extra packages to install into the default tools tree. Takes a comma
-    separated list of package specifications. This option may be used
-    multiple times in which case the specified package lists are combined.
-
-`ToolsTreeCertificates=`, `--tools-tree-certificates=`
-:   Specify whether to use certificates and keys from the tools tree. If
-    enabled, `/usr/share/keyrings`, `/usr/share/distribution-gpg-keys`,
-    `/etc/pki`, `/etc/ssl`, `/etc/ca-certificates`, `/etc/pacman.d/gnupg`
-    and `/var/lib/ca-certificates` from the tools tree are used.
-    Otherwise, these directories are picked up from the host.
 
 `RuntimeTrees=`, `--runtime-tree=`
 :   Takes a colon separated pair of paths. The first path refers to a

@@ -1434,8 +1434,6 @@ class Config:
     repository_key_check: bool
     repository_key_fetch: bool
     repositories: list[str]
-    cacheonly: Cacheonly
-    sandbox_trees: list[ConfigTree]
 
     output_format: OutputFormat
     manifest_format: list[ManifestFormat]
@@ -1443,18 +1441,12 @@ class Config:
     compress_output: Compression
     compress_level: int
     output_dir: Optional[Path]
-    workspace_dir: Optional[Path]
-    cache_dir: Optional[Path]
-    package_cache_dir: Optional[Path]
-    build_dir: Optional[Path]
     image_id: Optional[str]
     image_version: Optional[str]
     split_artifacts: bool
     repart_dirs: list[Path]
     sector_size: Optional[int]
-    repart_offline: bool
     overlay: bool
-    use_subvolumes: ConfigFeature
     seed: uuid.UUID
 
     packages: list[str]
@@ -1537,17 +1529,6 @@ class Config:
     sign: bool
     key: Optional[str]
 
-    proxy_url: Optional[str]
-    proxy_exclude: list[str]
-    proxy_peer_certificate: Optional[Path]
-    proxy_client_certificate: Optional[Path]
-    proxy_client_key: Optional[Path]
-    incremental: bool
-    nspawn_settings: Optional[Path]
-    extra_search_paths: list[Path]
-    ephemeral: bool
-    credentials: dict[str, str]
-    kernel_command_line_extra: list[str]
     tools_tree: Optional[Path]
     tools_tree_distribution: Optional[Distribution]
     tools_tree_release: Optional[str]
@@ -1556,6 +1537,26 @@ class Config:
     tools_tree_sandbox_trees: list[ConfigTree]
     tools_tree_packages: list[str]
     tools_tree_certificates: bool
+    incremental: bool
+    cacheonly: Cacheonly
+    sandbox_trees: list[ConfigTree]
+    workspace_dir: Optional[Path]
+    cache_dir: Optional[Path]
+    package_cache_dir: Optional[Path]
+    build_dir: Optional[Path]
+    use_subvolumes: ConfigFeature
+    repart_offline: bool
+
+    proxy_url: Optional[str]
+    proxy_exclude: list[str]
+    proxy_peer_certificate: Optional[Path]
+    proxy_client_certificate: Optional[Path]
+    proxy_client_key: Optional[Path]
+    nspawn_settings: Optional[Path]
+    extra_search_paths: list[Path]
+    ephemeral: bool
+    credentials: dict[str, str]
+    kernel_command_line_extra: list[str]
     runtime_trees: list[ConfigTree]
     runtime_size: Optional[int]
     runtime_scratch: ConfigFeature
@@ -2001,29 +2002,6 @@ SETTINGS = (
         help="Repositories to use",
         scope=SettingScope.universal,
     ),
-    ConfigSetting(
-        dest="cacheonly",
-        long="--cache-only",
-        name="CacheOnly",
-        section="Distribution",
-        parse=config_make_enum_parser_with_boolean(Cacheonly, yes=Cacheonly.always, no=Cacheonly.auto),
-        default=Cacheonly.auto,
-        help="Only use the package cache when installing packages",
-        choices=Cacheonly.choices(),
-        scope=SettingScope.universal,
-    ),
-    ConfigSetting(
-        dest="sandbox_trees",
-        long="--sandbox-tree",
-        compat_names=("PackageManagerTrees",),
-        compat_longs=("--package-manager-tree",),
-        metavar="PATH",
-        section="Distribution",
-        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(required=True)),
-        help="Use a sandbox tree to configure the various tools that mkosi executes",
-        paths=("mkosi.sandbox", "mkosi.sandbox.tar", "mkosi.pkgmngr", "mkosi.pkgmngr.tar",),
-        scope=SettingScope.universal,
-    ),
 
     ConfigSetting(
         dest="output_format",
@@ -2090,44 +2068,6 @@ SETTINGS = (
         scope=SettingScope.universal,
     ),
     ConfigSetting(
-        dest="workspace_dir",
-        metavar="DIR",
-        name="WorkspaceDirectory",
-        section="Output",
-        parse=config_make_path_parser(required=False),
-        help="Workspace directory",
-        scope=SettingScope.universal,
-    ),
-    ConfigSetting(
-        dest="cache_dir",
-        metavar="PATH",
-        name="CacheDirectory",
-        section="Output",
-        parse=config_make_path_parser(required=False),
-        paths=("mkosi.cache",),
-        help="Incremental cache directory",
-        scope=SettingScope.universal,
-    ),
-    ConfigSetting(
-        dest="package_cache_dir",
-        metavar="PATH",
-        name="PackageCacheDirectory",
-        section="Output",
-        parse=config_make_path_parser(required=False),
-        help="Package cache directory",
-        scope=SettingScope.universal,
-    ),
-    ConfigSetting(
-        dest="build_dir",
-        metavar="PATH",
-        name="BuildDirectory",
-        section="Output",
-        parse=config_make_path_parser(required=False),
-        paths=("mkosi.builddir",),
-        help="Path to use as persistent build directory",
-        scope=SettingScope.universal,
-    ),
-    ConfigSetting(
         dest="image_version",
         match=config_match_version,
         section="Output",
@@ -2171,29 +2111,12 @@ SETTINGS = (
         scope=SettingScope.inherit,
     ),
     ConfigSetting(
-        dest="repart_offline",
-        section="Output",
-        parse=config_parse_boolean,
-        help="Build disk images without using loopback devices",
-        default=True,
-        scope=SettingScope.universal,
-    ),
-    ConfigSetting(
         dest="overlay",
         metavar="BOOL",
         nargs="?",
         section="Output",
         parse=config_parse_boolean,
         help="Only output the additions on top of the given base trees",
-    ),
-    ConfigSetting(
-        dest="use_subvolumes",
-        metavar="FEATURE",
-        nargs="?",
-        section="Output",
-        parse=config_parse_feature,
-        help="Use btrfs subvolumes for faster directory operations where possible",
-        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="seed",
@@ -2791,6 +2714,168 @@ SETTINGS = (
     ),
 
     ConfigSetting(
+        dest="tools_tree",
+        metavar="PATH",
+        section="Build",
+        parse=config_make_path_parser(constants=("default",)),
+        paths=("mkosi.tools",),
+        help="Look up programs to execute inside the given tree",
+        nargs="?",
+        const="default",
+        scope=SettingScope.universal,
+    ),
+    ConfigSetting(
+        dest="tools_tree_distribution",
+        section="Build",
+        parse=config_make_enum_parser(Distribution),
+        match=config_make_enum_matcher(Distribution),
+        choices=Distribution.choices(),
+        default_factory_depends=("distribution",),
+        default_factory=config_default_tools_tree_distribution,
+        help="Set the distribution to use for the default tools tree",
+    ),
+    ConfigSetting(
+        dest="tools_tree_release",
+        metavar="RELEASE",
+        section="Build",
+        parse=config_parse_string,
+        default_factory_depends=("tools_tree_distribution",),
+        default_factory=lambda ns: d.default_release() if (d := ns.tools_tree_distribution) else None,
+        help="Set the release to use for the default tools tree",
+    ),
+    ConfigSetting(
+        dest="tools_tree_mirror",
+        metavar="MIRROR",
+        section="Build",
+        default_factory_depends=("distribution", "mirror", "tools_tree_distribution"),
+        default_factory=lambda ns: ns.mirror if ns.mirror and ns.distribution == ns.tools_tree_distribution else None,
+        help="Set the mirror to use for the default tools tree",
+    ),
+    ConfigSetting(
+        dest="tools_tree_repositories",
+        long="--tools-tree-repository",
+        metavar="REPOS",
+        section="Build",
+        parse=config_make_list_parser(delimiter=","),
+        help="Repositories to use for the default tools tree",
+    ),
+    ConfigSetting(
+        dest="tools_tree_sandbox_trees",
+        long="--tools-tree-sandbox-tree",
+        compat_names=("ToolsTreePackageManagerTrees",),
+        compat_longs=("--tools-tree-package-manager-tree",),
+        metavar="PATH",
+        section="Build",
+        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(required=True)),
+        help="Sandbox trees for the default tools tree",
+    ),
+    ConfigSetting(
+        dest="tools_tree_packages",
+        long="--tools-tree-package",
+        metavar="PACKAGE",
+        section="Build",
+        parse=config_make_list_parser(delimiter=","),
+        help="Add additional packages to the default tools tree",
+    ),
+    ConfigSetting(
+        dest="tools_tree_certificates",
+        metavar="BOOL",
+        section="Build",
+        parse=config_parse_boolean,
+        help="Use certificates from the tools tree",
+        default=True,
+        scope=SettingScope.universal,
+    ),
+    ConfigSetting(
+        dest="incremental",
+        short="-i",
+        metavar="BOOL",
+        nargs="?",
+        section="Build",
+        parse=config_parse_boolean,
+        help="Make use of and generate intermediary cache images",
+        scope=SettingScope.universal,
+    ),
+    ConfigSetting(
+        dest="cacheonly",
+        long="--cache-only",
+        name="CacheOnly",
+        section="Build",
+        parse=config_make_enum_parser_with_boolean(Cacheonly, yes=Cacheonly.always, no=Cacheonly.auto),
+        default=Cacheonly.auto,
+        help="Only use the package cache when installing packages",
+        choices=Cacheonly.choices(),
+        scope=SettingScope.universal,
+    ),
+    ConfigSetting(
+        dest="sandbox_trees",
+        long="--sandbox-tree",
+        compat_names=("PackageManagerTrees",),
+        compat_longs=("--package-manager-tree",),
+        metavar="PATH",
+        section="Build",
+        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(required=True)),
+        help="Use a sandbox tree to configure the various tools that mkosi executes",
+        paths=("mkosi.sandbox", "mkosi.sandbox.tar", "mkosi.pkgmngr", "mkosi.pkgmngr.tar",),
+        scope=SettingScope.universal,
+    ),
+    ConfigSetting(
+        dest="workspace_dir",
+        metavar="DIR",
+        name="WorkspaceDirectory",
+        section="Build",
+        parse=config_make_path_parser(required=False),
+        help="Workspace directory",
+        scope=SettingScope.universal,
+    ),
+    ConfigSetting(
+        dest="cache_dir",
+        metavar="PATH",
+        name="CacheDirectory",
+        section="Build",
+        parse=config_make_path_parser(required=False),
+        paths=("mkosi.cache",),
+        help="Incremental cache directory",
+        scope=SettingScope.universal,
+    ),
+    ConfigSetting(
+        dest="package_cache_dir",
+        metavar="PATH",
+        name="PackageCacheDirectory",
+        section="Build",
+        parse=config_make_path_parser(required=False),
+        help="Package cache directory",
+        scope=SettingScope.universal,
+    ),
+    ConfigSetting(
+        dest="build_dir",
+        metavar="PATH",
+        name="BuildDirectory",
+        section="Build",
+        parse=config_make_path_parser(required=False),
+        paths=("mkosi.builddir",),
+        help="Path to use as persistent build directory",
+        scope=SettingScope.universal,
+    ),
+    ConfigSetting(
+        dest="use_subvolumes",
+        metavar="FEATURE",
+        nargs="?",
+        section="Build",
+        parse=config_parse_feature,
+        help="Use btrfs subvolumes for faster directory operations where possible",
+        scope=SettingScope.universal,
+    ),
+    ConfigSetting(
+        dest="repart_offline",
+        section="Build",
+        parse=config_parse_boolean,
+        help="Build disk images without using loopback devices",
+        default=True,
+        scope=SettingScope.universal,
+    ),
+
+    ConfigSetting(
         dest="proxy_url",
         section="Host",
         default_factory=config_default_proxy_url,
@@ -2832,16 +2917,6 @@ SETTINGS = (
         default_factory_depends=("proxy_client_certificate",),
         parse=config_make_path_parser(secret=True),
         help="Set the proxy client key",
-        scope=SettingScope.universal,
-    ),
-    ConfigSetting(
-        dest="incremental",
-        short="-i",
-        metavar="BOOL",
-        nargs="?",
-        section="Host",
-        parse=config_parse_boolean,
-        help="Make use of and generate intermediary cache images",
         scope=SettingScope.universal,
     ),
     ConfigSetting(
@@ -2887,79 +2962,6 @@ SETTINGS = (
         section="Host",
         parse=config_make_list_parser(delimiter=" "),
         help="Append extra entries to the kernel command line when booting the image",
-    ),
-    ConfigSetting(
-        dest="tools_tree",
-        metavar="PATH",
-        section="Host",
-        parse=config_make_path_parser(constants=("default",)),
-        paths=("mkosi.tools",),
-        help="Look up programs to execute inside the given tree",
-        nargs="?",
-        const="default",
-        scope=SettingScope.universal,
-    ),
-    ConfigSetting(
-        dest="tools_tree_distribution",
-        section="Host",
-        parse=config_make_enum_parser(Distribution),
-        match=config_make_enum_matcher(Distribution),
-        choices=Distribution.choices(),
-        default_factory_depends=("distribution",),
-        default_factory=config_default_tools_tree_distribution,
-        help="Set the distribution to use for the default tools tree",
-    ),
-    ConfigSetting(
-        dest="tools_tree_release",
-        metavar="RELEASE",
-        section="Host",
-        parse=config_parse_string,
-        default_factory_depends=("tools_tree_distribution",),
-        default_factory=lambda ns: d.default_release() if (d := ns.tools_tree_distribution) else None,
-        help="Set the release to use for the default tools tree",
-    ),
-    ConfigSetting(
-        dest="tools_tree_mirror",
-        metavar="MIRROR",
-        section="Host",
-        default_factory_depends=("distribution", "mirror", "tools_tree_distribution"),
-        default_factory=lambda ns: ns.mirror if ns.mirror and ns.distribution == ns.tools_tree_distribution else None,
-        help="Set the mirror to use for the default tools tree",
-    ),
-    ConfigSetting(
-        dest="tools_tree_repositories",
-        long="--tools-tree-repository",
-        metavar="REPOS",
-        section="Host",
-        parse=config_make_list_parser(delimiter=","),
-        help="Repositories to use for the default tools tree",
-    ),
-    ConfigSetting(
-        dest="tools_tree_sandbox_trees",
-        long="--tools-tree-sandbox-tree",
-        compat_names=("ToolsTreePackageManagerTrees",),
-        compat_longs=("--tools-tree-package-manager-tree",),
-        metavar="PATH",
-        section="Host",
-        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(required=True)),
-        help="Sandbox trees for the default tools tree",
-    ),
-    ConfigSetting(
-        dest="tools_tree_packages",
-        long="--tools-tree-package",
-        metavar="PACKAGE",
-        section="Host",
-        parse=config_make_list_parser(delimiter=","),
-        help="Add additional packages to the default tools tree",
-    ),
-    ConfigSetting(
-        dest="tools_tree_certificates",
-        metavar="BOOL",
-        section="Host",
-        parse=config_parse_boolean,
-        help="Use certificates from the tools tree",
-        default=True,
-        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="runtime_trees",
@@ -4167,8 +4169,6 @@ def summary(config: Config) -> str:
            Repo Signature/Key check: {yes_no(config.repository_key_check)}
               Fetch Repository Keys: {yes_no(config.repository_key_fetch)}
                        Repositories: {line_join_list(config.repositories)}
-             Use Only Package Cache: {config.cacheonly}
-                      Sandbox Trees: {line_join_list(config.sandbox_trees)}
 
     {bold("OUTPUT")}:
                       Output Format: {config.output_format}
@@ -4177,18 +4177,12 @@ def summary(config: Config) -> str:
                         Compression: {config.compress_output}
                   Compression Level: {config.compress_level}
                    Output Directory: {config.output_dir_or_cwd()}
-                Workspace Directory: {config.workspace_dir_or_default()}
-                    Cache Directory: {none_to_none(config.cache_dir)}
-            Package Cache Directory: {none_to_default(config.package_cache_dir)}
-                    Build Directory: {none_to_none(config.build_dir)}
                            Image ID: {config.image_id}
                       Image Version: {config.image_version}
                     Split Artifacts: {yes_no(config.split_artifacts)}
                  Repart Directories: {line_join_list(config.repart_dirs)}
                         Sector Size: {none_to_default(config.sector_size)}
-                     Repart Offline: {yes_no(config.repart_offline)}
                             Overlay: {yes_no(config.overlay)}
-                     Use Subvolumes: {config.use_subvolumes}
                                Seed: {none_to_random(config.seed)}
                       Clean Scripts: {line_join_list(config.clean_scripts)}
 
@@ -4281,17 +4275,7 @@ def summary(config: Config) -> str:
 
     summary += f"""\
 
-    {bold("HOST CONFIGURATION")}:
-                          Proxy URL: {none_to_none(config.proxy_url)}
-             Proxy Peer Certificate: {none_to_none(config.proxy_peer_certificate)}
-           Proxy Client Certificate: {none_to_none(config.proxy_client_certificate)}
-                   Proxy Client Key: {none_to_none(config.proxy_client_key)}
-                        Incremental: {yes_no(config.incremental)}
-                    NSpawn Settings: {none_to_none(config.nspawn_settings)}
-                 Extra Search Paths: {line_join_list(config.extra_search_paths)}
-                          Ephemeral: {config.ephemeral}
-                        Credentials: {line_join_list(config.credentials.keys())}
-          Extra Kernel Command Line: {line_join_list(config.kernel_command_line_extra)}
+    {bold("BUILD CONFIGURATION")}:
                          Tools Tree: {config.tools_tree}
             Tools Tree Distribution: {none_to_none(config.tools_tree_distribution)}
                  Tools Tree Release: {none_to_none(config.tools_tree_release)}
@@ -4300,6 +4284,27 @@ def summary(config: Config) -> str:
            Tools Tree Sandbox Trees: {line_join_list(config.tools_tree_sandbox_trees)}
                 Tools Tree Packages: {line_join_list(config.tools_tree_packages)}
             Tools Tree Certificates: {yes_no(config.tools_tree_certificates)}
+
+                        Incremental: {yes_no(config.incremental)}
+             Use Only Package Cache: {config.cacheonly}
+                      Sandbox Trees: {line_join_list(config.sandbox_trees)}
+                Workspace Directory: {config.workspace_dir_or_default()}
+                    Cache Directory: {none_to_none(config.cache_dir)}
+            Package Cache Directory: {none_to_default(config.package_cache_dir)}
+                    Build Directory: {none_to_none(config.build_dir)}
+                     Use Subvolumes: {config.use_subvolumes}
+                     Repart Offline: {yes_no(config.repart_offline)}
+
+    {bold("HOST CONFIGURATION")}:
+                          Proxy URL: {none_to_none(config.proxy_url)}
+             Proxy Peer Certificate: {none_to_none(config.proxy_peer_certificate)}
+           Proxy Client Certificate: {none_to_none(config.proxy_client_certificate)}
+                   Proxy Client Key: {none_to_none(config.proxy_client_key)}
+                    NSpawn Settings: {none_to_none(config.nspawn_settings)}
+                 Extra Search Paths: {line_join_list(config.extra_search_paths)}
+                          Ephemeral: {config.ephemeral}
+                        Credentials: {line_join_list(config.credentials.keys())}
+          Extra Kernel Command Line: {line_join_list(config.kernel_command_line_extra)}
                       Runtime Trees: {line_join_list(config.runtime_trees)}
                        Runtime Size: {format_bytes_or_none(config.runtime_size)}
                     Runtime Scratch: {config.runtime_scratch}
