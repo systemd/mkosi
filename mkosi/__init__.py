@@ -153,7 +153,9 @@ def mount_base_trees(context: Context) -> Iterator[None]:
                 extract_tar(path, d, sandbox=context.sandbox)
                 bases += [d]
             elif path.suffix == ".raw":
-                run(["systemd-dissect", "--mount", "--mkdir", path, d])
+                run(
+                    ["systemd-dissect", "--mount", "--mkdir", path, d],
+                    env=dict(SYSTEMD_DISSECT_VERITY_EMBEDDED="no", SYSTEMD_DISSECT_VERITY_SIDECAR="no"))
                 stack.callback(lambda: run(["systemd-dissect", "--umount", "--rmdir", d]))
                 bases += [d]
             else:
@@ -996,6 +998,7 @@ def install_tree(
     elif src.suffix == ".raw":
         run(
             ["systemd-dissect", "--copy-from", workdir(src), "/", workdir(t)],
+            env=dict(SYSTEMD_DISSECT_VERITY_EMBEDDED="no", SYSTEMD_DISSECT_VERITY_SIDECAR="no"),
             sandbox=config.sandbox(
                 binary="systemd-dissect",
                 devices=True,
