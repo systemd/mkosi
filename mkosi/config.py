@@ -1372,8 +1372,9 @@ class Args:
         return json.dumps(self.to_dict(), cls=JsonEncoder, indent=indent, sort_keys=sort_keys)
 
     @classmethod
-    def _load_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> dict[str, Any]:
-        """Load JSON and transform it into a dictionary suitable compatible with instantiating a Args object."""
+    def from_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "Args":
+        """Instantiate a Args object from a (partial) JSON dump."""
+
         if isinstance(s, str):
             j = json.loads(s)
         elif isinstance(s, dict):
@@ -1383,23 +1384,23 @@ class Args:
         else:
             raise ValueError(f"{cls.__name__} can only be constructed from JSON from strings, dictionaries and files.")
 
-        value_transformer = json_type_transformer(cls)
         def key_transformer(k: str) -> str:
             return "_".join(part.lower() for part in FALLBACK_NAME_TO_DEST_SPLITTER.split(k))
 
-        return {(tk := key_transformer(k)): value_transformer(tk, v) for k, v in j.items()}
+        for k, v in j.items():
+            k = key_transformer(k)
 
-    @classmethod
-    def from_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "Args":
-        """Instantiate a Args object from a full JSON dump."""
-        j = cls._load_json(s)
-        return cls(**j)
+            if k not in inspect.signature(cls).parameters and (not isinstance(v, (dict, list, set)) or v):
+                die(f"Serialized JSON has unknown field {k} with value {v}",
+                    hint="Re-running mkosi once with -f should solve the issue by re-generating the JSON")
 
-    @classmethod
-    def from_partial_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "Args":
-        """Return a new Args with defaults overwritten by the attributes from passed in JSON."""
-        j = cls._load_json(s)
-        return dataclasses.replace(cls.default(), **j)
+        value_transformer = json_type_transformer(cls)
+        j = {(tk := key_transformer(k)): value_transformer(tk, v) for k, v in j.items()}
+
+        return dataclasses.replace(cls.default(), **{
+            k: v for k, v in j.items()
+            if k in inspect.signature(cls).parameters
+        })
 
 
 PACKAGE_GLOBS = (
@@ -1729,8 +1730,8 @@ class Config:
         return json.dumps(self.to_dict(), cls=JsonEncoder, indent=indent, sort_keys=sort_keys)
 
     @classmethod
-    def _load_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> dict[str, Any]:
-        """Load JSON and transform it into a dictionary suitable compatible with instantiating a Config object."""
+    def from_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "Config":
+        """Instantiate a Config object from a (partial) JSON dump."""
         if isinstance(s, str):
             j = json.loads(s)
         elif isinstance(s, dict):
@@ -1740,25 +1741,25 @@ class Config:
         else:
             raise ValueError(f"{cls.__name__} can only be constructed from JSON from strings, dictionaries and files.")
 
-        value_transformer = json_type_transformer(cls)
         def key_transformer(k: str) -> str:
             if (s := SETTINGS_LOOKUP_BY_NAME.get(k)) is not None:
                 return s.dest
             return "_".join(part.lower() for part in FALLBACK_NAME_TO_DEST_SPLITTER.split(k))
 
-        return {(tk := key_transformer(k)): value_transformer(tk, v) for k, v in j.items()}
+        for k, v in j.items():
+            k = key_transformer(k)
 
-    @classmethod
-    def from_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "Config":
-        """Instantiate a Config object from a full JSON dump."""
-        j = cls._load_json(s)
-        return cls(**j)
+            if k not in inspect.signature(cls).parameters and (not isinstance(v, (dict, list, set)) or v):
+                die(f"Serialized JSON has unknown field {k} with value {v}",
+                    hint="Re-running mkosi once with -f should solve the issue by re-generating the JSON")
 
-    @classmethod
-    def from_partial_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "Config":
-        """Return a new Config with defaults overwritten by the attributes from passed in JSON."""
-        j = cls._load_json(s)
-        return dataclasses.replace(cls.default(), **j)
+        value_transformer = json_type_transformer(cls)
+        j = {(tk := key_transformer(k)): value_transformer(tk, v) for k, v in j.items()}
+
+        return dataclasses.replace(cls.default(), **{
+            k: v for k, v in j.items()
+            if k in inspect.signature(cls).parameters
+        })
 
     def find_binary(self, *names: PathString, tools: bool = True) -> Optional[Path]:
         return find_binary(*names, root=self.tools() if tools else Path("/"), extra=self.extra_search_paths)
