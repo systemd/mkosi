@@ -14,13 +14,20 @@ ARG_DEBUG_SHELL = contextvars.ContextVar("debug-shell", default=False)
 LEVEL = 0
 
 
+def terminal_is_dumb() -> bool:
+    if not sys.stdout.isatty() and not sys.stderr.isatty():
+        return True
+
+    return os.getenv("TERM", "") == "dumb"
+
+
 class Style:
-    bold: Final[str] = "\033[0;1;39m" if sys.stderr.isatty() else ""
-    blue: Final[str] = "\033[0;1;34m" if sys.stderr.isatty() else ""
-    gray: Final[str] = "\033[0;38;5;245m" if sys.stderr.isatty() else ""
-    red: Final[str] = "\033[31;1m" if sys.stderr.isatty() else ""
-    yellow: Final[str] = "\033[33;1m" if sys.stderr.isatty() else ""
-    reset: Final[str] = "\033[0m" if sys.stderr.isatty() else ""
+    bold: Final[str] = "\033[0;1;39m" if not terminal_is_dumb() else ""
+    blue: Final[str] = "\033[0;1;34m" if not terminal_is_dumb() else ""
+    gray: Final[str] = "\033[0;38;5;245m" if not terminal_is_dumb() else ""
+    red: Final[str] = "\033[31;1m" if not terminal_is_dumb() else ""
+    yellow: Final[str] = "\033[33;1m" if not terminal_is_dumb() else ""
+    reset: Final[str] = "\033[0m" if not terminal_is_dumb() else ""
 
 
 def die(message: str,
