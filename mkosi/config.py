@@ -1347,9 +1347,9 @@ class Args:
 
     @classmethod
     def default(cls) -> "Args":
-        """Alternative constructor to generate an all-default MkosiArgs.
+        """Alternative constructor to generate an all-default Args.
 
-        This prevents MkosiArgs being generated with defaults values implicitly.
+        This prevents Args being generated with defaults values implicitly.
         """
         with tempfile.TemporaryDirectory() as tempdir:
             with chdir(tempdir):
@@ -1368,12 +1368,12 @@ class Args:
         return dataclasses.asdict(self, dict_factory=dict_with_capitalised_keys_factory)
 
     def to_json(self, *, indent: Optional[int] = 4, sort_keys: bool = True) -> str:
-        """Dump MkosiArgs as JSON string."""
+        """Dump Args as JSON string."""
         return json.dumps(self.to_dict(), cls=JsonEncoder, indent=indent, sort_keys=sort_keys)
 
     @classmethod
     def _load_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> dict[str, Any]:
-        """Load JSON and transform it into a dictionary suitable compatible with instantiating a MkosiArgs object."""
+        """Load JSON and transform it into a dictionary suitable compatible with instantiating a Args object."""
         if isinstance(s, str):
             j = json.loads(s)
         elif isinstance(s, dict):
@@ -1391,13 +1391,13 @@ class Args:
 
     @classmethod
     def from_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "Args":
-        """Instantiate a MkosiArgs object from a full JSON dump."""
+        """Instantiate a Args object from a full JSON dump."""
         j = cls._load_json(s)
         return cls(**j)
 
     @classmethod
     def from_partial_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "Args":
-        """Return a new MkosiArgs with defaults overwritten by the attributes from passed in JSON."""
+        """Return a new Args with defaults overwritten by the attributes from passed in JSON."""
         j = cls._load_json(s)
         return dataclasses.replace(cls.default(), **j)
 
@@ -1615,9 +1615,9 @@ class Config:
 
     @classmethod
     def default(cls) -> "Config":
-        """Alternative constructor to generate an all-default MkosiArgs.
+        """Alternative constructor to generate an all-default Config.
 
-        This prevents MkosiArgs being generated with defaults values implicitly.
+        This prevents Config being generated with defaults values implicitly.
         """
         with chdir("/proc"):
             _, [config] = parse_config([])
@@ -1725,12 +1725,12 @@ class Config:
         return dataclasses.asdict(self, dict_factory=dict_with_capitalised_keys_factory)
 
     def to_json(self, *, indent: Optional[int] = 4, sort_keys: bool = True) -> str:
-        """Dump MkosiConfig as JSON string."""
+        """Dump Config as JSON string."""
         return json.dumps(self.to_dict(), cls=JsonEncoder, indent=indent, sort_keys=sort_keys)
 
     @classmethod
     def _load_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> dict[str, Any]:
-        """Load JSON and transform it into a dictionary suitable compatible with instantiating a MkosiConfig object."""
+        """Load JSON and transform it into a dictionary suitable compatible with instantiating a Config object."""
         if isinstance(s, str):
             j = json.loads(s)
         elif isinstance(s, dict):
@@ -1750,13 +1750,13 @@ class Config:
 
     @classmethod
     def from_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "Config":
-        """Instantiate a MkosiConfig object from a full JSON dump."""
+        """Instantiate a Config object from a full JSON dump."""
         j = cls._load_json(s)
         return cls(**j)
 
     @classmethod
     def from_partial_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "Config":
-        """Return a new MkosiConfig with defaults overwritten by the attributes from passed in JSON."""
+        """Return a new Config with defaults overwritten by the attributes from passed in JSON."""
         j = cls._load_json(s)
         return dataclasses.replace(cls.default(), **j)
 
