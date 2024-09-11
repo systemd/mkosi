@@ -646,6 +646,54 @@ def finalize_firmware_variables(
     stack: contextlib.ExitStack,
 ) -> tuple[Path, str]:
     ovmf_vars = stack.enter_context(tempfile.NamedTemporaryFile(prefix="mkosi-ovmf-vars-"))
+    ovmf_json = stack.enter_context(tempfile.NamedTemporaryFile(prefix="mkosi-ovmf-vars-json-"))
+
+    if config.secure_boot_certificate:
+        # In order to make the kernel use mkosi.crt to verify dm-verity volumes, we need to
+        # create runtime and volatile EFI variables, MokListTrustedRT and MokListRT, as
+        # it's only from kernel 6.11 that db is used for this purpose. Note that, unlike
+        # certificates in db, the certificates in MOK are only used if secure boot is enabled.
+        # First create an efivar with the certificate, and then read it and convert to the
+        # json format that virt-fw-vars expects. We skip this in case the user provides their
+        # own custom firmware variables.
+        # attr=4 means EFI_VARIABLE_RUNTIME_ACCESS, and the GUID is the well-known MOK one.
+
+        mok_sigdb = stack.enter_context(tempfile.NamedTemporaryFile(prefix="mkosi-ovmf-vars-sigdb-"))
+        run(
+            [
+                "virt-fw-sigdb",
+                "--add-cert", "605dab50-e046-4300-abb6-3dd810dd8b23", config.secure_boot_certificate,
+                "--output", mok_sigdb.name,
+            ],
+            sandbox=config.sandbox(
+                binary=qemu,
+                options=[
+                    "--bind", mok_sigdb.name, mok_sigdb.name,
+                    "--ro-bind", config.secure_boot_certificate, config.secure_boot_certificate,
+                ],
+            ),
+        )
+
+        mok_json = {
+            "version": 2,
+            "variables": [
+                {
+                    "name": "MokListRT",
+                    "guid": "605dab50-e046-4300-abb6-3dd810dd8b23",
+                    "attr": 4,
+                    "data": mok_sigdb.read().hex(),
+                },
+                {
+                    "name": "MokListTrustedRT",
+                    "guid": "605dab50-e046-4300-abb6-3dd810dd8b23",
+                    "attr": 4,
+                    "data": "01",
+                },
+            ],
+        }
+        ovmf_json.write(json.dumps(mok_json).encode())
+        ovmf_json.flush()
+
     if config.qemu_firmware_variables in (None, Path("custom"), Path("microsoft")):
         ovmf_vars_format = ovmf.vars_format
     else:
@@ -660,6 +708,7 @@ def finalize_firmware_variables(
                 "--output", ovmf_vars.name,
                 "--enroll-cert", config.secure_boot_certificate,
                 "--add-db", "OvmfEnrollDefaultKeys", config.secure_boot_certificate,
+                "--set-json", ovmf_json.name,
                 "--no-microsoft",
                 "--secure-boot",
                 "--loglevel", "WARNING",
@@ -669,6 +718,7 @@ def finalize_firmware_variables(
                 options=[
                     "--bind", ovmf_vars.name, ovmf_vars.name,
                     "--ro-bind", config.secure_boot_certificate, config.secure_boot_certificate,
+                    "--ro-bind", ovmf_json.name, ovmf_json.name,
                 ],
             ),
         )
@@ -679,7 +729,27 @@ def finalize_firmware_variables(
             if config.qemu_firmware_variables == Path("microsoft") or not config.qemu_firmware_variables
             else config.qemu_firmware_variables
         )
-        shutil.copy2(vars, Path(ovmf_vars.name))
+        if (config.secure_boot_certificate and
+                (config.qemu_firmware_variables == Path("microsoft") or not config.qemu_firmware_variables)):
+            run(
+                [
+                    "virt-fw-vars",
+                    "--input", vars,
+                    "--output", ovmf_vars.name,
+                    "--set-json", ovmf_json.name,
+                    "--loglevel", "WARNING",
+                ],
+                sandbox=config.sandbox(
+                    binary=qemu,
+                    options=[
+                        "--bind", ovmf_vars.name, ovmf_vars.name,
+                        "--ro-bind", ovmf_json.name, ovmf_json.name,
+                        "--ro-bind", vars, vars,
+                    ],
+                ),
+            )
+        else:
+            shutil.copy2(vars, Path(ovmf_vars.name))
 
     return Path(ovmf_vars.name), ovmf_vars_format
 
