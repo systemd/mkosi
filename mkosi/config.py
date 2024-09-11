@@ -2,7 +2,6 @@
 
 import argparse
 import base64
-import contextlib
 import copy
 import dataclasses
 import enum
@@ -1348,9 +1347,9 @@ class Args:
 
     @classmethod
     def default(cls) -> "Args":
-        """Alternative constructor to generate an all-default MkosiArgs.
+        """Alternative constructor to generate an all-default Args.
 
-        This prevents MkosiArgs being generated with defaults values implicitly.
+        This prevents Args being generated with defaults values implicitly.
         """
         with tempfile.TemporaryDirectory() as tempdir:
             with chdir(tempdir):
@@ -1369,12 +1368,13 @@ class Args:
         return dataclasses.asdict(self, dict_factory=dict_with_capitalised_keys_factory)
 
     def to_json(self, *, indent: Optional[int] = 4, sort_keys: bool = True) -> str:
-        """Dump MkosiArgs as JSON string."""
+        """Dump Args as JSON string."""
         return json.dumps(self.to_dict(), cls=JsonEncoder, indent=indent, sort_keys=sort_keys)
 
     @classmethod
-    def _load_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> dict[str, Any]:
-        """Load JSON and transform it into a dictionary suitable compatible with instantiating a MkosiArgs object."""
+    def from_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "Args":
+        """Instantiate a Args object from a (partial) JSON dump."""
+
         if isinstance(s, str):
             j = json.loads(s)
         elif isinstance(s, dict):
@@ -1384,23 +1384,23 @@ class Args:
         else:
             raise ValueError(f"{cls.__name__} can only be constructed from JSON from strings, dictionaries and files.")
 
-        value_transformer = json_type_transformer(cls)
         def key_transformer(k: str) -> str:
             return "_".join(part.lower() for part in FALLBACK_NAME_TO_DEST_SPLITTER.split(k))
 
-        return {(tk := key_transformer(k)): value_transformer(tk, v) for k, v in j.items()}
+        for k, v in j.items():
+            k = key_transformer(k)
 
-    @classmethod
-    def from_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "Args":
-        """Instantiate a MkosiArgs object from a full JSON dump."""
-        j = cls._load_json(s)
-        return cls(**j)
+            if k not in inspect.signature(cls).parameters and (not isinstance(v, (dict, list, set)) or v):
+                die(f"Serialized JSON has unknown field {k} with value {v}",
+                    hint="Re-running mkosi once with -f should solve the issue by re-generating the JSON")
 
-    @classmethod
-    def from_partial_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "Args":
-        """Return a new MkosiArgs with defaults overwritten by the attributes from passed in JSON."""
-        j = cls._load_json(s)
-        return dataclasses.replace(cls.default(), **j)
+        value_transformer = json_type_transformer(cls)
+        j = {(tk := key_transformer(k)): value_transformer(tk, v) for k, v in j.items()}
+
+        return dataclasses.replace(cls.default(), **{
+            k: v for k, v in j.items()
+            if k in inspect.signature(cls).parameters
+        })
 
 
 PACKAGE_GLOBS = (
@@ -1422,8 +1422,6 @@ class Config:
 
     profile: Optional[str]
     files: list[Path]
-    include: list[Path]
-    initrd_include: list[Path]
     dependencies: list[str]
     minimum_version: Optional[GenericVersion]
     pass_environment: list[str]
@@ -1436,8 +1434,6 @@ class Config:
     repository_key_check: bool
     repository_key_fetch: bool
     repositories: list[str]
-    cacheonly: Cacheonly
-    sandbox_trees: list[ConfigTree]
 
     output_format: OutputFormat
     manifest_format: list[ManifestFormat]
@@ -1445,18 +1441,12 @@ class Config:
     compress_output: Compression
     compress_level: int
     output_dir: Optional[Path]
-    workspace_dir: Optional[Path]
-    cache_dir: Optional[Path]
-    package_cache_dir: Optional[Path]
-    build_dir: Optional[Path]
     image_id: Optional[str]
     image_version: Optional[str]
     split_artifacts: bool
     repart_dirs: list[Path]
     sector_size: Optional[int]
-    repart_offline: bool
     overlay: bool
-    use_subvolumes: ConfigFeature
     seed: uuid.UUID
 
     packages: list[str]
@@ -1539,17 +1529,6 @@ class Config:
     sign: bool
     key: Optional[str]
 
-    proxy_url: Optional[str]
-    proxy_exclude: list[str]
-    proxy_peer_certificate: Optional[Path]
-    proxy_client_certificate: Optional[Path]
-    proxy_client_key: Optional[Path]
-    incremental: bool
-    nspawn_settings: Optional[Path]
-    extra_search_paths: list[Path]
-    ephemeral: bool
-    credentials: dict[str, str]
-    kernel_command_line_extra: list[str]
     tools_tree: Optional[Path]
     tools_tree_distribution: Optional[Distribution]
     tools_tree_release: Optional[str]
@@ -1558,6 +1537,27 @@ class Config:
     tools_tree_sandbox_trees: list[ConfigTree]
     tools_tree_packages: list[str]
     tools_tree_certificates: bool
+    incremental: bool
+    cacheonly: Cacheonly
+    sandbox_trees: list[ConfigTree]
+    workspace_dir: Optional[Path]
+    cache_dir: Optional[Path]
+    package_cache_dir: Optional[Path]
+    build_dir: Optional[Path]
+    use_subvolumes: ConfigFeature
+    repart_offline: bool
+    history: bool
+
+    proxy_url: Optional[str]
+    proxy_exclude: list[str]
+    proxy_peer_certificate: Optional[Path]
+    proxy_client_certificate: Optional[Path]
+    proxy_client_key: Optional[Path]
+    nspawn_settings: Optional[Path]
+    extra_search_paths: list[Path]
+    ephemeral: bool
+    credentials: dict[str, str]
+    kernel_command_line_extra: list[str]
     runtime_trees: list[ConfigTree]
     runtime_size: Optional[int]
     runtime_scratch: ConfigFeature
@@ -1617,9 +1617,9 @@ class Config:
 
     @classmethod
     def default(cls) -> "Config":
-        """Alternative constructor to generate an all-default MkosiArgs.
+        """Alternative constructor to generate an all-default Config.
 
-        This prevents MkosiArgs being generated with defaults values implicitly.
+        This prevents Config being generated with defaults values implicitly.
         """
         with chdir("/proc"):
             _, [config] = parse_config([])
@@ -1727,12 +1727,12 @@ class Config:
         return dataclasses.asdict(self, dict_factory=dict_with_capitalised_keys_factory)
 
     def to_json(self, *, indent: Optional[int] = 4, sort_keys: bool = True) -> str:
-        """Dump MkosiConfig as JSON string."""
+        """Dump Config as JSON string."""
         return json.dumps(self.to_dict(), cls=JsonEncoder, indent=indent, sort_keys=sort_keys)
 
     @classmethod
-    def _load_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> dict[str, Any]:
-        """Load JSON and transform it into a dictionary suitable compatible with instantiating a MkosiConfig object."""
+    def from_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "Config":
+        """Instantiate a Config object from a (partial) JSON dump."""
         if isinstance(s, str):
             j = json.loads(s)
         elif isinstance(s, dict):
@@ -1742,25 +1742,25 @@ class Config:
         else:
             raise ValueError(f"{cls.__name__} can only be constructed from JSON from strings, dictionaries and files.")
 
-        value_transformer = json_type_transformer(cls)
         def key_transformer(k: str) -> str:
             if (s := SETTINGS_LOOKUP_BY_NAME.get(k)) is not None:
                 return s.dest
             return "_".join(part.lower() for part in FALLBACK_NAME_TO_DEST_SPLITTER.split(k))
 
-        return {(tk := key_transformer(k)): value_transformer(tk, v) for k, v in j.items()}
+        for k, v in j.items():
+            k = key_transformer(k)
 
-    @classmethod
-    def from_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "Config":
-        """Instantiate a MkosiConfig object from a full JSON dump."""
-        j = cls._load_json(s)
-        return cls(**j)
+            if k not in inspect.signature(cls).parameters and (not isinstance(v, (dict, list, set)) or v):
+                die(f"Serialized JSON has unknown field {k} with value {v}",
+                    hint="Re-running mkosi once with -f should solve the issue by re-generating the JSON")
 
-    @classmethod
-    def from_partial_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "Config":
-        """Return a new MkosiConfig with defaults overwritten by the attributes from passed in JSON."""
-        j = cls._load_json(s)
-        return dataclasses.replace(cls.default(), **j)
+        value_transformer = json_type_transformer(cls)
+        j = {(tk := key_transformer(k)): value_transformer(tk, v) for k, v in j.items()}
+
+        return dataclasses.replace(cls.default(), **{
+            k: v for k, v in j.items()
+            if k in inspect.signature(cls).parameters
+        })
 
     def find_binary(self, *names: PathString, tools: bool = True) -> Optional[Path]:
         return find_binary(*names, root=self.tools() if tools else Path("/"), extra=self.extra_search_paths)
@@ -1879,19 +1879,13 @@ SETTINGS = (
     ConfigSetting(
         dest="include",
         short="-I",
-        section="Config",
+        section="Include",
         parse=config_make_list_parser(
             delimiter=",",
             reset=False,
             parse=make_path_parser(constants=BUILTIN_CONFIGS),
         ),
         help="Include configuration from the specified file or directory",
-    ),
-    ConfigSetting(
-        dest="initrd_include",
-        section="Config",
-        parse=config_make_list_parser(delimiter=",", reset=False, parse=make_path_parser()),
-        help="Include configuration from the specified file or directory when building the initrd",
     ),
     ConfigSetting(
         dest="profile",
@@ -2009,29 +2003,6 @@ SETTINGS = (
         help="Repositories to use",
         scope=SettingScope.universal,
     ),
-    ConfigSetting(
-        dest="cacheonly",
-        long="--cache-only",
-        name="CacheOnly",
-        section="Distribution",
-        parse=config_make_enum_parser_with_boolean(Cacheonly, yes=Cacheonly.always, no=Cacheonly.auto),
-        default=Cacheonly.auto,
-        help="Only use the package cache when installing packages",
-        choices=Cacheonly.choices(),
-        scope=SettingScope.universal,
-    ),
-    ConfigSetting(
-        dest="sandbox_trees",
-        long="--sandbox-tree",
-        compat_names=("PackageManagerTrees",),
-        compat_longs=("--package-manager-tree",),
-        metavar="PATH",
-        section="Distribution",
-        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(required=True)),
-        help="Use a sandbox tree to configure the various tools that mkosi executes",
-        paths=("mkosi.sandbox", "mkosi.sandbox.tar", "mkosi.pkgmngr", "mkosi.pkgmngr.tar",),
-        scope=SettingScope.universal,
-    ),
 
     ConfigSetting(
         dest="output_format",
@@ -2098,44 +2069,6 @@ SETTINGS = (
         scope=SettingScope.universal,
     ),
     ConfigSetting(
-        dest="workspace_dir",
-        metavar="DIR",
-        name="WorkspaceDirectory",
-        section="Output",
-        parse=config_make_path_parser(required=False),
-        help="Workspace directory",
-        scope=SettingScope.universal,
-    ),
-    ConfigSetting(
-        dest="cache_dir",
-        metavar="PATH",
-        name="CacheDirectory",
-        section="Output",
-        parse=config_make_path_parser(required=False),
-        paths=("mkosi.cache",),
-        help="Incremental cache directory",
-        scope=SettingScope.universal,
-    ),
-    ConfigSetting(
-        dest="package_cache_dir",
-        metavar="PATH",
-        name="PackageCacheDirectory",
-        section="Output",
-        parse=config_make_path_parser(required=False),
-        help="Package cache directory",
-        scope=SettingScope.universal,
-    ),
-    ConfigSetting(
-        dest="build_dir",
-        metavar="PATH",
-        name="BuildDirectory",
-        section="Output",
-        parse=config_make_path_parser(required=False),
-        paths=("mkosi.builddir",),
-        help="Path to use as persistent build directory",
-        scope=SettingScope.universal,
-    ),
-    ConfigSetting(
         dest="image_version",
         match=config_match_version,
         section="Output",
@@ -2179,29 +2112,12 @@ SETTINGS = (
         scope=SettingScope.inherit,
     ),
     ConfigSetting(
-        dest="repart_offline",
-        section="Output",
-        parse=config_parse_boolean,
-        help="Build disk images without using loopback devices",
-        default=True,
-        scope=SettingScope.universal,
-    ),
-    ConfigSetting(
         dest="overlay",
         metavar="BOOL",
         nargs="?",
         section="Output",
         parse=config_parse_boolean,
         help="Only output the additions on top of the given base trees",
-    ),
-    ConfigSetting(
-        dest="use_subvolumes",
-        metavar="FEATURE",
-        nargs="?",
-        section="Output",
-        parse=config_parse_feature,
-        help="Use btrfs subvolumes for faster directory operations where possible",
-        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="seed",
@@ -2799,6 +2715,175 @@ SETTINGS = (
     ),
 
     ConfigSetting(
+        dest="tools_tree",
+        metavar="PATH",
+        section="Build",
+        parse=config_make_path_parser(constants=("default",)),
+        paths=("mkosi.tools",),
+        help="Look up programs to execute inside the given tree",
+        nargs="?",
+        const="default",
+        scope=SettingScope.universal,
+    ),
+    ConfigSetting(
+        dest="tools_tree_distribution",
+        section="Build",
+        parse=config_make_enum_parser(Distribution),
+        match=config_make_enum_matcher(Distribution),
+        choices=Distribution.choices(),
+        default_factory_depends=("distribution",),
+        default_factory=config_default_tools_tree_distribution,
+        help="Set the distribution to use for the default tools tree",
+    ),
+    ConfigSetting(
+        dest="tools_tree_release",
+        metavar="RELEASE",
+        section="Build",
+        parse=config_parse_string,
+        default_factory_depends=("tools_tree_distribution",),
+        default_factory=lambda ns: d.default_release() if (d := ns.tools_tree_distribution) else None,
+        help="Set the release to use for the default tools tree",
+    ),
+    ConfigSetting(
+        dest="tools_tree_mirror",
+        metavar="MIRROR",
+        section="Build",
+        default_factory_depends=("distribution", "mirror", "tools_tree_distribution"),
+        default_factory=lambda ns: ns.mirror if ns.mirror and ns.distribution == ns.tools_tree_distribution else None,
+        help="Set the mirror to use for the default tools tree",
+    ),
+    ConfigSetting(
+        dest="tools_tree_repositories",
+        long="--tools-tree-repository",
+        metavar="REPOS",
+        section="Build",
+        parse=config_make_list_parser(delimiter=","),
+        help="Repositories to use for the default tools tree",
+    ),
+    ConfigSetting(
+        dest="tools_tree_sandbox_trees",
+        long="--tools-tree-sandbox-tree",
+        compat_names=("ToolsTreePackageManagerTrees",),
+        compat_longs=("--tools-tree-package-manager-tree",),
+        metavar="PATH",
+        section="Build",
+        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(required=True)),
+        help="Sandbox trees for the default tools tree",
+    ),
+    ConfigSetting(
+        dest="tools_tree_packages",
+        long="--tools-tree-package",
+        metavar="PACKAGE",
+        section="Build",
+        parse=config_make_list_parser(delimiter=","),
+        help="Add additional packages to the default tools tree",
+    ),
+    ConfigSetting(
+        dest="tools_tree_certificates",
+        metavar="BOOL",
+        section="Build",
+        parse=config_parse_boolean,
+        help="Use certificates from the tools tree",
+        default=True,
+        scope=SettingScope.universal,
+    ),
+    ConfigSetting(
+        dest="incremental",
+        short="-i",
+        metavar="BOOL",
+        nargs="?",
+        section="Build",
+        parse=config_parse_boolean,
+        help="Make use of and generate intermediary cache images",
+        scope=SettingScope.universal,
+    ),
+    ConfigSetting(
+        dest="cacheonly",
+        long="--cache-only",
+        name="CacheOnly",
+        section="Build",
+        parse=config_make_enum_parser_with_boolean(Cacheonly, yes=Cacheonly.always, no=Cacheonly.auto),
+        default=Cacheonly.auto,
+        help="Only use the package cache when installing packages",
+        choices=Cacheonly.choices(),
+        scope=SettingScope.universal,
+    ),
+    ConfigSetting(
+        dest="sandbox_trees",
+        long="--sandbox-tree",
+        compat_names=("PackageManagerTrees",),
+        compat_longs=("--package-manager-tree",),
+        metavar="PATH",
+        section="Build",
+        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(required=True)),
+        help="Use a sandbox tree to configure the various tools that mkosi executes",
+        paths=("mkosi.sandbox", "mkosi.sandbox.tar", "mkosi.pkgmngr", "mkosi.pkgmngr.tar",),
+        scope=SettingScope.universal,
+    ),
+    ConfigSetting(
+        dest="workspace_dir",
+        metavar="DIR",
+        name="WorkspaceDirectory",
+        section="Build",
+        parse=config_make_path_parser(required=False),
+        help="Workspace directory",
+        scope=SettingScope.universal,
+    ),
+    ConfigSetting(
+        dest="cache_dir",
+        metavar="PATH",
+        name="CacheDirectory",
+        section="Build",
+        parse=config_make_path_parser(required=False),
+        paths=("mkosi.cache",),
+        help="Incremental cache directory",
+        scope=SettingScope.universal,
+    ),
+    ConfigSetting(
+        dest="package_cache_dir",
+        metavar="PATH",
+        name="PackageCacheDirectory",
+        section="Build",
+        parse=config_make_path_parser(required=False),
+        help="Package cache directory",
+        scope=SettingScope.universal,
+    ),
+    ConfigSetting(
+        dest="build_dir",
+        metavar="PATH",
+        name="BuildDirectory",
+        section="Build",
+        parse=config_make_path_parser(required=False),
+        paths=("mkosi.builddir",),
+        help="Path to use as persistent build directory",
+        scope=SettingScope.universal,
+    ),
+    ConfigSetting(
+        dest="use_subvolumes",
+        metavar="FEATURE",
+        nargs="?",
+        section="Build",
+        parse=config_parse_feature,
+        help="Use btrfs subvolumes for faster directory operations where possible",
+        scope=SettingScope.universal,
+    ),
+    ConfigSetting(
+        dest="repart_offline",
+        section="Build",
+        parse=config_parse_boolean,
+        help="Build disk images without using loopback devices",
+        default=True,
+        scope=SettingScope.universal,
+    ),
+    ConfigSetting(
+        dest="history",
+        metavar="BOOL",
+        section="Build",
+        parse=config_parse_boolean,
+        help="Whether mkosi can store information about previous builds",
+    ),
+
+    ConfigSetting(
         dest="proxy_url",
         section="Host",
         default_factory=config_default_proxy_url,
@@ -2840,16 +2925,6 @@ SETTINGS = (
         default_factory_depends=("proxy_client_certificate",),
         parse=config_make_path_parser(secret=True),
         help="Set the proxy client key",
-        scope=SettingScope.universal,
-    ),
-    ConfigSetting(
-        dest="incremental",
-        short="-i",
-        metavar="BOOL",
-        nargs="?",
-        section="Host",
-        parse=config_parse_boolean,
-        help="Make use of and generate intermediary cache images",
         scope=SettingScope.universal,
     ),
     ConfigSetting(
@@ -2895,79 +2970,6 @@ SETTINGS = (
         section="Host",
         parse=config_make_list_parser(delimiter=" "),
         help="Append extra entries to the kernel command line when booting the image",
-    ),
-    ConfigSetting(
-        dest="tools_tree",
-        metavar="PATH",
-        section="Host",
-        parse=config_make_path_parser(constants=("default",)),
-        paths=("mkosi.tools",),
-        help="Look up programs to execute inside the given tree",
-        nargs="?",
-        const="default",
-        scope=SettingScope.universal,
-    ),
-    ConfigSetting(
-        dest="tools_tree_distribution",
-        section="Host",
-        parse=config_make_enum_parser(Distribution),
-        match=config_make_enum_matcher(Distribution),
-        choices=Distribution.choices(),
-        default_factory_depends=("distribution",),
-        default_factory=config_default_tools_tree_distribution,
-        help="Set the distribution to use for the default tools tree",
-    ),
-    ConfigSetting(
-        dest="tools_tree_release",
-        metavar="RELEASE",
-        section="Host",
-        parse=config_parse_string,
-        default_factory_depends=("tools_tree_distribution",),
-        default_factory=lambda ns: d.default_release() if (d := ns.tools_tree_distribution) else None,
-        help="Set the release to use for the default tools tree",
-    ),
-    ConfigSetting(
-        dest="tools_tree_mirror",
-        metavar="MIRROR",
-        section="Host",
-        default_factory_depends=("distribution", "mirror", "tools_tree_distribution"),
-        default_factory=lambda ns: ns.mirror if ns.mirror and ns.distribution == ns.tools_tree_distribution else None,
-        help="Set the mirror to use for the default tools tree",
-    ),
-    ConfigSetting(
-        dest="tools_tree_repositories",
-        long="--tools-tree-repository",
-        metavar="REPOS",
-        section="Host",
-        parse=config_make_list_parser(delimiter=","),
-        help="Repositories to use for the default tools tree",
-    ),
-    ConfigSetting(
-        dest="tools_tree_sandbox_trees",
-        long="--tools-tree-sandbox-tree",
-        compat_names=("ToolsTreePackageManagerTrees",),
-        compat_longs=("--tools-tree-package-manager-tree",),
-        metavar="PATH",
-        section="Host",
-        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(required=True)),
-        help="Sandbox trees for the default tools tree",
-    ),
-    ConfigSetting(
-        dest="tools_tree_packages",
-        long="--tools-tree-package",
-        metavar="PACKAGE",
-        section="Host",
-        parse=config_make_list_parser(delimiter=","),
-        help="Add additional packages to the default tools tree",
-    ),
-    ConfigSetting(
-        dest="tools_tree_certificates",
-        metavar="BOOL",
-        section="Host",
-        parse=config_parse_boolean,
-        help="Use certificates from the tools tree",
-        default=True,
-        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="runtime_trees",
@@ -3450,6 +3452,7 @@ class ParseContext:
         # Compare inodes instead of paths so we can't get tricked by bind mounts and such.
         self.includes: set[tuple[int, int]] = set()
         self.immutable: set[str] = set()
+        self.only_sections: tuple[str, ...] = tuple()
 
     def expand_specifiers(self, text: str, path: Path) -> str:
         percent = False
@@ -3502,42 +3505,38 @@ class ParseContext:
 
         return "".join(result)
 
-    @contextlib.contextmanager
-    def parse_new_includes(self) -> Iterator[None]:
-        try:
-            yield
-        finally:
-            # Parse any includes that were added after yielding.
-            for p in getattr(self.cli, "include", []) + getattr(self.config, "include", []):
-                for c in BUILTIN_CONFIGS:
-                    if p == Path(c):
-                        path = self.resources / c
-                        break
-                else:
-                    path = p
+    def parse_new_includes(self) -> None:
+        # Parse any includes that were added after yielding.
+        for p in getattr(self.cli, "include", []) + getattr(self.config, "include", []):
+            for c in BUILTIN_CONFIGS:
+                if p == Path(c):
+                    path = self.resources / c
+                    break
+            else:
+                path = p
 
-                st = path.stat()
+            st = path.stat()
 
-                if (st.st_dev, st.st_ino) in self.includes:
-                    continue
+            if (st.st_dev, st.st_ino) in self.includes:
+                continue
 
-                self.includes.add((st.st_dev, st.st_ino))
+            self.includes.add((st.st_dev, st.st_ino))
 
-                if any(p == Path(c) for c in BUILTIN_CONFIGS):
-                    _, [config] = parse_config(["--directory", "", "--include", os.fspath(path)])
-                    make_executable(
-                        *config.configure_scripts,
-                        *config.clean_scripts,
-                        *config.sync_scripts,
-                        *config.prepare_scripts,
-                        *config.build_scripts,
-                        *config.postinst_scripts,
-                        *config.finalize_scripts,
-                        *config.postoutput_scripts,
-                    )
+            if any(p == Path(c) for c in BUILTIN_CONFIGS):
+                _, [config] = parse_config(["--directory", "", "--include", os.fspath(path)])
+                make_executable(
+                    *config.configure_scripts,
+                    *config.clean_scripts,
+                    *config.sync_scripts,
+                    *config.prepare_scripts,
+                    *config.build_scripts,
+                    *config.postinst_scripts,
+                    *config.finalize_scripts,
+                    *config.postoutput_scripts,
+                )
 
-                with chdir(path if path.is_dir() else Path.cwd()):
-                    self.parse_config_one(path if path.is_file() else Path("."))
+            with chdir(path if path.is_dir() else Path.cwd()):
+                self.parse_config_one(path if path.is_file() else Path("."))
 
     def finalize_value(self, setting: ConfigSetting) -> Optional[Any]:
         # If a value was specified on the CLI, it always takes priority. If the setting is a collection of values, we
@@ -3693,6 +3692,9 @@ class ParseContext:
                 ):
                     continue
 
+                if self.only_sections and s.section not in self.only_sections:
+                    continue
+
                 for f in s.paths:
                     extra = parse_path(
                         f,
@@ -3718,7 +3720,7 @@ class ParseContext:
             files = getattr(self.config, 'files')
             files += [abs_path]
 
-            for section, k, v in parse_ini(path, only_sections={s.section for s in SETTINGS}):
+            for section, k, v in parse_ini(path, only_sections=self.only_sections or {s.section for s in SETTINGS}):
                 if not k and not v:
                     continue
 
@@ -3744,8 +3746,8 @@ class ParseContext:
 
                 v = self.expand_specifiers(v, path)
 
-                with self.parse_new_includes():
-                    setattr(self.config, s.dest, s.parse(v, getattr(self.config, s.dest, None)))
+                setattr(self.config, s.dest, s.parse(v, getattr(self.config, s.dest, None)))
+                self.parse_new_includes()
 
         if profiles:
             profile = self.finalize_value(SETTINGS_LOOKUP_BY_DEST["profile"])
@@ -3804,8 +3806,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
 
     # First, we parse the command line arguments into a separate namespace.
     argparser = create_argument_parser()
-    with context.parse_new_includes():
-        argparser.parse_args(argv, context.cli)
+    argparser.parse_args(argv, context.cli)
     args = load_args(context.cli)
 
     # If --debug was passed, apply it as soon as possible.
@@ -3818,6 +3819,35 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
 
     if not args.verb.needs_config():
         return args, ()
+
+    if (
+        args.verb.needs_build() and
+        args.verb != Verb.build and
+        not args.force and
+        Path(".mkosi-private/history/latest.json").exists()
+    ):
+        prev = Config.from_json(Path(".mkosi-private/history/latest.json").read_text())
+
+        # If we're operating on a previously built image (qemu, boot, shell, ...), we're not rebuilding the
+        # image and the configuration of the latest build is available, we load the config that was used to build the
+        # previous image from there instead of parsing configuration files, except for the Host section settings which
+        # we allow changing without requiring a rebuild of the image.
+        for s in SETTINGS:
+            if s.section in ("Include", "Host"):
+                continue
+
+            if hasattr(context.cli, s.dest) and getattr(context.cli, s.dest) != getattr(prev, s.dest):
+                logging.warning(f"Ignoring {s.long} from the CLI. Run with -f to rebuild the image with this setting")
+
+            setattr(context.cli, s.dest, getattr(prev, s.dest))
+            if hasattr(context.config, s.dest):
+                delattr(context.config, s.dest)
+
+        context.only_sections = ("Include", "Host",)
+    else:
+        prev = None
+
+    context.parse_new_includes()
 
     # One of the specifiers needs access to the directory, so make sure it is available.
     setattr(context.config, "directory", args.directory)
@@ -3834,6 +3864,9 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
     # single namespace, we merge the final values of each setting into one namespace.
     for s in SETTINGS:
         setattr(config, s.dest, context.finalize_value(s))
+
+    if prev:
+        return args, (load_config(config),)
 
     images = []
 
@@ -4061,7 +4094,7 @@ def load_config(config: argparse.Namespace) -> Config:
     # Make sure we don't modify the input namespace.
     config = copy.deepcopy(config)
 
-    if config.build_dir:
+    if config.build_dir and config.build_dir.name != f"{config.distribution}~{config.release}~{config.architecture}":
         config.build_dir /= f"{config.distribution}~{config.release}~{config.architecture}"
 
     if config.sign:
@@ -4161,8 +4194,6 @@ def summary(config: Config) -> str:
 
     {bold("CONFIG")}:
                             Profile: {none_to_none(config.profile)}
-                            Include: {line_join_list(config.include)}
-                     Initrd Include: {line_join_list(config.initrd_include)}
                        Dependencies: {line_join_list(config.dependencies)}
                     Minimum Version: {none_to_none(config.minimum_version)}
                   Configure Scripts: {line_join_list(config.configure_scripts)}
@@ -4177,8 +4208,6 @@ def summary(config: Config) -> str:
            Repo Signature/Key check: {yes_no(config.repository_key_check)}
               Fetch Repository Keys: {yes_no(config.repository_key_fetch)}
                        Repositories: {line_join_list(config.repositories)}
-             Use Only Package Cache: {config.cacheonly}
-                      Sandbox Trees: {line_join_list(config.sandbox_trees)}
 
     {bold("OUTPUT")}:
                       Output Format: {config.output_format}
@@ -4187,18 +4216,12 @@ def summary(config: Config) -> str:
                         Compression: {config.compress_output}
                   Compression Level: {config.compress_level}
                    Output Directory: {config.output_dir_or_cwd()}
-                Workspace Directory: {config.workspace_dir_or_default()}
-                    Cache Directory: {none_to_none(config.cache_dir)}
-            Package Cache Directory: {none_to_default(config.package_cache_dir)}
-                    Build Directory: {none_to_none(config.build_dir)}
                            Image ID: {config.image_id}
                       Image Version: {config.image_version}
                     Split Artifacts: {yes_no(config.split_artifacts)}
                  Repart Directories: {line_join_list(config.repart_dirs)}
                         Sector Size: {none_to_default(config.sector_size)}
-                     Repart Offline: {yes_no(config.repart_offline)}
                             Overlay: {yes_no(config.overlay)}
-                     Use Subvolumes: {config.use_subvolumes}
                                Seed: {none_to_random(config.seed)}
                       Clean Scripts: {line_join_list(config.clean_scripts)}
 
@@ -4291,17 +4314,7 @@ def summary(config: Config) -> str:
 
     summary += f"""\
 
-    {bold("HOST CONFIGURATION")}:
-                          Proxy URL: {none_to_none(config.proxy_url)}
-             Proxy Peer Certificate: {none_to_none(config.proxy_peer_certificate)}
-           Proxy Client Certificate: {none_to_none(config.proxy_client_certificate)}
-                   Proxy Client Key: {none_to_none(config.proxy_client_key)}
-                        Incremental: {yes_no(config.incremental)}
-                    NSpawn Settings: {none_to_none(config.nspawn_settings)}
-                 Extra Search Paths: {line_join_list(config.extra_search_paths)}
-                          Ephemeral: {config.ephemeral}
-                        Credentials: {line_join_list(config.credentials.keys())}
-          Extra Kernel Command Line: {line_join_list(config.kernel_command_line_extra)}
+    {bold("BUILD CONFIGURATION")}:
                          Tools Tree: {config.tools_tree}
             Tools Tree Distribution: {none_to_none(config.tools_tree_distribution)}
                  Tools Tree Release: {none_to_none(config.tools_tree_release)}
@@ -4310,6 +4323,28 @@ def summary(config: Config) -> str:
            Tools Tree Sandbox Trees: {line_join_list(config.tools_tree_sandbox_trees)}
                 Tools Tree Packages: {line_join_list(config.tools_tree_packages)}
             Tools Tree Certificates: {yes_no(config.tools_tree_certificates)}
+
+                        Incremental: {yes_no(config.incremental)}
+             Use Only Package Cache: {config.cacheonly}
+                      Sandbox Trees: {line_join_list(config.sandbox_trees)}
+                Workspace Directory: {config.workspace_dir_or_default()}
+                    Cache Directory: {none_to_none(config.cache_dir)}
+            Package Cache Directory: {none_to_default(config.package_cache_dir)}
+                    Build Directory: {none_to_none(config.build_dir)}
+                     Use Subvolumes: {config.use_subvolumes}
+                     Repart Offline: {yes_no(config.repart_offline)}
+                       Save History: {yes_no(config.history)}
+
+    {bold("HOST CONFIGURATION")}:
+                          Proxy URL: {none_to_none(config.proxy_url)}
+             Proxy Peer Certificate: {none_to_none(config.proxy_peer_certificate)}
+           Proxy Client Certificate: {none_to_none(config.proxy_client_certificate)}
+                   Proxy Client Key: {none_to_none(config.proxy_client_key)}
+                    NSpawn Settings: {none_to_none(config.nspawn_settings)}
+                 Extra Search Paths: {line_join_list(config.extra_search_paths)}
+                          Ephemeral: {config.ephemeral}
+                        Credentials: {line_join_list(config.credentials.keys())}
+          Extra Kernel Command Line: {line_join_list(config.kernel_command_line_extra)}
                       Runtime Trees: {line_join_list(config.runtime_trees)}
                        Runtime Size: {format_bytes_or_none(config.runtime_size)}
                     Runtime Scratch: {config.runtime_scratch}

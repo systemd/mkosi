@@ -142,15 +142,12 @@ def test_config() -> None:
             "FinalizeScripts": [],
             "Format": "uki",
             "ForwardJournal": "/mkosi.journal",
+            "History": true,
             "Hostname": null,
             "Image": "default",
             "ImageId": "myimage",
             "ImageVersion": "5",
-            "Include": [],
             "Incremental": false,
-            "InitrdInclude": [
-                "/foo/bar"
-            ],
             "InitrdPackages": [
                 "clevis"
             ],
@@ -396,14 +393,13 @@ def test_config() -> None:
         files=[],
         finalize_scripts=[],
         forward_journal=Path("/mkosi.journal"),
+        history=True,
         hostname=None,
         vmm=Vmm.qemu,
         image="default",
         image_id="myimage",
         image_version="5",
-        include=[],
         incremental=False,
-        initrd_include=[Path("/foo/bar"),],
         initrd_packages=["clevis"],
         initrd_volatile_packages=["abc"],
         initrds=[Path("/efi/initrd1"), Path("/efi/initrd2")],

@@ -1195,12 +1195,8 @@ def finalize_default_initrd(
         *(["--proxy-client-key", str(p)] if (p := config.proxy_client_key) else []),
         "--selinux-relabel", str(relabel),
         *(["-f"] * args.force),
+        "--include=mkosi-initrd",
     ]
-
-    cmdline += ["--include=mkosi-initrd"]
-
-    for include in config.initrd_include:
-        cmdline += ["--include", os.fspath(include)]
 
     _, [config] = parse_config(cmdline + ["build"], resources=resources)
 
@@ -3995,6 +3991,8 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         for config in images:
             run_clean(args, config, resources=resources)
 
+        rmtree(Path(".mkosi-private"))
+
         return
 
     assert args.verb.needs_build()
@@ -4100,8 +4098,12 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
                         package_dir=Path(package_dir),
                     )
 
-            if args.auto_bump:
-                bump_image_version()
+        if args.auto_bump:
+            bump_image_version()
+
+        if last.history:
+            Path(".mkosi-private/history").mkdir(parents=True, exist_ok=True)
+            Path(".mkosi-private/history/latest.json").write_text(last.to_json())
 
     if args.verb == Verb.build:
         return
