@@ -112,7 +112,7 @@ def main() -> None:
             "--cache-only=metadata",
         ]
 
-    for d in ("/usr/lib/mkosi-initrd", "/etc/mkosi-initrd"):
+    for d in ("/usr/lib/mkosi-initrd", "/run/mkosi-initrd", "/etc/mkosi-initrd"):
         if Path(d).exists():
             cmdline += ["--include", d]
 
