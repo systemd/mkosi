@@ -3,10 +3,11 @@
 set -e
 PYTHONPATH="$(dirname "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")")"
 export PYTHONPATH
+command="$(basename "${BASH_SOURCE[0]//-/.}")"
 
 if [ -z "$MKOSI_INTERPRETER" ]; then
-    # Note the check seems to be inverted here because the if branch is executed when the exit status is 0
-    # which is equal to "False" in python.
+    # Note the check seems to be inverted here because the if branch is
+    # executed when the exit status is 0 which is equal to False in Python.
     if python3 -c "import sys; sys.exit(sys.version_info < (3, 9))"; then
         MKOSI_INTERPRETER=python3
     elif command -v python3.9 >/dev/null; then
@@ -17,4 +18,4 @@ if [ -z "$MKOSI_INTERPRETER" ]; then
     fi
 fi
 
-exec "$MKOSI_INTERPRETER" -B -m mkosi "$@"
+exec "$MKOSI_INTERPRETER" -B -m "$command" "$@"

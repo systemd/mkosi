@@ -200,15 +200,15 @@ def install_distribution(context: Context) -> None:
                     (context.root / "etc/machine-id").write_text("uninitialized\n")
 
             # Ensure /efi exists so that the ESP is mounted there, as recommended by
-            # https://0pointer.net/blog/linux-boot-partitions.html. Use the most restrictive access mode we
-            # can without tripping up mkfs tools since this directory is only meant to be overmounted and
-            # should not be read from or written to.
+            # https://0pointer.net/blog/linux-boot-partitions.html. Use the most restrictive access
+            # mode we can without tripping up mkfs tools since this directory is only meant to be
+            # overmounted and should not be read from or written to.
             with umask(~0o500):
                 (context.root / "efi").mkdir(exist_ok=True)
                 (context.root / "boot").mkdir(exist_ok=True)
 
-            # Ensure /boot/loader/entries.srel exists and has type1 written to it to nudge kernel-install towards using
-            # the boot loader specification layout.
+            # Ensure /boot/loader/entries.srel exists and has "type1" written to it to nudge
+            # kernel-install towards using the boot loader specification layout.
             with umask(~0o700):
                 (context.root / "boot/loader").mkdir(exist_ok=True)
             with umask(~0o600):
@@ -414,8 +414,8 @@ def mount_build_overlay(context: Context, volatile: bool = False) -> Iterator[Pa
 def finalize_scripts(config: Config, scripts: Mapping[str, Sequence[PathString]]) -> Iterator[Path]:
     with tempfile.TemporaryDirectory(prefix="mkosi-scripts-") as d:
         for name, script in scripts.items():
-            # Make sure we don't end up in a recursive loop when we name a script after the binary it execs
-            # by removing the scripts directory from the PATH when we execute a script.
+            # Make sure we don't end up in a recursive loop when we name a script after the binary
+            # it execs by removing the scripts directory from the PATH when we execute a script.
             with (Path(d) / name).open("w") as f:
                 f.write("#!/bin/sh\n")
 
@@ -459,8 +459,9 @@ def finalize_host_scripts(
         if context.config.find_binary(binary):
             scripts[binary] = (binary, "--root", "/buildroot")
     if ukify := context.config.find_binary("ukify"):
-        # A script will always run with the tools tree mounted so we pass binary=None to disable the conditional search
-        # logic of python_binary() depending on whether the binary is in an extra search path or not.
+        # A script will always run with the tools tree mounted, so we pass binary=None to disable
+        # the conditional search logic of python_binary() depending on whether the binary is in an
+        # extra search path or not.
         scripts["ukify"] = (python_binary(context.config, binary=None), ukify)
     return finalize_scripts(context.config, scripts | dict(helpers))
 
@@ -538,7 +539,8 @@ def run_sync_scripts(config: Config) -> None:
     if config.profile:
         env["PROFILE"] = config.profile
 
-    # We make sure to mount everything in to make ssh work since syncing might involve git which could invoke ssh.
+    # We make sure to mount everything in to make ssh work since syncing might involve git which
+    # could invoke ssh.
     if agent := os.getenv("SSH_AUTH_SOCK"):
         env["SSH_AUTH_SOCK"] = agent
 
@@ -560,9 +562,9 @@ def run_sync_scripts(config: Config) -> None:
             ]
 
             if (p := INVOKING_USER.home()).exists() and p != Path("/"):
-                # We use a writable mount here to keep git worktrees working which encode absolute paths to the parent
-                # git repository and might need to modify the git config in the parent git repository when submodules
-                # are in use as well.
+                # We use a writable mount here to keep git worktrees working which encode absolute
+                # paths to the parent git repository and might need to modify the git config in the
+                # parent git repository when submodules are in use as well.
                 options += ["--bind", p, p]
                 env["HOME"] = os.fspath(p)
             if (p := Path(f"/run/user/{os.getuid()}")).exists():
@@ -949,8 +951,8 @@ def run_postoutput_scripts(context: Context) -> None:
                     env=env | context.config.environment,
                     sandbox=context.sandbox(
                         binary=None,
-                        # postoutput scripts should run as (fake) root so that file ownership is always recorded as if
-                        # owned by root.
+                        # postoutput scripts should run as (fake) root so that file ownership is
+                        # always recorded as if owned by root.
                         options=[
                             "--ro-bind", script, "/work/postoutput",
                             "--ro-bind", json, "/work/config.json",
@@ -1111,8 +1113,9 @@ def fixup_vmlinuz_location(context: Context) -> None:
             vmlinuz = context.root / "usr/lib/modules" / kver / type
             if not vmlinuz.parent.exists():
                 continue
-            # Some distributions (OpenMandriva) symlink /usr/lib/modules/<kver>/vmlinuz to /boot/vmlinuz-<kver>, so
-            # get rid of the symlink and copy the actual vmlinuz to /usr/lib/modules/<kver>.
+            # Some distributions (OpenMandriva) symlink /usr/lib/modules/<kver>/vmlinuz to
+            # /boot/vmlinuz-<kver>, so get rid of the symlink and copy the actual vmlinuz to
+            # /usr/lib/modules/<kver>.
             if vmlinuz.is_symlink() and vmlinuz.resolve().is_relative_to("/boot"):
                 vmlinuz.unlink()
             if not vmlinuz.exists():
@@ -1159,8 +1162,9 @@ def finalize_default_initrd(
         "--repository-key-fetch", str(config.repository_key_fetch),
         "--repositories", ",".join(config.repositories),
         "--sandbox-tree", ",".join(str(t) for t in config.sandbox_trees),
-        # Note that when compress_output == Compression.none == 0 we don't pass --compress-output which means the
-        # default compression will get picked. This is exactly what we want so that initrds are always compressed.
+        # Note that when compress_output == Compression.none == 0 we don't pass --compress-output
+        # which means the default compression will get picked. This is exactly what we want so that
+        # initrds are always compressed.
         *(["--compress-output", str(config.compress_output)] if config.compress_output else []),
         "--compress-level", str(config.compress_level),
         "--with-network", str(config.with_network),
@@ -1368,9 +1372,9 @@ def build_kernel_modules_initrd(context: Context, kver: str) -> Path:
         # Ubuntu Focal's kernel does not support zstd-compressed initrds so use xz instead.
         if context.config.distribution == Distribution.ubuntu and context.config.release == "focal":
             compression = Compression.xz
-        # Older Debian and Ubuntu releases do not compress their kernel modules, so we compress the initramfs instead.
-        # Note that this is not ideal since the compressed kernel modules will all be decompressed on boot which
-        # requires significant memory.
+        # Older Debian and Ubuntu releases do not compress their kernel modules, so we compress the
+        # initramfs instead. Note that this is not ideal since the compressed kernel modules will
+        # all be decompressed on boot which requires significant memory.
         elif context.config.distribution == Distribution.debian and context.config.release in ("sid", "testing"):
             compression = Compression.none
         else:
@@ -1420,8 +1424,8 @@ def build_uki(
     cmdline: Sequence[str],
     output: Path,
 ) -> None:
-    # Older versions of systemd-stub expect the cmdline section to be null terminated. We can't embed
-    # nul terminators in argv so let's communicate the cmdline via a file instead.
+    # Older versions of systemd-stub expect the cmdline section to be null terminated. We can't
+    # embed NUL terminators in argv so let's communicate the cmdline via a file instead.
     (context.workspace / "cmdline").write_text(f"{' '.join(cmdline).strip()}\x00")
 
     if not (arch := context.config.architecture.to_efi()):
@@ -1483,8 +1487,8 @@ def build_uki(
         if want_signed_pcrs(context.config):
             cmd += [
                 "--pcr-private-key", context.config.secure_boot_key,
-                # SHA1 might be disabled in OpenSSL depending on the distro so we opt to not sign for SHA1 to avoid
-                # having to manage a bunch of configuration to re-enable SHA1.
+                # SHA1 might be disabled in OpenSSL depending on the distro so we opt to not sign
+                # for SHA1 to avoid having to manage a bunch of configuration to re-enable SHA1.
                 "--pcr-banks", "sha256",
             ]
             if context.config.secure_boot_key.exists():
@@ -1547,8 +1551,9 @@ def systemd_stub_version(context: Context, stub: Path) -> Optional[GenericVersio
 
     sdmagic_text = sdmagic.read_text().strip("\x00")
 
-    # Older versions of the stub have misaligned sections which results in an empty sdmagic text. Let's check for that
-    # explicitly and treat it as no version.
+    # Older versions of the stub have misaligned sections which results in an empty sdmagic text.
+    # Let's check for that explicitly and treat it as no version.
+    #
     # TODO: Drop this logic once every distribution we support ships systemd-stub v254 or newer.
     if not sdmagic_text:
         return None
@@ -1826,10 +1831,10 @@ def install_uki(context: Context, kver: str, kimg: Path, token: str, partitions:
 
 def install_kernel(context: Context, partitions: Sequence[Partition]) -> None:
     # Iterates through all kernel versions included in the image and generates a combined
-    # kernel+initrd+cmdline+osrelease EFI file from it and places it in the /EFI/Linux directory of the ESP.
-    # sd-boot iterates through them and shows them in the menu. These "unified" single-file images have the
-    # benefit that they can be signed like normal EFI binaries, and can encode everything necessary to boot a
-    # specific root device, including the root hash.
+    # kernel+initrd+cmdline+osrelease EFI file from it and places it in the /EFI/Linux directory of
+    # the ESP. sd-boot iterates through them and shows them in the menu. These "unified"
+    # single-file images have the benefit that they can be signed like normal EFI binaries, and can
+    # encode everything necessary to boot a specific root device, including the root hash.
 
     if context.config.output_format in (OutputFormat.uki, OutputFormat.esp):
         return
@@ -1943,8 +1948,8 @@ def copy_uki(context: Context) -> None:
     # Extract the combined initrds from the UKI so we can use it to direct kernel boot with qemu if needed.
     extract_pe_section(context, uki, ".initrd", context.staging / context.config.output_split_initrd)
 
-    # ukify will have signed the kernel image as well. Let's make sure we put the signed kernel image in the output
-    # directory instead of the unsigned one by reading it from the UKI.
+    # ukify will have signed the kernel image as well. Let's make sure we put the signed kernel
+    # image in the output directory instead of the unsigned one by reading it from the UKI.
     extract_pe_section(context, uki, ".linux", context.staging / context.config.output_split_kernel)
 
 
@@ -2099,8 +2104,8 @@ def cache_tree_paths(config: Config) -> tuple[Path, Path, Path]:
 
 def check_inputs(config: Config) -> None:
     """
-    Make sure all the inputs exist that aren't checked during config parsing because they might be created by an
-    earlier build.
+    Make sure all the inputs exist that aren't checked during config parsing because they might
+    be created by an earlier build.
     """
     for base in config.base_trees:
         if not base.exists():
@@ -2397,22 +2402,25 @@ def run_tmpfiles(context: Context) -> None:
                 "--remove",
                 # Exclude APIVFS and temporary files directories.
                 *(f"--exclude-prefix={d}" for d in ("/tmp", "/var/tmp", "/run", "/proc", "/sys", "/dev")),
-                # Exclude /var if we're not invoked as root as all the chown()'s for daemon owned directories will fail
+                # Exclude /var if we're not invoked as root as all the chown()'s for daemon owned
+                # directories will fail.
                 *(["--exclude-prefix=/var"] if os.getuid() != 0 or userns_has_single_user() else []),
             ],
             env={"SYSTEMD_TMPFILES_FORCE_SUBVOL": "0"},
-            # systemd-tmpfiles can exit with DATAERR or CANTCREAT in some cases which are handled as success by the
-            # systemd-tmpfiles service so we handle those as success as well.
+            # systemd-tmpfiles can exit with DATAERR or CANTCREAT in some cases which are handled
+            # as success by the systemd-tmpfiles service so we handle those as success as well.
             success_exit_status=(0, 65, 73),
             sandbox=context.sandbox(
                 binary="systemd-tmpfiles",
                 options=[
                     "--bind", context.root, "/buildroot",
-                    # systemd uses acl.h to parse ACLs in tmpfiles snippets which uses the host's passwd so we have to
-                    # mount the image's passwd over it to make ACL parsing work.
+                    # systemd uses acl.h to parse ACLs in tmpfiles snippets which uses the host's
+                    # passwd so we have to mount the image's passwd over it to make ACL parsing
+                    # work.
                     *finalize_passwd_mounts(context.root),
-                    # Sometimes directories are configured to be owned by root in tmpfiles snippets so we want to make
-                    # sure those chown()'s succeed by making ourselves the root user so that the root user exists.
+                    # Sometimes directories are configured to be owned by root in tmpfiles snippets
+                    # so we want to make sure those chown()'s succeed by making ourselves the root
+                    # user so that the root user exists.
                     "--become-root",
                 ],
             ),
@@ -2497,8 +2505,8 @@ def run_firstboot(context: Context) -> None:
         run(["systemd-firstboot", "--root=/buildroot", "--force", *options],
             sandbox=context.sandbox(binary="systemd-firstboot", options=["--bind", context.root, "/buildroot"]))
 
-        # Initrds generally don't ship with only /usr so there's not much point in putting the credentials in
-        # /usr/lib/credstore.
+        # Initrds generally don't ship with only /usr so there's not much point in putting the
+        # credentials in /usr/lib/credstore.
         if context.config.output_format != OutputFormat.cpio or not context.config.make_initrd:
             with umask(~0o755):
                 (context.root / "usr/lib/credstore").mkdir(exist_ok=True)
@@ -2656,8 +2664,8 @@ def make_image(
         context.staging / context.config.output_with_format,
     ]
     options: list[PathString] = [
-        # Make sure we're root so that the mkfs tools invoked by systemd-repart think the files that go
-        # into the disk image are owned by root.
+        # Make sure we're root so that the mkfs tools invoked by systemd-repart think the files
+        # that go into the disk image are owned by root.
         "--become-root",
         "--bind", context.staging, context.staging,
     ]
@@ -2754,9 +2762,9 @@ def make_disk(
             bios = (context.config.bootable != ConfigFeature.disabled and want_grub_bios(context))
 
             if esp or bios:
-                # Even if we're doing BIOS, let's still use the ESP to store the kernels, initrds and grub
-                # modules. We cant use UKIs so we have to put each kernel and initrd on the ESP twice, so
-                # let's make the ESP twice as big in that case.
+                # Even if we're doing BIOS, let's still use the ESP to store the kernels, initrds
+                # and grub modules. We cant use UKIs so we have to put each kernel and initrd on
+                # the ESP twice, so let's make the ESP twice as big in that case.
                 (defaults / "00-esp.conf").write_text(
                     textwrap.dedent(
                         f"""\
@@ -2771,7 +2779,8 @@ def make_disk(
                     )
                 )
 
-            # If grub for BIOS is installed, let's add a BIOS boot partition onto which we can install grub.
+            # If grub for BIOS is installed, let's add a BIOS boot partition onto which we can
+            # install grub.
             if bios:
                 (defaults / "05-bios.conf").write_text(
                     textwrap.dedent(
@@ -2905,9 +2914,10 @@ def make_esp(context: Context, uki: Path) -> list[Partition]:
     definitions = context.workspace / "esp-definitions"
     definitions.mkdir(exist_ok=True)
 
-    # Use a minimum of 36MB or 260MB depending on sector size because otherwise the generated FAT filesystem will have
-    # too few clusters to be considered a FAT32 filesystem by OVMF which will refuse to boot from it.
-    # See https://superuser.com/questions/1702331/what-is-the-minimum-size-of-a-4k-native-partition-when-formatted-with-fat32/1717643#1717643
+    # Use a minimum of 36MB or 260MB depending on sector size because otherwise the generated FAT
+    # filesystem will have too few clusters to be considered a FAT32 filesystem by OVMF which will
+    # refuse to boot from it. See
+    # https://superuser.com/questions/1702331/what-is-the-minimum-size-of-a-4k-native-partition-when-formatted-with-fat32/1717643#1717643
     if context.config.sector_size == 512:
         m = 36
     # TODO: Figure out minimum size for 2K sector size
@@ -2917,8 +2927,8 @@ def make_esp(context: Context, uki: Path) -> list[Partition]:
     # Always reserve 10MB for filesystem metadata.
     size = max(uki.stat().st_size, (m - 10) * 1024**2) + 10 * 1024**2
 
-    # TODO: Remove the extra 4096 for the max size once https://github.com/systemd/systemd/pull/29954 is in a stable
-    # release.
+    # TODO: Remove the extra 4096 for the max size once
+    # https://github.com/systemd/systemd/pull/29954 is in a stable release.
     (definitions / "00-esp.conf").write_text(
         textwrap.dedent(
             f"""\
@@ -2952,8 +2962,8 @@ def make_extension_image(context: Context, output: Path) -> None:
         workdir(output),
     ]
     options: list[PathString] = [
-        # Make sure we're root so that the mkfs tools invoked by systemd-repart think the files that go
-        # into the disk image are owned by root.
+        # Make sure we're root so that the mkfs tools invoked by systemd-repart think the files
+        # that go into the disk image are owned by root.
         "--become-root",
         "--bind", output.parent, workdir(output.parent),
         "--ro-bind", context.root, "/buildroot",
@@ -3089,8 +3099,8 @@ def copy_repository_metadata(config: Config, dst: Path) -> None:
             with tempfile.TemporaryDirectory() as tmp:
                 os.chmod(tmp, 0o755)
 
-                # cp doesn't support excluding directories but we can imitate it by bind mounting an empty directory
-                # over the directories we want to exclude.
+                # cp doesn't support excluding directories but we can imitate it by bind mounting
+                # an empty directory over the directories we want to exclude.
                 exclude: list[PathString]
                 if d == "cache":
                     exclude = flatten(
@@ -3133,8 +3143,8 @@ def make_rootdir(context: Context) -> None:
         return
 
     with umask(~0o755):
-        # Using a btrfs subvolume as the upperdir in an overlayfs results in EXDEV so make sure we create
-        # the root directory as a regular directory if the Overlay= option is enabled.
+        # Using a btrfs subvolume as the upperdir in an overlayfs results in EXDEV so make sure we
+        # create the root directory as a regular directory if the Overlay= option is enabled.
         if context.config.overlay:
             context.root.mkdir()
         else:
@@ -3337,8 +3347,9 @@ def run_shell(args: Args, config: Config) -> None:
                 stack.callback(lambda: (config.output_dir_or_cwd() / f"{name}.nspawn").unlink(missing_ok=True))
             shutil.copy2(config.nspawn_settings, config.output_dir_or_cwd() / f"{name}.nspawn")
 
-        # If we're booting a directory image that wasn't built by root, we always make an ephemeral copy to avoid
-        # ending up with files not owned by the directory image owner in the directory image.
+        # If we're booting a directory image that wasn't built by root, we always make an ephemeral
+        # copy to avoid ending up with files not owned by the directory image owner in the
+        # directory image.
         if config.ephemeral or (
             config.output_format == OutputFormat.directory and
             args.verb == Verb.boot and
@@ -3375,8 +3386,9 @@ def run_shell(args: Args, config: Config) -> None:
 
             owner = os.stat(fname).st_uid
             if owner != 0:
-                # Let's allow running a shell in a non-ephemeral image but in that case only map a single user into the
-                # image so it can't get poluted with files or directories owned by other users.
+                # Let's allow running a shell in a non-ephemeral image but in that case only map a
+                # single user into the image so it can't get poluted with files or directories
+                # owned by other users.
                 if args.verb == Verb.shell and config.output_format == OutputFormat.directory and not config.ephemeral:
                     range = 1
                 else:
@@ -3397,11 +3409,12 @@ def run_shell(args: Args, config: Config) -> None:
 
         for tree in config.runtime_trees:
             target = Path("/root/src") / (tree.target or "")
-            # We add norbind because very often RuntimeTrees= will be used to mount the source directory into the
-            # container and the output directory from which we're running will very likely be a subdirectory of the
-            # source directory which would mean we'd be mounting the container root directory as a subdirectory in
-            # itself which tends to lead to all kinds of weird issues, which we avoid by not doing a recursive mount
-            # which means the container root directory mounts will be skipped.
+            # We add norbind because very often RuntimeTrees= will be used to mount the source
+            # directory into the container and the output directory from which we're running will
+            # very likely be a subdirectory of the source directory which would mean we'd be
+            # mounting the container root directory as a subdirectory in itself which tends to lead
+            # to all kinds of weird issues, which we avoid by not doing a recursive mount which
+            # means the container root directory mounts will be skipped.
             uidmap = "rootidmap" if tree.source.stat().st_uid != 0 else "noidmap"
             cmdline += ["--bind", f"{tree.source}:{target}:norbind,{uidmap}"]
 
@@ -3437,17 +3450,18 @@ def run_shell(args: Args, config: Config) -> None:
             # Add nspawn options first since systemd-nspawn ignores all options after the first argument.
             argv = args.cmdline
 
-            # When invoked by the kernel, all unknown arguments are passed as environment variables to pid1. Let's
-            # mimick the same behavior when we invoke nspawn as a container.
+            # When invoked by the kernel, all unknown arguments are passed as environment variables
+            # to pid1. Let's mimick the same behavior when we invoke nspawn as a container.
             for arg in itertools.chain(config.kernel_command_line, config.kernel_command_line_extra):
                 name, sep, value = arg.partition("=")
 
-                # If there's a '.' in the argument name, it's not considered an environment variable by the kernel.
+                # If there's a '.' in the argument name, it's not considered an environment
+                # variable by the kernel.
                 if sep and "." not in name:
                     cmdline += ["--setenv", f"{name.replace('-', '_')}={value}"]
                 else:
-                    # kernel cmdline config of the form systemd.xxx= get interpreted by systemd when running in nspawn
-                    # as well.
+                    # kernel cmdline config of the form systemd.xxx= get interpreted by systemd
+                    # when running in nspawn as well.
                     argv += [arg]
 
             cmdline += argv
@@ -3731,21 +3745,21 @@ def needs_build(args: Args, config: Config, force: int = 1) -> bool:
     return (
         args.force >= force or
         not (config.output_dir_or_cwd() / config.output_with_compression).exists() or
-        # When the output is a directory, its name is the same as the symlink we create that points to the actual
-        # output when not building a directory. So if the full output path exists, we have to check that it's not
-        # a symlink as well.
+        # When the output is a directory, its name is the same as the symlink we create that points
+        # to the actual output when not building a directory. So if the full output path exists, we
+        # have to check that it's not a symlink as well.
         (config.output_dir_or_cwd() / config.output_with_compression).is_symlink()
     )
 
 
 def run_clean(args: Args, config: Config, *, resources: Path) -> None:
-    # We remove any cached images if either the user used --force twice, or he/she called "clean" with it
-    # passed once. Let's also remove the downloaded package cache if the user specified one additional
-    # "--force".
+    # We remove any cached images if either the user used --force twice, or he/she called "clean"
+    # with it passed once. Let's also remove the downloaded package cache if the user specified one
+    # additional "--force".
 
-    # We don't want to require a tools tree to run mkosi clean so we pass in a sandbox that disables use of the tools
-    # tree. We still need a sandbox as we need to acquire privileges to be able to remove various files from the
-    # rootfs.
+    # We don't want to require a tools tree to run mkosi clean so we pass in a sandbox that
+    # disables use of the tools tree. We still need a sandbox as we need to acquire privileges to
+    # be able to remove various files from the rootfs.
     sandbox = functools.partial(config.sandbox, tools=False)
 
     if args.verb == Verb.clean:
@@ -3766,8 +3780,9 @@ def run_clean(args: Args, config: Config, *, resources: Path) -> None:
             if (config.output_dir_or_cwd() / output).exists() or (config.output_dir_or_cwd() / output).is_symlink()
         }
 
-        # Make sure we resolve the symlink we create in the output directory and remove its target as well as it might
-        # not be in the list of outputs anymore if the compression or output format was changed.
+        # Make sure we resolve the symlink we create in the output directory and remove its target
+        # as well as it might not be in the list of outputs anymore if the compression or output
+        # format was changed.
         outputs |= {o.resolve() for o in outputs}
 
         if outputs:
@@ -4034,8 +4049,8 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
 
     check_workspace_directory(last)
 
-    # If we're doing an incremental build and the cache is not out of date, don't clean up the tools tree
-    # so that we can reuse the previous one.
+    # If we're doing an incremental build and the cache is not out of date, don't clean up the
+    # tools tree so that we can reuse the previous one.
     if (
         tools and
         (
@@ -4046,8 +4061,8 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
     ):
         run_clean(args, tools, resources=resources)
 
-    # First, process all directory removals because otherwise if different images share directories a later
-    # image build could end up deleting the output generated by an earlier image build.
+    # First, process all directory removals because otherwise if different images share directories
+    # a later image build could end up deleting the output generated by an earlier image build.
     if needs_build(args, last) or args.wipe_build_dir:
         for config in images:
             run_clean(args, config, resources=resources)
@@ -4093,7 +4108,8 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
                 run_sync_scripts(config)
 
             for config in images:
-                # If the output format is "none" and there are no build scripts, there's nothing to do so exit early.
+                # If the output format is "none" and there are no build scripts, there's nothing to
+                # do so exit early.
                 if config.output_format == OutputFormat.none and not config.build_scripts:
                     continue
 
