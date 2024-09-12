@@ -42,6 +42,17 @@
 - `InitrdInclude=` was removed. If you're using `InitrdInclude=`, please
   build your initrd via a subimage in `mkosi.images` containing
   `Include=mkosi-initrd` and any customizations you wish to add.
+- Added `History=` to have mkosi save the config used to build the image
+  and reuse it when verbs such as `qemu`, `boot`, … are invoked
+  without `-f`.
+- Introduced new `[Build]` section and moved various settings to it.
+- Moved `Include=` to `[Include]` section
+- Added `sysupdate` verb as a wrapper around `systemd-sysupdate` which
+  invokes it with definitions from `mkosi.sysupdate`.
+- Added `RuntimeHome=` to mount the current home directory to `/root`
+  when running a command that boots the image
+- More directories aside from `/etc` and `/usr` are now picked up from
+  sandbox trees (formerly known as package manager trees).
 
 ## v24
 
