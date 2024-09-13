@@ -30,11 +30,8 @@ def test_format(config: ImageConfig, format: OutputFormat) -> None:
         if image.config.distribution == Distribution.rhel_ubi and format in (OutputFormat.esp, OutputFormat.uki):
             pytest.skip("Cannot build RHEL-UBI images with format 'esp' or 'uki'")
 
-        options = ["--format", str(format)]
-
-        image.summary(options)
         image.genkey()
-        image.build(options=options)
+        image.build(options=["--format", str(format)])
 
         if format in (OutputFormat.disk, OutputFormat.directory) and os.getuid() == 0:
             # systemd-resolved is enabled by default in Arch/Debian/Ubuntu (systemd default preset) but fails
@@ -42,7 +39,7 @@ def test_format(config: ImageConfig, format: OutputFormat) -> None:
             # failures.
             # FIXME: Remove when Arch/Debian/Ubuntu ship systemd v253
             args = ["systemd.mask=systemd-resolved.service"] if format == OutputFormat.directory else []
-            image.boot(options=options, args=args)
+            image.boot(args=args)
 
         if format in (OutputFormat.cpio, OutputFormat.uki, OutputFormat.esp):
             pytest.skip("Default image is too large to be able to boot in CPIO/UKI/ESP format")
@@ -56,17 +53,17 @@ def test_format(config: ImageConfig, format: OutputFormat) -> None:
         if format == OutputFormat.directory and not find_virtiofsd():
             return
 
-        image.qemu(options=options)
+        image.qemu()
 
         if have_vmspawn() and format in (OutputFormat.disk, OutputFormat.directory):
-            image.vmspawn(options=options)
+            image.vmspawn()
 
         # TODO: Remove the opensuse check again when https://bugzilla.opensuse.org/show_bug.cgi?id=1227464 is resolved
         # and we install the grub tools in the openSUSE tools tree again.
         if format != OutputFormat.disk or config.tools_tree_distribution == Distribution.opensuse:
             return
 
-        image.qemu(options=options + ["--qemu-firmware=bios"])
+        image.qemu(["--qemu-firmware=bios"])
 
 
 @pytest.mark.parametrize("bootloader", Bootloader)
@@ -81,15 +78,7 @@ def test_bootloader(config: ImageConfig, bootloader: Bootloader) -> None:
 
     firmware = QemuFirmware.linux if bootloader == Bootloader.none else QemuFirmware.auto
 
-    with Image(
-        config,
-        options=[
-            "--format=disk",
-            "--bootloader", str(bootloader),
-            "--qemu-firmware", str(firmware)
-        ],
-    ) as image:
-        image.summary()
+    with Image(config) as image:
         image.genkey()
-        image.build()
-        image.qemu()
+        image.build(["--format=disk", "--bootloader", str(bootloader)])
+        image.qemu(["--qemu-firmware", str(firmware)])

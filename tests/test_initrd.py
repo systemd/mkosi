@@ -51,29 +51,21 @@ def passphrase() -> Iterator[Path]:
 
 
 def test_initrd(config: ImageConfig) -> None:
-    with Image(config, options=["--format=disk"]) as image:
-        image.build()
+    with Image(config) as image:
+        image.build(options=["--format=disk"])
         image.qemu()
 
 
 @pytest.mark.skipif(os.getuid() != 0, reason="mkosi-initrd LVM test can only be executed as root")
 def test_initrd_lvm(config: ImageConfig) -> None:
-    with Image(
-        config,
-        options=[
-            # LVM confuses systemd-repart so we mask it for this test.
-            "--kernel-command-line=systemd.mask=systemd-repart.service",
-            "--kernel-command-line=root=LABEL=root",
-            "--qemu-firmware=linux",
-        ]
-    ) as image, contextlib.ExitStack() as stack:
-        image.build(["--format", "directory"])
+    with Image(config) as image, contextlib.ExitStack() as stack:
+        image.build(["--format=disk"])
 
-        drive = Path(image.output_dir) / "image.raw"
-        drive.touch()
-        os.truncate(drive, 5000 * 1024**2)
+        lvm = Path(image.output_dir) / "lvm.raw"
+        lvm.touch()
+        os.truncate(lvm, 5000 * 1024**2)
 
-        lodev = run(["losetup", "--show", "--find", "--partscan", drive], stdout=subprocess.PIPE).stdout.strip()
+        lodev = run(["losetup", "--show", "--find", "--partscan", lvm], stdout=subprocess.PIPE).stdout.strip()
         stack.callback(lambda: run(["losetup", "--detach", lodev]))
         run(["sfdisk", "--label", "gpt", lodev], input="type=E6D6D379-F507-44C2-A23C-238F2A3DF928 bootable")
         run(["lvm", "pvcreate", f"{lodev}p1"])
@@ -87,14 +79,25 @@ def test_initrd_lvm(config: ImageConfig) -> None:
         run(["udevadm", "wait", "--timeout=30", "/dev/vg_mkosi/lv0"])
         run([f"mkfs.{image.config.distribution.filesystem()}", "-L", "root", "/dev/vg_mkosi/lv0"])
 
-        with tempfile.TemporaryDirectory() as mnt, mount(Path("/dev/vg_mkosi/lv0"), Path(mnt)):
-            # The image might have been built unprivileged so we need to fix the file ownership. Making all the
-            # files owned by root isn't completely correct but good enough for the purposes of the test.
-            copy_tree(Path(image.output_dir) / "image", Path(mnt), preserve=False)
+        src = Path(stack.enter_context(tempfile.TemporaryDirectory()))
+        run(["systemd-dissect", "--mount", "--mkdir", Path(image.output_dir) / "image.raw", src])
+        stack.callback(lambda: run(["systemd-dissect", "--umount", "--rmdir", src]))
+
+        dst = Path(stack.enter_context(tempfile.TemporaryDirectory()))
+        stack.enter_context(mount(Path("/dev/vg_mkosi/lv0"), dst))
+
+        copy_tree(src, dst)
 
         stack.close()
 
-        image.qemu(["--format=disk"])
+        lvm.rename(Path(image.output_dir) / "image.raw")
+
+        image.qemu([
+            "--qemu-firmware=linux",
+            # LVM confuses systemd-repart so we mask it for this test.
+            "--kernel-command-line-extra=systemd.mask=systemd-repart.service",
+            "--kernel-command-line-extra=root=LABEL=root",
+        ])
 
 
 def test_initrd_luks(config: ImageConfig, passphrase: Path) -> None:
@@ -142,36 +145,21 @@ def test_initrd_luks(config: ImageConfig, passphrase: Path) -> None:
             )
         )
 
-        with Image(
-            config,
-            options=[
-                "--repart-dir", repartd,
-                "--passphrase", passphrase,
-                "--credential=cryptsetup.passphrase=mkosi",
-                "--format=disk",
-            ]
-        ) as image:
-            image.build()
-            image.qemu()
+        with Image(config) as image:
+            image.build(["--repart-dir", repartd, "--passphrase", passphrase, "--format=disk"])
+            image.qemu(["--credential=cryptsetup.passphrase=mkosi"])
 
 
 @pytest.mark.skipif(os.getuid() != 0, reason="mkosi-initrd LUKS+LVM test can only be executed as root")
 def test_initrd_luks_lvm(config: ImageConfig, passphrase: Path) -> None:
-    with Image(
-        config,
-        options=[
-            "--kernel-command-line=root=LABEL=root",
-            "--credential=cryptsetup.passphrase=mkosi",
-            "--qemu-firmware=linux",
-        ]
-    ) as image, contextlib.ExitStack() as stack:
-        image.build(["--format", "directory"])
+    with Image(config) as image, contextlib.ExitStack() as stack:
+        image.build(["--format=disk"])
 
-        drive = Path(image.output_dir) / "image.raw"
-        drive.touch()
-        os.truncate(drive, 5000 * 1024**2)
+        lvm = Path(image.output_dir) / "lvm.raw"
+        lvm.touch()
+        os.truncate(lvm, 5000 * 1024**2)
 
-        lodev = run(["losetup", "--show", "--find", "--partscan", drive], stdout=subprocess.PIPE).stdout.strip()
+        lodev = run(["losetup", "--show", "--find", "--partscan", lvm], stdout=subprocess.PIPE).stdout.strip()
         stack.callback(lambda: run(["losetup", "--detach", lodev]))
         run(["sfdisk", "--label", "gpt", lodev], input="type=E6D6D379-F507-44C2-A23C-238F2A3DF928 bootable")
         run(
@@ -199,16 +187,25 @@ def test_initrd_luks_lvm(config: ImageConfig, passphrase: Path) -> None:
         run(["udevadm", "wait", "--timeout=30", "/dev/vg_mkosi/lv0"])
         run([f"mkfs.{image.config.distribution.filesystem()}", "-L", "root", "/dev/vg_mkosi/lv0"])
 
-        with tempfile.TemporaryDirectory() as mnt, mount(Path("/dev/vg_mkosi/lv0"), Path(mnt)):
-            # The image might have been built unprivileged so we need to fix the file ownership. Making all the
-            # files owned by root isn't completely correct but good enough for the purposes of the test.
-            copy_tree(Path(image.output_dir) / "image", Path(mnt), preserve=False)
+        src = Path(stack.enter_context(tempfile.TemporaryDirectory()))
+        run(["systemd-dissect", "--mount", "--mkdir", Path(image.output_dir) / "image.raw", src])
+        stack.callback(lambda: run(["systemd-dissect", "--umount", "--rmdir", src]))
+
+        dst = Path(stack.enter_context(tempfile.TemporaryDirectory()))
+        stack.enter_context(mount(Path("/dev/vg_mkosi/lv0"), dst))
+
+        copy_tree(src, dst)
 
         stack.close()
 
+        lvm.rename(Path(image.output_dir) / "image.raw")
+
         image.qemu([
             "--format=disk",
-            f"--kernel-command-line=rd.luks.uuid={luks_uuid}",
+            "--credential=cryptsetup.passphrase=mkosi",
+            "--qemu-firmware=linux",
+            "--kernel-command-line-extra=root=LABEL=root",
+            f"--kernel-command-line-extra=rd.luks.uuid={luks_uuid}",
         ])
 
 
