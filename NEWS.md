@@ -41,7 +41,9 @@
   well.
 - `InitrdInclude=` was removed. If you're using `InitrdInclude=`, please
   build your initrd via a subimage in `mkosi.images` containing
-  `Include=mkosi-initrd` and any customizations you wish to add.
+  `Include=mkosi-initrd` and any customizations you wish to add and use
+  the `Initrds=` setting to use it as the initrd for the main image
+  instead of the default initrd.
 - Added `History=` to have mkosi save the config used to build the image
   and reuse it when verbs such as `qemu`, `boot`, … are invoked
   without `-f`.
