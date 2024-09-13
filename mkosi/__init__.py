@@ -169,7 +169,7 @@ def mount_base_trees(context: Context) -> Iterator[None]:
 def remove_files(context: Context) -> None:
     """Remove files based on user-specified patterns"""
 
-    if not context.config.remove_files:
+    if not context.config.remove_files and not (context.root / "work").exists():
         return
 
     with complete_step("Removing files…"):
