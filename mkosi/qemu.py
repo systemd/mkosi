@@ -307,7 +307,7 @@ def systemd_escape(config: Config, s: PathString, path: bool = False) -> str:
 @contextlib.contextmanager
 def start_virtiofsd(
     config: Config,
-    directory: PathString,
+    directory: Path,
     *,
     uidmap: bool = True,
     name: Optional[str] = None,
@@ -322,7 +322,7 @@ def start_virtiofsd(
 
     cmdline: list[PathString] = [
         virtiofsd,
-        "--shared-dir", directory,
+        "--shared-dir", workdir(directory),
         "--xattr",
         # qemu's client doesn't seem to support announcing submounts so disable the feature to avoid the warning.
         "--no-announce-submounts",
@@ -388,7 +388,7 @@ def start_virtiofsd(
             sandbox=config.sandbox(
                 binary=virtiofsd,
                 options=[
-                    "--bind", directory, directory,
+                    "--bind", directory, workdir(directory),
                     *(["--become-root"] if uidmap else []),
                 ],
                 setup=scope + become_root_in_subuid_range_cmd() if scope and not uidmap else [],
