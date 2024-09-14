@@ -1208,7 +1208,6 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     | `attr`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `bash`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `btrfs-progs`           | ✓      |        | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `bubblewrap`            | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `ca-certificates`       | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `coreutils`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `cpio`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
