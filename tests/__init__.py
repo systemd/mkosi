@@ -14,7 +14,9 @@ from typing import Any, Optional
 import pytest
 
 from mkosi.distributions import Distribution
-from mkosi.run import run
+from mkosi.run import fork_and_wait, run
+from mkosi.sandbox import acquire_privileges
+from mkosi.tree import rmtree
 from mkosi.types import _FILE, CompletedProcess, PathString
 
 
@@ -28,8 +30,7 @@ class ImageConfig:
 
 
 class Image:
-    def __init__(self, config: ImageConfig, options: Sequence[PathString] = []) -> None:
-        self.options = options
+    def __init__(self, config: ImageConfig) -> None:
         self.config = config
         st = Path.cwd().stat()
         self.uid = st.st_uid
@@ -46,7 +47,11 @@ class Image:
         value: Optional[BaseException],
         traceback: Optional[TracebackType],
     ) -> None:
-        self.mkosi("clean", user=self.uid, group=self.gid)
+        def clean() -> None:
+            acquire_privileges()
+            rmtree(self.output_dir)
+
+        fork_and_wait(clean)
 
     def mkosi(
         self,
@@ -58,19 +63,35 @@ class Image:
         group: Optional[int] = None,
         check: bool = True,
     ) -> CompletedProcess:
+        return run(
+            [
+                "python3", "-m", "mkosi",
+                "--debug",
+                *options,
+                verb,
+                *args,
+            ],
+            check=check,
+            stdin=stdin,
+            stdout=sys.stdout,
+            user=user,
+            group=group,
+            env=os.environ,
+        )
+
+    def build(self, options: Sequence[PathString] = (), args: Sequence[str] = ()) -> CompletedProcess:
         kcl = [
             "loglevel=6",
             "systemd.log_level=debug",
             "udev.log_level=info",
             "systemd.show_status=false",
             "systemd.journald.forward_to_console",
-            "systemd.journald.max_level_console=debug",
+            "systemd.journald.max_level_console=info",
             "systemd.firstboot=no",
             "systemd.unit=mkosi-check-and-shutdown.service",
         ]
 
-        return run([
-            "python3", "-m", "mkosi",
+        opt: list[PathString] = [
             "--distribution", str(self.config.distribution),
             "--release", self.config.release,
             *(["--tools-tree=default"] if self.config.tools_tree_distribution else []),
@@ -80,26 +101,19 @@ class Image:
                 else []
             ),
             *(["--tools-tree-release", self.config.tools_tree_release] if self.config.tools_tree_release else []),
-            "--incremental",
-            "--ephemeral",
-            "--runtime-build-sources=no",
-            *self.options,
-            *options,
-            "--output-dir", self.output_dir,
             *(f"--kernel-command-line={i}" for i in kcl),
-            "--qemu-vsock=yes",
-            # TODO: Drop once both Hyper-V bugs are fixed in Github Actions.
-            "--qemu-args=-cpu max,pcid=off",
-            "--qemu-mem=2G",
-            verb,
-            *args,
-        ], check=check, stdin=stdin, stdout=sys.stdout, user=user, group=group, env=os.environ)
+            "--force",
+            "--incremental",
+            "--output-dir", self.output_dir,
+            *(["--debug-shell"] if self.config.debug_shell else []),
+            *options,
+        ]
 
-    def build(self, options: Sequence[str] = (), args: Sequence[str] = ()) -> CompletedProcess:
+        self.mkosi("summary", options, user=self.uid, group=self.uid)
+
         return self.mkosi(
             "build",
-            [*options, "--debug", "--force", *(["--debug-shell"] if self.config.debug_shell else [])],
-            args,
+            opt,
             stdin=sys.stdin if sys.stdin.isatty() else None,
             user=self.uid,
             group=self.gid,
@@ -108,8 +122,13 @@ class Image:
     def boot(self, options: Sequence[str] = (), args: Sequence[str] = ()) -> CompletedProcess:
         result = self.mkosi(
             "boot",
-            [*options, "--debug"],
-            args, stdin=sys.stdin if sys.stdin.isatty() else None,
+            [
+                "--runtime-build-sources=no",
+                "--ephemeral",
+                *options,
+            ],
+            args,
+            stdin=sys.stdin if sys.stdin.isatty() else None,
             check=False,
         )
 
@@ -118,10 +137,18 @@ class Image:
 
         return result
 
-    def qemu(self, options: Sequence[str] = (), args: Sequence[str] = ()) -> CompletedProcess:
+    def vm(self, verb: str, options: Sequence[str] = (), args: Sequence[str] = ()) -> CompletedProcess:
         result = self.mkosi(
-            "qemu",
-            [*options, "--debug"],
+            verb,
+            [
+                "--runtime-build-sources=no",
+                "--qemu-vsock=yes",
+                # TODO: Drop once both Hyper-V bugs are fixed in Github Actions.
+                "--qemu-args=-cpu max,pcid=off",
+                "--qemu-mem=2G",
+                "--ephemeral",
+                *options,
+            ],
             args,
             stdin=sys.stdin if sys.stdin.isatty() else None,
             user=self.uid,
@@ -136,24 +163,11 @@ class Image:
 
         return result
 
+    def qemu(self, options: Sequence[str] = (), args: Sequence[str] = ()) -> CompletedProcess:
+        return self.vm("qemu", options, args)
+
     def vmspawn(self, options: Sequence[str] = (), args: Sequence[str] = ()) -> CompletedProcess:
-        result = self.mkosi(
-            "vmspawn",
-            [*options, "--debug"],
-            args,
-            stdin=sys.stdin if sys.stdin.isatty() else None,
-            check=False,
-        )
-
-        rc = 0 if self.config.distribution.is_centos_variant() else 123
-
-        if result.returncode != rc:
-            raise subprocess.CalledProcessError(result.returncode, result.args, result.stdout, result.stderr)
-
-        return result
-
-    def summary(self, options: Sequence[str] = ()) -> CompletedProcess:
-        return self.mkosi("summary", options, user=self.uid, group=self.gid)
+        return self.vm("vmspawn", options, args)
 
     def genkey(self) -> CompletedProcess:
         return self.mkosi("genkey", ["--force"], user=self.uid, group=self.gid)

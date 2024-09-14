@@ -10,25 +10,16 @@ pytestmark = pytest.mark.integration
 
 
 def test_sysext(config: ImageConfig) -> None:
-    with Image(
-        config,
-        options=[
-            "--clean-package-metadata=no",
-            "--format=directory",
-        ],
-    ) as image:
-        image.build()
+    with Image(config) as image:
+        image.build(["--clean-package-metadata=no", "--format=directory"])
 
-        with Image(
-            image.config,
-            options=[
+        with Image(image.config) as sysext:
+            sysext.build([
                 "--directory", "",
                 "--incremental=no",
                 "--base-tree", Path(image.output_dir) / "image",
                 "--overlay",
                 "--package=dnsmasq",
                 "--format=disk",
-            ],
-        ) as sysext:
-            sysext.build()
+            ])
 
