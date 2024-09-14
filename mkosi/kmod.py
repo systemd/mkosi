@@ -27,7 +27,7 @@ def filter_kernel_modules(root: Path, kver: str, *, include: Iterable[str], excl
     if include:
         regex = re.compile("|".join(include))
         for m in modules:
-            rel = os.fspath(Path(*m.parts[1:]))
+            rel = os.fspath(Path(*m.parts[5:]))
             if regex.search(rel):
                 keep.add(rel)
 
@@ -35,7 +35,7 @@ def filter_kernel_modules(root: Path, kver: str, *, include: Iterable[str], excl
         remove = set()
         regex = re.compile("|".join(exclude))
         for m in modules:
-            rel = os.fspath(Path(*m.parts[1:]))
+            rel = os.fspath(Path(*m.parts[5:]))
             if rel not in keep and regex.search(rel):
                 remove.add(m)
 
