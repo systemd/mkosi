@@ -2667,13 +2667,13 @@ def make_image(
         "--no-pager",
         f"--offline={yes_no(context.config.repart_offline)}",
         "--seed", str(context.config.seed),
-        context.staging / context.config.output_with_format,
+        workdir(context.staging / context.config.output_with_format),
     ]
     options: list[PathString] = [
         # Make sure we're root so that the mkfs tools invoked by systemd-repart think the files
         # that go into the disk image are owned by root.
         "--become-root",
-        "--bind", context.staging, context.staging,
+        "--bind", context.staging, workdir(context.staging),
     ]
 
     if root:
@@ -2684,17 +2684,18 @@ def make_image(
     if not (context.staging / context.config.output_with_format).exists():
         cmdline += ["--empty=create"]
     if context.config.passphrase:
-        cmdline += ["--key-file", context.config.passphrase]
-        options += ["--ro-bind", context.config.passphrase, context.config.passphrase]
+        cmdline += ["--key-file", workdir(context.config.passphrase)]
+        options += ["--ro-bind", context.config.passphrase, workdir(context.config.passphrase)]
     if context.config.verity_key:
-        cmdline += ["--private-key", context.config.verity_key]
+        key = workdir(context.config.verity_key) if context.config.verity_key.exists() else context.config.verity_key
+        cmdline += ["--private-key", str(key)]
         if context.config.verity_key_source.type != KeySourceType.file:
             cmdline += ["--private-key-source", str(context.config.verity_key_source)]
         if context.config.verity_key.exists():
-            options += ["--ro-bind", context.config.verity_key, context.config.verity_key]
+            options += ["--ro-bind", context.config.verity_key, workdir(context.config.verity_key)]
     if context.config.verity_certificate:
-        cmdline += ["--certificate", context.config.verity_certificate]
-        options += ["--ro-bind", context.config.verity_certificate, context.config.verity_certificate]
+        cmdline += ["--certificate", workdir(context.config.verity_certificate)]
+        options += ["--ro-bind", context.config.verity_certificate, workdir(context.config.verity_certificate)]
     if skip:
         cmdline += ["--defer-partitions", ",".join(skip)]
     if split:
@@ -2708,8 +2709,8 @@ def make_image(
         ]
 
     for d in definitions:
-        cmdline += ["--definitions", d]
-        options += ["--ro-bind", d, d]
+        cmdline += ["--definitions", workdir(d)]
+        options += ["--ro-bind", d, workdir(d)]
 
     with complete_step(msg):
         output = json.loads(
