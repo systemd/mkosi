@@ -571,6 +571,13 @@ def sandbox_cmd(
                 else:
                     cmdline += ["--tmpfs", Path("/") / d]
 
+        # If we put an overlayfs on /var, and /var/tmp is not in the sandbox tree, make sure /var/tmp is a bind mount
+        # of a regular empty directory instead of the overlays so tools like systemd-repart can use the underlying
+        # filesystem features from btrfs when using /var/tmp.
+        if overlay and not (overlay / "var/tmp").exists():
+            tmp = stack.enter_context(vartmpdir())
+            cmdline += ["--bind", tmp, "/var/tmp"]
+
         yield [*cmdline, *options, "--"]
 
 
