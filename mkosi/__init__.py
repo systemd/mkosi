@@ -2151,6 +2151,14 @@ def check_inputs(config: Config) -> None:
         if not os.access(script, os.X_OK):
             die(f"{script} is not executable")
 
+    if config.secure_boot and not config.secure_boot_key:
+        die("SecureBoot= is enabled but no secure boot key is configured",
+            hint="Run mkosi genkey to generate a secure boot key/certificate pair")
+
+    if config.secure_boot and not config.secure_boot_certificate:
+        die("SecureBoot= is enabled but no secure boot key is configured",
+            hint="Run mkosi genkey to generate a secure boot key/certificate pair")
+
 
 def check_tool(config: Config, *tools: PathString, reason: str, hint: Optional[str] = None) -> Path:
     tool = config.find_binary(*tools)

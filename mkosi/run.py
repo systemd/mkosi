@@ -24,7 +24,7 @@ from typing import Any, Callable, NoReturn, Optional, Protocol
 
 import mkosi.sandbox
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, die
-from mkosi.sandbox import joinpath, umask
+from mkosi.sandbox import acquire_privileges, joinpath, umask
 from mkosi.types import _FILE, CompletedProcess, PathString, Popen
 from mkosi.util import current_home_dir, flatten, one_zero
 
@@ -435,11 +435,23 @@ def vartmpdir() -> Iterator[Path]:
         # A directory that's used as an overlayfs workdir will contain a "work" subdirectory after the overlayfs is
         # unmounted. This "work" subdirectory will have permissions 000 and as such can't be opened or searched unless
         # the user has the CAP_DAC_OVERRIDE capability. shutil.rmtree() will try to search the "work" subdirectory to
-        # remove anything in it which will fail with a permission error. To circumvent this, let's delete the "work"
-        # subdirectory first and then invoke shutil.rmtree(). Deleting the subdirectory is not a problem because
-        # deleting a subdirectory depends on the permissions of the parent directory and not the directory itself.
-        if (d / "work").exists():
+        # remove anything in it which will fail with a permission error. To circumvent this, if the work directory
+        # exists and is not empty, let's fork off a subprocess where we acquire extra privileges and then invoke
+        # shutil.rmtree(). If the work directory exists but is empty, let's just delete the "work" subdirectory first
+        # and then invoke shutil.rmtree(). Deleting the subdirectory when it is empty is not a problem because deleting
+        # a subdirectory depends on the permissions of the parent directory and not the directory itself.
+        try:
             (d / "work").rmdir()
+        except OSError as e:
+            if e.errno == errno.ENOTEMPTY:
+                def remove() -> None:
+                    acquire_privileges()
+                    shutil.rmtree(d)
+
+                fork_and_wait(remove)
+                return
+            elif e.errno != errno.ENOENT:
+                raise
 
         shutil.rmtree(d)
 
