@@ -524,7 +524,7 @@ def sandbox_cmd(
         if path and not any(path.is_relative_to(dir) for dir in (*dirs, "/usr", "/nix", "/tmp")):
             cmdline += ["--bind", path, path]
     else:
-        cmdline += ["--dir", "/var/tmp", "--unshare-ipc"]
+        cmdline += ["--dir", "/var/tmp", "--dir", "/var/log", "--unshare-ipc"]
 
         if devices:
             cmdline += ["--bind", "/sys", "/sys", "--bind", "/dev", "/dev"]

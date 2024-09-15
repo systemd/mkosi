@@ -1042,8 +1042,6 @@ def install_sandbox_trees(config: Config, dst: Path) -> None:
     if Path("/etc/static").is_symlink():
         (dst / "etc/static").symlink_to(Path("/etc/static").readlink())
 
-    (dst / "var/log").mkdir(parents=True)
-
     if Path("/etc/passwd").exists():
         shutil.copy("/etc/passwd", dst / "etc/passwd")
     if Path("/etc/group").exists():
