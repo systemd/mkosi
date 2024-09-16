@@ -639,9 +639,12 @@ def config_parse_compression(value: Optional[str], old: Optional[Compression]) -
         return Compression.zstd if parse_boolean(value) else Compression.none
 
 
-def config_parse_seed(value: Optional[str], old: Optional[str]) -> Optional[uuid.UUID]:
-    if not value or value == "random":
+def config_parse_uuid(value: Optional[str], old: Optional[str]) -> Optional[uuid.UUID]:
+    if not value:
         return None
+
+    if value == "random":
+        return uuid.uuid4()
 
     try:
         return uuid.UUID(value)
@@ -2127,8 +2130,10 @@ SETTINGS = (
         dest="seed",
         metavar="UUID",
         section="Output",
-        parse=config_parse_seed,
+        parse=config_parse_uuid,
         default=uuid.uuid4(),
+        paths=("mkosi.seed",),
+        path_read_text=True,
         help="Set the seed for systemd-repart",
     ),
     ConfigSetting(
