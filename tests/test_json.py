@@ -185,6 +185,7 @@ def test_config() -> None:
             "Locale": "en_C.UTF-8",
             "LocaleMessages": "",
             "Machine": "machine",
+            "MachineId": "b58253b0-cc92-4a34-8782-bcd99b20d07f",
             "MakeInitrd": false,
             "ManifestFormat": [
                 "json",
@@ -420,6 +421,7 @@ def test_config() -> None:
         locale="en_C.UTF-8",
         locale_messages="",
         machine="machine",
+        machine_id=uuid.UUID("b58253b0cc924a348782bcd99b20d07f"),
         make_initrd=False,
         manifest_format=[ManifestFormat.json, ManifestFormat.changelog],
         minimum_version=GenericVersion("123"),

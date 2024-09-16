@@ -1098,6 +1098,14 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     a host system with the same SELinux policy as the image you're
     building.
 
+`MachineId=`, `--machine-id=`
+
+:  Takes a UUID or the special value `random`. Sets the machine ID of the
+   image to the specified UUID. If set to `random`, a random UUID will be
+   written to `/etc/machine-id`. If not specified explicitly and the file
+   `mkosi.machine-id` exists in the local directory, the UUID to use it
+   read from it. Otherwise, `uninitialized` will be written to `/etc/machine-id`.
+
 ### [Validation] Section
 
 `SecureBoot=`, `--secure-boot`
