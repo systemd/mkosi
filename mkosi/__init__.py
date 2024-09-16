@@ -1042,8 +1042,6 @@ def install_sandbox_trees(config: Config, dst: Path) -> None:
     if Path("/etc/static").is_symlink():
         (dst / "etc/static").symlink_to(Path("/etc/static").readlink())
 
-    (dst / "var/log").mkdir(parents=True)
-
     if Path("/etc/passwd").exists():
         shutil.copy("/etc/passwd", dst / "etc/passwd")
     if Path("/etc/group").exists():
@@ -2669,13 +2667,13 @@ def make_image(
         "--no-pager",
         f"--offline={yes_no(context.config.repart_offline)}",
         "--seed", str(context.config.seed),
-        context.staging / context.config.output_with_format,
+        workdir(context.staging / context.config.output_with_format),
     ]
     options: list[PathString] = [
         # Make sure we're root so that the mkfs tools invoked by systemd-repart think the files
         # that go into the disk image are owned by root.
         "--become-root",
-        "--bind", context.staging, context.staging,
+        "--bind", context.staging, workdir(context.staging),
     ]
 
     if root:
@@ -2686,17 +2684,18 @@ def make_image(
     if not (context.staging / context.config.output_with_format).exists():
         cmdline += ["--empty=create"]
     if context.config.passphrase:
-        cmdline += ["--key-file", context.config.passphrase]
-        options += ["--ro-bind", context.config.passphrase, context.config.passphrase]
+        cmdline += ["--key-file", workdir(context.config.passphrase)]
+        options += ["--ro-bind", context.config.passphrase, workdir(context.config.passphrase)]
     if context.config.verity_key:
-        cmdline += ["--private-key", context.config.verity_key]
+        key = workdir(context.config.verity_key) if context.config.verity_key.exists() else context.config.verity_key
+        cmdline += ["--private-key", str(key)]
         if context.config.verity_key_source.type != KeySourceType.file:
             cmdline += ["--private-key-source", str(context.config.verity_key_source)]
         if context.config.verity_key.exists():
-            options += ["--ro-bind", context.config.verity_key, context.config.verity_key]
+            options += ["--ro-bind", context.config.verity_key, workdir(context.config.verity_key)]
     if context.config.verity_certificate:
-        cmdline += ["--certificate", context.config.verity_certificate]
-        options += ["--ro-bind", context.config.verity_certificate, context.config.verity_certificate]
+        cmdline += ["--certificate", workdir(context.config.verity_certificate)]
+        options += ["--ro-bind", context.config.verity_certificate, workdir(context.config.verity_certificate)]
     if skip:
         cmdline += ["--defer-partitions", ",".join(skip)]
     if split:
@@ -2710,8 +2709,8 @@ def make_image(
         ]
 
     for d in definitions:
-        cmdline += ["--definitions", d]
-        options += ["--ro-bind", d, d]
+        cmdline += ["--definitions", workdir(d)]
+        options += ["--ro-bind", d, workdir(d)]
 
     with complete_step(msg):
         output = json.loads(
@@ -3094,10 +3093,7 @@ def lock_repository_metadata(config: Config) -> Iterator[None]:
 def copy_repository_metadata(config: Config, dst: Path) -> None:
     subdir = config.distribution.package_manager(config).subdir(config)
 
-    with (
-        lock_repository_metadata(config),
-        complete_step("Copying repository metadata"),
-    ):
+    with complete_step("Copying repository metadata"):
         for d in ("cache", "lib"):
             src = config.package_cache_dir_or_default() / d / subdir
             if not src.exists():
@@ -3132,7 +3128,7 @@ def copy_repository_metadata(config: Config, dst: Path) -> None:
                 ) -> AbstractContextManager[list[PathString]]:
                     return config.sandbox(binary=binary, options=[*options, *exclude])
 
-                copy_tree(src, subdst, preserve=False, sandbox=sandbox)
+                copy_tree(src, subdst, sandbox=sandbox)
 
 
 @contextlib.contextmanager
@@ -3807,13 +3803,15 @@ def run_clean(args: Args, config: Config, *, resources: Path) -> None:
             rmtree(*config.build_dir.iterdir(), sandbox=sandbox)
 
     if remove_image_cache and config.cache_dir:
+        metadata = [metadata_cache(config)] if not config.image else []
+
         initrd = (
             cache_tree_paths(finalize_default_initrd(args, config, resources=resources))
             if config.distribution != Distribution.custom
             else []
         )
 
-        if any(p.exists() for p in itertools.chain(cache_tree_paths(config), initrd)):
+        if any(p.exists() for p in itertools.chain(cache_tree_paths(config), initrd, metadata)):
             with complete_step(f"Removing cache entries of {config.name()} image…"):
                 rmtree(*(p for p in itertools.chain(cache_tree_paths(config), initrd) if p.exists()), sandbox=sandbox)
 
@@ -3835,50 +3833,91 @@ def run_clean(args: Args, config: Config, *, resources: Path) -> None:
     run_clean_scripts(config)
 
 
-def sync_repository_metadata(context: Context) -> None:
-    if (
-        context.config.cacheonly != Cacheonly.never and
-        (have_cache(context.config) or context.config.cacheonly != Cacheonly.auto)
+def ensure_directories_exist(config: Config) -> None:
+    for p in (
+        config.output_dir,
+        config.cache_dir,
+        config.package_cache_dir_or_default(),
+        config.build_dir,
+        config.workspace_dir,
     ):
-        return
+        if not p or p.exists():
+            continue
 
-    with (
-        complete_step(f"Syncing package manager metadata for {context.config.name()} image"),
-        lock_repository_metadata(context.config),
-    ):
-        context.config.distribution.package_manager(context.config).sync(
-            context,
-            force=context.args.force > 1 or context.config.cacheonly == Cacheonly.never,
-        )
-
-
-def run_sync(args: Args, config: Config, *, resources: Path) -> None:
-    if not (p := config.package_cache_dir_or_default()).exists():
         p.mkdir(parents=True, exist_ok=True)
 
-    subdir = config.distribution.package_manager(config).subdir(config)
+    if config.build_dir:
+        st = config.build_dir.stat()
+
+        # Discard setuid/setgid bits if set as these are inherited and can leak into the image.
+        if stat.S_IMODE(st.st_mode) & (stat.S_ISGID|stat.S_ISUID):
+            config.build_dir.chmod(stat.S_IMODE(st.st_mode) & ~(stat.S_ISGID|stat.S_ISUID))
+
+
+def metadata_cache(config: Config) -> Path:
+    assert config.cache_dir
+    fragments = [config.distribution, config.release, config.architecture]
+
+    return config.cache_dir / f"{'~'.join(str(s) for s in fragments)}.metadata.cache"
+
+
+def sync_repository_metadata(args: Args, images: Sequence[Config], *, resources: Path, dst: Path) -> None:
+    last = images[-1]
+
+    # If we have a metadata cache and any cached image and using cached metadata is not explicitly disabled, reuse the
+    # metadata cache.
+    if (
+        last.incremental and
+        metadata_cache(last).exists() and
+        last.cacheonly != Cacheonly.never and
+        any(have_cache(config) for config in images)
+    ):
+        with complete_step("Copying cached package manager metadata"):
+            copy_tree(metadata_cache(last), dst, use_subvolumes=last.use_subvolumes, sandbox=last.sandbox)
+        return
+
+    subdir = last.distribution.package_manager(last).subdir(last)
 
     for d in ("cache", "lib"):
-        (config.package_cache_dir_or_default() / d / subdir).mkdir(parents=True, exist_ok=True)
+        (last.package_cache_dir_or_default() / d / subdir).mkdir(parents=True, exist_ok=True)
 
-    with setup_workspace(args, config) as workspace:
-        context = Context(
-            args,
-            config,
-            workspace=workspace,
-            resources=resources,
-            metadata_dir=config.package_cache_dir_or_default(),
-        )
-        context.root.mkdir(mode=0o755)
+    # Sync repository metadata unless explicitly disabled.
+    if last.cacheonly not in (Cacheonly.always, Cacheonly.metadata):
+        with (
+            complete_step("Syncing package manager metadata"),
+            lock_repository_metadata(last),
+            setup_workspace(args, last) as workspace,
+        ):
+            context = Context(
+                args,
+                last,
+                workspace=workspace,
+                resources=resources,
+                metadata_dir=last.package_cache_dir_or_default(),
+            )
+            context.root.mkdir(mode=0o755)
 
-        install_sandbox_trees(context.config, context.sandbox_tree)
-        context.config.distribution.setup(context)
+            install_sandbox_trees(context.config, context.sandbox_tree)
+            context.config.distribution.setup(context)
 
-        sync_repository_metadata(context)
+            context.config.distribution.package_manager(context.config).sync(
+                context,
+                force=context.args.force > 1 or context.config.cacheonly == Cacheonly.never,
+            )
 
-        src = config.package_cache_dir_or_default() / "cache" / subdir
-        for p in config.distribution.package_manager(config).cache_subdirs(src):
-            p.mkdir(parents=True, exist_ok=True)
+    src = last.package_cache_dir_or_default() / "cache" / subdir
+    for p in last.distribution.package_manager(last).cache_subdirs(src):
+        p.mkdir(parents=True, exist_ok=True)
+
+    # If we're in incremental mode and caching metadata is not explicitly disabled, cache the synced repostory
+    # metadata so we can reuse it later.
+    if last.incremental and last.cacheonly != Cacheonly.never:
+        rmtree(metadata_cache(last), sandbox=last.sandbox)
+        make_tree(metadata_cache(last), use_subvolumes=last.use_subvolumes, sandbox=last.sandbox)
+        copy_repository_metadata(last, metadata_cache(last))
+        copy_tree(metadata_cache(last), dst, use_subvolumes=last.use_subvolumes, sandbox=last.sandbox)
+    else:
+        copy_repository_metadata(last, dst)
 
 
 def run_build(
@@ -3896,22 +3935,6 @@ def run_build(
 
     if os.getuid() == 0:
         mount("", "/", "", MS_SLAVE|MS_REC, "")
-
-    for p in (
-        config.output_dir,
-        config.cache_dir,
-        config.package_cache_dir_or_default(),
-        config.build_dir,
-        config.workspace_dir,
-    ):
-        if not p or p.exists():
-            continue
-
-        p.mkdir(parents=True, exist_ok=True)
-
-    if config.build_dir:
-        # Discard setuid/setgid bits as these are inherited and can leak into the image.
-        config.build_dir.chmod(stat.S_IMODE(config.build_dir.stat().st_mode) & ~(stat.S_ISGID|stat.S_ISUID))
 
     # For extra safety when running as root, remount a bunch of stuff read-only.
     # Because some build systems use output directories in /usr, we only remount
@@ -4078,13 +4101,13 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
     if tools and not (tools.output_dir_or_cwd() / tools.output).exists():
         with prepend_to_environ_path(tools):
             check_tools(tools, Verb.build)
-            run_sync(args, tools, resources=resources)
+            ensure_directories_exist(tools)
 
             with tempfile.TemporaryDirectory(
                 dir=tools.workspace_dir_or_default(),
                 prefix="mkosi-metadata-",
             ) as metadata_dir:
-                copy_repository_metadata(tools, Path(metadata_dir))
+                sync_repository_metadata(args, [tools], resources=resources, dst=Path(metadata_dir))
                 fork_and_wait(run_build, args, tools, resources=resources, metadata_dir=Path(metadata_dir))
 
     for i, config in enumerate(images):
@@ -4105,12 +4128,13 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
     last = images[-1]
 
     if not (last.output_dir_or_cwd() / last.output).exists() or last.output_format == OutputFormat.none:
+        ensure_directories_exist(last)
+
         with (
             tempfile.TemporaryDirectory(dir=last.workspace_dir_or_default(), prefix="mkosi-metadata-") as metadata_dir,
             tempfile.TemporaryDirectory(dir=last.workspace_dir_or_default(), prefix="mkosi-packages-") as package_dir,
         ):
-            run_sync(args, last, resources=resources)
-            copy_repository_metadata(last, Path(metadata_dir))
+            sync_repository_metadata(args, images, resources=resources, dst=Path(metadata_dir))
 
             for config in images:
                 run_sync_scripts(config)
@@ -4126,6 +4150,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
                         check_tools(config, Verb.build)
 
                     check_inputs(config)
+                    ensure_directories_exist(config)
                     fork_and_wait(
                         run_build,
                         args,
