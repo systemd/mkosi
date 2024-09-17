@@ -620,7 +620,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     Overrides the seed that [`systemd-repart(8)`](https://www.freedesktop.org/software/systemd/man/systemd-repart.service.html)
     uses when building a disk image. This is useful to achieve reproducible
     builds, where deterministic UUIDs and other partition metadata should be
-    derived on each build.
+    derived on each build. If not specified explicitly and the file `mkosi.seed`
+    exists in the local directory, the UUID to use is read from it. Otherwise,
+    a random UUID is used.
 
 `CleanScripts=`, `--clean-script=`
 :   Takes a comma-separated list of paths to executables that are used as
@@ -1095,6 +1097,14 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     succeeds without errors, make sure to run mkosi as root or build from
     a host system with the same SELinux policy as the image you're
     building.
+
+`MachineId=`, `--machine-id=`
+
+:  Takes a UUID or the special value `random`. Sets the machine ID of the
+   image to the specified UUID. If set to `random`, a random UUID will be
+   written to `/etc/machine-id`. If not specified explicitly and the file
+   `mkosi.machine-id` exists in the local directory, the UUID to use it
+   read from it. Otherwise, `uninitialized` will be written to `/etc/machine-id`.
 
 ### [Validation] Section
 

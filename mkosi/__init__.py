@@ -194,7 +194,12 @@ def install_distribution(context: Context) -> None:
         with complete_step(f"Installing {str(context.config.distribution).capitalize()}"):
             context.config.distribution.install(context)
 
-            if (context.root / "etc").exists() and not (context.root / "etc/machine-id").exists():
+            if context.config.machine_id:
+                with umask(~0o755):
+                    (context.root / "etc").mkdir(exist_ok=True)
+                with umask(~0o444):
+                    (context.root / "etc/machine-id").write_text(context.config.machine_id.hex)
+            elif (context.root / "etc").exists() and not (context.root / "etc/machine-id").exists():
                 # Uninitialized means we want it to get initialized on first boot.
                 with umask(~0o444):
                     (context.root / "etc/machine-id").write_text("uninitialized\n")

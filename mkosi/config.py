@@ -639,9 +639,12 @@ def config_parse_compression(value: Optional[str], old: Optional[Compression]) -
         return Compression.zstd if parse_boolean(value) else Compression.none
 
 
-def config_parse_seed(value: Optional[str], old: Optional[str]) -> Optional[uuid.UUID]:
-    if not value or value == "random":
+def config_parse_uuid(value: Optional[str], old: Optional[str]) -> Optional[uuid.UUID]:
+    if not value:
         return None
+
+    if value == "random":
+        return uuid.uuid4()
 
     try:
         return uuid.UUID(value)
@@ -1512,6 +1515,7 @@ class Config:
     hostname: Optional[str]
     root_password: Optional[tuple[str, bool]]
     root_shell: Optional[str]
+    machine_id: Optional[uuid.UUID]
 
     autologin: bool
     make_initrd: bool
@@ -2127,8 +2131,10 @@ SETTINGS = (
         dest="seed",
         metavar="UUID",
         section="Output",
-        parse=config_parse_seed,
+        parse=config_parse_uuid,
         default=uuid.uuid4(),
+        paths=("mkosi.seed",),
+        path_read_text=True,
         help="Set the seed for systemd-repart",
     ),
     ConfigSetting(
@@ -2571,6 +2577,15 @@ SETTINGS = (
         section="Content",
         parse=config_parse_string,
         help="Set the shell for root",
+    ),
+    ConfigSetting(
+        dest="machine_id",
+        metavar="MACHINE_ID",
+        section="Content",
+        parse=config_parse_uuid,
+        paths=("mkosi.machine-id",),
+        path_read_text=True,
+        help="Set the machine ID to use",
     ),
     ConfigSetting(
         dest="autologin",
@@ -4295,6 +4310,7 @@ def summary(config: Config) -> str:
                            Hostname: {none_to_default(config.hostname)}
                       Root Password: {("(set)" if config.root_password else "(default)")}
                          Root Shell: {none_to_default(config.root_shell)}
+                         Machine ID: {none_to_none(config.machine_id)}
 
                           Autologin: {yes_no(config.autologin)}
                         Make Initrd: {yes_no(config.make_initrd)}
@@ -4422,6 +4438,9 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
     def uuid_transformer(uuidstr: str, fieldtype: type[uuid.UUID]) -> uuid.UUID:
         return uuid.UUID(uuidstr)
 
+    def optional_uuid_transformer(uuidstr: Optional[str], fieldtype: type[Optional[uuid.UUID]]) -> Optional[uuid.UUID]:
+        return uuid.UUID(uuidstr) if uuidstr is not None else None
+
     def root_password_transformer(
         rootpw: Optional[list[Union[str, bool]]], fieldtype: type[Optional[tuple[str, bool]]]
     ) -> Optional[tuple[str, bool]]:
@@ -4494,6 +4513,7 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         Optional[Path]: optional_path_transformer,
         list[Path]: path_list_transformer,
         uuid.UUID: uuid_transformer,
+        Optional[uuid.UUID]: optional_uuid_transformer,
         Optional[tuple[str, bool]]: root_password_transformer,
         list[ConfigTree]: config_tree_transformer,
         Architecture: enum_transformer,
