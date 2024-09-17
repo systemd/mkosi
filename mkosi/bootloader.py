@@ -520,7 +520,7 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
             cmd += ["--key", workdir(context.config.secure_boot_key)]
             options += ["--ro-bind", context.config.secure_boot_key, workdir(context.config.secure_boot_key)]
         else:
-            cmd += ["--key", workdir(context.config.secure_boot_key)]
+            cmd += ["--key", context.config.secure_boot_key]
         cmd += [workdir(input)]
         run(
             cmd,
