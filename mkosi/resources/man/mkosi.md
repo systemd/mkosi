@@ -1004,7 +1004,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   Use the specified kernel command line when building images.
 
     If the root or usr partition are created with verity enabled,
-    `roothash=` or `usrhash=` respecitvely are automatically added to the
+    `roothash=` or `usrhash=` respectively are automatically added to the
     kernel command line and `root=` or `mount.usr=` should not be added.
     Otherwise, if the value of this setting contains the literals
     `root=PARTUUID` or `mount.usr=PARTUUID`, these are replaced with the
@@ -2609,7 +2609,7 @@ repository.
   look for the epel repositories in `https://mirror.net/fedora/epel`.
 
 * `SYSEXT_SCOPE` and `CONFEXT_SCOPE` can be used to override the default
-  value of the respecive `extension-release` file when building a sysext
+  value of the respective `extension-release` file when building a sysext
   or confext. By default the value is set to `initrd system portable`.
 
 # EXAMPLES
