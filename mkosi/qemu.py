@@ -1250,7 +1250,6 @@ def run_qemu(args: Args, config: Config) -> None:
             stderr=stderr,
             pass_fds=qemu_device_fds.values(),
             env=os.environ | config.environment,
-            log=False,
             foreground=True,
             sandbox=config.sandbox(
                 binary=qemu,
@@ -1271,8 +1270,8 @@ def run_qemu(args: Args, config: Config) -> None:
 
             register_machine(config, proc.pid, fname)
 
-            if proc.wait() == 0 and (status := int(notifications.get("EXIT_STATUS", 0))):
-                raise subprocess.CalledProcessError(status, cmdline)
+        if status := int(notifications.get("EXIT_STATUS", 0)):
+            raise subprocess.CalledProcessError(status, cmdline)
 
 
 def run_ssh(args: Args, config: Config) -> None:
