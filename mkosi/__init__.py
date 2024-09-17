@@ -2032,11 +2032,8 @@ def calculate_signature(context: Context) -> None:
     options: list[PathString] = [
         "--bind", home, home,
         "--bind", context.staging, workdir(context.staging),
+        "--bind", "/run", "/run",
     ]
-
-    # gpg can communicate with smartcard readers via this socket so bind mount it in if it exists.
-    if (p := Path("/run/pcscd/pcscd.comm")).exists():
-        options += ["--bind", p, p]
 
     with (complete_step("Signing SHA256SUMS…")):
         run(
