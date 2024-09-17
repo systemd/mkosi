@@ -1823,11 +1823,9 @@ def parse_ini(path: Path, only_sections: Collection[str] = ()) -> Iterator[tuple
     value: Optional[str] = None
 
     for line in textwrap.dedent(path.read_text()).splitlines():
-        # Systemd unit files allow both '#' and ';' to indicate comments so we do the same.
-        for c in ("#", ";"):
-            comment = line.find(c)
-            if comment >= 0:
-                line = line[:comment]
+        comment = line.find("#")
+        if comment >= 0:
+            line = line[:comment]
 
         if not line.strip():
             continue

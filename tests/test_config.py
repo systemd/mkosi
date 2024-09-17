@@ -68,7 +68,6 @@ def test_parse_ini(tmp_path: Path) -> None:
         ALLCAPS=txt
 
         # Comment
-        ; Another comment
         [EmptySection]
         [AnotherSection]
         EmptyValue=
