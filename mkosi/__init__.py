@@ -2692,12 +2692,13 @@ def make_image(
         cmdline += ["--key-file", workdir(context.config.passphrase)]
         options += ["--ro-bind", context.config.passphrase, workdir(context.config.passphrase)]
     if context.config.verity_key:
-        key = workdir(context.config.verity_key) if context.config.verity_key.exists() else context.config.verity_key
-        cmdline += ["--private-key", str(key)]
         if context.config.verity_key_source.type != KeySourceType.file:
             cmdline += ["--private-key-source", str(context.config.verity_key_source)]
         if context.config.verity_key.exists():
+            cmdline += ["--private-key", workdir(context.config.verity_key)]
             options += ["--ro-bind", context.config.verity_key, workdir(context.config.verity_key)]
+        else:
+            cmdline += ["--private-key", context.config.verity_key]
     if context.config.verity_certificate:
         cmdline += ["--certificate", workdir(context.config.verity_certificate)]
         options += ["--ro-bind", context.config.verity_certificate, workdir(context.config.verity_certificate)]

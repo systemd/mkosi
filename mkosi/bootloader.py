@@ -506,7 +506,6 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
     ):
         cmd: list[PathString] = [
             "sbsign",
-            "--key", workdir(context.config.secure_boot_key),
             "--cert", workdir(context.config.secure_boot_certificate),
             "--output", workdir(output),
         ]
@@ -518,7 +517,10 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
         if context.config.secure_boot_key_source.type == KeySourceType.engine:
             cmd += ["--engine", context.config.secure_boot_key_source.source]
         if context.config.secure_boot_key.exists():
+            cmd += ["--key", workdir(context.config.secure_boot_key)]
             options += ["--ro-bind", context.config.secure_boot_key, workdir(context.config.secure_boot_key)]
+        else:
+            cmd += ["--key", workdir(context.config.secure_boot_key)]
         cmd += [workdir(input)]
         run(
             cmd,
@@ -732,7 +734,6 @@ def install_systemd_boot(context: Context) -> None:
                         "sbvarsign",
                         "--attr",
                             "NON_VOLATILE,BOOTSERVICE_ACCESS,RUNTIME_ACCESS,TIME_BASED_AUTHENTICATED_WRITE_ACCESS",
-                        "--key", workdir(context.config.secure_boot_key),
                         "--cert", workdir(context.config.secure_boot_certificate),
                         "--output", workdir(keys / f"{db}.auth"),
                     ]
@@ -746,9 +747,12 @@ def install_systemd_boot(context: Context) -> None:
                     if context.config.secure_boot_key_source.type == KeySourceType.engine:
                         cmd += ["--engine", context.config.secure_boot_key_source.source]
                     if context.config.secure_boot_key.exists():
+                        cmd += ["--key", workdir(context.config.secure_boot_key),]
                         options += [
                             "--ro-bind", context.config.secure_boot_key, workdir(context.config.secure_boot_key),
                         ]
+                    else:
+                        cmd += ["--key", context.config.secure_boot_key]
                     cmd += [db, workdir(context.workspace / "mkosi.esl")]
                     run(
                         cmd,
