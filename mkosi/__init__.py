@@ -2024,7 +2024,7 @@ def calculate_signature(context: Context) -> None:
 
     env = dict(GNUPGHOME=os.fspath(home))
     if sys.stderr.isatty():
-        env |= dict(GPGTTY=os.ttyname(sys.stderr.fileno()))
+        env |= dict(GPG_TTY=os.ttyname(sys.stderr.fileno()))
 
     options: list[PathString] = ["--bind", home, home]
 
