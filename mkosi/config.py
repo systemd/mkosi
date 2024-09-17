@@ -557,6 +557,36 @@ def parse_path(
     return path
 
 
+def parse_paths_from_directory(
+    value: str,
+    *,
+    required: bool = True,
+    resolve: bool = True,
+    expanduser: bool = True,
+    expandvars: bool = True,
+    secret: bool = False,
+    absolute: bool = False,
+    constants: Sequence[str] = (),
+) -> list[Path]:
+    path = parse_path(
+        value,
+        required=required,
+        resolve=resolve,
+        expanduser=expanduser,
+        expandvars=expandvars,
+        secret=secret,
+        absolute=absolute,
+        constants=constants,
+    )
+    if not path.exists():
+        return []
+
+    if path.exists() and not path.is_dir():
+        die(f"{path} should be a directory, but isn't.")
+
+    return sorted(parse_path(os.fspath(p), resolve=resolve, secret=secret) for p in path.iterdir())
+
+
 def config_parse_key(value: Optional[str], old: Optional[str]) -> Optional[Path]:
     if not value:
         return None
@@ -1272,6 +1302,7 @@ class ConfigSetting:
     default_factory: Optional[ConfigDefaultCallback] = None
     default_factory_depends: tuple[str, ...] = tuple()
     paths: tuple[str, ...] = ()
+    recursive_paths: tuple[str, ...] = ()
     path_read_text: bool = False
     path_secret: bool = False
     specifier: str = ""
@@ -1993,6 +2024,7 @@ SETTINGS = (
         section="Config",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         paths=("mkosi.configure",),
+        recursive_paths=("mkosi.configure.d/",),
         help="Configure script to run before doing anything",
     ),
     ConfigSetting(
@@ -2351,6 +2383,7 @@ SETTINGS = (
         section="Content",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         paths=("mkosi.sync",),
+        recursive_paths=("mkosi.sync.d/",),
         help="Sync script to run before starting the build",
     ),
     ConfigSetting(
@@ -2360,6 +2393,7 @@ SETTINGS = (
         section="Content",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         paths=("mkosi.prepare", "mkosi.prepare.chroot"),
+        recursive_paths=("mkosi.prepare.d/",),
         help="Prepare script to run inside the image before it is cached",
         compat_names=("PrepareScript",),
     ),
@@ -2370,6 +2404,7 @@ SETTINGS = (
         section="Content",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         paths=("mkosi.build", "mkosi.build.chroot"),
+        recursive_paths=("mkosi.build.d/",),
         help="Build script to run inside image",
         compat_names=("BuildScript",),
     ),
@@ -2381,6 +2416,7 @@ SETTINGS = (
         section="Content",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         paths=("mkosi.postinst", "mkosi.postinst.chroot"),
+        recursive_paths=("mkosi.postinst.d/",),
         help="Postinstall script to run inside image",
         compat_names=("PostInstallationScript",),
     ),
@@ -2391,6 +2427,7 @@ SETTINGS = (
         section="Content",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         paths=("mkosi.finalize", "mkosi.finalize.chroot"),
+        recursive_paths=("mkosi.finalize.d/",),
         help="Postinstall script to run outside image",
         compat_names=("FinalizeScript",),
     ),
@@ -2402,6 +2439,7 @@ SETTINGS = (
         section="Content",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         paths=("mkosi.postoutput",),
+        recursive_paths=("mkosi.postoutput.d/",),
         help="Output postprocessing script to run outside image",
     ),
     ConfigSetting(
@@ -3845,6 +3883,23 @@ class ParseContext:
                                 getattr(self.config, s.dest, None),
                             ),
                         )
+
+                for f in s.recursive_paths:
+                    recursive_extras = parse_paths_from_directory(
+                        f,
+                        secret=s.path_secret,
+                        required=False,
+                        resolve=False,
+                        expanduser=False,
+                        expandvars=False,
+                    )
+                    for e in recursive_extras:
+                        if e.exists():
+                            setattr(
+                                self.config,
+                                s.dest,
+                                s.parse(os.fspath(e), getattr(self.config, s.dest, None)),
+                            )
 
         if path.exists():
             abs_path = Path.cwd() / path
