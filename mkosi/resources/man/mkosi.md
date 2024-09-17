@@ -1003,10 +1003,13 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `KernelCommandLine=`, `--kernel-command-line=`
 :   Use the specified kernel command line when building images.
 
-    If the value of this setting contains the literals `root=PARTUUID`
-    or `mount.usr=PARTUUID`, these are replaced with the partition UUID
-    of the root or usr partition respectively. For example,
-    `root=PARTUUID` would be replaced with
+    If the root or usr partition are created with verity enabled,
+    `roothash=` or `usrhash=` respecitvely are automatically added to the
+    kernel command line and `root=` or `mount.usr=` should not be added.
+    Otherwise, if the value of this setting contains the literals
+    `root=PARTUUID` or `mount.usr=PARTUUID`, these are replaced with the
+    partition UUID of the root or usr partition respectively. For
+    example, `root=PARTUUID` would be replaced with
     `root=PARTUUID=58c7d0b2-d224-4834-a16f-e036322e88f7` where
     `58c7d0b2-d224-4834-a16f-e036322e88f7` is the partition UUID of the
     root partition.
