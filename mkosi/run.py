@@ -509,20 +509,22 @@ def sandbox_cmd(
         cmdline += ["--bind", tools / "nix/store", "/nix/store"]
 
     if relaxed:
-        dirs = ("/etc", "/opt", "/srv", "/media", "/mnt", "/var", "/tmp", "/sys", "/run", "/dev")
+        for p in Path("/").iterdir():
+            if p not in (
+                Path("/home"),
+                Path("/proc"),
+                Path("/usr"),
+                Path("/nix"),
+                Path("/bin"),
+                Path("/sbin"),
+                Path("/lib"),
+                Path("/lib32"),
+                Path("/lib64"),
+            ):
+                cmdline += ["--bind", p, p]
 
-        for d in dirs:
-            if Path(d).exists():
-                cmdline += ["--bind", d, d]
-
-        path = current_home_dir()
-        if not path and Path.cwd() not in (Path("/"), Path("/home")):
-            path = Path.cwd()
-
-        # Either add the home directory we're running from or the current working directory if we're not running from
-        # inside a home directory.
-        if path and not any(path.is_relative_to(dir) for dir in (*dirs, "/usr", "/nix", "/tmp")):
-            cmdline += ["--bind", path, path]
+        if home := current_home_dir():
+            cmdline += ["--bind", home, home]
     else:
         cmdline += ["--dir", "/var/tmp", "--dir", "/var/log", "--unshare-ipc"]
 
