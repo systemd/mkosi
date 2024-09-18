@@ -2010,13 +2010,16 @@ def calculate_signature(context: Context) -> None:
     if not context.config.sign or not context.config.checksum:
         return
 
-    cmdline: list[PathString] = ["gpg", "--detach-sign"]
+    cmdline: list[PathString] = ["gpg", "--detach-sign", "--pinentry-mode", "loopback"]
 
     # Need to specify key before file to sign
     if context.config.key is not None:
         cmdline += ["--default-key", context.config.key]
 
-    cmdline += ["--output", "-", "-"]
+    cmdline += [
+        "--output", workdir(context.staging / context.config.output_signature),
+        workdir(context.staging / context.config.output_checksum),
+    ]
 
     home = Path(context.config.environment.get("GNUPGHOME", INVOKING_USER.home() / ".gnupg"))
     if not home.exists():
@@ -2024,24 +2027,18 @@ def calculate_signature(context: Context) -> None:
 
     env = dict(GNUPGHOME=os.fspath(home))
     if sys.stderr.isatty():
-        env |= dict(GPGTTY=os.ttyname(sys.stderr.fileno()))
+        env |= dict(GPG_TTY=os.ttyname(sys.stderr.fileno()))
 
-    options: list[PathString] = ["--bind", home, home]
+    options: list[PathString] = [
+        "--bind", home, home,
+        "--bind", context.staging, workdir(context.staging),
+        "--bind", "/run", "/run",
+    ]
 
-    # gpg can communicate with smartcard readers via this socket so bind mount it in if it exists.
-    if (p := Path("/run/pcscd/pcscd.comm")).exists():
-        options += ["--bind", p, p]
-
-    with (
-        complete_step("Signing SHA256SUMS…"),
-        open(context.staging / context.config.output_checksum, "rb") as i,
-        open(context.staging / context.config.output_signature, "wb") as o,
-    ):
+    with (complete_step("Signing SHA256SUMS…")):
         run(
             cmdline,
             env=env,
-            stdin=i,
-            stdout=o,
             sandbox=context.sandbox(
                 binary="gpg",
                 options=options,

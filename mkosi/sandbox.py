@@ -109,7 +109,7 @@ def statfs(path: str) -> int:
     buffer = (ctypes.c_long * 15)()
 
     if libc.statfs(path.encode(), ctypes.byref(buffer)) < 0:
-        oserror()
+        oserror(path)
 
     return int(buffer[0])
 
@@ -119,12 +119,12 @@ def mount(src: str, dst: str, type: str, flags: int, options: str) -> None:
     typeb = type.encode() if type else None
     optionsb = options.encode() if options else None
     if libc.mount(srcb, dst.encode(), typeb, flags, optionsb) < 0:
-        oserror()
+        oserror(dst)
 
 
 def umount2(path: str, flags: int = 0) -> None:
     if libc.umount2(path.encode(), flags) < 0:
-        oserror()
+        oserror(path)
 
 
 def cap_permitted_to_ambient() -> None:
