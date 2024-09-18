@@ -212,7 +212,7 @@ class Manifest:
                 # Yes, --quiet is specified twice, to avoid output about download stats. Note that the argument of the
                 # 'changelog' verb is the binary package name, not the source package name. We also have to set "Dir"
                 # explicitly because apt has no separate option to configure the changelog directory. Apt.invoke()
-                # sets all options that are interpreted relative to Dir to absolute paths by default so this is afe.
+                # sets all options that are interpreted relative to Dir to absolute paths by default so this is safe.
                 result = Apt.invoke(
                     self.context,
                     "changelog",

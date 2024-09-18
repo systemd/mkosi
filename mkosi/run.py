@@ -331,8 +331,8 @@ def find_binary(*names: PathString, root: Path = Path("/"), extra: Sequence[Path
 
 class AsyncioThread(threading.Thread):
     """
-    The default threading.Thread() is not interruptable, so we make our own version by using the concurrency
-    feature in python that is interruptable, namely asyncio.
+    The default threading.Thread() is not interruptible, so we make our own version by using the concurrency
+    feature in python that is interruptible, namely asyncio.
 
     Additionally, we store any exception that the coroutine raises and re-raise it in join() if no other
     exception was raised before.

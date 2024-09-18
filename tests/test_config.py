@@ -291,7 +291,7 @@ def test_parse_config(tmp_path: Path) -> None:
     assert one.image_version == "1.2.3"
     assert two.image_version == "4.5.6"
 
-    # Default values from subimages for univeral settings should not be picked up.
+    # Default values from subimages for universal settings should not be picked up.
     assert len(one.sandbox_trees) == 0
     assert len(two.sandbox_trees) == 0
 

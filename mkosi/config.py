@@ -2358,7 +2358,7 @@ SETTINGS = (
         section="Content",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         paths=("mkosi.env",),
-        help="Enviroment files to set when running scripts",
+        help="Environment files to set when running scripts",
     ),
     ConfigSetting(
         dest="with_tests",
@@ -2429,7 +2429,7 @@ SETTINGS = (
             "requires a filename with no path components."
         ),
         # The default value is set in `__init__.py` in `install_uki`.
-        # `None` is used to determin if the roothash and boot count format
+        # `None` is used to determine if the roothash and boot count format
         # should be appended to the filename if they are found.
         #default=
         help="Specify the format used for the UKI filename",
@@ -3899,9 +3899,9 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
 
     # If Dependencies= was not explicitly specified on the CLI or in the configuration,
     # we want to default to all subimages. However, if a subimage has a [Match] section
-    # and does not succesfully match, we don't want to add it to the default dependencies.
+    # and does not successfully match, we don't want to add it to the default dependencies.
     # To make this work, we can't use default_factory as it is evaluated too early, so
-    # we check here to see if dependendencies were explicitly provided and if not we gather
+    # we check here to see if dependencies were explicitly provided and if not we gather
     # the list of default dependencies while we parse the subimages.
     dependencies: Optional[list[str]] = (
         None

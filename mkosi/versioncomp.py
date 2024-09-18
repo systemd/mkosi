@@ -8,7 +8,7 @@ from typing import Final
 
 @functools.total_ordering
 class GenericVersion:
-    # These constants follow the convention of the return value of rpmdev-vercmp that are followe
+    # These constants follow the convention of the return value of rpmdev-vercmp that are followed
     # by systemd-analyze compare-versions when called with only two arguments (without a comparison
     # operator), recreated in the compare_versions method.
     _EQUAL: Final[int] = 0
