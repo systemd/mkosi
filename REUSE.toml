@@ -1,0 +1,67 @@
+# NOTE: This project does not attribute contributors individually. Instead refer to `git log --format="%an <%aE>" | sort -u` for a list of individual contributors.
+version = 1
+SPDX-PackageName = "mkosi"
+SPDX-PackageSupplier = "systemd"
+SPDX-PackageDownloadLocation = "https://github.com/systemd/mkosi"
+
+[[annotations]]
+path = [
+    ".codespellrc",
+    ".dir-locals.el",
+    ".editorconfig",
+    "bin/mkosi",
+    "docs/CNAME",
+    "**.gitignore",
+    "**.bash",
+    "**.chroot",
+    "**.conf",
+    "**.css",
+    "**.html",
+    "**.in",
+    "**.install",
+    "**.json",
+    "**.mailmap",
+    "**.md",
+    "**.png",
+    "**.postinst",
+    "**.prepare",
+    "**.preset",
+    "**.py",
+    "**.service",
+    "**.sources",
+    "**.sh",
+    "**.svg",
+    "**.toml",
+    "**.yaml",
+    "**.yml",
+    "**.zsh",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Mkosi Contributors"
+SPDX-License-Identifier = "LGPL-2.1-or-later"
+
+[[annotations]]
+path = [
+    "mkosi/resources/mkosi-initrd/mkosi.extra/usr/lib/udev/rules.d/10-mkosi-initrd-md.rules",
+    "mkosi/resources/mkosi-initrd/mkosi.extra/usr/lib/udev/rules.d/10-mkosi-initrd-dm.rules",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Mkosi Contributors"
+SPDX-License-Identifier = "GPL-2.0-only"
+
+[[annotations]]
+path = [
+    "mkosi/backport.py",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Mkosi Contributors"
+SPDX-License-Identifier = "PSF-2.0"
+
+[[annotations]]
+path = [
+    "docs/fonts/heebo-bold.woff",
+    "docs/fonts/heebo-regular.woff",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Mkosi Contributors"
+SPDX-License-Identifier = "OFL-1.1"
