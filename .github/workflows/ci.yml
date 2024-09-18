@@ -24,7 +24,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install pandoc python3-pytest
           python3 -m pip install --break-system-packages --upgrade setuptools wheel pip
-          python3 -m pip install --break-system-packages mypy ruff
+          python3 -m pip install --break-system-packages codespell mypy ruff
           npm install -g pyright
 
       - name: Run ruff
@@ -34,6 +34,11 @@ jobs:
 
       - name: Check that tabs are not used in code
         run: sh -c '! git grep -P "\\t" "*.py"'
+
+      - name: Spell Checking (codespell)
+        run: |
+          codespell --version
+          codespell
 
       - name: Type Checking (mypy)
         run: |
