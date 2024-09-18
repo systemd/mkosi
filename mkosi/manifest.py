@@ -111,7 +111,7 @@ class Manifest:
             ],
             stdout=subprocess.PIPE,
             sandbox=self.context.sandbox(binary="rpm", options=["--ro-bind", self.context.root, "/buildroot"]),
-        )
+        )  # fmt: skip
 
         packages = sorted(c.stdout.splitlines())
 
@@ -133,8 +133,8 @@ class Manifest:
             # packages that were installed in this execution of mkosi. We assume that the
             # upper layer is put together in one go, which currently is always true.
             if (
-                self.context.config.base_trees and
-                datetime.datetime.fromtimestamp(int(installtime)) < self._init_timestamp
+                self.context.config.base_trees
+                and datetime.datetime.fromtimestamp(int(installtime)) < self._init_timestamp
             ):
                 continue
 
@@ -173,15 +173,14 @@ class Manifest:
                 "dpkg-query",
                 "--admindir=/buildroot/var/lib/dpkg",
                 "--show",
-                "--showformat",
-                    r'${Package}\t${source:Package}\t${Version}\t${Architecture}\t${Installed-Size}\t${db-fsys:Last-Modified}\n',
+                "--showformat", r"${Package}\t${source:Package}\t${Version}\t${Architecture}\t${Installed-Size}\t${db-fsys:Last-Modified}\n",
             ],
             stdout=subprocess.PIPE,
             sandbox=self.context.sandbox(
                 binary="dpkg-query",
                 options=["--ro-bind", self.context.root, "/buildroot"],
             ),
-        )
+        )  # fmt: skip
 
         packages = sorted(c.stdout.splitlines())
 
@@ -196,8 +195,8 @@ class Manifest:
             # packages that were installed in this execution of mkosi. We assume that the
             # upper layer is put together in one go, which currently is always true.
             if (
-                self.context.config.base_trees and
-                datetime.datetime.fromtimestamp(int(installtime) if installtime else 0) < self._init_timestamp
+                self.context.config.base_trees
+                and datetime.datetime.fromtimestamp(int(installtime) if installtime else 0) < self._init_timestamp
             ):
                 continue
 

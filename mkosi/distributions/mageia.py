@@ -52,9 +52,9 @@ class Installer(fedora.Installer):
     @classmethod
     def architecture(cls, arch: Architecture) -> str:
         a = {
-            Architecture.x86_64 : "x86_64",
-            Architecture.arm64  : "aarch64",
-        }.get(arch)
+            Architecture.x86_64: "x86_64",
+            Architecture.arm64:  "aarch64",
+        }.get(arch)  # fmt: skip
 
         if not a:
             die(f"Architecture {a} is not supported by Mageia")

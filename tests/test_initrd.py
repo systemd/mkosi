@@ -92,12 +92,14 @@ def test_initrd_lvm(config: ImageConfig) -> None:
 
         lvm.rename(Path(image.output_dir) / "image.raw")
 
-        image.qemu([
-            "--qemu-firmware=linux",
-            # LVM confuses systemd-repart so we mask it for this test.
-            "--kernel-command-line-extra=systemd.mask=systemd-repart.service",
-            "--kernel-command-line-extra=root=LABEL=root",
-        ])
+        image.qemu(
+            [
+                "--qemu-firmware=linux",
+                # LVM confuses systemd-repart so we mask it for this test.
+                "--kernel-command-line-extra=systemd.mask=systemd-repart.service",
+                "--kernel-command-line-extra=root=LABEL=root",
+            ]
+        )
 
 
 def test_initrd_luks(config: ImageConfig, passphrase: Path) -> None:
@@ -172,7 +174,7 @@ def test_initrd_luks_lvm(config: ImageConfig, passphrase: Path) -> None:
                 "luksFormat",
                 f"{lodev}p1",
             ]
-        )
+        )  # fmt: skip
         run(["cryptsetup", "--key-file", passphrase, "luksOpen", f"{lodev}p1", "lvm_root"])
         stack.callback(lambda: run(["cryptsetup", "close", "lvm_root"]))
         luks_uuid = run(["cryptsetup", "luksUUID", f"{lodev}p1"], stdout=subprocess.PIPE).stdout.strip()
@@ -200,13 +202,15 @@ def test_initrd_luks_lvm(config: ImageConfig, passphrase: Path) -> None:
 
         lvm.rename(Path(image.output_dir) / "image.raw")
 
-        image.qemu([
-            "--format=disk",
-            "--credential=cryptsetup.passphrase=mkosi",
-            "--qemu-firmware=linux",
-            "--kernel-command-line-extra=root=LABEL=root",
-            f"--kernel-command-line-extra=rd.luks.uuid={luks_uuid}",
-        ])
+        image.qemu(
+            [
+                "--format=disk",
+                "--credential=cryptsetup.passphrase=mkosi",
+                "--qemu-firmware=linux",
+                "--kernel-command-line-extra=root=LABEL=root",
+                f"--kernel-command-line-extra=rd.luks.uuid={luks_uuid}",
+            ]
+        )
 
 
 def test_initrd_size(config: ImageConfig) -> None:

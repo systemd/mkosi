@@ -98,9 +98,9 @@ class Installer(fedora.Installer):
     @classmethod
     def architecture(cls, arch: Architecture) -> str:
         a = {
-            Architecture.arm64  : "aarch64",
-            Architecture.x86_64 : "x86_64",
-        }.get(arch)
+            Architecture.arm64:  "aarch64",
+            Architecture.x86_64: "x86_64",
+        }.get(arch)  # fmt: skip
 
         if not a:
             die(f"Architecture {a} is not supported by {cls.pretty_name()}")

@@ -21,6 +21,7 @@ class GenericVersion:
     @classmethod
     def compare_versions(cls, v1: str, v2: str) -> int:
         """Implements comparison according to UAPI Group Version Format Specification"""
+
         def rstrip_invalid_version_chars(s: str) -> str:
             valid_version_chars = {*string.ascii_letters, *string.digits, "~", "-", "^", "."}
             for i, c in enumerate(s):
@@ -84,9 +85,9 @@ class GenericVersion:
                 v2 = v2.removeprefix("^")
             elif v1.startswith("^"):
                 # TODO: bug?
-                return cls._LEFT_SMALLER  #cls._RIGHT_SMALLER
+                return cls._LEFT_SMALLER  # cls._RIGHT_SMALLER
             elif v2.startswith("^"):
-                return cls._RIGHT_SMALLER #cls._LEFT_SMALLER
+                return cls._RIGHT_SMALLER  # cls._LEFT_SMALLER
 
             # If the remaining part of one of strings starts with ".": if the other remaining part
             # does not start with ., the string with . compares lower. Otherwise, both dot

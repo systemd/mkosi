@@ -22,17 +22,17 @@ def terminal_is_dumb() -> bool:
 
 
 class Style:
-    bold: Final[str] = "\033[0;1;39m" if not terminal_is_dumb() else ""
-    blue: Final[str] = "\033[0;1;34m" if not terminal_is_dumb() else ""
-    gray: Final[str] = "\033[0;38;5;245m" if not terminal_is_dumb() else ""
-    red: Final[str] = "\033[31;1m" if not terminal_is_dumb() else ""
-    yellow: Final[str] = "\033[33;1m" if not terminal_is_dumb() else ""
-    reset: Final[str] = "\033[0m" if not terminal_is_dumb() else ""
+    # fmt: off
+    bold: Final[str]   = "\033[0;1;39m"     if not terminal_is_dumb() else ""
+    blue: Final[str]   = "\033[0;1;34m"     if not terminal_is_dumb() else ""
+    gray: Final[str]   = "\033[0;38;5;245m" if not terminal_is_dumb() else ""
+    red: Final[str]    = "\033[31;1m"       if not terminal_is_dumb() else ""
+    yellow: Final[str] = "\033[33;1m"       if not terminal_is_dumb() else ""
+    reset: Final[str]  = "\033[0m"          if not terminal_is_dumb() else ""
+    # fmt: on
 
 
-def die(message: str,
-        *,
-        hint: Optional[str] = None) -> NoReturn:
+def die(message: str, *, hint: Optional[str] = None) -> NoReturn:
     logging.error(f"{message}")
     if hint:
         logging.info(f"({hint})")
@@ -84,7 +84,7 @@ class Formatter(logging.Formatter):
             logging.WARNING:  logging.Formatter(f"‣ {Style.yellow}{fmt}{Style.reset}"),
             logging.ERROR:    logging.Formatter(f"‣ {Style.red}{fmt}{Style.reset}"),
             logging.CRITICAL: logging.Formatter(f"‣ {Style.red}{Style.bold}{fmt}{Style.reset}"),
-        }
+        }  # fmt: skip
 
         super().__init__(fmt, *args, **kwargs)
 

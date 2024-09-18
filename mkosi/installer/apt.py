@@ -71,7 +71,8 @@ class Apt(PackageManager):
 
         return {
             **{
-                command: cmd + cls.env_cmd(context) + cls.cmd(context, command) for command in (
+                command: cmd + cls.env_cmd(context) + cls.cmd(context, command)
+                for command in (
                     "apt",
                     "apt-cache",
                     "apt-cdrom",
@@ -84,16 +85,17 @@ class Apt(PackageManager):
                 )
             },
             **{
-                command: cmd + cls.dpkg_cmd(command) for command in(
+                command: cmd + cls.dpkg_cmd(command)
+                for command in (
                     "dpkg",
                     "dpkg-query",
                 )
             },
-            "mkosi-install"  : ["apt-get", "install"],
-            "mkosi-upgrade"  : ["apt-get", "upgrade"],
-            "mkosi-remove"   : ["apt-get", "purge"],
+            "mkosi-install":   ["apt-get", "install"],
+            "mkosi-upgrade":   ["apt-get", "upgrade"],
+            "mkosi-remove":    ["apt-get", "purge"],
             "mkosi-reinstall": ["apt-get", "install", "--reinstall"],
-        }
+        }  # fmt: skip
 
     @classmethod
     def setup(cls, context: Context, repositories: Sequence[AptRepository]) -> None:
@@ -130,7 +132,7 @@ class Apt(PackageManager):
                     die(
                         f"Keyring for repo {repo.url} not found at {repo.signedby}",
                         hint="Make sure the right keyring package (e.g. debian-archive-keyring, kali-archive-keyring "
-                             "or ubuntu-keyring) is installed",
+                        "or ubuntu-keyring) is installed",
                     )
 
             with sources.open("w") as f:
@@ -141,7 +143,7 @@ class Apt(PackageManager):
     def finalize_environment(cls, context: Context) -> dict[str, str]:
         env = {
             "APT_CONFIG": "/etc/apt.conf",
-            "DEBIAN_FRONTEND" : "noninteractive",
+            "DEBIAN_FRONTEND": "noninteractive",
             "DEBCONF_INTERACTIVE_SEEN": "true",
         }
 
@@ -180,14 +182,14 @@ class Apt(PackageManager):
             "-o", "DPkg::Use-Pty=false",
             "-o", "DPkg::Install::Recursive::Minimum=1000",
             "-o", "pkgCacheGen::ForceEssential=,",
-        ]
+        ]  # fmt: skip
 
         if not context.config.repository_key_check:
             cmdline += [
                 "-o", "Acquire::AllowInsecureRepositories=true",
                 "-o", "Acquire::AllowDowngradeToInsecureRepositories=true",
                 "-o", "APT::Get::AllowUnauthenticated=true",
-            ]
+            ]  # fmt: skip
 
         if not context.config.with_docs:
             cmdline += [f"--option=DPkg::Options::=--path-exclude=/{glob}" for glob in cls.documentation_exclude_globs]
@@ -197,7 +199,7 @@ class Apt(PackageManager):
             cmdline += [
                 "-o", f"Acquire::http::Proxy={context.config.proxy_url}",
                 "-o", f"Acquire::https::Proxy={context.config.proxy_url}",
-            ]
+            ]  # fmt: skip
 
         return cmdline
 
@@ -276,4 +278,4 @@ class Apt(PackageManager):
                 "-o", "Dir::Etc::sourceparts=-",
                 "-o", "APT::Get::List-Cleanup=0",
             ],
-        )
+        )  # fmt: skip

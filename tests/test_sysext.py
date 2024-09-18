@@ -14,12 +14,15 @@ def test_sysext(config: ImageConfig) -> None:
         image.build(["--clean-package-metadata=no", "--format=directory"])
 
         with Image(image.config) as sysext:
-            sysext.build([
-                "--directory", "",
-                "--incremental=no",
-                "--base-tree", Path(image.output_dir) / "image",
-                "--overlay",
-                "--package=dnsmasq",
-                "--format=disk",
-            ])
-
+            sysext.build(
+                [
+                    "--directory",
+                    "",
+                    "--incremental=no",
+                    "--base-tree",
+                    Path(image.output_dir) / "image",
+                    "--overlay",
+                    "--package=dnsmasq",
+                    "--format=disk",
+                ]
+            )

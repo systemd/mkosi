@@ -57,25 +57,25 @@ BUILTIN_CONFIGS = ("mkosi-tools", "mkosi-initrd")
 
 
 class Verb(StrEnum):
-    build         = enum.auto()
-    clean         = enum.auto()
-    summary       = enum.auto()
-    cat_config    = enum.auto()
-    shell         = enum.auto()
-    boot          = enum.auto()
-    qemu          = enum.auto()
-    ssh           = enum.auto()
-    serve         = enum.auto()
-    bump          = enum.auto()
-    help          = enum.auto()
-    genkey        = enum.auto()
+    build = enum.auto()
+    clean = enum.auto()
+    summary = enum.auto()
+    cat_config = enum.auto()
+    shell = enum.auto()
+    boot = enum.auto()
+    qemu = enum.auto()
+    ssh = enum.auto()
+    serve = enum.auto()
+    bump = enum.auto()
+    help = enum.auto()
+    genkey = enum.auto()
     documentation = enum.auto()
-    journalctl    = enum.auto()
-    coredumpctl   = enum.auto()
-    burn          = enum.auto()
-    dependencies  = enum.auto()
-    completion    = enum.auto()
-    sysupdate     = enum.auto()
+    journalctl = enum.auto()
+    coredumpctl = enum.auto()
+    burn = enum.auto()
+    dependencies = enum.auto()
+    completion = enum.auto()
+    sysupdate = enum.auto()
 
     def supports_cmdline(self) -> bool:
         return self in (
@@ -117,8 +117,8 @@ class Verb(StrEnum):
 
 
 class ConfigFeature(StrEnum):
-    auto     = enum.auto()
-    enabled  = enum.auto()
+    auto = enum.auto()
+    enabled = enum.auto()
     disabled = enum.auto()
 
     def to_tristate(self) -> str:
@@ -168,23 +168,23 @@ class QemuVsockCID(enum.IntEnum):
 
 
 class SecureBootSignTool(StrEnum):
-    auto   = enum.auto()
+    auto = enum.auto()
     sbsign = enum.auto()
     pesign = enum.auto()
 
 
 class OutputFormat(StrEnum):
-    confext   = enum.auto()
-    cpio      = enum.auto()
+    confext = enum.auto()
+    cpio = enum.auto()
     directory = enum.auto()
-    disk      = enum.auto()
-    esp       = enum.auto()
-    none      = enum.auto()
-    portable  = enum.auto()
-    sysext    = enum.auto()
-    tar       = enum.auto()
-    uki       = enum.auto()
-    oci       = enum.auto()
+    disk = enum.auto()
+    esp = enum.auto()
+    none = enum.auto()
+    portable = enum.auto()
+    sysext = enum.auto()
+    tar = enum.auto()
+    uki = enum.auto()
+    oci = enum.auto()
 
     def extension(self) -> str:
         return {
@@ -196,7 +196,7 @@ class OutputFormat(StrEnum):
             OutputFormat.sysext:   ".raw",
             OutputFormat.tar:      ".tar",
             OutputFormat.uki:      ".efi",
-        }.get(self, "")
+        }.get(self, "")  # fmt: skip
 
     def use_outer_compression(self) -> bool:
         return self in (OutputFormat.tar, OutputFormat.cpio, OutputFormat.disk) or self.is_extension_image()
@@ -206,11 +206,12 @@ class OutputFormat(StrEnum):
 
 
 class ManifestFormat(StrEnum):
-    json      = enum.auto()  # the standard manifest in json format
+    json = enum.auto()  # the standard manifest in json format
     changelog = enum.auto()  # human-readable text file with package changelogs
 
 
 class Compression(StrEnum):
+    # fmt: off
     none = enum.auto()
     zstd = enum.auto()
     zst  = zstd
@@ -220,21 +221,20 @@ class Compression(StrEnum):
     gzip = gz
     lz4  = enum.auto()
     lzma = enum.auto()
+    # fmt: on
 
     def __bool__(self) -> bool:
         return self != Compression.none
 
     def extension(self) -> str:
-        return {
-            Compression.zstd: ".zst"
-        }.get(self, f".{self}")
+        return {Compression.zstd: ".zst"}.get(self, f".{self}")
 
     def oci_media_type_suffix(self) -> str:
         suffix = {
             Compression.none: "",
             Compression.gz:   "+gzip",
             Compression.zstd: "+zstd",
-        }.get(self)
+        }.get(self)  # fmt: skip
 
         if not suffix:
             die(f"Compression {self} not supported for OCI layers")
@@ -243,11 +243,11 @@ class Compression(StrEnum):
 
 
 class DocFormat(StrEnum):
-    auto     = enum.auto()
+    auto = enum.auto()
     markdown = enum.auto()
-    man      = enum.auto()
-    pandoc   = enum.auto()
-    system   = enum.auto()
+    man = enum.auto()
+    pandoc = enum.auto()
+    system = enum.auto()
 
     @classmethod
     def all(cls) -> list["DocFormat"]:
@@ -257,10 +257,10 @@ class DocFormat(StrEnum):
 
 
 class Bootloader(StrEnum):
-    none         = enum.auto()
-    uki          = enum.auto()
+    none = enum.auto()
+    uki = enum.auto()
     systemd_boot = enum.auto()
-    grub         = enum.auto()
+    grub = enum.auto()
 
 
 class BiosBootloader(StrEnum):
@@ -269,25 +269,25 @@ class BiosBootloader(StrEnum):
 
 
 class ShimBootloader(StrEnum):
-    none     = enum.auto()
-    signed   = enum.auto()
+    none = enum.auto()
+    signed = enum.auto()
     unsigned = enum.auto()
 
 
 class Cacheonly(StrEnum):
-    always   = enum.auto()
-    auto     = enum.auto()
-    none     = auto
+    always = enum.auto()
+    auto = enum.auto()
+    none = auto
     metadata = enum.auto()
-    never    = enum.auto()
+    never = enum.auto()
 
 
 class QemuFirmware(StrEnum):
-    auto             = enum.auto()
-    linux            = enum.auto()
-    uefi             = enum.auto()
+    auto = enum.auto()
+    linux = enum.auto()
+    uefi = enum.auto()
     uefi_secure_boot = enum.auto()
-    bios             = enum.auto()
+    bios = enum.auto()
 
     def is_uefi(self) -> bool:
         return self in (QemuFirmware.uefi, QemuFirmware.uefi_secure_boot)
@@ -295,83 +295,83 @@ class QemuFirmware(StrEnum):
 
 class Network(StrEnum):
     interface = enum.auto()
-    user      = enum.auto()
-    none      = enum.auto()
+    user = enum.auto()
+    none = enum.auto()
 
 
 class Vmm(StrEnum):
-    qemu    = enum.auto()
+    qemu = enum.auto()
     vmspawn = enum.auto()
 
 
 class Architecture(StrEnum):
-    alpha       = enum.auto()
-    arc         = enum.auto()
-    arm         = enum.auto()
-    arm64       = enum.auto()
-    ia64        = enum.auto()
+    alpha = enum.auto()
+    arc = enum.auto()
+    arm = enum.auto()
+    arm64 = enum.auto()
+    ia64 = enum.auto()
     loongarch64 = enum.auto()
-    mips_le     = enum.auto()
-    mips64_le   = enum.auto()
-    parisc      = enum.auto()
-    ppc         = enum.auto()
-    ppc64       = enum.auto()
-    ppc64_le    = enum.auto()
-    riscv32     = enum.auto()
-    riscv64     = enum.auto()
-    s390        = enum.auto()
-    s390x       = enum.auto()
-    tilegx      = enum.auto()
-    x86         = enum.auto()
-    x86_64      = enum.auto()
+    mips_le = enum.auto()
+    mips64_le = enum.auto()
+    parisc = enum.auto()
+    ppc = enum.auto()
+    ppc64 = enum.auto()
+    ppc64_le = enum.auto()
+    riscv32 = enum.auto()
+    riscv64 = enum.auto()
+    s390 = enum.auto()
+    s390x = enum.auto()
+    tilegx = enum.auto()
+    x86 = enum.auto()
+    x86_64 = enum.auto()
 
     @staticmethod
     def from_uname(s: str) -> "Architecture":
         a = {
-            "aarch64"     : Architecture.arm64,
-            "aarch64_be"  : Architecture.arm64,
-            "armv8l"      : Architecture.arm,
-            "armv8b"      : Architecture.arm,
-            "armv7ml"     : Architecture.arm,
-            "armv7mb"     : Architecture.arm,
-            "armv7l"      : Architecture.arm,
-            "armv7b"      : Architecture.arm,
-            "armv6l"      : Architecture.arm,
-            "armv6b"      : Architecture.arm,
-            "armv5tl"     : Architecture.arm,
-            "armv5tel"    : Architecture.arm,
-            "armv5tejl"   : Architecture.arm,
-            "armv5tejb"   : Architecture.arm,
-            "armv5teb"    : Architecture.arm,
-            "armv5tb"     : Architecture.arm,
-            "armv4tl"     : Architecture.arm,
-            "armv4tb"     : Architecture.arm,
-            "armv4l"      : Architecture.arm,
-            "armv4b"      : Architecture.arm,
-            "alpha"       : Architecture.alpha,
-            "arc"         : Architecture.arc,
-            "arceb"       : Architecture.arc,
-            "x86_64"      : Architecture.x86_64,
-            "i686"        : Architecture.x86,
-            "i586"        : Architecture.x86,
-            "i486"        : Architecture.x86,
-            "i386"        : Architecture.x86,
-            "ia64"        : Architecture.ia64,
-            "parisc64"    : Architecture.parisc,
-            "parisc"      : Architecture.parisc,
-            "loongarch64" : Architecture.loongarch64,
-            "mips64"      : Architecture.mips64_le,
-            "mips"        : Architecture.mips_le,
-            "ppc64le"     : Architecture.ppc64_le,
-            "ppc64"       : Architecture.ppc64,
-            "ppc"         : Architecture.ppc,
-            "riscv64"     : Architecture.riscv64,
-            "riscv32"     : Architecture.riscv32,
-            "riscv"       : Architecture.riscv64,
-            "s390x"       : Architecture.s390x,
-            "s390"        : Architecture.s390,
-            "tilegx"      : Architecture.tilegx,
-        }.get(s)
+            "aarch64":     Architecture.arm64,
+            "aarch64_be":  Architecture.arm64,
+            "armv8l":      Architecture.arm,
+            "armv8b":      Architecture.arm,
+            "armv7ml":     Architecture.arm,
+            "armv7mb":     Architecture.arm,
+            "armv7l":      Architecture.arm,
+            "armv7b":      Architecture.arm,
+            "armv6l":      Architecture.arm,
+            "armv6b":      Architecture.arm,
+            "armv5tl":     Architecture.arm,
+            "armv5tel":    Architecture.arm,
+            "armv5tejl":   Architecture.arm,
+            "armv5tejb":   Architecture.arm,
+            "armv5teb":    Architecture.arm,
+            "armv5tb":     Architecture.arm,
+            "armv4tl":     Architecture.arm,
+            "armv4tb":     Architecture.arm,
+            "armv4l":      Architecture.arm,
+            "armv4b":      Architecture.arm,
+            "alpha":       Architecture.alpha,
+            "arc":         Architecture.arc,
+            "arceb":       Architecture.arc,
+            "x86_64":      Architecture.x86_64,
+            "i686":        Architecture.x86,
+            "i586":        Architecture.x86,
+            "i486":        Architecture.x86,
+            "i386":        Architecture.x86,
+            "ia64":        Architecture.ia64,
+            "parisc64":    Architecture.parisc,
+            "parisc":      Architecture.parisc,
+            "loongarch64": Architecture.loongarch64,
+            "mips64":      Architecture.mips64_le,
+            "mips":        Architecture.mips_le,
+            "ppc64le":     Architecture.ppc64_le,
+            "ppc64":       Architecture.ppc64,
+            "ppc":         Architecture.ppc,
+            "riscv64":     Architecture.riscv64,
+            "riscv32":     Architecture.riscv32,
+            "riscv":       Architecture.riscv64,
+            "s390x":       Architecture.s390x,
+            "s390":        Architecture.s390,
+            "tilegx":      Architecture.tilegx,
+        }.get(s)  # fmt: skip
 
         if not a:
             die(f"Architecture {s} is not supported")
@@ -380,32 +380,32 @@ class Architecture(StrEnum):
 
     def to_efi(self) -> Optional[str]:
         return {
-            Architecture.x86_64      : "x64",
-            Architecture.x86         : "ia32",
-            Architecture.arm64       : "aa64",
-            Architecture.arm         : "arm",
-            Architecture.riscv64     : "riscv64",
-            Architecture.loongarch64 : "loongarch64",
-        }.get(self)
+            Architecture.x86_64:      "x64",
+            Architecture.x86:         "ia32",
+            Architecture.arm64:       "aa64",
+            Architecture.arm:         "arm",
+            Architecture.riscv64:     "riscv64",
+            Architecture.loongarch64: "loongarch64",
+        }.get(self)  # fmt: skip
 
     def to_qemu(self) -> str:
         a = {
-            Architecture.alpha       : "alpha",
-            Architecture.arm         : "arm",
-            Architecture.arm64       : "aarch64",
-            Architecture.loongarch64 : "loongarch64",
-            Architecture.mips64_le   : "mips",
-            Architecture.mips_le     : "mips",
-            Architecture.parisc      : "hppa",
-            Architecture.ppc         : "ppc",
-            Architecture.ppc64       : "ppc64",
-            Architecture.ppc64_le    : "ppc64",
-            Architecture.riscv32     : "riscv32",
-            Architecture.riscv64     : "riscv64",
-            Architecture.s390x       : "s390x",
-            Architecture.x86         : "i386",
-            Architecture.x86_64      : "x86_64",
-        }.get(self)
+            Architecture.alpha:       "alpha",
+            Architecture.arm:         "arm",
+            Architecture.arm64:       "aarch64",
+            Architecture.loongarch64: "loongarch64",
+            Architecture.mips64_le:   "mips",
+            Architecture.mips_le:     "mips",
+            Architecture.parisc:      "hppa",
+            Architecture.ppc:         "ppc",
+            Architecture.ppc64:       "ppc64",
+            Architecture.ppc64_le:    "ppc64",
+            Architecture.riscv32:     "riscv32",
+            Architecture.riscv64:     "riscv64",
+            Architecture.s390x:       "s390x",
+            Architecture.x86:         "i386",
+            Architecture.x86_64:      "x86_64",
+        }.get(self)  # fmt: skip
 
         if not a:
             die(f"Architecture {self} not supported by QEMU")
@@ -414,20 +414,20 @@ class Architecture(StrEnum):
 
     def to_oci(self) -> str:
         a = {
-            Architecture.arm         : "arm",
-            Architecture.arm64       : "arm64",
-            Architecture.loongarch64 : "loong64",
-            Architecture.mips64_le   : "mips64le",
-            Architecture.mips_le     : "mipsle",
-            Architecture.ppc         : "ppc",
-            Architecture.ppc64       : "ppc64",
-            Architecture.ppc64_le    : "ppc64le",
-            Architecture.riscv32     : "riscv",
-            Architecture.riscv64     : "riscv64",
-            Architecture.s390x       : "s390x",
-            Architecture.x86         : "386",
-            Architecture.x86_64      : "amd64",
-        }.get(self)
+            Architecture.arm:         "arm",
+            Architecture.arm64:       "arm64",
+            Architecture.loongarch64: "loong64",
+            Architecture.mips64_le:   "mips64le",
+            Architecture.mips_le:     "mipsle",
+            Architecture.ppc:         "ppc",
+            Architecture.ppc64:       "ppc64",
+            Architecture.ppc64_le:    "ppc64le",
+            Architecture.riscv32:     "riscv",
+            Architecture.riscv64:     "riscv64",
+            Architecture.s390x:       "s390x",
+            Architecture.x86:         "386",
+            Architecture.x86_64:      "amd64",
+        }.get(self)  # fmt: skip
 
         if not a:
             die(f"Architecture {self} not supported by OCI")
@@ -447,23 +447,22 @@ class Architecture(StrEnum):
         return self.is_x86_variant()
 
     def can_kvm(self) -> bool:
-        return (
-            self == Architecture.native() or
-            (Architecture.native() == Architecture.x86_64 and self == Architecture.x86)
+        return self == Architecture.native() or (
+            Architecture.native() == Architecture.x86_64 and self == Architecture.x86
         )
 
     def default_qemu_machine(self) -> str:
         m = {
-            Architecture.x86      : "q35",
-            Architecture.x86_64   : "q35",
-            Architecture.arm      : "virt",
-            Architecture.arm64    : "virt",
-            Architecture.s390     : "s390-ccw-virtio",
-            Architecture.s390x    : "s390-ccw-virtio",
-            Architecture.ppc      : "pseries",
-            Architecture.ppc64    : "pseries",
-            Architecture.ppc64_le : "pseries",
-        }
+            Architecture.x86:      "q35",
+            Architecture.x86_64:   "q35",
+            Architecture.arm:      "virt",
+            Architecture.arm64:    "virt",
+            Architecture.s390:     "s390-ccw-virtio",
+            Architecture.s390x:    "s390-ccw-virtio",
+            Architecture.ppc:      "pseries",
+            Architecture.ppc64:    "pseries",
+            Architecture.ppc64_le: "pseries",
+        }  # fmt: skip
 
         if self not in m:
             die(f"No qemu machine defined for architecture {self}")
@@ -472,9 +471,9 @@ class Architecture(StrEnum):
 
     def default_qemu_nic_model(self) -> str:
         return {
-            Architecture.s390  : "virtio",
-            Architecture.s390x : "virtio",
-        }.get(self, "virtio-net-pci")
+            Architecture.s390:  "virtio",
+            Architecture.s390x: "virtio",
+        }.get(self, "virtio-net-pci")  # fmt: skip
 
     def is_native(self) -> bool:
         return self == self.native()
@@ -503,15 +502,17 @@ def parse_boolean(s: str) -> bool:
     die(f"Invalid boolean literal: {s!r}")
 
 
-def parse_path(value: str,
-               *,
-               required: bool = True,
-               resolve: bool = True,
-               expanduser: bool = True,
-               expandvars: bool = True,
-               secret: bool = False,
-               absolute: bool = False,
-               constants: Sequence[str] = ()) -> Path:
+def parse_path(
+    value: str,
+    *,
+    required: bool = True,
+    resolve: bool = True,
+    expanduser: bool = True,
+    expandvars: bool = True,
+    secret: bool = False,
+    absolute: bool = False,
+    constants: Sequence[str] = (),
+) -> Path:
     if value in constants:
         return Path(value)
 
@@ -535,10 +536,12 @@ def parse_path(value: str,
     if secret and path.exists():
         mode = path.stat().st_mode & 0o777
         if mode & 0o007:
-            die(textwrap.dedent(f"""\
+            die(
+                textwrap.dedent(f"""\
                 Permissions of '{path}' of '{mode:04o}' are too open.
                 When creating secret files use an access mode that restricts access to the owner only.
-            """))
+            """)
+            )
 
     return path
 
@@ -552,7 +555,7 @@ def config_parse_key(value: Optional[str], old: Optional[str]) -> Optional[Path]
 
 def make_tree_parser(absolute: bool = True, required: bool = False) -> Callable[[str], ConfigTree]:
     def parse_tree(value: str) -> ConfigTree:
-        src, sep, tgt = value.partition(':')
+        src, sep, tgt = value.partition(":")
 
         return ConfigTree(
             source=parse_path(src, required=required),
@@ -562,7 +565,9 @@ def make_tree_parser(absolute: bool = True, required: bool = False) -> Callable[
                 resolve=False,
                 expanduser=False,
                 absolute=absolute,
-            ) if sep else None,
+            )
+            if sep
+            else None,
         )
 
     return parse_tree
@@ -764,8 +769,8 @@ def config_default_repository_key_fetch(namespace: argparse.Namespace) -> bool:
 
     return cast(
         bool,
-        (namespace.tools_tree_distribution == Distribution.ubuntu and namespace.distribution.is_rpm_distribution()) or
-        namespace.tools_tree_distribution.is_rpm_distribution()
+        (namespace.tools_tree_distribution == Distribution.ubuntu and namespace.distribution.is_rpm_distribution())
+        or namespace.tools_tree_distribution.is_rpm_distribution(),
     )
 
 
@@ -830,11 +835,9 @@ def config_make_enum_matcher(type: type[StrEnum]) -> ConfigMatchCallback:
     return config_match_enum
 
 
-def config_make_list_parser(delimiter: str,
-                            *,
-                            parse: Callable[[str], Any] = str,
-                            unescape: bool = False,
-                            reset: bool = True) -> ConfigParseCallback:
+def config_make_list_parser(
+    delimiter: str, *, parse: Callable[[str], Any] = str, unescape: bool = False, reset: bool = True
+) -> ConfigParseCallback:
     def config_parse_list(value: Optional[str], old: Optional[list[Any]]) -> Optional[list[Any]]:
         new = old.copy() if old else []
 
@@ -888,12 +891,14 @@ def config_match_version(match: str, value: str) -> bool:
     return True
 
 
-def config_make_dict_parser(delimiter: str,
-                            *,
-                            parse: Callable[[str], tuple[str, Any]],
-                            unescape: bool = False,
-                            allow_paths: bool = False,
-                            reset: bool = True) -> ConfigParseCallback:
+def config_make_dict_parser(
+    delimiter: str,
+    *,
+    parse: Callable[[str], tuple[str, Any]],
+    unescape: bool = False,
+    allow_paths: bool = False,
+    reset: bool = True,
+) -> ConfigParseCallback:
     def config_parse_dict(value: Optional[str], old: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
         new = old.copy() if old else {}
 
@@ -953,13 +958,15 @@ def parse_credential(value: str) -> tuple[str, str]:
     return (key, value)
 
 
-def make_path_parser(*,
-                     required: bool = True,
-                     resolve: bool = True,
-                     expanduser: bool = True,
-                     expandvars: bool = True,
-                     secret: bool = False,
-                     constants: Sequence[str] = ()) -> Callable[[str], Path]:
+def make_path_parser(
+    *,
+    required: bool = True,
+    resolve: bool = True,
+    expanduser: bool = True,
+    expandvars: bool = True,
+    secret: bool = False,
+    constants: Sequence[str] = (),
+) -> Callable[[str], Path]:
     return functools.partial(
         parse_path,
         required=required,
@@ -971,13 +978,15 @@ def make_path_parser(*,
     )
 
 
-def config_make_path_parser(*,
-                            required: bool = True,
-                            resolve: bool = True,
-                            expanduser: bool = True,
-                            expandvars: bool = True,
-                            secret: bool = False,
-                            constants: Sequence[str] = ()) -> ConfigParseCallback:
+def config_make_path_parser(
+    *,
+    required: bool = True,
+    resolve: bool = True,
+    expanduser: bool = True,
+    expandvars: bool = True,
+    secret: bool = False,
+    constants: Sequence[str] = (),
+) -> ConfigParseCallback:
     def config_parse_path(value: Optional[str], old: Optional[Path]) -> Optional[Path]:
         if not value:
             return None
@@ -1089,8 +1098,9 @@ def config_parse_profile(value: Optional[str], old: Optional[int] = None) -> Opt
         return None
 
     if not is_valid_filename(value):
-        die(f"{value!r} is not a valid profile",
-            hint="Profile= or --profile= requires a name with no path components.")
+        die(
+            f"{value!r} is not a valid profile", hint="Profile= or --profile= requires a name with no path components."
+        )
 
     return value
 
@@ -1179,14 +1189,13 @@ def file_run_or_read(file: Path) -> str:
     content = file.read_text()
 
     if content.startswith("#!/"):
-        die(f"{file} starts with a shebang ({content.splitlines()[0]})",
-            hint="This file should be executable")
+        die(f"{file} starts with a shebang ({content.splitlines()[0]})", hint="This file should be executable")
 
     return content
 
 
 class KeySourceType(StrEnum):
-    file   = enum.auto()
+    file = enum.auto()
     engine = enum.auto()
 
 
@@ -1252,7 +1261,7 @@ class ConfigSetting:
 
     def __post_init__(self) -> None:
         if not self.name:
-            object.__setattr__(self, 'name', ''.join(x.capitalize() for x in self.dest.split('_') if x))
+            object.__setattr__(self, "name", "".join(x.capitalize() for x in self.dest.split("_") if x))
         if not self.long:
             object.__setattr__(self, "long", f"--{self.dest.replace('_', '-')}")
 
@@ -1285,9 +1294,11 @@ class CustomHelpFormatter(argparse.HelpFormatter):
         Otherwise, the text is wrapped without indentation.
         """
         lines = text.splitlines()
-        subindent = '    ' if lines[0].endswith(':') else ''
-        return flatten(textwrap.wrap(line, width, break_long_words=False, break_on_hyphens=False,
-                                     subsequent_indent=subindent) for line in lines)
+        subindent = "    " if lines[0].endswith(":") else ""
+        return flatten(
+            textwrap.wrap(line, width, break_long_words=False, break_on_hyphens=False, subsequent_indent=subindent)
+            for line in lines
+        )
 
 
 def parse_chdir(path: str) -> Optional[Path]:
@@ -1326,7 +1337,7 @@ class IgnoreAction(argparse.Action):
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
         values: Union[str, Sequence[Any], None],
-        option_string: Optional[str] = None
+        option_string: Optional[str] = None,
     ) -> None:
         logging.warning(f"{option_string} is no longer supported")
 
@@ -1337,7 +1348,7 @@ class PagerHelpAction(argparse._HelpAction):
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
         values: Union[str, Sequence[Any], None] = None,
-        option_string: Optional[str] = None
+        option_string: Optional[str] = None,
     ) -> None:
         page(parser.format_help(), namespace.pager)
         parser.exit()
@@ -1383,10 +1394,7 @@ class Args:
 
     @classmethod
     def from_namespace(cls, ns: argparse.Namespace) -> "Args":
-        return cls(**{
-            k: v for k, v in vars(ns).items()
-            if k in inspect.signature(cls).parameters
-        })
+        return cls(**{k: v for k, v in vars(ns).items() if k in inspect.signature(cls).parameters})
 
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self, dict_factory=dict_with_capitalised_keys_factory)
@@ -1415,16 +1423,17 @@ class Args:
             k = key_transformer(k)
 
             if k not in inspect.signature(cls).parameters and (not isinstance(v, (dict, list, set)) or v):
-                die(f"Serialized JSON has unknown field {k} with value {v}",
-                    hint="Re-running mkosi once with -f should solve the issue by re-generating the JSON")
+                die(
+                    f"Serialized JSON has unknown field {k} with value {v}",
+                    hint="Re-running mkosi once with -f should solve the issue by re-generating the JSON",
+                )
 
         value_transformer = json_type_transformer(cls)
         j = {(tk := key_transformer(k)): value_transformer(tk, v) for k, v in j.items()}
 
-        return dataclasses.replace(cls.default(), **{
-            k: v for k, v in j.items()
-            if k in inspect.signature(cls).parameters
-        })
+        return dataclasses.replace(
+            cls.default(), **{k: v for k, v in j.items() if k in inspect.signature(cls).parameters}
+        )
 
 
 PACKAGE_GLOBS = (
@@ -1655,10 +1664,7 @@ class Config:
 
     @classmethod
     def from_namespace(cls, ns: argparse.Namespace) -> "Config":
-        return cls(**{
-            k: v for k, v in vars(ns).items()
-            if k in inspect.signature(cls).parameters
-        })
+        return cls(**{k: v for k, v in vars(ns).items() if k in inspect.signature(cls).parameters})
 
     @property
     def output_with_format(self) -> str:
@@ -1738,8 +1744,7 @@ class Config:
             "repositories": sorted(self.repositories),
             "overlay": self.overlay,
             "prepare_scripts": sorted(
-                base64.b64encode(script.read_bytes()).decode()
-                for script in self.prepare_scripts
+                base64.b64encode(script.read_bytes()).decode() for script in self.prepare_scripts
             ),
             # We don't use the full path here since tests will often use temporary directories for the output directory
             # which would trigger a rebuild every time.
@@ -1778,16 +1783,17 @@ class Config:
             k = key_transformer(k)
 
             if k not in inspect.signature(cls).parameters and (not isinstance(v, (dict, list, set)) or v):
-                die(f"Serialized JSON has unknown field {k} with value {v}",
-                    hint="Re-running mkosi once with -f should solve the issue by re-generating the JSON")
+                die(
+                    f"Serialized JSON has unknown field {k} with value {v}",
+                    hint="Re-running mkosi once with -f should solve the issue by re-generating the JSON",
+                )
 
         value_transformer = json_type_transformer(cls)
         j = {(tk := key_transformer(k)): value_transformer(tk, v) for k, v in j.items()}
 
-        return dataclasses.replace(cls.default(), **{
-            k: v for k, v in j.items()
-            if k in inspect.signature(cls).parameters
-        })
+        return dataclasses.replace(
+            cls.default(), **{k: v for k, v in j.items() if k in inspect.signature(cls).parameters}
+        )
 
     def find_binary(self, *names: PathString, tools: bool = True) -> Optional[Path]:
         return find_binary(*names, root=self.tools() if tools else Path("/"), extra=self.extra_search_paths)
@@ -1813,9 +1819,9 @@ class Config:
         ]
 
         if (
-            binary and
-            (path := self.find_binary(binary, tools=tools)) and
-            any(path.is_relative_to(d) for d in self.extra_search_paths)
+            binary
+            and (path := self.find_binary(binary, tools=tools))
+            and any(path.is_relative_to(d) for d in self.extra_search_paths)
         ):
             tools = False
             opt += flatten(("--ro-bind", d, d) for d in self.extra_search_paths if not relaxed)
@@ -1863,8 +1869,8 @@ def parse_ini(path: Path, only_sections: Collection[str] = ()) -> Iterator[tuple
 
         line = line.strip()
 
-        if line[0] == '[':
-            if line[-1] != ']':
+        if line[0] == "[":
+            if line[-1] != "]":
                 die(f"{line} is not a valid section")
 
             # Yield the section name with an empty key and value to indicate we've finished the current section.
@@ -2028,7 +2034,6 @@ SETTINGS = (
         help="Repositories to use",
         scope=SettingScope.universal,
     ),
-
     ConfigSetting(
         dest="output_format",
         short="-t",
@@ -2171,7 +2176,6 @@ SETTINGS = (
         paths=("mkosi.clean",),
         help="Clean script to run after cleanup",
     ),
-
     ConfigSetting(
         dest="packages",
         short="-p",
@@ -2235,11 +2239,11 @@ SETTINGS = (
     ),
     ConfigSetting(
         dest="base_trees",
-        long='--base-tree',
-        metavar='PATH',
+        long="--base-tree",
+        metavar="PATH",
         section="Content",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser(required=False)),
-        help='Use the given tree as base tree (e.g. lower sysext layer)',
+        help="Use the given tree as base tree (e.g. lower sysext layer)",
     ),
     ConfigSetting(
         dest="skeleton_trees",
@@ -2458,7 +2462,7 @@ SETTINGS = (
         # The default value is set in `__init__.py` in `install_uki`.
         # `None` is used to determine if the roothash and boot count format
         # should be appended to the filename if they are found.
-        #default=
+        # default=
         help="Specify the format used for the UKI filename",
     ),
     ConfigSetting(
@@ -2645,7 +2649,6 @@ SETTINGS = (
         parse=config_parse_feature,
         help="Specify whether to relabel all files with setfiles",
     ),
-
     ConfigSetting(
         dest="secure_boot",
         metavar="BOOL",
@@ -2757,7 +2760,6 @@ SETTINGS = (
         section="Validation",
         help="GPG key to use for signing",
     ),
-
     ConfigSetting(
         dest="tools_tree",
         metavar="PATH",
@@ -2861,7 +2863,12 @@ SETTINGS = (
         section="Build",
         parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(required=True)),
         help="Use a sandbox tree to configure the various tools that mkosi executes",
-        paths=("mkosi.sandbox", "mkosi.sandbox.tar", "mkosi.pkgmngr", "mkosi.pkgmngr.tar",),
+        paths=(
+            "mkosi.sandbox",
+            "mkosi.sandbox.tar",
+            "mkosi.pkgmngr",
+            "mkosi.pkgmngr.tar",
+        ),
         scope=SettingScope.universal,
     ),
     ConfigSetting(
@@ -2926,7 +2933,6 @@ SETTINGS = (
         parse=config_parse_boolean,
         help="Whether mkosi can store information about previous builds",
     ),
-
     ConfigSetting(
         dest="proxy_url",
         section="Host",
@@ -2995,8 +3001,10 @@ SETTINGS = (
         metavar="BOOL",
         section="Host",
         parse=config_parse_boolean,
-        help=('If specified, the container/VM is run with a temporary snapshot of the output '
-                'image that is removed immediately when the container/VM terminates'),
+        help=(
+            "If specified, the container/VM is run with a temporary snapshot of the output "
+            "image that is removed immediately when the container/VM terminates"
+        ),
         nargs="?",
     ),
     ConfigSetting(
@@ -3277,7 +3285,8 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
         prog="mkosi",
         description="Build Bespoke OS Images",
         # the synopsis below is supposed to be indented by two spaces
-        usage="\n  " + textwrap.dedent("""\
+        usage="\n  "
+        + textwrap.dedent("""\
               mkosi [options…] {b}summary{e}
                 mkosi [options…] {b}cat-config{e}
                 mkosi [options…] {b}build{e}         [command line…]
@@ -3309,14 +3318,16 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
         help=argparse.SUPPRESS,
     )
     parser.add_argument(
-        "-f", "--force",
+        "-f",
+        "--force",
         action="count",
         dest="force",
         default=0,
         help="Remove existing image file before operation",
     )
     parser.add_argument(
-        "-C", "--directory",
+        "-C",
+        "--directory",
         type=parse_chdir if chdir else str,
         default=Path.cwd(),
         help="Change to specified directory before doing anything",
@@ -3360,7 +3371,8 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
         default="mkosi of %u",
     )
     parser.add_argument(
-        "-B", "--auto-bump",
+        "-B",
+        "--auto-bump",
         help="Automatically bump image version after building",
         action="store_true",
         default=False,
@@ -3379,7 +3391,8 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
         default=False,
     )
     parser.add_argument(
-        "-w", "--wipe-build-dir",
+        "-w",
+        "--wipe-build-dir",
         help="Remove the build directory before building the image",
         action="store_true",
         default=False,
@@ -3413,7 +3426,8 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
         help=argparse.SUPPRESS,
     )
     parser.add_argument(
-        "-h", "--help",
+        "-h",
+        "--help",
         action=PagerHelpAction,
         help=argparse.SUPPRESS,
     )
@@ -3428,12 +3442,12 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
         for long in [s.long, *s.compat_longs]:
             opts = [s.short, long] if s.short and long == s.long else [long]
 
-            group.add_argument(    # type: ignore
+            group.add_argument(  # type: ignore
                 *opts,
                 dest=s.dest,
                 choices=s.choices,
                 metavar=s.metavar,
-                nargs=s.nargs,     # type: ignore
+                nargs=s.nargs,  # type: ignore
                 const=s.const,
                 help=s.help if long == s.long else argparse.SUPPRESS,
                 action=ConfigAction,
@@ -3474,7 +3488,7 @@ class ConfigAction(argparse.Action):
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
         values: Union[str, Sequence[Any], None],
-        option_string: Optional[str] = None
+        option_string: Optional[str] = None,
     ) -> None:
         assert option_string is not None
 
@@ -3500,7 +3514,7 @@ class ParseContext:
         # specified in configuration files.
         self.cli = argparse.Namespace()
         self.config = argparse.Namespace(
-            files = [],
+            files=[],
         )
         self.defaults = argparse.Namespace()
         # Compare inodes instead of paths so we can't get tricked by bind mounts and such.
@@ -3596,10 +3610,7 @@ class ParseContext:
         # If a value was specified on the CLI, it always takes priority. If the setting is a collection of values, we
         # merge the value from the CLI with the value from the configuration, making sure that the value from the CLI
         # always takes priority.
-        if (
-            hasattr(self.cli, setting.dest) and
-            (v := getattr(self.cli, setting.dest)) is not None
-        ):
+        if hasattr(self.cli, setting.dest) and (v := getattr(self.cli, setting.dest)) is not None:
             if isinstance(v, list):
                 return (getattr(self.config, setting.dest, None) or []) + v
             elif isinstance(v, dict):
@@ -3614,15 +3625,14 @@ class ParseContext:
         # value either if the setting is set to the empty string on the command line.
 
         if (
-            not hasattr(self.cli, setting.dest) and
-            hasattr(self.config, setting.dest) and
-            (v := getattr(self.config, setting.dest)) is not None
+            not hasattr(self.cli, setting.dest)
+            and hasattr(self.config, setting.dest)
+            and (v := getattr(self.config, setting.dest)) is not None
         ):
             return v
 
-        if (
-            (hasattr(self.cli, setting.dest) or hasattr(self.config, setting.dest)) and
-            isinstance(setting.parse(None, None), (dict, list, set))
+        if (hasattr(self.cli, setting.dest) or hasattr(self.config, setting.dest)) and isinstance(
+            setting.parse(None, None), (dict, list, set)
         ):
             default = setting.parse(None, None)
         elif hasattr(self.defaults, setting.dest):
@@ -3719,7 +3729,7 @@ class ParseContext:
         return match_triggered is not False
 
     def parse_config_one(self, path: Path, profiles: bool = False, local: bool = False) -> bool:
-        s: Optional[ConfigSetting] # Make mypy happy
+        s: Optional[ConfigSetting]  # Make mypy happy
         extras = path.is_dir()
 
         if path.is_dir():
@@ -3740,10 +3750,7 @@ class ParseContext:
                         delattr(self.config, s.dest)
 
             for s in SETTINGS:
-                if (
-                    s.scope == SettingScope.universal and
-                    (image := getattr(self.config, "image", None)) is not None
-                ):
+                if s.scope == SettingScope.universal and (image := getattr(self.config, "image", None)) is not None:
                     continue
 
                 if self.only_sections and s.section not in self.only_sections:
@@ -3764,14 +3771,14 @@ class ParseContext:
                             s.dest,
                             s.parse(
                                 file_run_or_read(extra).rstrip("\n") if s.path_read_text else f,
-                                getattr(self.config, s.dest, None)
+                                getattr(self.config, s.dest, None),
                             ),
                         )
 
         if path.exists():
             abs_path = Path.cwd() / path
             logging.debug(f"Loading configuration file {abs_path}")
-            files = getattr(self.config, 'files')
+            files = getattr(self.config, "files")
             files += [abs_path]
 
             for section, k, v in parse_ini(path, only_sections=self.only_sections or {s.section for s in SETTINGS}):
@@ -3784,10 +3791,7 @@ class ParseContext:
 
                 if not (s := SETTINGS_LOOKUP_BY_NAME.get(name)):
                     die(f"Unknown setting {name}")
-                if (
-                    s.scope == SettingScope.universal and
-                    (image := getattr(self.config, "image", None)) is not None
-                ):
+                if s.scope == SettingScope.universal and (image := getattr(self.config, "image", None)) is not None:
                     die(f"Setting {name} cannot be configured in subimage {image}")
                 if name in self.immutable:
                     die(f"Setting {name} cannot be modified anymore at this point")
@@ -3875,10 +3879,10 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
         return args, ()
 
     if (
-        args.verb.needs_build() and
-        args.verb != Verb.build and
-        not args.force and
-        Path(".mkosi-private/history/latest.json").exists()
+        args.verb.needs_build()
+        and args.verb != Verb.build
+        and not args.force
+        and Path(".mkosi-private/history/latest.json").exists()
     ):
         prev = Config.from_json(Path(".mkosi-private/history/latest.json").read_text())
 
@@ -3897,7 +3901,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
             if hasattr(context.config, s.dest):
                 delattr(context.config, s.dest)
 
-        context.only_sections = ("Include", "Host",)
+        context.only_sections = ("Include", "Host")
     else:
         prev = None
 
@@ -3931,9 +3935,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
     # we check here to see if dependencies were explicitly provided and if not we gather
     # the list of default dependencies while we parse the subimages.
     dependencies: Optional[list[str]] = (
-        None
-        if hasattr(context.cli, "dependencies") or hasattr(context.config, "dependencies")
-        else []
+        None if hasattr(context.cli, "dependencies") or hasattr(context.config, "dependencies") else []
     )
 
     if args.directory is not None and Path("mkosi.images").exists():
@@ -3955,7 +3957,7 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
                 name: getattr(config, "environment")[name]
                 for name in getattr(config, "pass_environment", {})
                 if name in getattr(config, "environment", {})
-            }
+            },
         )
 
         for p in sorted(Path("mkosi.images").iterdir()):
@@ -4023,14 +4025,20 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
 
     if "ssh.authorized_keys.root" not in creds:
         if args.ssh_certificate:
-            pubkey = run(["openssl", "x509", "-in", args.ssh_certificate, "-pubkey", "-noout"],
-                          stdout=subprocess.PIPE, env=dict(OPENSSL_CONF="/dev/null")).stdout.strip()
-            sshpubkey = run(["ssh-keygen", "-f", "/dev/stdin", "-i", "-m", "PKCS8"],
-                            input=pubkey, stdout=subprocess.PIPE).stdout.strip()
+            pubkey = run(
+                ["openssl", "x509", "-in", args.ssh_certificate, "-pubkey", "-noout"],
+                stdout=subprocess.PIPE,
+                env=dict(OPENSSL_CONF="/dev/null"),
+            ).stdout.strip()
+            sshpubkey = run(
+                ["ssh-keygen", "-f", "/dev/stdin", "-i", "-m", "PKCS8"], input=pubkey, stdout=subprocess.PIPE
+            ).stdout.strip()
             creds["ssh.authorized_keys.root"] = sshpubkey
         elif args.ssh:
-            die("Ssh= is enabled but no SSH certificate was found",
-                hint="Run 'mkosi genkey' to automatically create one")
+            die(
+                "Ssh= is enabled but no SSH certificate was found",
+                hint="Run 'mkosi genkey' to automatically create one",
+            )
 
     return creds
 
@@ -4122,11 +4130,7 @@ def load_environment(args: argparse.Namespace) -> dict[str, str]:
     if gnupghome := os.getenv("GNUPGHOME"):
         env["GNUPGHOME"] = gnupghome
 
-    env |= dict(
-        parse_environment(line)
-        for f in args.environment_files
-        for line in f.read_text().strip().splitlines()
-    )
+    env |= dict(parse_environment(line) for f in args.environment_files for line in f.read_text().strip().splitlines())
     env |= args.environment
 
     return env
@@ -4169,9 +4173,9 @@ def load_config(config: argparse.Namespace) -> Config:
     # For unprivileged builds we need the userxattr OverlayFS mount option, which is only available
     # in Linux v5.11 and later.
     if (
-        (config.build_scripts or config.base_trees) and
-        GenericVersion(platform.release()) < GenericVersion("5.11") and
-        os.geteuid() != 0
+        (config.build_scripts or config.base_trees)
+        and GenericVersion(platform.release()) < GenericVersion("5.11")
+        and os.geteuid() != 0
     ):
         die("This unprivileged build configuration requires at least Linux v5.11")
 
@@ -4241,7 +4245,7 @@ def cat_config(images: Sequence[Config]) -> str:
             # Display the paths as relative to ., if underneath.
             if path.is_relative_to(Path.cwd()):
                 path = path.relative_to(Path.cwd())
-            print(f'{Style.blue}# {path}{Style.reset}', file=c)
+            print(f"{Style.blue}# {path}{Style.reset}", file=c)
             print(path.read_text(), file=c)
 
     return c.getvalue()
@@ -4601,9 +4605,11 @@ def want_selinux_relabel(config: Config, root: Path, fatal: bool = True) -> Opti
             die("SELinux relabel is requested but could not find selinux config at /etc/selinux/config")
         return None
 
-    policy = run(["sh", "-c", f". {selinux} && echo $SELINUXTYPE"],
-                 sandbox=config.sandbox(binary="sh", options=["--ro-bind", selinux, selinux]),
-                 stdout=subprocess.PIPE).stdout.strip()
+    policy = run(
+        ["sh", "-c", f". {selinux} && echo $SELINUXTYPE"],
+        sandbox=config.sandbox(binary="sh", options=["--ro-bind", selinux, selinux]),
+        stdout=subprocess.PIPE,
+    ).stdout.strip()
     if not policy:
         if fatal and config.selinux_relabel == ConfigFeature.enabled:
             die("SELinux relabel is requested but no selinux policy is configured in /etc/selinux/config")
@@ -4642,5 +4648,8 @@ def systemd_tool_version(*tool: PathString, sandbox: SandboxProtocol = nosandbox
             [*tool, "--version"],
             stdout=subprocess.PIPE,
             sandbox=sandbox(binary=tool[-1]),
-        ).stdout.split()[2].strip("()").removeprefix("v")
+        )
+        .stdout.split()[2]
+        .strip("()")
+        .removeprefix("v")
     )

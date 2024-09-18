@@ -122,7 +122,7 @@ class Installer(DistributionInstaller):
             "sparc"       : ["lib64"],
             "sparc64"     : ["lib32", "lib64"],
             "x32"         : ["lib32", "lib64", "libx32"],
-        }.get(context.config.distribution.architecture(context.config.architecture), [])
+        }.get(context.config.distribution.architecture(context.config.architecture), [])  # fmt: skip
 
         with umask(~0o755):
             for d in subdirs:
@@ -180,7 +180,7 @@ class Installer(DistributionInstaller):
                         if not context.config.with_docs
                         else []
                     ),
-                    sandbox=context.sandbox
+                    sandbox=context.sandbox,
                 )
 
         # Finally, run apt to properly install packages in the chroot without having to worry that maintainer
@@ -213,7 +213,6 @@ class Installer(DistributionInstaller):
         # Let's make sure it is enabled by default in our images.
         (context.root / "etc/systemd/system-generators/systemd-gpt-auto-generator").unlink(missing_ok=True)
 
-
     @classmethod
     def remove_packages(cls, context: Context, packages: Sequence[str]) -> None:
         Apt.invoke(context, "purge", packages, apivfs=True)
@@ -221,22 +220,22 @@ class Installer(DistributionInstaller):
     @classmethod
     def architecture(cls, arch: Architecture) -> str:
         a = {
-            Architecture.arm64       : "arm64",
-            Architecture.arm         : "armhf",
-            Architecture.alpha       : "alpha",
-            Architecture.x86_64      : "amd64",
-            Architecture.x86         : "i386",
-            Architecture.ia64        : "ia64",
-            Architecture.loongarch64 : "loongarch64",
-            Architecture.mips64_le   : "mips64el",
-            Architecture.mips_le     : "mipsel",
-            Architecture.parisc      : "hppa",
-            Architecture.ppc64_le    : "ppc64el",
-            Architecture.ppc64       : "ppc64",
-            Architecture.riscv64     : "riscv64",
-            Architecture.s390x       : "s390x",
-            Architecture.s390        : "s390",
-        }.get(arch)
+            Architecture.arm64:       "arm64",
+            Architecture.arm:         "armhf",
+            Architecture.alpha:       "alpha",
+            Architecture.x86_64:      "amd64",
+            Architecture.x86:         "i386",
+            Architecture.ia64:        "ia64",
+            Architecture.loongarch64: "loongarch64",
+            Architecture.mips64_le:   "mips64el",
+            Architecture.mips_le:     "mipsel",
+            Architecture.parisc:      "hppa",
+            Architecture.ppc64_le:    "ppc64el",
+            Architecture.ppc64:       "ppc64",
+            Architecture.riscv64:     "riscv64",
+            Architecture.s390x:       "s390x",
+            Architecture.s390:        "s390",
+        }.get(arch)  # fmt: skip
 
         if not a:
             die(f"Architecture {arch} is not supported by Debian")
@@ -275,7 +274,7 @@ def fixup_os_release(context: Context) -> None:
         with osrelease.open("r") as old, newosrelease.open("w") as new:
             for line in old.readlines():
                 if line.startswith("VERSION_CODENAME="):
-                    new.write('VERSION_CODENAME=sid\n')
+                    new.write("VERSION_CODENAME=sid\n")
                 else:
                     new.write(line)
 
@@ -285,16 +284,19 @@ def fixup_os_release(context: Context) -> None:
         # precedence over /usr/lib/os-release, and ignore the latter and assume that if an usr-only
         # image is built then the package manager will not run on it.
         if candidate == "etc/os-release":
-            run([
-                "dpkg-divert",
-                "--quiet",
-                "--root=/buildroot",
-                "--local",
-                "--add",
-                "--rename",
-                "--divert",
-                f"/{candidate}.dpkg",
-                f"/{candidate}",
-            ], sandbox=context.sandbox(binary="dpkg-divert", options=["--bind", context.root, "/buildroot"]))
+            run(
+                [
+                    "dpkg-divert",
+                    "--quiet",
+                    "--root=/buildroot",
+                    "--local",
+                    "--add",
+                    "--rename",
+                    "--divert",
+                    f"/{candidate}.dpkg",
+                    f"/{candidate}",
+                ],
+                sandbox=context.sandbox(binary="dpkg-divert", options=["--bind", context.root, "/buildroot"]),
+            )
 
         newosrelease.rename(osrelease)

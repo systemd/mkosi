@@ -82,10 +82,10 @@ def uncaught_exception_handler(exit: Callable[[int], NoReturn] = sys.exit) -> It
         # Failures from self come from the forks we spawn to build images in a user namespace. We've already done all
         # the logging for those failures so we don't log stacktraces for those either.
         if (
-            ARG_DEBUG.get() and
-            e.cmd and
-            str(e.cmd[0]) not in ("self", "ssh", "systemd-nspawn") and
-            "qemu-system" not in str(e.cmd[0])
+            ARG_DEBUG.get()
+            and e.cmd
+            and str(e.cmd[0]) not in ("self", "ssh", "systemd-nspawn")
+            and "qemu-system" not in str(e.cmd[0])
         ):
             sys.excepthook(*ensure_exc_info())
     except BaseException:
@@ -125,7 +125,7 @@ def log_process_failure(sandbox: Sequence[str], cmdline: Sequence[str], returnco
         logging.error(f"{cmdline[0]} not found.")
     else:
         logging.error(
-            f"\"{shlex.join([*sandbox, *cmdline] if ARG_DEBUG.get() else cmdline)}\" returned non-zero exit code "
+            f'"{shlex.join([*sandbox, *cmdline] if ARG_DEBUG.get() else cmdline)}" returned non-zero exit code '
             f"{returncode}."
         )
 
@@ -411,8 +411,7 @@ def finalize_passwd_mounts(root: PathString) -> list[PathString]:
     directory instead of from the host.
     """
     return flatten(
-        ("--ro-bind-try", Path(root) / "etc" / f, f"/etc/{f}")
-        for f in ("passwd", "group", "shadow", "gshadow")
+        ("--ro-bind-try", Path(root) / "etc" / f, f"/etc/{f}") for f in ("passwd", "group", "shadow", "gshadow")
     )
 
 
@@ -420,7 +419,7 @@ def network_options(*, network: bool) -> list[PathString]:
     return [
         "--setenv", "SYSTEMD_OFFLINE", one_zero(network),
         *(["--unshare-net"] if not network else []),
-    ]
+    ]  # fmt: skip
 
 
 @contextlib.contextmanager
@@ -444,6 +443,7 @@ def vartmpdir() -> Iterator[Path]:
             (d / "work").rmdir()
         except OSError as e:
             if e.errno == errno.ENOTEMPTY:
+
                 def remove() -> None:
                     acquire_privileges()
                     shutil.rmtree(d)
@@ -480,14 +480,14 @@ def sandbox_cmd(
         # apivfs_script_cmd() and chroot_script_cmd() are executed from within the sandbox, but they still use
         # sandbox.py, so we make sure it is available inside the sandbox so it can be executed there as well.
         "--ro-bind", Path(mkosi.sandbox.__file__), "/sandbox.py",
-    ]
+    ]  # fmt: skip
 
     if overlay and (overlay / "usr").exists():
         cmdline += [
             "--overlay-lowerdir", tools / "usr"
             "--overlay-lowerdir", overlay / "usr",
             "--overlay", "/usr",
-        ]
+        ]  # fmt: skip
     else:
         cmdline += ["--ro-bind", tools / "usr", "/usr"]
 
@@ -534,7 +534,7 @@ def sandbox_cmd(
             "--dir", "/var/log",
             "--unshare-ipc",
             "--symlink", "../proc/self/mounts", "/etc/mtab",
-        ]
+        ]  # fmt: skip
 
         if devices:
             cmdline += ["--bind", "/sys", "/sys", "--bind", "/dev", "/dev"]
@@ -574,7 +574,7 @@ def sandbox_cmd(
                     "--overlay-upperdir", tmp or "tmpfs",
                     *(["--overlay-workdir", str(work)] if work else []),
                     "--overlay", Path("/") / d,
-                ]
+                ]  # fmt: skip
             elif not relaxed:
                 if tmp:
                     cmdline += ["--bind", tmp, Path("/") / d]
@@ -602,7 +602,7 @@ def apivfs_options(*, root: Path = Path("/buildroot")) -> list[PathString]:
         # Make sure anything running in the root directory thinks it's in a container. $container can't always
         # be accessed so we write /run/host/container-manager as well which is always accessible.
         "--write", "mkosi", root / "run/host/container-manager",
-    ]
+    ]  # fmt: skip
 
 
 def chroot_options() -> list[PathString]:
@@ -618,7 +618,7 @@ def chroot_options() -> list[PathString]:
         "--setenv", "HOME", "/",
         "--setenv", "PATH", "/usr/bin:/usr/sbin",
         "--setenv", "BUILDROOT", "/",
-    ]
+    ]  # fmt: skip
 
 
 @contextlib.contextmanager
@@ -636,7 +636,7 @@ def chroot_cmd(
         *network_options(network=network),
         *apivfs_options(root=Path("/")),
         *chroot_options(),
-    ]
+    ]  # fmt: skip
 
     if network and Path("/etc/resolv.conf").exists():
         cmdline += ["--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf"]

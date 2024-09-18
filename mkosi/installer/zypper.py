@@ -32,16 +32,16 @@ class Zypper(PackageManager):
             "install",
             "--download", "in-advance",
             "--recommends" if context.config.with_recommends else "--no-recommends",
-        ]
+        ]  # fmt: skip
 
         return {
             "zypper": cls.apivfs_script_cmd(context) + cls.env_cmd(context) + cls.cmd(context),
-            "rpm"   : cls.apivfs_script_cmd(context) + rpm_cmd(),
-            "mkosi-install"  : install,
-            "mkosi-upgrade"  : ["zypper", "update"],
-            "mkosi-remove"   : ["zypper", "remove", "--clean-deps"],
+            "rpm":    cls.apivfs_script_cmd(context) + rpm_cmd(),
+            "mkosi-install":   install,
+            "mkosi-upgrade":   ["zypper", "update"],
+            "mkosi-remove":    ["zypper", "remove", "--clean-deps"],
             "mkosi-reinstall": install + ["--force"],
-        }
+        }  # fmt: skip
 
     @classmethod
     def setup(cls, context: Context, repositories: Sequence[RpmRepository]) -> None:
@@ -138,8 +138,10 @@ class Zypper(PackageManager):
 
     @classmethod
     def createrepo(cls, context: Context) -> None:
-        run(["createrepo_c", context.repository],
-            sandbox=context.sandbox(binary="createrepo_c", options=["--bind", context.repository, context.repository]))
+        run(
+            ["createrepo_c", context.repository],
+            sandbox=context.sandbox(binary="createrepo_c", options=["--bind", context.repository, context.repository]),
+        )
 
         (context.sandbox_tree / "etc/zypp/repos.d/mkosi-local.repo").write_text(
             textwrap.dedent(

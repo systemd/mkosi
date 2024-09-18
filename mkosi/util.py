@@ -121,7 +121,7 @@ def make_executable(*paths: Path) -> None:
 
 @contextlib.contextmanager
 def flock(path: Path, flags: int = fcntl.LOCK_EX) -> Iterator[int]:
-    fd = os.open(path, os.O_CLOEXEC|os.O_RDONLY)
+    fd = os.open(path, os.O_CLOEXEC | os.O_RDONLY)
     try:
         fcntl.fcntl(fd, fcntl.FD_CLOEXEC)
         logging.debug(f"Acquiring lock on {path}")
@@ -135,15 +135,17 @@ def flock(path: Path, flags: int = fcntl.LOCK_EX) -> Iterator[int]:
 @contextlib.contextmanager
 def flock_or_die(path: Path) -> Iterator[Path]:
     try:
-        with flock(path, fcntl.LOCK_EX|fcntl.LOCK_NB):
+        with flock(path, fcntl.LOCK_EX | fcntl.LOCK_NB):
             yield path
     except OSError as e:
         if e.errno != errno.EWOULDBLOCK:
             raise e
 
-        die(f"Cannot lock {path} as it is locked by another process",
+        die(
+            f"Cannot lock {path} as it is locked by another process",
             hint="Maybe another mkosi process is still using it? Use Ephemeral=yes to enable booting multiple "
-                 "instances of the same image")
+            "instances of the same image",
+        )
 
 
 @contextlib.contextmanager
@@ -183,7 +185,7 @@ class StrEnum(enum.Enum):
 
 def parents_below(path: Path, below: Path) -> list[Path]:
     parents = list(path.parents)
-    return parents[:parents.index(below)]
+    return parents[: parents.index(below)]
 
 
 @contextlib.contextmanager
@@ -192,10 +194,7 @@ def resource_path(mod: ModuleType) -> Iterator[Path]:
     with as_file(t) as p:
         # Make sure any temporary directory that the resources are unpacked in is accessible to the invoking user so
         # that any commands executed as the invoking user can access files within it.
-        if (
-            p.parent.parent == Path(os.getenv("TMPDIR", "/tmp")) and
-            stat.S_IMODE(p.parent.stat().st_mode) == 0o700
-        ):
+        if p.parent.parent == Path(os.getenv("TMPDIR", "/tmp")) and stat.S_IMODE(p.parent.stat().st_mode) == 0o700:
             p.parent.chmod(0o755)
 
         yield p
@@ -204,7 +203,7 @@ def resource_path(mod: ModuleType) -> Iterator[Path]:
 def hash_file(path: Path) -> str:
     # TODO Replace with hashlib.file_digest after dropping support for Python 3.10.
     h = hashlib.sha256()
-    b  = bytearray(16 * 1024**2)
+    b = bytearray(16 * 1024**2)
     mv = memoryview(b)
 
     with path.open("rb", buffering=0) as f:

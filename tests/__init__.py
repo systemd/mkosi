@@ -77,7 +77,7 @@ class Image:
             user=user,
             group=group,
             env=os.environ,
-        )
+        )  # fmt: skip
 
     def build(self, options: Sequence[PathString] = (), args: Sequence[str] = ()) -> CompletedProcess:
         kcl = [
@@ -107,7 +107,7 @@ class Image:
             "--output-dir", self.output_dir,
             *(["--debug-shell"] if self.config.debug_shell else []),
             *options,
-        ]
+        ]  # fmt: skip
 
         self.mkosi("summary", options, user=self.uid, group=self.uid)
 

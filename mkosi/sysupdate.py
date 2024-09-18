@@ -15,8 +15,10 @@ def run_sysupdate(args: Args, config: Config) -> None:
         die("SplitArtifacts= must be enabled to be able to use mkosi sysupdate")
 
     if not config.sysupdate_dir:
-        die("No sysupdate definitions directory specified",
-            hint="Specify a directory containing systemd-sysupdate transfer definitions with SysupdateDirectory=")
+        die(
+            "No sysupdate definitions directory specified",
+            hint="Specify a directory containing systemd-sysupdate transfer definitions with SysupdateDirectory=",
+        )
 
     if not (sysupdate := config.find_binary("systemd-sysupdate", "/usr/lib/systemd/systemd-sysupdate")):
         die("Could not find systemd-sysupdate")
@@ -26,7 +28,7 @@ def run_sysupdate(args: Args, config: Config) -> None:
         "--definitions", config.sysupdate_dir,
         "--transfer-source", config.output_dir_or_cwd(),
         *args.cmdline,
-    ]
+    ]  # fmt: skip
 
     run(
         cmd,
@@ -42,6 +44,6 @@ def run_sysupdate(args: Args, config: Config) -> None:
             options=[
                 *(["--bind", "/boot", "/boot"] if Path("/boot").exists() else []),
                 *(["--bind", "/efi", "/efi"] if Path("/efi").exists() else []),
-            ]
+            ],
         ),
     )

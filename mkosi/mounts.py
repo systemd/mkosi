@@ -77,7 +77,7 @@ def finalize_source_mounts(config: Config, *, ephemeral: bool) -> Iterator[list[
                     "--overlay-upperdir", upperdir,
                     "--overlay-workdir", workdir,
                     "--overlay", dst,
-                ]
+                ]  # fmt: skip
             else:
                 options += ["--bind", src, dst]
 
@@ -104,6 +104,5 @@ def finalize_crypto_mounts(config: Config) -> list[PathString]:
 
     return flatten(
         ("--symlink", src.readlink(), target) if src.is_symlink() else ("--ro-bind", src, target)
-        for src, target
-        in sorted(set(mounts), key=lambda s: s[1])
+        for src, target in sorted(set(mounts), key=lambda s: s[1])
     )

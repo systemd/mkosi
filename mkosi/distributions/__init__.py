@@ -15,10 +15,10 @@ if TYPE_CHECKING:
 
 
 class PackageType(StrEnum):
-    none   = enum.auto()
-    rpm    = enum.auto()
-    deb    = enum.auto()
-    pkg    = enum.auto()
+    none = enum.auto()
+    rpm = enum.auto()
+    deb = enum.auto()
+    pkg = enum.auto()
 
 
 class DistributionInstaller:
@@ -74,21 +74,21 @@ class DistributionInstaller:
 class Distribution(StrEnum):
     # Please consult docs/distribution-policy.md and contact one
     # of the mkosi maintainers before implementing a new distribution.
-    fedora       = enum.auto()
-    debian       = enum.auto()
-    kali         = enum.auto()
-    ubuntu       = enum.auto()
-    arch         = enum.auto()
-    opensuse     = enum.auto()
-    mageia       = enum.auto()
-    centos       = enum.auto()
-    rhel         = enum.auto()
-    rhel_ubi     = enum.auto()
+    fedora = enum.auto()
+    debian = enum.auto()
+    kali = enum.auto()
+    ubuntu = enum.auto()
+    arch = enum.auto()
+    opensuse = enum.auto()
+    mageia = enum.auto()
+    centos = enum.auto()
+    rhel = enum.auto()
+    rhel_ubi = enum.auto()
     openmandriva = enum.auto()
-    rocky        = enum.auto()
-    alma         = enum.auto()
-    azure        = enum.auto()
-    custom       = enum.auto()
+    rocky = enum.auto()
+    alma = enum.auto()
+    azure = enum.auto()
+    custom = enum.auto()
 
     def is_centos_variant(self) -> bool:
         return self in (
@@ -156,7 +156,7 @@ class Distribution(StrEnum):
         return self.installer().package_manager(context.config).createrepo(context)
 
     def installer(self) -> type[DistributionInstaller]:
-        modname = str(self).replace('-', '_')
+        modname = str(self).replace("-", "_")
         mod = importlib.import_module(f"mkosi.distributions.{modname}")
         installer = getattr(mod, "Installer")
         assert issubclass(installer, DistributionInstaller)

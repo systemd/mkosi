@@ -79,4 +79,3 @@ class Installer(debian.Installer):
             components=components,
             signedby=signedby,
         )
-

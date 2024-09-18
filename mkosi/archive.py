@@ -20,7 +20,7 @@ def tar_exclude_apivfs_tmp() -> list[str]:
         "--exclude", "./tmp/*",
         "--exclude", "./run/*",
         "--exclude", "./var/tmp/*",
-    ]
+    ]  # fmt: skip
 
 
 def make_tar(src: Path, dst: Path, *, sandbox: SandboxProtocol = nosandbox) -> None:
@@ -50,7 +50,7 @@ def make_tar(src: Path, dst: Path, *, sandbox: SandboxProtocol = nosandbox) -> N
             stdout=f,
             # Make sure tar uses user/group information from the root directory instead of the host.
             sandbox=sandbox(binary="tar", options=["--ro-bind", src, src, *finalize_passwd_mounts(src)]),
-        )
+        )  # fmt: skip
 
 
 def can_extract_tar(src: Path) -> bool:
@@ -92,9 +92,9 @@ def extract_tar(
         sandbox=sandbox(
             binary="tar",
             # Make sure tar uses user/group information from the root directory instead of the host.
-            options=["--ro-bind", src, src, "--bind", dst, dst, *finalize_passwd_mounts(dst)]
+            options=["--ro-bind", src, src, "--bind", dst, dst, *finalize_passwd_mounts(dst)],
         ),
-    )
+    )  # fmt: skip
 
 
 def make_cpio(
@@ -128,4 +128,4 @@ def make_cpio(
             input="\0".join(os.fspath(f) for f in files),
             stdout=f,
             sandbox=sandbox(binary="cpio", options=["--ro-bind", src, src, *finalize_passwd_mounts(src)]),
-        )
+        )  # fmt: skip

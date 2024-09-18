@@ -15,7 +15,7 @@ from mkosi.util import chdir, parents_below
 
 def loaded_modules() -> list[str]:
     # Loaded modules are listed with underscores but the filenames might use dashes instead.
-    return [fr"/{line.split()[0].replace('_', '[_-]')}\.ko" for line in Path("/proc/modules").read_text().splitlines()]
+    return [rf"/{line.split()[0].replace('_', '[_-]')}\.ko" for line in Path("/proc/modules").read_text().splitlines()]
 
 
 def filter_kernel_modules(root: Path, kver: str, *, include: Iterable[str], exclude: Iterable[str]) -> list[Path]:
@@ -79,7 +79,7 @@ def resolve_module_dependencies(
     # modules than the max number of accepted CLI arguments, we split the modules list up into chunks.
     info = ""
     for i in range(0, len(nametofile.keys()), 8500):
-        chunk = list(nametofile.keys())[i:i+8500]
+        chunk = list(nametofile.keys())[i : i + 8500]
         info += run(
             ["modinfo", "--set-version", kver, "--null", *chunk],
             stdout=subprocess.PIPE,
@@ -201,8 +201,7 @@ def process_kernel_modules(
     firmwared = Path("usr/lib/firmware")
 
     with complete_step("Applying kernel module filters"):
-        required = set(
-            gen_required_kernel_modules(root, kver, include=include, exclude=exclude))
+        required = set(gen_required_kernel_modules(root, kver, include=include, exclude=exclude))
 
         with chdir(root):
             modules = sorted(modulesd.rglob("*.ko*"), reverse=True)

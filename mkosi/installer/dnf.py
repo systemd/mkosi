@@ -25,22 +25,18 @@ class Dnf(PackageManager):
 
     @classmethod
     def cache_subdirs(cls, cache: Path) -> list[Path]:
-        return [
-            p / "packages"
-            for p in cache.iterdir()
-            if p.is_dir() and "-" in p.name and "mkosi" not in p.name
-        ]
+        return [p / "packages" for p in cache.iterdir() if p.is_dir() and "-" in p.name and "mkosi" not in p.name]
 
     @classmethod
     def scripts(cls, context: Context) -> dict[str, list[PathString]]:
         return {
             "dnf": cls.apivfs_script_cmd(context) + cls.env_cmd(context) + cls.cmd(context),
             "rpm": cls.apivfs_script_cmd(context) + rpm_cmd(),
-            "mkosi-install"  : ["dnf", "install"],
-            "mkosi-upgrade"  : ["dnf", "upgrade"],
-            "mkosi-remove"   : ["dnf", "remove"],
+            "mkosi-install":   ["dnf", "install"],
+            "mkosi-upgrade":   ["dnf", "upgrade"],
+            "mkosi-remove":    ["dnf", "remove"],
             "mkosi-reinstall": ["dnf", "reinstall"],
-        }
+        }  # fmt: skip
 
     @classmethod
     def setup(cls, context: Context, repositories: Sequence[RpmRepository], filelists: bool = True) -> None:
@@ -112,9 +108,9 @@ class Dnf(PackageManager):
 
     @classmethod
     def cmd(
-            cls,
-            context: Context,
-            cached_metadata: bool = True,
+        cls,
+        context: Context,
+        cached_metadata: bool = True,
     ) -> list[PathString]:
         dnf = cls.executable(context.config)
 
@@ -131,7 +127,7 @@ class Dnf(PackageManager):
             f"--setopt=install_weak_deps={int(context.config.with_recommends)}",
             "--setopt=check_config_file_age=0",
             "--disable-plugin=*" if dnf.endswith("dnf5") else "--disableplugin=*",
-        ]
+        ]  # fmt: skip
 
         for plugin in ("builddep", "versionlock"):
             cmdline += ["--enable-plugin", plugin] if dnf.endswith("dnf5") else ["--enableplugin", plugin]
@@ -216,8 +212,10 @@ class Dnf(PackageManager):
 
     @classmethod
     def createrepo(cls, context: Context) -> None:
-        run(["createrepo_c", context.repository],
-            sandbox=context.sandbox(binary="createrepo_c", options=["--bind", context.repository, context.repository]))
+        run(
+            ["createrepo_c", context.repository],
+            sandbox=context.sandbox(binary="createrepo_c", options=["--bind", context.repository, context.repository]),
+        )
 
         (context.sandbox_tree / "etc/yum.repos.d/mkosi-local.repo").write_text(
             textwrap.dedent(

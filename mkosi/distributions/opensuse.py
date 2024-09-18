@@ -72,7 +72,8 @@ class Installer(DistributionInstaller):
                     "--recommends" if context.config.with_recommends else "--no-recommends",
                     *sort_packages(packages),
                 ],
-                apivfs=apivfs)
+                apivfs=apivfs,
+            )  # fmt: skip
         else:
             Dnf.invoke(context, "install", sort_packages(packages), apivfs=apivfs)
 
@@ -100,8 +101,10 @@ class Installer(DistributionInstaller):
             )
 
             if not gpgkeys and not context.config.repository_key_fetch:
-                die("OpenSUSE GPG keys not found in /usr/share/distribution-gpg-keys",
-                    hint="Make sure the distribution-gpg-keys package is installed")
+                die(
+                    "OpenSUSE GPG keys not found in /usr/share/distribution-gpg-keys",
+                    hint="Make sure the distribution-gpg-keys package is installed",
+                )
 
             if zypper and gpgkeys:
                 run(
@@ -112,8 +115,8 @@ class Installer(DistributionInstaller):
                             "--bind", context.root, "/buildroot",
                             *finalize_crypto_mounts(context.config),
                         ],
-                    )
-                )
+                    ),
+                )  # fmt: skip
 
             if context.config.release == "tumbleweed":
                 if context.config.architecture == Architecture.x86_64:
@@ -162,11 +165,13 @@ class Installer(DistributionInstaller):
                 )
         else:
             if (
-                context.config.release in ("current", "stable", "leap") and
-                context.config.architecture != Architecture.x86_64
+                context.config.release in ("current", "stable", "leap")
+                and context.config.architecture != Architecture.x86_64
             ):
-                die(f"{cls.pretty_name()} only supports current and stable releases for the x86-64 architecture",
-                    hint="Specify either tumbleweed or a specific leap release such as 15.6")
+                die(
+                    f"{cls.pretty_name()} only supports current and stable releases for the x86-64 architecture",
+                    hint="Specify either tumbleweed or a specific leap release such as 15.6",
+                )
 
             if context.config.release in ("current", "stable", "leap"):
                 release = "openSUSE-current"
@@ -225,9 +230,9 @@ class Installer(DistributionInstaller):
     @classmethod
     def architecture(cls, arch: Architecture) -> str:
         a = {
-            Architecture.x86_64 : "x86_64",
-            Architecture.arm64  : "aarch64",
-        }.get(arch)
+            Architecture.x86_64: "x86_64",
+            Architecture.arm64:  "aarch64",
+        }.get(arch)  # fmt: skip
 
         if not a:
             die(f"Architecture {a} is not supported by OpenSUSE")

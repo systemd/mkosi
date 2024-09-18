@@ -53,8 +53,8 @@ class Installer(DistributionInstaller):
         # The Hyperscale SIG uses /usr/lib/sysimage/rpm in its rebuild of rpm for C9S that's shipped in the
         # hyperscale-packages-experimental repository.
         if (
-            GenericVersion(context.config.release) > 9 or
-            "hyperscale-packages-experimental" in context.config.repositories
+            GenericVersion(context.config.release) > 9
+            or "hyperscale-packages-experimental" in context.config.repositories
         ):
             return "/usr/lib/sysimage/rpm"
 
@@ -84,11 +84,11 @@ class Installer(DistributionInstaller):
     @classmethod
     def architecture(cls, arch: Architecture) -> str:
         a = {
-            Architecture.x86_64   : "x86_64",
-            Architecture.ppc64_le : "ppc64le",
-            Architecture.s390x    : "s390x",
-            Architecture.arm64    : "aarch64",
-        }.get(arch)
+            Architecture.x86_64:   "x86_64",
+            Architecture.ppc64_le: "ppc64le",
+            Architecture.s390x:    "s390x",
+            Architecture.arm64:    "aarch64",
+        }.get(arch)  # fmt: skip
 
         if not a:
             die(f"Architecture {a} is not supported by {cls.pretty_name()}")
@@ -206,7 +206,7 @@ class Installer(DistributionInstaller):
                 ("epel", "epel"),
                 ("epel-next", "epel/next"),
                 ("epel-testing", "epel/testing"),
-                ("epel-next-testing", "epel/testing/next")
+                ("epel-next-testing", "epel/testing/next"),
             ):
                 # For EPEL we make the assumption that epel is mirrored in the parent directory of the mirror URL and
                 # path we were given. Since this doesn't work for all scenarios, we also allow overriding the mirror
@@ -235,41 +235,19 @@ class Installer(DistributionInstaller):
             for repo in ("epel", "epel-next"):
                 yield RpmRepository(repo, f"{url}&repo={repo}-$releasever", gpgurls, enabled=False)
                 yield RpmRepository(
-                    f"{repo}-debuginfo",
-                    f"{url}&repo={repo}-debug-$releasever",
-                    gpgurls,
-                    enabled=False
+                    f"{repo}-debuginfo", f"{url}&repo={repo}-debug-$releasever", gpgurls, enabled=False
                 )
-                yield RpmRepository(
-                    f"{repo}-source",
-                    f"{url}&repo={repo}-source-$releasever",
-                    gpgurls,
-                    enabled=False
-                )
+                yield RpmRepository(f"{repo}-source", f"{url}&repo={repo}-source-$releasever", gpgurls, enabled=False)
 
+            yield RpmRepository("epel-testing", f"{url}&repo=testing-epel$releasever", gpgurls, enabled=False)
             yield RpmRepository(
-                "epel-testing",
-                f"{url}&repo=testing-epel$releasever",
-                gpgurls,
-                enabled=False
+                "epel-testing-debuginfo", f"{url}&repo=testing-debug-epel$releasever", gpgurls, enabled=False
             )
             yield RpmRepository(
-                "epel-testing-debuginfo",
-                f"{url}&repo=testing-debug-epel$releasever",
-                gpgurls,
-                enabled=False
+                "epel-testing-source", f"{url}&repo=testing-source-epel$releasever", gpgurls, enabled=False
             )
             yield RpmRepository(
-                "epel-testing-source",
-                f"{url}&repo=testing-source-epel$releasever",
-                gpgurls,
-                enabled=False
-            )
-            yield RpmRepository(
-                "epel-next-testing",
-                f"{url}&repo=epel-testing-next-$releasever",
-                gpgurls,
-                enabled=False
+                "epel-next-testing", f"{url}&repo=epel-testing-next-$releasever", gpgurls, enabled=False
             )
             yield RpmRepository(
                 "epel-next-testing-debuginfo",

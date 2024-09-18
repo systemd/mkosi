@@ -73,7 +73,7 @@ class INVOKING_USER:
         # If we created a file/directory in a parent directory owned by a regular user, make sure the path and any
         # parent directories are owned by the invoking user as well.
 
-        if (q := next((parent for parent in path.parents if cls.is_regular_user(parent.stat().st_uid)), None)):
+        if q := next((parent for parent in path.parents if cls.is_regular_user(parent.stat().st_uid)), None):
             st = q.stat()
             os.chown(path, st.st_uid, st.st_gid)
 
@@ -133,14 +133,14 @@ def become_root_in_subuid_range() -> None:
             0, subuid, SUBRANGE - 100,
             SUBRANGE - 100, os.getuid(), 1,
             SUBRANGE - 100 + 1, subuid + SUBRANGE - 100 + 1, 99
-        ]
+        ]  # fmt: skip
 
         newgidmap = [
             "flock", "--exclusive", "--close", lock, "newgidmap", pid,
             0, subgid, SUBRANGE - 100,
             SUBRANGE - 100, os.getgid(), 1,
             SUBRANGE - 100 + 1, subgid + SUBRANGE - 100 + 1, 99
-        ]
+        ]  # fmt: skip
 
         # newuidmap and newgidmap have to run from outside the user namespace to be able to assign a uid mapping to the
         # process in the user namespace. The mapping can only be assigned after the user namespace has been unshared.
@@ -183,6 +183,6 @@ def become_root_in_subuid_range_cmd() -> list[str]:
         "--map-groups", f"{SUBRANGE - 100}:{os.getgid()}:1",
         "--map-groups", f"{SUBRANGE - 100 + 1}:{subgid + SUBRANGE - 100 + 1}:99",
         "--keep-caps",
-    ]
+    ]  # fmt: skip
 
     return [str(x) for x in cmd]

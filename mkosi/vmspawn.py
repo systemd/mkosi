@@ -45,7 +45,7 @@ def run_vmspawn(args: Args, config: Config) -> None:
         if not kernel.exists():
             die(
                 f"Kernel or UKI not found at {kernel}",
-                hint="Please install a kernel in the image or provide a --qemu-kernel argument to mkosi vmspawn"
+                hint="Please install a kernel in the image or provide a --qemu-kernel argument to mkosi vmspawn",
             )
 
     cmdline: list[PathString] = [
@@ -56,7 +56,7 @@ def run_vmspawn(args: Args, config: Config) -> None:
         "--vsock", config.qemu_vsock.to_tristate(),
         "--tpm", config.qemu_swtpm.to_tristate(),
         "--secure-boot", yes_no(config.secure_boot),
-    ]
+    ]  # fmt: skip
 
     if config.runtime_network == Network.user:
         cmdline += ["--network-user-mode"]

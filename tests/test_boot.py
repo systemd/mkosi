@@ -19,8 +19,7 @@ pytestmark = pytest.mark.integration
 def have_vmspawn() -> bool:
     return (
         find_binary("systemd-vmspawn") is not None
-        and GenericVersion(run(["systemd-vmspawn", "--version"],
-                               stdout=subprocess.PIPE).stdout.strip()) >= 256
+        and GenericVersion(run(["systemd-vmspawn", "--version"], stdout=subprocess.PIPE).stdout.strip()) >= 256
     )
 
 

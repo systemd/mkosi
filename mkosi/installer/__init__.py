@@ -28,7 +28,7 @@ class PackageManager:
 
     @classmethod
     def state_subdirs(cls, state: Path) -> list[Path]:
-        return  []
+        return []
 
     @classmethod
     def scripts(cls, context: Context) -> dict[str, list[PathString]]:
@@ -37,7 +37,7 @@ class PackageManager:
     @classmethod
     def finalize_environment(cls, context: Context) -> dict[str, str]:
         env = {
-            "HOME": "/", # Make sure rpm doesn't pick up ~/.rpmmacros and ~/.rpmrc.
+            "HOME": "/",  # Make sure rpm doesn't pick up ~/.rpmmacros and ~/.rpmrc.
             # systemd's chroot detection doesn't work when unprivileged so tell it explicitly.
             "SYSTEMD_IN_CHROOT": "1",
         }
@@ -46,8 +46,8 @@ class PackageManager:
             env["SYSTEMD_HWDB_UPDATE_BYPASS"] = "1"
 
         if (
-            "KERNEL_INSTALL_BYPASS" not in context.config.environment and
-            context.config.bootable != ConfigFeature.disabled
+            "KERNEL_INSTALL_BYPASS" not in context.config.environment
+            and context.config.bootable != ConfigFeature.disabled
         ):
             env["KERNEL_INSTALL_BYPASS"] = "1"
         else:
@@ -70,7 +70,7 @@ class PackageManager:
         mounts = [
             *finalize_crypto_mounts(context.config),
             "--bind", context.repository, "/repository",
-        ]
+        ]  # fmt: skip
 
         if context.config.local_mirror and (mirror := startswith(context.config.local_mirror, "file://")):
             mounts += ["--ro-bind", mirror, mirror]
@@ -111,7 +111,7 @@ class PackageManager:
             # original root won't be available anymore. If we're not in the sandbox yet, we want to pick up the passwd
             # files from the original root.
             *finalize_passwd_mounts(root),
-        ]
+        ]  # fmt: skip
 
     @classmethod
     def apivfs_script_cmd(cls, context: Context) -> list[PathString]:
@@ -123,7 +123,7 @@ class PackageManager:
             *apivfs_options(),
             *cls.options(root="/buildroot"),
             "--",
-        ]
+        ]  # fmt: skip
 
     @classmethod
     def sandbox(
@@ -142,7 +142,7 @@ class PackageManager:
                 *cls.options(root=context.root, apivfs=apivfs),
                 *options,
             ],
-        )
+        )  # fmt: skip
 
     @classmethod
     def sync(cls, context: Context, force: bool) -> None:
@@ -168,9 +168,9 @@ def clean_package_manager_metadata(context: Context) -> None:
     if context.config.clean_package_metadata == ConfigFeature.disabled:
         return
 
-    if (
-        context.config.clean_package_metadata == ConfigFeature.auto and
-        context.config.output_format in (OutputFormat.directory, OutputFormat.tar)
+    if context.config.clean_package_metadata == ConfigFeature.auto and context.config.output_format in (
+        OutputFormat.directory,
+        OutputFormat.tar,
     ):
         return
 
@@ -181,10 +181,12 @@ def clean_package_manager_metadata(context: Context) -> None:
     executable = context.config.distribution.package_manager(context.config).executable(context.config)
     remove = []
 
-    for tool, paths in (("rpm",      ["var/lib/rpm", "usr/lib/sysimage/rpm"]),
-                        ("dnf5",     ["usr/lib/sysimage/libdnf5"]),
-                        ("dpkg",     ["var/lib/dpkg"]),
-                        (executable, [f"var/lib/{subdir}", f"var/cache/{subdir}"])):
+    for tool, paths in (
+        ("rpm",      ["var/lib/rpm", "usr/lib/sysimage/rpm"]),
+        ("dnf5",     ["usr/lib/sysimage/libdnf5"]),
+        ("dpkg",     ["var/lib/dpkg"]),
+        (executable, [f"var/lib/{subdir}", f"var/cache/{subdir}"]),
+    ):  # fmt: skip
         if context.config.clean_package_metadata == ConfigFeature.enabled or not find_binary(tool, root=context.root):
             remove += [context.root / p for p in paths if (context.root / p).exists()]
 

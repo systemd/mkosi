@@ -17,8 +17,8 @@ from mkosi.util import StrEnum
 
 class CompGen(StrEnum):
     default = enum.auto()
-    files   = enum.auto()
-    dirs    = enum.auto()
+    files = enum.auto()
+    dirs = enum.auto()
 
     @staticmethod
     def from_action(action: argparse.Action) -> "CompGen":
@@ -81,9 +81,11 @@ def collect_completion_arguments() -> list[CompletionItem]:
             compgen=CompGen.from_action(action),
         )
         for action in parser._actions
-        if (action.option_strings and
-            action.help != argparse.SUPPRESS and
-            action.dest not in config.SETTINGS_LOOKUP_BY_DEST)
+        if (
+            action.option_strings
+            and action.help != argparse.SUPPRESS
+            and action.dest not in config.SETTINGS_LOOKUP_BY_DEST
+        )
     ]
 
     options += [
@@ -107,8 +109,9 @@ def finalize_completion_bash(options: list[CompletionItem], resources: Path) -> 
 
     def to_bash_hasharray(name: str, entries: Mapping[str, Union[str, int]]) -> str:
         return (
-            f"{name.replace('-', '_')}=(" +
-            " ".join(f"[{shlex.quote(str(k))}]={shlex.quote(str(v))}" for k, v in entries.items()) + ")"
+            f"{name.replace('-', '_')}=("
+            + " ".join(f"[{shlex.quote(str(k))}]={shlex.quote(str(v))}" for k, v in entries.items())
+            + ")"
         )
 
     completion = resources / "completion.bash"
@@ -151,7 +154,7 @@ def finalize_completion_fish(options: list[CompletionItem], resources: Path) -> 
 
         c.write("complete -c mkosi -n '__fish_is_first_token' -a \"")
         c.write(" ".join(str(v) for v in config.Verb))
-        c.write("\"\n")
+        c.write('"\n')
 
         for option in options:
             if not option.short and not option.long:
@@ -165,12 +168,12 @@ def finalize_completion_fish(options: list[CompletionItem], resources: Path) -> 
             if isinstance(option.nargs, int) and option.nargs > 0:
                 c.write("-r ")
             if option.choices:
-                c.write("-a \"")
+                c.write('-a "')
                 c.write(" ".join(option.choices))
-                c.write("\" ")
+                c.write('" ')
             if option.help is not None:
                 help = option.help.replace("'", "\\'")
-                c.write(f"-d \"{help}\" ")
+                c.write(f'-d "{help}" ')
             c.write(option.compgen.to_fish())
             c.write("\n")
 
@@ -225,7 +228,7 @@ def print_completion(args: config.Args, *, resources: Path) -> None:
     if not args.cmdline:
         die(
             "No shell to generate completion script for specified",
-            hint="Please specify either one of: bash, fish, zsh"
+            hint="Please specify either one of: bash, fish, zsh",
         )
 
     shell = args.cmdline[0]
@@ -237,8 +240,7 @@ def print_completion(args: config.Args, *, resources: Path) -> None:
         func = finalize_completion_zsh
     else:
         die(
-            f"{shell!r} is not supported for completion scripts.",
-            hint="Please specify either one of: bash, fish, zsh"
+            f"{shell!r} is not supported for completion scripts.", hint="Please specify either one of: bash, fish, zsh"
         )
 
     completion_args = collect_completion_arguments()
