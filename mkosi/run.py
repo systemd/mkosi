@@ -521,7 +521,10 @@ def sandbox_cmd(
                 Path("/lib32"),
                 Path("/lib64"),
             ):
-                cmdline += ["--bind", p, p]
+                if p.is_symlink():
+                    cmdline += ["--symlink", p.readlink(), p]
+                else:
+                    cmdline += ["--bind", p, p]
 
         if home := current_home_dir():
             cmdline += ["--bind", home, home]
