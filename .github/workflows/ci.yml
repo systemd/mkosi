@@ -24,7 +24,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install pandoc python3-pytest
           python3 -m pip install --break-system-packages --upgrade setuptools wheel pip
-          python3 -m pip install --break-system-packages codespell mypy ruff
+          python3 -m pip install --break-system-packages codespell mypy reuse ruff
           npm install -g pyright
 
       - name: Run ruff
@@ -39,6 +39,11 @@ jobs:
         run: |
           codespell --version
           codespell
+
+      - name: License Checking (reuse)
+        run: |
+          reuse --version
+          reuse lint
 
       - name: Type Checking (mypy)
         run: |
