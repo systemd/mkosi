@@ -9,7 +9,7 @@
   running unprivileged instead of using newuidmap/newgidmap. When
   running unprivileged, all files and directories in the image will be
   owned by the invoking user (and by root inside any produced archives).
-  Any attemp to chown files to other users in scripts will fail unless
+  Any attempt to chown files to other users in scripts will fail unless
   the new environment variable `$MKOSI_CHROOT_SUPPRESS_CHOWN` is set to
   a true value.
 - `mkosi` does not drop privileges anymore to the invoking user when

@@ -210,7 +210,7 @@ class Installer(DistributionInstaller):
             ):
                 # For EPEL we make the assumption that epel is mirrored in the parent directory of the mirror URL and
                 # path we were given. Since this doesn't work for all scenarios, we also allow overriding the mirror
-                # via ane environment variable.
+                # via an environment variable.
                 url = context.config.environment.get("EPEL_MIRROR", join_mirror(mirror, "../fedora"))
                 yield RpmRepository(
                     repo,

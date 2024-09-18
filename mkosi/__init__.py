@@ -1244,7 +1244,7 @@ def build_default_initrd(context: Context) -> Path:
                 config,
                 workspace=workspace,
                 resources=context.resources,
-                # Re-use the repository metadata snapshot from the main image for the initrd.
+                # Reuse the repository metadata snapshot from the main image for the initrd.
                 metadata_dir=context.metadata_dir,
                 package_dir=context.package_dir,
             )
@@ -2773,7 +2773,7 @@ def make_disk(
 
             if esp or bios:
                 # Even if we're doing BIOS, let's still use the ESP to store the kernels, initrds
-                # and grub modules. We cant use UKIs so we have to put each kernel and initrd on
+                # and grub modules. We can't use UKIs so we have to put each kernel and initrd on
                 # the ESP twice, so let's make the ESP twice as big in that case.
                 (defaults / "00-esp.conf").write_text(
                     textwrap.dedent(
@@ -3394,7 +3394,7 @@ def run_shell(args: Args, config: Config) -> None:
             owner = os.stat(fname).st_uid
             if owner != 0:
                 # Let's allow running a shell in a non-ephemeral image but in that case only map a
-                # single user into the image so it can't get poluted with files or directories
+                # single user into the image so it can't get polluted with files or directories
                 # owned by other users.
                 if args.verb == Verb.shell and config.output_format == OutputFormat.directory and not config.ephemeral:
                     range = 1
@@ -3458,7 +3458,7 @@ def run_shell(args: Args, config: Config) -> None:
             argv = args.cmdline
 
             # When invoked by the kernel, all unknown arguments are passed as environment variables
-            # to pid1. Let's mimick the same behavior when we invoke nspawn as a container.
+            # to pid1. Let's mimic the same behavior when we invoke nspawn as a container.
             for arg in itertools.chain(config.kernel_command_line, config.kernel_command_line_extra):
                 name, sep, value = arg.partition("=")
 
@@ -3912,7 +3912,7 @@ def sync_repository_metadata(args: Args, images: Sequence[Config], *, resources:
     for p in last.distribution.package_manager(last).cache_subdirs(src):
         p.mkdir(parents=True, exist_ok=True)
 
-    # If we're in incremental mode and caching metadata is not explicitly disabled, cache the synced repostory
+    # If we're in incremental mode and caching metadata is not explicitly disabled, cache the synced repository
     # metadata so we can reuse it later.
     if last.incremental and last.cacheonly != Cacheonly.never:
         rmtree(metadata_cache(last), sandbox=last.sandbox)
