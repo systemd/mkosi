@@ -2010,7 +2010,7 @@ def calculate_signature(context: Context) -> None:
     if not context.config.sign or not context.config.checksum:
         return
 
-    cmdline: list[PathString] = ["gpg", "--detach-sign"]
+    cmdline: list[PathString] = ["gpg", "--detach-sign", "--pinentry-mode", "loopback"]
 
     # Need to specify key before file to sign
     if context.config.key is not None:
