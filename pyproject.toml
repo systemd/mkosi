@@ -32,7 +32,13 @@ packages = [
 ]
 
 [tool.setuptools.package-data]
-"mkosi.resources" = ["repart/**/*", "man/*", "completion.*"]
+"mkosi.resources" = [
+    "completion.*",
+    "man/*",
+    "mkosi-initrd/**/*",
+    "mkosi-tools/**/*",
+    "repart/**/*",
+]
 
 [tool.isort]
 profile = "black"
