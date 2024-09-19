@@ -1202,6 +1202,14 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `Sign=`, `--sign`
 :   Sign the generated `SHA256SUMS` using `gpg` after completion.
 
+`OpenPGPTool=`, `--openpgp-tool`
+:   OpenPGP implementation to use for signing. `gpg` is the default.
+    Selecting a value different than the default will use the given Stateless
+    OpenPGP (SOP) tool for signing the `SHA256SUMS` file.
+
+    Exemplary choices are `sqop` and `rsop`, but any implementation from
+    https://www.openpgp.org/about/sop/ that can be installed locally will work.
+
 `Key=`, `--key=`
 :   Select the `gpg` key to use for signing `SHA256SUMS`. This key must
     be already present in the `gpg` keyring.

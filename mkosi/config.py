@@ -1750,6 +1750,7 @@ class Config:
     passphrase: Optional[Path]
     checksum: bool
     sign: bool
+    openpgp_tool: str
     key: Optional[str]
 
     tools_tree: Optional[Path]
@@ -3005,6 +3006,13 @@ SETTINGS = (
         dest="key",
         section="Validation",
         help="GPG key to use for signing",
+    ),
+    ConfigSetting(
+        name="OpenPGPTool",
+        dest="openpgp_tool",
+        section="Validation",
+        default="gpg",
+        help="OpenPGP implementation to use for signing",
     ),
     # Build section
     ConfigSetting(
@@ -4668,6 +4676,7 @@ def summary(config: Config) -> str:
                          Passphrase: {none_to_none(config.passphrase)}
                            Checksum: {yes_no(config.checksum)}
                                Sign: {yes_no(config.sign)}
+                       OpenPGP Tool: {config.openpgp_tool}
                             GPG Key: ({"default" if config.key is None else config.key})
 """
 
