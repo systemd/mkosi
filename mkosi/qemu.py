@@ -691,7 +691,7 @@ def apply_runtime_size(config: Config, image: Path) -> None:
     run(
         [
             "systemd-repart",
-            "--definitions", "",
+            "--definitions=/",
             "--no-pager",
             # To use qemu's cache.direct option, the drive size has to be a multiple of the page size.
             f"--size={round_up(config.runtime_size, resource.getpagesize())}",
@@ -1007,7 +1007,7 @@ def run_qemu(args: Args, config: Config) -> None:
             run(
                 [
                     "systemd-repart",
-                    "--definitions", "",
+                    "--definitions=/",
                     "--no-pager",
                     "--pretty=no",
                     "--offline=yes",

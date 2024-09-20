@@ -26,6 +26,7 @@ def run_burn(args: Args, config: Config) -> None:
         "--offline=yes",
         "--empty=force",
         "--dry-run=no",
+        "--definitions=/",
         f"--copy-from={fname}",
         device,
     ]
