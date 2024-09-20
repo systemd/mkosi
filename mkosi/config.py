@@ -682,6 +682,24 @@ def config_parse_compress_level(value: Optional[str], old: Optional[int]) -> Opt
     return level
 
 
+def config_parse_mode(value: Optional[str], old: Optional[int]) -> Optional[int]:
+    if not value:
+        return None
+
+    try:
+        mode = int(value, base=8)
+    except ValueError:
+        die(f"Access mode {value!r} is not a valid integer in base 8")
+
+    if mode < 0:
+        die(f"Access mode cannot be negative (got {value})")
+
+    if mode > 0o1777:
+        die(f"Access mode cannot be greater than 1777 (got {value})")
+
+    return mode
+
+
 def config_default_compression(namespace: argparse.Namespace) -> Compression:
     if namespace.output_format in (OutputFormat.tar, OutputFormat.cpio, OutputFormat.uki, OutputFormat.esp):
         if namespace.distribution == Distribution.ubuntu and namespace.release == "focal":
@@ -1447,6 +1465,7 @@ class Config:
     compress_output: Compression
     compress_level: int
     output_dir: Optional[Path]
+    output_mode: Optional[int]
     image_id: Optional[str]
     image_version: Optional[str]
     split_artifacts: bool
@@ -2072,6 +2091,14 @@ SETTINGS = (
         parse=config_make_path_parser(required=False),
         paths=("mkosi.output",),
         help="Output directory",
+        scope=SettingScope.universal,
+    ),
+    ConfigSetting(
+        dest="output_mode",
+        metavar="MODE",
+        section="Output",
+        parse=config_parse_mode,
+        help="Set file system access mode for image",
         scope=SettingScope.universal,
     ),
     ConfigSetting(
@@ -4190,6 +4217,14 @@ def format_bytes_or_none(num_bytes: Optional[int]) -> str:
     return format_bytes(num_bytes) if num_bytes is not None else "none"
 
 
+def format_octal(oct_value: int) -> str:
+    return f"{oct_value:>04o}"
+
+
+def format_octal_or_default(oct_value: Optional[int]) -> str:
+    return format_octal(oct_value) if oct_value is not None else "default"
+
+
 def bold(s: Any) -> str:
     return f"{Style.bold}{s}{Style.reset}"
 
@@ -4243,6 +4278,7 @@ def summary(config: Config) -> str:
                         Compression: {config.compress_output}
                   Compression Level: {config.compress_level}
                    Output Directory: {config.output_dir_or_cwd()}
+                        Output Mode: {format_octal_or_default(config.output_mode)}
                            Image ID: {config.image_id}
                       Image Version: {config.image_version}
                     Split Artifacts: {yes_no(config.split_artifacts)}

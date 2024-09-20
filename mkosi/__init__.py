@@ -3032,6 +3032,9 @@ def finalize_staging(context: Context) -> None:
             (context.config.output_dir_or_cwd() / f.name).symlink_to(f.readlink())
             continue
 
+        if f.is_file() and context.config.output_mode is not None:
+            os.chmod(f, context.config.output_mode)
+
         move_tree(
             f, context.config.output_dir_or_cwd(),
             use_subvolumes=context.config.use_subvolumes,
