@@ -3432,9 +3432,6 @@ def run_shell(args: Args, config: Config) -> None:
     if config.runtime_network == Network.user:
         cmdline += ["--resolv-conf=auto"]
     elif config.runtime_network == Network.interface:
-        if os.getuid() != 0:
-            die("RuntimeNetwork=interface requires root privileges")
-
         cmdline += ["--private-network", "--network-veth"]
     elif config.runtime_network == Network.none:
         cmdline += ["--private-network"]
@@ -3600,7 +3597,13 @@ def run_shell(args: Args, config: Config) -> None:
             stdout=sys.stdout,
             env=os.environ | config.environment,
             log=False,
-            sandbox=config.sandbox(binary="systemd-nspawn", devices=True, network=True, relaxed=True),
+            sandbox=config.sandbox(
+                binary="systemd-nspawn",
+                devices=True,
+                network=True,
+                relaxed=True,
+                setup=["run0"] if os.getuid() != 0 else [],
+            ),
         )
 
 
@@ -3617,7 +3620,9 @@ def run_systemd_tool(tool: str, args: Args, config: Config) -> None:
         and not config.forward_journal
         and os.getuid() != 0
     ):
-        die(f"Must be root to run the {args.verb} command")
+        need_root = True
+    else:
+        need_root = False
 
     if (tool_path := config.find_binary(tool)) is None:
         die(f"Failed to find {tool}")
@@ -3655,6 +3660,7 @@ def run_systemd_tool(tool: str, args: Args, config: Config) -> None:
             network=True,
             devices=config.output_format == OutputFormat.disk,
             relaxed=True,
+            setup=["run0"] if need_root else [],
         ),
     )
 
@@ -4117,9 +4123,6 @@ def run_build(
 
 def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
     images = list(images)
-
-    if args.verb.needs_root() and os.getuid() != 0:
-        die(f"Must be root to run the {args.verb} command")
 
     if args.verb == Verb.completion:
         return print_completion(args, resources=resources)

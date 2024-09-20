@@ -17,8 +17,6 @@ def run_burn(args: Args, config: Config) -> None:
     if len(args.cmdline) != 1:
         die("Expected device argument.")
 
-    device = args.cmdline[0]
-
     cmd = [
         "systemd-repart",
         "--no-pager",
@@ -28,7 +26,7 @@ def run_burn(args: Args, config: Config) -> None:
         "--dry-run=no",
         "--definitions=/",
         f"--copy-from={fname}",
-        device,
+        *args.cmdline,
     ]
 
     with complete_step("Burning 🔥🔥🔥 to medium…", "Burnt. 🔥🔥🔥"):
@@ -38,5 +36,11 @@ def run_burn(args: Args, config: Config) -> None:
             stdout=sys.stdout,
             env=os.environ | config.environment,
             log=False,
-            sandbox=config.sandbox(binary="systemd-repart", devices=True, network=True, relaxed=True),
+            sandbox=config.sandbox(
+                binary="systemd-repart",
+                devices=True,
+                network=True,
+                relaxed=True,
+                setup=["run0"] if os.getuid() != 0 else [],
+            ),
         )

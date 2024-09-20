@@ -42,6 +42,7 @@ def run_sysupdate(args: Args, config: Config) -> None:
             devices=True,
             network=True,
             relaxed=True,
+            setup=["run0"] if os.getuid() != 0 else [],
             options=[
                 *(["--bind", "/boot", "/boot"] if Path("/boot").exists() else []),
                 *(["--bind", "/efi", "/efi"] if Path("/efi").exists() else []),

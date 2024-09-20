@@ -103,9 +103,6 @@ class Verb(StrEnum):
             Verb.sysupdate,
         )
 
-    def needs_root(self) -> bool:
-        return self in (Verb.shell, Verb.boot, Verb.burn)
-
     def needs_config(self) -> bool:
         return self not in (
             Verb.help,
