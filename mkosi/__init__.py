@@ -1043,10 +1043,6 @@ def install_sandbox_trees(config: Config, dst: Path) -> None:
     # Ensure /etc exists in the sandbox
     (dst / "etc").mkdir(exist_ok=True)
 
-    # Required to be able to access certificates in the sandbox when running from nix.
-    if Path("/etc/static").is_symlink():
-        (dst / "etc/static").symlink_to(Path("/etc/static").readlink())
-
     if Path("/etc/passwd").exists():
         shutil.copy("/etc/passwd", dst / "etc/passwd")
     if Path("/etc/group").exists():

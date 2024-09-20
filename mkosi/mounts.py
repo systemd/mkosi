@@ -96,13 +96,14 @@ def finalize_crypto_mounts(config: Config) -> list[PathString]:
             Path("etc/ssl"),
             Path("etc/ca-certificates"),
             Path("etc/pacman.d/gnupg"),
+            Path("etc/static"),
             Path("var/lib/ca-certificates"),
         )
         if (root / subdir).exists()
     ]
 
     return flatten(
-        ("--ro-bind", src, target)
+        ("--symlink", src.readlink(), target) if src.is_symlink() else ("--ro-bind", src, target)
         for src, target
         in sorted(set(mounts), key=lambda s: s[1])
     )
