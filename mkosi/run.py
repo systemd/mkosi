@@ -529,7 +529,12 @@ def sandbox_cmd(
         if home := current_home_dir():
             cmdline += ["--bind", home, home]
     else:
-        cmdline += ["--dir", "/var/tmp", "--dir", "/var/log", "--unshare-ipc"]
+        cmdline += [
+            "--dir", "/var/tmp",
+            "--dir", "/var/log",
+            "--unshare-ipc",
+            "--symlink", "../proc/self/mounts", "/etc/mtab",
+        ]
 
         if devices:
             cmdline += ["--bind", "/sys", "/sys", "--bind", "/dev", "/dev"]
@@ -574,7 +579,7 @@ def sandbox_cmd(
                 if tmp:
                     cmdline += ["--bind", tmp, Path("/") / d]
                 else:
-                    cmdline += ["--tmpfs", Path("/") / d]
+                    cmdline += ["--dir", Path("/") / d]
 
         # If we put an overlayfs on /var, and /var/tmp is not in the sandbox tree, make sure /var/tmp is a bind mount
         # of a regular empty directory instead of the overlays so tools like systemd-repart can use the underlying
