@@ -88,7 +88,7 @@ def main() -> None:
         "mkosi",
         "--force",
         "--directory", "",
-        "--format", str(args.format),
+        "--format", args.format,
         "--output", args.output,
         "--output-dir", args.output_dir,
         "--extra-tree", f"/usr/lib/modules/{args.kernel_version}:/usr/lib/modules/{args.kernel_version}",
@@ -111,6 +111,8 @@ def main() -> None:
             "--package-cache-dir=/var",
             "--cache-only=metadata",
         ]
+        if args.format != OutputFormat.directory.value:
+            cmdline += ["--output-mode=600"]
 
     for d in ("/usr/lib/mkosi-initrd", "/usr/local/lib/mkosi-initrd", "/run/mkosi-initrd", "/etc/mkosi-initrd"):
         if Path(d).exists():

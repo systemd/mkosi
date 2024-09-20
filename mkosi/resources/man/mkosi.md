@@ -562,6 +562,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     not specified and the directory `mkosi.output/` exists in the local
     directory, it is automatically used for this purpose.
 
+`OutputMode=`, `--output-mode=`
+:   File system access mode used when creating the output image file. Takes an
+    access mode in octal notation. If not set, uses the current system defaults.
+
 `ImageVersion=`, `--image-version=`
 :   Configure the image version. This accepts any string, but it is
     recommended to specify a series of dot separated components. The
@@ -2541,6 +2545,7 @@ and cannot be configured in subimages:
 - `LocalMirror=`
 - `Mirror=`
 - `OutputDirectory=`
+- `OutputMode=`
 - `PackageCacheDirectory=`
 - `PackageDirectories=`
 - `Profile=`
