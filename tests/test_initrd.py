@@ -65,7 +65,9 @@ def test_initrd_lvm(config: ImageConfig) -> None:
         lvm.touch()
         os.truncate(lvm, 5000 * 1024**2)
 
-        lodev = run(["losetup", "--show", "--find", "--partscan", lvm], stdout=subprocess.PIPE).stdout.strip()
+        lodev = run(
+            ["losetup", "--show", "--find", "--partscan", lvm], stdout=subprocess.PIPE
+        ).stdout.strip()
         stack.callback(lambda: run(["losetup", "--detach", lodev]))
         run(["sfdisk", "--label", "gpt", lodev], input="type=E6D6D379-F507-44C2-A23C-238F2A3DF928 bootable")
         run(["lvm", "pvcreate", f"{lodev}p1"])
@@ -161,7 +163,9 @@ def test_initrd_luks_lvm(config: ImageConfig, passphrase: Path) -> None:
         lvm.touch()
         os.truncate(lvm, 5000 * 1024**2)
 
-        lodev = run(["losetup", "--show", "--find", "--partscan", lvm], stdout=subprocess.PIPE).stdout.strip()
+        lodev = run(
+            ["losetup", "--show", "--find", "--partscan", lvm], stdout=subprocess.PIPE
+        ).stdout.strip()
         stack.callback(lambda: run(["losetup", "--detach", lodev]))
         run(["sfdisk", "--label", "gpt", lodev], input="type=E6D6D379-F507-44C2-A23C-238F2A3DF928 bootable")
         run(

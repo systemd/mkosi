@@ -74,7 +74,9 @@ def setup_rpm(context: Context, *, dbpath: str = "/usr/lib/sysimage/rpm") -> Non
 
     plugindir = Path(
         run(
-            ["rpm", "--eval", "%{__plugindir}"], sandbox=context.sandbox(binary="rpm"), stdout=subprocess.PIPE
+            ["rpm", "--eval", "%{__plugindir}"],
+            sandbox=context.sandbox(binary="rpm"),
+            stdout=subprocess.PIPE,
         ).stdout.strip()
     )
     if (plugindir := context.config.tools() / plugindir.relative_to("/")).exists():
@@ -82,8 +84,8 @@ def setup_rpm(context: Context, *, dbpath: str = "/usr/lib/sysimage/rpm") -> Non
             for plugin in plugindir.iterdir():
                 f.write(f"%__transaction_{plugin.stem} %{{nil}}\n")
 
-    # Write an rpm sequoia policy that allows SHA1 as various distribution GPG keys (OpenSUSE) still use SHA1 for
-    # various things.
+    # Write an rpm sequoia policy that allows SHA1 as various distribution GPG keys (OpenSUSE) still use SHA1
+    # for various things.
     # TODO: Remove when all rpm distribution GPG keys have stopped using SHA1.
     if not (p := context.sandbox_tree / "etc/crypto-policies/back-ends/rpm-sequoia.config").exists():
         p.parent.mkdir(parents=True, exist_ok=True)

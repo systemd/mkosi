@@ -111,10 +111,11 @@ class Apt(PackageManager):
 
             (context.root / "var/lib/dpkg/available").touch()
 
-        # We have a special apt.conf outside of the sandbox tree that only configures "Dir::Etc" that we pass to
-        # APT_CONFIG to tell apt it should read config files from /etc/apt in case this is overridden by distributions.
-        # This is required because apt parses CLI configuration options after parsing its configuration files and as
-        # such we can't use CLI options to tell apt where to look for configuration files.
+        # We have a special apt.conf outside of the sandbox tree that only configures "Dir::Etc" that we pass
+        # to APT_CONFIG to tell apt it should read config files from /etc/apt in case this is overridden by
+        # distributions.  This is required because apt parses CLI configuration options after parsing its
+        # configuration files and as such we can't use CLI options to tell apt where to look for
+        # configuration files.
         config = context.sandbox_tree / "etc/apt.conf"
         if not config.exists():
             config.write_text(
@@ -131,8 +132,8 @@ class Apt(PackageManager):
                 if repo.signedby and not repo.signedby.exists():
                     die(
                         f"Keyring for repo {repo.url} not found at {repo.signedby}",
-                        hint="Make sure the right keyring package (e.g. debian-archive-keyring, kali-archive-keyring "
-                        "or ubuntu-keyring) is installed",
+                        hint="Make sure the right keyring package (e.g. debian-archive-keyring, "
+                        "kali-archive-keyring or ubuntu-keyring) is installed",
                     )
 
             with sources.open("w") as f:
@@ -192,7 +193,10 @@ class Apt(PackageManager):
             ]  # fmt: skip
 
         if not context.config.with_docs:
-            cmdline += [f"--option=DPkg::Options::=--path-exclude=/{glob}" for glob in cls.documentation_exclude_globs]
+            cmdline += [
+                f"--option=DPkg::Options::=--path-exclude=/{glob}"
+                for glob in cls.documentation_exclude_globs
+            ]
             cmdline += ["--option=DPkg::Options::=--path-include=/usr/share/doc/*/copyright"]
 
         if context.config.proxy_url:

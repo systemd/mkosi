@@ -155,13 +155,14 @@ def rmtree(*paths: Path, sandbox: SandboxProtocol = nosandbox) -> None:
     paths = tuple(p.absolute() for p in paths)
 
     if subvolumes := sorted({p for p in paths if p.exists() and is_subvolume(p)}):
-        # Silence and ignore failures since when not running as root, this will fail with a permission error unless the
-        # btrfs filesystem is mounted with user_subvol_rm_allowed.
+        # Silence and ignore failures since when not running as root, this will fail with a permission error
+        # unless the btrfs filesystem is mounted with user_subvol_rm_allowed.
         run(
             ["btrfs", "subvolume", "delete", *(workdir(p, sandbox) for p in subvolumes)],
             check=False,
             sandbox=sandbox(
-                binary="btrfs", options=flatten(("--bind", p.parent, workdir(p.parent, sandbox)) for p in subvolumes)
+                binary="btrfs",
+                options=flatten(("--bind", p.parent, workdir(p.parent, sandbox)) for p in subvolumes),
             ),
             stdout=subprocess.DEVNULL if not ARG_DEBUG.get() else None,
             stderr=subprocess.DEVNULL if not ARG_DEBUG.get() else None,
@@ -201,7 +202,8 @@ def move_tree(
             raise e
 
         logging.info(
-            f"Could not rename {src} to {dst} as they are located on different devices, falling back to copying"
+            f"Could not rename {src} to {dst} as they are located on different devices, "
+            "falling back to copying"
         )
         copy_tree(src, dst, use_subvolumes=use_subvolumes, sandbox=sandbox)
         rmtree(src, sandbox=sandbox)

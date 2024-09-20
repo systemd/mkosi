@@ -49,7 +49,9 @@ def pytest_addoption(parser: Any) -> None:
 @pytest.fixture(scope="session")
 def config(request: Any) -> ImageConfig:
     distribution = cast(Distribution, request.config.getoption("--distribution"))
-    release = cast(str, request.config.getoption("--release") or parse_config(["-d", str(distribution)])[1][0].release)
+    release = cast(
+        str, request.config.getoption("--release") or parse_config(["-d", str(distribution)])[1][0].release
+    )
     return ImageConfig(
         distribution=distribution,
         release=release,

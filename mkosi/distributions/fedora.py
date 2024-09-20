@@ -22,8 +22,12 @@ from mkosi.util import startswith, tuplify
 
 @tuplify
 def find_fedora_rpm_gpgkeys(context: Context) -> Iterable[str]:
-    key1 = find_rpm_gpgkey(context, key=f"RPM-GPG-KEY-fedora-{context.config.release}-primary", required=False)
-    key2 = find_rpm_gpgkey(context, key=f"RPM-GPG-KEY-fedora-{context.config.release}-secondary", required=False)
+    key1 = find_rpm_gpgkey(
+        context, key=f"RPM-GPG-KEY-fedora-{context.config.release}-primary", required=False
+    )
+    key2 = find_rpm_gpgkey(
+        context, key=f"RPM-GPG-KEY-fedora-{context.config.release}-secondary", required=False
+    )
 
     if key1:
         # During branching, there is always a kerfuffle with the key transition.
@@ -52,12 +56,12 @@ def find_fedora_rpm_gpgkeys(context: Context) -> Iterable[str]:
             )
 
         if context.config.release == "rawhide":
-            # https://fedoraproject.org/fedora.gpg is always outdated when the rawhide key changes. Instead, let's
-            # fetch it from distribution-gpg-keys on github, which is generally up-to-date.
+            # https://fedoraproject.org/fedora.gpg is always outdated when the rawhide key changes. Instead,
+            # let's fetch it from distribution-gpg-keys on github, which is generally up-to-date.
             keys = "https://raw.githubusercontent.com/rpm-software-management/distribution-gpg-keys/main/keys/fedora"
 
-            # The rawhide key is a symlink and github doesn't redirect those to the actual file for some reason, so we
-            # fetch the file and read the release it points to ourselves.
+            # The rawhide key is a symlink and github doesn't redirect those to the actual file for some
+            # reason, so we fetch the file and read the release it points to ourselves.
             with tempfile.TemporaryDirectory() as d:
                 curl(context.config, f"{keys}/RPM-GPG-KEY-fedora-rawhide-primary", Path(d))
                 key = (Path(d) / "RPM-GPG-KEY-fedora-rawhide-primary").read_text()
@@ -121,7 +125,8 @@ class Installer(DistributionInstaller):
 
         if context.config.release == "eln":
             mirror = (
-                context.config.mirror or "https://odcs.fedoraproject.org/composes/production/latest-Fedora-ELN/compose"
+                context.config.mirror
+                or "https://odcs.fedoraproject.org/composes/production/latest-Fedora-ELN/compose"
             )
             for repo in ("Appstream", "BaseOS", "Extras", "CRB"):
                 url = f"baseurl={join_mirror(mirror, repo)}"
@@ -143,13 +148,19 @@ class Installer(DistributionInstaller):
 
                 url = f"baseurl={join_mirror(m, 'linux/updates/testing/$releasever/Everything')}"
                 yield RpmRepository("updates-testing", f"{url}/$basearch", gpgurls, enabled=False)
-                yield RpmRepository("updates-testing-debuginfo", f"{url}/$basearch/debug", gpgurls, enabled=False)
+                yield RpmRepository(
+                    "updates-testing-debuginfo", f"{url}/$basearch/debug", gpgurls, enabled=False
+                )
                 yield RpmRepository("updates-testing-source", f"{url}/source/tree", gpgurls, enabled=False)
         else:
             url = "metalink=https://mirrors.fedoraproject.org/metalink?arch=$basearch"
             yield RpmRepository("fedora", f"{url}&repo=fedora-$releasever", gpgurls)
-            yield RpmRepository("fedora-debuginfo", f"{url}&repo=fedora-debug-$releasever", gpgurls, enabled=False)
-            yield RpmRepository("fedora-source", f"{url}&repo=fedora-source-$releasever", gpgurls, enabled=False)
+            yield RpmRepository(
+                "fedora-debuginfo", f"{url}&repo=fedora-debug-$releasever", gpgurls, enabled=False
+            )
+            yield RpmRepository(
+                "fedora-source", f"{url}&repo=fedora-source-$releasever", gpgurls, enabled=False
+            )
 
             if context.config.release != "rawhide":
                 yield RpmRepository("updates", f"{url}&repo=updates-released-f$releasever", gpgurls)
@@ -160,7 +171,10 @@ class Installer(DistributionInstaller):
                     enabled=False,
                 )
                 yield RpmRepository(
-                    "updates-source", f"{url}&repo=updates-released-source-f$releasever", gpgurls, enabled=False
+                    "updates-source",
+                    f"{url}&repo=updates-released-source-f$releasever",
+                    gpgurls,
+                    enabled=False,
                 )
                 yield RpmRepository(
                     "updates-testing", f"{url}&repo=updates-testing-f$releasever", gpgurls, enabled=False

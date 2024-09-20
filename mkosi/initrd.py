@@ -118,7 +118,12 @@ def main() -> None:
         if args.format != OutputFormat.directory.value:
             cmdline += ["--output-mode=600"]
 
-    for d in ("/usr/lib/mkosi-initrd", "/usr/local/lib/mkosi-initrd", "/run/mkosi-initrd", "/etc/mkosi-initrd"):
+    for d in (
+        "/usr/lib/mkosi-initrd",
+        "/usr/local/lib/mkosi-initrd",
+        "/run/mkosi-initrd",
+        "/etc/mkosi-initrd",
+    ):
         if Path(d).exists():
             cmdline += ["--include", d]
 
@@ -150,13 +155,16 @@ def main() -> None:
                 shutil.copy2(Path("/etc") / p, Path(d) / "etc" / p)
             else:
                 shutil.copytree(
-                    Path("/etc") / p, Path(d) / "etc" / p, ignore=shutil.ignore_patterns("gnupg"), dirs_exist_ok=True
+                    Path("/etc") / p,
+                    Path(d) / "etc" / p,
+                    ignore=shutil.ignore_patterns("gnupg"),
+                    dirs_exist_ok=True,
                 )
 
         cmdline += ["--sandbox-tree", d]
 
-        # Prefer dnf as dnf5 has not yet officially replaced it and there's a much bigger chance that there will be a
-        # populated dnf cache directory.
+        # Prefer dnf as dnf5 has not yet officially replaced it and there's a much bigger chance that there
+        # will be a populated dnf cache directory.
         run(
             cmdline,
             stdin=sys.stdin,

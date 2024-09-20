@@ -82,7 +82,9 @@ class QemuDeviceNode(StrEnum):
                 raise e
 
             if log and e.errno in (errno.ENOENT, errno.ENODEV):
-                logging.warning(f"{self.device()} not found. Not adding {self.description()} to the virtual machine.")
+                logging.warning(
+                    f"{self.device()} not found. Not adding {self.description()} to the virtual machine."
+                )
 
             if log and e.errno in (errno.EPERM, errno.EACCES):
                 logging.warning(
@@ -203,13 +205,14 @@ def find_ovmf_firmware(config: Config, qemu: Path, firmware: QemuFirmware) -> Op
             if target["architecture"] != arch:
                 continue
 
-            # We cannot use fnmatch as for example our default machine for x86-64 is q35 and the firmware description
-            # lists "pc-q35-*" so we use a substring check instead.
+            # We cannot use fnmatch as for example our default machine for x86-64 is q35 and the firmware
+            # description lists "pc-q35-*" so we use a substring check instead.
             if any(machine in glob for glob in target["machines"]):
                 break
         else:
             logging.debug(
-                f"{p.name} firmware description does not target architecture {arch} or machine {machine}, skipping"
+                f"{p.name} firmware description does not target architecture {arch} or "
+                f"machine {machine}, skipping"
             )
             continue
 
@@ -247,7 +250,14 @@ def start_swtpm(config: Config) -> Iterator[Path]:
     with tempfile.TemporaryDirectory(prefix="mkosi-swtpm-") as state:
         # swtpm_setup is noisy and doesn't have a --quiet option so we pipe it's stdout to /dev/null.
         run(
-            ["swtpm_setup", "--tpm-state", state, "--tpm2", "--pcr-banks", "sha256", "--config", "/dev/null"],
+            [
+                "swtpm_setup",
+                "--tpm-state", state,
+                "--tpm2",
+                "--pcr-banks",
+                "sha256",
+                "--config", "/dev/null",
+            ],
             sandbox=config.sandbox(
                 binary="swtpm_setup",
                 options=["--bind", state, state],
@@ -257,12 +267,12 @@ def start_swtpm(config: Config) -> Iterator[Path]:
                 ),
             ),
             stdout=None if ARG_DEBUG.get() else subprocess.DEVNULL,
-        )
+        )  # fmt: skip
 
         cmdline = ["swtpm", "socket", "--tpm2", "--tpmstate", f"dir={state}"]
 
-        # We create the socket ourselves and pass the fd to swtpm to avoid race conditions where we start qemu before
-        # swtpm has had the chance to create the socket (or where we try to chown it first).
+        # We create the socket ourselves and pass the fd to swtpm to avoid race conditions where we start
+        # qemu before swtpm has had the chance to create the socket (or where we try to chown it first).
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
             path = Path(state) / Path("sock")
             sock.bind(os.fspath(path))
@@ -301,7 +311,9 @@ def systemd_escape(config: Config, s: PathString, path: bool = False) -> str:
     if path:
         cmdline += ["--path"]
 
-    return run(cmdline, stdout=subprocess.PIPE, sandbox=config.sandbox(binary="systemd-escape")).stdout.strip()
+    return run(
+        cmdline, stdout=subprocess.PIPE, sandbox=config.sandbox(binary="systemd-escape")
+    ).stdout.strip()
 
 
 @contextlib.contextmanager
@@ -324,7 +336,8 @@ def start_virtiofsd(
         virtiofsd,
         "--shared-dir", workdir(directory),
         "--xattr",
-        # qemu's client doesn't seem to support announcing submounts so disable the feature to avoid the warning.
+        # qemu's client doesn't seem to support announcing submounts so disable the feature to avoid the
+        # warning.
         "--no-announce-submounts",
         "--sandbox=chroot",
         f"--inode-file-handles={'prefer' if os.getuid() == 0 and not uidmap else 'never'}",
@@ -337,13 +350,13 @@ def start_virtiofsd(
     if uidmap:
         st = Path(directory).stat()
 
-        # If we're already running as the same user that we'll be running virtiofsd as, don't bother doing any explicit
-        # user switching or chown()'ing as it's not needed in this case.
+        # If we're already running as the same user that we'll be running virtiofsd as, don't bother doing
+        # any explicit user switching or chown()'ing as it's not needed in this case.
         if st.st_uid == os.getuid() and st.st_gid == os.getgid():
             st = None
 
-    # We create the socket ourselves and pass the fd to virtiofsd to avoid race conditions where we start qemu
-    # before virtiofsd has had the chance to create the socket (or where we try to chown it first).
+    # We create the socket ourselves and pass the fd to virtiofsd to avoid race conditions where we start
+    # qemu before virtiofsd has had the chance to create the socket (or where we try to chown it first).
     with (
         tempfile.TemporaryDirectory(prefix="mkosi-virtiofsd-") as context,
         socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock,
@@ -352,8 +365,8 @@ def start_virtiofsd(
             # Make sure virtiofsd can access the socket in this directory.
             os.chown(context, st.st_uid, st.st_gid)
 
-        # Make sure we can use the socket name as a unique identifier for the fs as well but make sure it's not too
-        # long as virtiofs tag names are limited to 36 bytes.
+        # Make sure we can use the socket name as a unique identifier for the fs as well but make sure it's
+        # not too long as virtiofs tag names are limited to 36 bytes.
         path = Path(context) / f"sock-{uuid.uuid4().hex}"[:35]
         sock.bind(os.fspath(path))
         sock.listen()
@@ -364,9 +377,9 @@ def start_virtiofsd(
 
         cmdline += ["--fd", str(SD_LISTEN_FDS_START)]
 
-        # We want RuntimeBuildSources= and RuntimeTrees= to do the right thing even when running mkosi qemu as root
-        # without the source directories necessarily being owned by root. We achieve this by running virtiofsd as the
-        # owner of the source directory and then mapping that uid to root.
+        # We want RuntimeBuildSources= and RuntimeTrees= to do the right thing even when running mkosi qemu
+        # as root without the source directories necessarily being owned by root. We achieve this by running
+        # virtiofsd as the owner of the source directory and then mapping that uid to root.
 
         name = f"mkosi-virtiofsd-{name}"
         description = f"virtiofsd for {directory}"
@@ -381,9 +394,10 @@ def start_virtiofsd(
             pass_fds=(sock.fileno(),),
             user=st.st_uid if st and not scope else None,
             group=st.st_gid if st and not scope else None,
-            # If we're booting from virtiofs and unshare is too old, we don't set up a scope so we can use our own
-            # function to become root in the subuid range.
-            # TODO: Drop this as soon as we drop CentOS Stream 9 support and can rely on newer unshare features.
+            # If we're booting from virtiofs and unshare is too old, we don't set up a scope so we can use
+            # our own function to become root in the subuid range.
+            # TODO: Drop this as soon as we drop CentOS Stream 9 support and can rely on newer unshare
+            # features.
             preexec_fn=become_root_in_subuid_range if not scope and not uidmap else None,
             sandbox=config.sandbox(
                 binary=virtiofsd,
@@ -443,7 +457,9 @@ def vsock_notify_handler() -> Iterator[tuple[str, dict[str, str]]]:
             try:
                 yield f"vsock-stream:{socket.VMADDR_CID_HOST}:{vsock.getsockname()[1]}", messages
             finally:
-                logging.debug(f"Received {num_messages} notify messages totalling {format_bytes(num_bytes)} bytes")
+                logging.debug(
+                    f"Received {num_messages} notify messages totalling {format_bytes(num_bytes)} bytes"
+                )
                 for k, v in messages.items():
                     logging.debug(f"- {k}={v}")
 
@@ -456,10 +472,14 @@ def start_journal_remote(config: Config, sockfd: int) -> Iterator[None]:
     if not bin:
         die("systemd-journal-remote must be installed to forward logs from the virtual machine")
 
-    d = config.forward_journal.parent if config.forward_journal.suffix == ".journal" else config.forward_journal
+    if config.forward_journal.suffix == ".journal":
+        d = config.forward_journal.parent
+    else:
+        d = config.forward_journal
+
     if not d.exists():
-        # Pass exist_ok=True because multiple mkosi processes might be trying to create the parent directory at the
-        # same time.
+        # Pass exist_ok=True because multiple mkosi processes might be trying to create the parent directory
+        # at the same time.
         d.mkdir(exist_ok=True, parents=True)
         # Make sure COW is disabled so systemd-journal-remote doesn't complain on btrfs filesystems.
         run(["chattr", "+C", d], check=False, stderr=subprocess.DEVNULL if not ARG_DEBUG.get() else None)
@@ -468,8 +488,8 @@ def start_journal_remote(config: Config, sockfd: int) -> Iterator[None]:
     with tempfile.NamedTemporaryFile(mode="w", prefix="mkosi-journal-remote-config-") as f:
         os.chmod(f.name, 0o644)
 
-        # Make sure we capture all the logs by bumping the limits. We set MaxFileSize=4G because with the compact mode
-        # enabled the files cannot grow any larger anyway.
+        # Make sure we capture all the logs by bumping the limits. We set MaxFileSize=4G because with the
+        # compact mode enabled the files cannot grow any larger anyway.
         f.write(
             textwrap.dedent(
                 f"""\
@@ -532,9 +552,9 @@ def copy_ephemeral(config: Config, src: Path) -> Iterator[Path]:
         yield src
         return
 
-    # If we're booting a directory image that was not built as root, we have to make an ephemeral copy so that we can
-    # ensure the files in the directory are either owned by the actual root user or a fake one in a subuid user
-    # namespace which we'll run virtiofsd as.
+    # If we're booting a directory image that was not built as root, we have to make an ephemeral copy so
+    # that we can ensure the files in the directory are either owned by the actual root user or a fake one in
+    # a subuid user namespace which we'll run virtiofsd as.
     if not config.ephemeral and (config.output_format != OutputFormat.directory or src.stat().st_uid == 0):
         with flock_or_die(src):
             yield src
@@ -543,8 +563,8 @@ def copy_ephemeral(config: Config, src: Path) -> Iterator[Path]:
 
     src = src.resolve()
     # tempfile doesn't provide an API to get a random filename in an arbitrary directory so we do this
-    # instead. Limit the size to 16 characters as the output name might be used in a unix socket path by vmspawn and
-    # needs to fit in 108 characters.
+    # instead. Limit the size to 16 characters as the output name might be used in a unix socket path by
+    # vmspawn and needs to fit in 108 characters.
     tmp = src.parent / f"{src.name}-{uuid.uuid4().hex[:16]}"
 
     try:
@@ -569,7 +589,8 @@ def copy_ephemeral(config: Config, src: Path) -> Iterator[Path]:
             copy_tree(
                 src,
                 tmp,
-                # Make sure the ownership is changed to the (fake) root user if the directory was not built as root.
+                # Make sure the ownership is changed to the (fake) root user if the directory was not built
+                # as root.
                 preserve=config.output_format == OutputFormat.directory and src.stat().st_uid == 0,
                 use_subvolumes=config.use_subvolumes,
                 sandbox=config.sandbox,
@@ -629,13 +650,16 @@ def finalize_qemu_firmware(config: Config, kernel: Optional[Path]) -> QemuFirmwa
                 else QemuFirmware.linux
             )
         elif (
-            config.output_format in (OutputFormat.cpio, OutputFormat.directory) or config.architecture.to_efi() is None
+            config.output_format in (OutputFormat.cpio, OutputFormat.directory)
+            or config.architecture.to_efi() is None
         ):
             return QemuFirmware.linux
         else:
             # At the moment there are no qemu firmware descriptions for non-x86 architectures that advertise
             # secure-boot support so let's default to no secure boot for non-x86 architectures.
-            return QemuFirmware.uefi_secure_boot if config.architecture.is_x86_variant() else QemuFirmware.uefi
+            return (
+                QemuFirmware.uefi_secure_boot if config.architecture.is_x86_variant() else QemuFirmware.uefi
+            )
     else:
         return config.qemu_firmware
 
@@ -674,7 +698,9 @@ def finalize_firmware_variables(
             ),
         )  # fmt: skip
     else:
-        tools = Path("/") if any(qemu.is_relative_to(d) for d in config.extra_search_paths) else config.tools()
+        tools = (
+            Path("/") if any(qemu.is_relative_to(d) for d in config.extra_search_paths) else config.tools()
+        )
         vars = (
             tools / ovmf.vars.relative_to("/")
             if config.qemu_firmware_variables == Path("microsoft") or not config.qemu_firmware_variables
@@ -706,7 +732,9 @@ def apply_runtime_size(config: Config, image: Path) -> None:
 
 @contextlib.contextmanager
 def finalize_drive(drive: QemuDrive) -> Iterator[Path]:
-    with tempfile.NamedTemporaryFile(dir=drive.directory or "/var/tmp", prefix=f"mkosi-drive-{drive.id}") as file:
+    with tempfile.NamedTemporaryFile(
+        dir=drive.directory or "/var/tmp", prefix=f"mkosi-drive-{drive.id}"
+    ) as file:
         file.truncate(drive.size)
         yield Path(file.name)
 
@@ -836,21 +864,30 @@ def run_qemu(args: Args, config: Config) -> None:
         die("RuntimeTrees= cannot be used when booting in BIOS firmware")
 
     if config.qemu_kvm == ConfigFeature.enabled and not config.architecture.is_native():
-        die(f"KVM acceleration requested but {config.architecture} does not match the native host architecture")
+        die(
+            f"KVM acceleration requested but {config.architecture} does not match "
+            "the native host architecture"
+        )
 
     if config.qemu_firmware_variables == Path("custom") and not config.secure_boot_certificate:
         die("SecureBootCertificate= must be configured to use QemuFirmwareVariables=custom")
 
-    # After we unshare the user namespace to sandbox qemu, we might not have access to /dev/kvm or related device nodes
-    # anymore as access to these might be gated behind the kvm group and we won't be part of the kvm group anymore
-    # after unsharing the user namespace. To get around this, open all those device nodes early can pass them as file
-    # descriptors to qemu later. Note that we can't pass the kvm file descriptor to qemu until version 9.0.
+    # After we unshare the user namespace to sandbox qemu, we might not have access to /dev/kvm or related
+    # device nodes anymore as access to these might be gated behind the kvm group and we won't be part of the
+    # kvm group anymore after unsharing the user namespace. To get around this, open all those device nodes
+    # early can pass them as file descriptors to qemu later. Note that we can't pass the kvm file descriptor
+    # to qemu until version 9.0.
     qemu_device_fds = {
-        d: d.open() for d in QemuDeviceNode if d.feature(config) != ConfigFeature.disabled and d.available(log=True)
+        d: d.open()
+        for d in QemuDeviceNode
+        if d.feature(config) != ConfigFeature.disabled and d.available(log=True)
     }
 
     if not (qemu := config.find_binary(f"qemu-system-{config.architecture.to_qemu()}")):
-        die("qemu not found.", hint=f"Is qemu-system-{config.architecture.to_qemu()} installed on the host system?")
+        die(
+            "qemu not found.",
+            hint=f"Is qemu-system-{config.architecture.to_qemu()} installed on the host system?",
+        )
 
     have_kvm = (qemu_version(config, qemu) < QEMU_KVM_DEVICE_VERSION and QemuDeviceNode.kvm.available()) or (
         qemu_version(config, qemu) >= QEMU_KVM_DEVICE_VERSION and QemuDeviceNode.kvm in qemu_device_fds
@@ -870,7 +907,8 @@ def run_qemu(args: Args, config: Config) -> None:
 
     if config.output_format in (OutputFormat.uki, OutputFormat.esp) and kernel:
         logging.warning(
-            f"Booting UKI output, kernel {kernel} configured with QemuKernel= or passed with -kernel will not be used"
+            f"Booting UKI output, kernel {kernel} configured with QemuKernel= or "
+            "passed with -kernel will not be used"
         )
         kernel = None
 
@@ -957,7 +995,8 @@ def run_qemu(args: Args, config: Config) -> None:
         if vsock_cid_in_use(qemu_device_fds[QemuDeviceNode.vhost_vsock], cid):
             die(
                 f"VSock connection ID {cid} is already in use by another virtual machine",
-                hint="Use QemuVsockConnectionId=auto to have mkosi automatically find a free vsock connection ID",
+                hint="Use QemuVsockConnectionId=auto to have mkosi automatically "
+                "find a free vsock connection ID",
             )
 
         index = list(qemu_device_fds.keys()).index(QemuDeviceNode.vhost_vsock)
@@ -998,7 +1037,8 @@ def run_qemu(args: Args, config: Config) -> None:
                 ]  # fmt: skip
 
         if config.qemu_cdrom and config.output_format in (OutputFormat.disk, OutputFormat.esp):
-            # CD-ROM devices have sector size 2048 so we transform disk images into ones with sector size 2048.
+            # CD-ROM devices have sector size 2048 so we transform disk images into ones with sector size
+            # 2048.
             src = (config.output_dir_or_cwd() / config.output_with_compression).resolve()
             fname = src.parent / f"{src.name}-{uuid.uuid4().hex}"
             run(
@@ -1031,7 +1071,8 @@ def run_qemu(args: Args, config: Config) -> None:
         apply_runtime_size(config, fname)
 
         if kernel and (
-            KernelType.identify(config, kernel) != KernelType.uki or not config.architecture.supports_smbios(firmware)
+            KernelType.identify(config, kernel) != KernelType.uki
+            or not config.architecture.supports_smbios(firmware)
         ):
             kcl = config.kernel_command_line + config.kernel_command_line_extra
         else:
@@ -1139,14 +1180,16 @@ def run_qemu(args: Args, config: Config) -> None:
         if config.output_format in (OutputFormat.disk, OutputFormat.esp):
             direct = fname.stat().st_size % resource.getpagesize() == 0
             ephemeral = config.ephemeral
-            cache = f"cache.writeback=on,cache.direct={yes_no(direct)},cache.no-flush={yes_no(ephemeral)},aio=io_uring"
+            cache = f"cache.writeback=on,cache.direct={yes_no(direct)},cache.no-flush={yes_no(ephemeral)},aio=io_uring"  # noqa
             cmdline += [
                 "-drive", f"if=none,id=mkosi,file={fname},format=raw,discard=on,{cache}",
                 "-device", f"scsi-{'cd' if config.qemu_cdrom else 'hd'},drive=mkosi,bootindex=1",
             ]  # fmt: skip
 
         if config.qemu_swtpm == ConfigFeature.enabled or (
-            config.qemu_swtpm == ConfigFeature.auto and firmware.is_uefi() and config.find_binary("swtpm") is not None
+            config.qemu_swtpm == ConfigFeature.auto
+            and firmware.is_uefi()
+            and config.find_binary("swtpm") is not None
         ):
             sock = stack.enter_context(start_swtpm(config))
             cmdline += [
@@ -1164,7 +1207,9 @@ def run_qemu(args: Args, config: Config) -> None:
             credentials["vmm.notify_socket"] = addr
 
         if config.forward_journal:
-            credentials["journal.forward_to_socket"] = stack.enter_context(start_journal_remote_vsock(config))
+            credentials["journal.forward_to_socket"] = stack.enter_context(
+                start_journal_remote_vsock(config)
+            )
 
         for k, v in credentials.items():
             payload = base64.b64encode(v.encode()).decode()
@@ -1180,7 +1225,8 @@ def run_qemu(args: Args, config: Config) -> None:
                 kcl += [f"systemd.set_credential_binary={k}:{payload}"]
 
         if kernel and (
-            KernelType.identify(config, kernel) != KernelType.uki or not config.architecture.supports_smbios(firmware)
+            KernelType.identify(config, kernel) != KernelType.uki
+            or not config.architecture.supports_smbios(firmware)
         ):
             cmdline += ["-append", " ".join(kcl)]
         elif config.architecture.supports_smbios(firmware):
@@ -1207,11 +1253,9 @@ def run_qemu(args: Args, config: Config) -> None:
         if cid is not None:
             stack.enter_context(finalize_state(config, cid))
 
-        # Reopen stdin, stdout and stderr to give qemu a private copy of them.
-        # This is a mitigation for the case when running mkosi under meson and
-        # one or two of the three are redirected and their pipe might block,
-        # but qemu opens all of them non-blocking because at least one of them
-        # is opened this way.
+        # Reopen stdin, stdout and stderr to give qemu a private copy of them.  This is a mitigation for the
+        # case when running mkosi under meson and one or two of the three are redirected and their pipe might
+        # block, but qemu opens all of them non-blocking because at least one of them is opened this way.
         stdin = try_or(
             lambda: os.open(f"/proc/self/fd/{sys.stdin.fileno()}", os.O_RDONLY),
             OSError,
@@ -1250,7 +1294,8 @@ def run_qemu(args: Args, config: Config) -> None:
                 ),
             ),
         ) as proc:
-            # We have to close these before we wait for qemu otherwise we'll deadlock as qemu will never exit.
+            # We have to close these before we wait for qemu otherwise we'll deadlock as qemu will never
+            # exit.
             for fd in qemu_device_fds.values():
                 os.close(fd)
 

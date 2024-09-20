@@ -479,7 +479,10 @@ def test_config() -> None:
         runtime_network=Network.interface,
         runtime_scratch=ConfigFeature.enabled,
         runtime_size=8589934592,
-        runtime_trees=[ConfigTree(Path("/foo/bar"), Path("/baz")), ConfigTree(Path("/bar/baz"), Path("/qux"))],
+        runtime_trees=[
+            ConfigTree(Path("/foo/bar"), Path("/baz")),
+            ConfigTree(Path("/bar/baz"), Path("/qux")),
+        ],
         sector_size=None,
         secure_boot=True,
         secure_boot_auto_enroll=True,

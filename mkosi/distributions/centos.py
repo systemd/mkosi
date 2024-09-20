@@ -97,7 +97,11 @@ class Installer(DistributionInstaller):
 
     @staticmethod
     def gpgurls(context: Context) -> tuple[str, ...]:
-        rel = "RPM-GPG-KEY-CentOS-Official" if context.config.release == "9" else "RPM-GPG-KEY-CentOS-Official-SHA256"
+        if context.config.release == "9":
+            rel = "RPM-GPG-KEY-CentOS-Official"
+        else:
+            rel = "RPM-GPG-KEY-CentOS-Official-SHA256"
+
         return tuple(
             find_rpm_gpgkey(context, key, f"https://www.centos.org/keys/{key}")
             for key in (rel, "RPM-GPG-KEY-CentOS-SIG-Extras")
@@ -208,9 +212,9 @@ class Installer(DistributionInstaller):
                 ("epel-testing", "epel/testing"),
                 ("epel-next-testing", "epel/testing/next"),
             ):
-                # For EPEL we make the assumption that epel is mirrored in the parent directory of the mirror URL and
-                # path we were given. Since this doesn't work for all scenarios, we also allow overriding the mirror
-                # via an environment variable.
+                # For EPEL we make the assumption that epel is mirrored in the parent directory of the mirror
+                # URL and path we were given. Since this doesn't work for all scenarios, we also allow
+                # overriding the mirror via an environment variable.
                 url = context.config.environment.get("EPEL_MIRROR", join_mirror(mirror, "../fedora"))
                 yield RpmRepository(
                     repo,
@@ -237,9 +241,13 @@ class Installer(DistributionInstaller):
                 yield RpmRepository(
                     f"{repo}-debuginfo", f"{url}&repo={repo}-debug-$releasever", gpgurls, enabled=False
                 )
-                yield RpmRepository(f"{repo}-source", f"{url}&repo={repo}-source-$releasever", gpgurls, enabled=False)
+                yield RpmRepository(
+                    f"{repo}-source", f"{url}&repo={repo}-source-$releasever", gpgurls, enabled=False
+                )
 
-            yield RpmRepository("epel-testing", f"{url}&repo=testing-epel$releasever", gpgurls, enabled=False)
+            yield RpmRepository(
+                "epel-testing", f"{url}&repo=testing-epel$releasever", gpgurls, enabled=False
+            )
             yield RpmRepository(
                 "epel-testing-debuginfo", f"{url}&repo=testing-debug-epel$releasever", gpgurls, enabled=False
             )
@@ -276,7 +284,9 @@ class Installer(DistributionInstaller):
         )
 
         for sig, components, keys in sigs:
-            gpgurls = tuple(find_rpm_gpgkey(context, key, f"https://www.centos.org/keys/{key}") for key in keys)
+            gpgurls = tuple(
+                find_rpm_gpgkey(context, key, f"https://www.centos.org/keys/{key}") for key in keys
+            )
 
             for c in components:
                 if mirror := context.config.mirror:

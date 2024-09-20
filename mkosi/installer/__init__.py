@@ -81,10 +81,10 @@ class PackageManager:
             src = context.metadata_dir / d / subdir
             mounts += ["--bind", src, Path("/var") / d / subdir]
 
-            # If we're not operating on the configured package cache directory, we're operating on a snapshot of the
-            # repository metadata. To make sure any downloaded packages are still cached in the configured package
-            # cache directory in this scenario, we mount in the relevant directories from the configured package cache
-            # directory.
+            # If we're not operating on the configured package cache directory, we're operating on a snapshot
+            # of the repository metadata. To make sure any downloaded packages are still cached in the
+            # configured package cache directory in this scenario, we mount in the relevant directories from
+            # the configured package cache directory.
             if d == "cache" and context.metadata_dir != context.config.package_cache_dir_or_default():
                 caches = context.config.distribution.package_manager(context.config).cache_subdirs(src)
                 mounts += flatten(
@@ -94,7 +94,9 @@ class PackageManager:
                         Path("/var") / d / subdir / p.relative_to(src),
                     )
                     for p in caches
-                    if (context.config.package_cache_dir_or_default() / d / subdir / p.relative_to(src)).exists()
+                    if (
+                        context.config.package_cache_dir_or_default() / d / subdir / p.relative_to(src)
+                    ).exists()
                 )
 
         return mounts
@@ -107,9 +109,9 @@ class PackageManager:
             "--suppress-chown",
             # Make sure /etc/machine-id is not overwritten by any package manager post install scripts.
             "--ro-bind-try", Path(root) / "etc/machine-id", "/buildroot/etc/machine-id",
-            # If we're already in the sandbox, we want to pick up use the passwd files from /buildroot since the
-            # original root won't be available anymore. If we're not in the sandbox yet, we want to pick up the passwd
-            # files from the original root.
+            # If we're already in the sandbox, we want to pick up use the passwd files from /buildroot since
+            # the original root won't be available anymore. If we're not in the sandbox yet, we want to pick
+            # up the passwd files from the original root.
             *finalize_passwd_mounts(root),
         ]  # fmt: skip
 
@@ -174,9 +176,9 @@ def clean_package_manager_metadata(context: Context) -> None:
     ):
         return
 
-    # If cleaning is not explicitly requested, keep the repository metadata if we're building a directory or tar image
-    # (which are often used as a base tree for extension images and thus should retain package manager metadata) or if
-    # the corresponding package manager is installed in the image.
+    # If cleaning is not explicitly requested, keep the repository metadata if we're building a directory or
+    # tar image (which are often used as a base tree for extension images and thus should retain package
+    # manager metadata) or if the corresponding package manager is installed in the image.
 
     executable = context.config.distribution.package_manager(context.config).executable(context.config)
     remove = []
@@ -187,7 +189,9 @@ def clean_package_manager_metadata(context: Context) -> None:
         ("dpkg",     ["var/lib/dpkg"]),
         (executable, [f"var/lib/{subdir}", f"var/cache/{subdir}"]),
     ):  # fmt: skip
-        if context.config.clean_package_metadata == ConfigFeature.enabled or not find_binary(tool, root=context.root):
+        if context.config.clean_package_metadata == ConfigFeature.enabled or not find_binary(
+            tool, root=context.root
+        ):
             remove += [context.root / p for p in paths if (context.root / p).exists()]
 
     rmtree(*remove, sandbox=context.sandbox)

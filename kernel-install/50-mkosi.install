@@ -139,7 +139,11 @@ def main() -> None:
     if context.layout != "uki" and context.initrds:
         return
 
-    format = OutputFormat.uki if context.layout == "uki" and context.uki_generator == "mkosi" else OutputFormat.cpio
+    if context.layout == "uki" and context.uki_generator == "mkosi":
+        format = OutputFormat.uki
+    else:
+        format = OutputFormat.cpio
+
     output = "initrd" if format == OutputFormat.cpio else "uki"
 
     cmdline: list[PathString] = [

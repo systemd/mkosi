@@ -15,10 +15,15 @@ from mkosi.util import chdir, parents_below
 
 def loaded_modules() -> list[str]:
     # Loaded modules are listed with underscores but the filenames might use dashes instead.
-    return [rf"/{line.split()[0].replace('_', '[_-]')}\.ko" for line in Path("/proc/modules").read_text().splitlines()]
+    return [
+        rf"/{line.split()[0].replace('_', '[_-]')}\.ko"
+        for line in Path("/proc/modules").read_text().splitlines()
+    ]
 
 
-def filter_kernel_modules(root: Path, kver: str, *, include: Iterable[str], exclude: Iterable[str]) -> list[Path]:
+def filter_kernel_modules(
+    root: Path, kver: str, *, include: Iterable[str], exclude: Iterable[str]
+) -> list[Path]:
     modulesd = Path("usr/lib/modules") / kver
     with chdir(root):
         modules = set(modulesd.rglob("*.ko*"))
@@ -73,10 +78,11 @@ def resolve_module_dependencies(
 
     log_step("Running modinfo to fetch kernel module dependencies")
 
-    # We could run modinfo once for each module but that's slow. Luckily we can pass multiple modules to modinfo and
-    # it'll process them all in a single go. We get the modinfo for all modules to build two maps that map the path of
-    # the module to its module dependencies and its firmware dependencies respectively. Because there's more kernel
-    # modules than the max number of accepted CLI arguments, we split the modules list up into chunks.
+    # We could run modinfo once for each module but that's slow. Luckily we can pass multiple modules to
+    # modinfo and it'll process them all in a single go. We get the modinfo for all modules to build two maps
+    # that map the path of the module to its module dependencies and its firmware dependencies
+    # respectively. Because there's more kernel modules than the max number of accepted CLI arguments, we
+    # split the modules list up into chunks.
     info = ""
     for i in range(0, len(nametofile.keys()), 8500):
         chunk = list(nametofile.keys())[i : i + 8500]
@@ -104,9 +110,11 @@ def resolve_module_dependencies(
                 depends.update(normalize_module_name(d) for d in value.strip().split(",") if d)
 
             elif key == "softdep":
-                # softdep is delimited by spaces and can contain strings like pre: and post: so discard anything that
-                # ends with a colon.
-                depends.update(normalize_module_name(d) for d in value.strip().split() if not d.endswith(":"))
+                # softdep is delimited by spaces and can contain strings like pre: and post: so discard
+                # anything that ends with a colon.
+                depends.update(
+                    normalize_module_name(d) for d in value.strip().split() if not d.endswith(":")
+                )
 
             elif key == "firmware":
                 fw = [f for f in Path("usr/lib/firmware").glob(f"{value.strip()}*")]
@@ -116,9 +124,8 @@ def resolve_module_dependencies(
                 firmware.update(fw)
 
             elif key == "name":
-                # The file names use dashes, but the module names use underscores. We track the names
-                # in terms of the file names, since the depends use dashes and therefore filenames as
-                # well.
+                # The file names use dashes, but the module names use underscores. We track the names in
+                # terms of the file names, since the depends use dashes and therefore filenames as well.
                 name = normalize_module_name(value.strip())
 
                 moddep[name] = depends
@@ -157,22 +164,28 @@ def gen_required_kernel_modules(
 ) -> Iterator[Path]:
     modulesd = Path("usr/lib/modules") / kver
 
-    # There is firmware in /usr/lib/firmware that is not depended on by any modules so if any firmware was installed
-    # we have to take the slow path to make sure we don't copy firmware into the initrd that is not depended on by any
-    # kernel modules.
+    # There is firmware in /usr/lib/firmware that is not depended on by any modules so if any firmware was
+    # installed we have to take the slow path to make sure we don't copy firmware into the initrd that is not
+    # depended on by any kernel modules.
     if exclude or (root / "usr/lib/firmware").glob("*"):
         modules = filter_kernel_modules(root, kver, include=include, exclude=exclude)
         names = [module_path_to_name(m) for m in modules]
         mods, firmware = resolve_module_dependencies(root, kver, names)
     else:
-        logging.debug("No modules excluded and no firmware installed, using kernel modules generation fast path")
+        logging.debug(
+            "No modules excluded and no firmware installed, using kernel modules generation fast path"
+        )
         with chdir(root):
             mods = set(modulesd.rglob("*.ko*"))
         firmware = set()
 
     yield from sorted(
         itertools.chain(
-            {p.relative_to(root) for f in mods | firmware for p in parents_below(root / f, root / "usr/lib")},
+            {
+                p.relative_to(root)
+                for f in mods | firmware
+                for p in parents_below(root / f, root / "usr/lib")
+            },
             mods,
             firmware,
             (p.relative_to(root) for p in (root / modulesd).glob("modules*")),
@@ -181,7 +194,9 @@ def gen_required_kernel_modules(
 
     if (modulesd / "vdso").exists():
         if not mods:
-            yield from (p.relative_to(root) for p in parents_below(root / modulesd / "vdso", root / "usr/lib"))
+            yield from (
+                p.relative_to(root) for p in parents_below(root / modulesd / "vdso", root / "usr/lib")
+            )
 
         yield modulesd / "vdso"
         yield from sorted(p.relative_to(root) for p in (root / modulesd / "vdso").iterdir())

@@ -190,7 +190,12 @@ def seccomp_suppress_chown() -> None:
     libseccomp.seccomp_release.argtypes = (ctypes.c_void_p,)
     libseccomp.seccomp_release.restype = None
     libseccomp.seccomp_syscall_resolve_name.argtypes = (ctypes.c_char_p,)
-    libseccomp.seccomp_rule_add_exact.argtypes = (ctypes.c_void_p, ctypes.c_uint32, ctypes.c_int, ctypes.c_uint)
+    libseccomp.seccomp_rule_add_exact.argtypes = (
+        ctypes.c_void_p,
+        ctypes.c_uint32,
+        ctypes.c_int,
+        ctypes.c_uint,
+    )
     libseccomp.seccomp_load.argtypes = (ctypes.c_void_p,)
 
     seccomp = libseccomp.seccomp_init(SCMP_ACT_ALLOW)
@@ -254,7 +259,13 @@ def mount_rbind(src: str, dst: str, attrs: int = 0) -> None:
             oserror(src)
 
         try:
-            libc.move_mount.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint)
+            libc.move_mount.argtypes = (
+                ctypes.c_int,
+                ctypes.c_char_p,
+                ctypes.c_int,
+                ctypes.c_char_p,
+                ctypes.c_uint,
+            )
             r = libc.move_mount(fd, b"", AT_FDCWD, dst.encode(), MOVE_MOUNT_F_EMPTY_PATH)
         except AttributeError:
             libc.syscall.argtypes = (
@@ -574,7 +585,9 @@ class OverlayOperation(FSOperation):
 
     def execute(self, oldroot: str, newroot: str) -> None:
         lowerdirs = tuple(chase(oldroot, p) for p in self.lowerdirs)
-        upperdir = chase(oldroot, self.upperdir) if self.upperdir and self.upperdir != "tmpfs" else self.upperdir
+        upperdir = (
+            chase(oldroot, self.upperdir) if self.upperdir and self.upperdir != "tmpfs" else self.upperdir
+        )
         workdir = chase(oldroot, self.workdir) if self.workdir else None
         dst = chase(newroot, self.dst)
 
@@ -781,8 +794,10 @@ def main() -> None:
     os.chdir("/tmp")
 
     with umask(~0o755):
-        os.mkdir("newroot")  # This is where we set up the sandbox rootfs
-        os.mkdir("oldroot")  # This is the old rootfs which is used as the source for mounts in the new rootfs.
+        # This is where we set up the sandbox rootfs
+        os.mkdir("newroot")
+        # This is the old rootfs which is used as the source for mounts in the new rootfs.
+        os.mkdir("oldroot")
 
     # Make sure that newroot is a mountpoint.
     mount("newroot", "newroot", "", MS_BIND | MS_REC, "")

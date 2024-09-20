@@ -108,7 +108,12 @@ class Installer(DistributionInstaller):
 
             if zypper and gpgkeys:
                 run(
-                    ["rpm", "--root=/buildroot", "--import", *(key.removeprefix("file://") for key in gpgkeys)],
+                    [
+                        "rpm",
+                        "--root=/buildroot",
+                        "--import",
+                        *(key.removeprefix("file://") for key in gpgkeys),
+                    ],
                     sandbox=context.sandbox(
                         binary="rpm",
                         options=[
@@ -169,7 +174,8 @@ class Installer(DistributionInstaller):
                 and context.config.architecture != Architecture.x86_64
             ):
                 die(
-                    f"{cls.pretty_name()} only supports current and stable releases for the x86-64 architecture",
+                    f"{cls.pretty_name()} only supports current and stable releases "
+                    "for the x86-64 architecture",
                     hint="Specify either tumbleweed or a specific leap release such as 15.6",
                 )
 

@@ -48,9 +48,8 @@ class Zypper(PackageManager):
         config = context.sandbox_tree / "etc/zypp/zypp.conf"
         config.parent.mkdir(exist_ok=True, parents=True)
 
-        # rpm.install.excludedocs can only be configured in zypp.conf so we append
-        # to any user provided config file. Let's also bump the refresh delay to
-        # the same default as dnf which is 48 hours.
+        # rpm.install.excludedocs can only be configured in zypp.conf so we append to any user provided
+        # config file. Let's also bump the refresh delay to the same default as dnf which is 48 hours.
         with config.open("a") as f:
             f.write(
                 textwrap.dedent(
@@ -67,9 +66,9 @@ class Zypper(PackageManager):
             repofile.parent.mkdir(exist_ok=True, parents=True)
             with repofile.open("w") as f:
                 for repo in repositories:
-                    # zypper uses the repo ID as its cache key which is unsafe so add a hash of the url used to it to
-                    # make sure a unique cache is used for each repository. We use roughly the same algorithm here that
-                    # dnf uses as well.
+                    # zypper uses the repo ID as its cache key which is unsafe so add a hash of the url used
+                    # to it to make sure a unique cache is used for each repository. We use roughly the same
+                    # algorithm here that dnf uses as well.
                     key = hashlib.sha256(repo.url.encode()).hexdigest()[:16]
 
                     f.write(
@@ -140,7 +139,9 @@ class Zypper(PackageManager):
     def createrepo(cls, context: Context) -> None:
         run(
             ["createrepo_c", context.repository],
-            sandbox=context.sandbox(binary="createrepo_c", options=["--bind", context.repository, context.repository]),
+            sandbox=context.sandbox(
+                binary="createrepo_c", options=["--bind", context.repository, context.repository]
+            ),
         )
 
         (context.sandbox_tree / "etc/zypp/repos.d/mkosi-local.repo").write_text(

@@ -100,7 +100,7 @@ class Image:
                 if self.config.tools_tree_distribution
                 else []
             ),
-            *(["--tools-tree-release", self.config.tools_tree_release] if self.config.tools_tree_release else []),
+            *(["--tools-tree-release", self.config.tools_tree_release] if self.config.tools_tree_release else []),  # noqa
             *(f"--kernel-command-line={i}" for i in kcl),
             "--force",
             "--incremental",
@@ -176,8 +176,10 @@ class Image:
 @pytest.fixture(scope="session", autouse=True)
 def suspend_capture_stdin(pytestconfig: Any) -> Iterator[None]:
     """
-    When --capture=no (or -s) is specified, pytest will still intercept stdin. Let's explicitly make it not capture
-    stdin when --capture=no is specified so we can debug image boot failures by logging into the emergency shell.
+    When --capture=no (or -s) is specified, pytest will still intercept
+    stdin. Let's explicitly make it not capture stdin when --capture=no is
+    specified so we can debug image boot failures by logging into the emergency
+    shell.
     """
 
     capmanager: Any = pytestconfig.pluginmanager.getplugin("capturemanager")

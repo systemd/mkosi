@@ -123,19 +123,26 @@ def finalize_completion_bash(options: list[CompletionItem], resources: Path) -> 
         c.write(to_bash_array("_mkosi_options", options_by_key.keys()))
         c.write("\n\n")
 
-        nargs = to_bash_hasharray("_mkosi_nargs", {optname: v.nargs for optname, v in options_by_key.items()})
+        nargs = to_bash_hasharray(
+            "_mkosi_nargs", {optname: v.nargs for optname, v in options_by_key.items()}
+        )
         c.write(nargs)
         c.write("\n\n")
 
         choices = to_bash_hasharray(
-            "_mkosi_choices", {optname: " ".join(v.choices) for optname, v in options_by_key.items() if v.choices}
+            "_mkosi_choices",
+            {optname: " ".join(v.choices) for optname, v in options_by_key.items() if v.choices},
         )
         c.write(choices)
         c.write("\n\n")
 
         compgen = to_bash_hasharray(
             "_mkosi_compgen",
-            {optname: v.compgen.to_bash() for optname, v in options_by_key.items() if v.compgen != CompGen.default},
+            {
+                optname: v.compgen.to_bash()
+                for optname, v in options_by_key.items()
+                if v.compgen != CompGen.default
+            },
         )
         c.write(compgen)
         c.write("\n\n")
@@ -182,7 +189,9 @@ def finalize_completion_fish(options: list[CompletionItem], resources: Path) -> 
 
 def finalize_completion_zsh(options: list[CompletionItem], resources: Path) -> str:
     def to_zsh_array(name: str, entries: Iterable[str]) -> str:
-        return f"declare -a {name.replace('-', '_')}=(" + " ".join(shlex.quote(str(e)) for e in entries) + ")"
+        return (
+            f"declare -a {name.replace('-', '_')}=(" + " ".join(shlex.quote(str(e)) for e in entries) + ")"
+        )
 
     completion = resources / "completion.zsh"
 
@@ -240,7 +249,8 @@ def print_completion(args: config.Args, *, resources: Path) -> None:
         func = finalize_completion_zsh
     else:
         die(
-            f"{shell!r} is not supported for completion scripts.", hint="Please specify either one of: bash, fish, zsh"
+            f"{shell!r} is not supported for completion scripts.",
+            hint="Please specify either one of: bash, fish, zsh",
         )
 
     completion_args = collect_completion_arguments()

@@ -17,7 +17,8 @@ def run_sysupdate(args: Args, config: Config) -> None:
     if not config.sysupdate_dir:
         die(
             "No sysupdate definitions directory specified",
-            hint="Specify a directory containing systemd-sysupdate transfer definitions with SysupdateDirectory=",
+            hint="Specify a directory containing systemd-sysupdate transfer definitions with "
+            "SysupdateDirectory=",
         )
 
     if not (sysupdate := config.find_binary("systemd-sysupdate", "/usr/lib/systemd/systemd-sysupdate")):

@@ -34,9 +34,8 @@ from mkosi.versioncomp import GenericVersion
 
 def want_efi(config: Config) -> bool:
     # Do we want to make the image bootable on EFI firmware?
-    # Note that this returns True also in the case where autodetection might later
-    # cause the system to not be made bootable on EFI firmware after the filesystem
-    # has been populated.
+    # Note that this returns True also in the case where autodetection might later cause the system to not be
+    # made bootable on EFI firmware after the filesystem has been populated.
 
     if config.output_format in (OutputFormat.uki, OutputFormat.esp):
         return True
@@ -48,7 +47,9 @@ def want_efi(config: Config) -> bool:
         return False
 
     if (
-        config.output_format == OutputFormat.cpio or config.output_format.is_extension_image() or config.overlay
+        config.output_format == OutputFormat.cpio
+        or config.output_format.is_extension_image()
+        or config.overlay
     ) and config.bootable == ConfigFeature.auto:
         return False
 
@@ -148,8 +149,9 @@ def prepare_grub_config(context: Context) -> Optional[Path]:
             f.write("set timeout=0\n")
 
     if want_grub_efi(context):
-        # Signed EFI grub shipped by distributions reads its configuration from /EFI/<distribution>/grub.cfg (except
-        # in OpenSUSE) in the ESP so let's put a shim there to redirect to the actual configuration file.
+        # Signed EFI grub shipped by distributions reads its configuration from /EFI/<distribution>/grub.cfg
+        # (except in OpenSUSE) in the ESP so let's put a shim there to redirect to the actual configuration
+        # file.
         if context.config.distribution == Distribution.opensuse:
             earlyconfig = context.root / "efi/EFI/BOOT/grub.cfg"
         else:
@@ -371,10 +373,10 @@ def grub_bios_setup(context: Context, partitions: Sequence[Partition]) -> None:
         tempfile.NamedTemporaryFile(mode="w") as mountinfo,
     ):
         # grub-bios-setup insists on being able to open the root device that --directory is located on, which
-        # needs root privileges. However, it only uses the root device when it is unable to embed itself in the
-        # bios boot partition. To make installation work unprivileged, we trick grub to think that the root
-        # device is our image by mounting over its /proc/self/mountinfo file (where it gets its information from)
-        # with our own file correlating the root directory to our image file.
+        # needs root privileges. However, it only uses the root device when it is unable to embed itself in
+        # the bios boot partition. To make installation work unprivileged, we trick grub to think that the
+        # root device is our image by mounting over its /proc/self/mountinfo file (where it gets its
+        # information from) with our own file correlating the root directory to our image file.
         mountinfo.write(f"1 0 1:1 / / - fat {context.staging / context.config.output_with_format}\n")
         mountinfo.flush()
 
@@ -468,7 +470,7 @@ def pesign_prepare(context: Context) -> None:
                 binary="openssl",
                 options=[
                     "--ro-bind", context.config.secure_boot_key, context.config.secure_boot_key,
-                    "--ro-bind", context.config.secure_boot_certificate, context.config.secure_boot_certificate,
+                    "--ro-bind", context.config.secure_boot_certificate, context.config.secure_boot_certificate,  # noqa
                 ],
             ),
         )  # fmt: skip
@@ -508,7 +510,7 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
             "--output", workdir(output),
         ]  # fmt: skip
         options: list[PathString] = [
-            "--ro-bind", context.config.secure_boot_certificate, workdir(context.config.secure_boot_certificate),
+            "--ro-bind", context.config.secure_boot_certificate, workdir(context.config.secure_boot_certificate),  # noqa
             "--ro-bind", input, workdir(input),
             "--bind", output.parent, workdir(output.parent),
         ]  # fmt: skip
@@ -570,7 +572,9 @@ def find_and_install_shim_binary(
         for pattern in signed:
             for p in context.root.glob(pattern):
                 if p.is_symlink() and p.readlink().is_absolute():
-                    logging.warning(f"Ignoring signed {name} EFI binary which is an absolute path to {p.readlink()}")
+                    logging.warning(
+                        f"Ignoring signed {name} EFI binary which is an absolute path to {p.readlink()}"
+                    )
                     continue
 
                 rel = p.relative_to(context.root)
@@ -587,7 +591,9 @@ def find_and_install_shim_binary(
         for pattern in unsigned:
             for p in context.root.glob(pattern):
                 if p.is_symlink() and p.readlink().is_absolute():
-                    logging.warning(f"Ignoring unsigned {name} EFI binary which is an absolute path to {p.readlink()}")
+                    logging.warning(
+                        f"Ignoring unsigned {name} EFI binary which is an absolute path to {p.readlink()}"
+                    )
                     continue
 
                 rel = p.relative_to(context.root)
@@ -616,12 +622,10 @@ def gen_kernel_images(context: Context) -> Iterator[tuple[str, Path]]:
         key=lambda k: GenericVersion(k.name),
         reverse=True,
     ):
-        # Make sure we look for anything that remotely resembles vmlinuz, as
-        # the arch specific install scripts in the kernel source tree sometimes
-        # do weird stuff. But let's make sure we're not returning UKIs as the
-        # UKI on Fedora is named vmlinuz-virt.efi. Also look for uncompressed
-        # images (vmlinux) as some architectures ship those. Prefer vmlinuz if
-        # both are present.
+        # Make sure we look for anything that remotely resembles vmlinuz, as the arch specific install
+        # scripts in the kernel source tree sometimes do weird stuff. But let's make sure we're not returning
+        # UKIs as the UKI on Fedora is named vmlinuz-virt.efi. Also look for uncompressed images (vmlinux) as
+        # some architectures ship those. Prefer vmlinuz if both are present.
         for kimg in kver.glob("vmlinuz*"):
             if KernelType.identify(context.config, kimg) != KernelType.uki:
                 yield kver.name, kimg
@@ -722,7 +726,7 @@ def install_systemd_boot(context: Context) -> None:
                         binary="sbsiglist",
                         options=[
                             "--bind", context.workspace, workdir(context.workspace),
-                            "--ro-bind", context.workspace / "mkosi.der", workdir(context.workspace / "mkosi.der"),
+                            "--ro-bind", context.workspace / "mkosi.der", workdir(context.workspace / "mkosi.der"),  # noqa
                         ]
                     ),
                 )  # fmt: skip
@@ -741,7 +745,7 @@ def install_systemd_boot(context: Context) -> None:
                         "--ro-bind",
                         context.config.secure_boot_certificate,
                         workdir(context.config.secure_boot_certificate),
-                        "--ro-bind", context.workspace / "mkosi.esl", workdir(context.workspace / "mkosi.esl"),
+                        "--ro-bind", context.workspace / "mkosi.esl", workdir(context.workspace / "mkosi.esl"),  # noqa
                         "--bind", keys, workdir(keys),
                     ]  # fmt: skip
                     if context.config.secure_boot_key_source.type == KeySourceType.engine:
@@ -749,7 +753,7 @@ def install_systemd_boot(context: Context) -> None:
                     if context.config.secure_boot_key.exists():
                         cmd += ["--key", workdir(context.config.secure_boot_key)]
                         options += [
-                            "--ro-bind", context.config.secure_boot_key, workdir(context.config.secure_boot_key),
+                            "--ro-bind", context.config.secure_boot_key, workdir(context.config.secure_boot_key),  # noqa
                         ]  # fmt: skip
                     else:
                         cmd += ["--key", context.config.secure_boot_key]

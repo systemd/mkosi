@@ -44,7 +44,9 @@ def mount_overlay(
             os.chmod(upperdir, st.st_mode)
 
         workdir = Path(
-            stack.enter_context(tempfile.TemporaryDirectory(dir=upperdir.parent, prefix=f"{upperdir.name}-workdir"))
+            stack.enter_context(
+                tempfile.TemporaryDirectory(dir=upperdir.parent, prefix=f"{upperdir.name}-workdir")
+            )
         )
 
         try:

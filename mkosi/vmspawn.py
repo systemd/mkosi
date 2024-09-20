@@ -45,7 +45,8 @@ def run_vmspawn(args: Args, config: Config) -> None:
         if not kernel.exists():
             die(
                 f"Kernel or UKI not found at {kernel}",
-                hint="Please install a kernel in the image or provide a --qemu-kernel argument to mkosi vmspawn",
+                hint="Please install a kernel in the image or provide a --qemu-kernel"
+                " argument to mkosi vmspawn",
             )
 
     cmdline: list[PathString] = [

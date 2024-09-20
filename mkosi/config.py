@@ -135,7 +135,10 @@ class ConfigTree:
     target: Optional[Path]
 
     def with_prefix(self, prefix: PathString = "/") -> tuple[Path, Path]:
-        return (self.source, Path(prefix) / os.fspath(self.target).lstrip("/") if self.target else Path(prefix))
+        return (
+            self.source,
+            Path(prefix) / os.fspath(self.target).lstrip("/") if self.target else Path(prefix),
+        )
 
     def __str__(self) -> str:
         return f"{self.source}:{self.target}" if self.target else f"{self.source}"
@@ -769,7 +772,10 @@ def config_default_repository_key_fetch(namespace: argparse.Namespace) -> bool:
 
     return cast(
         bool,
-        (namespace.tools_tree_distribution == Distribution.ubuntu and namespace.distribution.is_rpm_distribution())
+        (
+            namespace.tools_tree_distribution == Distribution.ubuntu
+            and namespace.distribution.is_rpm_distribution()
+        )
         or namespace.tools_tree_distribution.is_rpm_distribution(),
     )
 
@@ -815,7 +821,9 @@ def config_make_enum_parser(type: type[StrEnum]) -> ConfigParseCallback:
     return config_parse_enum
 
 
-def config_make_enum_parser_with_boolean(type: type[StrEnum], *, yes: StrEnum, no: StrEnum) -> ConfigParseCallback:
+def config_make_enum_parser_with_boolean(
+    type: type[StrEnum], *, yes: StrEnum, no: StrEnum
+) -> ConfigParseCallback:
     def config_parse_enum(value: Optional[str], old: Optional[StrEnum]) -> Optional[StrEnum]:
         if not value:
             return None
@@ -1029,7 +1037,9 @@ def match_path_exists(value: str) -> bool:
     return Path(value).exists()
 
 
-def config_parse_root_password(value: Optional[str], old: Optional[tuple[str, bool]]) -> Optional[tuple[str, bool]]:
+def config_parse_root_password(
+    value: Optional[str], old: Optional[tuple[str, bool]]
+) -> Optional[tuple[str, bool]]:
     if not value:
         return None
 
@@ -1099,7 +1109,8 @@ def config_parse_profile(value: Optional[str], old: Optional[int] = None) -> Opt
 
     if not is_valid_filename(value):
         die(
-            f"{value!r} is not a valid profile", hint="Profile= or --profile= requires a name with no path components."
+            f"{value!r} is not a valid profile",
+            hint="Profile= or --profile= requires a name with no path components.",
         )
 
     return value
@@ -1168,7 +1179,9 @@ def config_parse_vsock_cid(value: Optional[str], old: Optional[int]) -> Optional
     return cid
 
 
-def config_parse_minimum_version(value: Optional[str], old: Optional[GenericVersion]) -> Optional[GenericVersion]:
+def config_parse_minimum_version(
+    value: Optional[str], old: Optional[GenericVersion]
+) -> Optional[GenericVersion]:
     if not value:
         return old
 
@@ -1189,7 +1202,10 @@ def file_run_or_read(file: Path) -> str:
     content = file.read_text()
 
     if content.startswith("#!/"):
-        die(f"{file} starts with a shebang ({content.splitlines()[0]})", hint="This file should be executable")
+        die(
+            f"{file} starts with a shebang ({content.splitlines()[0]})",
+            hint="This file should be executable",
+        )
 
     return content
 
@@ -1296,7 +1312,9 @@ class CustomHelpFormatter(argparse.HelpFormatter):
         lines = text.splitlines()
         subindent = "    " if lines[0].endswith(":") else ""
         return flatten(
-            textwrap.wrap(line, width, break_long_words=False, break_on_hyphens=False, subsequent_indent=subindent)
+            textwrap.wrap(
+                line, width, break_long_words=False, break_on_hyphens=False, subsequent_indent=subindent
+            )
             for line in lines
         )
 
@@ -1414,7 +1432,9 @@ class Args:
         elif hasattr(s, "read"):
             j = json.load(s)
         else:
-            raise ValueError(f"{cls.__name__} can only be constructed from JSON from strings, dictionaries and files.")
+            raise ValueError(
+                f"{cls.__name__} can only be constructed from JSON from strings, dictionaries and files."
+            )
 
         def key_transformer(k: str) -> str:
             return "_".join(part.lower() for part in FALLBACK_NAME_TO_DEST_SPLITTER.split(k))
@@ -1637,7 +1657,11 @@ class Config:
         if self.workspace_dir:
             return self.workspace_dir
 
-        if (cache := INVOKING_USER.cache_dir()) and cache != Path("/var/cache/mkosi") and os.access(cache, os.W_OK):
+        if (
+            (cache := INVOKING_USER.cache_dir())
+            and cache != Path("/var/cache/mkosi")
+            and os.access(cache, os.W_OK)
+        ):
             return cache
 
         return Path("/var/tmp")
@@ -1746,8 +1770,8 @@ class Config:
             "prepare_scripts": sorted(
                 base64.b64encode(script.read_bytes()).decode() for script in self.prepare_scripts
             ),
-            # We don't use the full path here since tests will often use temporary directories for the output directory
-            # which would trigger a rebuild every time.
+            # We don't use the full path here since tests will often use temporary directories for the output
+            # directory which would trigger a rebuild every time.
             "tools_tree": self.tools_tree.name if self.tools_tree else None,
             "tools_tree_distribution": self.tools_tree_distribution,
             "tools_tree_release": self.tools_tree_release,
@@ -1772,7 +1796,9 @@ class Config:
         elif hasattr(s, "read"):
             j = json.load(s)
         else:
-            raise ValueError(f"{cls.__name__} can only be constructed from JSON from strings, dictionaries and files.")
+            raise ValueError(
+                f"{cls.__name__} can only be constructed from JSON from strings, dictionaries and files."
+            )
 
         def key_transformer(k: str) -> str:
             if (s := SETTINGS_LOOKUP_BY_NAME.get(k)) is not None:
@@ -1873,7 +1899,8 @@ def parse_ini(path: Path, only_sections: Collection[str] = ()) -> Iterator[tuple
             if line[-1] != "]":
                 die(f"{line} is not a valid section")
 
-            # Yield the section name with an empty key and value to indicate we've finished the current section.
+            # Yield the section name with an empty key and value to indicate we've finished the current
+            # section.
             if section:
                 yield section, "", ""
 
@@ -2547,7 +2574,8 @@ SETTINGS = (
         metavar="BOOL",
         section="Content",
         parse=config_parse_boolean,
-        help="When building a kernel modules initrd, include the currently loaded modules on the host in the image",
+        help="When building a kernel modules initrd, include the currently loaded modules "
+        "on the host in the image",
     ),
     ConfigSetting(
         dest="kernel_modules_initrd_exclude",
@@ -2729,7 +2757,8 @@ SETTINGS = (
         metavar="FEATURE",
         section="Validation",
         parse=config_parse_feature,
-        help="Measure the components of the unified kernel image (UKI) and embed the PCR signature into the UKI",
+        help="Measure the components of the unified kernel image (UKI) and "
+        "embed the PCR signature into the UKI",
     ),
     ConfigSetting(
         dest="passphrase",
@@ -2795,7 +2824,9 @@ SETTINGS = (
         metavar="MIRROR",
         section="Build",
         default_factory_depends=("distribution", "mirror", "tools_tree_distribution"),
-        default_factory=lambda ns: ns.mirror if ns.mirror and ns.distribution == ns.tools_tree_distribution else None,
+        default_factory=(
+            lambda ns: ns.mirror if ns.mirror and ns.distribution == ns.tools_tree_distribution else None
+        ),
         help="Set the mirror to use for the default tools tree",
     ),
     ConfigSetting(
@@ -3012,7 +3043,9 @@ SETTINGS = (
         long="--credential",
         metavar="NAME=VALUE",
         section="Host",
-        parse=config_make_dict_parser(delimiter=" ", parse=parse_credential, allow_paths=True, unescape=True),
+        parse=config_make_dict_parser(
+            delimiter=" ", parse=parse_credential, allow_paths=True, unescape=True
+        ),
         help="Pass a systemd credential to systemd-nspawn or qemu",
         paths=("mkosi.credentials",),
     ),
@@ -3535,7 +3568,8 @@ class ParseContext:
                 elif setting := SETTINGS_LOOKUP_BY_SPECIFIER.get(c):
                     if (v := self.finalize_value(setting)) is None:
                         logging.warning(
-                            f"Setting {setting.name} specified by specifier '%{c}' in {text} is not yet set, ignoring"
+                            f"Setting {setting.name} specified by specifier '%{c}' "
+                            f"in {text} is not yet set, ignoring"
                         )
                         continue
 
@@ -3543,8 +3577,8 @@ class ParseContext:
                 elif specifier := SPECIFIERS_LOOKUP_BY_CHAR.get(c):
                     specifierns = argparse.Namespace()
 
-                    # Some specifier methods might want to access the image name or directory mkosi was invoked in so
-                    # let's make sure those are available.
+                    # Some specifier methods might want to access the image name or directory mkosi was
+                    # invoked in so let's make sure those are available.
                     setattr(specifierns, "image", getattr(self.config, "image", None))
                     setattr(specifierns, "directory", self.cli.directory)
 
@@ -3553,8 +3587,8 @@ class ParseContext:
 
                         if (v := self.finalize_value(setting)) is None:
                             logging.warning(
-                                f"Setting {setting.name} which specifier '%{c}' in {text} depends on is not yet set, "
-                                "ignoring"
+                                f"Setting {setting.name} which specifier '%{c}' in {text} depends on "
+                                "is not yet set, ignoring"
                             )
                             break
 
@@ -3607,9 +3641,9 @@ class ParseContext:
                 self.parse_config_one(path if path.is_file() else Path("."))
 
     def finalize_value(self, setting: ConfigSetting) -> Optional[Any]:
-        # If a value was specified on the CLI, it always takes priority. If the setting is a collection of values, we
-        # merge the value from the CLI with the value from the configuration, making sure that the value from the CLI
-        # always takes priority.
+        # If a value was specified on the CLI, it always takes priority. If the setting is a collection of
+        # values, we merge the value from the CLI with the value from the configuration, making sure that the
+        # value from the CLI always takes priority.
         if hasattr(self.cli, setting.dest) and (v := getattr(self.cli, setting.dest)) is not None:
             if isinstance(v, list):
                 return (getattr(self.config, setting.dest, None) or []) + v
@@ -3621,8 +3655,8 @@ class ParseContext:
                 return v
 
         # If the setting was assigned the empty string on the CLI, we don't use any value configured in the
-        # configuration file. Additionally, if the setting is a collection of values, we won't use any default
-        # value either if the setting is set to the empty string on the command line.
+        # configuration file. Additionally, if the setting is a collection of values, we won't use any
+        # default value either if the setting is set to the empty string on the command line.
 
         if (
             not hasattr(self.cli, setting.dest)
@@ -3638,15 +3672,18 @@ class ParseContext:
         elif hasattr(self.defaults, setting.dest):
             default = getattr(self.defaults, setting.dest)
         elif setting.default_factory:
-            # To determine default values, we need the final values of various settings in
-            # a namespace object, but we don't want to copy the final values into the config
-            # namespace object just yet so we create a new namespace object instead.
+            # To determine default values, we need the final values of various settings in a namespace
+            # object, but we don't want to copy the final values into the config namespace object just yet so
+            # we create a new namespace object instead.
             factoryns = argparse.Namespace(
-                **{d: self.finalize_value(SETTINGS_LOOKUP_BY_DEST[d]) for d in setting.default_factory_depends}
+                **{
+                    d: self.finalize_value(SETTINGS_LOOKUP_BY_DEST[d])
+                    for d in setting.default_factory_depends
+                }
             )
 
-            # Some default factory methods want to access the image name or directory mkosi
-            # was invoked in so let's make sure those are available.
+            # Some default factory methods want to access the image name or directory mkosi was invoked in so
+            # let's make sure those are available.
             setattr(factoryns, "image", getattr(self.config, "image", None))
             setattr(factoryns, "directory", self.cli.directory)
 
@@ -3702,8 +3739,8 @@ class ParseContext:
                 if k != s.name:
                     logging.warning(f"Setting {k} is deprecated, please use {s.name} instead.")
 
-                # If we encounter a setting that has not been explicitly configured yet, we assign the default value
-                # first so that we can match on default values for settings.
+                # If we encounter a setting that has not been explicitly configured yet, we assign the
+                # default value first so that we can match on default values for settings.
                 if (value := self.finalize_value(s)) is None:
                     result = False
                 else:
@@ -3742,15 +3779,18 @@ class ParseContext:
             if local and (path.parent / "mkosi.local.conf").exists():
                 self.parse_config_one(path.parent / "mkosi.local.conf")
 
-                # Configuration from mkosi.local.conf should override other file based configuration but not the CLI
-                # itself so move the finalized values to the CLI namespace.
+                # Configuration from mkosi.local.conf should override other file based configuration but not
+                # the CLI itself so move the finalized values to the CLI namespace.
                 for s in SETTINGS:
                     if hasattr(self.config, s.dest):
                         setattr(self.cli, s.dest, self.finalize_value(s))
                         delattr(self.config, s.dest)
 
             for s in SETTINGS:
-                if s.scope == SettingScope.universal and (image := getattr(self.config, "image", None)) is not None:
+                if (
+                    s.scope == SettingScope.universal
+                    and (image := getattr(self.config, "image", None)) is not None
+                ):
                     continue
 
                 if self.only_sections and s.section not in self.only_sections:
@@ -3781,7 +3821,9 @@ class ParseContext:
             files = getattr(self.config, "files")
             files += [abs_path]
 
-            for section, k, v in parse_ini(path, only_sections=self.only_sections or {s.section for s in SETTINGS}):
+            for section, k, v in parse_ini(
+                path, only_sections=self.only_sections or {s.section for s in SETTINGS}
+            ):
                 if not k and not v:
                     continue
 
@@ -3791,13 +3833,18 @@ class ParseContext:
 
                 if not (s := SETTINGS_LOOKUP_BY_NAME.get(name)):
                     die(f"Unknown setting {name}")
-                if s.scope == SettingScope.universal and (image := getattr(self.config, "image", None)) is not None:
+                if (
+                    s.scope == SettingScope.universal
+                    and (image := getattr(self.config, "image", None)) is not None
+                ):
                     die(f"Setting {name} cannot be configured in subimage {image}")
                 if name in self.immutable:
                     die(f"Setting {name} cannot be modified anymore at this point")
 
                 if section != s.section:
-                    logging.warning(f"Setting {name} should be configured in [{s.section}], not [{section}].")
+                    logging.warning(
+                        f"Setting {name} should be configured in [{s.section}], not [{section}]."
+                    )
 
                 if name != s.name:
                     logging.warning(f"Setting {name} is deprecated, please use {s.name} instead.")
@@ -3833,7 +3880,9 @@ class ParseContext:
         return True
 
 
-def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tuple[Args, tuple[Config, ...]]:
+def parse_config(
+    argv: Sequence[str] = (), *, resources: Path = Path("/")
+) -> tuple[Args, tuple[Config, ...]]:
     argv = list(argv)
 
     # Make sure the verb command gets explicitly passed. Insert a -- before the positional verb argument
@@ -3857,9 +3906,8 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
 
     context = ParseContext(resources)
 
-    # The "image" field does not directly map to a setting but is required
-    # to determine some default values for settings, so let's set it on the
-    # config namespace immediately so it's available.
+    # The "image" field does not directly map to a setting but is required to determine some default values
+    # for settings, so let's set it on the config namespace immediately so it's available.
     setattr(context.config, "image", None)
 
     # First, we parse the command line arguments into a separate namespace.
@@ -3887,15 +3935,17 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
         prev = Config.from_json(Path(".mkosi-private/history/latest.json").read_text())
 
         # If we're operating on a previously built image (qemu, boot, shell, ...), we're not rebuilding the
-        # image and the configuration of the latest build is available, we load the config that was used to build the
-        # previous image from there instead of parsing configuration files, except for the Host section settings which
-        # we allow changing without requiring a rebuild of the image.
+        # image and the configuration of the latest build is available, we load the config that was used to
+        # build the previous image from there instead of parsing configuration files, except for the Host
+        # section settings which we allow changing without requiring a rebuild of the image.
         for s in SETTINGS:
             if s.section in ("Include", "Host"):
                 continue
 
             if hasattr(context.cli, s.dest) and getattr(context.cli, s.dest) != getattr(prev, s.dest):
-                logging.warning(f"Ignoring {s.long} from the CLI. Run with -f to rebuild the image with this setting")
+                logging.warning(
+                    f"Ignoring {s.long} from the CLI. Run with -f to rebuild the image with this setting"
+                )
 
             setattr(context.cli, s.dest, getattr(prev, s.dest))
             if hasattr(context.config, s.dest):
@@ -3917,9 +3967,9 @@ def parse_config(argv: Sequence[str] = (), *, resources: Path = Path("/")) -> tu
 
     config = copy.deepcopy(context.config)
 
-    # After we've finished parsing the configuration, we'll have values in both
-    # namespaces (context.cli, context.config). To be able to parse the values from a
-    # single namespace, we merge the final values of each setting into one namespace.
+    # After we've finished parsing the configuration, we'll have values in both namespaces (context.cli,
+    # context.config). To be able to parse the values from a single namespace, we merge the final values of
+    # each setting into one namespace.
     for s in SETTINGS:
         setattr(config, s.dest, context.finalize_value(s))
 
@@ -4130,7 +4180,11 @@ def load_environment(args: argparse.Namespace) -> dict[str, str]:
     if gnupghome := os.getenv("GNUPGHOME"):
         env["GNUPGHOME"] = gnupghome
 
-    env |= dict(parse_environment(line) for f in args.environment_files for line in f.read_text().strip().splitlines())
+    env |= dict(
+        parse_environment(line)
+        for f in args.environment_files
+        for line in f.read_text().strip().splitlines()
+    )
     env |= args.environment
 
     return env
@@ -4152,7 +4206,10 @@ def load_config(config: argparse.Namespace) -> Config:
     # Make sure we don't modify the input namespace.
     config = copy.deepcopy(config)
 
-    if config.build_dir and config.build_dir.name != f"{config.distribution}~{config.release}~{config.architecture}":
+    if (
+        config.build_dir
+        and config.build_dir.name != f"{config.distribution}~{config.release}~{config.architecture}"
+    ):
         config.build_dir /= f"{config.distribution}~{config.release}~{config.architecture}"
 
     if config.sign:
@@ -4476,7 +4533,9 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
     def uuid_transformer(uuidstr: str, fieldtype: type[uuid.UUID]) -> uuid.UUID:
         return uuid.UUID(uuidstr)
 
-    def optional_uuid_transformer(uuidstr: Optional[str], fieldtype: type[Optional[uuid.UUID]]) -> Optional[uuid.UUID]:
+    def optional_uuid_transformer(
+        uuidstr: Optional[str], fieldtype: type[Optional[uuid.UUID]]
+    ) -> Optional[uuid.UUID]:
         return uuid.UUID(uuidstr) if uuidstr is not None else None
 
     def root_password_transformer(
@@ -4486,7 +4545,9 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
             return None
         return (cast(str, rootpw[0]), cast(bool, rootpw[1]))
 
-    def config_tree_transformer(trees: list[dict[str, Any]], fieldtype: type[ConfigTree]) -> list[ConfigTree]:
+    def config_tree_transformer(
+        trees: list[dict[str, Any]], fieldtype: type[ConfigTree]
+    ) -> list[ConfigTree]:
         # TODO: exchange for TypeGuard and list comprehension once on 3.10
         ret = []
         for d in trees:
@@ -4510,7 +4571,9 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         enumtype = fieldtype.__args__[0]  # type: ignore
         return [enumtype[e] for e in enumlist]
 
-    def config_drive_transformer(drives: list[dict[str, Any]], fieldtype: type[QemuDrive]) -> list[QemuDrive]:
+    def config_drive_transformer(
+        drives: list[dict[str, Any]], fieldtype: type[QemuDrive]
+    ) -> list[QemuDrive]:
         # TODO: exchange for TypeGuard and list comprehension once on 3.10
         ret = []
 
@@ -4540,7 +4603,10 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         return KeySource(type=KeySourceType(keysource["Type"]), source=keysource.get("Source", ""))
 
     # The type of this should be
-    # dict[type, Callable[a stringy JSON object (str, null, list or dict of str), type of the key], type of the key]
+    # dict[
+    #     type,
+    #     Callable[a stringy JSON object (str, null, list or dict of str), type of the key], type of the key
+    # ]
     # though this seems impossible to express, since e.g. mypy will make this a
     # builtins.dict[builtins.object, builtins.function]
     # whereas pyright gives the type of the dict keys as the proper union of
@@ -4578,8 +4644,8 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
 
     def json_transformer(key: str, val: Any) -> Any:
         fieldtype: Optional[dataclasses.Field[Any]] = fields_by_name.get(key)
-        # It is unlikely that the type of a field will be None only, so let's not bother with a different sentinel
-        # value
+        # It is unlikely that the type of a field will be None only, so let's not bother with a different
+        # sentinel value
         if fieldtype is None:
             raise ValueError(f"{refcls} has no field {key}")
 
@@ -4588,14 +4654,18 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
             try:
                 return transformer(val, fieldtype.type)
             except (ValueError, IndexError, AssertionError) as e:
-                raise ValueError(f"Unable to parse {val:r} for attribute {key:r} for {refcls.__name__}") from e
+                raise ValueError(
+                    f"Unable to parse {val:r} for attribute {key:r} for {refcls.__name__}"
+                ) from e
 
         return val
 
     return json_transformer
 
 
-def want_selinux_relabel(config: Config, root: Path, fatal: bool = True) -> Optional[tuple[Path, str, Path, Path]]:
+def want_selinux_relabel(
+    config: Config, root: Path, fatal: bool = True
+) -> Optional[tuple[Path, str, Path, Path]]:
     if config.selinux_relabel == ConfigFeature.disabled:
         return None
 
@@ -4629,9 +4699,11 @@ def want_selinux_relabel(config: Config, root: Path, fatal: bool = True) -> Opti
     binpolicydir = root / "etc/selinux" / policy / "policy"
 
     # The policy file is named policy.XX where XX is the policy version that indicates what features are
-    # available. We check for string.digits instead of using isdecimal() as the latter checks for more than just
-    # digits.
-    policies = [p for p in binpolicydir.glob("*") if p.suffix and all(c in string.digits for c in p.suffix[1:])]
+    # available. We check for string.digits instead of using isdecimal() as the latter checks for more than
+    # just digits.
+    policies = [
+        p for p in binpolicydir.glob("*") if p.suffix and all(c in string.digits for c in p.suffix[1:])
+    ]
     if not policies:
         if fatal and config.selinux_relabel == ConfigFeature.enabled:
             die(f"SELinux relabel is requested but SELinux binary policy not found in {binpolicydir}")

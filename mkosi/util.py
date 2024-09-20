@@ -143,8 +143,8 @@ def flock_or_die(path: Path) -> Iterator[Path]:
 
         die(
             f"Cannot lock {path} as it is locked by another process",
-            hint="Maybe another mkosi process is still using it? Use Ephemeral=yes to enable booting multiple "
-            "instances of the same image",
+            hint="Maybe another mkosi process is still using it? Use Ephemeral=yes to enable booting "
+            "multiple instances of the same image",
         )
 
 
@@ -192,9 +192,12 @@ def parents_below(path: Path, below: Path) -> list[Path]:
 def resource_path(mod: ModuleType) -> Iterator[Path]:
     t = importlib.resources.files(mod)
     with as_file(t) as p:
-        # Make sure any temporary directory that the resources are unpacked in is accessible to the invoking user so
-        # that any commands executed as the invoking user can access files within it.
-        if p.parent.parent == Path(os.getenv("TMPDIR", "/tmp")) and stat.S_IMODE(p.parent.stat().st_mode) == 0o700:
+        # Make sure any temporary directory that the resources are unpacked in is accessible to the invoking
+        # user so that any commands executed as the invoking user can access files within it.
+        if (
+            p.parent.parent == Path(os.getenv("TMPDIR", "/tmp"))
+            and stat.S_IMODE(p.parent.stat().st_mode) == 0o700
+        ):
             p.parent.chmod(0o755)
 
         yield p

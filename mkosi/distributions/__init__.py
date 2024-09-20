@@ -194,7 +194,8 @@ def detect_distribution() -> tuple[Optional[Distribution], Optional[str]]:
 
 
 def join_mirror(mirror: str, link: str) -> str:
-    # urljoin() behaves weirdly if the base does not end with a / or the path starts with a / so fix them up as needed.
+    # urljoin() behaves weirdly if the base does not end with a / or the path starts with a / so fix them up
+    # as needed.
     if not mirror.endswith("/"):
         mirror = f"{mirror}/"
     link = link.removeprefix("/")

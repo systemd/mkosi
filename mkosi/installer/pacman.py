@@ -52,15 +52,15 @@ class Pacman(PackageManager):
     def mounts(cls, context: Context) -> list[PathString]:
         mounts = [
             *super().mounts(context),
-            # pacman writes downloaded packages to the first writable cache directory. We don't want it to write to our
-            # local repository directory so we expose it as a read-only directory to pacman.
+            # pacman writes downloaded packages to the first writable cache directory. We don't want it to
+            # write to our local repository directory so we expose it as a read-only directory to pacman.
             "--ro-bind", context.repository, "/var/cache/pacman/mkosi",
         ]  # fmt: skip
 
         if (context.root / "var/lib/pacman/local").exists():
-            # pacman reuses the same directory for the sync databases and the local database containing the list of
-            # installed packages. The former should go in the cache directory, the latter should go in the image, so we
-            # bind mount the local directory from the image to make sure that happens.
+            # pacman reuses the same directory for the sync databases and the local database containing the
+            # list of installed packages. The former should go in the cache directory, the latter should go
+            # in the image, so we bind mount the local directory from the image to make sure that happens.
             mounts += ["--bind", context.root / "var/lib/pacman/local", "/var/lib/pacman/local"]
 
         return mounts
@@ -143,8 +143,9 @@ class Pacman(PackageManager):
             "--root=/buildroot",
             "--logfile=/dev/null",
             "--dbpath=/var/lib/pacman",
-            # Make sure pacman looks at our local repository first by putting it as the first cache directory. We mount
-            # it read-only so the second directory will still be used for writing new cache entries.
+            # Make sure pacman looks at our local repository first by putting it as the first cache
+            # directory. We mount it read-only so the second directory will still be used for writing new
+            # cache entries.
             "--cachedir=/var/cache/pacman/mkosi",
             "--cachedir=/var/cache/pacman/pkg",
             "--hookdir=/buildroot/etc/pacman.d/hooks",
@@ -183,7 +184,9 @@ class Pacman(PackageManager):
                 context.repository / "mkosi.db.tar",
                 *sorted(context.repository.glob("*.pkg.tar*"), key=lambda p: GenericVersion(Path(p).name)),
             ],
-            sandbox=context.sandbox(binary="repo-add", options=["--bind", context.repository, context.repository]),
+            sandbox=context.sandbox(
+                binary="repo-add", options=["--bind", context.repository, context.repository]
+            ),
         )
 
         (context.sandbox_tree / "etc/mkosi-local.conf").write_text(

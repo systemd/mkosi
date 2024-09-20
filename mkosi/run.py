@@ -79,8 +79,8 @@ def uncaught_exception_handler(exit: Callable[[int], NoReturn] = sys.exit) -> It
         rc = e.returncode
 
         # Failures from qemu, ssh and systemd-nspawn are expected and we won't log stacktraces for those.
-        # Failures from self come from the forks we spawn to build images in a user namespace. We've already done all
-        # the logging for those failures so we don't log stacktraces for those either.
+        # Failures from self come from the forks we spawn to build images in a user namespace. We've already
+        # done all the logging for those failures so we don't log stacktraces for those either.
         if (
             ARG_DEBUG.get()
             and e.cmd
@@ -125,8 +125,8 @@ def log_process_failure(sandbox: Sequence[str], cmdline: Sequence[str], returnco
         logging.error(f"{cmdline[0]} not found.")
     else:
         logging.error(
-            f'"{shlex.join([*sandbox, *cmdline] if ARG_DEBUG.get() else cmdline)}" returned non-zero exit code '
-            f"{returncode}."
+            f'"{shlex.join([*sandbox, *cmdline] if ARG_DEBUG.get() else cmdline)}"'
+            f" returned non-zero exit code {returncode}."
         )
 
 
@@ -193,9 +193,8 @@ def spawn(
         logging.info(f"+ {shlex.join(cmd)}")
 
     if not stdout and not stderr:
-        # Unless explicit redirection is done, print all subprocess
-        # output on stderr, since we do so as well for mkosi's own
-        # output.
+        # Unless explicit redirection is done, print all subprocess output on stderr, since we do so as well
+        # for mkosi's own output.
         stdout = sys.stderr
 
     if stdin is None:
@@ -232,16 +231,17 @@ def spawn(
             return
 
         # The systemd socket activation interface requires any passed file descriptors to start at '3' and
-        # incrementally increase from there. The file descriptors we got from the caller might be arbitrary, so we need
-        # to move them around to make sure they start at '3' and incrementally increase.
+        # incrementally increase from there. The file descriptors we got from the caller might be arbitrary,
+        # so we need to move them around to make sure they start at '3' and incrementally increase.
         for i, fd in enumerate(pass_fds):
             # Don't do anything if the file descriptor is already what we need it to be.
             if fd == SD_LISTEN_FDS_START + i:
                 continue
 
-            # Close any existing file descriptor that occupies the id that we want to move to. This is safe because
-            # using pass_fds implies using close_fds as well, except that file descriptors are closed by python after
-            # running the preexec function, so we have to close a few of those manually here to make room if needed.
+            # Close any existing file descriptor that occupies the id that we want to move to. This is safe
+            # because using pass_fds implies using close_fds as well, except that file descriptors are closed
+            # by python after running the preexec function, so we have to close a few of those manually here
+            # to make room if needed.
             try:
                 os.close(SD_LISTEN_FDS_START + i)
             except OSError as e:
@@ -249,8 +249,8 @@ def spawn(
                     raise
 
             nfd = fcntl.fcntl(fd, fcntl.F_DUPFD, SD_LISTEN_FDS_START + i)
-            # fcntl.F_DUPFD uses the closest available file descriptor ID, so make sure it actually picked the ID we
-            # expect it to pick.
+            # fcntl.F_DUPFD uses the closest available file descriptor ID, so make sure it actually picked
+            # the ID we expect it to pick.
             assert nfd == SD_LISTEN_FDS_START + i
 
     with sandbox as sbx:
@@ -265,8 +265,9 @@ def spawn(
                 text=True,
                 user=user,
                 group=group,
-                # pass_fds only comes into effect after python has invoked the preexec function, so we make sure that
-                # pass_fds contains the file descriptors to keep open after we've done our transformation in preexec().
+                # pass_fds only comes into effect after python has invoked the preexec function, so we make
+                # sure that pass_fds contains the file descriptors to keep open after we've done our
+                # transformation in preexec().
                 pass_fds=[SD_LISTEN_FDS_START + i for i in range(len(pass_fds))],
                 env=env,
                 preexec_fn=preexec,
@@ -411,7 +412,8 @@ def finalize_passwd_mounts(root: PathString) -> list[PathString]:
     directory instead of from the host.
     """
     return flatten(
-        ("--ro-bind-try", Path(root) / "etc" / f, f"/etc/{f}") for f in ("passwd", "group", "shadow", "gshadow")
+        ("--ro-bind-try", Path(root) / "etc" / f, f"/etc/{f}")
+        for f in ("passwd", "group", "shadow", "gshadow")
     )
 
 
@@ -431,14 +433,15 @@ def vartmpdir() -> Iterator[Path]:
     try:
         yield d
     finally:
-        # A directory that's used as an overlayfs workdir will contain a "work" subdirectory after the overlayfs is
-        # unmounted. This "work" subdirectory will have permissions 000 and as such can't be opened or searched unless
-        # the user has the CAP_DAC_OVERRIDE capability. shutil.rmtree() will try to search the "work" subdirectory to
-        # remove anything in it which will fail with a permission error. To circumvent this, if the work directory
-        # exists and is not empty, let's fork off a subprocess where we acquire extra privileges and then invoke
-        # shutil.rmtree(). If the work directory exists but is empty, let's just delete the "work" subdirectory first
-        # and then invoke shutil.rmtree(). Deleting the subdirectory when it is empty is not a problem because deleting
-        # a subdirectory depends on the permissions of the parent directory and not the directory itself.
+        # A directory that's used as an overlayfs workdir will contain a "work" subdirectory after the
+        # overlayfs is unmounted. This "work" subdirectory will have permissions 000 and as such can't be
+        # opened or searched unless the user has the CAP_DAC_OVERRIDE capability. shutil.rmtree() will try to
+        # search the "work" subdirectory to remove anything in it which will fail with a permission error. To
+        # circumvent this, if the work directory exists and is not empty, let's fork off a subprocess where
+        # we acquire extra privileges and then invoke shutil.rmtree(). If the work directory exists but is
+        # empty, let's just delete the "work" subdirectory first and then invoke shutil.rmtree(). Deleting
+        # the subdirectory when it is empty is not a problem because deleting a subdirectory depends on the
+        # permissions of the parent directory and not the directory itself.
         try:
             (d / "work").rmdir()
         except OSError as e:
@@ -474,11 +477,13 @@ def sandbox_cmd(
         *setup,
         sys.executable, "-SI", mkosi.sandbox.__file__,
         "--proc", "/proc",
-        # We mounted a subdirectory of TMPDIR to /var/tmp so we unset TMPDIR so that /tmp or /var/tmp are used instead.
+        # We mounted a subdirectory of TMPDIR to /var/tmp so we unset TMPDIR so that /tmp or /var/tmp are
+        # used instead.
         "--unsetenv", "TMPDIR",
         *network_options(network=network),
-        # apivfs_script_cmd() and chroot_script_cmd() are executed from within the sandbox, but they still use
-        # sandbox.py, so we make sure it is available inside the sandbox so it can be executed there as well.
+        # apivfs_script_cmd() and chroot_script_cmd() are executed from within the sandbox, but they still
+        # use sandbox.py, so we make sure it is available inside the sandbox so it can be executed there as
+        # well.
         "--ro-bind", Path(mkosi.sandbox.__file__), "/sandbox.py",
     ]  # fmt: skip
 
@@ -497,10 +502,10 @@ def sandbox_cmd(
         elif p.is_dir():
             cmdline += ["--ro-bind", p, Path("/") / p.relative_to(tools)]
 
-    # If we're using /usr from a tools tree, we have to use /etc/alternatives and /etc/ld.so.cache from the tools tree
-    # as well if they exists since those are directly related  to /usr. In relaxed mode, we only do this if
-    # the mountpoint already exists on the host as otherwise we'd modify the host's /etc by creating the mountpoint
-    # ourselves (or fail when trying to create it).
+    # If we're using /usr from a tools tree, we have to use /etc/alternatives and /etc/ld.so.cache from the
+    # tools tree as well if they exists since those are directly related to /usr. In relaxed mode, we only do
+    # this if the mountpoint already exists on the host as otherwise we'd modify the host's /etc by creating
+    # the mountpoint ourselves (or fail when trying to create it).
     for p in (Path("etc/alternatives"), Path("etc/ld.so.cache")):
         if (tools / p).exists() and (not relaxed or (Path("/") / p).exists()):
             cmdline += ["--ro-bind", tools / p, Path("/") / p]
@@ -544,7 +549,11 @@ def sandbox_cmd(
         if network and Path("/etc/resolv.conf").exists():
             cmdline += ["--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf"]
 
-    cmdline += ["--setenv", "PATH", f"/scripts:{'/usr/bin:/usr/sbin' if tools != Path('/') else os.environ['PATH']}"]
+    cmdline += [
+        "--setenv",
+        "PATH",
+        f"/scripts:{'/usr/bin:/usr/sbin' if tools != Path('/') else os.environ['PATH']}",
+    ]
 
     if scripts:
         cmdline += ["--ro-bind", scripts, "/scripts"]
@@ -581,9 +590,9 @@ def sandbox_cmd(
                 else:
                     cmdline += ["--dir", Path("/") / d]
 
-        # If we put an overlayfs on /var, and /var/tmp is not in the sandbox tree, make sure /var/tmp is a bind mount
-        # of a regular empty directory instead of the overlays so tools like systemd-repart can use the underlying
-        # filesystem features from btrfs when using /var/tmp.
+        # If we put an overlayfs on /var, and /var/tmp is not in the sandbox tree, make sure /var/tmp is a
+        # bind mount of a regular empty directory instead of the overlays so tools like systemd-repart can
+        # use the underlying filesystem features from btrfs when using /var/tmp.
         if overlay and not (overlay / "var/tmp").exists():
             tmp = stack.enter_context(vartmpdir())
             cmdline += ["--bind", tmp, "/var/tmp"]
@@ -599,20 +608,20 @@ def apivfs_options(*, root: Path = Path("/buildroot")) -> list[PathString]:
         "--dev", root / "dev",
         # Nudge gpg to create its sockets in /run by making sure /run/user/0 exists.
         "--dir", root / "run/user/0",
-        # Make sure anything running in the root directory thinks it's in a container. $container can't always
-        # be accessed so we write /run/host/container-manager as well which is always accessible.
+        # Make sure anything running in the root directory thinks it's in a container. $container can't
+        # always be accessed so we write /run/host/container-manager as well which is always accessible.
         "--write", "mkosi", root / "run/host/container-manager",
     ]  # fmt: skip
 
 
 def chroot_options() -> list[PathString]:
     return [
-        # Let's always run as (fake) root when we chroot inside the image as tools executed within the image could
-        # have builtin assumptions about files being owned by root.
+        # Let's always run as (fake) root when we chroot inside the image as tools executed within the image
+        # could have builtin assumptions about files being owned by root.
         "--become-root",
-        # Unshare IPC namespace so any tests that exercise IPC related features don't fail with permission errors as
-        # --become-root implies unsharing a user namespace which won't have access to the parent's IPC namespace
-        # anymore.
+        # Unshare IPC namespace so any tests that exercise IPC related features don't fail with permission
+        # errors as --become-root implies unsharing a user namespace which won't have access to the parent's
+        # IPC namespace anymore.
         "--unshare-ipc",
         "--setenv", "container", "mkosi",
         "--setenv", "HOME", "/",
@@ -631,7 +640,8 @@ def chroot_cmd(
     cmdline: list[PathString] = [
         sys.executable, "-SI", mkosi.sandbox.__file__,
         "--bind", root, "/",
-        # We mounted a subdirectory of TMPDIR to /var/tmp so we unset TMPDIR so that /tmp or /var/tmp are used instead.
+        # We mounted a subdirectory of TMPDIR to /var/tmp so we unset TMPDIR so that /tmp or /var/tmp are
+        # used instead.
         "--unsetenv", "TMPDIR",
         *network_options(network=network),
         *apivfs_options(root=Path("/")),

@@ -41,7 +41,9 @@ class Installer(fedora.Installer):
             return
 
         if context.config.mirror:
-            url = f"baseurl={join_mirror(context.config.mirror, 'distrib/$releasever/$basearch/media/core/')}"
+            url = (
+                f"baseurl={join_mirror(context.config.mirror, 'distrib/$releasever/$basearch/media/core/')}"
+            )
             yield RpmRepository("core-release", f"{url}/release", gpgurls)
             yield RpmRepository("core-updates", f"{url}/updates/", gpgurls)
         else:

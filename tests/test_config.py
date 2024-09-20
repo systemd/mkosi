@@ -147,8 +147,8 @@ def test_parse_config(tmp_path: Path) -> None:
             ]
         )  # fmt: skip
 
-    # Empty values on the CLIs resets non-collection based settings to their defaults and collection based settings to
-    # empty collections.
+    # Empty values on the CLIs resets non-collection based settings to their defaults and collection based
+    # settings to empty collections.
     assert config.distribution == (detect_distribution()[0] or Distribution.custom)
     assert "MY_KEY" not in config.environment
     assert "my.cred" not in config.credentials
@@ -176,8 +176,8 @@ def test_parse_config(tmp_path: Path) -> None:
 
     # Setting a value explicitly in a dropin should override the default from mkosi.conf.
     assert config.distribution == Distribution.debian
-    # Lists should be merged by appending the new values to the existing values. Any values from the CLI should be
-    # appended to the values from the configuration files.
+    # Lists should be merged by appending the new values to the existing values. Any values from the CLI
+    # should be appended to the values from the configuration files.
     assert config.packages == ["abc", "qed", "def", "last"]
     assert config.output_format == OutputFormat.cpio
     assert config.image_id == "00-dropin"
@@ -269,7 +269,9 @@ def test_parse_config(tmp_path: Path) -> None:
     )
 
     with chdir(d):
-        _, [one, two, config] = parse_config(["--package", "qed", "--build-package", "def", "--repositories", "cli"])
+        _, [one, two, config] = parse_config(
+            ["--package", "qed", "--build-package", "def", "--repositories", "cli"]
+        )
 
     # Universal settings should always come from the main image.
     assert one.distribution == config.distribution
@@ -298,7 +300,8 @@ def test_parse_config(tmp_path: Path) -> None:
     with chdir(d):
         _, [one, two, config] = parse_config(["--image-version", "7.8.9"])
 
-    # Inherited settings specified on the CLI should not override subimages that configure the setting explicitly.
+    # Inherited settings specified on the CLI should not override subimages that configure the setting
+    # explicitly.
     assert config.image_version == "7.8.9"
     assert one.image_version == "7.8.9"
     assert two.image_version == "4.5.6"
@@ -1153,7 +1156,9 @@ def test_kernel_specifiers(tmp_path: Path) -> None:
     assert test_expand_kernel_specifiers("&c") == boot_count
 
     assert test_expand_kernel_specifiers("Image_1.0.3") == "Image_1.0.3"
-    assert test_expand_kernel_specifiers("Image~&c+&h-&k-&e") == f"Image~{boot_count}+{roothash}-{kver}-{token}"
+    assert (
+        test_expand_kernel_specifiers("Image~&c+&h-&k-&e") == f"Image~{boot_count}+{roothash}-{kver}-{token}"
+    )
 
 
 def test_output_id_version(tmp_path: Path) -> None:
