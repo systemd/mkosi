@@ -529,7 +529,12 @@ def sandbox_cmd(
         if home := current_home_dir():
             cmdline += ["--bind", home, home]
     else:
-        cmdline += ["--dir", "/var/tmp", "--dir", "/var/log", "--unshare-ipc"]
+        cmdline += [
+            "--dir", "/var/tmp",
+            "--dir", "/var/log",
+            "--unshare-ipc",
+            "--symlink", "../proc/self/mounts", "/etc/mtab",
+        ]
 
         if devices:
             cmdline += ["--bind", "/sys", "/sys", "--bind", "/dev", "/dev"]
