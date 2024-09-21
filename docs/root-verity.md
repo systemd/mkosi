@@ -6,40 +6,42 @@ partition, put the following in mkosi.repart:
 ```conf
 # mkosi.repart/00-esp.conf
 [Partition]
+Type=esp
+Format=vfat
 CopyFiles=/efi:/
 CopyFiles=/boot:/
-Format=vfat
-SizeMinBytes=1024M
-Type=esp
+SizeMinBytes=1G
+SizeMaxBytes=1G
 
-# mkosi.repart/10-root.conf
+# mkosi.repart/10-root-verity-sig.conf
 [Partition]
-CopyFiles=/
-ExcludeFilesTarget=/var/
-Format=erofs
-Label=%M_%A_root
-Minimize=yes
-SplitName=%t.%U
-Type=root
-Verity=data
+Type=root-verity-sig
+Label=%M_%A_verity_sig
+Verity=signature
 VerityMatchKey=root
+SplitName=%t.%U
 
 # mkosi.repart/11-root-verity.conf
 [Partition]
-Label=%M_%A_verity
-Minimize=yes
-SplitName=%t.%U
 Type=root-verity
+Label=%M_%A_verity
 Verity=hash
 VerityMatchKey=root
-
-# mkosi.repart/12-root-verity-sig.conf
-[Partition]
-Label=%M_%A_verity_sig
+SizeMinBytes=300M
+SizeMaxBytes=300M
 SplitName=%t.%U
-Type=root-verity-sig
-Verity=signature
+
+# mkosi.repart/12-root.conf
+[Partition]
+Type=root
+Format=erofs
+Label=%M_%A_root
+Verity=data
 VerityMatchKey=root
+CopyFiles=/
+ExcludeFilesTarget=/var/
+Minimize=yes
+SplitName=%t.%U
 ```
 
 Then, you'll need a dropin for systemd-repart in the initrd to make sure
@@ -68,43 +70,47 @@ existing partitions:
 [Partition]
 Type=esp
 
-# mkosi.extra/usr/lib/repart.d/10-root.conf
+# mkosi.extra/usr/lib/repart.d/10-root-verity-sig.conf
 [Partition]
-Label=%M_%A
-Type=root
+Type=root-verity-sig
+Label=%M_%A_verity_sig
 
 # mkosi.extra/usr/lib/repart.d/11-root-verity.conf
 [Partition]
-Label=%M_%A_verity
 Type=root-verity
+Label=%M_%A_verity
 
-# mkosi.extra/usr/lib/repart.d/12-root-verity-sig.conf
+# mkosi.extra/usr/lib/repart.d/12-root.conf
 [Partition]
-Label=%M_%A_verity_sig
-Type=root-verity-sig
-
-# mkosi.extra/usr/lib/repart.d/20-root.conf
-[Partition]
-Label=_empty
-SizeMaxBytes=2048M
-SizeMinBytes=2048M
 Type=root
+Label=%M_%A
+SizeMinBytes=2G
+SizeMaxBytes=2G
+
+# mkosi.extra/usr/lib/repart.d/20-root-verity-sig.conf
+[Partition]
+Type=root-verity-sig
+Label=_empty
 
 # mkosi.extra/usr/lib/repart.d/21-root-verity.conf
 [Partition]
-Label=_empty
-SizeMaxBytes=300M
-SizeMinBytes=300M
 Type=root-verity
-
-# mkosi.extra/usr/lib/repart.d/22-root-verity-sig.conf
-[Partition]
 Label=_empty
-Type=root-verity-sig
+SizeMinBytes=300M
+SizeMaxBytes=300M
+
+# mkosi.extra/usr/lib/repart.d/22-root.conf
+[Partition]
+Type=root
+Label=_empty
+SizeMinBytes=2G
+SizeMaxBytes=2G
 
 # mkosi.extra/usr/lib/repart.d/30-swap.conf
 [Partition]
 Type=swap
+Format=swap
+Encrypt=tpm2
 SizeMinBytes=4G
 SizeMaxBytes=4G
 
@@ -130,20 +136,19 @@ example definitions here. These are all missing a `[Source]` section
 whose contents will depend on how updates are deployed:
 
 ```conf
-# /usr/lib/sysupdate.d/10-root.conf
-
+# /usr/lib/sysupdate.d/10-root-verity-sig.conf
 [Transfer]
 ProtectVersion=%A
 
 [Target]
 Type=partition
 Path=auto
-MatchPattern=ParticleOS_@v
-MatchPartitionType=root
+MatchPattern=%M_@v_verity_sig
+MatchPartitionType=root-verity-sig
 PartitionFlags=0
 ReadOnly=1
 
-# /usr/lib/sysupdate.d/10-root-verity.conf
+# /usr/lib/sysupdate.d/11-root-verity.conf
 [Transfer]
 ProtectVersion=%A
 
@@ -155,15 +160,15 @@ MatchPartitionType=root-verity
 PartitionFlags=0
 ReadOnly=1
 
-# /usr/lib/sysupdate.d/12-root-verity-sig.conf
+# /usr/lib/sysupdate.d/12-root.conf
 [Transfer]
 ProtectVersion=%A
 
 [Target]
 Type=partition
 Path=auto
-MatchPattern=%M_@v_verity_sig
-MatchPartitionType=root-verity-sig
+MatchPattern=ParticleOS_@v
+MatchPartitionType=root
 PartitionFlags=0
 ReadOnly=1
 
