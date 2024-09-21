@@ -40,5 +40,5 @@ def show_docs(manual: str, formats: list[DocFormat], *, resources: Path, pager: 
         except (FileNotFoundError, subprocess.CalledProcessError) as e:
             if not formats:
                 if isinstance(e, FileNotFoundError):
-                    die("The mkosi package does not contain the man page {manual:r}.")
+                    die("The mkosi package does not contain the man page {manual!r}.")
                 raise e

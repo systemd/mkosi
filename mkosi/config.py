@@ -4678,7 +4678,7 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
                 return transformer(val, fieldtype.type)
             except (ValueError, IndexError, AssertionError) as e:
                 raise ValueError(
-                    f"Unable to parse {val:r} for attribute {key:r} for {refcls.__name__}"
+                    f"Unable to parse {val!r} for attribute {key!r} for {refcls.__name__}"
                 ) from e
 
         return val
