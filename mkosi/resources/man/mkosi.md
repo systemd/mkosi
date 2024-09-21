@@ -306,12 +306,12 @@ Configuration is parsed in the following order:
 * `mkosi.conf` is parsed if it exists in the directory configured with
   `--directory=` or the current working directory if `--directory=` is
   not used.
-* If a profile is defined, its configuration is parsed from the
-  `mkosi.profiles/` directory.
 * `mkosi.conf.d/` is parsed in the same directory if it exists. Each
   directory and each file with the `.conf` extension in `mkosi.conf.d/`
   is parsed. Any directory in `mkosi.conf.d` is parsed as if it were
   a regular top level directory.
+* If any profiles are configured, their configuration is parsed from the
+  `mkosi.profiles/` directory.
 * Subimages are parsed from the `mkosi.images` directory if it exists.
 
 Note that settings configured via the command line always override
@@ -1867,8 +1867,7 @@ config file is read:
 :   Select the given profile. A profile is a configuration file or
     directory in the `mkosi.profiles/` directory. When selected, this
     configuration file or directory is included after parsing the
-    `mkosi.conf` file, but before any `mkosi.conf.d/*.conf` drop in
-    configuration.
+    `mkosi.conf.d/*.conf` drop in configuration files.
 
 `Dependencies=`, `--dependency=`
 :   The images that this image depends on specified as a comma-separated

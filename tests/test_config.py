@@ -377,8 +377,8 @@ def test_profiles(tmp_path: Path) -> None:
         _, [config] = parse_config()
 
     assert config.profile == "profile"
-    # mkosi.conf.d/ should override the profile
-    assert config.distribution == Distribution.debian
+    # The profile should override mkosi.conf.d/
+    assert config.distribution == Distribution.fedora
     assert config.qemu_kvm == ConfigFeature.enabled
 
     (d / "mkosi.conf").unlink()
@@ -387,8 +387,8 @@ def test_profiles(tmp_path: Path) -> None:
         _, [config] = parse_config(["--profile", "profile"])
 
     assert config.profile == "profile"
-    # mkosi.conf.d/ should override the profile
-    assert config.distribution == Distribution.debian
+    # The profile should override mkosi.conf.d/
+    assert config.distribution == Distribution.fedora
     assert config.qemu_kvm == ConfigFeature.enabled
 
 

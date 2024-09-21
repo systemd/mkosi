@@ -55,6 +55,10 @@
   when running a command that boots the image
 - More directories aside from `/etc` and `/usr` are now picked up from
   sandbox trees (formerly known as package manager trees).
+- Profile configuration from `mkosi.profiles` is now parsed after
+  `mkosi.conf.d` instead of before it. To set defaults for use in `mkosi.conf.d`
+  based on the configured profile, use an early dropin in `mkosi.conf.d` that
+  matches on the configured profile instead.
 
 ## v24
 

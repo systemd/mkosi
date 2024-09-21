@@ -3866,28 +3866,30 @@ class ParseContext:
                 setattr(self.config, s.dest, s.parse(v, getattr(self.config, s.dest, None)))
                 self.parse_new_includes()
 
+        profilepath = None
         if profiles:
             profile = self.finalize_value(SETTINGS_LOOKUP_BY_DEST["profile"])
             self.immutable.add("Profile")
 
             if profile:
-                for p in (profile, f"{profile}.conf"):
-                    p = Path("mkosi.profiles") / p
-                    if p.exists():
+                for p in (Path(profile), Path(f"{profile}.conf")):
+                    profilepath = Path("mkosi.profiles") / p
+                    if profilepath.exists():
                         break
                 else:
                     die(f"Profile '{profile}' not found in mkosi.profiles/")
 
                 setattr(self.config, "profile", profile)
 
-                with chdir(p if p.is_dir() else Path.cwd()):
-                    self.parse_config_one(p if p.is_file() else Path("."))
-
         if extras and (path.parent / "mkosi.conf.d").exists():
             for p in sorted((path.parent / "mkosi.conf.d").iterdir()):
                 if p.is_dir() or p.suffix == ".conf":
                     with chdir(p if p.is_dir() else Path.cwd()):
                         self.parse_config_one(p if p.is_file() else Path("."))
+
+        if profilepath:
+            with chdir(profilepath if profilepath.is_dir() else Path.cwd()):
+                self.parse_config_one(profilepath if profilepath.is_file() else Path("."))
 
         return True
 
