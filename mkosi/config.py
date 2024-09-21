@@ -1941,6 +1941,7 @@ def parse_ini(path: Path, only_sections: Collection[str] = ()) -> Iterator[tuple
 
 
 SETTINGS = (
+    # Include section
     ConfigSetting(
         dest="include",
         short="-I",
@@ -1952,6 +1953,7 @@ SETTINGS = (
         ),
         help="Include configuration from the specified file or directory",
     ),
+    # Config section
     ConfigSetting(
         dest="profile",
         section="Config",
@@ -1990,6 +1992,7 @@ SETTINGS = (
         parse=config_make_list_parser(delimiter=" "),
         help="Environment variables to pass to subimages",
     ),
+    # Distribution section
     ConfigSetting(
         dest="distribution",
         short="-d",
@@ -2068,6 +2071,7 @@ SETTINGS = (
         help="Repositories to use",
         scope=SettingScope.universal,
     ),
+    # Output section
     ConfigSetting(
         dest="output_format",
         short="-t",
@@ -2210,6 +2214,7 @@ SETTINGS = (
         paths=("mkosi.clean",),
         help="Clean script to run after cleanup",
     ),
+    # Content section
     ConfigSetting(
         dest="packages",
         short="-p",
@@ -2684,6 +2689,7 @@ SETTINGS = (
         parse=config_parse_feature,
         help="Specify whether to relabel all files with setfiles",
     ),
+    # Validation section
     ConfigSetting(
         dest="secure_boot",
         metavar="BOOL",
@@ -2796,6 +2802,7 @@ SETTINGS = (
         section="Validation",
         help="GPG key to use for signing",
     ),
+    # Build section
     ConfigSetting(
         dest="tools_tree",
         metavar="PATH",
@@ -2971,6 +2978,7 @@ SETTINGS = (
         parse=config_parse_boolean,
         help="Whether mkosi can store information about previous builds",
     ),
+    # Host section
     ConfigSetting(
         dest="proxy_url",
         section="Host",
