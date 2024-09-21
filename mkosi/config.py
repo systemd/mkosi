@@ -3955,7 +3955,13 @@ def parse_config(
         and not args.force
         and Path(".mkosi-private/history/latest.json").exists()
     ):
-        prev = Config.from_json(Path(".mkosi-private/history/latest.json").read_text())
+        try:
+            prev = Config.from_json(Path(".mkosi-private/history/latest.json").read_text())
+        except ValueError:
+            die(
+                "Unable to parse history from .mkosi-private/history/latest.json",
+                hint="Build with -f to generate a new history file from scratch",
+            )
 
         # If we're operating on a previously built image (qemu, boot, shell, ...), we're not rebuilding the
         # image and the configuration of the latest build is available, we load the config that was used to
