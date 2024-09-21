@@ -3785,21 +3785,33 @@ class ParseContext:
         extras = path.is_dir()
 
         if path.is_dir():
-            path = path / "mkosi.conf"
+            path /= "mkosi.conf"
 
         if not self.match_config(path):
             return False
 
         if extras:
-            if local and (path.parent / "mkosi.local.conf").exists():
-                self.parse_config_one(path.parent / "mkosi.local.conf")
+            if local:
+                for p in (Path("mkosi.local"), Path("mkosi.local.conf")):
+                    p = path.parent / p
 
-                # Configuration from mkosi.local.conf should override other file based configuration but not
-                # the CLI itself so move the finalized values to the CLI namespace.
-                for s in SETTINGS:
-                    if hasattr(self.config, s.dest):
-                        setattr(self.cli, s.dest, self.finalize_value(s))
-                        delattr(self.config, s.dest)
+                    if p.is_dir():
+                        p /= "mkosi.conf"
+
+                    if not p.exists():
+                        continue
+
+                    self.parse_config_one(p)
+
+                    # Local configuration should override other file based
+                    # configuration but not the CLI itself so move the finalized
+                    # values to the CLI namespace.
+                    for s in SETTINGS:
+                        if hasattr(self.config, s.dest):
+                            setattr(self.cli, s.dest, self.finalize_value(s))
+                            delattr(self.config, s.dest)
+
+                    break
 
             for s in SETTINGS:
                 if (
