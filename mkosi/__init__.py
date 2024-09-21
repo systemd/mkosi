@@ -56,6 +56,7 @@ from mkosi.config import (
     Config,
     ConfigFeature,
     DocFormat,
+    Incremental,
     JsonEncoder,
     KeySourceType,
     ManifestFormat,
@@ -4243,6 +4244,22 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
 
     check_workspace_directory(last)
 
+    if last.incremental == Incremental.strict:
+        if args.force > 1:
+            die(
+                "Cannot remove incremental caches when building with Incremental=strict",
+                hint="Build once with -i yes to update the image cache",
+            )
+
+        for config in images:
+            if have_cache(config):
+                continue
+
+            die(
+                f"Strict incremental mode is enabled but the cache for image {config.name()} is out-of-date",
+                hint="Build once with -i yes to update the image cache",
+            )
+
     # If we're doing an incremental build and the cache is not out of date, don't clean up the
     # tools tree so that we can reuse the previous one.
     if tools and (
@@ -4250,6 +4267,12 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         or ((args.verb == Verb.build or args.force > 0) and not have_cache(tools))
         or needs_build(args, tools, force=2)
     ):
+        if tools.incremental == Incremental.strict:
+            die(
+                "Tools tree does not exist or is out-of-date but the strict incremental mode is enabled",
+                hint="Build once with -i yes to update the tools tree",
+            )
+
         run_clean(args, tools, resources=resources)
 
     # First, process all directory removals because otherwise if different images share directories

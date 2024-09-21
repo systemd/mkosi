@@ -1309,16 +1309,20 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     Otherwise, these directories are picked up from the host.
 
 `Incremental=`, `--incremental=`, `-i`
-:   Enable incremental build mode. In this mode, a copy of the OS image is
-    created immediately after all OS packages are installed and the
-    prepare scripts have executed but before the `mkosi.build` scripts are
-    invoked (or anything that happens after it). On subsequent invocations
-    of `mkosi` with the `-i` switch this cached image may be used to skip
-    the OS package installation, thus drastically speeding up repetitive
-    build times. Note that while there is some rudimentary cache
-    invalidation, it is definitely not perfect. In order to force
-    rebuilding of the cached image, combine `-i` with `-ff` to ensure the
-    cached image is first removed and then re-created.
+:   Takes either `strict` or a boolean value as its argument. Enables
+    incremental build mode. In this mode, a copy of the OS image is created
+    immediately after all OS packages are installed and the prepare scripts
+    have executed but before the `mkosi.build` scripts are invoked (or
+    anything that happens after it). On subsequent invocations of `mkosi`
+    with the `-i` switch this cached image may be used to skip the OS package
+    installation, thus drastically speeding up repetitive build times. Note
+    that while there is some rudimentary cache invalidation, it is definitely
+    not perfect. In order to force a rebuild of the cached image, combine
+    `-i` with `-ff` to ensure the cached image is first removed and then
+    re-created.
+
+    If set to `strict`, the build fails if previously built cached image does
+    not exist.
 
 `CacheOnly=`, `--cache-only=`
 :   Takes one of `auto`, `metadata`, `always` or `never`. Defaults to
