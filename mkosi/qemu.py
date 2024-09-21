@@ -642,26 +642,27 @@ def generate_scratch_fs(config: Config) -> Iterator[Path]:
 
 
 def finalize_qemu_firmware(config: Config, kernel: Optional[Path]) -> QemuFirmware:
-    if config.qemu_firmware == QemuFirmware.auto:
-        if kernel:
-            return (
-                QemuFirmware.uefi_secure_boot
-                if KernelType.identify(config, kernel) != KernelType.unknown
-                else QemuFirmware.linux
-            )
-        elif (
-            config.output_format in (OutputFormat.cpio, OutputFormat.directory)
-            or config.architecture.to_efi() is None
-        ):
-            return QemuFirmware.linux
-        else:
-            # At the moment there are no qemu firmware descriptions for non-x86 architectures that advertise
-            # secure-boot support so let's default to no secure boot for non-x86 architectures.
-            return (
-                QemuFirmware.uefi_secure_boot if config.architecture.is_x86_variant() else QemuFirmware.uefi
-            )
-    else:
+    if config.qemu_firmware != QemuFirmware.auto:
         return config.qemu_firmware
+
+    if kernel:
+        if KernelType.identify(config, kernel) != KernelType.unknown:
+            return QemuFirmware.uefi_secure_boot
+
+        return QemuFirmware.linux
+
+    if (
+        config.output_format in (OutputFormat.cpio, OutputFormat.directory)
+        or config.architecture.to_efi() is None
+    ):
+        return QemuFirmware.linux
+
+    # At the moment there are no qemu firmware descriptions for non-x86 architectures that advertise
+    # secure-boot support so let's default to no secure boot for non-x86 architectures.
+    if config.architecture.is_x86_variant():
+        return QemuFirmware.uefi_secure_boot
+
+    return QemuFirmware.uefi
 
 
 def finalize_firmware_variables(
