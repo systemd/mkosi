@@ -806,6 +806,7 @@ def run_build_scripts(context: Context) -> None:
                     ["/work/build-script", *cmdline],
                     env=env,
                     stdin=sys.stdin,
+                    stdout=sys.stdout,
                     sandbox=script_maybe_chroot_sandbox(
                         context,
                         script=script,
