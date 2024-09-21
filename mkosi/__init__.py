@@ -4224,7 +4224,13 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
 
     output = last.output_dir_or_cwd() / last.output_with_compression
 
-    if args.verb == Verb.build and not args.force and output.exists() and not output.is_symlink():
+    if (
+        args.verb == Verb.build
+        and not args.force
+        and output.exists()
+        and not output.is_symlink()
+        and last.output_format != OutputFormat.none
+    ):
         logging.info(f"Output path {output} exists already. (Use --force to rebuild.)")
         return
 
