@@ -237,25 +237,48 @@ class Installer(DistributionInstaller):
         else:
             url = "metalink=https://mirrors.fedoraproject.org/metalink?arch=$basearch"
             for repo in ("epel", "epel-next"):
-                yield RpmRepository(repo, f"{url}&repo={repo}-$releasever", gpgurls, enabled=False)
                 yield RpmRepository(
-                    f"{repo}-debuginfo", f"{url}&repo={repo}-debug-$releasever", gpgurls, enabled=False
+                    repo,
+                    f"{url}&repo={repo}-$releasever",
+                    gpgurls,
+                    enabled=False,
                 )
                 yield RpmRepository(
-                    f"{repo}-source", f"{url}&repo={repo}-source-$releasever", gpgurls, enabled=False
+                    f"{repo}-debuginfo",
+                    f"{url}&repo={repo}-debug-$releasever",
+                    gpgurls,
+                    enabled=False,
+                )
+                yield RpmRepository(
+                    f"{repo}-source",
+                    f"{url}&repo={repo}-source-$releasever",
+                    gpgurls,
+                    enabled=False,
                 )
 
             yield RpmRepository(
-                "epel-testing", f"{url}&repo=testing-epel$releasever", gpgurls, enabled=False
+                "epel-testing",
+                f"{url}&repo=testing-epel$releasever",
+                gpgurls,
+                enabled=False,
             )
             yield RpmRepository(
-                "epel-testing-debuginfo", f"{url}&repo=testing-debug-epel$releasever", gpgurls, enabled=False
+                "epel-testing-debuginfo",
+                f"{url}&repo=testing-debug-epel$releasever",
+                gpgurls,
+                enabled=False,
             )
             yield RpmRepository(
-                "epel-testing-source", f"{url}&repo=testing-source-epel$releasever", gpgurls, enabled=False
+                "epel-testing-source",
+                f"{url}&repo=testing-source-epel$releasever",
+                gpgurls,
+                enabled=False,
             )
             yield RpmRepository(
-                "epel-next-testing", f"{url}&repo=epel-testing-next-$releasever", gpgurls, enabled=False
+                "epel-next-testing",
+                f"{url}&repo=epel-testing-next-$releasever",
+                gpgurls,
+                enabled=False,
             )
             yield RpmRepository(
                 "epel-next-testing-debuginfo",

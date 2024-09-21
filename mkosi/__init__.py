@@ -397,11 +397,19 @@ def configure_autologin(context: Context) -> None:
 
     with complete_step("Setting up autologin…"):
         configure_autologin_service(
-            context, "console-getty.service", "--noclear --keep-baud console 115200,38400,9600"
+            context,
+            "console-getty.service",
+            "--noclear --keep-baud console 115200,38400,9600",
         )
-        configure_autologin_service(context, "getty@tty1.service", "--noclear -")
         configure_autologin_service(
-            context, "serial-getty@hvc0.service", "--keep-baud 115200,57600,38400,9600 -"
+            context,
+            "getty@tty1.service",
+            "--noclear -",
+        )
+        configure_autologin_service(
+            context,
+            "serial-getty@hvc0.service",
+            "--keep-baud 115200,57600,38400,9600 -",
         )
 
 
@@ -2263,8 +2271,10 @@ def check_tools(config: Config, verb: Verb) -> None:
                 config,
                 version="254",
                 reason="build bootable images",
-                hint="Use ToolsTree=default to download most required tools including ukify automatically "
-                "or use Bootable=no to create a non-bootable image which doesn't require ukify",
+                hint=(
+                    "Use ToolsTree=default to download most required tools including ukify automatically "
+                    "or use Bootable=no to create a non-bootable image which doesn't require ukify"
+                ),
             )
 
         if config.output_format in (OutputFormat.disk, OutputFormat.esp):
@@ -3682,7 +3692,10 @@ def generate_key_cert_pair(args: Args) -> None:
 
     for f in ("mkosi.key", "mkosi.crt"):
         if Path(f).exists() and not args.force:
-            die(f"{f} already exists", hint=("To generate new keys, first remove mkosi.key and mkosi.crt"))
+            die(
+                f"{f} already exists",
+                hint="To generate new keys, first remove mkosi.key and mkosi.crt",
+            )
 
     log_step(f"Generating keys rsa:{keylength} for CN {cn!r}.")
     logging.info(
@@ -4137,7 +4150,8 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
 
     if all(config == Config.default() for config in images):
         die(
-            "No configuration found", hint="Make sure mkosi is run from a directory with configuration files"
+            "No configuration found",
+            hint="Make sure mkosi is run from a directory with configuration files",
         )
 
     if args.verb == Verb.summary:

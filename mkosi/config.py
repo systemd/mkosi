@@ -844,7 +844,11 @@ def config_make_enum_matcher(type: type[StrEnum]) -> ConfigMatchCallback:
 
 
 def config_make_list_parser(
-    delimiter: str, *, parse: Callable[[str], Any] = str, unescape: bool = False, reset: bool = True
+    delimiter: str,
+    *,
+    parse: Callable[[str], Any] = str,
+    unescape: bool = False,
+    reset: bool = True,
 ) -> ConfigParseCallback:
     def config_parse_list(value: Optional[str], old: Optional[list[Any]]) -> Optional[list[Any]]:
         new = old.copy() if old else []
@@ -1023,7 +1027,10 @@ def config_make_filename_parser(hint: str) -> ConfigParseCallback:
             return None
 
         if not is_valid_filename(value):
-            die(f"{value!r} is not a valid filename.", hint=hint)
+            die(
+                f"{value!r} is not a valid filename.",
+                hint=hint,
+            )
 
         return value
 
