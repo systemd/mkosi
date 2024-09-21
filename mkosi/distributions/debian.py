@@ -106,8 +106,8 @@ class Installer(DistributionInstaller):
         # unpacked yet, causing the script to fail. To avoid these issues, we have to extract all the
         # essential debs first, and only then run the maintainer scripts for them.
 
-        # First, we set up merged usr.
-        # This list is taken from https://salsa.debian.org/installer-team/debootstrap/-/blob/master/functions#L1369.
+        # First, we set up merged usr.  This list is taken from
+        # https://salsa.debian.org/installer-team/debootstrap/-/blob/master/functions#L1369.
         subdirs = ["bin", "sbin", "lib"] + {
             "amd64"       : ["lib32", "lib64", "libx32"],
             "i386"        : ["lib64", "libx32"],
@@ -122,18 +122,18 @@ class Installer(DistributionInstaller):
             "sparc"       : ["lib64"],
             "sparc64"     : ["lib32", "lib64"],
             "x32"         : ["lib32", "lib64", "libx32"],
-        }.get(context.config.distribution.architecture(context.config.architecture), [])
+        }.get(context.config.distribution.architecture(context.config.architecture), [])  # fmt: skip
 
         with umask(~0o755):
             for d in subdirs:
                 (context.root / d).symlink_to(f"usr/{d}")
                 (context.root / f"usr/{d}").mkdir(parents=True, exist_ok=True)
 
-        # Next, we invoke apt-get install to download all the essential packages. With DPkg::Pre-Install-Pkgs,
-        # we specify a shell command that will receive the list of packages that will be installed on stdin.
-        # By configuring Debug::pkgDpkgPm=1, apt-get install will not actually execute any dpkg commands, so
-        # all it does is download the essential debs and tell us their full in the apt cache without actually
-        # installing them.
+        # Next, we invoke apt-get install to download all the essential packages. With
+        # DPkg::Pre-Install-Pkgs, we specify a shell command that will receive the list of packages that will
+        # be installed on stdin.  By configuring Debug::pkgDpkgPm=1, apt-get install will not actually
+        # execute any dpkg commands, so all it does is download the essential debs and tell us their full in
+        # the apt cache without actually installing them.
         with tempfile.NamedTemporaryFile(mode="r") as f:
             Apt.invoke(
                 context,
@@ -154,9 +154,9 @@ class Installer(DistributionInstaller):
         # then extracting the tar file into the chroot.
 
         for deb in essential:
-            # If a deb path is in the form of "/var/cache/apt/<deb>", we transform it to the corresponding path in
-            # mkosi's package cache directory. If it's relative to /repository, we transform it to the corresponding
-            # path in mkosi's local package repository. Otherwise, we use the path as is.
+            # If a deb path is in the form of "/var/cache/apt/<deb>", we transform it to the corresponding
+            # path in mkosi's package cache directory. If it's relative to /repository, we transform it to
+            # the corresponding path in mkosi's local package repository. Otherwise, we use the path as is.
             if Path(deb).is_relative_to("/var/cache"):
                 path = context.config.package_cache_dir_or_default() / Path(deb).relative_to("/var")
             elif Path(deb).is_relative_to("/repository"):
@@ -180,23 +180,25 @@ class Installer(DistributionInstaller):
                         if not context.config.with_docs
                         else []
                     ),
-                    sandbox=context.sandbox
+                    sandbox=context.sandbox,
                 )
 
         # Finally, run apt to properly install packages in the chroot without having to worry that maintainer
         # scripts won't find basic tools that they depend on.
 
-        cls.install_packages(context, [Path(deb).name.partition("_")[0].removesuffix(".deb") for deb in essential])
+        cls.install_packages(
+            context, [Path(deb).name.partition("_")[0].removesuffix(".deb") for deb in essential]
+        )
 
         fixup_os_release(context)
 
     @classmethod
     def install_packages(cls, context: Context, packages: Sequence[str], apivfs: bool = True) -> None:
-        # Debian policy is to start daemons by default. The policy-rc.d script can be used choose which ones to
-        # start. Let's install one that denies all daemon startups.
+        # Debian policy is to start daemons by default. The policy-rc.d script can be used choose which ones
+        # to start. Let's install one that denies all daemon startups.
         # See https://people.debian.org/~hmh/invokerc.d-policyrc.d-specification.txt for more information.
-        # Note: despite writing in /usr/sbin, this file is not shipped by the OS and instead should be managed by
-        # the admin.
+        # Note: despite writing in /usr/sbin, this file is not shipped by the OS and instead should be
+        # managed by the admin.
         policyrcd = context.root / "usr/sbin/policy-rc.d"
         with umask(~0o755):
             policyrcd.parent.mkdir(parents=True, exist_ok=True)
@@ -213,7 +215,6 @@ class Installer(DistributionInstaller):
         # Let's make sure it is enabled by default in our images.
         (context.root / "etc/systemd/system-generators/systemd-gpt-auto-generator").unlink(missing_ok=True)
 
-
     @classmethod
     def remove_packages(cls, context: Context, packages: Sequence[str]) -> None:
         Apt.invoke(context, "purge", packages, apivfs=True)
@@ -221,22 +222,22 @@ class Installer(DistributionInstaller):
     @classmethod
     def architecture(cls, arch: Architecture) -> str:
         a = {
-            Architecture.arm64       : "arm64",
-            Architecture.arm         : "armhf",
-            Architecture.alpha       : "alpha",
-            Architecture.x86_64      : "amd64",
-            Architecture.x86         : "i386",
-            Architecture.ia64        : "ia64",
-            Architecture.loongarch64 : "loongarch64",
-            Architecture.mips64_le   : "mips64el",
-            Architecture.mips_le     : "mipsel",
-            Architecture.parisc      : "hppa",
-            Architecture.ppc64_le    : "ppc64el",
-            Architecture.ppc64       : "ppc64",
-            Architecture.riscv64     : "riscv64",
-            Architecture.s390x       : "s390x",
-            Architecture.s390        : "s390",
-        }.get(arch)
+            Architecture.arm64:       "arm64",
+            Architecture.arm:         "armhf",
+            Architecture.alpha:       "alpha",
+            Architecture.x86_64:      "amd64",
+            Architecture.x86:         "i386",
+            Architecture.ia64:        "ia64",
+            Architecture.loongarch64: "loongarch64",
+            Architecture.mips64_le:   "mips64el",
+            Architecture.mips_le:     "mipsel",
+            Architecture.parisc:      "hppa",
+            Architecture.ppc64_le:    "ppc64el",
+            Architecture.ppc64:       "ppc64",
+            Architecture.riscv64:     "riscv64",
+            Architecture.s390x:       "s390x",
+            Architecture.s390:        "s390",
+        }.get(arch)  # fmt: skip
 
         if not a:
             die(f"Architecture {arch} is not supported by Debian")
@@ -260,8 +261,8 @@ def fixup_os_release(context: Context) -> None:
         return
 
     # Debian being Debian means we need to special case handling os-release. Fix the content to actually
-    # match what we are building, and set up a diversion so that dpkg doesn't overwrite it on package updates.
-    # Upstream bug report: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1008735.
+    # match what we are building, and set up a diversion so that dpkg doesn't overwrite it on package
+    # updates.  Upstream bug report: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1008735.
     for candidate in ["etc/os-release", "usr/lib/os-release", "usr/lib/initrd-release"]:
         osrelease = context.root / candidate
         newosrelease = osrelease.with_suffix(".new")
@@ -275,26 +276,31 @@ def fixup_os_release(context: Context) -> None:
         with osrelease.open("r") as old, newosrelease.open("w") as new:
             for line in old.readlines():
                 if line.startswith("VERSION_CODENAME="):
-                    new.write('VERSION_CODENAME=sid\n')
+                    new.write("VERSION_CODENAME=sid\n")
                 else:
                     new.write(line)
 
-        # On dpkg distributions we cannot simply overwrite /etc/os-release as it is owned by a package.
-        # We need to set up a diversion first, so that it is not overwritten by package updates.
-        # We do this for /etc/os-release as that will be overwritten on package updates and has
-        # precedence over /usr/lib/os-release, and ignore the latter and assume that if an usr-only
-        # image is built then the package manager will not run on it.
+        # On dpkg distributions we cannot simply overwrite /etc/os-release as it is owned by a package.  We
+        # need to set up a diversion first, so that it is not overwritten by package updates.  We do this for
+        # /etc/os-release as that will be overwritten on package updates and has precedence over
+        # /usr/lib/os-release, and ignore the latter and assume that if an usr-only image is built then the
+        # package manager will not run on it.
         if candidate == "etc/os-release":
-            run([
-                "dpkg-divert",
-                "--quiet",
-                "--root=/buildroot",
-                "--local",
-                "--add",
-                "--rename",
-                "--divert",
-                f"/{candidate}.dpkg",
-                f"/{candidate}",
-            ], sandbox=context.sandbox(binary="dpkg-divert", options=["--bind", context.root, "/buildroot"]))
+            run(
+                [
+                    "dpkg-divert",
+                    "--quiet",
+                    "--root=/buildroot",
+                    "--local",
+                    "--add",
+                    "--rename",
+                    "--divert",
+                    f"/{candidate}.dpkg",
+                    f"/{candidate}",
+                ],
+                sandbox=context.sandbox(
+                    binary="dpkg-divert", options=["--bind", context.root, "/buildroot"]
+                ),
+            )
 
         newosrelease.rename(osrelease)

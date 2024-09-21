@@ -26,9 +26,7 @@ class Dnf(PackageManager):
     @classmethod
     def cache_subdirs(cls, cache: Path) -> list[Path]:
         return [
-            p / "packages"
-            for p in cache.iterdir()
-            if p.is_dir() and "-" in p.name and "mkosi" not in p.name
+            p / "packages" for p in cache.iterdir() if p.is_dir() and "-" in p.name and "mkosi" not in p.name
         ]
 
     @classmethod
@@ -36,11 +34,11 @@ class Dnf(PackageManager):
         return {
             "dnf": cls.apivfs_script_cmd(context) + cls.env_cmd(context) + cls.cmd(context),
             "rpm": cls.apivfs_script_cmd(context) + rpm_cmd(),
-            "mkosi-install"  : ["dnf", "install"],
-            "mkosi-upgrade"  : ["dnf", "upgrade"],
-            "mkosi-remove"   : ["dnf", "remove"],
+            "mkosi-install":   ["dnf", "install"],
+            "mkosi-upgrade":   ["dnf", "upgrade"],
+            "mkosi-remove":    ["dnf", "remove"],
             "mkosi-reinstall": ["dnf", "reinstall"],
-        }
+        }  # fmt: skip
 
     @classmethod
     def setup(cls, context: Context, repositories: Sequence[RpmRepository], filelists: bool = True) -> None:
@@ -57,8 +55,8 @@ class Dnf(PackageManager):
                 if cls.executable(context.config).endswith("dnf5") and filelists:
                     f.write("[main]\noptional_metadata_types=filelists\n")
 
-        # The versionlock plugin will fail if enabled without a configuration file so lets' write a noop configuration
-        # file to make it happy which can be overridden by users.
+        # The versionlock plugin will fail if enabled without a configuration file so lets' write a noop
+        # configuration file to make it happy which can be overridden by users.
         versionlock = context.sandbox_tree / "etc/dnf/plugins/versionlock.conf"
         if not versionlock.exists():
             versionlock.parent.mkdir(parents=True, exist_ok=True)
@@ -112,9 +110,9 @@ class Dnf(PackageManager):
 
     @classmethod
     def cmd(
-            cls,
-            context: Context,
-            cached_metadata: bool = True,
+        cls,
+        context: Context,
+        cached_metadata: bool = True,
     ) -> list[PathString]:
         dnf = cls.executable(context.config)
 
@@ -131,7 +129,7 @@ class Dnf(PackageManager):
             f"--setopt=install_weak_deps={int(context.config.with_recommends)}",
             "--setopt=check_config_file_age=0",
             "--disable-plugin=*" if dnf.endswith("dnf5") else "--disableplugin=*",
-        ]
+        ]  # fmt: skip
 
         for plugin in ("builddep", "versionlock"):
             cmdline += ["--enable-plugin", plugin] if dnf.endswith("dnf5") else ["--enableplugin", plugin]
@@ -154,7 +152,9 @@ class Dnf(PackageManager):
                 cmdline += ["--setopt=cacheonly=metadata"]
 
         if not context.config.architecture.is_native():
-            cmdline += [f"--forcearch={context.config.distribution.architecture(context.config.architecture)}"]
+            cmdline += [
+                f"--forcearch={context.config.distribution.architecture(context.config.architecture)}"
+            ]
 
         if not context.config.with_docs:
             cmdline += ["--no-docs" if dnf.endswith("dnf5") else "--nodocs"]
@@ -198,8 +198,8 @@ class Dnf(PackageManager):
                 stdout=stdout,
             )
         finally:
-            # dnf interprets the log directory relative to the install root so there's nothing we can do but to remove
-            # the log files from the install root afterwards.
+            # dnf interprets the log directory relative to the install root so there's nothing we can do but
+            # to remove the log files from the install root afterwards.
             if (context.root / "var/log").exists():
                 for p in (context.root / "var/log").iterdir():
                     if any(p.name.startswith(prefix) for prefix in ("dnf", "hawkey", "yum")):
@@ -216,8 +216,12 @@ class Dnf(PackageManager):
 
     @classmethod
     def createrepo(cls, context: Context) -> None:
-        run(["createrepo_c", context.repository],
-            sandbox=context.sandbox(binary="createrepo_c", options=["--bind", context.repository, context.repository]))
+        run(
+            ["createrepo_c", context.repository],
+            sandbox=context.sandbox(
+                binary="createrepo_c", options=["--bind", context.repository, context.repository]
+            ),
+        )
 
         (context.sandbox_tree / "etc/yum.repos.d/mkosi-local.repo").write_text(
             textwrap.dedent(

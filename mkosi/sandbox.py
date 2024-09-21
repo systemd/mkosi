@@ -54,6 +54,7 @@ PR_CAP_AMBIENT_RAISE = 2
 SCMP_ACT_ALLOW = 0x7FFF0000
 SCMP_ACT_ERRNO = 0x00050000
 
+
 class mount_attr(ctypes.Structure):
     _fields_ = [
         ("attr_set", ctypes.c_uint64),
@@ -189,7 +190,12 @@ def seccomp_suppress_chown() -> None:
     libseccomp.seccomp_release.argtypes = (ctypes.c_void_p,)
     libseccomp.seccomp_release.restype = None
     libseccomp.seccomp_syscall_resolve_name.argtypes = (ctypes.c_char_p,)
-    libseccomp.seccomp_rule_add_exact.argtypes = (ctypes.c_void_p, ctypes.c_uint32, ctypes.c_int, ctypes.c_uint)
+    libseccomp.seccomp_rule_add_exact.argtypes = (
+        ctypes.c_void_p,
+        ctypes.c_uint32,
+        ctypes.c_int,
+        ctypes.c_uint,
+    )
     libseccomp.seccomp_load.argtypes = (ctypes.c_void_p,)
 
     seccomp = libseccomp.seccomp_init(SCMP_ACT_ALLOW)
@@ -231,12 +237,21 @@ def mount_rbind(src: str, dst: str, attrs: int = 0) -> None:
 
         try:
             libc.mount_setattr.argtypes = (
-                ctypes.c_int, ctypes.c_char_p, ctypes.c_uint, ctypes.c_void_p, ctypes.c_size_t,
+                ctypes.c_int,
+                ctypes.c_char_p,
+                ctypes.c_uint,
+                ctypes.c_void_p,
+                ctypes.c_size_t,
             )
             r = libc.mount_setattr(fd, b"", flags, ctypes.addressof(attr), MOUNT_ATTR_SIZE_VER0)
         except AttributeError:
             libc.syscall.argtypes = (
-                ctypes.c_long, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint, ctypes.c_void_p, ctypes.c_size_t,
+                ctypes.c_long,
+                ctypes.c_int,
+                ctypes.c_char_p,
+                ctypes.c_uint,
+                ctypes.c_void_p,
+                ctypes.c_size_t,
             )
             r = libc.syscall(NR_mount_setattr, fd, b"", flags, ctypes.addressof(attr), MOUNT_ATTR_SIZE_VER0)
 
@@ -244,11 +259,22 @@ def mount_rbind(src: str, dst: str, attrs: int = 0) -> None:
             oserror(src)
 
         try:
-            libc.move_mount.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint)
+            libc.move_mount.argtypes = (
+                ctypes.c_int,
+                ctypes.c_char_p,
+                ctypes.c_int,
+                ctypes.c_char_p,
+                ctypes.c_uint,
+            )
             r = libc.move_mount(fd, b"", AT_FDCWD, dst.encode(), MOVE_MOUNT_F_EMPTY_PATH)
         except AttributeError:
             libc.syscall.argtypes = (
-                ctypes.c_long, ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint,
+                ctypes.c_long,
+                ctypes.c_int,
+                ctypes.c_char_p,
+                ctypes.c_int,
+                ctypes.c_char_p,
+                ctypes.c_uint,
             )
             r = libc.syscall(NR_move_mount, fd, b"", AT_FDCWD, dst.encode(), MOVE_MOUNT_F_EMPTY_PATH)
 
@@ -387,14 +413,15 @@ class FSOperation:
         # Drop all bind mounts that are mounted from beneath another bind mount to the same
         # location within the new rootfs.
         optimized = [
-            m for m in binds
+            m
+            for m in binds
             if not any(
-                m != n and
-                m.readonly == n.readonly and
-                m.required == n.required and
-                is_relative_to(m.src, n.src) and
-                is_relative_to(m.dst, n.dst) and
-                os.path.relpath(m.src, n.src) == os.path.relpath(m.dst, n.dst)
+                m != n
+                and m.readonly == n.readonly
+                and m.required == n.required
+                and is_relative_to(m.src, n.src)
+                and is_relative_to(m.dst, n.dst)
+                and os.path.relpath(m.src, n.src) == os.path.relpath(m.dst, n.dst)
                 for n in binds
             )
         ]
@@ -558,7 +585,9 @@ class OverlayOperation(FSOperation):
 
     def execute(self, oldroot: str, newroot: str) -> None:
         lowerdirs = tuple(chase(oldroot, p) for p in self.lowerdirs)
-        upperdir = chase(oldroot, self.upperdir) if self.upperdir and self.upperdir != "tmpfs" else self.upperdir
+        upperdir = (
+            chase(oldroot, self.upperdir) if self.upperdir and self.upperdir != "tmpfs" else self.upperdir
+        )
         workdir = chase(oldroot, self.workdir) if self.workdir else None
         dst = chase(newroot, self.dst)
 
@@ -602,8 +631,8 @@ class OverlayOperation(FSOperation):
         mount("overlayfs", dst, "overlay", 0, ",".join(options))
 
 
-ANSI_HIGHLIGHT = "\x1B[0;1;39m" if os.isatty(2) else ""
-ANSI_NORMAL = "\x1B[0m" if os.isatty(2) else ""
+ANSI_HIGHLIGHT = "\x1b[0;1;39m" if os.isatty(2) else ""
+ANSI_NORMAL = "\x1b[0m" if os.isatty(2) else ""
 
 HELP = f"""\
 mkosi-sandbox [OPTIONS...] COMMAND [ARGUMENTS...]
@@ -637,6 +666,7 @@ mkosi-sandbox [OPTIONS...] COMMAND [ARGUMENTS...]
 
 See the mkosi-sandbox(1) man page for details.\
 """
+
 
 def main() -> None:
     # We don't use argparse as it takes +- 10ms to import and since this is purely for internal
@@ -764,8 +794,10 @@ def main() -> None:
     os.chdir("/tmp")
 
     with umask(~0o755):
-        os.mkdir("newroot") # This is where we set up the sandbox rootfs
-        os.mkdir("oldroot") # This is the old rootfs which is used as the source for mounts in the new rootfs.
+        # This is where we set up the sandbox rootfs
+        os.mkdir("newroot")
+        # This is the old rootfs which is used as the source for mounts in the new rootfs.
+        os.mkdir("oldroot")
 
     # Make sure that newroot is a mountpoint.
     mount("newroot", "newroot", "", MS_BIND | MS_REC, "")

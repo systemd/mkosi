@@ -74,7 +74,7 @@ strict_equality = true
 
 [tool.ruff]
 target-version = "py39"
-line-length = 119
+line-length = 109
 lint.select = ["E", "F", "I", "UP"]
 
 [tool.pytest.ini_options]

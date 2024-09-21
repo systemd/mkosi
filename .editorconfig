@@ -8,5 +8,8 @@ charset = utf-8
 indent_style = space
 indent_size = 4
 
+[*.{py,md}]
+max_line_length = 109
+
 [*.yaml,*.yml]
 indent_size = 2

@@ -28,7 +28,9 @@ def cp_version(*, sandbox: SandboxProtocol = nosandbox) -> GenericVersion:
             ["cp", "--version"],
             sandbox=sandbox(binary="cp"),
             stdout=subprocess.PIPE,
-        ).stdout.splitlines()[0].split()[3]
+        )
+        .stdout.splitlines()[0]
+        .split()[3]
     )
 
 
@@ -51,7 +53,7 @@ def make_tree(
         result = run(
             ["btrfs", "subvolume", "create", workdir(path, sandbox)],
             sandbox=sandbox(binary="btrfs", options=["--bind", path.parent, workdir(path.parent, sandbox)]),
-            check=use_subvolumes == ConfigFeature.enabled
+            check=use_subvolumes == ConfigFeature.enabled,
         ).returncode
     else:
         result = 1
@@ -92,7 +94,7 @@ def copy_tree(
     options: list[PathString] = [
         "--ro-bind", src, workdir(src, sandbox),
         "--bind", dst.parent, workdir(dst.parent, sandbox),
-    ]
+    ]  # fmt: skip
 
     def copy() -> None:
         cmdline: list[PathString] = [
@@ -102,7 +104,8 @@ def copy_tree(
             f"--preserve=mode,links{',timestamps,ownership,xattr' if preserve else ''}",
             "--reflink=auto",
             "--copy-contents",
-            workdir(src, sandbox), workdir(dst, sandbox),
+            workdir(src, sandbox),
+            workdir(dst, sandbox),
         ]
 
         if dst.exists() and dst.is_dir() and any(dst.iterdir()) and cp_version(sandbox=sandbox) >= "9.5":
@@ -118,16 +121,12 @@ def copy_tree(
 
     # Subvolumes always have inode 256 so we can use that to check if a directory is a subvolume.
     if (
-        use_subvolumes == ConfigFeature.disabled or
-        not preserve or
-        not is_subvolume(src) or
-        (dst.exists() and (not dst.is_dir() or any(dst.iterdir())))
+        use_subvolumes == ConfigFeature.disabled
+        or not preserve
+        or not is_subvolume(src)
+        or (dst.exists() and (not dst.is_dir() or any(dst.iterdir())))
     ):
-        with (
-            preserve_target_directories_stat(src, dst)
-            if not preserve
-            else contextlib.nullcontext()
-        ):
+        with preserve_target_directories_stat(src, dst) if not preserve else contextlib.nullcontext():
             copy()
 
         return dst
@@ -143,11 +142,7 @@ def copy_tree(
     ).returncode
 
     if result != 0:
-        with (
-            preserve_target_directories_stat(src, dst)
-            if not preserve
-            else contextlib.nullcontext()
-        ):
+        with preserve_target_directories_stat(src, dst) if not preserve else contextlib.nullcontext():
             copy()
 
     return dst
@@ -160,16 +155,18 @@ def rmtree(*paths: Path, sandbox: SandboxProtocol = nosandbox) -> None:
     paths = tuple(p.absolute() for p in paths)
 
     if subvolumes := sorted({p for p in paths if p.exists() and is_subvolume(p)}):
-        # Silence and ignore failures since when not running as root, this will fail with a permission error unless the
-        # btrfs filesystem is mounted with user_subvol_rm_allowed.
-        run(["btrfs", "subvolume", "delete", *(workdir(p, sandbox) for p in subvolumes)],
+        # Silence and ignore failures since when not running as root, this will fail with a permission error
+        # unless the btrfs filesystem is mounted with user_subvol_rm_allowed.
+        run(
+            ["btrfs", "subvolume", "delete", *(workdir(p, sandbox) for p in subvolumes)],
             check=False,
             sandbox=sandbox(
                 binary="btrfs",
-                options=flatten(("--bind", p.parent, workdir(p.parent, sandbox)) for p in subvolumes)
+                options=flatten(("--bind", p.parent, workdir(p.parent, sandbox)) for p in subvolumes),
             ),
             stdout=subprocess.DEVNULL if not ARG_DEBUG.get() else None,
-            stderr=subprocess.DEVNULL if not ARG_DEBUG.get() else None)
+            stderr=subprocess.DEVNULL if not ARG_DEBUG.get() else None,
+        )
 
     filtered = sorted({p for p in paths if p.exists() or p.is_symlink()})
     if filtered:
@@ -187,7 +184,7 @@ def move_tree(
     dst: Path,
     *,
     use_subvolumes: ConfigFeature = ConfigFeature.disabled,
-    sandbox: SandboxProtocol = nosandbox
+    sandbox: SandboxProtocol = nosandbox,
 ) -> Path:
     src = src.absolute()
     dst = dst.absolute()
@@ -205,7 +202,8 @@ def move_tree(
             raise e
 
         logging.info(
-            f"Could not rename {src} to {dst} as they are located on different devices, falling back to copying"
+            f"Could not rename {src} to {dst} as they are located on different devices, "
+            "falling back to copying"
         )
         copy_tree(src, dst, use_subvolumes=use_subvolumes, sandbox=sandbox)
         rmtree(src, sandbox=sandbox)

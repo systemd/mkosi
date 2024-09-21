@@ -65,7 +65,8 @@ class Installer(DistributionInstaller):
 
             # Testing repositories have to go before regular ones to to take precedence.
             repos = [
-                repo for repo in (
+                repo
+                for repo in (
                     "core-testing",
                     "core-testing-debug",
                     "extra-testing",
@@ -74,7 +75,8 @@ class Installer(DistributionInstaller):
                     "extra-debug",
                     "multilib-testing",
                     "multilib",
-                ) if repo in context.config.repositories
+                )
+                if repo in context.config.repositories
             ] + ["core", "extra"]
 
             if context.config.architecture.is_arm_variant():
@@ -86,13 +88,12 @@ class Installer(DistributionInstaller):
     @classmethod
     def architecture(cls, arch: Architecture) -> str:
         a = {
-            Architecture.x86_64 : "x86_64",
-            Architecture.arm64  : "aarch64",
-            Architecture.arm    : "armv7h",
-        }.get(arch)
+            Architecture.x86_64: "x86_64",
+            Architecture.arm64:  "aarch64",
+            Architecture.arm:    "armv7h",
+        }.get(arch)  # fmt: skip
 
         if not a:
             die(f"Architecture {a} is not supported by Arch Linux")
 
         return a
-

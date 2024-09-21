@@ -32,25 +32,24 @@ class Zypper(PackageManager):
             "install",
             "--download", "in-advance",
             "--recommends" if context.config.with_recommends else "--no-recommends",
-        ]
+        ]  # fmt: skip
 
         return {
             "zypper": cls.apivfs_script_cmd(context) + cls.env_cmd(context) + cls.cmd(context),
-            "rpm"   : cls.apivfs_script_cmd(context) + rpm_cmd(),
-            "mkosi-install"  : install,
-            "mkosi-upgrade"  : ["zypper", "update"],
-            "mkosi-remove"   : ["zypper", "remove", "--clean-deps"],
+            "rpm":    cls.apivfs_script_cmd(context) + rpm_cmd(),
+            "mkosi-install":   install,
+            "mkosi-upgrade":   ["zypper", "update"],
+            "mkosi-remove":    ["zypper", "remove", "--clean-deps"],
             "mkosi-reinstall": install + ["--force"],
-        }
+        }  # fmt: skip
 
     @classmethod
     def setup(cls, context: Context, repositories: Sequence[RpmRepository]) -> None:
         config = context.sandbox_tree / "etc/zypp/zypp.conf"
         config.parent.mkdir(exist_ok=True, parents=True)
 
-        # rpm.install.excludedocs can only be configured in zypp.conf so we append
-        # to any user provided config file. Let's also bump the refresh delay to
-        # the same default as dnf which is 48 hours.
+        # rpm.install.excludedocs can only be configured in zypp.conf so we append to any user provided
+        # config file. Let's also bump the refresh delay to the same default as dnf which is 48 hours.
         with config.open("a") as f:
             f.write(
                 textwrap.dedent(
@@ -67,9 +66,9 @@ class Zypper(PackageManager):
             repofile.parent.mkdir(exist_ok=True, parents=True)
             with repofile.open("w") as f:
                 for repo in repositories:
-                    # zypper uses the repo ID as its cache key which is unsafe so add a hash of the url used to it to
-                    # make sure a unique cache is used for each repository. We use roughly the same algorithm here that
-                    # dnf uses as well.
+                    # zypper uses the repo ID as its cache key which is unsafe so add a hash of the url used
+                    # to it to make sure a unique cache is used for each repository. We use roughly the same
+                    # algorithm here that dnf uses as well.
                     key = hashlib.sha256(repo.url.encode()).hexdigest()[:16]
 
                     f.write(
@@ -138,8 +137,12 @@ class Zypper(PackageManager):
 
     @classmethod
     def createrepo(cls, context: Context) -> None:
-        run(["createrepo_c", context.repository],
-            sandbox=context.sandbox(binary="createrepo_c", options=["--bind", context.repository, context.repository]))
+        run(
+            ["createrepo_c", context.repository],
+            sandbox=context.sandbox(
+                binary="createrepo_c", options=["--bind", context.repository, context.repository]
+            ),
+        )
 
         (context.sandbox_tree / "etc/zypp/repos.d/mkosi-local.repo").write_text(
             textwrap.dedent(

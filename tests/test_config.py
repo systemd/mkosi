@@ -50,11 +50,11 @@ def test_compression_enum_bool() -> None:
 def test_compression_enum_str() -> None:
     assert str(Compression.none) == "none"
     assert str(Compression.zstd) == "zstd"
-    assert str(Compression.zst)  == "zstd"
-    assert str(Compression.xz)   == "xz"
-    assert str(Compression.bz2)  == "bz2"
-    assert str(Compression.gz)   == "gz"
-    assert str(Compression.lz4)  == "lz4"
+    assert str(Compression.zst) == "zstd"
+    assert str(Compression.xz) == "xz"
+    assert str(Compression.bz2) == "bz2"
+    assert str(Compression.gz) == "gz"
+    assert str(Compression.lz4) == "lz4"
     assert str(Compression.lzma) == "lzma"
 
 
@@ -129,7 +129,7 @@ def test_parse_config(tmp_path: Path) -> None:
                 "--credential", "my.cred=cli.value",
                 "--repositories", "universe",
             ]
-        )
+        )  # fmt: skip
 
     # Values from the CLI should take priority.
     assert config.distribution == Distribution.fedora
@@ -145,10 +145,10 @@ def test_parse_config(tmp_path: Path) -> None:
                 "--credential", "",
                 "--repositories", "",
             ]
-        )
+        )  # fmt: skip
 
-    # Empty values on the CLIs resets non-collection based settings to their defaults and collection based settings to
-    # empty collections.
+    # Empty values on the CLIs resets non-collection based settings to their defaults and collection based
+    # settings to empty collections.
     assert config.distribution == (detect_distribution()[0] or Distribution.custom)
     assert "MY_KEY" not in config.environment
     assert "my.cred" not in config.credentials
@@ -176,8 +176,8 @@ def test_parse_config(tmp_path: Path) -> None:
 
     # Setting a value explicitly in a dropin should override the default from mkosi.conf.
     assert config.distribution == Distribution.debian
-    # Lists should be merged by appending the new values to the existing values. Any values from the CLI should be
-    # appended to the values from the configuration files.
+    # Lists should be merged by appending the new values to the existing values. Any values from the CLI
+    # should be appended to the values from the configuration files.
     assert config.packages == ["abc", "qed", "def", "last"]
     assert config.output_format == OutputFormat.cpio
     assert config.image_id == "00-dropin"
@@ -269,7 +269,9 @@ def test_parse_config(tmp_path: Path) -> None:
     )
 
     with chdir(d):
-        _, [one, two, config] = parse_config(["--package", "qed", "--build-package", "def", "--repositories", "cli"])
+        _, [one, two, config] = parse_config(
+            ["--package", "qed", "--build-package", "def", "--repositories", "cli"]
+        )
 
     # Universal settings should always come from the main image.
     assert one.distribution == config.distribution
@@ -298,7 +300,8 @@ def test_parse_config(tmp_path: Path) -> None:
     with chdir(d):
         _, [one, two, config] = parse_config(["--image-version", "7.8.9"])
 
-    # Inherited settings specified on the CLI should not override subimages that configure the setting explicitly.
+    # Inherited settings specified on the CLI should not override subimages that configure the setting
+    # explicitly.
     assert config.image_version == "7.8.9"
     assert one.image_version == "7.8.9"
     assert two.image_version == "4.5.6"
@@ -708,9 +711,7 @@ def test_match_distribution(tmp_path: Path, dist1: Distribution, dist2: Distribu
         assert "testpkg3" in conf.packages
 
 
-@pytest.mark.parametrize(
-    "release1,release2", itertools.combinations_with_replacement([36, 37, 38], 2)
-)
+@pytest.mark.parametrize("release1,release2", itertools.combinations_with_replacement([36, 37, 38], 2))
 def test_match_release(tmp_path: Path, release1: int, release2: int) -> None:
     with chdir(tmp_path):
         parent = Path("mkosi.conf")
@@ -805,9 +806,7 @@ def test_match_repositories(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    "image1,image2", itertools.combinations_with_replacement(
-        ["image_a", "image_b", "image_c"], 2
-    )
+    "image1,image2", itertools.combinations_with_replacement(["image_a", "image_b", "image_c"], 2)
 )
 def test_match_imageid(tmp_path: Path, image1: str, image2: str) -> None:
     with chdir(tmp_path):
@@ -877,10 +876,11 @@ def test_match_imageid(tmp_path: Path, image1: str, image2: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "op,version", itertools.product(
+    "op,version",
+    itertools.product(
         ["", "==", "<", ">", "<=", ">="],
         [122, 123, 124],
-    )
+    ),
 )
 def test_match_imageversion(tmp_path: Path, op: str, version: str) -> None:
     opfunc = {
@@ -890,7 +890,7 @@ def test_match_imageversion(tmp_path: Path, op: str, version: str) -> None:
         "<=": operator.le,
         ">": operator.gt,
         ">=": operator.ge,
-    }.get(op, operator.eq,)
+    }.get(op, operator.eq)
 
     with chdir(tmp_path):
         parent = Path("mkosi.conf")
@@ -1135,7 +1135,7 @@ def test_specifiers(tmp_path: Path) -> None:
 
 
 def test_kernel_specifiers(tmp_path: Path) -> None:
-    kver = "13.0.8-5.10.0-1057-oem"     # taken from reporter of #1638
+    kver = "13.0.8-5.10.0-1057-oem"  # taken from reporter of #1638
     token = "MySystemImage"
     roothash = "67e893261799236dcf20529115ba9fae4fd7c2269e1e658d42269503e5760d38"
     boot_count = "3"
@@ -1156,7 +1156,9 @@ def test_kernel_specifiers(tmp_path: Path) -> None:
     assert test_expand_kernel_specifiers("&c") == boot_count
 
     assert test_expand_kernel_specifiers("Image_1.0.3") == "Image_1.0.3"
-    assert test_expand_kernel_specifiers("Image~&c+&h-&k-&e") == f"Image~{boot_count}+{roothash}-{kver}-{token}"
+    assert (
+        test_expand_kernel_specifiers("Image~&c+&h-&k-&e") == f"Image~{boot_count}+{roothash}-{kver}-{token}"
+    )
 
 
 def test_output_id_version(tmp_path: Path) -> None:
@@ -1217,10 +1219,10 @@ def test_environment(tmp_path: Path) -> None:
         _, [sub, config] = parse_config()
 
         expected = {
-            "TestValue1": "100", # from other.env
-            "TestValue2": "300", # from mkosi.conf
-            "TestValue3": "400", # from mkosi.conf
-            "TestValue4": "99", # from mkosi.env
+            "TestValue1": "100",  # from other.env
+            "TestValue2": "300",  # from mkosi.conf
+            "TestValue3": "400",  # from mkosi.conf
+            "TestValue4": "99",  # from mkosi.env
         }
 
         # Only check values for keys from expected, as config.environment contains other items as well

@@ -41,7 +41,9 @@ class Installer(fedora.Installer):
             return
 
         if context.config.mirror:
-            url = f"baseurl={join_mirror(context.config.mirror, 'distrib/$releasever/$basearch/media/core/')}"
+            url = (
+                f"baseurl={join_mirror(context.config.mirror, 'distrib/$releasever/$basearch/media/core/')}"
+            )
             yield RpmRepository("core-release", f"{url}/release", gpgurls)
             yield RpmRepository("core-updates", f"{url}/updates/", gpgurls)
         else:
@@ -52,9 +54,9 @@ class Installer(fedora.Installer):
     @classmethod
     def architecture(cls, arch: Architecture) -> str:
         a = {
-            Architecture.x86_64 : "x86_64",
-            Architecture.arm64  : "aarch64",
-        }.get(arch)
+            Architecture.x86_64: "x86_64",
+            Architecture.arm64:  "aarch64",
+        }.get(arch)  # fmt: skip
 
         if not a:
             die(f"Architecture {a} is not supported by Mageia")

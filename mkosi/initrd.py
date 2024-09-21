@@ -36,19 +36,22 @@ def main() -> None:
         default=platform.uname().release,
     )
     parser.add_argument(
-        "-t", "--format",
+        "-t",
+        "--format",
         choices=[str(OutputFormat.cpio), str(OutputFormat.uki), str(OutputFormat.directory)],
         help="Output format (CPIO archive, UKI or local directory)",
         default="cpio",
     )
     parser.add_argument(
-        "-o", "--output",
+        "-o",
+        "--output",
         metavar="NAME",
         help="Output name",
         default="initrd",
     )
     parser.add_argument(
-        "-O", "--output-dir",
+        "-O",
+        "--output-dir",
         metavar="DIR",
         help="Output directory",
         default="",
@@ -66,7 +69,8 @@ def main() -> None:
         default=False,
     )
     parser.add_argument(
-        "-D", "--show-documentation",
+        "-D",
+        "--show-documentation",
         help="Show the man page",
         action="store_true",
         default=False,
@@ -98,7 +102,7 @@ def main() -> None:
         "--kernel-modules-include=host",
         "--build-sources", "",
         "--include=mkosi-initrd",
-    ]
+    ]  # fmt: skip
 
     if args.debug:
         cmdline += ["--debug"]
@@ -114,7 +118,12 @@ def main() -> None:
         if args.format != OutputFormat.directory.value:
             cmdline += ["--output-mode=600"]
 
-    for d in ("/usr/lib/mkosi-initrd", "/usr/local/lib/mkosi-initrd", "/run/mkosi-initrd", "/etc/mkosi-initrd"):
+    for d in (
+        "/usr/lib/mkosi-initrd",
+        "/usr/local/lib/mkosi-initrd",
+        "/run/mkosi-initrd",
+        "/etc/mkosi-initrd",
+    ):
         if Path(d).exists():
             cmdline += ["--include", d]
 
@@ -145,18 +154,22 @@ def main() -> None:
             if (Path("/etc") / p).resolve().is_file():
                 shutil.copy2(Path("/etc") / p, Path(d) / "etc" / p)
             else:
-                shutil.copytree(Path("/etc") / p, Path(d) / "etc" / p,
-                                ignore=shutil.ignore_patterns("gnupg"), dirs_exist_ok=True)
+                shutil.copytree(
+                    Path("/etc") / p,
+                    Path(d) / "etc" / p,
+                    ignore=shutil.ignore_patterns("gnupg"),
+                    dirs_exist_ok=True,
+                )
 
         cmdline += ["--sandbox-tree", d]
 
-        # Prefer dnf as dnf5 has not yet officially replaced it and there's a much bigger chance that there will be a
-        # populated dnf cache directory.
+        # Prefer dnf as dnf5 has not yet officially replaced it and there's a much bigger chance that there
+        # will be a populated dnf cache directory.
         run(
             cmdline,
             stdin=sys.stdin,
             stdout=sys.stdout,
-            env={"MKOSI_DNF": dnf.name} if (dnf := find_binary("dnf", "dnf5")) else {}
+            env={"MKOSI_DNF": dnf.name} if (dnf := find_binary("dnf", "dnf5")) else {},
         )
 
 

@@ -24,5 +24,6 @@ PathString = Union[Path, str]
 # https://github.com/python/typeshed/blob/ec52bf1adde1d3183d0595d2ba982589df48dff1/stdlib/_typeshed/__init__.pyi#L224
 _T_co = TypeVar("_T_co", covariant=True)
 
+
 class SupportsRead(Protocol[_T_co]):
     def read(self, __length: int = ...) -> _T_co: ...

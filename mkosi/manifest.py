@@ -110,8 +110,10 @@ class Manifest:
                 "--queryformat", r"%{NEVRA}\t%{SOURCERPM}\t%{NAME}\t%{ARCH}\t%{LONGSIZE}\t%{INSTALLTIME}\n",
             ],
             stdout=subprocess.PIPE,
-            sandbox=self.context.sandbox(binary="rpm", options=["--ro-bind", self.context.root, "/buildroot"]),
-        )
+            sandbox=(
+                self.context.sandbox(binary="rpm", options=["--ro-bind", self.context.root, "/buildroot"])
+            ),
+        )  # fmt: skip
 
         packages = sorted(c.stdout.splitlines())
 
@@ -133,8 +135,8 @@ class Manifest:
             # packages that were installed in this execution of mkosi. We assume that the
             # upper layer is put together in one go, which currently is always true.
             if (
-                self.context.config.base_trees and
-                datetime.datetime.fromtimestamp(int(installtime)) < self._init_timestamp
+                self.context.config.base_trees
+                and datetime.datetime.fromtimestamp(int(installtime)) < self._init_timestamp
             ):
                 continue
 
@@ -173,32 +175,28 @@ class Manifest:
                 "dpkg-query",
                 "--admindir=/buildroot/var/lib/dpkg",
                 "--show",
-                "--showformat",
-                    r'${Package}\t${source:Package}\t${Version}\t${Architecture}\t${Installed-Size}\t${db-fsys:Last-Modified}\n',
+                "--showformat", r"${Package}\t${source:Package}\t${Version}\t${Architecture}\t${Installed-Size}\t${db-fsys:Last-Modified}\n",  # noqa
             ],
             stdout=subprocess.PIPE,
             sandbox=self.context.sandbox(
                 binary="dpkg-query",
                 options=["--ro-bind", self.context.root, "/buildroot"],
             ),
-        )
+        )  # fmt: skip
 
         packages = sorted(c.stdout.splitlines())
 
         for package in packages:
             name, source, version, arch, size, installtime = package.split("\t")
 
-            # dpkg records the size in KBs, the field is optional
-            # db-fsys:Last-Modified is not available in very old dpkg, so just skip creating
-            # the manifest for sysext when building on very old distributions by setting the
-            # timestamp to epoch. This only affects Ubuntu Bionic which is nearing EOL.
-            # If we are creating a layer based on a BaseImage=, e.g. a sysext, filter by
-            # packages that were installed in this execution of mkosi. We assume that the
-            # upper layer is put together in one go, which currently is always true.
-            if (
-                self.context.config.base_trees and
-                datetime.datetime.fromtimestamp(int(installtime) if installtime else 0) < self._init_timestamp
-            ):
+            # dpkg records the size in KBs, the field is optional db-fsys:Last-Modified is not available in
+            # very old dpkg, so just skip creating the manifest for sysext when building on very old
+            # distributions by setting the timestamp to epoch. This only affects Ubuntu Bionic which is
+            # nearing EOL.  If we are creating a layer based on a BaseImage=, e.g. a sysext, filter by
+            # packages that were installed in this execution of mkosi. We assume that the upper layer is put
+            # together in one go, which currently is always true.
+            install_timestamp = datetime.datetime.fromtimestamp(int(installtime) if installtime else 0)
+            if self.context.config.base_trees and install_timestamp < self._init_timestamp:
                 continue
 
             manifest = PackageManifest("deb", name, version, arch, int(size or 0) * 1024)
@@ -209,10 +207,11 @@ class Manifest:
 
             source_package = self.source_packages.get(source)
             if source_package is None:
-                # Yes, --quiet is specified twice, to avoid output about download stats. Note that the argument of the
-                # 'changelog' verb is the binary package name, not the source package name. We also have to set "Dir"
-                # explicitly because apt has no separate option to configure the changelog directory. Apt.invoke()
-                # sets all options that are interpreted relative to Dir to absolute paths by default so this is safe.
+                # Yes, --quiet is specified twice, to avoid output about download stats. Note that the
+                # argument of the 'changelog' verb is the binary package name, not the source package
+                # name. We also have to set "Dir" explicitly because apt has no separate option to configure
+                # the changelog directory. Apt.invoke() sets all options that are interpreted relative to Dir
+                # to absolute paths by default so this is safe.
                 result = Apt.invoke(
                     self.context,
                     "changelog",

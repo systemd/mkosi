@@ -17,17 +17,20 @@ pytestmark = pytest.mark.integration
 
 
 def have_vmspawn() -> bool:
-    return (
-        find_binary("systemd-vmspawn") is not None
-        and GenericVersion(run(["systemd-vmspawn", "--version"],
-                               stdout=subprocess.PIPE).stdout.strip()) >= 256
+    return find_binary("systemd-vmspawn") is not None and (
+        GenericVersion(run(["systemd-vmspawn", "--version"], stdout=subprocess.PIPE).stdout.strip()) >= 256
     )
 
 
-@pytest.mark.parametrize("format", [f for f in OutputFormat if f not in (OutputFormat.confext, OutputFormat.sysext)])
+@pytest.mark.parametrize(
+    "format", [f for f in OutputFormat if f not in (OutputFormat.confext, OutputFormat.sysext)]
+)
 def test_format(config: ImageConfig, format: OutputFormat) -> None:
     with Image(config) as image:
-        if image.config.distribution == Distribution.rhel_ubi and format in (OutputFormat.esp, OutputFormat.uki):
+        if image.config.distribution == Distribution.rhel_ubi and format in (
+            OutputFormat.esp,
+            OutputFormat.uki,
+        ):
             pytest.skip("Cannot build RHEL-UBI images with format 'esp' or 'uki'")
 
         image.genkey()
@@ -58,8 +61,8 @@ def test_format(config: ImageConfig, format: OutputFormat) -> None:
         if have_vmspawn() and format in (OutputFormat.disk, OutputFormat.directory):
             image.vmspawn()
 
-        # TODO: Remove the opensuse check again when https://bugzilla.opensuse.org/show_bug.cgi?id=1227464 is resolved
-        # and we install the grub tools in the openSUSE tools tree again.
+        # TODO: Remove the opensuse check again when https://bugzilla.opensuse.org/show_bug.cgi?id=1227464 is
+        # resolved and we install the grub tools in the openSUSE tools tree again.
         if format != OutputFormat.disk or config.tools_tree_distribution == Distribution.opensuse:
             return
 
@@ -71,8 +74,8 @@ def test_bootloader(config: ImageConfig, bootloader: Bootloader) -> None:
     if config.distribution == Distribution.rhel_ubi:
         return
 
-    # TODO: Remove this again when https://bugzilla.opensuse.org/show_bug.cgi?id=1227464 is resolved and we install
-    # the grub tools in the openSUSE tools tree again.
+    # TODO: Remove this again when https://bugzilla.opensuse.org/show_bug.cgi?id=1227464 is resolved and we
+    # install the grub tools in the openSUSE tools tree again.
     if bootloader == Bootloader.grub and config.tools_tree_distribution == Distribution.opensuse:
         return
 

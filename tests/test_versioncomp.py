@@ -72,8 +72,8 @@ def test_generic_version_spec() -> None:
                 GenericVersion("124-1"),
             ],
         ),
-        2
-    )
+        2,
+    ),
 )
 def test_generic_version_strverscmp_improved_doc(
     s1: tuple[int, GenericVersion],
@@ -86,9 +86,9 @@ def test_generic_version_strverscmp_improved_doc(
     i1, v1 = s1
     i2, v2 = s2
     assert (v1 == v2) == (i1 == i2)
-    assert  (v1 < v2) == (i1 < i2)
+    assert (v1 < v2) == (i1 < i2)
     assert (v1 <= v2) == (i1 <= i2)
-    assert  (v1 > v2) == (i1 > i2)
+    assert (v1 > v2) == (i1 > i2)
     assert (v1 >= v2) == (i1 >= i2)
     assert (v1 != v2) == (i1 != i2)
 
@@ -122,8 +122,8 @@ def test_generic_version_rpmvercmp() -> None:
     RPMVERCMP("5.5p1", "5.5p10", -1)
     RPMVERCMP("5.5p10", "5.5p1", 1)
 
-    RPMVERCMP("10xyz", "10.1xyz", 1)    # Note: this is reversed from rpm's vercmp */
-    RPMVERCMP("10.1xyz", "10xyz", -1)   # Note: this is reversed from rpm's vercmp */
+    RPMVERCMP("10xyz", "10.1xyz", 1)  # Note: this is reversed from rpm's vercmp */
+    RPMVERCMP("10.1xyz", "10xyz", -1)  # Note: this is reversed from rpm's vercmp */
 
     RPMVERCMP("xyz10", "xyz10", 0)
     RPMVERCMP("xyz10", "xyz10.1", -1)
@@ -165,8 +165,8 @@ def test_generic_version_rpmvercmp() -> None:
     RPMVERCMP("20101122", "20101121", 1)
 
     RPMVERCMP("2_0", "2_0", 0)
-    RPMVERCMP("2.0", "2_0", -1)   # Note: in rpm those compare equal
-    RPMVERCMP("2_0", "2.0", 1)    # Note: in rpm those compare equal
+    RPMVERCMP("2.0", "2_0", -1)  # Note: in rpm those compare equal
+    RPMVERCMP("2_0", "2.0", 1)  # Note: in rpm those compare equal
 
     # RhBug:178798 case */
     RPMVERCMP("a", "a", 0)
@@ -224,7 +224,7 @@ def test_generic_version_rpmvercmp() -> None:
     print("/* RPM version comparison oddities */")
     # RhBug:811992 case
     RPMVERCMP("1b.fc17", "1b.fc17", 0)
-    RPMVERCMP("1b.fc17", "1.fc17", 1) # Note: this is reversed from rpm's vercmp, WAT! */
+    RPMVERCMP("1b.fc17", "1.fc17", 1)  # Note: this is reversed from rpm's vercmp, WAT! */
     RPMVERCMP("1.fc17", "1b.fc17", -1)
     RPMVERCMP("1g.fc17", "1g.fc17", 0)
     RPMVERCMP("1g.fc17", "1.fc17", 1)

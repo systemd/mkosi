@@ -42,25 +42,25 @@ class Pacman(PackageManager):
     def scripts(cls, context: Context) -> dict[str, list[PathString]]:
         return {
             "pacman": cls.apivfs_script_cmd(context) + cls.env_cmd(context) + cls.cmd(context),
-            "mkosi-install"  : ["pacman", "--sync", "--needed"],
-            "mkosi-upgrade"  : ["pacman", "--sync", "--sysupgrade", "--needed"],
-            "mkosi-remove"   : ["pacman", "--remove", "--recursive", "--nosave"],
+            "mkosi-install":   ["pacman", "--sync", "--needed"],
+            "mkosi-upgrade":   ["pacman", "--sync", "--sysupgrade", "--needed"],
+            "mkosi-remove":    ["pacman", "--remove", "--recursive", "--nosave"],
             "mkosi-reinstall": ["pacman", "--sync"],
-        }
+        }  # fmt: skip
 
     @classmethod
     def mounts(cls, context: Context) -> list[PathString]:
         mounts = [
             *super().mounts(context),
-            # pacman writes downloaded packages to the first writable cache directory. We don't want it to write to our
-            # local repository directory so we expose it as a read-only directory to pacman.
+            # pacman writes downloaded packages to the first writable cache directory. We don't want it to
+            # write to our local repository directory so we expose it as a read-only directory to pacman.
             "--ro-bind", context.repository, "/var/cache/pacman/mkosi",
-        ]
+        ]  # fmt: skip
 
         if (context.root / "var/lib/pacman/local").exists():
-            # pacman reuses the same directory for the sync databases and the local database containing the list of
-            # installed packages. The former should go in the cache directory, the latter should go in the image, so we
-            # bind mount the local directory from the image to make sure that happens.
+            # pacman reuses the same directory for the sync databases and the local database containing the
+            # list of installed packages. The former should go in the cache directory, the latter should go
+            # in the image, so we bind mount the local directory from the image to make sure that happens.
             mounts += ["--bind", context.root / "var/lib/pacman/local", "/var/lib/pacman/local"]
 
         return mounts
@@ -143,15 +143,16 @@ class Pacman(PackageManager):
             "--root=/buildroot",
             "--logfile=/dev/null",
             "--dbpath=/var/lib/pacman",
-            # Make sure pacman looks at our local repository first by putting it as the first cache directory. We mount
-            # it read-only so the second directory will still be used for writing new cache entries.
+            # Make sure pacman looks at our local repository first by putting it as the first cache
+            # directory. We mount it read-only so the second directory will still be used for writing new
+            # cache entries.
             "--cachedir=/var/cache/pacman/mkosi",
             "--cachedir=/var/cache/pacman/pkg",
             "--hookdir=/buildroot/etc/pacman.d/hooks",
             "--arch", context.config.distribution.architecture(context.config.architecture),
             "--color", "auto",
             "--noconfirm",
-        ]
+        ]  # fmt: skip
 
     @classmethod
     def invoke(
@@ -181,9 +182,11 @@ class Pacman(PackageManager):
                 "repo-add",
                 "--quiet",
                 context.repository / "mkosi.db.tar",
-                *sorted(context.repository.glob("*.pkg.tar*"), key=lambda p: GenericVersion(Path(p).name))
+                *sorted(context.repository.glob("*.pkg.tar*"), key=lambda p: GenericVersion(Path(p).name)),
             ],
-            sandbox=context.sandbox(binary="repo-add", options=["--bind", context.repository, context.repository]),
+            sandbox=context.sandbox(
+                binary="repo-add", options=["--bind", context.repository, context.repository]
+            ),
         )
 
         (context.sandbox_tree / "etc/mkosi-local.conf").write_text(
@@ -198,7 +201,4 @@ class Pacman(PackageManager):
         )
 
         # pacman can't sync a single repository, so we go behind its back and do it ourselves.
-        shutil.move(
-            context.repository / "mkosi.db.tar",
-            context.metadata_dir / "lib/pacman/sync/mkosi.db"
-        )
+        shutil.move(context.repository / "mkosi.db.tar", context.metadata_dir / "lib/pacman/sync/mkosi.db")

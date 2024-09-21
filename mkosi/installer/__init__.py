@@ -28,7 +28,7 @@ class PackageManager:
 
     @classmethod
     def state_subdirs(cls, state: Path) -> list[Path]:
-        return  []
+        return []
 
     @classmethod
     def scripts(cls, context: Context) -> dict[str, list[PathString]]:
@@ -37,7 +37,7 @@ class PackageManager:
     @classmethod
     def finalize_environment(cls, context: Context) -> dict[str, str]:
         env = {
-            "HOME": "/", # Make sure rpm doesn't pick up ~/.rpmmacros and ~/.rpmrc.
+            "HOME": "/",  # Make sure rpm doesn't pick up ~/.rpmmacros and ~/.rpmrc.
             # systemd's chroot detection doesn't work when unprivileged so tell it explicitly.
             "SYSTEMD_IN_CHROOT": "1",
         }
@@ -46,8 +46,8 @@ class PackageManager:
             env["SYSTEMD_HWDB_UPDATE_BYPASS"] = "1"
 
         if (
-            "KERNEL_INSTALL_BYPASS" not in context.config.environment and
-            context.config.bootable != ConfigFeature.disabled
+            "KERNEL_INSTALL_BYPASS" not in context.config.environment
+            and context.config.bootable != ConfigFeature.disabled
         ):
             env["KERNEL_INSTALL_BYPASS"] = "1"
         else:
@@ -70,7 +70,7 @@ class PackageManager:
         mounts = [
             *finalize_crypto_mounts(context.config),
             "--bind", context.repository, "/repository",
-        ]
+        ]  # fmt: skip
 
         if context.config.local_mirror and (mirror := startswith(context.config.local_mirror, "file://")):
             mounts += ["--ro-bind", mirror, mirror]
@@ -81,10 +81,10 @@ class PackageManager:
             src = context.metadata_dir / d / subdir
             mounts += ["--bind", src, Path("/var") / d / subdir]
 
-            # If we're not operating on the configured package cache directory, we're operating on a snapshot of the
-            # repository metadata. To make sure any downloaded packages are still cached in the configured package
-            # cache directory in this scenario, we mount in the relevant directories from the configured package cache
-            # directory.
+            # If we're not operating on the configured package cache directory, we're operating on a snapshot
+            # of the repository metadata. To make sure any downloaded packages are still cached in the
+            # configured package cache directory in this scenario, we mount in the relevant directories from
+            # the configured package cache directory.
             if d == "cache" and context.metadata_dir != context.config.package_cache_dir_or_default():
                 caches = context.config.distribution.package_manager(context.config).cache_subdirs(src)
                 mounts += flatten(
@@ -94,7 +94,9 @@ class PackageManager:
                         Path("/var") / d / subdir / p.relative_to(src),
                     )
                     for p in caches
-                    if (context.config.package_cache_dir_or_default() / d / subdir / p.relative_to(src)).exists()
+                    if (
+                        context.config.package_cache_dir_or_default() / d / subdir / p.relative_to(src)
+                    ).exists()
                 )
 
         return mounts
@@ -107,11 +109,11 @@ class PackageManager:
             "--suppress-chown",
             # Make sure /etc/machine-id is not overwritten by any package manager post install scripts.
             "--ro-bind-try", Path(root) / "etc/machine-id", "/buildroot/etc/machine-id",
-            # If we're already in the sandbox, we want to pick up use the passwd files from /buildroot since the
-            # original root won't be available anymore. If we're not in the sandbox yet, we want to pick up the passwd
-            # files from the original root.
+            # If we're already in the sandbox, we want to pick up use the passwd files from /buildroot since
+            # the original root won't be available anymore. If we're not in the sandbox yet, we want to pick
+            # up the passwd files from the original root.
             *finalize_passwd_mounts(root),
-        ]
+        ]  # fmt: skip
 
     @classmethod
     def apivfs_script_cmd(cls, context: Context) -> list[PathString]:
@@ -123,7 +125,7 @@ class PackageManager:
             *apivfs_options(),
             *cls.options(root="/buildroot"),
             "--",
-        ]
+        ]  # fmt: skip
 
     @classmethod
     def sandbox(
@@ -142,7 +144,7 @@ class PackageManager:
                 *cls.options(root=context.root, apivfs=apivfs),
                 *options,
             ],
-        )
+        )  # fmt: skip
 
     @classmethod
     def sync(cls, context: Context, force: bool) -> None:
@@ -168,24 +170,28 @@ def clean_package_manager_metadata(context: Context) -> None:
     if context.config.clean_package_metadata == ConfigFeature.disabled:
         return
 
-    if (
-        context.config.clean_package_metadata == ConfigFeature.auto and
-        context.config.output_format in (OutputFormat.directory, OutputFormat.tar)
+    if context.config.clean_package_metadata == ConfigFeature.auto and context.config.output_format in (
+        OutputFormat.directory,
+        OutputFormat.tar,
     ):
         return
 
-    # If cleaning is not explicitly requested, keep the repository metadata if we're building a directory or tar image
-    # (which are often used as a base tree for extension images and thus should retain package manager metadata) or if
-    # the corresponding package manager is installed in the image.
+    # If cleaning is not explicitly requested, keep the repository metadata if we're building a directory or
+    # tar image (which are often used as a base tree for extension images and thus should retain package
+    # manager metadata) or if the corresponding package manager is installed in the image.
 
     executable = context.config.distribution.package_manager(context.config).executable(context.config)
     remove = []
 
-    for tool, paths in (("rpm",      ["var/lib/rpm", "usr/lib/sysimage/rpm"]),
-                        ("dnf5",     ["usr/lib/sysimage/libdnf5"]),
-                        ("dpkg",     ["var/lib/dpkg"]),
-                        (executable, [f"var/lib/{subdir}", f"var/cache/{subdir}"])):
-        if context.config.clean_package_metadata == ConfigFeature.enabled or not find_binary(tool, root=context.root):
+    for tool, paths in (
+        ("rpm",      ["var/lib/rpm", "usr/lib/sysimage/rpm"]),
+        ("dnf5",     ["usr/lib/sysimage/libdnf5"]),
+        ("dpkg",     ["var/lib/dpkg"]),
+        (executable, [f"var/lib/{subdir}", f"var/cache/{subdir}"]),
+    ):  # fmt: skip
+        if context.config.clean_package_metadata == ConfigFeature.enabled or not find_binary(
+            tool, root=context.root
+        ):
             remove += [context.root / p for p in paths if (context.root / p).exists()]
 
     rmtree(*remove, sandbox=context.sandbox)

@@ -34,9 +34,8 @@ from mkosi.versioncomp import GenericVersion
 
 def want_efi(config: Config) -> bool:
     # Do we want to make the image bootable on EFI firmware?
-    # Note that this returns True also in the case where autodetection might later
-    # cause the system to not be made bootable on EFI firmware after the filesystem
-    # has been populated.
+    # Note that this returns True also in the case where autodetection might later cause the system to not be
+    # made bootable on EFI firmware after the filesystem has been populated.
 
     if config.output_format in (OutputFormat.uki, OutputFormat.esp):
         return True
@@ -48,9 +47,10 @@ def want_efi(config: Config) -> bool:
         return False
 
     if (
-        (config.output_format == OutputFormat.cpio or config.output_format.is_extension_image() or config.overlay)
-        and config.bootable == ConfigFeature.auto
-    ):
+        config.output_format == OutputFormat.cpio
+        or config.output_format.is_extension_image()
+        or config.overlay
+    ) and config.bootable == ConfigFeature.auto:
         return False
 
     if config.architecture.to_efi() is None:
@@ -149,8 +149,9 @@ def prepare_grub_config(context: Context) -> Optional[Path]:
             f.write("set timeout=0\n")
 
     if want_grub_efi(context):
-        # Signed EFI grub shipped by distributions reads its configuration from /EFI/<distribution>/grub.cfg (except
-        # in OpenSUSE) in the ESP so let's put a shim there to redirect to the actual configuration file.
+        # Signed EFI grub shipped by distributions reads its configuration from /EFI/<distribution>/grub.cfg
+        # (except in OpenSUSE) in the ESP so let's put a shim there to redirect to the actual configuration
+        # file.
         if context.config.distribution == Distribution.opensuse:
             earlyconfig = context.root / "efi/EFI/BOOT/grub.cfg"
         else:
@@ -181,7 +182,7 @@ def grub_mkimage(
 
     with (
         complete_step(f"Generating grub image for {target}"),
-        tempfile.NamedTemporaryFile("w", prefix="grub-early-config") as earlyconfig
+        tempfile.NamedTemporaryFile("w", prefix="grub-early-config") as earlyconfig,
     ):
         earlyconfig.write(
             textwrap.dedent(
@@ -236,16 +237,16 @@ def grub_mkimage(
                     *(["--ro-bind", str(sbat), str(sbat)] if sbat else []),
                 ],
             ),
-        )
+        )  # fmt: skip
 
 
 def find_signed_grub_image(context: Context) -> Optional[Path]:
     arch = context.config.architecture.to_efi()
 
     patterns = [
-        f"usr/lib/grub/*-signed/grub{arch}.efi.signed", # Debian/Ubuntu
-        f"boot/efi/EFI/*/grub{arch}.efi", # Fedora/CentOS
-        "usr/share/efi/*/grub.efi", # OpenSUSE
+        f"usr/lib/grub/*-signed/grub{arch}.efi.signed",  # Debian/Ubuntu
+        f"boot/efi/EFI/*/grub{arch}.efi",  # Fedora/CentOS
+        "usr/share/efi/*/grub.efi",  # OpenSUSE
     ]
 
     for p in flatten(context.root.glob(pattern) for pattern in patterns):
@@ -260,9 +261,9 @@ def find_signed_grub_image(context: Context) -> Optional[Path]:
 
 def python_binary(config: Config, *, binary: Optional[PathString]) -> PathString:
     tools = (
-        not binary or
-        not (path := config.find_binary(binary)) or
-        not any(path.is_relative_to(d) for d in config.extra_search_paths)
+        not binary
+        or not (path := config.find_binary(binary))
+        or not any(path.is_relative_to(d) for d in config.extra_search_paths)
     )
 
     # If there's no tools tree, prefer the interpreter from MKOSI_INTERPRETER. If there is a tools
@@ -372,10 +373,10 @@ def grub_bios_setup(context: Context, partitions: Sequence[Partition]) -> None:
         tempfile.NamedTemporaryFile(mode="w") as mountinfo,
     ):
         # grub-bios-setup insists on being able to open the root device that --directory is located on, which
-        # needs root privileges. However, it only uses the root device when it is unable to embed itself in the
-        # bios boot partition. To make installation work unprivileged, we trick grub to think that the root
-        # device is our image by mounting over its /proc/self/mountinfo file (where it gets its information from)
-        # with our own file correlating the root directory to our image file.
+        # needs root privileges. However, it only uses the root device when it is unable to embed itself in
+        # the bios boot partition. To make installation work unprivileged, we trick grub to think that the
+        # root device is our image by mounting over its /proc/self/mountinfo file (where it gets its
+        # information from) with our own file correlating the root directory to our image file.
         mountinfo.write(f"1 0 1:1 / / - fat {context.staging / context.config.output_with_format}\n")
         mountinfo.flush()
 
@@ -393,7 +394,7 @@ def grub_bios_setup(context: Context, partitions: Sequence[Partition]) -> None:
                     "--bind", mountinfo.name, "/proc/self/mountinfo",
                 ],
             ),
-        )
+        )  # fmt: skip
 
 
 def efi_boot_binary(context: Context) -> Path:
@@ -423,7 +424,7 @@ def certificate_common_name(context: Context, certificate: Path) -> str:
         ],
         stdout=subprocess.PIPE,
         sandbox=context.sandbox(binary="openssl", options=["--ro-bind", certificate, certificate]),
-    ).stdout
+    ).stdout  # fmt: skip
 
     for line in output.splitlines():
         if not line.strip().startswith("commonName"):
@@ -436,7 +437,6 @@ def certificate_common_name(context: Context, certificate: Path) -> str:
         return value.strip()
 
     die(f"Certificate {certificate} is missing Common Name")
-
 
 
 def pesign_prepare(context: Context) -> None:
@@ -470,10 +470,10 @@ def pesign_prepare(context: Context) -> None:
                 binary="openssl",
                 options=[
                     "--ro-bind", context.config.secure_boot_key, context.config.secure_boot_key,
-                    "--ro-bind", context.config.secure_boot_certificate, context.config.secure_boot_certificate,
+                    "--ro-bind", context.config.secure_boot_certificate, context.config.secure_boot_certificate,  # noqa
                 ],
             ),
-        )
+        )  # fmt: skip
 
     (context.workspace / "pesign").mkdir(exist_ok=True)
 
@@ -492,7 +492,7 @@ def pesign_prepare(context: Context) -> None:
                 "--ro-bind", context.workspace / "pesign", context.workspace / "pesign",
             ],
         ),
-    )
+    )  # fmt: skip
 
 
 def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
@@ -500,20 +500,20 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
     assert context.config.secure_boot_certificate
 
     if (
-        context.config.secure_boot_sign_tool == SecureBootSignTool.sbsign or
-        context.config.secure_boot_sign_tool == SecureBootSignTool.auto and
-        context.config.find_binary("sbsign") is not None
+        context.config.secure_boot_sign_tool == SecureBootSignTool.sbsign
+        or context.config.secure_boot_sign_tool == SecureBootSignTool.auto
+        and context.config.find_binary("sbsign") is not None
     ):
         cmd: list[PathString] = [
             "sbsign",
             "--cert", workdir(context.config.secure_boot_certificate),
             "--output", workdir(output),
-        ]
+        ]  # fmt: skip
         options: list[PathString] = [
-            "--ro-bind", context.config.secure_boot_certificate, workdir(context.config.secure_boot_certificate),
+            "--ro-bind", context.config.secure_boot_certificate, workdir(context.config.secure_boot_certificate),  # noqa
             "--ro-bind", input, workdir(input),
             "--bind", output.parent, workdir(output.parent),
-        ]
+        ]  # fmt: skip
         if context.config.secure_boot_key_source.type == KeySourceType.engine:
             cmd += ["--engine", context.config.secure_boot_key_source.source]
         if context.config.secure_boot_key.exists():
@@ -528,12 +528,12 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
                 binary="sbsign",
                 options=options,
                 devices=context.config.secure_boot_key_source.type != KeySourceType.file,
-            )
+            ),
         )
     elif (
-        context.config.secure_boot_sign_tool == SecureBootSignTool.pesign or
-        context.config.secure_boot_sign_tool == SecureBootSignTool.auto and
-        context.config.find_binary("pesign") is not None
+        context.config.secure_boot_sign_tool == SecureBootSignTool.pesign
+        or context.config.secure_boot_sign_tool == SecureBootSignTool.auto
+        and context.config.find_binary("pesign") is not None
     ):
         pesign_prepare(context)
         run(
@@ -554,7 +554,7 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
                     "--bind", output.parent, workdir(output),
                 ]
             ),
-        )
+        )  # fmt: skip
     else:
         die("One of sbsign or pesign is required to use SecureBoot=")
 
@@ -572,7 +572,9 @@ def find_and_install_shim_binary(
         for pattern in signed:
             for p in context.root.glob(pattern):
                 if p.is_symlink() and p.readlink().is_absolute():
-                    logging.warning(f"Ignoring signed {name} EFI binary which is an absolute path to {p.readlink()}")
+                    logging.warning(
+                        f"Ignoring signed {name} EFI binary which is an absolute path to {p.readlink()}"
+                    )
                     continue
 
                 rel = p.relative_to(context.root)
@@ -589,7 +591,9 @@ def find_and_install_shim_binary(
         for pattern in unsigned:
             for p in context.root.glob(pattern):
                 if p.is_symlink() and p.readlink().is_absolute():
-                    logging.warning(f"Ignoring unsigned {name} EFI binary which is an absolute path to {p.readlink()}")
+                    logging.warning(
+                        f"Ignoring unsigned {name} EFI binary which is an absolute path to {p.readlink()}"
+                    )
                     continue
 
                 rel = p.relative_to(context.root)
@@ -616,14 +620,12 @@ def gen_kernel_images(context: Context) -> Iterator[tuple[str, Path]]:
     for kver in sorted(
         (k for k in (context.root / "usr/lib/modules").iterdir() if k.is_dir()),
         key=lambda k: GenericVersion(k.name),
-        reverse=True
+        reverse=True,
     ):
-        # Make sure we look for anything that remotely resembles vmlinuz, as
-        # the arch specific install scripts in the kernel source tree sometimes
-        # do weird stuff. But let's make sure we're not returning UKIs as the
-        # UKI on Fedora is named vmlinuz-virt.efi. Also look for uncompressed
-        # images (vmlinux) as some architectures ship those. Prefer vmlinuz if
-        # both are present.
+        # Make sure we look for anything that remotely resembles vmlinuz, as the arch specific install
+        # scripts in the kernel source tree sometimes do weird stuff. But let's make sure we're not returning
+        # UKIs as the UKI on Fedora is named vmlinuz-virt.efi. Also look for uncompressed images (vmlinux) as
+        # some architectures ship those. Prefer vmlinuz if both are present.
         for kimg in kver.glob("vmlinuz*"):
             if KernelType.identify(context.config, kimg) != KernelType.uki:
                 yield kver.name, kimg
@@ -654,13 +656,15 @@ def install_systemd_boot(context: Context) -> None:
     signed = context.config.shim_bootloader == ShimBootloader.signed
     if not directory.glob("*.efi.signed" if signed else "*.efi"):
         if context.config.bootable == ConfigFeature.enabled:
-            die(f"An EFI bootable image with systemd-boot was requested but a {'signed ' if signed else ''}"
-                f"systemd-boot binary was not found at {directory.relative_to(context.root)}")
+            die(
+                f"An EFI bootable image with systemd-boot was requested but a {'signed ' if signed else ''}"
+                f"systemd-boot binary was not found at {directory.relative_to(context.root)}"
+            )
         return
 
     if context.config.secure_boot and not signed:
         with complete_step("Signing systemd-boot binaries…"):
-            for input in itertools.chain(directory.glob('*.efi'), directory.glob('*.EFI')):
+            for input in itertools.chain(directory.glob("*.efi"), directory.glob("*.EFI")):
                 output = directory / f"{input}.signed"
                 sign_efi_binary(context, input, output)
 
@@ -707,7 +711,7 @@ def install_systemd_boot(context: Context) -> None:
                             "--bind", context.workspace, workdir(context.workspace),
                         ],
                     ),
-                )
+                )  # fmt: skip
 
             with umask(~0o600):
                 run(
@@ -722,10 +726,10 @@ def install_systemd_boot(context: Context) -> None:
                         binary="sbsiglist",
                         options=[
                             "--bind", context.workspace, workdir(context.workspace),
-                            "--ro-bind", context.workspace / "mkosi.der", workdir(context.workspace / "mkosi.der"),
+                            "--ro-bind", context.workspace / "mkosi.der", workdir(context.workspace / "mkosi.der"),  # noqa
                         ]
                     ),
-                )
+                )  # fmt: skip
 
             # We reuse the key for all secure boot databases to keep things simple.
             for db in ["PK", "KEK", "db"]:
@@ -736,21 +740,21 @@ def install_systemd_boot(context: Context) -> None:
                             "NON_VOLATILE,BOOTSERVICE_ACCESS,RUNTIME_ACCESS,TIME_BASED_AUTHENTICATED_WRITE_ACCESS",
                         "--cert", workdir(context.config.secure_boot_certificate),
                         "--output", workdir(keys / f"{db}.auth"),
-                    ]
+                    ]  # fmt: skip
                     options: list[PathString] = [
                         "--ro-bind",
                         context.config.secure_boot_certificate,
                         workdir(context.config.secure_boot_certificate),
-                        "--ro-bind", context.workspace / "mkosi.esl", workdir(context.workspace / "mkosi.esl"),
+                        "--ro-bind", context.workspace / "mkosi.esl", workdir(context.workspace / "mkosi.esl"),  # noqa
                         "--bind", keys, workdir(keys),
-                    ]
+                    ]  # fmt: skip
                     if context.config.secure_boot_key_source.type == KeySourceType.engine:
                         cmd += ["--engine", context.config.secure_boot_key_source.source]
                     if context.config.secure_boot_key.exists():
-                        cmd += ["--key", workdir(context.config.secure_boot_key),]
+                        cmd += ["--key", workdir(context.config.secure_boot_key)]
                         options += [
-                            "--ro-bind", context.config.secure_boot_key, workdir(context.config.secure_boot_key),
-                        ]
+                            "--ro-bind", context.config.secure_boot_key, workdir(context.config.secure_boot_key),  # noqa
+                        ]  # fmt: skip
                     else:
                         cmd += ["--key", context.config.secure_boot_key]
                     cmd += [db, workdir(context.workspace / "mkosi.esl")]
@@ -781,31 +785,31 @@ def install_shim(context: Context) -> None:
     arch = context.config.architecture.to_efi()
 
     signed = [
-        f"usr/lib/shim/shim{arch}.efi.signed.latest", # Ubuntu
-        f"usr/lib/shim/shim{arch}.efi.signed", # Debian
-        f"boot/efi/EFI/*/shim{arch}.efi", # Fedora/CentOS
-        "usr/share/efi/*/shim.efi", # OpenSUSE
+        f"usr/lib/shim/shim{arch}.efi.signed.latest",  # Ubuntu
+        f"usr/lib/shim/shim{arch}.efi.signed",  # Debian
+        f"boot/efi/EFI/*/shim{arch}.efi",  # Fedora/CentOS
+        "usr/share/efi/*/shim.efi",  # OpenSUSE
     ]
 
     unsigned = [
-        f"usr/lib/shim/shim{arch}.efi", # Debian/Ubuntu
-        f"usr/share/shim/*/*/shim{arch}.efi", # Fedora/CentOS
-        f"usr/share/shim/shim{arch}.efi", # Arch
+        f"usr/lib/shim/shim{arch}.efi",  # Debian/Ubuntu
+        f"usr/share/shim/*/*/shim{arch}.efi",  # Fedora/CentOS
+        f"usr/share/shim/shim{arch}.efi",  # Arch
     ]
 
     find_and_install_shim_binary(context, "shim", signed, unsigned, dst)
 
     signed = [
-        f"usr/lib/shim/mm{arch}.efi.signed", # Debian
-        f"usr/lib/shim/mm{arch}.efi", # Ubuntu
-        f"boot/efi/EFI/*/mm{arch}.efi", # Fedora/CentOS
-        "usr/share/efi/*/MokManager.efi", # OpenSUSE
+        f"usr/lib/shim/mm{arch}.efi.signed",  # Debian
+        f"usr/lib/shim/mm{arch}.efi",  # Ubuntu
+        f"boot/efi/EFI/*/mm{arch}.efi",  # Fedora/CentOS
+        "usr/share/efi/*/MokManager.efi",  # OpenSUSE
     ]
 
     unsigned = [
-        f"usr/lib/shim/mm{arch}.efi", # Debian/Ubuntu
-        f"usr/share/shim/*/*/mm{arch}.efi", # Fedora/CentOS
-        f"usr/share/shim/mm{arch}.efi", # Arch
+        f"usr/lib/shim/mm{arch}.efi",  # Debian/Ubuntu
+        f"usr/share/shim/*/*/mm{arch}.efi",  # Fedora/CentOS
+        f"usr/share/shim/mm{arch}.efi",  # Arch
     ]
 
     find_and_install_shim_binary(context, "mok", signed, unsigned, dst.parent)

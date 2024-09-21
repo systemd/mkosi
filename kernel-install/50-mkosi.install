@@ -76,9 +76,9 @@ def main() -> None:
     log_setup()
 
     parser = argparse.ArgumentParser(
-        description='kernel-install plugin to build initrds or Unified Kernel Images using mkosi',
+        description="kernel-install plugin to build initrds or Unified Kernel Images using mkosi",
         allow_abbrev=False,
-        usage='50-mkosi.install COMMAND KERNEL_VERSION ENTRY_DIR KERNEL_IMAGE INITRD…',
+        usage="50-mkosi.install COMMAND KERNEL_VERSION ENTRY_DIR KERNEL_IMAGE INITRD…",
     )
 
     parser.add_argument(
@@ -139,7 +139,11 @@ def main() -> None:
     if context.layout != "uki" and context.initrds:
         return
 
-    format = OutputFormat.uki if context.layout == "uki" and context.uki_generator == "mkosi" else OutputFormat.cpio
+    if context.layout == "uki" and context.uki_generator == "mkosi":
+        format = OutputFormat.uki
+    else:
+        format = OutputFormat.cpio
+
     output = "initrd" if format == OutputFormat.cpio else "uki"
 
     cmdline: list[PathString] = [
@@ -148,7 +152,7 @@ def main() -> None:
         "--format", str(format),
         "--output", output,
         "--output-dir", context.staging_area,
-    ]
+    ]  # fmt: skip
 
     if context.verbose:
         cmdline += ["--debug"]
@@ -167,5 +171,5 @@ def main() -> None:
         (context.staging_area / f"{output}.initrd").unlink()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

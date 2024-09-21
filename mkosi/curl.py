@@ -28,4 +28,4 @@ def curl(config: Config, url: str, output_dir: Path) -> None:
             network=True,
             options=["--bind", output_dir, output_dir, *finalize_crypto_mounts(config)],
         ),
-    )
+    )  # fmt: skip

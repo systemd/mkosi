@@ -16,7 +16,7 @@ from typing import no_type_check
 @contextlib.contextmanager
 def _tempfile(
     reader,
-    suffix='',
+    suffix="",
     # gh-93353: Keep a reference to call os.remove() in late Python
     # finalization.
     *,
@@ -38,9 +38,11 @@ def _tempfile(
         except FileNotFoundError:
             pass
 
+
 @no_type_check
 def _temp_file(path):
     return _tempfile(path.read_bytes, suffix=path.name)
+
 
 @no_type_check
 def _is_present_dir(path) -> bool:
@@ -55,6 +57,7 @@ def _is_present_dir(path) -> bool:
         return path.is_dir()
     return False
 
+
 @no_type_check
 @functools.singledispatch
 def as_file(path):
@@ -64,6 +67,7 @@ def as_file(path):
     """
     return _temp_dir(path) if _is_present_dir(path) else _temp_file(path)
 
+
 @no_type_check
 @contextlib.contextmanager
 def _temp_path(dir: tempfile.TemporaryDirectory):
@@ -72,6 +76,7 @@ def _temp_path(dir: tempfile.TemporaryDirectory):
     """
     with dir as result:
         yield Path(result)
+
 
 @no_type_check
 @contextlib.contextmanager
@@ -83,6 +88,7 @@ def _temp_dir(path):
     assert path.is_dir()
     with _temp_path(tempfile.TemporaryDirectory()) as temp_dir:
         yield _write_contents(temp_dir, path)
+
 
 @no_type_check
 def _write_contents(target, source):

@@ -36,20 +36,12 @@ def find_rpm_gpgkey(
 
 @overload
 def find_rpm_gpgkey(
-    context: Context,
-    key: str,
-    fallback: Optional[str] = None,
-    *,
-    required: Literal[False]
+    context: Context, key: str, fallback: Optional[str] = None, *, required: Literal[False]
 ) -> Optional[str]: ...
 
 
 def find_rpm_gpgkey(
-    context: Context,
-    key: str,
-    fallback: Optional[str] = None,
-    *,
-    required: bool = True
+    context: Context, key: str, fallback: Optional[str] = None, *, required: bool = True
 ) -> Optional[str]:
     root = context.config.tools() if context.config.tools_tree_certificates else Path("/")
 
@@ -63,8 +55,10 @@ def find_rpm_gpgkey(
         return fallback
 
     if required:
-        die(f"{key} GPG key not found in /usr/share/distribution-gpg-keys",
-            hint="Make sure the distribution-gpg-keys package is installed")
+        die(
+            f"{key} GPG key not found in /usr/share/distribution-gpg-keys",
+            hint="Make sure the distribution-gpg-keys package is installed",
+        )
 
     return None
 
@@ -78,15 +72,20 @@ def setup_rpm(context: Context, *, dbpath: str = "/usr/lib/sysimage/rpm") -> Non
     if not (confdir / "macros.dbpath").exists():
         (confdir / "macros.dbpath").write_text(f"%_dbpath {dbpath}")
 
-    plugindir = Path(run(["rpm", "--eval", "%{__plugindir}"],
-                         sandbox=context.sandbox(binary="rpm"), stdout=subprocess.PIPE).stdout.strip())
+    plugindir = Path(
+        run(
+            ["rpm", "--eval", "%{__plugindir}"],
+            sandbox=context.sandbox(binary="rpm"),
+            stdout=subprocess.PIPE,
+        ).stdout.strip()
+    )
     if (plugindir := context.config.tools() / plugindir.relative_to("/")).exists():
         with (confdir / "macros.disable-plugins").open("w") as f:
             for plugin in plugindir.iterdir():
                 f.write(f"%__transaction_{plugin.stem} %{{nil}}\n")
 
-    # Write an rpm sequoia policy that allows SHA1 as various distribution GPG keys (OpenSUSE) still use SHA1 for
-    # various things.
+    # Write an rpm sequoia policy that allows SHA1 as various distribution GPG keys (OpenSUSE) still use SHA1
+    # for various things.
     # TODO: Remove when all rpm distribution GPG keys have stopped using SHA1.
     if not (p := context.sandbox_tree / "etc/crypto-policies/back-ends/rpm-sequoia.config").exists():
         p.parent.mkdir(parents=True, exist_ok=True)
