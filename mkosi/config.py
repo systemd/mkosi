@@ -48,6 +48,8 @@ from mkosi.util import (
 )
 from mkosi.versioncomp import GenericVersion
 
+T = TypeVar("T")
+
 ConfigParseCallback = Callable[[Optional[str], Optional[Any]], Any]
 ConfigMatchCallback = Callable[[str, Any], bool]
 ConfigDefaultCallback = Callable[[argparse.Namespace], Any]
@@ -577,8 +579,11 @@ def config_match_build_sources(match: str, value: list[ConfigTree]) -> bool:
     return Path(match.lstrip("/")) in [tree.target for tree in value if tree.target]
 
 
-def config_match_repositories(match: str, value: list[str]) -> bool:
-    return match in value
+def config_make_list_matcher(parse: Callable[[str], T]) -> ConfigMatchCallback:
+    def config_match_list(match: str, value: list[T]) -> bool:
+        return parse(match) in value
+
+    return config_match_list
 
 
 def config_parse_string(value: Optional[str], old: Optional[str]) -> Optional[str]:
@@ -1107,10 +1112,7 @@ def config_parse_number(value: Optional[str], old: Optional[int] = None) -> Opti
         die(f"{value!r} is not a valid number")
 
 
-def config_parse_profile(value: Optional[str], old: Optional[int] = None) -> Optional[str]:
-    if not value:
-        return None
-
+def parse_profile(value: str) -> str:
     if not is_valid_filename(value):
         die(
             f"{value!r} is not a valid profile",
@@ -1477,7 +1479,7 @@ class Config:
     access the value from context.
     """
 
-    profile: Optional[str]
+    profiles: list[str]
     files: list[Path]
     dependencies: list[str]
     minimum_version: Optional[GenericVersion]
@@ -1952,13 +1954,15 @@ SETTINGS = (
     ),
     # Config section
     ConfigSetting(
-        dest="profile",
+        dest="profiles",
+        long="--profile",
         section="Config",
         specifier="p",
-        help="Build the specified profile",
-        parse=config_parse_profile,
-        match=config_make_string_matcher(),
+        help="Build the specified profiles",
+        parse=config_make_list_parser(delimiter=",", parse=parse_profile),
+        match=config_make_list_matcher(parse=parse_profile),
         scope=SettingScope.universal,
+        compat_names=("Profile",),
     ),
     ConfigSetting(
         dest="dependencies",
@@ -2064,7 +2068,7 @@ SETTINGS = (
         metavar="REPOS",
         section="Distribution",
         parse=config_make_list_parser(delimiter=","),
-        match=config_match_repositories,
+        match=config_make_list_matcher(parse=str),
         help="Repositories to use",
         scope=SettingScope.universal,
     ),
@@ -3777,26 +3781,31 @@ class ParseContext:
 
         return match_triggered is not False
 
-    def parse_config_one(self, path: Path, profiles: bool = False, local: bool = False) -> bool:
+    def parse_config_one(self, path: Path, parse_profiles: bool = False, parse_local: bool = False) -> bool:
         s: Optional[ConfigSetting]  # Make mypy happy
         extras = path.is_dir()
 
         if path.is_dir():
-            path = path / "mkosi.conf"
+            path /= "mkosi.conf"
 
         if not self.match_config(path):
             return False
 
         if extras:
-            if local and (path.parent / "mkosi.local.conf").exists():
-                self.parse_config_one(path.parent / "mkosi.local.conf")
+            if parse_local:
+                if (
+                    (localpath := path.parent / "mkosi.local/mkosi.conf").exists()
+                    or (localpath := path.parent / "mkosi.local.conf").exists()
+                ):  # fmt: skip
+                    self.parse_config_one(localpath)
 
-                # Configuration from mkosi.local.conf should override other file based configuration but not
-                # the CLI itself so move the finalized values to the CLI namespace.
-                for s in SETTINGS:
-                    if hasattr(self.config, s.dest):
-                        setattr(self.cli, s.dest, self.finalize_value(s))
-                        delattr(self.config, s.dest)
+                    # Local configuration should override other file based
+                    # configuration but not the CLI itself so move the finalized
+                    # values to the CLI namespace.
+                    for s in SETTINGS:
+                        if hasattr(self.config, s.dest):
+                            setattr(self.cli, s.dest, self.finalize_value(s))
+                            delattr(self.config, s.dest)
 
             for s in SETTINGS:
                 if (
@@ -3866,28 +3875,30 @@ class ParseContext:
                 setattr(self.config, s.dest, s.parse(v, getattr(self.config, s.dest, None)))
                 self.parse_new_includes()
 
-        if profiles:
-            profile = self.finalize_value(SETTINGS_LOOKUP_BY_DEST["profile"])
-            self.immutable.add("Profile")
+        profilepaths = []
+        if parse_profiles:
+            profiles = self.finalize_value(SETTINGS_LOOKUP_BY_DEST["profiles"])
+            self.immutable.add("Profiles")
 
-            if profile:
-                for p in (profile, f"{profile}.conf"):
+            for profile in profiles or []:
+                for p in (Path(profile), Path(f"{profile}.conf")):
                     p = Path("mkosi.profiles") / p
                     if p.exists():
                         break
                 else:
                     die(f"Profile '{profile}' not found in mkosi.profiles/")
 
-                setattr(self.config, "profile", profile)
-
-                with chdir(p if p.is_dir() else Path.cwd()):
-                    self.parse_config_one(p if p.is_file() else Path("."))
+                profilepaths += [p]
 
         if extras and (path.parent / "mkosi.conf.d").exists():
             for p in sorted((path.parent / "mkosi.conf.d").iterdir()):
                 if p.is_dir() or p.suffix == ".conf":
                     with chdir(p if p.is_dir() else Path.cwd()):
                         self.parse_config_one(p if p.is_file() else Path("."))
+
+        for p in profilepaths:
+            with chdir(p if p.is_dir() else Path.cwd()):
+                self.parse_config_one(p if p.is_file() else Path("."))
 
         return True
 
@@ -3975,7 +3986,7 @@ def parse_config(
 
     # Parse the global configuration unless the user explicitly asked us not to.
     if args.directory is not None:
-        context.parse_config_one(Path("."), profiles=True, local=True)
+        context.parse_config_one(Path("."), parse_profiles=True, parse_local=True)
 
     config = copy.deepcopy(context.config)
 
@@ -4047,7 +4058,7 @@ def parse_config(
             context.defaults = argparse.Namespace()
 
             with chdir(p if p.is_dir() else Path.cwd()):
-                if not context.parse_config_one(p if p.is_file() else Path("."), local=True):
+                if not context.parse_config_one(p if p.is_file() else Path("."), parse_local=True):
                     continue
 
             # Consolidate all settings into one namespace again.
@@ -4328,7 +4339,7 @@ def summary(config: Config) -> str:
 {bold(f"IMAGE: {config.image or 'default'}")}
 
     {bold("CONFIG")}:
-                            Profile: {none_to_none(config.profile)}
+                           Profiles: {line_join_list(config.profiles)}
                        Dependencies: {line_join_list(config.dependencies)}
                     Minimum Version: {none_to_none(config.minimum_version)}
                   Configure Scripts: {line_join_list(config.configure_scripts)}

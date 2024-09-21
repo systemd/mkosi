@@ -299,28 +299,29 @@ grouped by section below.
 Configuration is parsed in the following order:
 
 * The command line arguments are parsed.
-* `mkosi.local.conf` is parsed if it exists. This file should be in
-  `.gitignore` (or equivalent) and is intended for local configuration.
+* `mkosi.local.conf` or `mkosi.local` is parsed if it exists. This file or
+  directory should be in `.gitignore` (or equivalent) and is intended for local
+  configuration.
 * Any default paths (depending on the option) are configured if the
   corresponding path exists.
 * `mkosi.conf` is parsed if it exists in the directory configured with
   `--directory=` or the current working directory if `--directory=` is
   not used.
-* If a profile is defined, its configuration is parsed from the
-  `mkosi.profiles/` directory.
 * `mkosi.conf.d/` is parsed in the same directory if it exists. Each
   directory and each file with the `.conf` extension in `mkosi.conf.d/`
   is parsed. Any directory in `mkosi.conf.d` is parsed as if it were
   a regular top level directory.
+* If any profiles are configured, their configuration is parsed from the
+  `mkosi.profiles/` directory.
 * Subimages are parsed from the `mkosi.images` directory if it exists.
 
 Note that settings configured via the command line always override
 settings configured via configuration files. If the same setting is
 configured more than once via configuration files, later assignments
 override earlier assignments except for settings that take a collection
-of values. Also, settings read from `mkosi.local.conf` will override
-settings from configuration files that are parsed later, but not settings
-specified on the CLI.
+of values. Also, settings read from `mkosi.local` or `mkosi.local.conf` will
+override settings from configuration files that are parsed later, but not
+settings specified on the CLI.
 
 For settings that take a single value, the empty assignment (`SomeSetting=` or
 `--some-setting=`) can be used to override a previous setting and reset to the
@@ -1742,7 +1743,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 ### [Match] Section.
 
 `Profile=`
-:   Matches against the configured profile.
+:   Matches against the configured profiles.
 
 `Distribution=`
 :   Matches against the configured distribution.
@@ -1863,12 +1864,11 @@ config file is read:
 
 ### [Config] Section
 
-`Profile=`, `--profile=`
-:   Select the given profile. A profile is a configuration file or
-    directory in the `mkosi.profiles/` directory. When selected, this
-    configuration file or directory is included after parsing the
-    `mkosi.conf` file, but before any `mkosi.conf.d/*.conf` drop in
-    configuration.
+`Profiles=`, `--profile=`
+:   Select the given profiles. A profile is a configuration file or
+    directory in the `mkosi.profiles/` directory. The configuration files
+    and directories of each profile are included after parsing the
+    `mkosi.conf.d/*.conf` drop in configuration.
 
 `Dependencies=`, `--dependency=`
 :   The images that this image depends on specified as a comma-separated
@@ -2169,7 +2169,8 @@ Scripts executed by mkosi receive the following environment variables:
 * `$DISTRIBUTION_ARCHITECTURE` contains the architecture from
   `$ARCHITECTURE` in the format used by the configured distribution.
 
-* `$PROFILE` contains the profile from the `Profile=` setting.
+* `$PROFILES` contains the profiles from the `Profiles=` setting as a
+  comma-delimited string.
 
 * `$CACHED=` is set to `1` if a cached image is available, `0` otherwise.
 
@@ -2268,7 +2269,7 @@ Consult this table for which script receives which environment variables:
 | `DISTRIBUTION`              | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
 | `DISTRIBUTION_ARCHITECTURE` | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
 | `RELEASE`                   | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
-| `PROFILE`                   | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          |              | ✓       |
+| `PROFILES`                  | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          |              | ✓       |
 | `CACHED`                    |             | ✓      |           |         |            |            |              |         |
 | `CHROOT_SCRIPT`             |             |        | ✓         | ✓       | ✓          | ✓          |              |         |
 | `SRCDIR`                    | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
