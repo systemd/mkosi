@@ -361,7 +361,7 @@ def test_profiles(tmp_path: Path) -> None:
     (d / "mkosi.conf").write_text(
         """\
         [Config]
-        Profile=profile
+        Profiles=profile
         """
     )
 
@@ -376,7 +376,7 @@ def test_profiles(tmp_path: Path) -> None:
     with chdir(d):
         _, [config] = parse_config()
 
-    assert config.profile == "profile"
+    assert config.profiles == ["profile"]
     # The profile should override mkosi.conf.d/
     assert config.distribution == Distribution.fedora
     assert config.qemu_kvm == ConfigFeature.enabled
@@ -386,10 +386,33 @@ def test_profiles(tmp_path: Path) -> None:
     with chdir(d):
         _, [config] = parse_config(["--profile", "profile"])
 
-    assert config.profile == "profile"
+    assert config.profiles == ["profile"]
     # The profile should override mkosi.conf.d/
     assert config.distribution == Distribution.fedora
     assert config.qemu_kvm == ConfigFeature.enabled
+
+    (d / "mkosi.conf").write_text(
+        """\
+        [Config]
+        Profiles=profile,abc
+        """
+    )
+
+    (d / "mkosi.profiles/abc.conf").write_text(
+        """\
+        [Match]
+        Profile=abc
+
+        [Distribution]
+        Distribution=opensuse
+        """
+    )
+
+    with chdir(d):
+        _, [config] = parse_config()
+
+    assert config.profiles == ["profile", "abc"]
+    assert config.distribution == Distribution.opensuse
 
 
 def test_override_default(tmp_path: Path) -> None:

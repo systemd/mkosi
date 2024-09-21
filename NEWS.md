@@ -59,6 +59,9 @@
   `mkosi.conf.d` instead of before it. To set defaults for use in `mkosi.conf.d`
   based on the configured profile, use an early dropin in `mkosi.conf.d` that
   matches on the configured profile instead.
+- `Profile=` is renamed to `Profiles=` and takes a comma separated list of
+  profiles now. Scripts now receive `$PROFILES` with a comma separated lists
+  of profiles instead of `$PROFILE`.
 
 ## v24
 

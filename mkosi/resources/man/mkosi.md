@@ -1743,7 +1743,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 ### [Match] Section.
 
 `Profile=`
-:   Matches against the configured profile.
+:   Matches against the configured profiles.
 
 `Distribution=`
 :   Matches against the configured distribution.
@@ -1864,11 +1864,11 @@ config file is read:
 
 ### [Config] Section
 
-`Profile=`, `--profile=`
-:   Select the given profile. A profile is a configuration file or
-    directory in the `mkosi.profiles/` directory. When selected, this
-    configuration file or directory is included after parsing the
-    `mkosi.conf.d/*.conf` drop in configuration files.
+`Profiles=`, `--profile=`
+:   Select the given profiles. A profile is a configuration file or
+    directory in the `mkosi.profiles/` directory. The configuration files
+    and directories of each profile are included after parsing the
+    `mkosi.conf.d/*.conf` drop in configuration.
 
 `Dependencies=`, `--dependency=`
 :   The images that this image depends on specified as a comma-separated
@@ -2169,7 +2169,8 @@ Scripts executed by mkosi receive the following environment variables:
 * `$DISTRIBUTION_ARCHITECTURE` contains the architecture from
   `$ARCHITECTURE` in the format used by the configured distribution.
 
-* `$PROFILE` contains the profile from the `Profile=` setting.
+* `$PROFILES` contains the profiles from the `Profiles=` setting as a
+  comma-delimited string.
 
 * `$CACHED=` is set to `1` if a cached image is available, `0` otherwise.
 
@@ -2268,7 +2269,7 @@ Consult this table for which script receives which environment variables:
 | `DISTRIBUTION`              | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
 | `DISTRIBUTION_ARCHITECTURE` | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
 | `RELEASE`                   | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
-| `PROFILE`                   | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          |              | ✓       |
+| `PROFILES`                  | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          |              | ✓       |
 | `CACHED`                    |             | ✓      |           |         |            |            |              |         |
 | `CHROOT_SCRIPT`             |             |        | ✓         | ✓       | ✓          | ✓          |              |         |
 | `SRCDIR`                    | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
