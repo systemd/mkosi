@@ -306,6 +306,15 @@ class Vmm(StrEnum):
     vmspawn = enum.auto()
 
 
+class Incremental(StrEnum):
+    yes = enum.auto()
+    no = enum.auto()
+    strict = enum.auto()
+
+    def __bool__(self) -> bool:
+        return self != Incremental.no
+
+
 class Architecture(StrEnum):
     alpha = enum.auto()
     arc = enum.auto()
@@ -1599,7 +1608,7 @@ class Config:
     tools_tree_sandbox_trees: list[ConfigTree]
     tools_tree_packages: list[str]
     tools_tree_certificates: bool
-    incremental: bool
+    incremental: Incremental
     cacheonly: Cacheonly
     sandbox_trees: list[ConfigTree]
     workspace_dir: Optional[Path]
@@ -2882,12 +2891,13 @@ SETTINGS = (
     ConfigSetting(
         dest="incremental",
         short="-i",
-        metavar="BOOL",
         nargs="?",
         section="Build",
-        parse=config_parse_boolean,
+        parse=config_make_enum_parser_with_boolean(Incremental, yes=Incremental.yes, no=Incremental.no),
+        default=Incremental.no,
         help="Make use of and generate intermediary cache images",
         scope=SettingScope.universal,
+        choices=Incremental.values(),
     ),
     ConfigSetting(
         dest="cacheonly",
@@ -3955,7 +3965,13 @@ def parse_config(
         and not args.force
         and Path(".mkosi-private/history/latest.json").exists()
     ):
-        prev = Config.from_json(Path(".mkosi-private/history/latest.json").read_text())
+        try:
+            prev = Config.from_json(Path(".mkosi-private/history/latest.json").read_text())
+        except ValueError:
+            die(
+                "Unable to parse history from .mkosi-private/history/latest.json",
+                hint="Build with -f to generate a new history file from scratch",
+            )
 
         # If we're operating on a previously built image (qemu, boot, shell, ...), we're not rebuilding the
         # image and the configuration of the latest build is available, we load the config that was used to
@@ -4472,7 +4488,7 @@ def summary(config: Config) -> str:
                 Tools Tree Packages: {line_join_list(config.tools_tree_packages)}
             Tools Tree Certificates: {yes_no(config.tools_tree_certificates)}
 
-                        Incremental: {yes_no(config.incremental)}
+                        Incremental: {config.incremental}
              Use Only Package Cache: {config.cacheonly}
                       Sandbox Trees: {line_join_list(config.sandbox_trees)}
                 Workspace Directory: {config.workspace_dir_or_default()}
@@ -4653,6 +4669,7 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         OutputFormat: enum_transformer,
         QemuFirmware: enum_transformer,
         SecureBootSignTool: enum_transformer,
+        Incremental: enum_transformer,
         Optional[Distribution]: optional_enum_transformer,
         list[ManifestFormat]: enum_list_transformer,
         Verb: enum_transformer,
@@ -4678,7 +4695,7 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
                 return transformer(val, fieldtype.type)
             except (ValueError, IndexError, AssertionError) as e:
                 raise ValueError(
-                    f"Unable to parse {val:r} for attribute {key:r} for {refcls.__name__}"
+                    f"Unable to parse {val!r} for attribute {key!r} for {refcls.__name__}"
                 ) from e
 
         return val
