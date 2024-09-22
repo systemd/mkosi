@@ -518,7 +518,7 @@ def run_configure_scripts(config: Config) -> Config:
     )
 
     if config.profiles:
-        env["PROFILES"] = ",".join(config.profiles)
+        env["PROFILES"] = " ".join(config.profiles)
 
     with finalize_source_mounts(config, ephemeral=False) as sources:
         for script in config.configure_scripts:
@@ -561,7 +561,7 @@ def run_sync_scripts(config: Config) -> None:
     )
 
     if config.profiles:
-        env["PROFILES"] = ",".join(config.profiles)
+        env["PROFILES"] = " ".join(config.profiles)
 
     # We make sure to mount everything in to make ssh work since syncing might involve git which
     # could invoke ssh.
@@ -691,7 +691,7 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
     )
 
     if context.config.profiles:
-        env["PROFILES"] = ",".join(context.config.profiles)
+        env["PROFILES"] = " ".join(context.config.profiles)
 
     if context.config.build_dir is not None:
         env |= dict(BUILDDIR="/work/build")
@@ -768,7 +768,7 @@ def run_build_scripts(context: Context) -> None:
     )
 
     if context.config.profiles:
-        env["PROFILES"] = ",".join(context.config.profiles)
+        env["PROFILES"] = " ".join(context.config.profiles)
 
     if context.config.build_dir is not None:
         env |= dict(
@@ -841,7 +841,7 @@ def run_postinst_scripts(context: Context) -> None:
     )
 
     if context.config.profiles:
-        env["PROFILES"] = ",".join(context.config.profiles)
+        env["PROFILES"] = " ".join(context.config.profiles)
 
     if context.config.build_dir is not None:
         env |= dict(BUILDDIR="/work/build")
@@ -907,7 +907,7 @@ def run_finalize_scripts(context: Context) -> None:
     )
 
     if context.config.profiles:
-        env["PROFILES"] = ",".join(context.config.profiles)
+        env["PROFILES"] = " ".join(context.config.profiles)
 
     if context.config.build_dir is not None:
         env |= dict(BUILDDIR="/work/build")
@@ -964,7 +964,7 @@ def run_postoutput_scripts(context: Context) -> None:
     )
 
     if context.config.profiles:
-        env["PROFILES"] = ",".join(context.config.profiles)
+        env["PROFILES"] = " ".join(context.config.profiles)
 
     with (
         finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources,
@@ -3859,7 +3859,7 @@ def run_clean_scripts(config: Config) -> None:
     )
 
     if config.profiles:
-        env["PROFILES"] = ",".join(config.profiles)
+        env["PROFILES"] = " ".join(config.profiles)
 
     with (
         finalize_source_mounts(config, ephemeral=False) as sources,

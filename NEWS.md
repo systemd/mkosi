@@ -60,7 +60,7 @@
   based on the configured profile, use an early dropin in `mkosi.conf.d` that
   matches on the configured profile instead.
 - `Profile=` is renamed to `Profiles=` and takes a comma separated list of
-  profiles now. Scripts now receive `$PROFILES` with a comma separated lists
+  profiles now. Scripts now receive `$PROFILES` with a space-separated list
   of profiles instead of `$PROFILE`.
 
 ## v24
