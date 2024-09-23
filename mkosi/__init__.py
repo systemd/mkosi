@@ -2296,6 +2296,7 @@ def check_tools(config: Config, verb: Verb) -> None:
                 check_systemd_tool(
                     config,
                     "systemd-measure",
+                    "/usr/lib/systemd/systemd-measure",
                     version="256",
                     reason="sign PCR hashes with OpenSSL engine",
                 )
