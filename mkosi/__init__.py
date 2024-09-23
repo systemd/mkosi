@@ -1497,6 +1497,7 @@ def build_uki(
             ]  # fmt: skip
             if context.config.secure_boot_key_source.type == KeySourceType.engine:
                 cmd += ["--signing-engine", context.config.secure_boot_key_source.source]
+                options += ["--bind-try", "/run/pcscd", "/run/pcscd"]
             if context.config.secure_boot_key.exists():
                 options += ["--ro-bind", context.config.secure_boot_key, context.config.secure_boot_key]
         else:
@@ -1526,6 +1527,7 @@ def build_uki(
                 ]  # fmt: skip
                 options += [
                     "--ro-bind", context.config.secure_boot_certificate, context.config.secure_boot_certificate,  # noqa
+                    "--bind-try", "/run/pcscd", "/run/pcscd",
                 ]  # fmt: skip
 
     cmd += ["build", "--linux", kimg]
@@ -2296,6 +2298,7 @@ def check_tools(config: Config, verb: Verb) -> None:
                 check_systemd_tool(
                     config,
                     "systemd-measure",
+                    "/usr/lib/systemd/systemd-measure",
                     version="256",
                     reason="sign PCR hashes with OpenSSL engine",
                 )
@@ -2788,6 +2791,7 @@ def make_image(
     if context.config.verity_key:
         if context.config.verity_key_source.type != KeySourceType.file:
             cmdline += ["--private-key-source", str(context.config.verity_key_source)]
+            options += ["--bind-try", "/run/pcscd", "/run/pcscd"]
         if context.config.verity_key.exists():
             cmdline += ["--private-key", workdir(context.config.verity_key)]
             options += ["--ro-bind", context.config.verity_key, workdir(context.config.verity_key)]
