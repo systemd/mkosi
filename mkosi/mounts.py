@@ -92,17 +92,18 @@ def finalize_crypto_mounts(config: Config) -> list[PathString]:
     mounts = [
         (root / subdir, Path("/") / subdir)
         for subdir in (
-            Path("usr/share/keyrings"),
-            Path("usr/share/distribution-gpg-keys"),
             Path("etc/pki"),
             Path("etc/ssl"),
             Path("etc/ca-certificates"),
-            Path("etc/pacman.d/gnupg"),
             Path("etc/static"),
             Path("var/lib/ca-certificates"),
         )
         if (root / subdir).exists()
     ]
+
+    # This contains the Arch Linux keyring, which isn't certificates so ToolsTreeCertificates= doesn't apply.
+    if (config.tools() / "etc/pacman.d/gnupg").exists():
+        mounts += [(config.tools() / "etc/pacman.d/gnupg", Path("/etc/pacman.d/gnupg"))]
 
     return flatten(
         ("--symlink", src.readlink(), target) if src.is_symlink() else ("--ro-bind", src, target)

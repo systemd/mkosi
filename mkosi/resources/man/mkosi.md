@@ -1302,11 +1302,11 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     multiple times in which case the specified package lists are combined.
 
 `ToolsTreeCertificates=`, `--tools-tree-certificates=`
-:   Specify whether to use certificates and keys from the tools tree. If
-    enabled, `/usr/share/keyrings`, `/usr/share/distribution-gpg-keys`,
-    `/etc/pki`, `/etc/ssl`, `/etc/ca-certificates`, `/etc/pacman.d/gnupg`
-    and `/var/lib/ca-certificates` from the tools tree are used.
-    Otherwise, these directories are picked up from the host.
+:   Specify whether to use certificates and keys from the tools tree.
+    Enabled by default. If enabled, `/etc/pki`, `/etc/ssl`,
+    `/etc/ca-certificates`, and `/var/lib/ca-certificates` from the
+    tools tree are used. Otherwise, these directories are picked up from
+    the host.
 
 `Incremental=`, `--incremental=`, `-i`
 :   Takes either `strict` or a boolean value as its argument. Enables
