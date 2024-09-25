@@ -489,7 +489,7 @@ def sandbox_cmd(
 
     if overlay and (overlay / "usr").exists():
         cmdline += [
-            "--overlay-lowerdir", tools / "usr"
+            "--overlay-lowerdir", tools / "usr",
             "--overlay-lowerdir", overlay / "usr",
             "--overlay", "/usr",
         ]  # fmt: skip
