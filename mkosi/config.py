@@ -55,7 +55,7 @@ ConfigMatchCallback = Callable[[str, Any], bool]
 ConfigDefaultCallback = Callable[[argparse.Namespace], Any]
 
 
-BUILTIN_CONFIGS = ("mkosi-tools", "mkosi-initrd")
+BUILTIN_CONFIGS = ("mkosi-tools", "mkosi-initrd", "mkosi-vm")
 
 
 class Verb(StrEnum):

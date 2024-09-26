@@ -4,8 +4,10 @@ from typing import Any, cast
 
 import pytest
 
+import mkosi.resources
 from mkosi.config import parse_config
 from mkosi.distributions import Distribution, detect_distribution
+from mkosi.util import resource_path
 
 from . import ImageConfig, ci_group
 
@@ -49,9 +51,12 @@ def pytest_addoption(parser: Any) -> None:
 @pytest.fixture(scope="session")
 def config(request: Any) -> ImageConfig:
     distribution = cast(Distribution, request.config.getoption("--distribution"))
-    release = cast(
-        str, request.config.getoption("--release") or parse_config(["-d", str(distribution)])[1][0].release
-    )
+    with resource_path(mkosi.resources) as resources:
+        release = cast(
+            str,
+            request.config.getoption("--release")
+            or parse_config(["-d", str(distribution)], resources=resources)[1][0].release,
+        )
     return ImageConfig(
         distribution=distribution,
         release=release,
