@@ -63,6 +63,8 @@ GPT_ROOT_X86_64        = uuid.UUID("4f68bce3e8cd4db196e7fbcaf984b709")
 GPT_ROOT_ARM           = uuid.UUID("69dad7102ce44e3cb16c21a1d49abed3")
 GPT_ROOT_ARM_64        = uuid.UUID("b921b0451df041c3af444c6f280d3fae")
 GPT_ROOT_IA64          = uuid.UUID("993d8d3df80e4225855a9daf8ed7ea97")
+GPT_ROOT_RISCV32       = uuid.UUID("60d5a7fe8e7d435cb7143dd8162144e1")
+GPT_ROOT_RISCV64       = uuid.UUID("72ec70a6cf7440e6bd494bda08e8f224")
 GPT_ESP                = uuid.UUID("c12a7328f81f11d2ba4b00a0c93ec93b")
 GPT_SWAP               = uuid.UUID("0657fd6da4ab43c484e50933c84b4f4f")
 GPT_HOME               = uuid.UUID("933ac7e12eb44f13b8440e14e2aef915")
@@ -72,6 +74,8 @@ GPT_ROOT_X86_64_VERITY = uuid.UUID("2c7357edebd246d9aec123d437ec2bf5")
 GPT_ROOT_ARM_VERITY    = uuid.UUID("7386cdf2203c47a9a498f2ecce45a2d6")
 GPT_ROOT_ARM_64_VERITY = uuid.UUID("df3300ced69f4c92978c9bfb0f38d820")
 GPT_ROOT_IA64_VERITY   = uuid.UUID("86ed10d5b60745bb8957d350f23d0571")
+GPT_ROOT_RISCV32_VERITY = uuid.UUID("ae0253be11674007ac6843926c14c5de")
+GPT_ROOT_RISCV64_VERITY = uuid.UUID("b6ed5582440b4209b8da5ff7c419ea3d")
 
 if platform.machine() == "x86_64":
     GPT_ROOT_NATIVE = GPT_ROOT_X86_64
@@ -79,6 +83,12 @@ if platform.machine() == "x86_64":
 elif platform.machine() == "aarch64":
     GPT_ROOT_NATIVE = GPT_ROOT_ARM_64
     GPT_ROOT_NATIVE_VERITY = GPT_ROOT_ARM_64_VERITY
+elif platform.machine() == "riscv32":
+    GPT_ROOT_NATIVE = GPT_ROOT_RISCV32
+    GPT_ROOT_NATIVE_VERITY = GPT_ROOT_RISCV32_VERITY
+elif platform.machine() == "riscv64":
+    GPT_ROOT_NATIVE = GPT_ROOT_RISCV64
+    GPT_ROOT_NATIVE_VERITY = GPT_ROOT_RISCV64_VERITY
 else:
     die("Don't know the %s architecture." % platform.machine())
 
