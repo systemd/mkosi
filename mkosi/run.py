@@ -538,7 +538,6 @@ def sandbox_cmd(
             "--dir", "/var/tmp",
             "--dir", "/var/log",
             "--unshare-ipc",
-            "--symlink", "../proc/self/mounts", "/etc/mtab",
         ]  # fmt: skip
 
         if devices:
@@ -566,7 +565,13 @@ def sandbox_cmd(
             yield [*cmdline, "--bind", tmp, "/var/tmp", *options, "--"]
             return
 
-        for d in ("etc", "opt", "srv", "media", "mnt", "var", "run", "tmp"):
+        for d in ("etc", "opt"):
+            if overlay and (overlay / d).exists():
+                cmdline += ["--ro-bind", overlay / d, Path("/") / d]
+            else:
+                cmdline += ["--dir", Path("/") / d]
+
+        for d in ("srv", "media", "mnt", "var", "run", "tmp"):
             tmp = None
             if d not in ("run", "tmp"):
                 with umask(~0o755):

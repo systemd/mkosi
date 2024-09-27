@@ -1067,11 +1067,6 @@ def install_sandbox_trees(config: Config, dst: Path) -> None:
     # Ensure /etc exists in the sandbox
     (dst / "etc").mkdir(exist_ok=True)
 
-    if Path("/etc/passwd").exists():
-        shutil.copy("/etc/passwd", dst / "etc/passwd")
-    if Path("/etc/group").exists():
-        shutil.copy("/etc/passwd", dst / "etc/group")
-
     if (p := config.tools() / "etc/crypto-policies").exists():
         copy_tree(
             p,
@@ -1081,12 +1076,46 @@ def install_sandbox_trees(config: Config, dst: Path) -> None:
             sandbox=config.sandbox,
         )  # fmt: skip
 
-    if not config.sandbox_trees:
-        return
+    if config.sandbox_trees:
+        with complete_step("Copying in sandbox trees…"):
+            for tree in config.sandbox_trees:
+                install_tree(config, tree.source, dst, target=tree.target, preserve=False)
 
-    with complete_step("Copying in sandbox trees…"):
-        for tree in config.sandbox_trees:
-            install_tree(config, tree.source, dst, target=tree.target, preserve=False)
+    if Path("/etc/passwd").exists():
+        shutil.copy("/etc/passwd", dst / "etc/passwd")
+    if Path("/etc/group").exists():
+        shutil.copy("/etc/passwd", dst / "etc/group")
+
+    if not (dst / "etc/mtab").is_symlink():
+        (dst / "etc/mtab").symlink_to("../proc/self/mounts")
+
+    Path(dst / "etc/resolv.conf").unlink(missing_ok=True)
+    Path(dst / "etc/resolv.conf").touch()
+
+    Path(dst / "etc/static").unlink(missing_ok=True)
+    if (config.tools() / "etc/static").is_symlink():
+        (dst / "etc/static").symlink_to((config.tools() / "etc/static").readlink())
+
+    # Create various mountpoints in /etc as /etc from the sandbox tree is mounted read-only into the sandbox.
+
+    for d in (
+        "etc/pki",
+        "etc/ssl",
+        "etc/ca-certificates",
+        "var/lib/ca-certificates",
+        "etc/pacman.d/gnupg",
+        "etc/alternatives",
+    ):
+        (dst / d).mkdir(parents=True, exist_ok=True)
+
+    for f in (
+        "etc/passwd",
+        "etc/group",
+        "etc/shadow",
+        "etc/gshadow",
+        "etc/ld.so.cache",
+    ):
+        (dst / f).touch(exist_ok=True)
 
 
 def install_package_directories(context: Context, directories: Sequence[Path]) -> None:
