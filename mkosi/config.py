@@ -2024,7 +2024,6 @@ SETTINGS = (
         section="Config",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         paths=("mkosi.configure",),
-        recursive_paths=("mkosi.configure.d/",),
         help="Configure script to run before doing anything",
     ),
     ConfigSetting(
@@ -2254,6 +2253,7 @@ SETTINGS = (
         section="Output",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         paths=("mkosi.clean",),
+        recursive_paths=("mkosi.clean.d",),
         help="Clean script to run after cleanup",
     ),
     # Content section
