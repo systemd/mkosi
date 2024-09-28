@@ -2669,8 +2669,6 @@ def save_cache(context: Context) -> None:
     final, build, manifest = cache_tree_paths(context.config)
 
     with complete_step("Installing cache copies"):
-        rmtree(final, sandbox=context.sandbox)
-
         move_tree(
             context.root,
             final,
@@ -2679,7 +2677,6 @@ def save_cache(context: Context) -> None:
         )
 
         if need_build_overlay(context.config) and (context.workspace / "build-overlay").exists():
-            rmtree(build, sandbox=context.sandbox)
             move_tree(
                 context.workspace / "build-overlay",
                 build,
@@ -3952,7 +3949,7 @@ def run_clean(args: Args, config: Config, *, resources: Path) -> None:
     else:
         remove_output_dir = config.output_format != OutputFormat.none or args.force > 0
         remove_build_cache = args.force > 1 or args.wipe_build_dir
-        remove_image_cache = args.force > 1
+        remove_image_cache = args.force > 1 or not have_cache(config)
         remove_package_cache = args.force > 2
 
     if remove_output_dir:
