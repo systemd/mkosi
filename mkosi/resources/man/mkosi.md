@@ -2156,6 +2156,22 @@ image using `mkosi-chroot` (see below) before executing the script. For
 example, if `mkosi.postinst.chroot` exists, mkosi will chroot into the
 image and execute it as the post-installation script.
 
+Instead of a single file script, mkosi will also read all files in lexicographical order from appropriately
+named `.d` directories, e.g. all files in a `mkosi.build.d` would be used as build scripts. This is supported
+by
+
+* `mkosi.sync.d`,
+* `mkosi.prepare.d`,
+* `mkosi.build.d`,
+* `mkosi.postinst.d`,
+* `mkosi.finalize.d`,
+* `mkosi.postoutput.d`, and
+* `mkosi.clean.d`.
+
+This can be combined with the `.chroot` extension, e.g. `mkosi.build.d/01-foo.sh` would be run without
+chrooting into the image and `mkosi.build.d/02-bar.sh.chroot` would be run after chrooting into the image
+first.
+
 Scripts executed by mkosi receive the following environment variables:
 
 * `$ARCHITECTURE` contains the architecture from the `Architecture=`

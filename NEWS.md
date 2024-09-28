@@ -62,6 +62,13 @@
 - `Profile=` is renamed to `Profiles=` and takes a comma separated list of
   profiles now. Scripts now receive `$PROFILES` with a space-separated list
   of profiles instead of `$PROFILE`.
+- Multiple sync, prepare, build, postinst, finalize, postoutput and clean scripts are now picked up from
+  `mkosi.$SCRIPT.d`.
+- `run0` is now automatically used to escalate privileges for commands that need it, like the `burn` verb.
+- `/usr/share/keyrings` and `/usr/share/distribution-gpg-keys` are no longer automatically picked up from the
+  tools tree when `ToolsTreeCertificates=` is set, since they aren't certificates, use a sandbox tree
+  instead. This allows to override `SignedBy=` keys for APT repositories.
+- The `agetty.autologin` and `login.noauth` credentials are no longer set unconditionally.
 
 ## v24
 
