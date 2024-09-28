@@ -1442,49 +1442,36 @@ def want_signed_pcrs(config: Config) -> bool:
     )
 
 
-def build_uki(
+def run_ukify(
     context: Context,
+    arch: str,
     stub: Path,
-    kver: str,
-    kimg: Path,
-    microcodes: list[Path],
-    initrds: list[Path],
-    cmdline: Sequence[str],
     output: Path,
+    arguments: list[PathString],
+    options: list[PathString],
 ) -> None:
-    # Older versions of systemd-stub expect the cmdline section to be null terminated. We can't
-    # embed NUL terminators in argv so let's communicate the cmdline via a file instead.
-    (context.workspace / "cmdline").write_text(f"{' '.join(cmdline).strip()}\x00")
-
-    if not (arch := context.config.architecture.to_efi()):
-        die(f"Architecture {context.config.architecture} does not support UEFI")
-
-    if not (ukify := context.config.find_binary("ukify", "/usr/lib/systemd/ukify")):
+    ukify = context.config.find_binary("ukify", "/usr/lib/systemd/ukify")
+    if not ukify:
         die("Could not find ukify")
 
-    cmd: list[PathString] = [
+    cmd = [
         python_binary(context.config, binary=ukify),
         ukify,
-        *(["--cmdline", f"@{context.workspace / 'cmdline'}"] if cmdline else []),
-        "--os-release", f"@{context.root / 'usr/lib/os-release'}",
+        "build",
+        *arguments,
+        "--efi-arch", arch,
         "--stub", stub,
         "--output", workdir(output),
-        "--efi-arch", arch,
-        "--uname", kver,
     ]  # fmt: skip
 
-    options: list[PathString] = [
-        "--bind", output.parent, workdir(output.parent),
-        "--ro-bind", context.workspace / "cmdline", context.workspace / "cmdline",
-        "--ro-bind", context.root / "usr/lib/os-release", context.root / "usr/lib/os-release",
+    options += [
         "--ro-bind", stub, stub,
+        "--bind", output.parent, workdir(output.parent),
     ]  # fmt: skip
 
     if context.config.secure_boot:
         assert context.config.secure_boot_key
         assert context.config.secure_boot_certificate
-
-        cmd += ["--sign-kernel"]
 
         if context.config.secure_boot_sign_tool != SecureBootSignTool.pesign:
             cmd += [
@@ -1511,8 +1498,57 @@ def build_uki(
             ]  # fmt: skip
             options += ["--ro-bind", context.workspace / "pesign", context.workspace / "pesign"]
 
+    run(
+        cmd,
+        sandbox=context.sandbox(
+            binary=ukify,
+            options=options,
+            devices=context.config.secure_boot_key_source.type != KeySourceType.file,
+        ),
+    )
+
+
+def build_uki(
+    context: Context,
+    stub: Path,
+    kver: str,
+    kimg: Path,
+    microcodes: list[Path],
+    initrds: list[Path],
+    cmdline: Sequence[str],
+    output: Path,
+) -> None:
+    # Older versions of systemd-stub expect the cmdline section to be null terminated. We can't
+    # embed NUL terminators in argv so let's communicate the cmdline via a file instead.
+    (context.workspace / "cmdline").write_text(f"{' '.join(cmdline).strip()}\x00")
+
+    if not (arch := context.config.architecture.to_efi()):
+        die(f"Architecture {context.config.architecture} does not support UEFI")
+
+    if not (ukify := context.config.find_binary("ukify", "/usr/lib/systemd/ukify")):
+        die("Could not find ukify")
+
+    arguments: list[PathString] = [
+        *(["--cmdline", f"@{context.workspace / 'cmdline'}"] if cmdline else []),
+        "--os-release", f"@{context.root / 'usr/lib/os-release'}",
+        "--uname", kver,
+        "--linux", kimg,
+    ]  # fmt: skip
+
+    options: list[PathString] = [
+        "--ro-bind", context.workspace / "cmdline", context.workspace / "cmdline",
+        "--ro-bind", context.root / "usr/lib/os-release", context.root / "usr/lib/os-release",
+        "--ro-bind", kimg, kimg,
+    ]  # fmt: skip
+
+    if context.config.secure_boot:
+        assert context.config.secure_boot_key
+        assert context.config.secure_boot_certificate
+
+        arguments += ["--sign-kernel"]
+
         if want_signed_pcrs(context.config):
-            cmd += [
+            arguments += [
                 "--pcr-private-key", context.config.secure_boot_key,
                 # SHA1 might be disabled in OpenSSL depending on the distro so we opt to not sign
                 # for SHA1 to avoid having to manage a bunch of configuration to re-enable SHA1.
@@ -1521,7 +1557,7 @@ def build_uki(
             if context.config.secure_boot_key.exists():
                 options += ["--bind", context.config.secure_boot_key, context.config.secure_boot_key]
             if context.config.secure_boot_key_source.type == KeySourceType.engine:
-                cmd += [
+                arguments += [
                     "--signing-engine", context.config.secure_boot_key_source.source,
                     "--pcr-public-key", context.config.secure_boot_certificate,
                 ]  # fmt: skip
@@ -1529,9 +1565,6 @@ def build_uki(
                     "--ro-bind", context.config.secure_boot_certificate, context.config.secure_boot_certificate,  # noqa
                     "--bind-try", "/run/pcscd", "/run/pcscd",
                 ]  # fmt: skip
-
-    cmd += ["build", "--linux", kimg]
-    options += ["--ro-bind", kimg, kimg]
 
     if microcodes:
         # new .ucode section support?
@@ -1546,24 +1579,17 @@ def build_uki(
             and version >= "256"
         ):
             for microcode in microcodes:
-                cmd += ["--microcode", microcode]
+                arguments += ["--microcode", microcode]
                 options += ["--ro-bind", microcode, microcode]
         else:
             initrds = microcodes + initrds
 
     for initrd in initrds:
-        cmd += ["--initrd", initrd]
+        arguments += ["--initrd", initrd]
         options += ["--ro-bind", initrd, initrd]
 
     with complete_step(f"Generating unified kernel image for kernel version {kver}"):
-        run(
-            cmd,
-            sandbox=context.sandbox(
-                binary=ukify,
-                options=options,
-                devices=context.config.secure_boot_key_source.type != KeySourceType.file,
-            ),
-        )
+        run_ukify(context, arch, stub, output, arguments, options)
 
 
 def systemd_stub_binary(context: Context) -> Path:
