@@ -1901,6 +1901,45 @@ def install_uki(
             f.write("fi\n")
 
 
+def build_pe_addon(context: Context, arch: str, stub: Path, config: Path, output: Path) -> None:
+    arguments: list[PathString] = [
+        "--config", config,
+    ]  # fmt: skip
+
+    options: list[PathString] = [
+        "--ro-bind", config, config,
+    ]  # fmt: skip
+
+    with complete_step(f"Generating PE addon /{output.relative_to(context.root)}"):
+        run_ukify(context, arch, stub, output, arguments, options)
+
+
+def install_pe_addons(context: Context) -> None:
+    if not context.config.pe_addons:
+        return
+
+    if not (arch := context.config.architecture.to_efi()):
+        die(f"Architecture {context.config.architecture} does not support UEFI")
+
+    stub = systemd_addon_stub_binary(context)
+    if not stub.exists():
+        die(f"sd-stub not found at /{stub.relative_to(context.root)} in the image")
+
+    addon_dir = context.root / "boot/loader/addons"
+    with umask(~0o755):
+        addon_dir.mkdir(parents=True, exist_ok=True)
+
+    for addon in context.config.pe_addons:
+        output = addon_dir / addon.with_suffix(".addon.efi").name
+        build_pe_addon(context, arch, stub, config=addon, output=output)
+
+
+def systemd_addon_stub_binary(context: Context) -> Path:
+    arch = context.config.architecture.to_efi()
+    stub = context.root / f"usr/lib/systemd/boot/efi/addon{arch}.efi.stub"
+    return stub
+
+
 def install_kernel(context: Context, partitions: Sequence[Partition]) -> None:
     # Iterates through all kernel versions included in the image and generates a combined
     # kernel+initrd+cmdline+osrelease EFI file from it and places it in the /EFI/Linux directory of
@@ -3369,6 +3408,7 @@ def build_image(context: Context) -> None:
         install_systemd_boot(context)
         install_grub(context)
         install_shim(context)
+        install_pe_addons(context)
         run_sysusers(context)
         run_tmpfiles(context)
         run_preset(context)

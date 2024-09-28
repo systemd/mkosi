@@ -207,6 +207,9 @@ def test_config() -> None:
                 "abc"
             ],
             "Passphrase": null,
+            "PeAddons": [
+                "/my-addon.conf"
+            ],
             "PostInstallationScripts": [
                 "/bar/qux"
             ],
@@ -442,6 +445,7 @@ def test_config() -> None:
         packages=[],
         pass_environment=["abc"],
         passphrase=None,
+        pe_addons=[Path("/my-addon.conf")],
         postinst_scripts=[Path("/bar/qux")],
         postoutput_scripts=[Path("/foo/src")],
         prepare_scripts=[Path("/run/foo")],
