@@ -1955,7 +1955,7 @@ def install_pe_addons(context: Context) -> None:
         die(f"sd-stub not found at /{stub.relative_to(context.root)} in the image")
 
     addon_dir = context.root / "boot/loader/addons"
-    with umask(~0o755):
+    with umask(~0o700):
         addon_dir.mkdir(parents=True, exist_ok=True)
 
     for addon in context.config.pe_addons:
