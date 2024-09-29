@@ -984,6 +984,14 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     | `&h`      | `roothash=` or `usrhash=` value of kernel argument |
     | `&c`      | Number of tries used for boot attempt counting     |
 
+`PeAddons=`, `--pe-addon`
+:   Build additional PE addons. Takes a comma separated list of paths to
+    `ukify` config files. This option may be used multiple times in which case
+    each config gets built into a corresponding addon. Each addon has the name
+    of the config file, with the extension replaced with `.addon.efi`.
+    Config files in the `mkosi.pe-addons/` directory are automatically picked
+    up.
+
 `Initrds=`, `--initrd`
 :   Use user-provided initrd(s). Takes a comma separated list of paths to initrd
     files. This option may be used multiple times in which case the initrd lists
