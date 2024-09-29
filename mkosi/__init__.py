@@ -2779,7 +2779,7 @@ def have_cache(config: Config) -> bool:
             logging.info("Cache manifest mismatch, not reusing cached images")
             if ARG_DEBUG.get():
                 run(
-                    ["diff", manifest, "-"],
+                    ["diff", "-u", "manifest", "-"],
                     input=new,
                     check=False,
                     sandbox=config.sandbox(binary="diff", options=["--bind", manifest, manifest]),
