@@ -1588,7 +1588,6 @@ class Config:
     shim_bootloader: ShimBootloader
     unified_kernel_images: ConfigFeature
     unified_kernel_image_format: str
-    pe_addons: list[Path]
     initrds: list[Path]
     initrd_packages: list[str]
     initrd_volatile_packages: list[str]
@@ -1597,6 +1596,7 @@ class Config:
     kernel_modules_include: list[str]
     kernel_modules_exclude: list[str]
     kernel_modules_include_host: bool
+    pe_addons: list[Path]
 
     kernel_modules_initrd: bool
     kernel_modules_initrd_include: list[str]
@@ -2554,15 +2554,6 @@ SETTINGS = (
         help="Specify the format used for the UKI filename",
     ),
     ConfigSetting(
-        dest="pe_addons",
-        long="--pe-addon",
-        metavar="PATH",
-        section="Content",
-        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
-        recursive_paths=("mkosi.pe-addons/",),
-        help="Configuration files to generate PE addons",
-    ),
-    ConfigSetting(
         dest="initrds",
         long="--initrd",
         metavar="PATH",
@@ -2622,6 +2613,15 @@ SETTINGS = (
         section="Content",
         parse=config_make_list_parser(delimiter=","),
         help="Exclude the specified kernel modules from the image",
+    ),
+    ConfigSetting(
+        dest="pe_addons",
+        long="--pe-addon",
+        metavar="PATH",
+        section="Content",
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        recursive_paths=("mkosi.pe-addons/",),
+        help="Configuration files to generate PE addons",
     ),
     ConfigSetting(
         dest="kernel_modules_initrd",
@@ -4489,7 +4489,6 @@ def summary(config: Config) -> str:
                     Shim Bootloader: {config.shim_bootloader}
               Unified Kernel Images: {config.unified_kernel_images}
         Unified Kernel Image Format: {config.unified_kernel_image_format}
-        Unified Kernel Image Addons: {line_join_list(config.pe_addons)}
                             Initrds: {line_join_list(config.initrds)}
                     Initrd Packages: {line_join_list(config.initrd_packages)}
            Initrd Volatile Packages: {line_join_list(config.initrd_volatile_packages)}
@@ -4497,6 +4496,7 @@ def summary(config: Config) -> str:
              Kernel Modules Include: {line_join_list(config.kernel_modules_include)}
              Kernel Modules Exclude: {line_join_list(config.kernel_modules_exclude)}
         Kernel Modules Include Host: {yes_no(config.kernel_modules_include_host)}
+                          PE Addons: {line_join_list(config.pe_addons)}
 
               Kernel Modules Initrd: {yes_no(config.kernel_modules_initrd)}
       Kernel Modules Initrd Include: {line_join_list(config.kernel_modules_initrd_include)}
