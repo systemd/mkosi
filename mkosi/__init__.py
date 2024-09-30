@@ -4226,7 +4226,14 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         return print_completion(args, resources=resources)
 
     if args.verb == Verb.documentation:
-        manual = args.cmdline[0] if args.cmdline else "mkosi"
+        if args.cmdline:
+            manual = {
+                "initrd": "mkosi-initrd",
+                "sandbox": "mkosi-sandbox",
+                "news": "mkosi.news",
+            }.get(args.cmdline[0], args.cmdline[0])
+        else:
+            manual = "mkosi"
         formats: list[DocFormat] = (
             [args.doc_format] if args.doc_format != DocFormat.auto else DocFormat.all()
         )
