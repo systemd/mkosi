@@ -1102,7 +1102,6 @@ def install_sandbox_trees(config: Config, dst: Path) -> None:
         "etc/pki",
         "etc/ssl",
         "etc/ca-certificates",
-        "var/lib/ca-certificates",
         "etc/pacman.d/gnupg",
         "etc/alternatives",
     ):
