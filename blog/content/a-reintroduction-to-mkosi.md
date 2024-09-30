@@ -378,7 +378,7 @@ extension image.
 
 There's many more features that we won't go over in detail here in this
 blog post. Learn more about those by reading the
-[documentation](https://github.com/systemd/mkosi/blob/main/mkosi/resources/man/mkosi.md).
+[documentation](https://github.com/systemd/mkosi/blob/main/mkosi/resources/man/mkosi.1.md).
 
 ## Conclusion
 

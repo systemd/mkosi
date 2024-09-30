@@ -173,8 +173,8 @@ The following command line verbs are known:
     file `mkosi.1` into the `mkosi/resources` directory of the Python
     package, if it is missing, as well as to install it in the appropriate
     search path for man pages. The man page can be generated from the
-    markdown file `mkosi/resources/man/mkosi.md` e.g via
-    `pandoc -t man -s -o mkosi.1 mkosi.md`.
+    markdown file `mkosi/resources/man/mkosi.1.md` e.g via
+    `pandoc -t man -s -o mkosi.1 mkosi.1.md`.
 
 `dependencies`
 :   Output the list of packages required by mkosi to build and boot
