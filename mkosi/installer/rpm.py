@@ -63,7 +63,12 @@ def find_rpm_gpgkey(
     return None
 
 
-def setup_rpm(context: Context, *, dbpath: str = "/usr/lib/sysimage/rpm") -> None:
+def setup_rpm(
+    context: Context,
+    *,
+    dbpath: str = "/usr/lib/sysimage/rpm",
+    dbbackend: Optional[str] = None,
+) -> None:
     confdir = context.sandbox_tree / "etc/rpm"
     confdir.mkdir(parents=True, exist_ok=True)
     if not (confdir / "macros.lang").exists() and context.config.locale:
@@ -71,6 +76,9 @@ def setup_rpm(context: Context, *, dbpath: str = "/usr/lib/sysimage/rpm") -> Non
 
     if not (confdir / "macros.dbpath").exists():
         (confdir / "macros.dbpath").write_text(f"%_dbpath {dbpath}")
+
+    if dbbackend:
+        (confdir / "macros.db_backend").write_text(f"%_db_backend {dbbackend}")
 
     plugindir = Path(
         run(

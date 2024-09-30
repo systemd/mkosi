@@ -100,8 +100,8 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def setup(cls, context: Context) -> None:
-        Dnf.setup(context, list(cls.repositories(context)), filelists=False)
         setup_rpm(context)
+        Dnf.setup(context, list(cls.repositories(context)), filelists=False)
 
     @classmethod
     def install(cls, context: Context) -> None:

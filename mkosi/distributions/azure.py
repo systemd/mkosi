@@ -28,8 +28,8 @@ class Installer(fedora.Installer):
 
     @classmethod
     def setup(cls, context: Context) -> None:
-        Dnf.setup(context, list(cls.repositories(context)), filelists=False)
         setup_rpm(context, dbpath="/var/lib/rpm")
+        Dnf.setup(context, list(cls.repositories(context)), filelists=False)
 
     @classmethod
     def install(cls, context: Context) -> None:
