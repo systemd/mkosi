@@ -50,7 +50,7 @@ used:
   necessary methods.
 - Update any relevant methods on the `Distribution` enum to take the new
   distribution into account.
-- Update the documentation in `mkosi/resources/man/mkosi.md`
+- Update the documentation in `mkosi/resources/man/mkosi.1.md`
 - Update the default initrd, tools and default image configurations in
   `mkosi/resources/mkosi-initrd`, `mkosi/resources/mkosi-tools` and
   `mkosi.conf.d` respectively. If the distribution is a variant of
