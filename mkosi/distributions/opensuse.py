@@ -49,7 +49,7 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def setup(cls, context: Context) -> None:
-        setup_rpm(context)
+        setup_rpm(context, dbbackend="ndb")
 
         zypper = context.config.find_binary("zypper")
         if zypper:
