@@ -60,6 +60,14 @@ After=sysroot.mount
 ConditionDirectoryNotEmpty=|/sysroot/usr/lib/repart.d
 ```
 
+To use the initrd in the top level image, add the following to
+mkosi.conf:
+
+```conf
+[Content]
+Initrds=%O/initrd
+```
+
 Finally, we'll need some partition definitions in the image itself to
 create an A/B update setup and an encrypted `/var`. This includes the
 definitions from mkosi.repart in a reduced form solely for matching the
