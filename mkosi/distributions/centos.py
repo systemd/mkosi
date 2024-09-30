@@ -65,9 +65,10 @@ class Installer(DistributionInstaller):
         if GenericVersion(context.config.release) <= 8:
             die(f"{cls.pretty_name()} Stream 8 or earlier variants are not supported")
 
+        setup_rpm(context, dbpath=cls.dbpath(context))
+
         Dnf.setup(context, list(cls.repositories(context)))
         (context.sandbox_tree / "etc/dnf/vars/stream").write_text(f"{context.config.release}-stream\n")
-        setup_rpm(context, dbpath=cls.dbpath(context))
 
     @classmethod
     def install(cls, context: Context) -> None:

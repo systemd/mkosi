@@ -49,13 +49,13 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def setup(cls, context: Context) -> None:
+        setup_rpm(context)
+
         zypper = context.config.find_binary("zypper")
         if zypper:
             Zypper.setup(context, list(cls.repositories(context)))
         else:
             Dnf.setup(context, list(cls.repositories(context)))
-
-        setup_rpm(context)
 
     @classmethod
     def install(cls, context: Context) -> None:
