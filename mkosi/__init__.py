@@ -4230,7 +4230,8 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         formats: list[DocFormat] = (
             [args.doc_format] if args.doc_format != DocFormat.auto else DocFormat.all()
         )
-        return show_docs(manual, formats, resources=resources, pager=args.pager)
+        chapter = {"mkosi.news": 7}.get(manual, 1)
+        return show_docs(manual, formats, man_chapter=chapter, resources=resources, pager=args.pager)
 
     if args.verb == Verb.genkey:
         return generate_key_cert_pair(args)

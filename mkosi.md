@@ -1,1 +1,1 @@
-mkosi/resources/man/mkosi.md
+mkosi/resources/man/mkosi.1.md
