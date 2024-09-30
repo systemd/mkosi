@@ -10,12 +10,19 @@ from mkosi.pager import page
 from mkosi.run import find_binary, run
 
 
-def show_docs(manual: str, formats: list[DocFormat], *, resources: Path, pager: bool = True) -> None:
+def show_docs(
+    manual: str,
+    formats: list[DocFormat],
+    *,
+    man_chapter: int = 1,
+    resources: Path,
+    pager: bool = True,
+) -> None:
     while formats:
         form = formats.pop(0)
         try:
             if form == DocFormat.man:
-                man = resources / f"man/{manual}.1"
+                man = resources / f"man/{manual}.{man_chapter}"
                 if not man.exists():
                     raise FileNotFoundError()
                 run(["man", "--local-file", man])
@@ -24,7 +31,7 @@ def show_docs(manual: str, formats: list[DocFormat], *, resources: Path, pager: 
                 if not find_binary("pandoc"):
                     logging.error("pandoc is not available")
                 pandoc = run(
-                    ["pandoc", "-t", "man", "-s", resources / f"man/{manual}.md"],
+                    ["pandoc", "-t", "man", "-s", resources / f"man/{manual}.{man_chapter}.md"],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.DEVNULL,
                     log=False,
@@ -32,10 +39,10 @@ def show_docs(manual: str, formats: list[DocFormat], *, resources: Path, pager: 
                 run(["man", "--local-file", "-"], input=pandoc.stdout)
                 return
             elif form == DocFormat.markdown:
-                page((resources / f"man/{manual}.md").read_text(), pager)
+                page((resources / f"man/{manual}.{man_chapter}.md").read_text(), pager)
                 return
             elif form == DocFormat.system:
-                run(["man", manual], log=False)
+                run(["man", str(man_chapter), manual], log=False)
                 return
         except (FileNotFoundError, subprocess.CalledProcessError) as e:
             if not formats:
