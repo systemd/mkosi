@@ -1481,15 +1481,25 @@ def want_signed_pcrs(config: Config) -> bool:
 
 def run_ukify(
     context: Context,
-    arch: str,
     stub: Path,
     output: Path,
-    arguments: list[PathString],
-    options: list[PathString],
+    *,
+    cmdline: str = "",
+    arguments: Sequence[PathString] = (),
+    options: Sequence[PathString] = (),
 ) -> None:
     ukify = context.config.find_binary("ukify", "/usr/lib/systemd/ukify")
     if not ukify:
         die("Could not find ukify")
+
+    if not (arch := context.config.architecture.to_efi()):
+        die(f"Architecture {context.config.architecture} does not support UEFI")
+
+    cmdline = cmdline.strip()
+
+    # Older versions of systemd-stub expect the cmdline section to be null terminated. We can't
+    # embed NUL terminators in argv so let's communicate the cmdline via a file instead.
+    (context.workspace / "cmdline").write_text(f"{cmdline}\x00")
 
     cmd = [
         python_binary(context.config, binary=ukify),
@@ -1499,11 +1509,13 @@ def run_ukify(
         "--efi-arch", arch,
         "--stub", stub,
         "--output", workdir(output),
+        *(["--cmdline", f"@{context.workspace / 'cmdline'}"] if cmdline else []),
     ]  # fmt: skip
 
-    options += [
+    opt: list[PathString] = [
         "--ro-bind", stub, stub,
         "--bind", output.parent, workdir(output.parent),
+        "--ro-bind", context.workspace / "cmdline", context.workspace / "cmdline",
     ]  # fmt: skip
 
     if context.config.secure_boot:
@@ -1516,14 +1528,14 @@ def run_ukify(
                 "--secureboot-private-key", context.config.secure_boot_key,
                 "--secureboot-certificate", context.config.secure_boot_certificate,
             ]  # fmt: skip
-            options += [
+            opt += [
                 "--ro-bind", context.config.secure_boot_certificate, context.config.secure_boot_certificate,
             ]  # fmt: skip
             if context.config.secure_boot_key_source.type == KeySourceType.engine:
                 cmd += ["--signing-engine", context.config.secure_boot_key_source.source]
-                options += ["--bind-try", "/run/pcscd", "/run/pcscd"]
+                opt += ["--bind-try", "/run/pcscd", "/run/pcscd"]
             if context.config.secure_boot_key.exists():
-                options += ["--ro-bind", context.config.secure_boot_key, context.config.secure_boot_key]
+                opt += ["--ro-bind", context.config.secure_boot_key, context.config.secure_boot_key]
         else:
             pesign_prepare(context)
             cmd += [
@@ -1533,13 +1545,13 @@ def run_ukify(
                 "--secureboot-certificate-name",
                 certificate_common_name(context, context.config.secure_boot_certificate),
             ]  # fmt: skip
-            options += ["--ro-bind", context.workspace / "pesign", context.workspace / "pesign"]
+            opt += ["--ro-bind", context.workspace / "pesign", context.workspace / "pesign"]
 
     run(
         cmd,
         sandbox=context.sandbox(
             binary=ukify,
-            options=options,
+            options=[*opt, *options],
             devices=context.config.secure_boot_key_source.type != KeySourceType.file,
         ),
     )
@@ -1555,18 +1567,10 @@ def build_uki(
     cmdline: Sequence[str],
     output: Path,
 ) -> None:
-    # Older versions of systemd-stub expect the cmdline section to be null terminated. We can't
-    # embed NUL terminators in argv so let's communicate the cmdline via a file instead.
-    (context.workspace / "cmdline").write_text(f"{' '.join(cmdline).strip()}\x00")
-
-    if not (arch := context.config.architecture.to_efi()):
-        die(f"Architecture {context.config.architecture} does not support UEFI")
-
     if not (ukify := context.config.find_binary("ukify", "/usr/lib/systemd/ukify")):
         die("Could not find ukify")
 
     arguments: list[PathString] = [
-        *(["--cmdline", f"@{context.workspace / 'cmdline'}"] if cmdline else []),
         "--os-release", f"@{context.root / 'usr/lib/os-release'}",
         "--uname", kver,
         "--linux", kimg,
@@ -1626,7 +1630,7 @@ def build_uki(
         options += ["--ro-bind", initrd, initrd]
 
     with complete_step(f"Generating unified kernel image for kernel version {kver}"):
-        run_ukify(context, arch, stub, output, arguments, options)
+        run_ukify(context, stub, output, cmdline=" ".join(cmdline), arguments=arguments, options=options)
 
 
 def systemd_stub_binary(context: Context) -> Path:
@@ -1938,25 +1942,9 @@ def install_uki(
             f.write("fi\n")
 
 
-def build_pe_addon(context: Context, arch: str, stub: Path, config: Path, output: Path) -> None:
-    arguments: list[PathString] = [
-        "--config", config,
-    ]  # fmt: skip
-
-    options: list[PathString] = [
-        "--ro-bind", config, config,
-    ]  # fmt: skip
-
-    with complete_step(f"Generating PE addon /{output.relative_to(context.root)}"):
-        run_ukify(context, arch, stub, output, arguments, options)
-
-
 def install_pe_addons(context: Context) -> None:
     if not context.config.pe_addons:
         return
-
-    if not (arch := context.config.architecture.to_efi()):
-        die(f"Architecture {context.config.architecture} does not support UEFI")
 
     stub = systemd_addon_stub_binary(context)
     if not stub.exists():
@@ -1968,7 +1956,15 @@ def install_pe_addons(context: Context) -> None:
 
     for addon in context.config.pe_addons:
         output = addon_dir / addon.with_suffix(".addon.efi").name
-        build_pe_addon(context, arch, stub, config=addon, output=output)
+
+        with complete_step(f"Generating PE addon /{output.relative_to(context.root)}"):
+            run_ukify(
+                context,
+                stub,
+                output,
+                arguments=["--config", addon],
+                options=["--ro-bind", addon, addon],
+            )
 
 
 def systemd_addon_stub_binary(context: Context) -> Path:
