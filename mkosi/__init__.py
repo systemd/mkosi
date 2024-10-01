@@ -4184,16 +4184,16 @@ def run_build(
     if os.getuid() == 0:
         mount("", "/", "", MS_SLAVE | MS_REC, "")
 
-    # For extra safety when running as root, remount a bunch of stuff read-only. Because some build systems
-    # use output directories in /usr, we only remount /usr read-only if the output directory is not relative
-    # to it.
+    # For extra safety when running as root, remount a bunch of directories read-only unless the output
+    # directory is located in it.
     if os.getuid() == 0:
-        remount = ["/etc", "/opt", "/boot", "/efi", "/media"]
-        if not config.output_dir_or_cwd().is_relative_to("/usr"):
-            remount += ["/usr"]
+        remount = ["/etc", "/opt", "/boot", "/efi", "/media", "/usr"]
 
         for d in remount:
             if not Path(d).exists():
+                continue
+
+            if config.output_dir_or_cwd().is_relative_to(d):
                 continue
 
             attrs = MOUNT_ATTR_RDONLY
