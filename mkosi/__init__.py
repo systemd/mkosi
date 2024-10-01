@@ -4300,6 +4300,19 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
     else:
         tools = None
 
+    for i, config in enumerate(images):
+        images[i] = config = dataclasses.replace(
+            config,
+            tools_tree=(
+                tools.output_dir_or_cwd() / tools.output
+                if tools and config.tools_tree == Path("default")
+                else config.tools_tree
+            ),
+        )
+
+    # The images array has been modified so we need to reevaluate last again.
+    last = images[-1]
+
     if args.verb == Verb.clean:
         if tools:
             run_clean(args, tools, resources=resources)
@@ -4397,15 +4410,6 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
                 fork_and_wait(run_build, args, tools, resources=resources, metadata_dir=Path(metadata_dir))
 
     for i, config in enumerate(images):
-        images[i] = config = dataclasses.replace(
-            config,
-            tools_tree=(
-                tools.output_dir_or_cwd() / tools.output
-                if tools and config.tools_tree == Path("default")
-                else config.tools_tree
-            ),
-        )
-
         with prepend_to_environ_path(config):
             check_tools(config, args.verb)
             images[i] = config = run_configure_scripts(config)
