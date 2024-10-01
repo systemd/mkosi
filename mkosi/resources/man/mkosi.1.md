@@ -167,14 +167,15 @@ The following command line verbs are known:
     `SecureBootCertificate=`/`--secure-boot-certificate=` options.
 
 `documentation`
-:   Show mkosi's documentation. By default this verb will try several ways
-    to output the documentation, but a specific option can be chosen with
-    the `--doc-format` option. Distro packagers are encouraged to add a
-    file `mkosi.1` into the `mkosi/resources` directory of the Python
-    package, if it is missing, as well as to install it in the appropriate
-    search path for man pages. The man page can be generated from the
-    markdown file `mkosi/resources/man/mkosi.1.md` e.g via
-    `pandoc -t man -s -o mkosi.1 mkosi.1.md`.
+:   Show mkosi's documentation. If no argument is given, the mkosi man page is shown, but the arguments
+    `mkosi`, `mkosi-initrd`, `initrd`, `mkosi-sandbox`, `sandbox`, `mkosi.news` and `news` are supported and
+    respectively show the man pages for mkosi, mkosi-initrd, mkosi-sandbox and mkosi's NEWS file.
+
+    By default this verb will try several ways to output the documentation, but a specific option can be
+    chosen with the `--doc-format` option. Distro packagers are encouraged to add a file `mkosi.1` into the
+    `mkosi/resources` directory of the Python package, if it is missing, as well as to install it in the
+    appropriate search path for man pages. The man page can be generated from the markdown file
+    `mkosi/resources/man/mkosi.1.md` e.g via `pandoc -t man -s -o mkosi.1 mkosi.1.md`.
 
 `dependencies`
 :   Output the list of packages required by mkosi to build and boot
