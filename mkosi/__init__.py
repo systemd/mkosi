@@ -2781,7 +2781,11 @@ def have_cache(config: Config) -> bool:
                     ["diff", "--unified", manifest, "-"],
                     input=new,
                     check=False,
-                    sandbox=config.sandbox(binary="diff", options=["--bind", manifest, manifest]),
+                    sandbox=config.sandbox(
+                        binary="diff",
+                        tools=False,
+                        options=["--bind", manifest, manifest],
+                    ),
                 )
 
             return False
