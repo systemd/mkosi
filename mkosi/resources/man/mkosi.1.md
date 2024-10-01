@@ -989,6 +989,14 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     | `&h`      | `roothash=` or `usrhash=` value of kernel argument |
     | `&c`      | Number of tries used for boot attempt counting     |
 
+`UnifiedKernelImageProfiles=`, `--uki-profile=`
+:   Build additional UKI profiles. Takes a comma separated list of paths
+    to `ukify` config files. This option may be used multiple times in
+    which case each config gets built into a corresponding UKI profile.
+    Config files in the `mkosi.uki-profiles/` directory are
+    automatically picked up. All configured UKI profiles are added as
+    additional UKI profiles to each UKI built by mkosi.
+
 `PeAddons=`, `--pe-addon`
 :   Build additional PE addons. Takes a comma separated list of paths to
     `ukify` config files. This option may be used multiple times in which case

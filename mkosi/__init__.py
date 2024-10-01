@@ -70,6 +70,7 @@ from mkosi.config import (
     format_bytes,
     parse_boolean,
     parse_config,
+    parse_ini,
     summary,
     systemd_tool_version,
     want_selinux_relabel,
@@ -1487,6 +1488,7 @@ def run_ukify(
     cmdline: str = "",
     arguments: Sequence[PathString] = (),
     options: Sequence[PathString] = (),
+    sign: bool = True,
 ) -> None:
     ukify = context.config.find_binary("ukify", "/usr/lib/systemd/ukify")
     if not ukify:
@@ -1518,7 +1520,7 @@ def run_ukify(
         "--ro-bind", context.workspace / "cmdline", context.workspace / "cmdline",
     ]  # fmt: skip
 
-    if context.config.secure_boot:
+    if sign and context.config.secure_boot:
         assert context.config.secure_boot_key
         assert context.config.secure_boot_certificate
 
@@ -1565,6 +1567,7 @@ def build_uki(
     microcodes: list[Path],
     initrds: list[Path],
     cmdline: Sequence[str],
+    profiles: Sequence[Path],
     output: Path,
 ) -> None:
     if not (ukify := context.config.find_binary("ukify", "/usr/lib/systemd/ukify")):
@@ -1574,12 +1577,14 @@ def build_uki(
         "--os-release", f"@{context.root / 'usr/lib/os-release'}",
         "--uname", kver,
         "--linux", kimg,
+        *flatten(["--join-profile", os.fspath(profile)] for profile in profiles),
     ]  # fmt: skip
 
     options: list[PathString] = [
         "--ro-bind", context.workspace / "cmdline", context.workspace / "cmdline",
         "--ro-bind", context.root / "usr/lib/os-release", context.root / "usr/lib/os-release",
         "--ro-bind", kimg, kimg,
+        *flatten(["--ro-bind", os.fspath(profile), os.fspath(profile)] for profile in profiles),
     ]  # fmt: skip
 
     if context.config.secure_boot:
@@ -1754,6 +1759,7 @@ def install_type1(
     kimg: Path,
     token: str,
     partitions: Sequence[Partition],
+    cmdline: list[str],
 ) -> None:
     dst = context.root / "boot" / token / kver
     entry = context.root / f"boot/loader/entries/{token}-{kver}.conf"
@@ -1762,7 +1768,6 @@ def install_type1(
         entry.parent.mkdir(parents=True, exist_ok=True)
 
     kmods = build_kernel_modules_initrd(context, kver)
-    cmdline = finalize_cmdline(context, partitions, finalize_roothash(partitions))
 
     with umask(~0o600):
         if (
@@ -1854,7 +1859,13 @@ def expand_kernel_specifiers(text: str, kver: str, token: str, roothash: str, bo
 
 
 def install_uki(
-    context: Context, kver: str, kimg: Path, token: str, partitions: Sequence[Partition]
+    context: Context,
+    kver: str,
+    kimg: Path,
+    token: str,
+    partitions: Sequence[Partition],
+    profiles: Sequence[Path],
+    cmdline: list[str],
 ) -> None:
     bootloader_entry_format = context.config.unified_kernel_image_format or "&e-&k"
 
@@ -1916,7 +1927,8 @@ def install_uki(
             context.root / kimg,
             microcodes,
             initrds,
-            finalize_cmdline(context, partitions, roothash),
+            cmdline,
+            profiles,
             boot_binary,
         )
 
@@ -1973,6 +1985,46 @@ def systemd_addon_stub_binary(context: Context) -> Path:
     return stub
 
 
+def build_uki_profiles(context: Context, cmdline: Sequence[str]) -> list[Path]:
+    if not want_uki(context) or not context.config.unified_kernel_image_profiles:
+        return []
+
+    stub = systemd_addon_stub_binary(context)
+    if not stub.exists():
+        die(f"sd-stub not found at /{stub.relative_to(context.root)} in the image")
+
+    (context.workspace / "uki-profiles").mkdir()
+
+    profiles = []
+
+    for profile in context.config.unified_kernel_image_profiles:
+        output = context.workspace / "uki-profiles" / profile.with_suffix(".efi").name
+
+        # We want to append the cmdline from the ukify config file to the base kernel command line so parse
+        # it from the ukify config file and append it to our own kernel command line.
+
+        profile_cmdline = ""
+
+        for section, k, v in parse_ini(profile):
+            if section == "UKI" and k == "Cmdline":
+                profile_cmdline = v.replace("\n", " ")
+
+        with complete_step(f"Generating UKI profile '{profile.stem}'"):
+            run_ukify(
+                context,
+                stub,
+                output,
+                cmdline=f"{' '.join(cmdline)} {profile_cmdline}",
+                arguments=["--config", profile],
+                options=["--ro-bind", profile, profile],
+                sign=False,
+            )
+
+        profiles += [output]
+
+    return profiles
+
+
 def install_kernel(context: Context, partitions: Sequence[Partition]) -> None:
     # Iterates through all kernel versions included in the image and generates a combined
     # kernel+initrd+cmdline+osrelease EFI file from it and places it in the /EFI/Linux directory of
@@ -2004,12 +2056,14 @@ def install_kernel(context: Context, partitions: Sequence[Partition]) -> None:
         die("A bootable image was requested but no kernel was found")
 
     token = find_entry_token(context)
+    cmdline = finalize_cmdline(context, partitions, finalize_roothash(partitions))
+    profiles = build_uki_profiles(context, cmdline)
 
     for kver, kimg in gen_kernel_images(context):
         if want_uki(context):
-            install_uki(context, kver, kimg, token, partitions)
+            install_uki(context, kver, kimg, token, partitions, profiles, cmdline)
         if not want_uki(context) or want_grub_bios(context, partitions):
-            install_type1(context, kver, kimg, token, partitions)
+            install_type1(context, kver, kimg, token, partitions, cmdline)
 
         if context.config.bootloader == Bootloader.uki:
             break
@@ -2024,8 +2078,18 @@ def make_uki(
     )
 
     initrds = [context.workspace / "initrd"]
+    build_uki(
+        context,
+        stub,
+        kver,
+        kimg,
+        microcode,
+        initrds,
+        context.config.kernel_command_line,
+        build_uki_profiles(context, context.config.kernel_command_line),
+        output,
+    )
 
-    build_uki(context, stub, kver, kimg, microcode, initrds, context.config.kernel_command_line, output)
     extract_pe_section(context, output, ".linux", context.staging / context.config.output_split_kernel)
     extract_pe_section(context, output, ".initrd", context.staging / context.config.output_split_initrd)
 
@@ -2369,15 +2433,27 @@ def check_tools(config: Config, verb: Verb) -> None:
             check_tool(config, "depmod", reason="generate kernel module dependencies")
 
         if want_efi(config) and config.unified_kernel_images == ConfigFeature.enabled:
-            check_ukify(
-                config,
-                version="254",
-                reason="build bootable images",
-                hint=(
-                    "Use ToolsTree=default to download most required tools including ukify automatically "
-                    "or use Bootable=no to create a non-bootable image which doesn't require ukify"
-                ),
-            )
+            if config.unified_kernel_image_profiles:
+                check_ukify(
+                    config,
+                    version="257",
+                    reason="build unified kernel image profiles",
+                    hint=(
+                        "Use ToolsTree=default to download most required tools including ukify "
+                        "automatically"
+                    ),
+                )
+            else:
+                check_ukify(
+                    config,
+                    version="254",
+                    reason="build bootable images",
+                    hint=(
+                        "Use ToolsTree=default to download most required tools including ukify "
+                        "automatically or use Bootable=no to create a non-bootable image which doesn't "
+                        "require ukify"
+                    ),
+                )
 
         if config.output_format in (OutputFormat.disk, OutputFormat.esp):
             check_systemd_tool(config, "systemd-repart", version="254", reason="build disk images")
