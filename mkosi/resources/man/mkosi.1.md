@@ -177,6 +177,10 @@ The following command line verbs are known:
     appropriate search path for man pages. The man page can be generated from the markdown file
     `mkosi/resources/man/mkosi.1.md` e.g via `pandoc -t man -s -o mkosi.1 mkosi.1.md`.
 
+`completion`
+:   Generate shell completion for the shell given as argument and print it to stdout. The arguments `bash`,
+    `fish`, and `zsh` are understood.
+
 `dependencies`
 :   Output the list of packages required by mkosi to build and boot
     images.
