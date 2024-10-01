@@ -1,12 +1,15 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 import argparse
+import json
 import os
 import platform
 import shutil
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from typing import Optional, cast
 
 import mkosi.resources
 from mkosi.config import DocFormat, OutputFormat
@@ -16,6 +19,28 @@ from mkosi.run import find_binary, run, uncaught_exception_handler
 from mkosi.sandbox import __version__
 from mkosi.types import PathString
 from mkosi.util import resource_path
+
+
+def get_layout_output_dir() -> tuple[Optional[str], str]:
+    layout = ""
+    output_dir = ""
+
+    if find_binary("kernel-install"):
+        output = json.loads(
+            run(
+                ["kernel-install", "--json=short", "inspect"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            ).stdout
+        )
+        layout = cast(str, output["Layout"])
+        if layout == "bls":
+            boot_root = cast(str, output["BootRoot"])
+            entry_token = cast(str, output["EntryToken"])
+            output_dir = f"{boot_root}/{entry_token}"
+
+    return (layout or None, output_dir)
 
 
 @uncaught_exception_handler()
@@ -87,6 +112,22 @@ def main() -> None:
         with resource_path(mkosi.resources) as r:
             show_docs("mkosi-initrd", DocFormat.all(), resources=r)
         return
+
+    if not args.output_dir:
+        layout, args.output_dir = get_layout_output_dir()
+        if layout == "bls":
+            if Path(f"{args.output_dir}/{args.kernel_version}").is_dir():
+                args.output_dir += f"/{args.kernel_version}"
+            else:
+                args.output_dir = ""
+        elif layout == "other" and args.output == "initrd":
+            if Path("/boot/initrd").exists():
+                args.output_dir = "/boot"
+            elif Path(f"/boot/initrd-{args.kernel_version}").exists():
+                args.output_dir = "/boot"
+                args.output += f"-{args.kernel_version}"
+            elif Path(f"/usr/lib/modules/{args.kernel_version}/initrd").exists():
+                args.output_dir = f"/usr/lib/modules/{args.kernel_version}"
 
     cmdline: list[PathString] = [
         "mkosi",
