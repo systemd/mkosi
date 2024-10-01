@@ -3404,6 +3404,7 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
                 mkosi [options…] {b}journalctl{e}    [command line…]
                 mkosi [options…] {b}coredumpctl{e}   [command line…]
                 mkosi [options…] {b}documentation{e} [manual]
+                mkosi [options…] {b}completion{e}    [shell]
                 mkosi [options…] {b}clean{e}
                 mkosi [options…] {b}serve{e}
                 mkosi [options…] {b}bump{e}
