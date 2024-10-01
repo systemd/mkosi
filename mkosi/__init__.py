@@ -1193,6 +1193,7 @@ def finalize_default_initrd(
     config: Config,
     *,
     resources: Path,
+    tools: bool = True,
     output_dir: Optional[Path] = None,
 ) -> Config:
     if config.root_password:
@@ -1249,7 +1250,7 @@ def finalize_default_initrd(
         *(["--hostname", config.hostname] if config.hostname else []),
         *(["--root-password", rootpwopt] if rootpwopt else []),
         *([f"--environment={k}='{v}'" for k, v in config.environment.items()]),
-        *(["--tools-tree", str(config.tools_tree)] if config.tools_tree else []),
+        *(["--tools-tree", str(config.tools_tree)] if config.tools_tree and tools else []),
         *([f"--extra-search-path={p}" for p in config.extra_search_paths]),
         *(["--proxy-url", config.proxy_url] if config.proxy_url else []),
         *([f"--proxy-exclude={host}" for host in config.proxy_exclude]),
@@ -4058,7 +4059,7 @@ def run_clean(args: Args, config: Config, *, resources: Path) -> None:
         metadata = [metadata_cache(config)] if not config.image else []
 
         initrd = (
-            cache_tree_paths(finalize_default_initrd(args, config, resources=resources))
+            cache_tree_paths(finalize_default_initrd(args, config, tools=False, resources=resources))
             if config.distribution != Distribution.custom
             else []
         )
