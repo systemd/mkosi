@@ -4,6 +4,7 @@ import enum
 import importlib
 import urllib.parse
 from collections.abc import Sequence
+from pathlib import Path
 from typing import TYPE_CHECKING, Optional, cast
 
 from mkosi.util import StrEnum, read_env_file
@@ -163,12 +164,12 @@ class Distribution(StrEnum):
         return cast(type[DistributionInstaller], installer)
 
 
-def detect_distribution() -> tuple[Optional[Distribution], Optional[str]]:
+def detect_distribution(root: Path = Path("/")) -> tuple[Optional[Distribution], Optional[str]]:
     try:
-        os_release = read_env_file("/etc/os-release")
+        os_release = read_env_file(root / "etc/os-release")
     except FileNotFoundError:
         try:
-            os_release = read_env_file("/usr/lib/os-release")
+            os_release = read_env_file(root / "usr/lib/os-release")
         except FileNotFoundError:
             return None, None
 
