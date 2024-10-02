@@ -34,6 +34,7 @@ from mkosi.config import (
     QemuDrive,
     QemuFirmware,
     QemuVsockCID,
+    finalize_term,
     format_bytes,
     systemd_tool_version,
     want_selinux_relabel,
@@ -769,6 +770,96 @@ def finalize_state(config: Config, cid: int) -> Iterator[None]:
             p.unlink(missing_ok=True)
 
 
+def finalize_kernel_command_line_extra(config: Config) -> list[str]:
+    columns, lines = shutil.get_terminal_size()
+    term = finalize_term()
+
+    cmdline = [
+        "rw",
+        # Make sure we set up networking in the VM/container.
+        "systemd.wants=network.target",
+        # Make sure we don't load vmw_vmci which messes with virtio vsock.
+        "module_blacklist=vmw_vmci",
+        f"systemd.tty.term.hvc0={term}",
+        f"systemd.tty.columns.hvc0={columns}",
+        f"systemd.tty.rows.hvc0={lines}",
+    ]
+
+    if not any(s.startswith("ip=") for s in config.kernel_command_line_extra):
+        cmdline += ["ip=enc0:any", "ip=enp0s1:any", "ip=enp0s2:any", "ip=host0:any", "ip=none"]
+
+    if not any(s.startswith("loglevel=") for s in config.kernel_command_line_extra):
+        cmdline += ["loglevel=4"]
+
+    if not any(s.startswith("SYSTEMD_SULOGIN_FORCE=") for s in config.kernel_command_line_extra):
+        cmdline += ["SYSTEMD_SULOGIN_FORCE=1"]
+
+    if (
+        not any(s.startswith("systemd.hostname=") for s in config.kernel_command_line_extra)
+        and config.machine
+    ):
+        cmdline += [f"systemd.hostname={config.machine}"]
+
+    if config.qemu_cdrom:
+        # CD-ROMs are read-only so tell systemd to boot in volatile mode.
+        cmdline += ["systemd.volatile=yes"]
+
+    if not config.qemu_gui:
+        cmdline += [
+            f"systemd.tty.term.console={term}",
+            f"systemd.tty.columns.console={columns}",
+            f"systemd.tty.rows.console={lines}",
+            "console=hvc0",
+            f"TERM={term}",
+        ]
+
+    for s in config.kernel_command_line_extra:
+        key, sep, value = s.partition("=")
+        if " " in value:
+            value = f'"{value}"'
+        cmdline += [key if not sep else f"{key}={value}"]
+
+    return cmdline
+
+
+def finalize_credentials(config: Config) -> dict[str, str]:
+    creds = {
+        "firstboot.locale": "C.UTF-8",
+        **config.credentials,
+    }
+
+    if "firstboot.timezone" not in creds:
+        if find_binary("timedatectl"):
+            tz = run(
+                ["timedatectl", "show", "-p", "Timezone", "--value"],
+                stdout=subprocess.PIPE,
+                check=False,
+            ).stdout.strip()
+        else:
+            tz = "UTC"
+
+        creds["firstboot.timezone"] = tz
+
+    if "ssh.authorized_keys.root" not in creds:
+        if config.ssh_certificate:
+            pubkey = run(
+                ["openssl", "x509", "-in", config.ssh_certificate, "-pubkey", "-noout"],
+                stdout=subprocess.PIPE,
+                env=dict(OPENSSL_CONF="/dev/null"),
+            ).stdout.strip()
+            sshpubkey = run(
+                ["ssh-keygen", "-f", "/dev/stdin", "-i", "-m", "PKCS8"], input=pubkey, stdout=subprocess.PIPE
+            ).stdout.strip()
+            creds["ssh.authorized_keys.root"] = sshpubkey
+        elif config.ssh:
+            die(
+                "Ssh= is enabled but no SSH certificate was found",
+                hint="Run 'mkosi genkey' to automatically create one",
+            )
+
+    return creds
+
+
 def scope_cmd(
     name: str,
     description: str,
@@ -1075,9 +1166,9 @@ def run_qemu(args: Args, config: Config) -> None:
             KernelType.identify(config, kernel) != KernelType.uki
             or not config.architecture.supports_smbios(firmware)
         ):
-            kcl = config.kernel_command_line + config.kernel_command_line_extra
+            kcl = config.kernel_command_line + finalize_kernel_command_line_extra(config)
         else:
-            kcl = config.kernel_command_line_extra
+            kcl = finalize_kernel_command_line_extra(config)
 
         if kernel:
             cmdline += ["-kernel", kernel]
@@ -1108,7 +1199,7 @@ def run_qemu(args: Args, config: Config) -> None:
                 ]  # fmt: skip
                 kcl += ["root=root", "rootfstype=virtiofs"]
 
-        credentials = dict(config.credentials)
+        credentials = finalize_credentials(config)
 
         def add_virtiofs_mount(
             sock: Path, dst: PathString, cmdline: list[PathString], credentials: dict[str, str], *, tag: str

@@ -85,7 +85,15 @@ from mkosi.manifest import Manifest
 from mkosi.mounts import finalize_crypto_mounts, finalize_source_mounts, mount_overlay
 from mkosi.pager import page
 from mkosi.partition import Partition, finalize_root, finalize_roothash
-from mkosi.qemu import KernelType, copy_ephemeral, run_qemu, run_ssh, start_journal_remote
+from mkosi.qemu import (
+    KernelType,
+    copy_ephemeral,
+    finalize_credentials,
+    finalize_kernel_command_line_extra,
+    run_qemu,
+    run_ssh,
+    start_journal_remote,
+)
 from mkosi.run import (
     apivfs_options,
     chroot_cmd,
@@ -3554,7 +3562,7 @@ def run_shell(args: Args, config: Config) -> None:
     name = config.machine_or_name().replace("_", "-")
     cmdline += ["--machine", name]
 
-    for k, v in config.credentials.items():
+    for k, v in finalize_credentials(config).items():
         cmdline += [f"--set-credential={k}:{v}"]
 
     with contextlib.ExitStack() as stack:
@@ -3676,7 +3684,10 @@ def run_shell(args: Args, config: Config) -> None:
 
             # When invoked by the kernel, all unknown arguments are passed as environment variables
             # to pid1. Let's mimic the same behavior when we invoke nspawn as a container.
-            for arg in itertools.chain(config.kernel_command_line, config.kernel_command_line_extra):
+            for arg in itertools.chain(
+                config.kernel_command_line,
+                finalize_kernel_command_line_extra(config),
+            ):
                 name, sep, value = arg.partition("=")
 
                 # If there's a '.' in the argument name, it's not considered an environment
