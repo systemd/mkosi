@@ -2583,7 +2583,7 @@ and cannot be configured in subimages:
 - `OutputMode=`
 - `PackageCacheDirectory=`
 - `PackageDirectories=`
-- `Profile=`
+- `Profiles=`
 - `ProxyClientCertificate=`
 - `ProxyClientKey=`
 - `ProxyExclude=`

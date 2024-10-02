@@ -1157,7 +1157,7 @@ def parse_profile(value: str) -> str:
     if not is_valid_filename(value):
         die(
             f"{value!r} is not a valid profile",
-            hint="Profile= or --profile= requires a name with no path components.",
+            hint="Profiles= or --profile= requires a name with no path components.",
         )
 
     return value
