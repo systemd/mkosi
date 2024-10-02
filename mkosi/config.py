@@ -808,7 +808,10 @@ def config_default_repository_key_fetch(namespace: argparse.Namespace) -> bool:
         return cast(bool, namespace.distribution.is_rpm_distribution())
 
     if namespace.tools_tree != Path("default"):
-        return False
+        return (
+            detect_distribution(namespace.tools_tree)[0] == Distribution.ubuntu
+            and namespace.distribution.is_rpm_distribution()
+        )
 
     return cast(
         bool,
