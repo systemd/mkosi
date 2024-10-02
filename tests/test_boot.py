@@ -61,9 +61,7 @@ def test_format(config: ImageConfig, format: OutputFormat) -> None:
         if have_vmspawn() and format in (OutputFormat.disk, OutputFormat.directory):
             image.vmspawn()
 
-        # TODO: Remove the opensuse check again when https://bugzilla.opensuse.org/show_bug.cgi?id=1227464 is
-        # resolved and we install the grub tools in the openSUSE tools tree again.
-        if format != OutputFormat.disk or config.tools_tree_distribution == Distribution.opensuse:
+        if format != OutputFormat.disk:
             return
 
         image.qemu(["--qemu-firmware=bios"])
@@ -72,11 +70,6 @@ def test_format(config: ImageConfig, format: OutputFormat) -> None:
 @pytest.mark.parametrize("bootloader", Bootloader)
 def test_bootloader(config: ImageConfig, bootloader: Bootloader) -> None:
     if config.distribution == Distribution.rhel_ubi:
-        return
-
-    # TODO: Remove this again when https://bugzilla.opensuse.org/show_bug.cgi?id=1227464 is resolved and we
-    # install the grub tools in the openSUSE tools tree again.
-    if bootloader == Bootloader.grub and config.tools_tree_distribution == Distribution.opensuse:
         return
 
     firmware = QemuFirmware.linux if bootloader == Bootloader.none else QemuFirmware.auto

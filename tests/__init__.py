@@ -24,8 +24,6 @@ from mkosi.types import _FILE, CompletedProcess, PathString
 class ImageConfig:
     distribution: Distribution
     release: str
-    tools_tree_distribution: Optional[Distribution]
-    tools_tree_release: Optional[str]
     debug_shell: bool
 
 
@@ -94,13 +92,6 @@ class Image:
         opt: list[PathString] = [
             "--distribution", str(self.config.distribution),
             "--release", self.config.release,
-            *(["--tools-tree=default"] if self.config.tools_tree_distribution else []),
-            *(
-                ["--tools-tree-distribution", str(self.config.tools_tree_distribution)]
-                if self.config.tools_tree_distribution
-                else []
-            ),
-            *(["--tools-tree-release", self.config.tools_tree_release] if self.config.tools_tree_release else []),  # noqa
             *(f"--kernel-command-line={i}" for i in kcl),
             "--force",
             "--incremental",

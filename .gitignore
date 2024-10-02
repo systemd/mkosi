@@ -22,6 +22,7 @@
 /mkosi.rootpw
 mkosi.local
 mkosi.local.conf
+mkosi.tools
 /mkosi.key
 /mkosi.crt
 __pycache__
