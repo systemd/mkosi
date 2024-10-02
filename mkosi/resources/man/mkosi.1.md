@@ -1929,7 +1929,6 @@ use `%%`. The following specifiers are understood:
 | `OutputDirectory=` | `%O`      |
 | `ImageId=`         | `%i`      |
 | `ImageVersion=`    | `%v`      |
-| `Profile=`         | `%p`      |
 
 There are also specifiers that are independent of settings:
 
@@ -2583,7 +2582,7 @@ and cannot be configured in subimages:
 - `OutputMode=`
 - `PackageCacheDirectory=`
 - `PackageDirectories=`
-- `Profile=`
+- `Profiles=`
 - `ProxyClientCertificate=`
 - `ProxyClientKey=`
 - `ProxyExclude=`
