@@ -114,6 +114,7 @@ class Image:
         return self.mkosi(
             "build",
             opt,
+            args,
             stdin=sys.stdin if sys.stdin.isatty() else None,
             user=self.uid,
             group=self.gid,
