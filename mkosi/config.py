@@ -1995,7 +1995,6 @@ SETTINGS = (
         dest="profiles",
         long="--profile",
         section="Config",
-        specifier="p",
         help="Build the specified profiles",
         parse=config_make_list_parser(delimiter=",", parse=parse_profile),
         match=config_make_list_matcher(parse=parse_profile),

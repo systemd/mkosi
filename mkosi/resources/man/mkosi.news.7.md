@@ -65,7 +65,8 @@
   matches on the configured profile instead.
 - `Profile=` is renamed to `Profiles=` and takes a comma separated list of
   profiles now. Scripts now receive `$PROFILES` with a space-separated list
-  of profiles instead of `$PROFILE`.
+  of profiles instead of `$PROFILE`. The `%p` specifier for profiles is
+  removed.
 - Multiple sync, prepare, build, postinst, finalize, postoutput and clean scripts are now picked up from
   `mkosi.$SCRIPT.d`.
 - `run0` is now automatically used to escalate privileges for commands that need it, like the `burn` verb.

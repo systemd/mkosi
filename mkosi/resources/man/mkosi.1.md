@@ -1929,7 +1929,6 @@ use `%%`. The following specifiers are understood:
 | `OutputDirectory=` | `%O`      |
 | `ImageId=`         | `%i`      |
 | `ImageVersion=`    | `%v`      |
-| `Profile=`         | `%p`      |
 
 There are also specifiers that are independent of settings:
 
