@@ -109,7 +109,7 @@ class Image:
             *options,
         ]  # fmt: skip
 
-        self.mkosi("summary", options, user=self.uid, group=self.uid)
+        self.mkosi("summary", opt, user=self.uid, group=self.uid)
 
         return self.mkosi(
             "build",
