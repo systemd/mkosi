@@ -18,7 +18,6 @@ import os.path
 import platform
 import re
 import shlex
-import shutil
 import string
 import subprocess
 import sys
@@ -809,7 +808,10 @@ def config_default_repository_key_fetch(namespace: argparse.Namespace) -> bool:
         return cast(bool, namespace.distribution.is_rpm_distribution())
 
     if namespace.tools_tree != Path("default"):
-        return False
+        return (
+            detect_distribution(namespace.tools_tree)[0] == Distribution.ubuntu
+            and namespace.distribution.is_rpm_distribution()
+        )
 
     return cast(
         bool,
@@ -1817,13 +1819,8 @@ class Config:
             "prepare_scripts": sorted(
                 base64.b64encode(script.read_bytes()).decode() for script in self.prepare_scripts
             ),
-            # We don't use the full path here since tests will often use temporary directories for the output
-            # directory which would trigger a rebuild every time.
-            "tools_tree": self.tools_tree.name if self.tools_tree else None,
-            "tools_tree_distribution": self.tools_tree_distribution,
-            "tools_tree_release": self.tools_tree_release,
-            "tools_tree_mirror": self.tools_tree_mirror,
-            "tools_tree_packages": sorted(self.tools_tree_packages),
+            # Statting the root directory of the tools tree isn't fool proof but should be good enough.
+            "tools_tree": [self.tools_tree, self.tools_tree.stat().st_mtime_ns] if self.tools_tree else [],
         }
 
     def to_dict(self) -> dict[str, Any]:
@@ -4160,99 +4157,12 @@ def parse_config(
     return args, tuple([load_config(ns) for ns in images] + [load_config(config)])
 
 
-def load_credentials(args: argparse.Namespace) -> dict[str, str]:
-    creds = {
-        "firstboot.locale": "C.UTF-8",
-        **args.credentials,
-    }
-
-    if "firstboot.timezone" not in creds:
-        if find_binary("timedatectl"):
-            tz = run(
-                ["timedatectl", "show", "-p", "Timezone", "--value"],
-                stdout=subprocess.PIPE,
-                check=False,
-            ).stdout.strip()
-        else:
-            tz = "UTC"
-
-        creds["firstboot.timezone"] = tz
-
-    if "ssh.authorized_keys.root" not in creds:
-        if args.ssh_certificate:
-            pubkey = run(
-                ["openssl", "x509", "-in", args.ssh_certificate, "-pubkey", "-noout"],
-                stdout=subprocess.PIPE,
-                env=dict(OPENSSL_CONF="/dev/null"),
-            ).stdout.strip()
-            sshpubkey = run(
-                ["ssh-keygen", "-f", "/dev/stdin", "-i", "-m", "PKCS8"], input=pubkey, stdout=subprocess.PIPE
-            ).stdout.strip()
-            creds["ssh.authorized_keys.root"] = sshpubkey
-        elif args.ssh:
-            die(
-                "Ssh= is enabled but no SSH certificate was found",
-                hint="Run 'mkosi genkey' to automatically create one",
-            )
-
-    return creds
-
-
 def finalize_term() -> str:
     term = os.getenv("TERM", "unknown")
     if term == "unknown":
         term = "vt220" if sys.stderr.isatty() else "dumb"
 
     return term if sys.stderr.isatty() else "dumb"
-
-
-def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
-    columns, lines = shutil.get_terminal_size()
-    term = finalize_term()
-
-    cmdline = [
-        "rw",
-        # Make sure we set up networking in the VM/container.
-        "systemd.wants=network.target",
-        # Make sure we don't load vmw_vmci which messes with virtio vsock.
-        "module_blacklist=vmw_vmci",
-        f"systemd.tty.term.hvc0={term}",
-        f"systemd.tty.columns.hvc0={columns}",
-        f"systemd.tty.rows.hvc0={lines}",
-    ]
-
-    if not any(s.startswith("ip=") for s in args.kernel_command_line_extra):
-        cmdline += ["ip=enc0:any", "ip=enp0s1:any", "ip=enp0s2:any", "ip=host0:any", "ip=none"]
-
-    if not any(s.startswith("loglevel=") for s in args.kernel_command_line_extra):
-        cmdline += ["loglevel=4"]
-
-    if not any(s.startswith("SYSTEMD_SULOGIN_FORCE=") for s in args.kernel_command_line_extra):
-        cmdline += ["SYSTEMD_SULOGIN_FORCE=1"]
-
-    if not any(s.startswith("systemd.hostname=") for s in args.kernel_command_line_extra) and args.machine:
-        cmdline += [f"systemd.hostname={args.machine}"]
-
-    if args.qemu_cdrom:
-        # CD-ROMs are read-only so tell systemd to boot in volatile mode.
-        cmdline += ["systemd.volatile=yes"]
-
-    if not args.qemu_gui:
-        cmdline += [
-            f"systemd.tty.term.console={term}",
-            f"systemd.tty.columns.console={columns}",
-            f"systemd.tty.rows.console={lines}",
-            "console=hvc0",
-            f"TERM={term}",
-        ]
-
-    for s in args.kernel_command_line_extra:
-        key, sep, value = s.partition("=")
-        if " " in value:
-            value = f'"{value}"'
-        cmdline += [key if not sep else f"{key}={value}"]
-
-    return cmdline
 
 
 def load_environment(args: argparse.Namespace) -> dict[str, str]:
@@ -4319,10 +4229,6 @@ def load_config(config: argparse.Namespace) -> Config:
 
     if config.sign:
         config.checksum = True
-
-    if not config.image:
-        config.credentials = load_credentials(config)
-        config.kernel_command_line_extra = load_kernel_command_line_extra(config)
 
     config.environment = load_environment(config)
 

@@ -17,6 +17,8 @@ from mkosi.log import die
 from mkosi.qemu import (
     apply_runtime_size,
     copy_ephemeral,
+    finalize_credentials,
+    finalize_kernel_command_line_extra,
     finalize_qemu_firmware,
 )
 from mkosi.run import run
@@ -67,7 +69,7 @@ def run_vmspawn(args: Args, config: Config) -> None:
     if config.qemu_gui:
         cmdline += ["--console=gui"]
 
-    cmdline += [f"--set-credential={k}:{v}" for k, v in config.credentials.items()]
+    cmdline += [f"--set-credential={k}:{v}" for k, v in finalize_credentials(config).items()]
 
     with contextlib.ExitStack() as stack:
         fname = stack.enter_context(copy_ephemeral(config, config.output_dir_or_cwd() / config.output))
@@ -104,7 +106,7 @@ def run_vmspawn(args: Args, config: Config) -> None:
         if config.forward_journal:
             cmdline += ["--forward-journal", config.forward_journal]
 
-        cmdline += [*args.cmdline, *config.kernel_command_line_extra]
+        cmdline += [*args.cmdline, *finalize_kernel_command_line_extra(config)]
 
         run(
             cmdline,

@@ -29,19 +29,6 @@ def pytest_addoption(parser: Any) -> None:
         help="Run the integration tests for the given release.",
     )
     parser.addoption(
-        "-T",
-        "--tools-tree-distribution",
-        metavar="DISTRIBUTION",
-        help="Use the given tools tree distribution to build the integration test images",
-        type=Distribution,
-        choices=[Distribution(d) for d in Distribution.values()],
-    )
-    parser.addoption(
-        "--tools-tree-release",
-        metavar="RELEASE",
-        help="Use the given tools tree release instead of the default one",
-    )
-    parser.addoption(
         "--debug-shell",
         help="Pass --debug-shell when running mkosi",
         action="store_true",
@@ -60,8 +47,6 @@ def config(request: Any) -> ImageConfig:
     return ImageConfig(
         distribution=distribution,
         release=release,
-        tools_tree_distribution=cast(Distribution, request.config.getoption("--tools-tree-distribution")),
-        tools_tree_release=request.config.getoption("--tools-tree-release"),
         debug_shell=request.config.getoption("--debug-shell"),
     )
 

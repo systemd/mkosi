@@ -85,7 +85,15 @@ from mkosi.manifest import Manifest
 from mkosi.mounts import finalize_crypto_mounts, finalize_source_mounts, mount_overlay
 from mkosi.pager import page
 from mkosi.partition import Partition, finalize_root, finalize_roothash
-from mkosi.qemu import KernelType, copy_ephemeral, run_qemu, run_ssh, start_journal_remote
+from mkosi.qemu import (
+    KernelType,
+    copy_ephemeral,
+    finalize_credentials,
+    finalize_kernel_command_line_extra,
+    run_qemu,
+    run_ssh,
+    start_journal_remote,
+)
 from mkosi.run import (
     apivfs_options,
     chroot_cmd,
@@ -1193,6 +1201,7 @@ def finalize_default_initrd(
     config: Config,
     *,
     resources: Path,
+    tools: bool = True,
     output_dir: Optional[Path] = None,
 ) -> Config:
     if config.root_password:
@@ -1249,7 +1258,7 @@ def finalize_default_initrd(
         *(["--hostname", config.hostname] if config.hostname else []),
         *(["--root-password", rootpwopt] if rootpwopt else []),
         *([f"--environment={k}='{v}'" for k, v in config.environment.items()]),
-        *(["--tools-tree", str(config.tools_tree)] if config.tools_tree else []),
+        *(["--tools-tree", str(config.tools_tree)] if config.tools_tree and tools else []),
         *([f"--extra-search-path={p}" for p in config.extra_search_paths]),
         *(["--proxy-url", config.proxy_url] if config.proxy_url else []),
         *([f"--proxy-exclude={host}" for host in config.proxy_exclude]),
@@ -2781,7 +2790,11 @@ def have_cache(config: Config) -> bool:
                     ["diff", "--unified", manifest, "-"],
                     input=new,
                     check=False,
-                    sandbox=config.sandbox(binary="diff", options=["--bind", manifest, manifest]),
+                    sandbox=config.sandbox(
+                        binary="diff",
+                        tools=False,
+                        options=["--bind", manifest, manifest],
+                    ),
                 )
 
             return False
@@ -3549,7 +3562,7 @@ def run_shell(args: Args, config: Config) -> None:
     name = config.machine_or_name().replace("_", "-")
     cmdline += ["--machine", name]
 
-    for k, v in config.credentials.items():
+    for k, v in finalize_credentials(config).items():
         cmdline += [f"--set-credential={k}:{v}"]
 
     with contextlib.ExitStack() as stack:
@@ -3671,7 +3684,10 @@ def run_shell(args: Args, config: Config) -> None:
 
             # When invoked by the kernel, all unknown arguments are passed as environment variables
             # to pid1. Let's mimic the same behavior when we invoke nspawn as a container.
-            for arg in itertools.chain(config.kernel_command_line, config.kernel_command_line_extra):
+            for arg in itertools.chain(
+                config.kernel_command_line,
+                finalize_kernel_command_line_extra(config),
+            ):
                 name, sep, value = arg.partition("=")
 
                 # If there's a '.' in the argument name, it's not considered an environment
@@ -4054,7 +4070,7 @@ def run_clean(args: Args, config: Config, *, resources: Path) -> None:
         metadata = [metadata_cache(config)] if not config.image else []
 
         initrd = (
-            cache_tree_paths(finalize_default_initrd(args, config, resources=resources))
+            cache_tree_paths(finalize_default_initrd(args, config, tools=False, resources=resources))
             if config.distribution != Distribution.custom
             else []
         )
@@ -4300,6 +4316,19 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
     else:
         tools = None
 
+    for i, config in enumerate(images):
+        images[i] = config = dataclasses.replace(
+            config,
+            tools_tree=(
+                tools.output_dir_or_cwd() / tools.output
+                if tools and config.tools_tree == Path("default")
+                else config.tools_tree
+            ),
+        )
+
+    # The images array has been modified so we need to reevaluate last again.
+    last = images[-1]
+
     if args.verb == Verb.clean:
         if tools:
             run_clean(args, tools, resources=resources)
@@ -4397,15 +4426,6 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
                 fork_and_wait(run_build, args, tools, resources=resources, metadata_dir=Path(metadata_dir))
 
     for i, config in enumerate(images):
-        images[i] = config = dataclasses.replace(
-            config,
-            tools_tree=(
-                tools.output_dir_or_cwd() / tools.output
-                if tools and config.tools_tree == Path("default")
-                else config.tools_tree
-            ),
-        )
-
         with prepend_to_environ_path(config):
             check_tools(config, args.verb)
             images[i] = config = run_configure_scripts(config)
