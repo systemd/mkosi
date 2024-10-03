@@ -11,9 +11,10 @@ from pathlib import Path
 import mkosi.resources
 from mkosi.config import DocFormat, OutputFormat
 from mkosi.documentation import show_docs
-from mkosi.log import log_setup
+from mkosi.log import log_notice, log_setup
 from mkosi.run import find_binary, run, uncaught_exception_handler
-from mkosi.sandbox import __version__
+from mkosi.sandbox import __version__, umask
+from mkosi.tree import copy_tree
 from mkosi.types import PathString
 from mkosi.util import resource_path
 
@@ -88,46 +89,49 @@ def main() -> None:
             show_docs("mkosi-initrd", DocFormat.all(), resources=r)
         return
 
-    cmdline: list[PathString] = [
-        "mkosi",
-        "--force",
-        "--directory", "",
-        "--format", args.format,
-        "--output", args.output,
-        "--output-dir", args.output_dir,
-        "--extra-tree", f"/usr/lib/modules/{args.kernel_version}:/usr/lib/modules/{args.kernel_version}",
-        "--extra-tree=/usr/lib/firmware:/usr/lib/firmware",
-        "--remove-files=/usr/lib/firmware/*-ucode",
-        "--kernel-modules-exclude=.*",
-        "--kernel-modules-include=host",
-        "--build-sources", "",
-        "--include=mkosi-initrd",
-    ]  # fmt: skip
-
-    if args.debug:
-        cmdline += ["--debug"]
-    if args.debug_shell:
-        cmdline += ["--debug-shell"]
-
-    if os.getuid() == 0:
-        cmdline += [
-            "--workspace-dir=/var/tmp",
-            "--package-cache-dir=/var",
-            "--cache-only=metadata",
-        ]
-        if args.format != OutputFormat.directory.value:
-            cmdline += ["--output-mode=600"]
-
-    for d in (
-        "/usr/lib/mkosi-initrd",
-        "/usr/local/lib/mkosi-initrd",
-        "/run/mkosi-initrd",
-        "/etc/mkosi-initrd",
+    with (
+        tempfile.TemporaryDirectory() as staging_dir,
+        tempfile.TemporaryDirectory() as sandbox_tree,
     ):
-        if Path(d).exists():
-            cmdline += ["--include", d]
+        cmdline: list[PathString] = [
+            "mkosi",
+            "--force",
+            "--directory", "",
+            "--format", args.format,
+            "--output", args.output,
+            "--output-dir", staging_dir,
+            "--extra-tree", f"/usr/lib/modules/{args.kernel_version}:/usr/lib/modules/{args.kernel_version}",
+            "--extra-tree=/usr/lib/firmware:/usr/lib/firmware",
+            "--remove-files=/usr/lib/firmware/*-ucode",
+            "--kernel-modules-exclude=.*",
+            "--kernel-modules-include=host",
+            "--build-sources", "",
+            "--include=mkosi-initrd",
+        ]  # fmt: skip
 
-    with tempfile.TemporaryDirectory() as d:
+        if args.debug:
+            cmdline += ["--debug"]
+        if args.debug_shell:
+            cmdline += ["--debug-shell"]
+
+        if os.getuid() == 0:
+            cmdline += [
+                "--workspace-dir=/var/tmp",
+                "--package-cache-dir=/var",
+                "--cache-only=metadata",
+            ]
+            if args.format != OutputFormat.directory.value:
+                cmdline += ["--output-mode=600"]
+
+        for d in (
+            "/usr/lib/mkosi-initrd",
+            "/usr/local/lib/mkosi-initrd",
+            "/run/mkosi-initrd",
+            "/etc/mkosi-initrd",
+        ):
+            if Path(d).exists():
+                cmdline += ["--include", d]
+
         # Make sure we don't use any of mkosi's default repositories.
         for p in (
             "yum.repos.d/mkosi.repo",
@@ -135,8 +139,8 @@ def main() -> None:
             "zypp/repos.d/mkosi.repo",
             "pacman.conf",
         ):
-            (Path(d) / "etc" / p).parent.mkdir(parents=True, exist_ok=True)
-            (Path(d) / "etc" / p).touch()
+            (Path(sandbox_tree) / "etc" / p).parent.mkdir(parents=True, exist_ok=True)
+            (Path(sandbox_tree) / "etc" / p).touch()
 
         # Copy in the host's package manager configuration.
         for p in (
@@ -150,18 +154,18 @@ def main() -> None:
             if not (Path("/etc") / p).exists():
                 continue
 
-            (Path(d) / "etc" / p).parent.mkdir(parents=True, exist_ok=True)
+            (Path(sandbox_tree) / "etc" / p).parent.mkdir(parents=True, exist_ok=True)
             if (Path("/etc") / p).resolve().is_file():
-                shutil.copy2(Path("/etc") / p, Path(d) / "etc" / p)
+                shutil.copy2(Path("/etc") / p, Path(sandbox_tree) / "etc" / p)
             else:
                 shutil.copytree(
                     Path("/etc") / p,
-                    Path(d) / "etc" / p,
+                    Path(sandbox_tree) / "etc" / p,
                     ignore=shutil.ignore_patterns("gnupg"),
                     dirs_exist_ok=True,
                 )
 
-        cmdline += ["--sandbox-tree", d]
+        cmdline += ["--sandbox-tree", sandbox_tree]
 
         # Prefer dnf as dnf5 has not yet officially replaced it and there's a much bigger chance that there
         # will be a populated dnf cache directory.
@@ -170,6 +174,19 @@ def main() -> None:
             stdin=sys.stdin,
             stdout=sys.stdout,
             env={"MKOSI_DNF": dnf.name} if (dnf := find_binary("dnf", "dnf5")) else {},
+        )
+
+        if args.output_dir:
+            with umask(~0o700):
+                Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+        else:
+            args.output_dir = Path.cwd()
+
+        log_notice(f"Copying {staging_dir}/{args.output} to {args.output_dir}/{args.output}")
+        # mkosi symlinks the expected output image, so dereference it
+        copy_tree(
+            Path(f"{staging_dir}/{args.output}").resolve(),
+            Path(f"{args.output_dir}/{args.output}"),
         )
 
 
