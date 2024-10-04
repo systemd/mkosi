@@ -1,12 +1,14 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 import argparse
+import contextlib
 import os
 import platform
 import shutil
 import sys
 import tempfile
 from pathlib import Path
+from typing import cast
 
 import mkosi.resources
 from mkosi.config import DocFormat, OutputFormat
@@ -177,7 +179,7 @@ def main() -> None:
         )
 
         if args.output_dir:
-            with umask(~0o700):
+            with umask(~0o700) if os.getuid() == 0 else cast(umask, contextlib.nullcontext()):
                 Path(args.output_dir).mkdir(parents=True, exist_ok=True)
         else:
             args.output_dir = Path.cwd()
