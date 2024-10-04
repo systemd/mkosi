@@ -837,55 +837,6 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     the post output scripts for this image. See the **Scripts** section for more
     information.
 
-`BuildSources=`, `--build-sources=`
-:   Takes a comma separated list of colon separated path pairs. The first
-    path of each pair refers to a directory to mount from the host. The
-    second path of each pair refers to the directory where the source
-    directory should be mounted when running scripts. Every target path is
-    prefixed with `/work/src` and all build sources are sorted
-    lexicographically by their target before mounting, so that top level
-    paths are mounted first. If not configured explicitly, the current
-    working directory is mounted to `/work/src`.
-
-`BuildSourcesEphemeral=`, `--build-sources-ephemeral=`
-:   Takes a boolean. Disabled by default. Configures whether changes to
-    source directories (The working directory and configured using
-    `BuildSources=`) are persisted. If enabled, all source directories
-    will be reset to their original state every time after running all
-    scripts of a specific type (except sync scripts).
-
-`Environment=`, `--environment=`
-:   Adds variables to the environment that package managers and the
-    prepare/build/postinstall/finalize scripts are executed with. Takes
-    a space-separated list of variable assignments or just variable
-    names. In the latter case, the values of those variables will be
-    passed through from the environment in which `mkosi` was invoked.
-    This option may be specified more than once, in which case all
-    listed variables will be set. If the same variable is set twice, the
-    later setting overrides the earlier one.
-
-`EnvironmentFiles=`, `--env-file=`
-:   Takes a comma-separated list of paths to files that contain environment
-    variable definitions to be added to the scripting environment. Uses
-    `mkosi.env` if it is found in the local directory. The variables are
-    first read from `mkosi.env` if it exists, then from the given list of
-    files and then from the `Environment=` settings.
-
-`WithTests=`, `--without-tests`, `-T`
-:   If set to false (or when the command-line option is used), the
-    `$WITH_TESTS` environment variable is set to `0` when the
-    `mkosi.build` scripts are invoked. This is supposed to be used by the
-    build scripts to bypass any unit or integration tests that are
-    normally run during the source build process. Note that this option
-    has no effect unless the `mkosi.build` build scripts honor it.
-
-`WithNetwork=`, `--with-network=`
-:   When true, enables network connectivity while the build scripts
-    `mkosi.build` are invoked. By default, the build scripts run with
-    networking turned off. The `$WITH_NETWORK` environment variable is
-    passed to the `mkosi.build` build scripts indicating whether the
-    build is done with or without network.
-
 `Bootable=`, `--bootable=`
 :   Takes a boolean or `auto`. Enables or disables generation of a
     bootable image. If enabled, mkosi will install an EFI bootloader, and
@@ -1449,6 +1400,55 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     `mkosi -O my-custom-output-dir --history=yes -f` followed by
     `mkosi qemu`, it will boot the image built in the previous step as
     expected.
+
+`BuildSources=`, `--build-sources=`
+:   Takes a comma separated list of colon separated path pairs. The first
+    path of each pair refers to a directory to mount from the host. The
+    second path of each pair refers to the directory where the source
+    directory should be mounted when running scripts. Every target path is
+    prefixed with `/work/src` and all build sources are sorted
+    lexicographically by their target before mounting, so that top level
+    paths are mounted first. If not configured explicitly, the current
+    working directory is mounted to `/work/src`.
+
+`BuildSourcesEphemeral=`, `--build-sources-ephemeral=`
+:   Takes a boolean. Disabled by default. Configures whether changes to
+    source directories (The working directory and configured using
+    `BuildSources=`) are persisted. If enabled, all source directories
+    will be reset to their original state every time after running all
+    scripts of a specific type (except sync scripts).
+
+`Environment=`, `--environment=`
+:   Adds variables to the environment that package managers and the
+    prepare/build/postinstall/finalize scripts are executed with. Takes
+    a space-separated list of variable assignments or just variable
+    names. In the latter case, the values of those variables will be
+    passed through from the environment in which `mkosi` was invoked.
+    This option may be specified more than once, in which case all
+    listed variables will be set. If the same variable is set twice, the
+    later setting overrides the earlier one.
+
+`EnvironmentFiles=`, `--env-file=`
+:   Takes a comma-separated list of paths to files that contain environment
+    variable definitions to be added to the scripting environment. Uses
+    `mkosi.env` if it is found in the local directory. The variables are
+    first read from `mkosi.env` if it exists, then from the given list of
+    files and then from the `Environment=` settings.
+
+`WithTests=`, `--without-tests`, `-T`
+:   If set to false (or when the command-line option is used), the
+    `$WITH_TESTS` environment variable is set to `0` when the
+    `mkosi.build` scripts are invoked. This is supposed to be used by the
+    build scripts to bypass any unit or integration tests that are
+    normally run during the source build process. Note that this option
+    has no effect unless the `mkosi.build` build scripts honor it.
+
+`WithNetwork=`, `--with-network=`
+:   When true, enables network connectivity while the build scripts
+    `mkosi.build` are invoked. By default, the build scripts run with
+    networking turned off. The `$WITH_NETWORK` environment variable is
+    passed to the `mkosi.build` build scripts indicating whether the
+    build is done with or without network.
 
 ### [Host] Section
 
