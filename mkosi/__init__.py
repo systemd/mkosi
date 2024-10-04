@@ -4302,7 +4302,15 @@ def run_build(
             if not Path(d).exists():
                 continue
 
-            if config.output_dir_or_cwd().is_relative_to(d):
+            if any(
+                p and p.is_relative_to(d)
+                for p in (
+                    config.workspace_dir_or_default(),
+                    config.package_cache_dir_or_default(),
+                    config.cache_dir,
+                    config.output_dir_or_cwd(),
+                )
+            ):
                 continue
 
             attrs = MOUNT_ATTR_RDONLY
