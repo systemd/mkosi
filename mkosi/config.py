@@ -1624,6 +1624,9 @@ class Config:
     verity_key_source: KeySource
     verity_certificate: Optional[Path]
     sign_expected_pcr: ConfigFeature
+    sign_expected_pcr_key: Optional[Path]
+    sign_expected_pcr_key_source: KeySource
+    sign_expected_pcr_certificate: Optional[Path]
     passphrase: Optional[Path]
     checksum: bool
     sign: bool
@@ -2779,6 +2782,33 @@ SETTINGS = (
         parse=config_parse_feature,
         help="Measure the components of the unified kernel image (UKI) and "
         "embed the PCR signature into the UKI",
+    ),
+    ConfigSetting(
+        dest="sign_expected_pcr_key",
+        metavar="KEY",
+        section="Validation",
+        parse=config_parse_key,
+        paths=("mkosi.key",),
+        help="Private key for signing expected PCR signature",
+        scope=SettingScope.universal,
+    ),
+    ConfigSetting(
+        dest="sign_expected_pcr_key_source",
+        section="Validation",
+        metavar="SOURCE[:ENGINE]",
+        parse=config_parse_key_source,
+        default=KeySource(type=KeySourceType.file),
+        help="The source to use to retrieve the expected PCR signing key",
+        scope=SettingScope.universal,
+    ),
+    ConfigSetting(
+        dest="sign_expected_pcr_certificate",
+        metavar="PATH",
+        section="Validation",
+        parse=config_make_path_parser(),
+        paths=("mkosi.crt",),
+        help="Certificate for signing expected PCR signature in X509 format",
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="passphrase",
@@ -4447,6 +4477,9 @@ def summary(config: Config) -> str:
           Verity Signing Key Source: {config.verity_key_source}
                  Verity Certificate: {none_to_none(config.verity_certificate)}
                  Sign Expected PCRs: {config.sign_expected_pcr}
+          Expected PCRs Signing Key: {none_to_none(config.sign_expected_pcr_key)}
+           Expected PCRs Key Source: {config.sign_expected_pcr_key_source}
+          Expected PCRs Certificate: {none_to_none(config.sign_expected_pcr_certificate)}
                          Passphrase: {none_to_none(config.passphrase)}
                            Checksum: {yes_no(config.checksum)}
                                Sign: {yes_no(config.sign)}

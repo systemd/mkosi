@@ -1145,6 +1145,18 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     `systemd-measure` binary is in `PATH`.  Depends on `SecureBoot=`
     being enabled and key from `SecureBootKey=`.
 
+`SignExpectedPcrKey=`, `--sign-expected-pcr-key=`
+:   Path to the PEM file containing the secret key for signing the expected PCR signatures.
+    When `SignExpectedPcrKeySource=` is specified, the input type depends on
+    the source.
+
+`SignExpectedPcrKeySource=`, `--sign-expected-key-source=`
+:   Source of `VerityKey=`, to support OpenSSL engines. E.g.:
+    `--verity-key-source=engine:pkcs11`
+
+`SignExpectedPcrCertificate=`, `--sign-expected-pcr-certificate=`
+:   Path to the X.509 file containing the certificate for signing the expected PCR signatures.
+
 `Passphrase=`, `--passphrase`
 :   Specify the path to a file containing the passphrase to use for LUKS
     encryption. It should contain the passphrase literally, and not end in
@@ -2608,6 +2620,9 @@ and cannot be configured in subimages:
 - `VerityCertificate=`
 - `VerityKey=`
 - `VerityKeySource=`
+- `SignExpectedPcrCertificate=`
+- `SignExpectedPcrKey=`
+- `SignExpectedPcrSource=`
 - `VolatilePackageDirectories=`
 - `WithNetwork=`
 - `WithTests`

@@ -1477,6 +1477,8 @@ def want_signed_pcrs(config: Config) -> bool:
     return config.sign_expected_pcr == ConfigFeature.enabled or (
         config.sign_expected_pcr == ConfigFeature.auto
         and config.find_binary("systemd-measure", "/usr/lib/systemd/systemd-measure") is not None
+        and bool(config.sign_expected_pcr_key)
+        and bool(config.sign_expected_pcr_certificate)
     )
 
 
@@ -1593,24 +1595,28 @@ def build_uki(
 
         arguments += ["--sign-kernel"]
 
-        if want_signed_pcrs(context.config):
+    if want_signed_pcrs(context.config):
+        assert context.config.sign_expected_pcr_key
+        assert context.config.sign_expected_pcr_certificate
+        arguments += [
+            "--pcr-private-key", context.config.sign_expected_pcr_key,
+            # SHA1 might be disabled in OpenSSL depending on the distro so we opt to not sign
+            # for SHA1 to avoid having to manage a bunch of configuration to re-enable SHA1.
+            "--pcr-banks", "sha256",
+        ]  # fmt: skip
+        if context.config.sign_expected_pcr_key.exists():
+            options += ["--bind", context.config.sign_expected_pcr_key, context.config.sign_expected_pcr_key]
+        if context.config.sign_expected_pcr_key_source.type == KeySourceType.engine:
             arguments += [
-                "--pcr-private-key", context.config.secure_boot_key,
-                # SHA1 might be disabled in OpenSSL depending on the distro so we opt to not sign
-                # for SHA1 to avoid having to manage a bunch of configuration to re-enable SHA1.
-                "--pcr-banks", "sha256",
+                "--signing-engine", context.config.sign_expected_pcr_key_source.source,
+                "--pcr-public-key", context.config.sign_expected_pcr_certificate,
             ]  # fmt: skip
-            if context.config.secure_boot_key.exists():
-                options += ["--bind", context.config.secure_boot_key, context.config.secure_boot_key]
-            if context.config.secure_boot_key_source.type == KeySourceType.engine:
-                arguments += [
-                    "--signing-engine", context.config.secure_boot_key_source.source,
-                    "--pcr-public-key", context.config.secure_boot_certificate,
-                ]  # fmt: skip
-                options += [
-                    "--ro-bind", context.config.secure_boot_certificate, context.config.secure_boot_certificate,  # noqa
-                    "--bind-try", "/run/pcscd", "/run/pcscd",
-                ]  # fmt: skip
+            options += [
+                "--ro-bind",
+                context.config.sign_expected_pcr_certificate,
+                context.config.sign_expected_pcr_certificate,
+                "--bind-try", "/run/pcscd", "/run/pcscd",
+            ]  # fmt: skip
 
     if microcodes:
         # new .ucode section support?
@@ -2376,14 +2382,29 @@ def check_inputs(config: Config) -> None:
     if config.secure_boot and not config.secure_boot_key:
         die(
             "SecureBoot= is enabled but no secure boot key is configured",
-            hint="Run mkosi genkey to generate a secure boot key/certificate pair",
+            hint="Run mkosi genkey to generate a key/certificate pair",
         )
 
     if config.secure_boot and not config.secure_boot_certificate:
         die(
-            "SecureBoot= is enabled but no secure boot key is configured",
-            hint="Run mkosi genkey to generate a secure boot key/certificate pair",
+            "SecureBoot= is enabled but no secure boot certificate is configured",
+            hint="Run mkosi genkey to generate a key/certificate pair",
         )
+
+    if config.sign_expected_pcr == ConfigFeature.enabled and not config.sign_expected_pcr_key:
+        die(
+            "SignExpectedPcr= is enabled but no private key is configured",
+            hint="Run mkosi genkey to generate a key/certificate pair",
+        )
+
+    if config.sign_expected_pcr == ConfigFeature.enabled and not config.sign_expected_pcr_certificate:
+        die(
+            "SignExpectedPcr= is enabled but no certificate is configured",
+            hint="Run mkosi genkey to generate a key/certificate pair",
+        )
+
+    if config.secure_boot_key_source != config.sign_expected_pcr_key_source:
+        die("Secure boot key source and expected PCR signatures key source have to be the same")
 
 
 def check_tool(config: Config, *tools: PathString, reason: str, hint: Optional[str] = None) -> Path:
