@@ -102,7 +102,7 @@ class Installer(DistributionInstaller):
 
             if not gpgkeys and not context.config.repository_key_fetch:
                 die(
-                    "OpenSUSE GPG keys not found in /usr/share/distribution-gpg-keys",
+                    "openSUSE GPG keys not found in /usr/share/distribution-gpg-keys",
                     hint="Make sure the distribution-gpg-keys package is installed",
                 )
 
@@ -241,7 +241,7 @@ class Installer(DistributionInstaller):
         }.get(arch)  # fmt: skip
 
         if not a:
-            die(f"Architecture {a} is not supported by OpenSUSE")
+            die(f"Architecture {a} is not supported by openSUSE")
 
         return a
 
