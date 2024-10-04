@@ -1590,6 +1590,7 @@ class Config:
     shim_bootloader: ShimBootloader
     unified_kernel_images: ConfigFeature
     unified_kernel_image_format: str
+    unified_kernel_image_profiles: list[Path]
     initrds: list[Path]
     initrd_packages: list[str]
     initrd_volatile_packages: list[str]
@@ -2548,6 +2549,15 @@ SETTINGS = (
         # should be appended to the filename if they are found.
         # default=
         help="Specify the format used for the UKI filename",
+    ),
+    ConfigSetting(
+        dest="unified_kernel_image_profiles",
+        long="--uki-profile",
+        metavar="PATH",
+        section="Content",
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        recursive_paths=("mkosi.uki-profiles/",),
+        help="Configuration files to generate UKI profiles",
     ),
     ConfigSetting(
         dest="initrds",
@@ -4395,6 +4405,7 @@ def summary(config: Config) -> str:
                     Shim Bootloader: {config.shim_bootloader}
               Unified Kernel Images: {config.unified_kernel_images}
         Unified Kernel Image Format: {config.unified_kernel_image_format}
+      Unified Kernel Image Profiles: {line_join_list(config.unified_kernel_image_profiles)}
                             Initrds: {line_join_list(config.initrds)}
                     Initrd Packages: {line_join_list(config.initrd_packages)}
            Initrd Volatile Packages: {line_join_list(config.initrd_volatile_packages)}
