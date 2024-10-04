@@ -262,10 +262,6 @@ def start_swtpm(config: Config) -> Iterator[Path]:
             sandbox=config.sandbox(
                 binary="swtpm_setup",
                 options=["--bind", state, state],
-                setup=scope_cmd(
-                    name=f"mkosi-swtpm-{config.machine_or_name()}",
-                    description=f"swtpm for {config.machine_or_name()}",
-                ),
             ),
             stdout=None if ARG_DEBUG.get() else subprocess.DEVNULL,
         )  # fmt: skip
@@ -284,7 +280,14 @@ def start_swtpm(config: Config) -> Iterator[Path]:
             with spawn(
                 cmdline,
                 pass_fds=(sock.fileno(),),
-                sandbox=config.sandbox(binary="swtpm", options=["--bind", state, state]),
+                sandbox=config.sandbox(
+                    binary="swtpm",
+                    options=["--bind", state, state],
+                    setup=scope_cmd(
+                        name=f"mkosi-swtpm-{config.machine_or_name()}",
+                        description=f"swtpm for {config.machine_or_name()}",
+                    ),
+                ),
             ) as proc:
                 yield path
                 proc.terminate()
