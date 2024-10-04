@@ -193,7 +193,7 @@ def install_distribution(context: Context) -> None:
         if not context.config.packages:
             return
 
-        with complete_step(f"Installing extra packages for {str(context.config.distribution).capitalize()}"):
+        with complete_step(f"Installing extra packages for {context.config.distribution.pretty_name()}"):
             context.config.distribution.install_packages(context, context.config.packages)
     else:
         if context.config.overlay or context.config.output_format in (
@@ -207,7 +207,7 @@ def install_distribution(context: Context) -> None:
                 )
             return
 
-        with complete_step(f"Installing {str(context.config.distribution).capitalize()}"):
+        with complete_step(f"Installing {context.config.distribution.pretty_name()}"):
             context.config.distribution.install(context)
 
             if context.config.machine_id:
