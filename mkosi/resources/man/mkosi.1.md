@@ -1767,7 +1767,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 ### [Match] Section.
 
-`Profile=`
+`Profiles=`
 :   Matches against the configured profiles.
 
 `Distribution=`
@@ -1854,7 +1854,7 @@ config file is read:
 
 | Matcher                  | Globs | Rich Comparisons | Default                               |
 |--------------------------|-------|------------------|---------------------------------------|
-| `Profile=`               | no    | no               | match fails                           |
+| `Profiles=`              | no    | no               | match fails                           |
 | `Distribution=`          | no    | no               | match host distribution               |
 | `Release=`               | no    | no               | match host release                    |
 | `Architecture=`          | no    | no               | match host architecture               |
