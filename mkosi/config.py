@@ -1577,12 +1577,6 @@ class Config:
     finalize_scripts: list[Path]
     postoutput_scripts: list[Path]
     clean_scripts: list[Path]
-    build_sources: list[ConfigTree]
-    build_sources_ephemeral: bool
-    environment: dict[str, str]
-    environment_files: list[Path]
-    with_tests: bool
-    with_network: bool
 
     bootable: ConfigFeature
     bootloader: Bootloader
@@ -1653,6 +1647,12 @@ class Config:
     use_subvolumes: ConfigFeature
     repart_offline: bool
     history: bool
+    build_sources: list[ConfigTree]
+    build_sources_ephemeral: bool
+    environment: dict[str, str]
+    environment_files: list[Path]
+    with_tests: bool
+    with_network: bool
 
     proxy_url: Optional[str]
     proxy_exclude: list[str]
@@ -2441,63 +2441,6 @@ SETTINGS = (
         help="Output postprocessing script to run outside image",
     ),
     ConfigSetting(
-        dest="build_sources",
-        metavar="PATH",
-        section="Content",
-        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(absolute=False, required=True)),
-        match=config_match_build_sources,
-        default_factory=lambda ns: [ConfigTree(ns.directory, None)] if ns.directory else [],
-        help="Path for sources to build",
-        scope=SettingScope.universal,
-    ),
-    ConfigSetting(
-        dest="build_sources_ephemeral",
-        metavar="BOOL",
-        section="Content",
-        parse=config_parse_boolean,
-        help="Make build sources ephemeral when running scripts",
-        scope=SettingScope.universal,
-    ),
-    ConfigSetting(
-        dest="environment",
-        short="-E",
-        metavar="NAME[=VALUE]",
-        section="Content",
-        parse=config_make_dict_parser(delimiter=" ", parse=parse_environment, unescape=True),
-        match=config_match_key_value,
-        help="Set an environment variable when running scripts",
-    ),
-    ConfigSetting(
-        dest="environment_files",
-        long="--env-file",
-        metavar="PATH",
-        section="Content",
-        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
-        paths=("mkosi.env",),
-        help="Environment files to set when running scripts",
-    ),
-    ConfigSetting(
-        dest="with_tests",
-        short="-T",
-        long="--without-tests",
-        nargs="?",
-        const="no",
-        section="Content",
-        parse=config_parse_boolean,
-        default=True,
-        help="Do not run tests as part of build scripts, if supported",
-        scope=SettingScope.universal,
-    ),
-    ConfigSetting(
-        dest="with_network",
-        metavar="BOOL",
-        nargs="?",
-        section="Content",
-        parse=config_parse_boolean,
-        help="Run build and postinst scripts with network access (instead of private network)",
-        scope=SettingScope.universal,
-    ),
-    ConfigSetting(
         dest="bootable",
         metavar="FEATURE",
         nargs="?",
@@ -3042,6 +2985,63 @@ SETTINGS = (
         section="Build",
         parse=config_parse_boolean,
         help="Whether mkosi can store information about previous builds",
+    ),
+    ConfigSetting(
+        dest="build_sources",
+        metavar="PATH",
+        section="Build",
+        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(absolute=False, required=True)),
+        match=config_match_build_sources,
+        default_factory=lambda ns: [ConfigTree(ns.directory, None)] if ns.directory else [],
+        help="Path for sources to build",
+        scope=SettingScope.universal,
+    ),
+    ConfigSetting(
+        dest="build_sources_ephemeral",
+        metavar="BOOL",
+        section="Build",
+        parse=config_parse_boolean,
+        help="Make build sources ephemeral when running scripts",
+        scope=SettingScope.universal,
+    ),
+    ConfigSetting(
+        dest="environment",
+        short="-E",
+        metavar="NAME[=VALUE]",
+        section="Build",
+        parse=config_make_dict_parser(delimiter=" ", parse=parse_environment, unescape=True),
+        match=config_match_key_value,
+        help="Set an environment variable when running scripts",
+    ),
+    ConfigSetting(
+        dest="environment_files",
+        long="--env-file",
+        metavar="PATH",
+        section="Build",
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        paths=("mkosi.env",),
+        help="Environment files to set when running scripts",
+    ),
+    ConfigSetting(
+        dest="with_tests",
+        short="-T",
+        long="--without-tests",
+        nargs="?",
+        const="no",
+        section="Build",
+        parse=config_parse_boolean,
+        default=True,
+        help="Do not run tests as part of build scripts, if supported",
+        scope=SettingScope.universal,
+    ),
+    ConfigSetting(
+        dest="with_network",
+        metavar="BOOL",
+        nargs="?",
+        section="Build",
+        parse=config_parse_boolean,
+        help="Run build and postinst scripts with network access (instead of private network)",
+        scope=SettingScope.universal,
     ),
     # Host section
     ConfigSetting(
@@ -4392,12 +4392,6 @@ def summary(config: Config) -> str:
                 Postinstall Scripts: {line_join_list(config.postinst_scripts)}
                    Finalize Scripts: {line_join_list(config.finalize_scripts)}
                  Postoutput Scripts: {line_join_list(config.postoutput_scripts)}
-                      Build Sources: {line_join_list(config.build_sources)}
-            Build Sources Ephemeral: {yes_no(config.build_sources_ephemeral)}
-                 Script Environment: {line_join_list(env)}
-                  Environment Files: {line_join_list(config.environment_files)}
-         Run Tests in Build Scripts: {yes_no(config.with_tests)}
-               Scripts With Network: {yes_no(config.with_network)}
 
                            Bootable: {config.bootable}
                          Bootloader: {config.bootloader}
@@ -4481,6 +4475,12 @@ def summary(config: Config) -> str:
                      Use Subvolumes: {config.use_subvolumes}
                      Repart Offline: {yes_no(config.repart_offline)}
                        Save History: {yes_no(config.history)}
+                      Build Sources: {line_join_list(config.build_sources)}
+            Build Sources Ephemeral: {yes_no(config.build_sources_ephemeral)}
+                 Script Environment: {line_join_list(env)}
+                  Environment Files: {line_join_list(config.environment_files)}
+         Run Tests in Build Scripts: {yes_no(config.with_tests)}
+               Scripts With Network: {yes_no(config.with_network)}
 
     {bold("HOST CONFIGURATION")}:
                           Proxy URL: {none_to_none(config.proxy_url)}
