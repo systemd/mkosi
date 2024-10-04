@@ -401,7 +401,7 @@ def test_profiles(tmp_path: Path) -> None:
     (d / "mkosi.profiles/abc.conf").write_text(
         """\
         [Match]
-        Profile=abc
+        Profiles=abc
 
         [Distribution]
         Distribution=opensuse
