@@ -150,7 +150,7 @@ def prepare_grub_config(context: Context) -> Optional[Path]:
 
     if want_grub_efi(context):
         # Signed EFI grub shipped by distributions reads its configuration from /EFI/<distribution>/grub.cfg
-        # (except in OpenSUSE) in the ESP so let's put a shim there to redirect to the actual configuration
+        # (except in openSUSE) in the ESP so let's put a shim there to redirect to the actual configuration
         # file.
         if context.config.distribution == Distribution.opensuse:
             earlyconfig = context.root / "efi/EFI/BOOT/grub.cfg"
@@ -246,7 +246,7 @@ def find_signed_grub_image(context: Context) -> Optional[Path]:
     patterns = [
         f"usr/lib/grub/*-signed/grub{arch}.efi.signed",  # Debian/Ubuntu
         f"boot/efi/EFI/*/grub{arch}.efi",  # Fedora/CentOS
-        "usr/share/efi/*/grub.efi",  # OpenSUSE
+        "usr/share/efi/*/grub.efi",  # openSUSE
     ]
 
     for p in flatten(context.root.glob(pattern) for pattern in patterns):
@@ -790,7 +790,7 @@ def install_shim(context: Context) -> None:
         f"usr/lib/shim/shim{arch}.efi.signed.latest",  # Ubuntu
         f"usr/lib/shim/shim{arch}.efi.signed",  # Debian
         f"boot/efi/EFI/*/shim{arch}.efi",  # Fedora/CentOS
-        "usr/share/efi/*/shim.efi",  # OpenSUSE
+        "usr/share/efi/*/shim.efi",  # openSUSE
     ]
 
     unsigned = [
@@ -805,7 +805,7 @@ def install_shim(context: Context) -> None:
         f"usr/lib/shim/mm{arch}.efi.signed",  # Debian
         f"usr/lib/shim/mm{arch}.efi",  # Ubuntu
         f"boot/efi/EFI/*/mm{arch}.efi",  # Fedora/CentOS
-        "usr/share/efi/*/MokManager.efi",  # OpenSUSE
+        "usr/share/efi/*/MokManager.efi",  # openSUSE
     ]
 
     unsigned = [

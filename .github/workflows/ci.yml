@@ -127,10 +127,10 @@ jobs:
           - ubuntu
           # TODO: Add CentOS once they have systemd v254 or newer.
         exclude:
-          # pacman and archlinux-keyring are not packaged in OpenSUSE.
+          # pacman and archlinux-keyring are not packaged in openSUSE.
           - distro: arch
             tools: opensuse
-          # apt, debian-keyring and ubuntu-keyring are not packaged in OpenSUSE.
+          # apt, debian-keyring and ubuntu-keyring are not packaged in openSUSE.
           - distro: debian
             tools: opensuse
           - distro: ubuntu
