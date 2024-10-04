@@ -308,6 +308,12 @@ def test_config() -> None:
             "ShimBootloader": "none",
             "Sign": false,
             "SignExpectedPcr": "disabled",
+            "SignExpectedPcrCertificate": "/my/cert",
+            "SignExpectedPcrKey": "/my/key",
+            "SignExpectedPcrKeySource": {
+                "Source": "",
+                "Type": "file"
+            },
             "SkeletonTrees": [
                 {
                     "Source": "/foo/bar",
@@ -505,6 +511,9 @@ def test_config() -> None:
         shim_bootloader=ShimBootloader.none,
         sign=False,
         sign_expected_pcr=ConfigFeature.disabled,
+        sign_expected_pcr_key=Path("/my/key"),
+        sign_expected_pcr_key_source=KeySource(type=KeySourceType.file),
+        sign_expected_pcr_certificate=Path("/my/cert"),
         skeleton_trees=[ConfigTree(Path("/foo/bar"), Path("/")), ConfigTree(Path("/bar/baz"), Path("/qux"))],
         source_date_epoch=12345,
         split_artifacts=True,
