@@ -33,7 +33,7 @@ from typing import Any, Callable, Optional, TypeVar, Union, cast
 from mkosi.distributions import Distribution, detect_distribution
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, Style, die
 from mkosi.pager import page
-from mkosi.run import SandboxProtocol, find_binary, nosandbox, run, sandbox_cmd
+from mkosi.run import SandboxProtocol, find_binary, nosandbox, run, sandbox_cmd, workdir
 from mkosi.sandbox import __version__
 from mkosi.types import PathString, SupportsRead
 from mkosi.user import INVOKING_USER
@@ -4732,8 +4732,8 @@ def want_selinux_relabel(
         return None
 
     policy = run(
-        ["sh", "-c", f". {selinux} && echo $SELINUXTYPE"],
-        sandbox=config.sandbox(binary="sh", options=["--ro-bind", selinux, selinux]),
+        ["sh", "-c", f". {workdir(selinux)} && echo $SELINUXTYPE"],
+        sandbox=config.sandbox(binary="sh", options=["--ro-bind", selinux, workdir(selinux)]),
         stdout=subprocess.PIPE,
     ).stdout.strip()
     if not policy:

@@ -8,7 +8,7 @@ from mkosi.context import Context
 from mkosi.installer import PackageManager
 from mkosi.installer.rpm import RpmRepository, rpm_cmd
 from mkosi.log import ARG_DEBUG
-from mkosi.run import run
+from mkosi.run import run, workdir
 from mkosi.types import _FILE, CompletedProcess, PathString
 
 
@@ -217,9 +217,9 @@ class Dnf(PackageManager):
     @classmethod
     def createrepo(cls, context: Context) -> None:
         run(
-            ["createrepo_c", context.repository],
+            ["createrepo_c", workdir(context.repository)],
             sandbox=context.sandbox(
-                binary="createrepo_c", options=["--bind", context.repository, context.repository]
+                binary="createrepo_c", options=["--bind", context.repository, workdir(context.repository)]
             ),
         )
 

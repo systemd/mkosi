@@ -11,7 +11,7 @@ from mkosi.distributions import DistributionInstaller, PackageType
 from mkosi.installer import PackageManager
 from mkosi.installer.apt import Apt, AptRepository
 from mkosi.log import die
-from mkosi.run import run
+from mkosi.run import run, workdir
 from mkosi.sandbox import umask
 
 
@@ -140,12 +140,12 @@ class Installer(DistributionInstaller):
                 "install",
                 [
                     "-oDebug::pkgDPkgPm=1",
-                    f"-oDPkg::Pre-Install-Pkgs::=cat >{f.name}",
+                    f"-oDPkg::Pre-Install-Pkgs::=cat >{workdir(Path(f.name))}",
                     "?essential",
                     "?exact-name(usr-is-merged)",
                     "base-files",
                 ],
-                options=["--bind", f.name, f.name],
+                options=["--bind", f.name, workdir(Path(f.name))],
             )
 
             essential = f.read().strip().splitlines()

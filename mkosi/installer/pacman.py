@@ -9,7 +9,7 @@ from pathlib import Path
 from mkosi.config import Config
 from mkosi.context import Context
 from mkosi.installer import PackageManager
-from mkosi.run import run
+from mkosi.run import run, workdir
 from mkosi.sandbox import umask
 from mkosi.types import _FILE, CompletedProcess, PathString
 from mkosi.versioncomp import GenericVersion
@@ -181,11 +181,15 @@ class Pacman(PackageManager):
             [
                 "repo-add",
                 "--quiet",
-                context.repository / "mkosi.db.tar",
-                *sorted(context.repository.glob("*.pkg.tar*"), key=lambda p: GenericVersion(Path(p).name)),
+                workdir(context.repository / "mkosi.db.tar"),
+                *sorted(
+                    (workdir(p) for p in context.repository.glob("*.pkg.tar*")),
+                    key=lambda p: GenericVersion(Path(p).name),
+                ),
             ],
             sandbox=context.sandbox(
-                binary="repo-add", options=["--bind", context.repository, context.repository]
+                binary="repo-add",
+                options=["--bind", context.repository, workdir(context.repository)],
             ),
         )
 

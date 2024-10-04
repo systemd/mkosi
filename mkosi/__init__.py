@@ -1511,15 +1511,15 @@ def run_ukify(
         "build",
         *arguments,
         "--efi-arch", arch,
-        "--stub", stub,
+        "--stub", workdir(stub),
         "--output", workdir(output),
-        *(["--cmdline", f"@{context.workspace / 'cmdline'}"] if cmdline else []),
+        *(["--cmdline", f"@{workdir(context.workspace / 'cmdline')}"] if cmdline else []),
     ]  # fmt: skip
 
     opt: list[PathString] = [
-        "--ro-bind", stub, stub,
+        "--ro-bind", stub, workdir(stub),
         "--bind", output.parent, workdir(output.parent),
-        "--ro-bind", context.workspace / "cmdline", context.workspace / "cmdline",
+        "--ro-bind", context.workspace / "cmdline", workdir(context.workspace / "cmdline"),
     ]  # fmt: skip
 
     if sign and context.config.secure_boot:
@@ -1529,27 +1529,27 @@ def run_ukify(
         if context.config.secure_boot_sign_tool != SecureBootSignTool.pesign:
             cmd += [
                 "--signtool", "sbsign",
-                "--secureboot-private-key", context.config.secure_boot_key,
-                "--secureboot-certificate", context.config.secure_boot_certificate,
+                "--secureboot-certificate", workdir(context.config.secure_boot_certificate),
             ]  # fmt: skip
             opt += [
-                "--ro-bind", context.config.secure_boot_certificate, context.config.secure_boot_certificate,
+                "--ro-bind", context.config.secure_boot_certificate, workdir(context.config.secure_boot_certificate), # noqa
             ]  # fmt: skip
             if context.config.secure_boot_key_source.type == KeySourceType.engine:
                 cmd += ["--signing-engine", context.config.secure_boot_key_source.source]
                 opt += ["--bind-try", "/run/pcscd", "/run/pcscd"]
             if context.config.secure_boot_key.exists():
-                opt += ["--ro-bind", context.config.secure_boot_key, context.config.secure_boot_key]
+                cmd += ["--secureboot-private-key", workdir(context.config.secure_boot_key)]
+                opt += ["--ro-bind", context.config.secure_boot_key, workdir(context.config.secure_boot_key)]
+            else:
+                cmd += ["--secureboot-private-key", context.config.secure_boot_key]
         else:
             pesign_prepare(context)
             cmd += [
                 "--signtool", "pesign",
-                "--secureboot-certificate-dir",
-                context.workspace / "pesign",
-                "--secureboot-certificate-name",
-                certificate_common_name(context, context.config.secure_boot_certificate),
+                "--secureboot-certificate-dir", workdir(context.workspace / "pesign"),
+                "--secureboot-certificate-name", certificate_common_name(context, context.config.secure_boot_certificate), # noqa
             ]  # fmt: skip
-            opt += ["--ro-bind", context.workspace / "pesign", context.workspace / "pesign"]
+            opt += ["--ro-bind", context.workspace / "pesign", workdir(context.workspace / "pesign")]
 
     run(
         cmd,
@@ -1576,17 +1576,16 @@ def build_uki(
         die("Could not find ukify")
 
     arguments: list[PathString] = [
-        "--os-release", f"@{context.root / 'usr/lib/os-release'}",
+        "--os-release", f"@{workdir(context.root / 'usr/lib/os-release')}",
         "--uname", kver,
-        "--linux", kimg,
-        *flatten(["--join-profile", os.fspath(profile)] for profile in profiles),
+        "--linux", workdir(kimg),
+        *flatten(["--join-profile", os.fspath(workdir(profile))] for profile in profiles),
     ]  # fmt: skip
 
     options: list[PathString] = [
-        "--ro-bind", context.workspace / "cmdline", context.workspace / "cmdline",
-        "--ro-bind", context.root / "usr/lib/os-release", context.root / "usr/lib/os-release",
-        "--ro-bind", kimg, kimg,
-        *flatten(["--ro-bind", os.fspath(profile), os.fspath(profile)] for profile in profiles),
+        "--ro-bind", context.root / "usr/lib/os-release", workdir(context.root / "usr/lib/os-release"),
+        "--ro-bind", kimg, workdir(kimg),
+        *flatten(["--ro-bind", os.fspath(profile), os.fspath(workdir(profile))] for profile in profiles),
     ]  # fmt: skip
 
     if context.config.secure_boot:
@@ -1598,25 +1597,30 @@ def build_uki(
     if want_signed_pcrs(context.config):
         assert context.config.sign_expected_pcr_key
         assert context.config.sign_expected_pcr_certificate
+
         arguments += [
-            "--pcr-private-key", context.config.sign_expected_pcr_key,
             # SHA1 might be disabled in OpenSSL depending on the distro so we opt to not sign
             # for SHA1 to avoid having to manage a bunch of configuration to re-enable SHA1.
             "--pcr-banks", "sha256",
         ]  # fmt: skip
-        if context.config.sign_expected_pcr_key.exists():
-            options += ["--bind", context.config.sign_expected_pcr_key, context.config.sign_expected_pcr_key]
+
         if context.config.sign_expected_pcr_key_source.type == KeySourceType.engine:
             arguments += [
                 "--signing-engine", context.config.sign_expected_pcr_key_source.source,
-                "--pcr-public-key", context.config.sign_expected_pcr_certificate,
+                "--pcr-public-key", workdir(context.config.sign_expected_pcr_certificate),
             ]  # fmt: skip
             options += [
-                "--ro-bind",
-                context.config.sign_expected_pcr_certificate,
-                context.config.sign_expected_pcr_certificate,
+                "--ro-bind", context.config.sign_expected_pcr_certificate, workdir(context.config.sign_expected_pcr_certificate), # noqa
                 "--bind-try", "/run/pcscd", "/run/pcscd",
             ]  # fmt: skip
+
+        if context.config.sign_expected_pcr_key.exists():
+            arguments += ["--pcr-private-key", workdir(context.config.sign_expected_pcr_key)]
+            options += [
+                "--ro-bind", context.config.sign_expected_pcr_key, workdir(context.config.sign_expected_pcr_key), # noqa
+            ]  # fmt: skip
+        else:
+            arguments += ["--pcr-private-key", context.config.sign_expected_pcr_key]
 
     if microcodes:
         # new .ucode section support?
@@ -1631,14 +1635,14 @@ def build_uki(
             and version >= "256"
         ):
             for microcode in microcodes:
-                arguments += ["--microcode", microcode]
-                options += ["--ro-bind", microcode, microcode]
+                arguments += ["--microcode", workdir(microcode)]
+                options += ["--ro-bind", microcode, workdir(microcode)]
         else:
             initrds = microcodes + initrds
 
     for initrd in initrds:
-        arguments += ["--initrd", initrd]
-        options += ["--ro-bind", initrd, initrd]
+        arguments += ["--initrd", workdir(initrd)]
+        options += ["--ro-bind", initrd, workdir(initrd)]
 
     with complete_step(f"Generating unified kernel image for kernel version {kver}"):
         run_ukify(context, stub, output, cmdline=" ".join(cmdline), arguments=arguments, options=options)
@@ -1980,8 +1984,8 @@ def install_pe_addons(context: Context) -> None:
                 context,
                 stub,
                 output,
-                arguments=["--config", addon],
-                options=["--ro-bind", addon, addon],
+                arguments=["--config", workdir(addon)],
+                options=["--ro-bind", addon, workdir(addon)],
             )
 
 
@@ -2021,8 +2025,8 @@ def build_uki_profiles(context: Context, cmdline: Sequence[str]) -> list[Path]:
                 stub,
                 output,
                 cmdline=f"{' '.join(cmdline)} {profile_cmdline}",
-                arguments=["--config", profile],
-                options=["--ro-bind", profile, profile],
+                arguments=["--config", workdir(profile)],
+                options=["--ro-bind", profile, workdir(profile)],
                 sign=False,
             )
 
@@ -2248,12 +2252,12 @@ def calculate_signature(context: Context) -> None:
     if not home.exists():
         die(f"GPG home {home} not found")
 
-    env = dict(GNUPGHOME=os.fspath(home))
+    env = dict(GNUPGHOME=os.fspath(workdir(home)))
     if sys.stderr.isatty():
         env |= dict(GPG_TTY=os.ttyname(sys.stderr.fileno()))
 
     options: list[PathString] = [
-        "--bind", home, home,
+        "--bind", home, workdir(home),
         "--bind", context.staging, workdir(context.staging),
         "--bind", "/run", "/run",
     ]  # fmt: skip
@@ -2880,13 +2884,13 @@ def have_cache(config: Config) -> bool:
             logging.info("Cache manifest mismatch, not reusing cached images")
             if ARG_DEBUG.get():
                 run(
-                    ["diff", "--unified", manifest, "-"],
+                    ["diff", "--unified", workdir(manifest), "-"],
                     input=new,
                     check=False,
                     sandbox=config.sandbox(
                         binary="diff",
                         tools=False,
-                        options=["--bind", manifest, manifest],
+                        options=["--bind", manifest, workdir(manifest)],
                     ),
                 )
 
@@ -2999,7 +3003,7 @@ def make_image(
             "--ro-bind",
             context.config.verity_certificate,
             workdir(context.config.verity_certificate),
-        ]
+        ]  # noqa
     if skip:
         cmdline += ["--defer-partitions", ",".join(skip)]
     if split:
@@ -3274,7 +3278,7 @@ def make_extension_image(context: Context, output: Path) -> None:
         "--seed", str(context.config.seed) if context.config.seed else "random",
         "--empty=create",
         "--size=auto",
-        "--definitions", r,
+        "--definitions", workdir(r),
         workdir(output),
     ]  # fmt: skip
     options: list[PathString] = [
@@ -3283,23 +3287,29 @@ def make_extension_image(context: Context, output: Path) -> None:
         "--become-root",
         "--bind", output.parent, workdir(output.parent),
         "--ro-bind", context.root, "/buildroot",
-        "--ro-bind", r, r,
+        "--ro-bind", r, workdir(r),
     ]  # fmt: skip
 
     if not context.config.architecture.is_native():
         cmdline += ["--architecture", str(context.config.architecture)]
     if context.config.passphrase:
         cmdline += ["--key-file", context.config.passphrase]
-        options += ["--ro-bind", context.config.passphrase, context.config.passphrase]
+        options += ["--ro-bind", context.config.passphrase, workdir(context.config.passphrase)]
     if context.config.verity_key:
-        cmdline += ["--private-key", context.config.verity_key]
         if context.config.verity_key_source.type != KeySourceType.file:
             cmdline += ["--private-key-source", str(context.config.verity_key_source)]
         if context.config.verity_key.exists():
-            options += ["--ro-bind", context.config.verity_key, context.config.verity_key]
+            cmdline += ["--private-key", workdir(context.config.verity_key)]
+            options += ["--ro-bind", context.config.verity_key, workdir(context.config.verity_key)]
+        else:
+            cmdline += ["--private-key", context.config.verity_key]
     if context.config.verity_certificate:
-        cmdline += ["--certificate", context.config.verity_certificate]
-        options += ["--ro-bind", context.config.verity_certificate, context.config.verity_certificate]
+        cmdline += ["--certificate", workdir(context.config.verity_certificate)]
+        options += [
+            "--ro-bind",
+            context.config.verity_certificate,
+            workdir(context.config.verity_certificate),
+        ]  # noqa
     if context.config.sector_size:
         cmdline += ["--sector-size", str(context.config.sector_size)]
     if context.config.split_artifacts:
@@ -3421,12 +3431,12 @@ def copy_repository_metadata(config: Config, dst: Path) -> None:
                 exclude: list[PathString]
                 if d == "cache":
                     exclude = flatten(
-                        ("--ro-bind", tmp, p)
+                        ("--ro-bind", tmp, workdir(p))
                         for p in config.distribution.package_manager(config).cache_subdirs(src)
                     )
                 else:
                     exclude = flatten(
-                        ("--ro-bind", tmp, p)
+                        ("--ro-bind", tmp, workdir(p))
                         for p in config.distribution.package_manager(config).state_subdirs(src)
                     )
 
@@ -3683,13 +3693,13 @@ def run_shell(args: Args, config: Config) -> None:
             run(
                 [
                     "systemd-repart",
-                    "--image", fname,
+                    "--image", workdir(fname),
                     *([f"--size={config.runtime_size}"] if config.runtime_size else []),
                     "--no-pager",
                     "--dry-run=no",
                     "--offline=no",
                     "--pretty=no",
-                    fname,
+                    workdir(fname),
                 ],
                 stdin=sys.stdin,
                 env=config.environment,
@@ -3697,7 +3707,7 @@ def run_shell(args: Args, config: Config) -> None:
                     binary="systemd-repart",
                     network=True,
                     devices=True,
-                    options=["--bind", fname, fname],
+                    options=["--bind", fname, workdir(fname)],
                 ),
             )  # fmt: skip
 
