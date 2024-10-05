@@ -135,9 +135,6 @@ class Image:
             [
                 "--runtime-build-sources=no",
                 "--qemu-vsock=yes",
-                # TODO: Drop once both Hyper-V bugs are fixed in Github Actions.
-                "--qemu-args=-cpu max,pcid=off",
-                "--qemu-mem=2G",
                 "--ephemeral",
                 *options,
             ],
