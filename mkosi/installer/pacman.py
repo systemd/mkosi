@@ -81,6 +81,10 @@ class Pacman(PackageManager):
 
         config = context.sandbox_tree / "etc/pacman.conf"
         if config.exists():
+            # If DownloadUser is specified, remove it as the user won't be available in the sandbox.
+            lines = config.read_text().splitlines()
+            lines = [line for line in lines if not line.strip().startswith("DownloadUser")]
+            config.write_text("\n".join(lines))
             return
 
         config.parent.mkdir(exist_ok=True, parents=True)
