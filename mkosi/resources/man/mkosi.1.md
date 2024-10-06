@@ -942,19 +942,25 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `UnifiedKernelImageProfiles=`, `--uki-profile=`
 :   Build additional UKI profiles. Takes a comma separated list of paths
-    to `ukify` config files. This option may be used multiple times in
+    to UKI profile config files. This option may be used multiple times in
     which case each config gets built into a corresponding UKI profile.
     Config files in the `mkosi.uki-profiles/` directory are
     automatically picked up. All configured UKI profiles are added as
     additional UKI profiles to each UKI built by mkosi.
 
+    See the documentation for the `UKIProfile` section for information
+    on which settings can be configured in UKI profile config files.
+
 `PeAddons=`, `--pe-addon`
 :   Build additional PE addons. Takes a comma separated list of paths to
-    `ukify` config files. This option may be used multiple times in which case
+    PE addon config files. This option may be used multiple times in which case
     each config gets built into a corresponding addon. Each addon has the name
     of the config file, with the extension replaced with `.addon.efi`.
     Config files in the `mkosi.pe-addons/` directory are automatically picked
     up.
+
+    See the documentation for the `PEAddon` section for information on
+    which settings can be configured in PE addon config files.
 
 `Initrds=`, `--initrd`
 :   Use user-provided initrd(s). Takes a comma separated list of paths to initrd
@@ -1931,6 +1937,41 @@ config file is read:
     building multiple images, pass the listed environment variables to
     each individual subimage as if they were "universal" settings. See
     the **Building multiple images** section for more information.
+
+### [PEAddon] Section
+
+The `PEAddon` section can be used in UKI profile config files which are
+passed to the `PEAddons=` setting. The following settings can be
+specified in the `PEAddon` section:
+
+`Output=`
+:   The name the addon should have in the addons directory in the ESP.
+    The final name is the name specified here suffixed with
+    `.addon.efi`.
+
+`Cmdline=`
+:   The kernel command line arguments to store in the `.cmdline` section
+    of the addon. Takes a space delimited list of extra kernel command
+    line arguments.
+
+### [UKIProfile] Section
+
+The `UKIProfile` section can be used in UKI profile config files which
+are passed to the `UnifiedKernelImageProfiles=` setting. The following
+settings can be specified in the `UKIProfile` section:
+
+`Profile=`
+:   The contents of the `.profile` section of the UKI profile. Takes a
+    list of key/value pairs separated by `=`. The `ID=` key must be
+    specified. See the UKI [specification](https://uapi-group.org/specifications/specs/unified_kernel_image/#multi-profile-ukis)
+    for a full list of possible keys.
+
+`Cmdline=`
+:   Extra kernel command line options for the UKI profile. Takes a space
+    delimited list of extra kernel command line arguments. Note that
+    the final `.cmdline` section will the combination of the base
+    `.cmdline` section and the extra kernel command line arguments
+    specified with this setting.
 
 ## Specifiers
 

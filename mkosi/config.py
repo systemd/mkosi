@@ -887,8 +887,8 @@ def config_make_enum_matcher(type: type[StrEnum]) -> ConfigMatchCallback:
 
 
 def config_make_list_parser(
-    delimiter: str,
     *,
+    delimiter: Optional[str] = None,
     parse: Callable[[str], Any] = str,
     unescape: bool = False,
     reset: bool = True,
@@ -904,13 +904,15 @@ def config_make_list_parser(
         if unescape:
             lex = shlex.shlex(value, posix=True)
             lex.whitespace_split = True
-            lex.whitespace = f"\n{delimiter}"
+            lex.whitespace = f"\n{delimiter or ''}"
             lex.commenters = ""
             values = list(lex)
             if reset and not values:
                 return None
         else:
-            values = value.replace(delimiter, "\n").split("\n")
+            if delimiter:
+                value = value.replace(delimiter, "\n")
+            values = value.split("\n")
             if reset and len(values) == 1 and values[0] == "":
                 return None
 
@@ -947,8 +949,8 @@ def config_match_version(match: str, value: str) -> bool:
 
 
 def config_make_dict_parser(
-    delimiter: str,
     *,
+    delimiter: Optional[str] = None,
     parse: Callable[[str], tuple[str, Any]],
     unescape: bool = False,
     allow_paths: bool = False,
@@ -985,13 +987,15 @@ def config_make_dict_parser(
         if unescape:
             lex = shlex.shlex(value, posix=True)
             lex.whitespace_split = True
-            lex.whitespace = f"\n{delimiter}"
+            lex.whitespace = f"\n{delimiter or ''}"
             lex.commenters = ""
             values = list(lex)
             if reset and not values:
                 return None
         else:
-            values = value.replace(delimiter, "\n").split("\n")
+            if delimiter:
+                value = value.replace(delimiter, "\n")
+            values = value.split("\n")
             if reset and len(values) == 1 and values[0] == "":
                 return None
 
@@ -1007,7 +1011,7 @@ def parse_environment(value: str) -> tuple[str, str]:
     return (key, value)
 
 
-def parse_credential(value: str) -> tuple[str, str]:
+def parse_key_value(value: str) -> tuple[str, str]:
     key, _, value = value.partition("=")
     key, value = key.strip(), value.strip()
     return (key, value)
@@ -1513,6 +1517,45 @@ PACKAGE_GLOBS = (
 
 
 @dataclasses.dataclass(frozen=True)
+class PEAddon:
+    output: str
+    cmdline: list[str]
+
+
+@dataclasses.dataclass(frozen=True)
+class UKIProfile:
+    profile: dict[str, str]
+    cmdline: list[str]
+
+
+def make_simple_config_parser(settings: Sequence[ConfigSetting], type: type[Any]) -> Callable[[str], Any]:
+    lookup = {s.name: s for s in settings}
+
+    def parse_simple_config(value: str) -> Any:
+        path = parse_path(value)
+        config = argparse.Namespace()
+
+        for section, name, value in parse_ini(path, only_sections=[s.section for s in settings]):
+            if not name and not value:
+                continue
+
+            if not (s := lookup.get(name)):
+                die(f"Unknown setting {name}")
+
+            if section != s.section:
+                logging.warning(f"Setting {name} should be configured in [{s.section}], not [{section}].")
+
+            if name != s.name:
+                logging.warning(f"Setting {name} is deprecated, please use {s.name} instead.")
+
+            setattr(config, s.dest, s.parse(value, getattr(config, s.dest, None)))
+
+        return type(**{k: v for k, v in vars(config).items() if k in inspect.signature(type).parameters})
+
+    return parse_simple_config
+
+
+@dataclasses.dataclass(frozen=True)
 class Config:
     """Type-hinted storage for command line arguments.
 
@@ -1584,7 +1627,7 @@ class Config:
     shim_bootloader: ShimBootloader
     unified_kernel_images: ConfigFeature
     unified_kernel_image_format: str
-    unified_kernel_image_profiles: list[Path]
+    unified_kernel_image_profiles: list[UKIProfile]
     initrds: list[Path]
     initrd_packages: list[str]
     initrd_volatile_packages: list[str]
@@ -1593,7 +1636,7 @@ class Config:
     kernel_modules_include: list[str]
     kernel_modules_exclude: list[str]
     kernel_modules_include_host: bool
-    pe_addons: list[Path]
+    pe_addons: list[PEAddon]
 
     kernel_modules_initrd: bool
     kernel_modules_initrd_include: list[str]
@@ -1979,6 +2022,35 @@ def parse_ini(path: Path, only_sections: Collection[str] = ()) -> Iterator[tuple
 
     if section:
         yield section, "", ""
+
+
+PE_ADDON_SETTINGS = (
+    ConfigSetting(
+        dest="output",
+        section="PEAddon",
+        parse=config_make_filename_parser("Output= requires a filename with no path components."),
+        default="",
+    ),
+    ConfigSetting(
+        dest="cmdline",
+        section="PEAddon",
+        parse=config_make_list_parser(delimiter=" "),
+    ),
+)
+
+
+UKI_PROFILE_SETTINGS = (
+    ConfigSetting(
+        dest="profile",
+        section="UKIProfile",
+        parse=config_make_dict_parser(parse=parse_key_value),
+    ),
+    ConfigSetting(
+        dest="cmdline",
+        section="UKIProfile",
+        parse=config_make_list_parser(delimiter=" "),
+    ),
+)
 
 
 SETTINGS = (
@@ -2501,7 +2573,10 @@ SETTINGS = (
         long="--uki-profile",
         metavar="PATH",
         section="Content",
-        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        parse=config_make_list_parser(
+            delimiter=",",
+            parse=make_simple_config_parser(UKI_PROFILE_SETTINGS, UKIProfile),
+        ),
         recursive_paths=("mkosi.uki-profiles/",),
         help="Configuration files to generate UKI profiles",
     ),
@@ -2571,7 +2646,10 @@ SETTINGS = (
         long="--pe-addon",
         metavar="PATH",
         section="Content",
-        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        parse=config_make_list_parser(
+            delimiter=",",
+            parse=make_simple_config_parser(PE_ADDON_SETTINGS, PEAddon),
+        ),
         recursive_paths=("mkosi.pe-addons/",),
         help="Configuration files to generate PE addons",
     ),
@@ -3153,9 +3231,7 @@ SETTINGS = (
         long="--credential",
         metavar="NAME=VALUE",
         section="Host",
-        parse=config_make_dict_parser(
-            delimiter=" ", parse=parse_credential, allow_paths=True, unescape=True
-        ),
+        parse=config_make_dict_parser(delimiter=" ", parse=parse_key_value, allow_paths=True, unescape=True),
         help="Pass a systemd credential to systemd-nspawn or qemu",
         paths=("mkosi.credentials",),
     ),
@@ -4657,6 +4733,15 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         assert "Type" in keysource
         return KeySource(type=KeySourceType(keysource["Type"]), source=keysource.get("Source", ""))
 
+    def pe_addon_transformer(addons: list[dict[str, Any]], fieldtype: type[PEAddon]) -> list[PEAddon]:
+        return [PEAddon(output=addon["Output"], cmdline=addon["Cmdline"]) for addon in addons]
+
+    def uki_profile_transformer(
+        profiles: list[dict[str, Any]],
+        fieldtype: type[UKIProfile],
+    ) -> list[UKIProfile]:
+        return [UKIProfile(profile=profile["Profile"], cmdline=profile["Cmdline"]) for profile in profiles]
+
     # The type of this should be
     # dict[
     #     type,
@@ -4696,6 +4781,8 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         Network: enum_transformer,
         KeySource: key_source_transformer,
         Vmm: enum_transformer,
+        list[PEAddon]: pe_addon_transformer,
+        list[UKIProfile]: uki_profile_transformer,
     }
 
     def json_transformer(key: str, val: Any) -> Any:

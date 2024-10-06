@@ -25,11 +25,13 @@ from mkosi.config import (
     ManifestFormat,
     Network,
     OutputFormat,
+    PEAddon,
     QemuDrive,
     QemuFirmware,
     QemuVsockCID,
     SecureBootSignTool,
     ShimBootloader,
+    UKIProfile,
     Verb,
     Vmm,
 )
@@ -208,7 +210,12 @@ def test_config() -> None:
             ],
             "Passphrase": null,
             "PeAddons": [
-                "/my-addon.conf"
+                {
+                    "Cmdline": [
+                        "key=value"
+                    ],
+                    "Output": "abc"
+                }
             ],
             "PostInstallationScripts": [
                 "/bar/qux"
@@ -351,7 +358,14 @@ def test_config() -> None:
             ],
             "UnifiedKernelImageFormat": "myuki",
             "UnifiedKernelImageProfiles": [
-                "/profile"
+                {
+                    "Cmdline": [
+                        "key=value"
+                    ],
+                    "Profile": {
+                        "key": "value"
+                    }
+                }
             ],
             "UnifiedKernelImages": "auto",
             "UnitProperties": [
@@ -454,7 +468,7 @@ def test_config() -> None:
         packages=[],
         pass_environment=["abc"],
         passphrase=None,
-        pe_addons=[Path("/my-addon.conf")],
+        pe_addons=[PEAddon(output="abc", cmdline=["key=value"])],
         postinst_scripts=[Path("/bar/qux")],
         postoutput_scripts=[Path("/foo/src")],
         prepare_scripts=[Path("/run/foo")],
@@ -532,7 +546,7 @@ def test_config() -> None:
         tools_tree_release=None,
         tools_tree_repositories=["abc"],
         unified_kernel_image_format="myuki",
-        unified_kernel_image_profiles=[Path("/profile")],
+        unified_kernel_image_profiles=[UKIProfile(profile={"key": "value"}, cmdline=["key=value"])],
         unified_kernel_images=ConfigFeature.auto,
         unit_properties=["PROPERTY=VALUE"],
         use_subvolumes=ConfigFeature.auto,
