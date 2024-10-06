@@ -70,7 +70,6 @@ from mkosi.config import (
     format_bytes,
     parse_boolean,
     parse_config,
-    parse_ini,
     summary,
     systemd_tool_version,
     want_selinux_relabel,
@@ -1487,7 +1486,7 @@ def run_ukify(
     stub: Path,
     output: Path,
     *,
-    cmdline: str = "",
+    cmdline: Sequence[str] = (),
     arguments: Sequence[PathString] = (),
     options: Sequence[PathString] = (),
     sign: bool = True,
@@ -1499,11 +1498,9 @@ def run_ukify(
     if not (arch := context.config.architecture.to_efi()):
         die(f"Architecture {context.config.architecture} does not support UEFI")
 
-    cmdline = cmdline.strip()
-
     # Older versions of systemd-stub expect the cmdline section to be null terminated. We can't
     # embed NUL terminators in argv so let's communicate the cmdline via a file instead.
-    (context.workspace / "cmdline").write_text(f"{cmdline}\x00")
+    (context.workspace / "cmdline").write_text(f"{' '.join(cmdline)}\x00")
 
     cmd = [
         python_binary(context.config, binary=ukify),
@@ -1645,7 +1642,7 @@ def build_uki(
         options += ["--ro-bind", initrd, workdir(initrd)]
 
     with complete_step(f"Generating unified kernel image for kernel version {kver}"):
-        run_ukify(context, stub, output, cmdline=" ".join(cmdline), arguments=arguments, options=options)
+        run_ukify(context, stub, output, cmdline=cmdline, arguments=arguments, options=options)
 
 
 def systemd_stub_binary(context: Context) -> Path:
@@ -1977,15 +1974,14 @@ def install_pe_addons(context: Context) -> None:
         addon_dir.mkdir(parents=True, exist_ok=True)
 
     for addon in context.config.pe_addons:
-        output = addon_dir / addon.with_suffix(".addon.efi").name
+        output = addon_dir / f"{addon.output}.addon.efi"
 
         with complete_step(f"Generating PE addon /{output.relative_to(context.root)}"):
             run_ukify(
                 context,
                 stub,
                 output,
-                arguments=["--config", workdir(addon)],
-                options=["--ro-bind", addon, workdir(addon)],
+                cmdline=addon.cmdline,
             )
 
 
@@ -2008,25 +2004,23 @@ def build_uki_profiles(context: Context, cmdline: Sequence[str]) -> list[Path]:
     profiles = []
 
     for profile in context.config.unified_kernel_image_profiles:
-        output = context.workspace / "uki-profiles" / profile.with_suffix(".efi").name
+        id = profile.profile["ID"]
+        output = context.workspace / f"uki-profiles/{id}.efi"
 
-        # We want to append the cmdline from the ukify config file to the base kernel command line so parse
-        # it from the ukify config file and append it to our own kernel command line.
+        profile_section = context.workspace / f"uki-profiles/{id}.profile"
 
-        profile_cmdline = ""
+        with profile_section.open("w") as f:
+            for k, v in profile.profile.items():
+                f.write(f"{k}={v}\n")
 
-        for section, k, v in parse_ini(profile):
-            if section == "UKI" and k == "Cmdline":
-                profile_cmdline = v.replace("\n", " ")
-
-        with complete_step(f"Generating UKI profile '{profile.stem}'"):
+        with complete_step(f"Generating UKI profile '{id}'"):
             run_ukify(
                 context,
                 stub,
                 output,
-                cmdline=f"{' '.join(cmdline)} {profile_cmdline}",
-                arguments=["--config", workdir(profile)],
-                options=["--ro-bind", profile, workdir(profile)],
+                cmdline=[*cmdline, *profile.cmdline],
+                arguments=["--profile", f"@{profile_section}"],
+                options=["--ro-bind", profile_section, profile_section],
                 sign=False,
             )
 
@@ -2409,6 +2403,20 @@ def check_inputs(config: Config) -> None:
 
     if config.secure_boot_key_source != config.sign_expected_pcr_key_source:
         die("Secure boot key source and expected PCR signatures key source have to be the same")
+
+    for addon in config.pe_addons:
+        if not addon.output:
+            die(
+                "PE addon configured without output filename",
+                hint="Use Output= to configure the output filename",
+            )
+
+    for profile in config.unified_kernel_image_profiles:
+        if "ID" not in profile.profile:
+            die(
+                "UKI Profile is missing ID key in its .profile section",
+                hint="Use Profile= to configure the profile ID",
+            )
 
 
 def check_tool(config: Config, *tools: PathString, reason: str, hint: Optional[str] = None) -> Path:
