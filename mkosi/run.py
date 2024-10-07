@@ -302,7 +302,13 @@ def spawn(
                 make_foreground_process(new_process_group=False)
 
 
-def find_binary(*names: PathString, root: Path = Path("/"), extra: Sequence[Path] = ()) -> Optional[Path]:
+def find_binary(
+    *names: PathString,
+    root: Optional[Path] = None,
+    extra: Sequence[Path] = (),
+) -> Optional[Path]:
+    root = root or Path("/")
+
     if root != Path("/"):
         path = ":".join(
             itertools.chain(
