@@ -3000,10 +3000,8 @@ def make_image(
     if context.config.verity_certificate:
         cmdline += ["--certificate", workdir(context.config.verity_certificate)]
         options += [
-            "--ro-bind",
-            context.config.verity_certificate,
-            workdir(context.config.verity_certificate),
-        ]  # noqa
+            "--ro-bind", context.config.verity_certificate, workdir(context.config.verity_certificate),
+        ]  # fmt: skip
     if skip:
         cmdline += ["--defer-partitions", ",".join(skip)]
     if split:
@@ -3306,10 +3304,8 @@ def make_extension_image(context: Context, output: Path) -> None:
     if context.config.verity_certificate:
         cmdline += ["--certificate", workdir(context.config.verity_certificate)]
         options += [
-            "--ro-bind",
-            context.config.verity_certificate,
-            workdir(context.config.verity_certificate),
-        ]  # noqa
+            "--ro-bind", context.config.verity_certificate, workdir(context.config.verity_certificate)
+        ]  # fmt: skip
     if context.config.sector_size:
         cmdline += ["--sector-size", str(context.config.sector_size)]
     if context.config.split_artifacts:
