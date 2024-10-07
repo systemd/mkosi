@@ -2011,6 +2011,9 @@ def build_uki_profiles(context: Context, cmdline: Sequence[str]) -> list[Path]:
 
         with profile_section.open("w") as f:
             for k, v in profile.profile.items():
+                if not all(c.isalnum() for c in v):
+                    v = f'"{v}"'
+
                 f.write(f"{k}={v}\n")
 
         with complete_step(f"Generating UKI profile '{id}'"):
