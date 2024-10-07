@@ -472,7 +472,7 @@ def pesign_prepare(context: Context) -> None:
                 binary="openssl",
                 options=[
                     "--ro-bind", context.config.secure_boot_key, workdir(context.config.secure_boot_key),
-                    "--ro-bind", context.config.secure_boot_certificate, workdir(context.config.secure_boot_certificate), # noqa
+                    "--ro-bind", context.config.secure_boot_certificate, workdir(context.config.secure_boot_certificate),  # noqa: E501
                 ],
             ),
         )  # fmt: skip
@@ -490,7 +490,7 @@ def pesign_prepare(context: Context) -> None:
         sandbox=context.sandbox(
             binary="pk12util",
             options=[
-                "--ro-bind", context.workspace / "secure-boot.p12", workdir(context.workspace / "secure-boot.p12"), # noqa
+                "--ro-bind", context.workspace / "secure-boot.p12", workdir(context.workspace / "secure-boot.p12"),  # noqa: E501
                 "--ro-bind", context.workspace / "pesign", workdir(context.workspace / "pesign"),
             ],
         ),
@@ -512,7 +512,7 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
             "--output", workdir(output),
         ]  # fmt: skip
         options: list[PathString] = [
-            "--ro-bind", context.config.secure_boot_certificate, workdir(context.config.secure_boot_certificate),  # noqa
+            "--ro-bind", context.config.secure_boot_certificate, workdir(context.config.secure_boot_certificate),  # noqa: E501
             "--ro-bind", input, workdir(input),
             "--bind", output.parent, workdir(output.parent),
         ]  # fmt: skip
@@ -729,7 +729,7 @@ def install_systemd_boot(context: Context) -> None:
                         binary="sbsiglist",
                         options=[
                             "--bind", context.workspace, workdir(context.workspace),
-                            "--ro-bind", context.workspace / "mkosi.der", workdir(context.workspace / "mkosi.der"),  # noqa
+                            "--ro-bind", context.workspace / "mkosi.der", workdir(context.workspace / "mkosi.der"),  # noqa: E501
                         ]
                     ),
                 )  # fmt: skip
@@ -748,7 +748,7 @@ def install_systemd_boot(context: Context) -> None:
                         "--ro-bind",
                         context.config.secure_boot_certificate,
                         workdir(context.config.secure_boot_certificate),
-                        "--ro-bind", context.workspace / "mkosi.esl", workdir(context.workspace / "mkosi.esl"),  # noqa
+                        "--ro-bind", context.workspace / "mkosi.esl", workdir(context.workspace / "mkosi.esl"),  # noqa: E501
                         "--bind", keys, workdir(keys),
                     ]  # fmt: skip
                     if context.config.secure_boot_key_source.type == KeySourceType.engine:
@@ -757,7 +757,7 @@ def install_systemd_boot(context: Context) -> None:
                     if context.config.secure_boot_key.exists():
                         cmd += ["--key", workdir(context.config.secure_boot_key)]
                         options += [
-                            "--ro-bind", context.config.secure_boot_key, workdir(context.config.secure_boot_key),  # noqa
+                            "--ro-bind", context.config.secure_boot_key, workdir(context.config.secure_boot_key),  # noqa: E501
                         ]  # fmt: skip
                     else:
                         cmd += ["--key", context.config.secure_boot_key]
