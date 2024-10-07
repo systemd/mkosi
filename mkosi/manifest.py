@@ -175,7 +175,7 @@ class Manifest:
                 "dpkg-query",
                 "--admindir=/buildroot/var/lib/dpkg",
                 "--show",
-                "--showformat", r"${Package}\t${source:Package}\t${Version}\t${Architecture}\t${Installed-Size}\t${db-fsys:Last-Modified}\n",  # noqa
+                "--showformat", r"${Package}\t${source:Package}\t${Version}\t${Architecture}\t${Installed-Size}\t${db-fsys:Last-Modified}\n",  # noqa: E501
             ],
             stdout=subprocess.PIPE,
             sandbox=self.context.sandbox(

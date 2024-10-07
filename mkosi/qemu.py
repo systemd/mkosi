@@ -1279,7 +1279,7 @@ def run_qemu(args: Args, config: Config) -> None:
         if config.output_format in (OutputFormat.disk, OutputFormat.esp):
             direct = fname.stat().st_size % resource.getpagesize() == 0
             ephemeral = config.ephemeral
-            cache = f"cache.writeback=on,cache.direct={yes_no(direct)},cache.no-flush={yes_no(ephemeral)},aio=io_uring"  # noqa
+            cache = f"cache.writeback=on,cache.direct={yes_no(direct)},cache.no-flush={yes_no(ephemeral)},aio=io_uring"  # noqa: E501
             cmdline += [
                 "-drive", f"if=none,id=mkosi,file={fname},format=raw,discard=on,{cache}",
                 "-device", f"scsi-{'cd' if config.qemu_cdrom else 'hd'},drive=mkosi,bootindex=1",

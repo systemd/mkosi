@@ -1532,7 +1532,7 @@ def run_ukify(
                 "--secureboot-certificate", workdir(context.config.secure_boot_certificate),
             ]  # fmt: skip
             opt += [
-                "--ro-bind", context.config.secure_boot_certificate, workdir(context.config.secure_boot_certificate), # noqa
+                "--ro-bind", context.config.secure_boot_certificate, workdir(context.config.secure_boot_certificate),  # noqa: E501
             ]  # fmt: skip
             if context.config.secure_boot_key_source.type == KeySourceType.engine:
                 cmd += ["--signing-engine", context.config.secure_boot_key_source.source]
@@ -1547,7 +1547,7 @@ def run_ukify(
             cmd += [
                 "--signtool", "pesign",
                 "--secureboot-certificate-dir", workdir(context.workspace / "pesign"),
-                "--secureboot-certificate-name", certificate_common_name(context, context.config.secure_boot_certificate), # noqa
+                "--secureboot-certificate-name", certificate_common_name(context, context.config.secure_boot_certificate),  # noqa: E501
             ]  # fmt: skip
             opt += ["--ro-bind", context.workspace / "pesign", workdir(context.workspace / "pesign")]
 
@@ -1610,14 +1610,14 @@ def build_uki(
                 "--pcr-public-key", workdir(context.config.sign_expected_pcr_certificate),
             ]  # fmt: skip
             options += [
-                "--ro-bind", context.config.sign_expected_pcr_certificate, workdir(context.config.sign_expected_pcr_certificate), # noqa
+                "--ro-bind", context.config.sign_expected_pcr_certificate, workdir(context.config.sign_expected_pcr_certificate),  # noqa: E501
                 "--bind-try", "/run/pcscd", "/run/pcscd",
             ]  # fmt: skip
 
         if context.config.sign_expected_pcr_key.exists():
             arguments += ["--pcr-private-key", workdir(context.config.sign_expected_pcr_key)]
             options += [
-                "--ro-bind", context.config.sign_expected_pcr_key, workdir(context.config.sign_expected_pcr_key), # noqa
+                "--ro-bind", context.config.sign_expected_pcr_key, workdir(context.config.sign_expected_pcr_key),  # noqa: E501
             ]  # fmt: skip
         else:
             arguments += ["--pcr-private-key", context.config.sign_expected_pcr_key]
@@ -1841,7 +1841,7 @@ def install_type1(
                         linux /{kimg.relative_to(context.root / "boot")} {" ".join(cmdline)}
                         initrd {" ".join(os.fspath(Path("/") / i.relative_to(context.root / "boot")) for i in initrds)}
                     }}
-                    """  # noqa
+                    """  # noqa: E501
                 )
             )
 
@@ -4016,7 +4016,7 @@ def finalize_default_tools(args: Args, config: Config, *, resources: Path) -> Co
         "--incremental", str(config.incremental),
         *([f"--package={package}" for package in config.tools_tree_packages]),
         "--output", f"{config.tools_tree_distribution}-tools",
-        *(["--source-date-epoch", str(config.source_date_epoch)] if config.source_date_epoch is not None else []),  # noqa
+        *(["--source-date-epoch", str(config.source_date_epoch)] if config.source_date_epoch is not None else []),  # noqa: E501
         *([f"--environment={k}='{v}'" for k, v in config.environment.items()]),
         *([f"--extra-search-path={p}" for p in config.extra_search_paths]),
         *(["--proxy-url", config.proxy_url] if config.proxy_url else []),
@@ -4091,7 +4091,7 @@ def run_clean_scripts(config: Config) -> None:
                             "--dir", "/work/out",
                             "--ro-bind", script, "/work/clean",
                             "--ro-bind", json, "/work/config.json",
-                            *(["--bind", str(o), "/work/out"] if (o := config.output_dir_or_cwd()).exists() else []),  # noqa
+                            *(["--bind", str(o), "/work/out"] if (o := config.output_dir_or_cwd()).exists() else []),  # noqa: E501
                             *sources,
                         ],
                     ),
