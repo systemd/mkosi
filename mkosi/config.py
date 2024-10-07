@@ -567,8 +567,11 @@ def parse_paths_from_directory(
     absolute: bool = False,
     constants: Sequence[str] = (),
 ) -> list[Path]:
+    base = os.path.dirname(value)
+    glob = os.path.basename(value)
+
     path = parse_path(
-        value,
+        base,
         required=required,
         resolve=resolve,
         expanduser=expanduser,
@@ -583,7 +586,7 @@ def parse_paths_from_directory(
     if path.exists() and not path.is_dir():
         die(f"{path} should be a directory, but isn't.")
 
-    return sorted(parse_path(os.fspath(p), resolve=resolve, secret=secret) for p in path.iterdir())
+    return sorted(parse_path(os.fspath(p), resolve=resolve, secret=secret) for p in path.glob(glob))
 
 
 def config_parse_key(value: Optional[str], old: Optional[str]) -> Optional[Path]:
@@ -2326,7 +2329,7 @@ SETTINGS = (
         section="Output",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         paths=("mkosi.clean",),
-        recursive_paths=("mkosi.clean.d",),
+        recursive_paths=("mkosi.clean.d/*",),
         help="Clean script to run after cleanup",
     ),
     # Content section
@@ -2456,7 +2459,7 @@ SETTINGS = (
         section="Content",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         paths=("mkosi.sync",),
-        recursive_paths=("mkosi.sync.d/",),
+        recursive_paths=("mkosi.sync.d/*",),
         help="Sync script to run before starting the build",
     ),
     ConfigSetting(
@@ -2466,7 +2469,7 @@ SETTINGS = (
         section="Content",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         paths=("mkosi.prepare", "mkosi.prepare.chroot"),
-        recursive_paths=("mkosi.prepare.d/",),
+        recursive_paths=("mkosi.prepare.d/*",),
         help="Prepare script to run inside the image before it is cached",
         compat_names=("PrepareScript",),
     ),
@@ -2477,7 +2480,7 @@ SETTINGS = (
         section="Content",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         paths=("mkosi.build", "mkosi.build.chroot"),
-        recursive_paths=("mkosi.build.d/",),
+        recursive_paths=("mkosi.build.d/*",),
         help="Build script to run inside image",
         compat_names=("BuildScript",),
     ),
@@ -2489,7 +2492,7 @@ SETTINGS = (
         section="Content",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         paths=("mkosi.postinst", "mkosi.postinst.chroot"),
-        recursive_paths=("mkosi.postinst.d/",),
+        recursive_paths=("mkosi.postinst.d/*",),
         help="Postinstall script to run inside image",
         compat_names=("PostInstallationScript",),
     ),
@@ -2500,7 +2503,7 @@ SETTINGS = (
         section="Content",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         paths=("mkosi.finalize", "mkosi.finalize.chroot"),
-        recursive_paths=("mkosi.finalize.d/",),
+        recursive_paths=("mkosi.finalize.d/*",),
         help="Postinstall script to run outside image",
         compat_names=("FinalizeScript",),
     ),
@@ -2512,7 +2515,7 @@ SETTINGS = (
         section="Content",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         paths=("mkosi.postoutput",),
-        recursive_paths=("mkosi.postoutput.d/",),
+        recursive_paths=("mkosi.postoutput.d/*",),
         help="Output postprocessing script to run outside image",
     ),
     ConfigSetting(
@@ -2577,7 +2580,7 @@ SETTINGS = (
             delimiter=",",
             parse=make_simple_config_parser(UKI_PROFILE_SETTINGS, UKIProfile),
         ),
-        recursive_paths=("mkosi.uki-profiles/",),
+        recursive_paths=("mkosi.uki-profiles/*.conf",),
         help="Configuration files to generate UKI profiles",
     ),
     ConfigSetting(
@@ -2650,7 +2653,7 @@ SETTINGS = (
             delimiter=",",
             parse=make_simple_config_parser(PE_ADDON_SETTINGS, PEAddon),
         ),
-        recursive_paths=("mkosi.pe-addons/",),
+        recursive_paths=("mkosi.pe-addons/*.conf",),
         help="Configuration files to generate PE addons",
     ),
     ConfigSetting(
