@@ -199,11 +199,11 @@ def grub_mkimage(
             [
                 mkimage,
                 "--directory", "/grub",
-                "--config", earlyconfig.name,
+                "--config", workdir(Path(earlyconfig.name)),
                 "--prefix", f"/{context.config.distribution.grub_prefix()}",
-                "--output", output or ("/grub/core.img"),
+                "--output", workdir(output) if output else "/grub/core.img",
                 "--format", target,
-                *(["--sbat", str(sbat)] if sbat else []),
+                *(["--sbat", str(workdir(sbat))] if sbat else []),
                 *(["--disable-shim-lock"] if context.config.shim_bootloader == ShimBootloader.none else []),
                 "cat",
                 "cmp",
@@ -232,9 +232,9 @@ def grub_mkimage(
                 binary=mkimage,
                 options=[
                     "--bind", directory, "/grub",
-                    "--ro-bind", earlyconfig.name, earlyconfig.name,
-                    *(["--bind", str(output.parent), str(output.parent)] if output else []),
-                    *(["--ro-bind", str(sbat), str(sbat)] if sbat else []),
+                    "--ro-bind", earlyconfig.name, workdir(Path(earlyconfig.name)),
+                    *(["--bind", str(output.parent), str(workdir(output.parent))] if output else []),
+                    *(["--ro-bind", str(sbat), str(workdir(sbat))] if sbat else []),
                 ],
             ),
         )  # fmt: skip
@@ -284,7 +284,7 @@ def extract_pe_section(context: Context, binary: Path, section: str, output: Pat
         import pefile
         import sys
         from pathlib import Path
-        pe = pefile.PE("{binary}", fast_load=True)
+        pe = pefile.PE("{workdir(binary)}", fast_load=True)
         section = {{s.Name.decode().strip("\\0"): s for s in pe.sections}}.get("{section}")
         if not section:
             sys.exit(67)
@@ -299,7 +299,7 @@ def extract_pe_section(context: Context, binary: Path, section: str, output: Pat
             stdout=f,
             sandbox=context.sandbox(
                 binary=python_binary(context.config, binary=None),
-                options=["--ro-bind", binary, binary],
+                options=["--ro-bind", binary, workdir(binary)],
             ),
             success_exit_status=(0, 67),
         )
@@ -377,20 +377,22 @@ def grub_bios_setup(context: Context, partitions: Sequence[Partition]) -> None:
         # the bios boot partition. To make installation work unprivileged, we trick grub to think that the
         # root device is our image by mounting over its /proc/self/mountinfo file (where it gets its
         # information from) with our own file correlating the root directory to our image file.
-        mountinfo.write(f"1 0 1:1 / / - fat {context.staging / context.config.output_with_format}\n")
+        mountinfo.write(
+            f"1 0 1:1 / / - fat {workdir(context.staging / context.config.output_with_format)}\n"
+        )
         mountinfo.flush()
 
         run(
             [
                 setup,
                 "--directory", "/grub",
-                context.staging / context.config.output_with_format,
+                workdir(context.staging / context.config.output_with_format),
             ],
             sandbox=context.sandbox(
                 binary=setup,
                 options=[
                     "--bind", directory, "/grub",
-                    "--bind", context.staging, context.staging,
+                    "--bind", context.staging, workdir(context.staging),
                     "--bind", mountinfo.name, "/proc/self/mountinfo",
                 ],
             ),
@@ -420,10 +422,10 @@ def certificate_common_name(context: Context, certificate: Path) -> str:
             "-noout",
             "-subject",
             "-nameopt", "multiline",
-            "-in", certificate,
+            "-in", workdir(certificate),
         ],
         stdout=subprocess.PIPE,
-        sandbox=context.sandbox(binary="openssl", options=["--ro-bind", certificate, certificate]),
+        sandbox=context.sandbox(binary="openssl", options=["--ro-bind", certificate, workdir(certificate)]),
     ).stdout  # fmt: skip
 
     for line in output.splitlines():
@@ -462,15 +464,15 @@ def pesign_prepare(context: Context) -> None:
                 "-certpbe", "NONE",
                 "-nomaciter",
                 "-passout", "pass:",
-                "-inkey", context.config.secure_boot_key,
-                "-in", context.config.secure_boot_certificate,
+                "-inkey", workdir(context.config.secure_boot_key),
+                "-in", workdir(context.config.secure_boot_certificate),
             ],
             stdout=f,
             sandbox=context.sandbox(
                 binary="openssl",
                 options=[
-                    "--ro-bind", context.config.secure_boot_key, context.config.secure_boot_key,
-                    "--ro-bind", context.config.secure_boot_certificate, context.config.secure_boot_certificate,  # noqa
+                    "--ro-bind", context.config.secure_boot_key, workdir(context.config.secure_boot_key),
+                    "--ro-bind", context.config.secure_boot_certificate, workdir(context.config.secure_boot_certificate), # noqa
                 ],
             ),
         )  # fmt: skip
@@ -482,14 +484,14 @@ def pesign_prepare(context: Context) -> None:
             "pk12util",
             "-K", "",
             "-W", "",
-            "-i", context.workspace / "secure-boot.p12",
-            "-d", context.workspace / "pesign",
+            "-i", workdir(context.workspace / "secure-boot.p12"),
+            "-d", workdir(context.workspace / "pesign"),
         ],
         sandbox=context.sandbox(
             binary="pk12util",
             options=[
-                "--ro-bind", context.workspace / "secure-boot.p12", context.workspace / "secure-boot.p12",
-                "--ro-bind", context.workspace / "pesign", context.workspace / "pesign",
+                "--ro-bind", context.workspace / "secure-boot.p12", workdir(context.workspace / "secure-boot.p12"), # noqa
+                "--ro-bind", context.workspace / "pesign", workdir(context.workspace / "pesign"),
             ],
         ),
     )  # fmt: skip

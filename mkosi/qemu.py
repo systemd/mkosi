@@ -158,9 +158,9 @@ class KernelType(StrEnum):
             return KernelType.unknown
 
         type = run(
-            ["bootctl", "kernel-identify", path],
+            ["bootctl", "kernel-identify", workdir(path)],
             stdout=subprocess.PIPE,
-            sandbox=config.sandbox(binary="bootctl", options=["--ro-bind", path, path]),
+            sandbox=config.sandbox(binary="bootctl", options=["--ro-bind", path, workdir(path)]),
         ).stdout.strip()
 
         try:
@@ -253,7 +253,7 @@ def start_swtpm(config: Config) -> Iterator[Path]:
         run(
             [
                 "swtpm_setup",
-                "--tpm-state", state,
+                "--tpm-state", workdir(Path(state)),
                 "--tpm2",
                 "--pcr-banks",
                 "sha256",
@@ -261,16 +261,12 @@ def start_swtpm(config: Config) -> Iterator[Path]:
             ],
             sandbox=config.sandbox(
                 binary="swtpm_setup",
-                options=["--bind", state, state],
-                setup=scope_cmd(
-                    name=f"mkosi-swtpm-{config.machine_or_name()}",
-                    description=f"swtpm for {config.machine_or_name()}",
-                ),
+                options=["--bind", state, workdir(Path(state))],
             ),
             stdout=None if ARG_DEBUG.get() else subprocess.DEVNULL,
         )  # fmt: skip
 
-        cmdline = ["swtpm", "socket", "--tpm2", "--tpmstate", f"dir={state}"]
+        cmdline = ["swtpm", "socket", "--tpm2", "--tpmstate", f"dir={workdir(Path(state))}"]
 
         # We create the socket ourselves and pass the fd to swtpm to avoid race conditions where we start
         # qemu before swtpm has had the chance to create the socket (or where we try to chown it first).
@@ -284,7 +280,14 @@ def start_swtpm(config: Config) -> Iterator[Path]:
             with spawn(
                 cmdline,
                 pass_fds=(sock.fileno(),),
-                sandbox=config.sandbox(binary="swtpm", options=["--bind", state, state]),
+                sandbox=config.sandbox(
+                    binary="swtpm",
+                    options=["--bind", state, workdir(Path(state))],
+                    setup=scope_cmd(
+                        name=f"mkosi-swtpm-{config.machine_or_name()}",
+                        description=f"swtpm for {config.machine_or_name()}",
+                    ),
+                ),
             ) as proc:
                 yield path
                 proc.terminate()
@@ -575,16 +578,16 @@ def copy_ephemeral(config: Config, src: Path) -> Iterator[Path]:
                 become_root_in_subuid_range()
             elif config.output_format in (OutputFormat.disk, OutputFormat.esp):
                 attr = run(
-                    ["lsattr", "-l", src],
-                    sandbox=config.sandbox(binary="lsattr", options=["--ro-bind", src, src]),
+                    ["lsattr", "-l", workdir(src)],
+                    sandbox=config.sandbox(binary="lsattr", options=["--ro-bind", src, workdir(src)]),
                     stdout=subprocess.PIPE,
                 ).stdout
 
                 if "No_COW" in attr:
                     tmp.touch()
                     run(
-                        ["chattr", "+C", tmp],
-                        sandbox=config.sandbox(binary="chattr", options=["--bind", tmp, tmp]),
+                        ["chattr", "+C", workdir(tmp)],
+                        sandbox=config.sandbox(binary="chattr", options=["--bind", tmp, workdir(tmp)]),
                     )
 
             copy_tree(
@@ -635,9 +638,12 @@ def generate_scratch_fs(config: Config) -> Iterator[Path]:
         fs = config.distribution.filesystem()
         extra = config.environment.get(f"SYSTEMD_REPART_MKFS_OPTIONS_{fs.upper()}", "")
         run(
-            [f"mkfs.{fs}", "-L", "scratch", *extra.split(), scratch.name],
+            [f"mkfs.{fs}", "-L", "scratch", *extra.split(), workdir(Path(scratch.name))],
             stdout=subprocess.DEVNULL,
-            sandbox=config.sandbox(binary=f"mkfs.{fs}", options=["--bind", scratch.name, scratch.name]),
+            sandbox=config.sandbox(
+                binary=f"mkfs.{fs}",
+                options=["--bind", scratch.name, workdir(Path(scratch.name))],
+            ),
         )
         yield Path(scratch.name)
 
@@ -683,10 +689,10 @@ def finalize_firmware_variables(
         run(
             [
                 "virt-fw-vars",
-                "--input", ovmf.vars,
-                "--output", ovmf_vars.name,
-                "--enroll-cert", config.secure_boot_certificate,
-                "--add-db", "OvmfEnrollDefaultKeys", config.secure_boot_certificate,
+                "--input", workdir(ovmf.vars),
+                "--output", workdir(Path(ovmf_vars.name)),
+                "--enroll-cert", workdir(config.secure_boot_certificate),
+                "--add-db", "OvmfEnrollDefaultKeys", workdir(config.secure_boot_certificate),
                 "--no-microsoft",
                 "--secure-boot",
                 "--loglevel", "WARNING",
@@ -694,8 +700,9 @@ def finalize_firmware_variables(
             sandbox=config.sandbox(
                 binary=qemu,
                 options=[
-                    "--bind", ovmf_vars.name, ovmf_vars.name,
-                    "--ro-bind", config.secure_boot_certificate, config.secure_boot_certificate,
+                    "--bind", ovmf_vars.name, workdir(Path(ovmf_vars.name)),
+                    "--ro-bind", ovmf.vars, workdir(ovmf.vars),
+                    "--ro-bind", config.secure_boot_certificate, workdir(config.secure_boot_certificate),
                 ],
             ),
         )  # fmt: skip
@@ -726,9 +733,9 @@ def apply_runtime_size(config: Config, image: Path) -> None:
             f"--size={round_up(config.runtime_size, resource.getpagesize())}",
             "--pretty=no",
             "--offline=yes",
-            image,
+            workdir(image),
         ],
-        sandbox=config.sandbox(binary="systemd-repart", options=["--bind", image, image]),
+        sandbox=config.sandbox(binary="systemd-repart", options=["--bind", image, workdir(image)]),
     )  # fmt: skip
 
 

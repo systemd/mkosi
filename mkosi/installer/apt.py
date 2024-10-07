@@ -10,7 +10,7 @@ from mkosi.config import PACKAGE_GLOBS, Config, ConfigFeature
 from mkosi.context import Context
 from mkosi.installer import PackageManager
 from mkosi.log import die
-from mkosi.run import run
+from mkosi.run import run, workdir
 from mkosi.sandbox import umask
 from mkosi.types import _FILE, CompletedProcess, PathString
 
@@ -256,9 +256,12 @@ class Apt(PackageManager):
             ],
             sandbox=context.sandbox(
                 binary="reprepro",
-                options=["--bind", context.repository, context.repository, "--chdir", context.repository],
+                options=[
+                    "--bind", context.repository, workdir(context.repository),
+                    "--chdir", workdir(context.repository),
+                ],
             ),
-        )
+        )  # fmt: skip
 
         (context.sandbox_tree / "etc/apt/sources.list.d").mkdir(parents=True, exist_ok=True)
         (context.sandbox_tree / "etc/apt/sources.list.d/mkosi-local.sources").write_text(

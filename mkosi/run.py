@@ -562,7 +562,7 @@ def sandbox_cmd(
 
         if not overlay and not relaxed:
             tmp = stack.enter_context(vartmpdir())
-            yield [*cmdline, "--bind", tmp, "/var/tmp", *options, "--"]
+            yield [*cmdline, "--bind", tmp, "/var/tmp", "--dir", "/tmp", "--dir", "/run", *options, "--"]
             return
 
         for d in ("etc", "opt"):
