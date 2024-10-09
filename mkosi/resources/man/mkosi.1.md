@@ -1130,6 +1130,22 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     If set to `auto`, either sbsign or pesign are used if available, with sbsign being preferred if both are
     installed.
 
+`Verity=`, `--verity=`
+:   Whether to enforce or disable signed verity for extension images.
+    Takes a boolean value or `auto`. If enabled, a verity key and
+    certificate must be present and the build will fail if we don't
+    detect any verity partitions in the disk image produced by
+    systemd-repart. If disabled, verity partitions will be excluded from
+    disk images produced by systemd-repart even if the partition
+    definitions contain verity partitions. If set to `auto`, the verity
+    key and certificate will be passed to systemd-repart if available,
+    but the build won't fail if no verity partitions are found in the
+    disk image produced by systemd-repart.
+
+    Note that explicitly disabling signed verity is not yet implemented
+    for the `disk` output and only works for extension images at the
+    moment.
+
 `VerityKey=`, `--verity-key=`
 :   Path to the PEM file containing the secret key for signing the verity signature, if a verity signature
     partition is added with systemd-repart. When `VerityKeySource=` is specified, the input type depends on

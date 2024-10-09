@@ -1666,6 +1666,7 @@ class Config:
     secure_boot_key_source: KeySource
     secure_boot_certificate: Optional[Path]
     secure_boot_sign_tool: SecureBootSignTool
+    verity: ConfigFeature
     verity_key: Optional[Path]
     verity_key_source: KeySource
     verity_certificate: Optional[Path]
@@ -2828,6 +2829,13 @@ SETTINGS = (
         default=SecureBootSignTool.auto,
         choices=SecureBootSignTool.choices(),
         help="Tool to use for signing PE binaries for secure boot",
+    ),
+    ConfigSetting(
+        dest="verity",
+        section="Validation",
+        metavar="FEATURE",
+        parse=config_parse_feature,
+        help="Configure whether to enforce or disable verity partitions for disk images",
     ),
     ConfigSetting(
         dest="verity_key",
@@ -4552,6 +4560,7 @@ def summary(config: Config) -> str:
       SecureBoot Signing Key Source: {config.secure_boot_key_source}
              SecureBoot Certificate: {none_to_none(config.secure_boot_certificate)}
                SecureBoot Sign Tool: {config.secure_boot_sign_tool}
+                             Verity: {config.verity}
                  Verity Signing Key: {none_to_none(config.verity_key)}
           Verity Signing Key Source: {config.verity_key_source}
                  Verity Certificate: {none_to_none(config.verity_certificate)}

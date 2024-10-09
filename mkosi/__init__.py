@@ -2407,6 +2407,18 @@ def check_inputs(config: Config) -> None:
     if config.secure_boot_key_source != config.sign_expected_pcr_key_source:
         die("Secure boot key source and expected PCR signatures key source have to be the same")
 
+    if config.verity == ConfigFeature.enabled and not config.verity_key:
+        die(
+            "Verity= is enabled but no verity key is configured",
+            hint="Run mkosi genkey to generate a key/certificate pair",
+        )
+
+    if config.verity == ConfigFeature.enabled and not config.verity_certificate:
+        die(
+            "Verity= is enabled but no verity certificate is configured",
+            hint="Run mkosi genkey to generate a key/certificate pair",
+        )
+
     for addon in config.pe_addons:
         if not addon.output:
             die(
@@ -2968,6 +2980,7 @@ def make_image(
     skip: Sequence[str] = [],
     split: bool = False,
     tabs: bool = False,
+    verity: bool = False,
     root: Optional[Path] = None,
     definitions: Sequence[Path] = [],
 ) -> list[Partition]:
@@ -2999,7 +3012,10 @@ def make_image(
     if context.config.passphrase:
         cmdline += ["--key-file", workdir(context.config.passphrase)]
         options += ["--ro-bind", context.config.passphrase, workdir(context.config.passphrase)]
-    if context.config.verity_key:
+    if verity:
+        assert context.config.verity_key
+        assert context.config.verity_certificate
+
         if context.config.verity_key_source.type != KeySourceType.file:
             cmdline += ["--private-key-source", str(context.config.verity_key_source)]
             options += ["--bind-try", "/run/pcscd", "/run/pcscd"]
@@ -3008,7 +3024,7 @@ def make_image(
             options += ["--ro-bind", context.config.verity_key, workdir(context.config.verity_key)]
         else:
             cmdline += ["--private-key", context.config.verity_key]
-    if context.config.verity_certificate:
+
         cmdline += ["--certificate", workdir(context.config.verity_certificate)]
         options += [
             "--ro-bind", context.config.verity_certificate, workdir(context.config.verity_certificate),
@@ -3050,12 +3066,26 @@ def make_image(
 
     partitions = [Partition.from_dict(d) for d in output]
 
+    if context.config.verity == ConfigFeature.enabled and not any(
+        p.type.startswith("usr-verity-sig") or p.type.startswith("root-verity-sig") for p in partitions
+    ):
+        die(
+            "Verity is explicitly enabled but didn't find any verity signature partition",
+            hint="Make sure to add verity signature partitions in mkosi.repart if building a disk image",
+        )
+
     if split:
         for p in partitions:
             if p.split_path:
                 maybe_compress(context, context.config.compress_output, p.split_path)
 
     return partitions
+
+
+def want_verity(config: Config) -> bool:
+    return config.verity == ConfigFeature.enabled or bool(
+        config.verity == ConfigFeature.auto and config.verity_key and config.verity_certificate
+    )
 
 
 def make_disk(
@@ -3131,7 +3161,14 @@ def make_disk(
         definitions = [defaults]
 
     return make_image(
-        context, msg=msg, skip=skip, split=split, tabs=tabs, root=context.root, definitions=definitions
+        context,
+        msg=msg,
+        skip=skip,
+        split=split,
+        tabs=tabs,
+        verity=want_verity(context.config),
+        root=context.root,
+        definitions=definitions,
     )
 
 
@@ -3275,7 +3312,8 @@ def make_esp(context: Context, uki: Path) -> list[Partition]:
 
 
 def make_extension_image(context: Context, output: Path) -> None:
-    r = context.resources / f"repart/definitions/{context.config.output_format}.repart.d"
+    unsigned = "-unsigned" if not want_verity(context.config) else ""
+    r = context.resources / f"repart/definitions/{context.config.output_format}{unsigned}.repart.d"
 
     cmdline: list[PathString] = [
         "systemd-repart",
@@ -3304,7 +3342,10 @@ def make_extension_image(context: Context, output: Path) -> None:
     if context.config.passphrase:
         cmdline += ["--key-file", context.config.passphrase]
         options += ["--ro-bind", context.config.passphrase, workdir(context.config.passphrase)]
-    if context.config.verity_key:
+    if want_verity(context.config):
+        assert context.config.verity_key
+        assert context.config.verity_certificate
+
         if context.config.verity_key_source.type != KeySourceType.file:
             cmdline += ["--private-key-source", str(context.config.verity_key_source)]
         if context.config.verity_key.exists():
@@ -3312,7 +3353,7 @@ def make_extension_image(context: Context, output: Path) -> None:
             options += ["--ro-bind", context.config.verity_key, workdir(context.config.verity_key)]
         else:
             cmdline += ["--private-key", context.config.verity_key]
-    if context.config.verity_certificate:
+
         cmdline += ["--certificate", workdir(context.config.verity_certificate)]
         options += [
             "--ro-bind", context.config.verity_certificate, workdir(context.config.verity_certificate)
@@ -3572,10 +3613,11 @@ def build_image(context: Context) -> None:
         if manifest:
             manifest.record_packages()
 
-        clean_package_manager_metadata(context)
-        remove_files(context)
         run_selinux_relabel(context)
-        run_finalize_scripts(context)
+
+    clean_package_manager_metadata(context)
+    remove_files(context)
+    run_finalize_scripts(context)
 
     normalize_mtime(context.root, context.config.source_date_epoch)
     partitions = make_disk(context, skip=("esp", "xbootldr"), tabs=True, msg="Generating disk image")
