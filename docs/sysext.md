@@ -93,3 +93,5 @@ BaseTrees=%O/base
 
 If we now run `mkosi -f` again, we'll find `initrd.cpio.zst` in
 `mkosi.output` with its accompanying extension still in `btrfs.raw`.
+If you don't have any need for a main image, you can configure
+`Format=none` in the `Output` section in `mkosi.conf` to disable it.
