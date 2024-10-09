@@ -3572,10 +3572,11 @@ def build_image(context: Context) -> None:
         if manifest:
             manifest.record_packages()
 
-        clean_package_manager_metadata(context)
-        remove_files(context)
         run_selinux_relabel(context)
-        run_finalize_scripts(context)
+
+    clean_package_manager_metadata(context)
+    remove_files(context)
+    run_finalize_scripts(context)
 
     normalize_mtime(context.root, context.config.source_date_epoch)
     partitions = make_disk(context, skip=("esp", "xbootldr"), tabs=True, msg="Generating disk image")

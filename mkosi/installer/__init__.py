@@ -164,9 +164,6 @@ def clean_package_manager_metadata(context: Context) -> None:
     """
     subdir = context.config.distribution.package_manager(context.config).subdir(context.config)
 
-    if context.config.overlay:
-        return
-
     if context.config.clean_package_metadata == ConfigFeature.disabled:
         return
 
