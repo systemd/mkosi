@@ -1587,6 +1587,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     attach the image to the virtual machine as a CD-ROM device. Takes a
     boolean. Defaults to `no`.
 
+`QemuRemovable=`, `--qemu-removable=`
+:   When used with the `qemu` verb, this option specifies whether to attach the image to the virtual machine
+    as a removable device. Takes a boolean. Defaults to `no`.
+
 `QemuFirmware=`, `--qemu-firmware=`
 :   When used with the `qemu` verb, this option specifies which firmware
     to use. Takes one of `uefi`, `uefi-secure-boot`, `bios`, `linux`, or
