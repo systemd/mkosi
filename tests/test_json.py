@@ -372,6 +372,7 @@ def test_config() -> None:
                 "PROPERTY=VALUE"
             ],
             "UseSubvolumes": "auto",
+            "Verity": "enabled",
             "VerityCertificate": "/path/to/cert",
             "VerityKey": null,
             "VerityKeySource": {
@@ -550,6 +551,7 @@ def test_config() -> None:
         unified_kernel_images=ConfigFeature.auto,
         unit_properties=["PROPERTY=VALUE"],
         use_subvolumes=ConfigFeature.auto,
+        verity=ConfigFeature.enabled,
         verity_certificate=Path("/path/to/cert"),
         verity_key=None,
         verity_key_source=KeySource(type=KeySourceType.file),
