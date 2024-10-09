@@ -1282,7 +1282,7 @@ def run_qemu(args: Args, config: Config) -> None:
             cache = f"cache.writeback=on,cache.direct={yes_no(direct)},cache.no-flush={yes_no(ephemeral)},aio=io_uring"  # noqa: E501
             cmdline += [
                 "-drive", f"if=none,id=mkosi,file={fname},format=raw,discard=on,{cache}",
-                "-device", f"scsi-{'cd' if config.qemu_cdrom else 'hd'},drive=mkosi,bootindex=1",
+                "-device", f"scsi-{'cd' if config.qemu_cdrom else 'hd'},drive=mkosi,bootindex=1{',removable=on' if config.qemu_removable else ''}",  # noqa: E501
             ]  # fmt: skip
 
         if config.qemu_swtpm == ConfigFeature.enabled or (

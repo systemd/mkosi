@@ -260,6 +260,7 @@ def test_config() -> None:
             "QemuKernel": null,
             "QemuKvm": "auto",
             "QemuMem": 123,
+            "QemuRemovable": false,
             "QemuSmp": 2,
             "QemuSwtpm": "auto",
             "QemuVsock": "enabled",
@@ -481,6 +482,7 @@ def test_config() -> None:
         proxy_url="https://my/proxy",
         qemu_args=[],
         qemu_cdrom=False,
+        qemu_removable=False,
         qemu_drives=[
             QemuDrive("abc", 200, Path("/foo/bar"), "abc,qed", "red"),
             QemuDrive("abc", 200, None, "", "wcd"),

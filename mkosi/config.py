@@ -1741,6 +1741,7 @@ class Config:
     qemu_vsock_cid: int
     qemu_swtpm: ConfigFeature
     qemu_cdrom: bool
+    qemu_removable: bool
     qemu_firmware: QemuFirmware
     qemu_firmware_variables: Optional[Path]
     qemu_kernel: Optional[Path]
@@ -3427,6 +3428,14 @@ SETTINGS = (
         section="Host",
         parse=config_parse_boolean,
         help="Attach the image as a CD-ROM to the virtual machine",
+    ),
+    ConfigSetting(
+        dest="qemu_removable",
+        metavar="BOOLEAN",
+        nargs="?",
+        section="Host",
+        parse=config_parse_boolean,
+        help="Attach the image as a removable drive to the virtual machine",
     ),
     ConfigSetting(
         dest="qemu_firmware",
