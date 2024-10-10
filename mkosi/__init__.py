@@ -2236,6 +2236,14 @@ def calculate_signature(context: Context) -> None:
     if not context.config.sign or not context.config.checksum:
         return
 
+    pgptool = context.config.openpgp_tool
+    if pgptool == "gpg":
+        calculate_signature_gpg(context)
+    else:
+        calculate_signature_sop(context)
+
+
+def calculate_signature_gpg(context: Context) -> None:
     cmdline: list[PathString] = ["gpg", "--detach-sign", "--pinentry-mode", "loopback"]
 
     # Need to specify key before file to sign
@@ -2268,6 +2276,37 @@ def calculate_signature(context: Context) -> None:
             env=env,
             sandbox=context.sandbox(
                 binary="gpg",
+                options=options,
+            ),
+        )
+
+
+def calculate_signature_sop(context: Context) -> None:
+    pgptool = context.config.openpgp_tool
+    signing_key = context.config.key
+    if signing_key is None:
+        die("Signing key is mandatory when using SOP signing")
+
+    cmdline: list[PathString] = [pgptool, "sign", "/signing-key.pgp"]
+
+    options: list[PathString] = [
+        "--bind", signing_key, "/signing-key.pgp",
+        "--bind", context.staging, workdir(context.staging),
+        "--bind", "/run", "/run",
+    ]  # fmt: skip
+
+    with (
+        complete_step("Signing SHA256SUMS…"),
+        open(context.staging / context.config.output_checksum, "rb") as i,
+        open(context.staging / context.config.output_signature, "wb") as o,
+    ):
+        run(
+            cmdline,
+            env=context.config.environment,
+            stdin=i,
+            stdout=o,
+            sandbox=context.sandbox(
+                binary=pgptool,
                 options=options,
             ),
         )
