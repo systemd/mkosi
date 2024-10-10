@@ -361,6 +361,9 @@ def configure_extension_release(context: Context) -> None:
         if "ID" not in extrelease:
             f.write(f"ID={osrelease.get('ID', '_any')}\n")
 
+        if f"{prefix}_LEVEL" not in extrelease and (level := osrelease.get(f"{prefix}_LEVEL")):
+            f.write(f"{prefix}_LEVEL={level}\n")
+
         if "VERSION_ID" not in extrelease and (version := osrelease.get("VERSION_ID")):
             f.write(f"VERSION_ID={version}\n")
 
