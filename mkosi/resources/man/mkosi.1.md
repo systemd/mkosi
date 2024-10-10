@@ -1282,10 +1282,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     | `zypper`                | ✓      |        | ✓      | ✓    | ✓      | ✓    |          |
 
 `ToolsTreeDistribution=`, `--tools-tree-distribution=`
-:   Set the distribution to use for the default tools tree. By default,
-    the same distribution as the image that's being built is used, except
-    for CentOS and Ubuntu images, in which case Fedora and Debian are used
-    respectively.
+:   Set the distribution to use for the default tools tree.
+    Defaults to the distribution of the host
+    or `custom` if the distribution of the host is not a supported distribution.
 
 `ToolsTreeRelease=`, `--tools-tree-release=`
 :   Set the distribution release to use for the default tools tree. By
