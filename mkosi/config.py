@@ -1543,13 +1543,18 @@ def make_simple_config_parser(settings: Sequence[ConfigSetting], type: type[Any]
                 continue
 
             if not (s := lookup.get(name)):
-                die(f"Unknown setting {name}")
+                die(f"{path.absolute()}: Unknown setting {name}")
 
             if section != s.section:
-                logging.warning(f"Setting {name} should be configured in [{s.section}], not [{section}].")
+                logging.warning(
+                    f"{path.absolute()}: Setting {name} should be configured in [{s.section}], not "
+                    f"[{section}]."
+                )
 
             if name != s.name:
-                logging.warning(f"Setting {name} is deprecated, please use {s.name} instead.")
+                logging.warning(
+                    f"{path.absolute()}: Setting {name} is deprecated, please use {s.name} instead."
+                )
 
             setattr(config, s.dest, s.parse(value, getattr(config, s.dest, None)))
 
@@ -3770,7 +3775,7 @@ class ParseContext:
                 elif setting := SETTINGS_LOOKUP_BY_SPECIFIER.get(c):
                     if (v := self.finalize_value(setting)) is None:
                         logging.warning(
-                            f"Setting {setting.name} specified by specifier '%{c}' "
+                            f"{path.absolute()}: Setting {setting.name} specified by specifier '%{c}' "
                             f"in {text} is not yet set, ignoring"
                         )
                         continue
@@ -3789,8 +3794,8 @@ class ParseContext:
 
                         if (v := self.finalize_value(setting)) is None:
                             logging.warning(
-                                f"Setting {setting.name} which specifier '%{c}' in {text} depends on "
-                                "is not yet set, ignoring"
+                                f"{path.absolute()}: Setting {setting.name} which specifier '%{c}' in "
+                                f"{text} depends on is not yet set, ignoring"
                             )
                             break
 
@@ -3798,7 +3803,7 @@ class ParseContext:
                     else:
                         result += specifier.callback(specifierns, path)
                 else:
-                    logging.warning(f"Unknown specifier '%{c}' found in {text}, ignoring")
+                    logging.warning(f"{path.absolute()}: Unknown specifier '%{c}' found in {text}, ignoring")
             elif c == "%":
                 percent = True
             else:
@@ -3939,7 +3944,9 @@ class ParseContext:
                     die(f"{k} cannot be used in [{section}]")
 
                 if k != s.name:
-                    logging.warning(f"Setting {k} is deprecated, please use {s.name} instead.")
+                    logging.warning(
+                        f"{path.absolute()}: Setting {k} is deprecated, please use {s.name} instead."
+                    )
 
                 # If we encounter a setting that has not been explicitly configured yet, we assign the
                 # default value first so that we can match on default values for settings.
@@ -4053,25 +4060,31 @@ class ParseContext:
 
                 name = k.removeprefix("@")
                 if name != k:
-                    logging.warning(f"The '@' specifier is deprecated, please use {name} instead of {k}")
+                    logging.warning(
+                        f"{path.absolute()}: The '@' specifier is deprecated, please use {name} instead of "
+                        f"{k}"
+                    )
 
                 if not (s := SETTINGS_LOOKUP_BY_NAME.get(name)):
-                    die(f"Unknown setting {name}")
+                    die(f"{path.absolute()}: Unknown setting {name}")
                 if (
                     s.scope == SettingScope.universal
                     and (image := getattr(self.config, "image", None)) is not None
                 ):
-                    die(f"Setting {name} cannot be configured in subimage {image}")
+                    die(f"{path.absolute()}: Setting {name} cannot be configured in subimage {image}")
                 if name in self.immutable:
-                    die(f"Setting {name} cannot be modified anymore at this point")
+                    die(f"{path.absolute()}: Setting {name} cannot be modified anymore at this point")
 
                 if section != s.section:
                     logging.warning(
-                        f"Setting {name} should be configured in [{s.section}], not [{section}]."
+                        f"{path.absolute()}: Setting {name} should be configured in [{s.section}], not "
+                        f"[{section}]."
                     )
 
                 if name != s.name:
-                    logging.warning(f"Setting {name} is deprecated, please use {s.name} instead.")
+                    logging.warning(
+                        f"{path.absolute()}: Setting {name} is deprecated, please use {s.name} instead."
+                    )
 
                 v = self.expand_specifiers(v, path)
 
