@@ -2986,6 +2986,7 @@ def make_image(
     verity: bool = False,
     root: Optional[Path] = None,
     definitions: Sequence[Path] = [],
+    options: Sequence[PathString] = (),
 ) -> list[Partition]:
     cmdline: list[PathString] = [
         "systemd-repart",
@@ -2998,7 +2999,8 @@ def make_image(
         "--seed", str(context.config.seed),
         workdir(context.staging / context.config.output_with_format),
     ]  # fmt: skip
-    options: list[PathString] = [
+    opts: list[PathString] = [
+        *options,
         # Make sure we're root so that the mkfs tools invoked by systemd-repart think the files
         # that go into the disk image are owned by root.
         "--become-root",
@@ -3007,29 +3009,29 @@ def make_image(
 
     if root:
         cmdline += ["--root=/buildroot"]
-        options += ["--bind", root, "/buildroot"]
+        opts += ["--bind", root, "/buildroot"]
     if not context.config.architecture.is_native():
         cmdline += ["--architecture", str(context.config.architecture)]
     if not (context.staging / context.config.output_with_format).exists():
         cmdline += ["--empty=create"]
     if context.config.passphrase:
         cmdline += ["--key-file", workdir(context.config.passphrase)]
-        options += ["--ro-bind", context.config.passphrase, workdir(context.config.passphrase)]
+        opts += ["--ro-bind", context.config.passphrase, workdir(context.config.passphrase)]
     if verity:
         assert context.config.verity_key
         assert context.config.verity_certificate
 
         if context.config.verity_key_source.type != KeySourceType.file:
             cmdline += ["--private-key-source", str(context.config.verity_key_source)]
-            options += ["--bind-try", "/run/pcscd", "/run/pcscd"]
+            opts += ["--bind-try", "/run/pcscd", "/run/pcscd"]
         if context.config.verity_key.exists():
             cmdline += ["--private-key", workdir(context.config.verity_key)]
-            options += ["--ro-bind", context.config.verity_key, workdir(context.config.verity_key)]
+            opts += ["--ro-bind", context.config.verity_key, workdir(context.config.verity_key)]
         else:
             cmdline += ["--private-key", context.config.verity_key]
 
         cmdline += ["--certificate", workdir(context.config.verity_certificate)]
-        options += [
+        opts += [
             "--ro-bind", context.config.verity_certificate, workdir(context.config.verity_certificate),
         ]  # fmt: skip
     if skip:
@@ -3046,7 +3048,7 @@ def make_image(
 
     for d in definitions:
         cmdline += ["--definitions", workdir(d)]
-        options += ["--ro-bind", d, workdir(d)]
+        opts += ["--ro-bind", d, workdir(d)]
 
     with complete_step(msg):
         output = json.loads(
@@ -3060,7 +3062,7 @@ def make_image(
                         not context.config.repart_offline
                         or context.config.verity_key_source.type != KeySourceType.file
                     ),
-                    options=options,
+                    options=opts,
                 ),
             ).stdout
         )
@@ -3304,14 +3306,19 @@ def make_esp(context: Context, uki: Path) -> list[Partition]:
             [Partition]
             Type=esp
             Format=vfat
-            CopyFiles={uki}:/EFI/BOOT/BOOT{arch.upper()}.EFI
+            CopyFiles={workdir(uki)}:/EFI/BOOT/BOOT{arch.upper()}.EFI
             SizeMinBytes={size}
             SizeMaxBytes={size + 4096}
             """
         )
     )
 
-    return make_image(context, msg="Generating ESP image", definitions=[definitions])
+    return make_image(
+        context,
+        msg="Generating ESP image",
+        definitions=[definitions],
+        options=["--ro-bind", uki, workdir(uki)],
+    )
 
 
 def make_extension_image(context: Context, output: Path) -> None:
