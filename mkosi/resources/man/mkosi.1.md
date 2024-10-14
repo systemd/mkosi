@@ -38,7 +38,9 @@ mkosi — Build Bespoke OS Images
 
 `mkosi [options…] genkey`
 
-`mkosi [options…] documentation`
+`mkosi [options…] documentation [manual]`
+
+`mkosi [options…] completion [shell]`
 
 `mkosi [options…] dependencies`
 
