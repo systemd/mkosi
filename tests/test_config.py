@@ -101,6 +101,8 @@ def test_parse_config(tmp_path: Path) -> None:
 
         [Content]
         Packages=abc
+
+        [Build]
         Environment=MY_KEY=MY_VALUE
 
         [Output]
@@ -420,7 +422,7 @@ def test_override_default(tmp_path: Path) -> None:
 
     (d / "mkosi.conf").write_text(
         """\
-        [Content]
+        [Build]
         Environment=MY_KEY=MY_VALUE
 
         [Host]
@@ -1097,7 +1099,7 @@ def test_specifiers(tmp_path: Path) -> None:
         OutputDirectory=abcde
         Output=test
 
-        [Content]
+        [Build]
         Environment=Distribution=%d
                     Release=%r
                     Architecture=%a
@@ -1115,7 +1117,7 @@ def test_specifiers(tmp_path: Path) -> None:
     (d / "mkosi.conf.d").mkdir()
     (d / "mkosi.conf.d/abc.conf").write_text(
         """\
-        [Content]
+        [Build]
         Environment=ConfigAbcDirectory=%D
                     ConfigAbcConfdir=%C
                     ConfigAbcPwd=%P
@@ -1124,7 +1126,7 @@ def test_specifiers(tmp_path: Path) -> None:
     (d / "mkosi.conf.d/qed").mkdir()
     (d / "mkosi.conf.d/qed/mkosi.conf").write_text(
         """
-        [Content]
+        [Build]
         Environment=ConfigQedDirectory=%D
                     ConfigQedConfdir=%C
                     ConfigQedPwd=%P
@@ -1213,7 +1215,7 @@ def test_environment(tmp_path: Path) -> None:
         [Config]
         PassEnvironment=PassThisEnv
 
-        [Content]
+        [Build]
         Environment=TestValue2=300
                     TestValue3=400
                     PassThisEnv=abc

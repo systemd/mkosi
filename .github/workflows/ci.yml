@@ -169,6 +169,8 @@ jobs:
 
           [Content]
           KernelCommandLine=systemd.default_device_timeout_sec=180
+
+          [Build]
           Environment=SYSTEMD_REPART_MKFS_OPTIONS_EROFS="--quiet"
 
           [Host]
