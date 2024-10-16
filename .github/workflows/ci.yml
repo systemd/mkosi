@@ -156,7 +156,7 @@ jobs:
       - name: Install
         run: |
           sudo apt-get update
-          sudo apt-get install python3-pytest lvm2 cryptsetup-bin btrfs-progs
+          sudo apt-get install python3-pytest lvm2 cryptsetup-bin btrfs-progs sqop
           # Make sure the latest changes from the pull request are used.
           sudo ln -svf $PWD/bin/mkosi /usr/bin/mkosi
         working-directory: ./
