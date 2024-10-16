@@ -29,7 +29,7 @@ when running mkosi scripts by using the `BuildSources=` setting. For
 example, in `mkosi.local.conf`, we could have the following settings:
 
 ```conf
-[Content]
+[Build]
 BuildSources=../mkosi:mkosi
              ../fedora/mkosi:mkosi/rpm
 BuildSourcesEphemeral=yes

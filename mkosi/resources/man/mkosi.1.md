@@ -1859,7 +1859,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     path. For example, if we have a `mkosi.conf` file containing:
 
     ```ini
-    [Content]
+    [Build]
     BuildSources=../abc/qed:kernel
     ```
 
