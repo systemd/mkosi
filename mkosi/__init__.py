@@ -2152,12 +2152,9 @@ def copy_nspawn_settings(context: Context) -> None:
         shutil.copy2(context.config.nspawn_settings, context.staging / context.config.output_nspawn_settings)
 
 
-def copy_uki(context: Context) -> None:
-    if (context.staging / context.config.output_split_uki).exists():
-        return
-
+def get_uki_path(context: Context) -> Optional[Path]:
     if not want_efi(context.config) or context.config.unified_kernel_images == ConfigFeature.disabled:
-        return
+        return None
 
     ukis = sorted(
         (context.root / "boot/EFI/Linux").glob("*.efi"),
@@ -2176,20 +2173,27 @@ def copy_uki(context: Context) -> None:
     elif ukis:
         uki = ukis[0]
     else:
+        return None
+
+    return uki
+
+
+def copy_uki(context: Context) -> None:
+    if (context.staging / context.config.output_split_uki).exists():
         return
 
-    shutil.copy(uki, context.staging / context.config.output_split_uki)
-
-    # Extract the combined initrds from the UKI so we can use it to direct kernel boot with qemu if needed.
-    extract_pe_section(context, uki, ".initrd", context.staging / context.config.output_split_initrd)
-
-    # ukify will have signed the kernel image as well. Let's make sure we put the signed kernel
-    # image in the output directory instead of the unsigned one by reading it from the UKI.
-    extract_pe_section(context, uki, ".linux", context.staging / context.config.output_split_kernel)
+    if uki := get_uki_path(context):
+        shutil.copy(uki, context.staging / context.config.output_split_uki)
 
 
 def copy_vmlinuz(context: Context) -> None:
     if (context.staging / context.config.output_split_kernel).exists():
+        return
+
+    # ukify will have signed the kernel image as well. Let's make sure we put the signed kernel
+    # image in the output directory instead of the unsigned one by reading it from the UKI.
+    if uki := get_uki_path(context):
+        extract_pe_section(context, uki, ".linux", context.staging / context.config.output_split_kernel)
         return
 
     for _, kimg in gen_kernel_images(context):
@@ -2202,6 +2206,11 @@ def copy_initrd(context: Context) -> None:
         return
 
     if (context.staging / context.config.output_split_initrd).exists():
+        return
+
+    # Extract the combined initrds from the UKI so we can use it to direct kernel boot with qemu if needed.
+    if uki := get_uki_path(context):
+        extract_pe_section(context, uki, ".initrd", context.staging / context.config.output_split_initrd)
         return
 
     for kver, _ in gen_kernel_images(context):
