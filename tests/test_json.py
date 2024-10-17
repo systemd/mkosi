@@ -11,6 +11,7 @@ import pytest
 from mkosi.config import (
     Architecture,
     Args,
+    ArtifactOutput,
     BiosBootloader,
     Bootloader,
     Cacheonly,
@@ -333,7 +334,11 @@ def test_config() -> None:
                 }
             ],
             "SourceDateEpoch": 12345,
-            "SplitArtifacts": true,
+            "SplitArtifacts": [
+                "kernel",
+                "initrd",
+                "partitions"
+            ],
             "Ssh": false,
             "SshCertificate": "/path/to/cert",
             "SshKey": null,
@@ -533,7 +538,7 @@ def test_config() -> None:
         sign_expected_pcr_certificate=Path("/my/cert"),
         skeleton_trees=[ConfigTree(Path("/foo/bar"), Path("/")), ConfigTree(Path("/bar/baz"), Path("/qux"))],
         source_date_epoch=12345,
-        split_artifacts=True,
+        split_artifacts=[ArtifactOutput.kernel, ArtifactOutput.initrd, ArtifactOutput.partitions],
         ssh=False,
         ssh_certificate=Path("/path/to/cert"),
         ssh_key=None,
