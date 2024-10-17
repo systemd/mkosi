@@ -12,6 +12,7 @@ import pytest
 from mkosi import expand_kernel_specifiers
 from mkosi.config import (
     Architecture,
+    ArtifactOutput,
     Compression,
     Config,
     ConfigFeature,
@@ -228,26 +229,26 @@ def test_parse_config(tmp_path: Path) -> None:
     (d / "abc/mkosi.conf.d/abc.conf").write_text(
         """\
         [Output]
-        SplitArtifacts=yes
+        SplitArtifacts=partitions
         """
     )
 
     with chdir(d):
         _, [config] = parse_config()
         assert config.bootable == ConfigFeature.auto
-        assert config.split_artifacts is False
+        assert config.split_artifacts == [ArtifactOutput.uki, ArtifactOutput.kernel, ArtifactOutput.initrd]
 
         # Passing the directory should include both the main config file and the dropin.
         _, [config] = parse_config(["--include", os.fspath(d / "abc")] * 2)
         assert config.bootable == ConfigFeature.enabled
-        assert config.split_artifacts is True
+        assert config.split_artifacts == [ArtifactOutput.partitions]
         # The same extra config should not be parsed more than once.
         assert config.build_packages == ["abc"]
 
         # Passing the main config file should not include the dropin.
         _, [config] = parse_config(["--include", os.fspath(d / "abc/mkosi.conf")])
         assert config.bootable == ConfigFeature.enabled
-        assert config.split_artifacts is False
+        assert config.split_artifacts == [ArtifactOutput.uki, ArtifactOutput.kernel, ArtifactOutput.initrd]
 
     (d / "mkosi.images").mkdir()
 
