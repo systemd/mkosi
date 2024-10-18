@@ -499,7 +499,18 @@ class Architecture(StrEnum):
         return cls.from_uname(platform.machine())
 
 
-def parse_boolean(s: str) -> bool:
+class ArtifactOutput(enum.IntFlag):
+    uki = 1
+    kernel = 2
+    initrd = 4
+    partitions = 8
+
+    # Set a high bit to prevent these from showing up when only the previous values are set
+    no = 0b10000000000000000000000000000000 | uki | kernel | initrd
+    yes = 0b10000000000000000000000000000000 | uki | kernel | initrd | partitions
+
+
+def try_parse_boolean(s: str) -> Optional[bool]:
     "Parse 1/true/yes/y/t/on as true and 0/false/no/n/f/off/None as false"
 
     s_l = s.lower()
@@ -509,7 +520,16 @@ def parse_boolean(s: str) -> bool:
     if s_l in {"0", "false", "no", "n", "f", "off", "never"}:
         return False
 
-    die(f"Invalid boolean literal: {s!r}")
+    return None
+
+
+def parse_boolean(s: str) -> bool:
+    value = try_parse_boolean(s)
+
+    if value is None:
+        die(f"Invalid boolean literal: {s!r}")
+
+    return value
 
 
 def parse_path(
@@ -1291,6 +1311,25 @@ def config_parse_key_source(value: Optional[str], old: Optional[KeySource]) -> O
     return KeySource(type=type, source=source)
 
 
+def config_parse_artifact_output(
+    value: Optional[str], old: Optional[ArtifactOutput]
+) -> Optional[ArtifactOutput]:
+    if not value:
+        return None
+
+    # Keep for backwards compatibility
+    boolean_value = try_parse_boolean(value)
+    if boolean_value is not None:
+        return ArtifactOutput.yes if boolean_value else ArtifactOutput.no
+
+    try:
+        new = ArtifactOutput[value]
+    except KeyError:
+        die(f"'{value}' is not a valid {ArtifactOutput.__name__}")
+
+    return old | new if old else new
+
+
 class SettingScope(StrEnum):
     # Not passed down to subimages
     local = enum.auto()
@@ -1596,7 +1635,7 @@ class Config:
     output_mode: Optional[int]
     image_id: Optional[str]
     image_version: Optional[str]
-    split_artifacts: bool
+    split_artifacts: ArtifactOutput
     repart_dirs: list[Path]
     sysupdate_dir: Optional[Path]
     sector_size: Optional[int]
@@ -2292,11 +2331,11 @@ SETTINGS = (
     ),
     ConfigSetting(
         dest="split_artifacts",
-        metavar="BOOL",
         nargs="?",
         section="Output",
-        parse=config_parse_boolean,
-        help="Generate split partitions",
+        parse=config_parse_artifact_output,
+        default=ArtifactOutput.no,
+        help="Split artifacts out of the final image",
     ),
     ConfigSetting(
         dest="repart_dirs",
@@ -4429,6 +4468,10 @@ def line_join_list(array: Iterable[object]) -> str:
     return "\n                                     ".join(str(item) for item in array) if array else "none"
 
 
+def int_flag_names(flag: enum.IntFlag) -> str:
+    return none_to_none(flag.name).replace("|", "\n                                     ")
+
+
 def format_bytes(num_bytes: int) -> str:
     if num_bytes >= 1024**3:
         return f"{num_bytes/1024**3 :0.1f}G"
@@ -4508,7 +4551,7 @@ def summary(config: Config) -> str:
                         Output Mode: {format_octal_or_default(config.output_mode)}
                            Image ID: {config.image_id}
                       Image Version: {config.image_version}
-                    Split Artifacts: {yes_no(config.split_artifacts)}
+                    Split Artifacts: {int_flag_names(config.split_artifacts)}
                  Repart Directories: {line_join_list(config.repart_dirs)}
                         Sector Size: {none_to_default(config.sector_size)}
                             Overlay: {yes_no(config.overlay)}
