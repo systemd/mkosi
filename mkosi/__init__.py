@@ -2144,6 +2144,14 @@ def maybe_compress(
                 run(cmd, stdin=i, stdout=o, sandbox=context.sandbox(binary=cmd[0]))
 
 
+def copy_nspawn_settings(context: Context) -> None:
+    if context.config.nspawn_settings is None:
+        return None
+
+    with complete_step("Copying nspawn settings file…"):
+        shutil.copy2(context.config.nspawn_settings, context.staging / context.config.output_nspawn_settings)
+
+
 def copy_uki(context: Context) -> None:
     if (context.staging / context.config.output_split_uki).exists():
         return
@@ -2187,14 +2195,6 @@ def copy_vmlinuz(context: Context) -> None:
     for _, kimg in gen_kernel_images(context):
         shutil.copy(context.root / kimg, context.staging / context.config.output_split_kernel)
         break
-
-
-def copy_nspawn_settings(context: Context) -> None:
-    if context.config.nspawn_settings is None:
-        return None
-
-    with complete_step("Copying nspawn settings file…"):
-        shutil.copy2(context.config.nspawn_settings, context.staging / context.config.output_nspawn_settings)
 
 
 def copy_initrd(context: Context) -> None:
