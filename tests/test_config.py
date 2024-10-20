@@ -12,6 +12,7 @@ import pytest
 from mkosi import expand_kernel_specifiers
 from mkosi.config import (
     Architecture,
+    ArtifactOutput,
     Compression,
     Config,
     ConfigFeature,
@@ -235,19 +236,19 @@ def test_parse_config(tmp_path: Path) -> None:
     with chdir(d):
         _, [config] = parse_config()
         assert config.bootable == ConfigFeature.auto
-        assert config.split_artifacts is False
+        assert config.split_artifacts == ArtifactOutput.compat_no()
 
         # Passing the directory should include both the main config file and the dropin.
         _, [config] = parse_config(["--include", os.fspath(d / "abc")] * 2)
         assert config.bootable == ConfigFeature.enabled
-        assert config.split_artifacts is True
+        assert config.split_artifacts == ArtifactOutput.compat_yes()
         # The same extra config should not be parsed more than once.
         assert config.build_packages == ["abc"]
 
         # Passing the main config file should not include the dropin.
         _, [config] = parse_config(["--include", os.fspath(d / "abc/mkosi.conf")])
         assert config.bootable == ConfigFeature.enabled
-        assert config.split_artifacts is False
+        assert config.split_artifacts == ArtifactOutput.compat_no()
 
     (d / "mkosi.images").mkdir()
 
@@ -1277,3 +1278,54 @@ def test_mkosi_version_executable(tmp_path: Path) -> None:
     with chdir(d):
         _, [config] = parse_config()
         assert config.image_version == "1.2.3"
+
+
+def test_split_artifacts(tmp_path: Path) -> None:
+    d = tmp_path
+
+    (d / "mkosi.conf").write_text(
+        """
+        [Output]
+        SplitArtifacts=uki
+        """
+    )
+
+    with chdir(d):
+        _, [config] = parse_config()
+        assert config.split_artifacts == [ArtifactOutput.uki]
+
+    (d / "mkosi.conf").write_text(
+        """
+        [Output]
+        SplitArtifacts=uki
+        SplitArtifacts=kernel
+        SplitArtifacts=initrd
+        """
+    )
+
+    with chdir(d):
+        _, [config] = parse_config()
+        assert config.split_artifacts == [
+            ArtifactOutput.uki,
+            ArtifactOutput.kernel,
+            ArtifactOutput.initrd,
+        ]
+
+
+def test_split_artifacts_compat(tmp_path: Path) -> None:
+    d = tmp_path
+
+    with chdir(d):
+        _, [config] = parse_config()
+        assert config.split_artifacts == ArtifactOutput.compat_no()
+
+    (d / "mkosi.conf").write_text(
+        """
+        [Output]
+        SplitArtifacts=yes
+        """
+    )
+
+    with chdir(d):
+        _, [config] = parse_config()
+        assert config.split_artifacts == ArtifactOutput.compat_yes()

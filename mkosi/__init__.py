@@ -50,6 +50,7 @@ from mkosi.completion import print_completion
 from mkosi.config import (
     PACKAGE_GLOBS,
     Args,
+    ArtifactOutput,
     Bootloader,
     Cacheonly,
     Compression,
@@ -2100,8 +2101,11 @@ def make_uki(
         output,
     )
 
-    extract_pe_section(context, output, ".linux", context.staging / context.config.output_split_kernel)
-    extract_pe_section(context, output, ".initrd", context.staging / context.config.output_split_initrd)
+    if ArtifactOutput.kernel in context.config.split_artifacts:
+        extract_pe_section(context, output, ".linux", context.staging / context.config.output_split_kernel)
+
+    if ArtifactOutput.initrd in context.config.split_artifacts:
+        extract_pe_section(context, output, ".initrd", context.staging / context.config.output_split_initrd)
 
 
 def compressor_command(context: Context, compression: Compression) -> list[PathString]:
@@ -2179,6 +2183,9 @@ def get_uki_path(context: Context) -> Optional[Path]:
 
 
 def copy_uki(context: Context) -> None:
+    if ArtifactOutput.uki not in context.config.split_artifacts:
+        return
+
     if (context.staging / context.config.output_split_uki).exists():
         return
 
@@ -2187,6 +2194,9 @@ def copy_uki(context: Context) -> None:
 
 
 def copy_vmlinuz(context: Context) -> None:
+    if ArtifactOutput.kernel not in context.config.split_artifacts:
+        return
+
     if (context.staging / context.config.output_split_kernel).exists():
         return
 
@@ -2202,6 +2212,9 @@ def copy_vmlinuz(context: Context) -> None:
 
 
 def copy_initrd(context: Context) -> None:
+    if ArtifactOutput.initrd not in context.config.split_artifacts:
+        return
+
     if not want_initrd(context):
         return
 
@@ -3379,7 +3392,7 @@ def make_extension_image(context: Context, output: Path) -> None:
         ]  # fmt: skip
     if context.config.sector_size:
         cmdline += ["--sector-size", str(context.config.sector_size)]
-    if context.config.split_artifacts:
+    if ArtifactOutput.partitions in context.config.split_artifacts:
         cmdline += ["--split=yes"]
 
     with complete_step(f"Building {context.config.output_format} extension image"):
@@ -3401,7 +3414,7 @@ def make_extension_image(context: Context, output: Path) -> None:
 
     logging.debug(json.dumps(j, indent=4))
 
-    if context.config.split_artifacts:
+    if ArtifactOutput.partitions in context.config.split_artifacts:
         for p in (Partition.from_dict(d) for d in j):
             if p.split_path:
                 maybe_compress(context, context.config.compress_output, p.split_path)
@@ -3646,7 +3659,7 @@ def build_image(context: Context) -> None:
     partitions = make_disk(context, msg="Formatting ESP/XBOOTLDR partitions")
     grub_bios_setup(context, partitions)
 
-    if context.config.split_artifacts:
+    if ArtifactOutput.partitions in context.config.split_artifacts:
         make_disk(context, split=True, msg="Extracting partitions")
 
     copy_nspawn_settings(context)
