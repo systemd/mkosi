@@ -1532,7 +1532,24 @@ class UKIProfile:
 
 
 def make_simple_config_parser(settings: Sequence[ConfigSetting], type: type[Any]) -> Callable[[str], Any]:
-    lookup = {s.name: s for s in settings}
+    lookup_by_name = {s.name: s for s in settings}
+    lookup_by_dest = {s.dest: s for s in settings}
+
+    def finalize_value(config: argparse.Namespace, setting: ConfigSetting) -> None:
+        if hasattr(config, setting.dest):
+            return
+
+        if setting.default_factory:
+            for d in setting.default_factory_depends:
+                finalize_value(config, lookup_by_dest[d])
+
+            default = setting.default_factory(config)
+        elif setting.default:
+            default = setting.default
+        else:
+            default = setting.parse(None, None)
+
+        setattr(config, setting.dest, default)
 
     def parse_simple_config(value: str) -> Any:
         path = parse_path(value)
@@ -1542,7 +1559,7 @@ def make_simple_config_parser(settings: Sequence[ConfigSetting], type: type[Any]
             if not name and not value:
                 continue
 
-            if not (s := lookup.get(name)):
+            if not (s := lookup_by_name.get(name)):
                 die(f"{path.absolute()}: Unknown setting {name}")
 
             if section != s.section:
@@ -1557,6 +1574,9 @@ def make_simple_config_parser(settings: Sequence[ConfigSetting], type: type[Any]
                 )
 
             setattr(config, s.dest, s.parse(value, getattr(config, s.dest, None)))
+
+        for setting in settings:
+            finalize_value(config, setting)
 
         return type(**{k: v for k, v in vars(config).items() if k in inspect.signature(type).parameters})
 
