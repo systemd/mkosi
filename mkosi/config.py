@@ -499,7 +499,31 @@ class Architecture(StrEnum):
         return cls.from_uname(platform.machine())
 
 
-def parse_boolean(s: str) -> bool:
+class ArtifactOutput(StrEnum):
+    uki = enum.auto()
+    kernel = enum.auto()
+    initrd = enum.auto()
+    partitions = enum.auto()
+
+    @staticmethod
+    def compat_no() -> list["ArtifactOutput"]:
+        return [
+            ArtifactOutput.uki,
+            ArtifactOutput.kernel,
+            ArtifactOutput.initrd,
+        ]
+
+    @staticmethod
+    def compat_yes() -> list["ArtifactOutput"]:
+        return [
+            ArtifactOutput.uki,
+            ArtifactOutput.kernel,
+            ArtifactOutput.initrd,
+            ArtifactOutput.partitions,
+        ]
+
+
+def try_parse_boolean(s: str) -> Optional[bool]:
     "Parse 1/true/yes/y/t/on as true and 0/false/no/n/f/off/None as false"
 
     s_l = s.lower()
@@ -509,7 +533,16 @@ def parse_boolean(s: str) -> bool:
     if s_l in {"0", "false", "no", "n", "f", "off", "never"}:
         return False
 
-    die(f"Invalid boolean literal: {s!r}")
+    return None
+
+
+def parse_boolean(s: str) -> bool:
+    value = try_parse_boolean(s)
+
+    if value is None:
+        die(f"Invalid boolean literal: {s!r}")
+
+    return value
 
 
 def parse_path(
@@ -1291,6 +1324,21 @@ def config_parse_key_source(value: Optional[str], old: Optional[KeySource]) -> O
     return KeySource(type=type, source=source)
 
 
+def config_parse_artifact_output_list(
+    value: Optional[str], old: Optional[list[ArtifactOutput]]
+) -> Optional[list[ArtifactOutput]]:
+    if not value:
+        return None
+
+    # Keep for backwards compatibility
+    boolean_value = try_parse_boolean(value)
+    if boolean_value is not None:
+        return ArtifactOutput.compat_yes() if boolean_value else ArtifactOutput.compat_no()
+
+    list_value = config_make_list_parser(delimiter=",", parse=make_enum_parser(ArtifactOutput))(value, old)
+    return cast(list[ArtifactOutput], list_value)
+
+
 class SettingScope(StrEnum):
     # Not passed down to subimages
     local = enum.auto()
@@ -1616,7 +1664,7 @@ class Config:
     output_mode: Optional[int]
     image_id: Optional[str]
     image_version: Optional[str]
-    split_artifacts: bool
+    split_artifacts: list[ArtifactOutput]
     repart_dirs: list[Path]
     sysupdate_dir: Optional[Path]
     sector_size: Optional[int]
@@ -2312,11 +2360,11 @@ SETTINGS = (
     ),
     ConfigSetting(
         dest="split_artifacts",
-        metavar="BOOL",
         nargs="?",
         section="Output",
-        parse=config_parse_boolean,
-        help="Generate split partitions",
+        parse=config_parse_artifact_output_list,
+        default=ArtifactOutput.compat_no(),
+        help="Split artifacts out of the final image",
     ),
     ConfigSetting(
         dest="repart_dirs",
@@ -4528,7 +4576,7 @@ def summary(config: Config) -> str:
                         Output Mode: {format_octal_or_default(config.output_mode)}
                            Image ID: {config.image_id}
                       Image Version: {config.image_version}
-                    Split Artifacts: {yes_no(config.split_artifacts)}
+                    Split Artifacts: {line_join_list(config.split_artifacts)}
                  Repart Directories: {line_join_list(config.repart_dirs)}
                         Sector Size: {none_to_default(config.sector_size)}
                             Overlay: {yes_no(config.overlay)}
@@ -4844,6 +4892,7 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         Vmm: enum_transformer,
         list[PEAddon]: pe_addon_transformer,
         list[UKIProfile]: uki_profile_transformer,
+        list[ArtifactOutput]: enum_list_transformer,
     }
 
     def json_transformer(key: str, val: Any) -> Any:

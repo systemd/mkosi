@@ -596,13 +596,20 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     invoked. The image ID is automatically added to `/usr/lib/os-release`.
 
 `SplitArtifacts=`, `--split-artifacts`
-:   If specified and building a disk image, pass `--split=yes` to systemd-repart
-    to have it write out split partition files for each configured partition.
-    Read the [man](https://www.freedesktop.org/software/systemd/man/systemd-repart.html#--split=BOOL)
+:   The artifact types to split out of the final image. A comma-delimited
+    list consisting of `uki`, `kernel`, `initrd` and `partitions`. When
+    building a bootable image `kernel` and `initrd` correspond to their
+    artifact found in the image (or in the UKI), while `uki` copies out the
+    entire UKI.
+
+    When building a disk image and `partitions` is specified,
+    pass `--split=yes` to systemd-repart to have it write out split partition
+    files for each configured partition. Read the
+    [man](https://www.freedesktop.org/software/systemd/man/systemd-repart.html#--split=BOOL)
     page for more information. This is useful in A/B update scenarios where
     an existing disk image shall be augmented with a new version of a
     root or `/usr` partition along with its Verity partition and unified
-    kernel.
+    kernel. By default `uki`, `kernel` and `initrd` are split out.
 
 `RepartDirectories=`, `--repart-dir=`
 :   Paths to directories containing systemd-repart partition definition
@@ -2229,7 +2236,7 @@ current working directory. The following scripts are supported:
 * If **`mkosi.clean`** (`CleanScripts=`) exists, it is executed right
   after the outputs of a previous build have been cleaned up. A clean
   script can clean up any outputs that mkosi does not know about (e.g.
-  artifacts from `SplitArtifacts=yes` or RPMs built in a build script).
+  artifacts from `SplitArtifacts=partitions` or RPMs built in a build script).
   Note that this script does not use the tools tree even if one is configured.
 
 * If **`mkosi.version`** exists and is executable, it is run during
