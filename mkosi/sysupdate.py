@@ -4,15 +4,15 @@ import os
 import sys
 from pathlib import Path
 
-from mkosi.config import Args, Config
+from mkosi.config import Args, ArtifactOutput, Config
 from mkosi.log import die
 from mkosi.run import run
 from mkosi.types import PathString
 
 
 def run_sysupdate(args: Args, config: Config) -> None:
-    if not config.split_artifacts:
-        die("SplitArtifacts= must be enabled to be able to use mkosi sysupdate")
+    if ArtifactOutput.partitions not in config.split_artifacts:
+        die("SplitArtifacts=partitions must be set to be able to use mkosi sysupdate")
 
     if not config.sysupdate_dir:
         die(
