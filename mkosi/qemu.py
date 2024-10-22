@@ -468,6 +468,15 @@ def vsock_notify_handler() -> Iterator[tuple[str, dict[str, str]]]:
                     logging.debug(f"- {k}={v}")
 
 
+def make_nocow(config: Config, path: Path) -> None:
+    run(
+        ["chattr", "+C", workdir(path)],
+        check=False,
+        stderr=subprocess.DEVNULL if not ARG_DEBUG.get() else None,
+        sandbox=config.sandbox(binary="chattr", options=["--bind", path, workdir(path)]),
+    )
+
+
 @contextlib.contextmanager
 def start_journal_remote(config: Config, sockfd: int) -> Iterator[None]:
     assert config.forward_journal
@@ -486,7 +495,7 @@ def start_journal_remote(config: Config, sockfd: int) -> Iterator[None]:
         # at the same time.
         d.mkdir(exist_ok=True, parents=True)
         # Make sure COW is disabled so systemd-journal-remote doesn't complain on btrfs filesystems.
-        run(["chattr", "+C", d], check=False, stderr=subprocess.DEVNULL if not ARG_DEBUG.get() else None)
+        make_nocow(config, d)
         INVOKING_USER.chown(d)
 
     with tempfile.NamedTemporaryFile(mode="w", prefix="mkosi-journal-remote-config-") as f:
@@ -585,10 +594,7 @@ def copy_ephemeral(config: Config, src: Path) -> Iterator[Path]:
 
                 if "No_COW" in attr:
                     tmp.touch()
-                    run(
-                        ["chattr", "+C", workdir(tmp)],
-                        sandbox=config.sandbox(binary="chattr", options=["--bind", tmp, workdir(tmp)]),
-                    )
+                    make_nocow(config, tmp)
 
             copy_tree(
                 src,
@@ -740,10 +746,12 @@ def apply_runtime_size(config: Config, image: Path) -> None:
 
 
 @contextlib.contextmanager
-def finalize_drive(drive: QemuDrive) -> Iterator[Path]:
+def finalize_drive(config: Config, drive: QemuDrive) -> Iterator[Path]:
     with tempfile.NamedTemporaryFile(
-        dir=drive.directory or "/var/tmp", prefix=f"mkosi-drive-{drive.id}"
+        dir=drive.directory or "/var/tmp",
+        prefix=f"mkosi-drive-{drive.id}",
     ) as file:
+        make_nocow(config, Path(file.name))
         file.truncate(drive.size)
         yield Path(file.name)
 
@@ -1262,7 +1270,7 @@ def run_qemu(args: Args, config: Config) -> None:
             cache = "cache.writeback=on,cache.direct=on,cache.no-flush=yes,aio=io_uring"
             cmdline += [
                 "-drive", f"if=none,id=scratch,file={scratch},format=raw,discard=on,{cache}",
-                "-device", "scsi-hd,drive=scratch",
+                "-device", "virtio-blk-pci,drive=scratch",
             ]  # fmt: skip
             kcl += [f"systemd.mount-extra=LABEL=scratch:/var/tmp:{config.distribution.filesystem()}"]
 
@@ -1282,7 +1290,7 @@ def run_qemu(args: Args, config: Config) -> None:
             cache = f"cache.writeback=on,cache.direct={yes_no(direct)},cache.no-flush={yes_no(ephemeral)},aio=io_uring"  # noqa: E501
             cmdline += [
                 "-drive", f"if=none,id=mkosi,file={fname},format=raw,discard=on,{cache}",
-                "-device", f"scsi-{'cd' if config.qemu_cdrom else 'hd'},drive=mkosi,bootindex=1{',removable=on' if config.qemu_removable else ''}",  # noqa: E501
+                "-device", f"{'scsi-cd' if config.qemu_cdrom or config.qemu_removable else 'virtio-blk-pci'},drive=mkosi,bootindex=1{',removable=on' if config.qemu_removable else ''}",  # noqa: E501
             ]  # fmt: skip
 
         if config.qemu_swtpm == ConfigFeature.enabled or (
@@ -1337,7 +1345,7 @@ def run_qemu(args: Args, config: Config) -> None:
             ]
 
         for _, drives in groupby(config.qemu_drives, key=lambda d: d.file_id):
-            file = stack.enter_context(finalize_drive(drives[0]))
+            file = stack.enter_context(finalize_drive(config, drives[0]))
 
             for drive in drives:
                 arg = f"if=none,id={drive.id},file={file},format=raw,file.locking=off"
