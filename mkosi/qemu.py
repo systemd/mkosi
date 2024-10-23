@@ -752,7 +752,7 @@ def finalize_drive(config: Config, drive: QemuDrive) -> Iterator[Path]:
         prefix=f"mkosi-drive-{drive.id}",
     ) as file:
         make_nocow(config, Path(file.name))
-        file.truncate(drive.size)
+        file.truncate(round_up(drive.size, resource.getpagesize()))
         yield Path(file.name)
 
 
@@ -1348,7 +1348,7 @@ def run_qemu(args: Args, config: Config) -> None:
             file = stack.enter_context(finalize_drive(config, drives[0]))
 
             for drive in drives:
-                arg = f"if=none,id={drive.id},file={file},format=raw,file.locking=off"
+                arg = f"if=none,id={drive.id},file={file},format=raw,file.locking=off,cache.writeback=on,cache.direct=on,cache.no-flush=yes,aio=io_uring"  # noqa: E501
                 if drive.options:
                     arg += f",{drive.options}"
 
