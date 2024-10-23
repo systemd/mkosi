@@ -6,7 +6,7 @@ import os
 import subprocess
 import sys
 import uuid
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
 from types import TracebackType
 from typing import Any, Optional
@@ -61,6 +61,7 @@ class Image:
         user: Optional[int] = None,
         group: Optional[int] = None,
         check: bool = True,
+        env: Optional[Mapping[str, str]] = None,
     ) -> CompletedProcess:
         return run(
             [
@@ -74,12 +75,18 @@ class Image:
             check=check,
             stdin=stdin,
             stdout=sys.stdout,
+            stderr=sys.stderr,
             user=user,
             group=group,
-            env=os.environ,
+            env=env or os.environ,
         )  # fmt: skip
 
-    def build(self, options: Sequence[PathString] = (), args: Sequence[str] = ()) -> CompletedProcess:
+    def build(
+        self,
+        options: Sequence[PathString] = (),
+        args: Sequence[str] = (),
+        env: Optional[Mapping[str, str]] = None,
+    ) -> CompletedProcess:
         kcl = [
             "loglevel=6",
             "systemd.log_level=debug",
@@ -102,7 +109,7 @@ class Image:
             *options,
         ]  # fmt: skip
 
-        self.mkosi("summary", opt, user=self.uid, group=self.uid)
+        self.mkosi("summary", opt, user=self.uid, group=self.uid, env=env)
 
         return self.mkosi(
             "build",
@@ -111,6 +118,7 @@ class Image:
             stdin=sys.stdin if sys.stdin.isatty() else None,
             user=self.uid,
             group=self.gid,
+            env=env,
         )
 
     def boot(self, options: Sequence[str] = (), args: Sequence[str] = ()) -> CompletedProcess:
