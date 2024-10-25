@@ -31,10 +31,6 @@ initrds and Unified Kernel Images for the current running system.
 :   Name to use for the generated output image file or directory. Defaults
     to `initrd`.
 
-    Note that this only specifies the output prefix, depending on the
-    specific output format and compression used, the full output name might be
-    `initrd.cpio.zst`.
-
 `--output-dir=`, `-O`
 :   Path to a directory where to place all generated artifacts. Defaults to the
     current working directory.
