@@ -5,7 +5,6 @@ import argparse
 import dataclasses
 import logging
 import os
-import shutil
 import tempfile
 from pathlib import Path
 from typing import Optional
@@ -164,7 +163,6 @@ def main() -> None:
     (context.staging_area / output).unlink()
 
     if format == OutputFormat.cpio:
-        shutil.move(next(context.staging_area.glob("initrd*.cpio*")), context.staging_area / "initrd")
         build_microcode_initrd(context.staging_area / "microcode")
     else:
         (context.staging_area / f"{output}.vmlinuz").unlink()
