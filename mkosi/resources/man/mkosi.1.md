@@ -2408,8 +2408,8 @@ Consult this table for which script receives which environment variables:
 | `CHROOT_BUILDDIR`           |             |        |           | ✓       |            |            |              |         |
 | `DESTDIR`                   |             |        |           | ✓       |            |            |              |         |
 | `CHROOT_DESTDIR`            |             |        |           | ✓       |            |            |              |         |
-| `OUTPUTDIR`                 |             |        |           | ✓       | ✓          | ✓          | ✓            | ✓       |
-| `CHROOT_OUTPUTDIR`          |             |        |           | ✓       | ✓          | ✓          |              |         |
+| `OUTPUTDIR`                 |             |        |           |         | ✓          | ✓          | ✓            | ✓       |
+| `CHROOT_OUTPUTDIR`          |             |        |           |         | ✓          | ✓          |              |         |
 | `BUILDROOT`                 |             |        | ✓         | ✓       | ✓          | ✓          |              |         |
 | `PACKAGEDIR`                |             |        | ✓         | ✓       | ✓          | ✓          |              |         |
 | `ARTIFACTDIR`               |             |        | ✓         | ✓       | ✓          | ✓          |              |         |

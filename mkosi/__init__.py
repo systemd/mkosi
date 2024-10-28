@@ -763,8 +763,6 @@ def run_build_scripts(context: Context) -> None:
         BUILDROOT="/buildroot",
         DESTDIR="/work/dest",
         CHROOT_DESTDIR="/work/dest",
-        OUTPUTDIR="/work/out",
-        CHROOT_OUTPUTDIR="/work/out",
         SRCDIR="/work/src",
         CHROOT_SRCDIR="/work/src",
         PACKAGEDIR="/work/packages",
@@ -804,7 +802,6 @@ def run_build_scripts(context: Context) -> None:
                     "--ro-bind", script, "/work/build-script",
                     "--ro-bind", json, "/work/config.json",
                     "--bind", context.install_dir, "/work/dest",
-                    "--bind", context.staging, "/work/out",
                     "--bind", context.artifacts, "/work/artifacts",
                     "--bind", context.package_dir, "/work/packages",
                     *(
