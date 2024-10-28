@@ -46,6 +46,7 @@ def run_sysupdate(args: Args, config: Config) -> None:
             options=[
                 *(["--bind", "/boot", "/boot"] if Path("/boot").exists() else []),
                 *(["--bind", "/efi", "/efi"] if Path("/efi").exists() else []),
+                "--same-dir",
             ],
         ),
     )

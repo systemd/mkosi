@@ -1393,6 +1393,7 @@ def run_qemu(args: Args, config: Config) -> None:
                 network=True,
                 devices=True,
                 relaxed=True,
+                options=["--same-dir"],
                 setup=scope_cmd(
                     name=name,
                     description=f"mkosi Virtual Machine {name}",
@@ -1448,5 +1449,11 @@ def run_ssh(args: Args, config: Config) -> None:
         stdout=sys.stdout,
         env=os.environ | config.environment,
         log=False,
-        sandbox=config.sandbox(binary="ssh", network=True, devices=True, relaxed=True),
+        sandbox=config.sandbox(
+            binary="ssh",
+            network=True,
+            devices=True,
+            relaxed=True,
+            options=["--same-dir"],
+        ),
     )
