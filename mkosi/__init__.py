@@ -3931,6 +3931,7 @@ def run_shell(args: Args, config: Config) -> None:
                 devices=True,
                 network=True,
                 relaxed=True,
+                options=["--same-dir"],
                 setup=["run0"] if os.getuid() != 0 else [],
             ),
         )

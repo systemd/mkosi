@@ -114,5 +114,11 @@ def run_vmspawn(args: Args, config: Config) -> None:
             stdout=sys.stdout,
             env=os.environ | config.environment,
             log=False,
-            sandbox=config.sandbox(binary=cmdline[0], network=True, devices=True, relaxed=True),
+            sandbox=config.sandbox(
+                binary=cmdline[0],
+                network=True,
+                devices=True,
+                relaxed=True,
+                options=["--same-dir"],
+            ),
         )
