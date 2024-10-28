@@ -4274,6 +4274,8 @@ def run_clean(args: Args, config: Config, *, resources: Path) -> None:
             ):
                 rmtree(*outputs, sandbox=sandbox)
 
+        run_clean_scripts(config)
+
     if (
         remove_build_cache
         and config.build_dir
@@ -4310,8 +4312,6 @@ def run_clean(args: Args, config: Config, *, resources: Path) -> None:
                 *(config.package_cache_dir_or_default() / d / subdir for d in ("cache", "lib")),
                 sandbox=sandbox,
             )
-
-    run_clean_scripts(config)
 
 
 def ensure_directories_exist(config: Config) -> None:
