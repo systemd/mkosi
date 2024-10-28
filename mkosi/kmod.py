@@ -236,7 +236,7 @@ def process_kernel_modules(
             if fw in required:
                 continue
 
-            if any(fw.is_relative_to(Path("usr/lib/firmware") / d) for d in ("amd-ucode", "intel-ucode")):
+            if any(fw.is_relative_to(firmwared / d) for d in ("amd-ucode", "intel-ucode")):
                 continue
 
             p = root / fw
