@@ -242,5 +242,7 @@ def process_kernel_modules(
             p = root / fw
             if p.is_file() or p.is_symlink():
                 p.unlink()
+                if p.parent != root / firmwared and not any(p.parent.iterdir()):
+                    p.parent.rmdir()
             else:
                 p.rmdir()
