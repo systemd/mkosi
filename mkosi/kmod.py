@@ -229,7 +229,7 @@ def process_kernel_modules(
             p = root / m
             if p.is_file() or p.is_symlink():
                 p.unlink()
-            else:
+            elif p.exists():
                 p.rmdir()
 
         for fw in firmware:
@@ -244,5 +244,5 @@ def process_kernel_modules(
                 p.unlink()
                 if p.parent != root / firmwared and not any(p.parent.iterdir()):
                     p.parent.rmdir()
-            else:
+            elif p.exists():
                 p.rmdir()
