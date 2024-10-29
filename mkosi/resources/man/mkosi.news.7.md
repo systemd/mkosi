@@ -74,6 +74,10 @@
   tools tree when `ToolsTreeCertificates=` is set, since they aren't certificates, use a sandbox tree
   instead. This allows to override `SignedBy=` keys for APT repositories.
 - The `agetty.autologin` and `login.noauth` credentials are no longer set unconditionally.
+- Access to the output directory in build scripts was removed. To put artifacts
+  from the build directory into the output directory, copy them from the build directory
+  to the output directory in a post-installation script which does have access to the build
+  directory and the output directory.
 
 ## v24
 

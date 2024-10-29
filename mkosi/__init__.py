@@ -763,8 +763,6 @@ def run_build_scripts(context: Context) -> None:
         BUILDROOT="/buildroot",
         DESTDIR="/work/dest",
         CHROOT_DESTDIR="/work/dest",
-        OUTPUTDIR="/work/out",
-        CHROOT_OUTPUTDIR="/work/out",
         SRCDIR="/work/src",
         CHROOT_SRCDIR="/work/src",
         PACKAGEDIR="/work/packages",
@@ -804,7 +802,6 @@ def run_build_scripts(context: Context) -> None:
                     "--ro-bind", script, "/work/build-script",
                     "--ro-bind", json, "/work/config.json",
                     "--bind", context.install_dir, "/work/dest",
-                    "--bind", context.staging, "/work/out",
                     "--bind", context.artifacts, "/work/artifacts",
                     "--bind", context.package_dir, "/work/packages",
                     *(
@@ -4274,6 +4271,8 @@ def run_clean(args: Args, config: Config, *, resources: Path) -> None:
             ):
                 rmtree(*outputs, sandbox=sandbox)
 
+        run_clean_scripts(config)
+
     if (
         remove_build_cache
         and config.build_dir
@@ -4310,8 +4309,6 @@ def run_clean(args: Args, config: Config, *, resources: Path) -> None:
                 *(config.package_cache_dir_or_default() / d / subdir for d in ("cache", "lib")),
                 sandbox=sandbox,
             )
-
-    run_clean_scripts(config)
 
 
 def ensure_directories_exist(config: Config) -> None:
