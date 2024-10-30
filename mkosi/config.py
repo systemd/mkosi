@@ -4075,10 +4075,11 @@ class ParseContext:
         if extras:
             if parse_local:
                 if (
-                    (localpath := path.parent / "mkosi.local/mkosi.conf").exists()
+                    ((localpath := path.parent / "mkosi.local") / "mkosi.conf").exists()
                     or (localpath := path.parent / "mkosi.local.conf").exists()
                 ):  # fmt: skip
-                    self.parse_config_one(localpath)
+                    with chdir(localpath if localpath.is_dir() else Path.cwd()):
+                        self.parse_config_one(localpath if localpath.is_file() else Path("."))
 
                     # Local configuration should override other file based
                     # configuration but not the CLI itself so move the finalized
