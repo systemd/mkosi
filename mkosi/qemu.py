@@ -1288,9 +1288,16 @@ def run_qemu(args: Args, config: Config) -> None:
             direct = fname.stat().st_size % resource.getpagesize() == 0
             ephemeral = config.ephemeral
             cache = f"cache.writeback=on,cache.direct={yes_no(direct)},cache.no-flush={yes_no(ephemeral)},aio=io_uring"  # noqa: E501
+            device_type = "virtio-blk-pci"
+            removable_flag = ""
+            if config.qemu_cdrom:
+                device_type = "scsi-cd"
+            elif config.qemu_removable:
+                device_type = "scsi-hd"
+                removable_flag = ",removable=on"
             cmdline += [
                 "-drive", f"if=none,id=mkosi,file={fname},format=raw,discard=on,{cache}",
-                "-device", f"{'scsi-cd' if config.qemu_cdrom or config.qemu_removable else 'virtio-blk-pci'},drive=mkosi,bootindex=1{',removable=on' if config.qemu_removable else ''}",  # noqa: E501
+                "-device", f"{device_type},drive=mkosi,bootindex=1{removable_flag}",  # noqa: E501
             ]  # fmt: skip
 
         if config.qemu_swtpm == ConfigFeature.enabled or (
