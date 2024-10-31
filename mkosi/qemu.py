@@ -789,19 +789,7 @@ def finalize_state(config: Config, cid: int) -> Iterator[None]:
 
 
 def finalize_kernel_command_line_extra(config: Config) -> list[str]:
-    columns, lines = shutil.get_terminal_size()
-    term = finalize_term()
-
-    cmdline = [
-        "rw",
-        # Make sure we set up networking in the VM/container.
-        "systemd.wants=network.target",
-        # Make sure we don't load vmw_vmci which messes with virtio vsock.
-        "module_blacklist=vmw_vmci",
-        f"systemd.tty.term.hvc0={term}",
-        f"systemd.tty.columns.hvc0={columns}",
-        f"systemd.tty.rows.hvc0={lines}",
-    ]
+    cmdline = []
 
     if not any(s.startswith("ip=") for s in config.kernel_command_line_extra):
         cmdline += ["ip=enc0:any", "ip=enp0s1:any", "ip=enp0s2:any", "ip=host0:any", "ip=none"]
@@ -817,21 +805,6 @@ def finalize_kernel_command_line_extra(config: Config) -> list[str]:
         and config.machine
     ):
         cmdline += [f"systemd.hostname={config.machine}"]
-
-    if config.qemu_cdrom:
-        # CD-ROMs are read-only so tell systemd to boot in volatile mode.
-        cmdline += ["systemd.volatile=yes"]
-
-    if not config.qemu_gui:
-        cmdline += [
-            f"systemd.tty.term.console={term}",
-            f"systemd.tty.columns.console={columns}",
-            f"systemd.tty.rows.console={lines}",
-            "console=hvc0",
-            f"TERM={term}",
-        ]
-    elif config.architecture.is_arm_variant():
-        cmdline += ["console=tty0"]
 
     for s in config.kernel_command_line_extra:
         key, sep, value = s.partition("=")
@@ -1116,23 +1089,6 @@ def run_qemu(args: Args, config: Config) -> None:
 
     cmdline += ["-cpu", "max"]
 
-    if config.qemu_gui:
-        if config.architecture.is_arm_variant():
-            cmdline += ["-device", "virtio-gpu-pci"]
-        else:
-            cmdline += ["-vga", "virtio"]
-    else:
-        # -nodefaults removes the default CDROM device which avoids an error message during boot
-        # -serial mon:stdio adds back the serial device removed by -nodefaults.
-        cmdline += [
-            "-nographic",
-            "-nodefaults",
-            "-chardev", "stdio,mux=on,id=console,signal=off",
-            "-device", "virtio-serial-pci,id=mkosi-virtio-serial-pci",
-            "-device", "virtconsole,chardev=console",
-            "-mon", "console",
-        ]  # fmt: skip
-
     # QEMU has built-in logic to look for the BIOS firmware so we don't need to do anything special for that.
     if firmware.is_uefi():
         assert ovmf
@@ -1185,18 +1141,49 @@ def run_qemu(args: Args, config: Config) -> None:
 
         apply_runtime_size(config, fname)
 
-        if kernel and (
-            KernelType.identify(config, kernel) != KernelType.uki
-            or not config.architecture.supports_smbios(firmware)
-        ):
-            kcl = config.kernel_command_line + finalize_kernel_command_line_extra(config)
+        columns, lines = shutil.get_terminal_size()
+        term = finalize_term()
+
+        kernel_cmdline_additions = [
+            "rw",
+            # Make sure we set up networking in the VM/container.
+            "systemd.wants=network.target",
+            # Make sure we don't load vmw_vmci which messes with virtio vsock.
+            "module_blacklist=vmw_vmci",
+            f"systemd.tty.term.hvc0={term}",
+            f"systemd.tty.columns.hvc0={columns}",
+            f"systemd.tty.rows.hvc0={lines}",
+        ]
+
+        if config.qemu_gui:
+            if config.architecture.is_arm_variant():
+                cmdline += ["-device", "virtio-gpu-pci"]
+                kernel_cmdline_additions += ["console=tty0"]
+            else:
+                cmdline += ["-vga", "virtio"]
         else:
-            kcl = finalize_kernel_command_line_extra(config)
+            # -nodefaults removes the default CDROM device which avoids an error message during boot
+            # -serial mon:stdio adds back the serial device removed by -nodefaults.
+            cmdline += [
+                "-nographic",
+                "-nodefaults",
+                "-chardev", "stdio,mux=on,id=console,signal=off",
+                "-device", "virtio-serial-pci,id=mkosi-virtio-serial-pci",
+                "-device", "virtconsole,chardev=console",
+                "-mon", "console",
+            ]  # fmt: skip
+            kernel_cmdline_additions += [
+                f"systemd.tty.term.console={term}",
+                f"systemd.tty.columns.console={columns}",
+                f"systemd.tty.rows.console={lines}",
+                "console=hvc0",
+                f"TERM={term}",
+            ]
 
         if kernel:
             cmdline += ["-kernel", kernel]
 
-            if any(s.startswith("root=") for s in kcl):
+            if any(s.startswith("root=") for s in config.kernel_command_line_extra):
                 pass
             elif config.output_format == OutputFormat.disk:
                 # We can't rely on gpt-auto-generator when direct kernel booting so synthesize a root=
@@ -1205,7 +1192,7 @@ def run_qemu(args: Args, config: Config) -> None:
                 if not root:
                     die("Cannot perform a direct kernel boot without a root or usr partition")
 
-                kcl += [root]
+                kernel_cmdline_additions += [root]
             elif config.output_format == OutputFormat.directory:
                 sock = stack.enter_context(
                     start_virtiofsd(
@@ -1220,7 +1207,7 @@ def run_qemu(args: Args, config: Config) -> None:
                     "-chardev", f"socket,id={sock.name},path={sock}",
                     "-device", f"vhost-user-fs-pci,queue-size=1024,chardev={sock.name},tag=root",
                 ]  # fmt: skip
-                kcl += ["root=root", "rootfstype=virtiofs"]
+                kernel_cmdline_additions += ["root=root", "rootfstype=virtiofs"]
 
         credentials = finalize_credentials(config)
 
@@ -1280,7 +1267,7 @@ def run_qemu(args: Args, config: Config) -> None:
                 "-drive", f"if=none,id=scratch,file={scratch},format=raw,discard=on,{cache}",
                 "-device", "virtio-blk-pci,drive=scratch",
             ]  # fmt: skip
-            kcl += [f"systemd.mount-extra=LABEL=scratch:/var/tmp:{config.distribution.filesystem()}"]
+            kernel_cmdline_additions += [f"systemd.mount-extra=LABEL=scratch:/var/tmp:{config.distribution.filesystem()}"]
 
         if config.output_format == OutputFormat.cpio:
             cmdline += ["-initrd", fname]
@@ -1300,6 +1287,9 @@ def run_qemu(args: Args, config: Config) -> None:
             device_type = "virtio-blk-pci"
             if config.qemu_cdrom:
                 device_type = "scsi-cd"
+                # CD-ROMs are read-only so tell systemd to boot in volatile mode.
+                kernel_cmdline_additions +=  ["systemd.volatile=yes"]
+
             elif config.qemu_removable:
                 device_type = "scsi-hd,removable=on"
 
@@ -1344,7 +1334,18 @@ def run_qemu(args: Args, config: Config) -> None:
                 f.flush()
                 cmdline += ["-fw_cfg", f"name=opt/io.systemd.credentials/{k},file={f.name}"]
             elif kernel:
-                kcl += [f"systemd.set_credential_binary={k}:{payload}"]
+                kernel_cmdline_additions += [f"systemd.set_credential_binary={k}:{payload}"]
+
+
+        kcl = []
+
+        if kernel and (
+            KernelType.identify(config, kernel) != KernelType.uki
+            or not config.architecture.supports_smbios(firmware)
+        ):
+            kcl += config.kernel_command_line
+
+        kcl += kernel_cmdline_additions + finalize_kernel_command_line_extra(config)
 
         if kernel and (
             KernelType.identify(config, kernel) != KernelType.uki
