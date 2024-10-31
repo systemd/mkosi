@@ -1534,7 +1534,7 @@ def run_ukify(
             ]  # fmt: skip
             if context.config.secure_boot_key_source.type == KeySourceType.engine:
                 cmd += ["--signing-engine", context.config.secure_boot_key_source.source]
-                opt += ["--bind-try", "/run/pcscd", "/run/pcscd"]
+                opt += ["--bind", "/run", "/run"]
             if context.config.secure_boot_key.exists():
                 cmd += ["--secureboot-private-key", workdir(context.config.secure_boot_key)]
                 opt += ["--ro-bind", context.config.secure_boot_key, workdir(context.config.secure_boot_key)]
@@ -1551,6 +1551,11 @@ def run_ukify(
 
     run(
         cmd,
+        stdin=(
+            sys.stdin
+            if context.config.secure_boot_key_source.type != KeySourceType.file
+            else subprocess.DEVNULL
+        ),
         sandbox=context.sandbox(
             binary=ukify,
             options=[*opt, *options],
@@ -1609,7 +1614,7 @@ def build_uki(
             ]  # fmt: skip
             options += [
                 "--ro-bind", context.config.sign_expected_pcr_certificate, workdir(context.config.sign_expected_pcr_certificate),  # noqa: E501
-                "--bind-try", "/run/pcscd", "/run/pcscd",
+                "--bind", "/run", "/run",
             ]  # fmt: skip
 
         if context.config.sign_expected_pcr_key.exists():
@@ -3074,7 +3079,7 @@ def make_image(
 
         if context.config.verity_key_source.type != KeySourceType.file:
             cmdline += ["--private-key-source", str(context.config.verity_key_source)]
-            opts += ["--bind-try", "/run/pcscd", "/run/pcscd"]
+            opts += ["--bind", "/run", "/run"]
         if context.config.verity_key.exists():
             cmdline += ["--private-key", workdir(context.config.verity_key)]
             opts += ["--ro-bind", context.config.verity_key, workdir(context.config.verity_key)]
@@ -3105,6 +3110,11 @@ def make_image(
         output = json.loads(
             run(
                 cmdline,
+                stdin=(
+                    sys.stdin
+                    if context.config.verity_key_source.type != KeySourceType.file
+                    else subprocess.DEVNULL
+                ),
                 stdout=subprocess.PIPE,
                 env=context.config.environment,
                 sandbox=context.sandbox(
@@ -3428,6 +3438,11 @@ def make_extension_image(context: Context, output: Path) -> None:
         j = json.loads(
             run(
                 cmdline,
+                stdin=(
+                    sys.stdin
+                    if context.config.verity_key_source.type != KeySourceType.file
+                    else subprocess.DEVNULL
+                ),
                 stdout=subprocess.PIPE,
                 env=context.config.environment,
                 sandbox=context.sandbox(
