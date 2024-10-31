@@ -518,7 +518,7 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
         ]  # fmt: skip
         if context.config.secure_boot_key_source.type == KeySourceType.engine:
             cmd += ["--engine", context.config.secure_boot_key_source.source]
-            options += ["--bind-try", "/run/pcscd", "/run/pcscd"]
+            options += ["--bind", "/run", "/run"]
         if context.config.secure_boot_key.exists():
             cmd += ["--key", workdir(context.config.secure_boot_key)]
             options += ["--ro-bind", context.config.secure_boot_key, workdir(context.config.secure_boot_key)]
@@ -753,7 +753,7 @@ def install_systemd_boot(context: Context) -> None:
                     ]  # fmt: skip
                     if context.config.secure_boot_key_source.type == KeySourceType.engine:
                         cmd += ["--engine", context.config.secure_boot_key_source.source]
-                        options += ["--bind-try", "/run/pcscd", "/run/pcscd"]
+                        options += ["--bind", "/run", "/run"]
                     if context.config.secure_boot_key.exists():
                         cmd += ["--key", workdir(context.config.secure_boot_key)]
                         options += [
