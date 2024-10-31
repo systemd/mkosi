@@ -565,9 +565,11 @@ def copy_ephemeral(config: Config, src: Path) -> Iterator[Path]:
         yield src
         return
 
-    # If we're booting a directory image that was not built as root, we have to make an ephemeral copy so
-    # that we can ensure the files in the directory are either owned by the actual root user or a fake one in
-    # a subuid user namespace which we'll run virtiofsd as.
+    # If we're booting a directory image that was not built as root, we have to make an ephemeral copy. If
+    # we're running as root, we have to make an ephemeral copy so that all the files in the directory tree
+    # are also owned by root. If we're not running as root, we'll be making use of a subuid/subgid user
+    # namespace and we don't want any leftover files from the subuid/subgid user namespace to remain after we
+    # shut down the container or virtual machine.
     if not config.ephemeral and (config.output_format != OutputFormat.directory or src.stat().st_uid == 0):
         with flock_or_die(src):
             yield src
@@ -583,9 +585,7 @@ def copy_ephemeral(config: Config, src: Path) -> Iterator[Path]:
     try:
 
         def copy() -> None:
-            if config.output_format == OutputFormat.directory:
-                become_root_in_subuid_range()
-            elif config.output_format in (OutputFormat.disk, OutputFormat.esp):
+            if config.output_format in (OutputFormat.disk, OutputFormat.esp):
                 attr = run(
                     ["lsattr", "-l", workdir(src)],
                     sandbox=config.sandbox(binary="lsattr", options=["--ro-bind", src, workdir(src)]),
@@ -599,9 +599,10 @@ def copy_ephemeral(config: Config, src: Path) -> Iterator[Path]:
             copy_tree(
                 src,
                 tmp,
-                # Make sure the ownership is changed to the (fake) root user if the directory was not built
-                # as root.
-                preserve=config.output_format == OutputFormat.directory and src.stat().st_uid == 0,
+                preserve=(
+                    config.output_format == OutputFormat.directory
+                    and (os.getuid() != 0 or src.stat().st_uid == 0)
+                ),
                 use_subvolumes=config.use_subvolumes,
                 sandbox=config.sandbox,
             )
