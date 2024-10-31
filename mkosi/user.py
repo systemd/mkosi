@@ -82,6 +82,9 @@ class INVOKING_USER:
 
 
 def read_subrange(path: Path) -> int:
+    if not path.exists():
+        die(f"{path} does not exist, cannot allocate subuid/subgid user namespace")
+
     uid = str(os.getuid())
     try:
         user = pwd.getpwuid(os.getuid()).pw_name
