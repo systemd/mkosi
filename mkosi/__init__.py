@@ -1551,6 +1551,11 @@ def run_ukify(
 
     run(
         cmd,
+        stdin=(
+            sys.stdin
+            if context.config.secure_boot_key_source.type != KeySourceType.file
+            else subprocess.DEVNULL
+        ),
         sandbox=context.sandbox(
             binary=ukify,
             options=[*opt, *options],
@@ -3105,6 +3110,11 @@ def make_image(
         output = json.loads(
             run(
                 cmdline,
+                stdin=(
+                    sys.stdin
+                    if context.config.verity_key_source.type != KeySourceType.file
+                    else subprocess.DEVNULL
+                ),
                 stdout=subprocess.PIPE,
                 env=context.config.environment,
                 sandbox=context.sandbox(
@@ -3428,6 +3438,11 @@ def make_extension_image(context: Context, output: Path) -> None:
         j = json.loads(
             run(
                 cmdline,
+                stdin=(
+                    sys.stdin
+                    if context.config.verity_key_source.type != KeySourceType.file
+                    else subprocess.DEVNULL
+                ),
                 stdout=subprocess.PIPE,
                 env=context.config.environment,
                 sandbox=context.sandbox(
