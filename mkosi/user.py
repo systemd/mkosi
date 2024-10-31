@@ -112,8 +112,8 @@ def become_root_in_subuid_range() -> None:
     """
     Set up a new user namespace mapping using /etc/subuid and /etc/subgid.
 
-    The current process becomes the root user in the new user namespace and the current user and group will
-    be mapped to 65436. The other IDs will be mapped through.
+    The current user is mapped to root and the current process becomes the root user in the new user
+    namespace. The other IDs will be mapped through.
     """
     if os.getuid() == 0:
         return
@@ -128,21 +128,18 @@ def become_root_in_subuid_range() -> None:
 
         # We map the private UID range configured in /etc/subuid and /etc/subgid into the user namespace
         # using newuidmap and newgidmap. On top of that, we also make sure to map in the user running mkosi
-        # so that we can access files and directories from the current user from within the user
-        # namespace. We don't map to the last user in the range as the last user is sometimes used in tests
-        # as a default value and mapping to that user might break those tests.
+        # to root so that we can access files and directories from the current user from within the user
+        # namespace.
         newuidmap = [
             "flock", "--exclusive", "--close", lock, "newuidmap", pid,
-            0, subuid, SUBRANGE - 100,
-            SUBRANGE - 100, os.getuid(), 1,
-            SUBRANGE - 100 + 1, subuid + SUBRANGE - 100 + 1, 99
+            0, os.getuid(), 1,
+            1, subuid + 1, SUBRANGE - 1,
         ]  # fmt: skip
 
         newgidmap = [
             "flock", "--exclusive", "--close", lock, "newgidmap", pid,
-            0, subgid, SUBRANGE - 100,
-            SUBRANGE - 100, os.getgid(), 1,
-            SUBRANGE - 100 + 1, subgid + SUBRANGE - 100 + 1, 99
+            0, os.getgid(), 1,
+            1, subgid + 1, SUBRANGE - 1,
         ]  # fmt: skip
 
         # newuidmap and newgidmap have to run from outside the user namespace to be able to assign a uid
@@ -162,8 +159,6 @@ def become_root_in_subuid_range() -> None:
             uidmap.wait()
             gidmap.wait()
 
-    # By default, we're root in the user namespace because if we were our current user by default, we
-    # wouldn't be able to chown stuff to be owned by root while the reverse is possible.
     os.setresuid(0, 0, 0)
     os.setresgid(0, 0, 0)
     os.setgroups([0])
@@ -180,12 +175,10 @@ def become_root_in_subuid_range_cmd() -> list[str]:
         "unshare",
         "--setuid", "0",
         "--setgid", "0",
-        "--map-users",  f"0:{subuid}:{SUBRANGE - 100}",
-        "--map-users",  f"{SUBRANGE - 100}:{os.getuid()}:1",
-        "--map-users",  f"{SUBRANGE - 100 + 1}:{subuid + SUBRANGE - 100 + 1}:99",
-        "--map-groups", f"0:{subgid}:{SUBRANGE - 100}",
-        "--map-groups", f"{SUBRANGE - 100}:{os.getgid()}:1",
-        "--map-groups", f"{SUBRANGE - 100 + 1}:{subgid + SUBRANGE - 100 + 1}:99",
+        "--map-users",  f"0:{os.getuid()}:1",
+        "--map-users",  f"1:{subuid + 1}:{SUBRANGE - 1}",
+        "--map-groups", f"0:{os.getgid()}:1",
+        "--map-groups", f"1:{subgid + 1}:{SUBRANGE - 1}",
         "--keep-caps",
     ]  # fmt: skip
 
