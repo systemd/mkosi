@@ -827,6 +827,8 @@ def finalize_kernel_command_line_extra(config: Config) -> list[str]:
             "console=hvc0",
             f"TERM={term}",
         ]
+    elif config.architecture.is_arm_variant():
+        cmdline += ["console=tty0"]
 
     for s in config.kernel_command_line_extra:
         key, sep, value = s.partition("=")
@@ -1112,7 +1114,10 @@ def run_qemu(args: Args, config: Config) -> None:
     cmdline += ["-cpu", "max"]
 
     if config.qemu_gui:
-        cmdline += ["-vga", "virtio"]
+        if config.architecture.is_arm_variant():
+            cmdline += ["-device", "virtio-gpu-pci"]
+        else:
+            cmdline += ["-vga", "virtio"]
     else:
         # -nodefaults removes the default CDROM device which avoids an error message during boot
         # -serial mon:stdio adds back the serial device removed by -nodefaults.
