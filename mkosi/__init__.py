@@ -1549,6 +1549,7 @@ def run_ukify(
             if context.config.secure_boot_key_source.type != KeySourceType.file
             else subprocess.DEVNULL
         ),
+        env=context.config.environment,
         sandbox=context.sandbox(
             binary=ukify,
             options=[*opt, *options],
