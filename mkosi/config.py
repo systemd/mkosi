@@ -4404,6 +4404,8 @@ def finalize_term() -> str:
 def load_environment(args: argparse.Namespace) -> dict[str, str]:
     env = {
         "SYSTEMD_TMPFILES_FORCE_SUBVOL": "0",
+        "SYSTEMD_ASK_PASSWORD_KEYRING_TIMEOUT_SEC": "infinity",
+        "SYSTEMD_ASK_PASSWORD_KEYRING_TYPE": "session",
         "TERM": finalize_term(),
     }
 
