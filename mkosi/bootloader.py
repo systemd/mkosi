@@ -5,7 +5,6 @@ import subprocess
 import sys
 import tempfile
 import textwrap
-import uuid
 from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import Optional
@@ -730,7 +729,7 @@ def install_systemd_boot(context: Context) -> None:
                 run(
                     [
                         "sbsiglist",
-                        "--owner", str(uuid.uuid4()),
+                        "--owner", "00000000-0000-0000-0000-000000000000",
                         "--type", "x509",
                         "--output", workdir(context.workspace / "mkosi.esl"),
                         workdir(context.workspace / "mkosi.der"),
