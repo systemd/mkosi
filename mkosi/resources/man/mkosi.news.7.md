@@ -78,6 +78,10 @@
   from the build directory into the output directory, copy them from the build directory
   to the output directory in a post-installation script which does have access to the build
   directory and the output directory.
+- `BuildDirectory=` is no longer available in `PrepareScripts=`. If you
+  need to acquire some files for the build process place them somewhere
+  sensible within `$BUILDROOT` so that they can be cached when building
+  incrementally.
 
 ## v24
 

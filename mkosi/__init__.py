@@ -706,9 +706,6 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
     if context.config.profiles:
         env["PROFILES"] = " ".join(context.config.profiles)
 
-    if context.config.build_dir is not None:
-        env |= dict(BUILDDIR="/work/build")
-
     env |= context.config.environment
 
     with (
@@ -730,11 +727,6 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
                     "--ro-bind", json, "/work/config.json",
                     "--bind", context.artifacts, "/work/artifacts",
                     "--bind", context.package_dir, "/work/packages",
-                    *(
-                        ["--ro-bind", str(context.config.build_dir), "/work/build"]
-                        if context.config.build_dir
-                        else []
-                    ),
                     *sources,
                 ]  # fmt: skip
 
