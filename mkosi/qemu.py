@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
-import asyncio
 import base64
 import contextlib
 import dataclasses
@@ -434,6 +433,9 @@ def vsock_notify_handler() -> Iterator[tuple[str, dict[str, str]]]:
         async def notify() -> None:
             nonlocal num_messages
             nonlocal num_bytes
+
+            import asyncio
+
             loop = asyncio.get_running_loop()
 
             while True:

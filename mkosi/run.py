@@ -1,7 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
-import asyncio
-import asyncio.tasks
 import contextlib
 import errno
 import fcntl
@@ -346,12 +344,16 @@ class AsyncioThread(threading.Thread):
     """
 
     def __init__(self, target: Awaitable[Any], *args: Any, **kwargs: Any) -> None:
+        import asyncio
+
         self.target = target
         self.loop: queue.SimpleQueue[asyncio.AbstractEventLoop] = queue.SimpleQueue()
         self.exc: queue.SimpleQueue[BaseException] = queue.SimpleQueue()
         super().__init__(*args, **kwargs)
 
     def run(self) -> None:
+        import asyncio
+
         async def wrapper() -> None:
             self.loop.put(asyncio.get_running_loop())
             await self.target
@@ -364,6 +366,8 @@ class AsyncioThread(threading.Thread):
             self.exc.put(e)
 
     def cancel(self) -> None:
+        import asyncio.tasks
+
         loop = self.loop.get()
 
         for task in asyncio.tasks.all_tasks(loop):
