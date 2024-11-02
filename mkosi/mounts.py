@@ -97,7 +97,7 @@ def finalize_crypto_mounts(config: Config) -> list[PathString]:
             Path("etc/ca-certificates"),
             Path("var/lib/ca-certificates"),
         )
-        if (root / subdir).exists()
+        if (root / subdir).exists() and any(p for p in (root / subdir).rglob("*") if not p.is_dir())
     ]
 
     # This contains the Arch Linux keyring, which isn't certificates so ToolsTreeCertificates= doesn't apply.
