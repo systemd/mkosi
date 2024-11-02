@@ -558,10 +558,23 @@ def sandbox_cmd(
         if network and Path("/etc/resolv.conf").exists():
             cmdline += ["--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf"]
 
+        home = None
+
     cmdline += [
         "--setenv",
         "PATH",
-        f"/scripts:{'/usr/bin:/usr/sbin' if tools != Path('/') else os.environ['PATH']}",
+        ":".join(
+            [
+                *(["/scripts"] if scripts else []),
+                "/usr/bin",
+                "/usr/sbin",
+                *(
+                    [s for s in os.environ["PATH"].split(":") if home and s.startswith(os.fspath(home))]
+                    if tools != Path("/")
+                    else [os.environ["PATH"]]
+                ),
+            ]
+        ),
     ]
 
     if scripts:
