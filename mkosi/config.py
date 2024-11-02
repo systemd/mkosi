@@ -77,6 +77,7 @@ class Verb(StrEnum):
     dependencies = enum.auto()
     completion = enum.auto()
     sysupdate = enum.auto()
+    sandbox = enum.auto()
 
     def supports_cmdline(self) -> bool:
         return self in (
@@ -91,6 +92,7 @@ class Verb(StrEnum):
             Verb.completion,
             Verb.documentation,
             Verb.sysupdate,
+            Verb.sandbox,
         )
 
     def needs_build(self) -> bool:
@@ -102,6 +104,7 @@ class Verb(StrEnum):
             Verb.serve,
             Verb.burn,
             Verb.sysupdate,
+            Verb.sandbox,
         )
 
     def needs_config(self) -> bool:
@@ -3013,7 +3016,13 @@ SETTINGS = (
         dest="tools_tree",
         metavar="PATH",
         section="Build",
-        parse=config_make_path_parser(constants=("default",)),
+        parse=(
+            # If we're running inside of mkosi sandbox, the tools tree is already in place so don't pick it
+            # up again.
+            config_make_path_parser(constants=("default",))
+            if not os.getenv("MKOSI_IN_SANDBOX")
+            else lambda value, old: None
+        ),
         paths=("mkosi.tools",),
         help="Look up programs to execute inside the given tree",
         nargs="?",
@@ -3615,6 +3624,7 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
                 mkosi [options…] {b}journalctl{e}    [command line…]
                 mkosi [options…] {b}coredumpctl{e}   [command line…]
                 mkosi [options…] {b}sysupdate{e}     [command line…]
+                mkosi [options…] {b}sandbox{e}       [command line…]
                 mkosi [options…] {b}clean{e}
                 mkosi [options…] {b}serve{e}
                 mkosi [options…] {b}burn{e}          [device]

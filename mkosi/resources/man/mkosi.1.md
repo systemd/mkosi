@@ -28,6 +28,8 @@ mkosi — Build Bespoke OS Images
 
 `mkosi [options…] sysupdate [command line…]`
 
+`mkosi [options…] sandbox [command line …]`
+
 `mkosi [options…] clean`
 
 `mkosi [options…] serve`
@@ -134,6 +136,13 @@ The following command line verbs are known:
     directory configured with `SysupdateDirectory=`. Any arguments
     specified after the `sysupdate` verb are passed directly to
     `systemd-sysupdate` invocation.
+
+`sandbox`
+:   Run arbitrary commands inside of the same sandbox used to execute
+    other verbs such as `boot`, `shell`, `qemu` and more. This means
+    `/usr` will be replaced by `/usr` from the tools tree if one is used
+    while everything else will remain in place. If no command is provided,
+    `$SHELL` will be executed or `bash` if `$SHELL` is not set.
 
 `clean`
 :   Remove build artifacts generated on a previous build. If combined
