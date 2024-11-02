@@ -1945,12 +1945,6 @@ class Config:
             "prepare_scripts": sorted(
                 base64.b64encode(script.read_bytes()).decode() for script in self.prepare_scripts
             ),
-            # Statting the root directory of the tools tree isn't fool proof but should be good enough.
-            "tools_tree": (
-                [self.tools_tree, self.tools_tree.stat().st_mtime_ns]
-                if self.tools_tree and self.tools_tree.exists()
-                else []
-            ),
         }
 
     def to_dict(self) -> dict[str, Any]:
