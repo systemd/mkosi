@@ -491,10 +491,6 @@ def sandbox_cmd(
         # used instead.
         "--unsetenv", "TMPDIR",
         *network_options(network=network),
-        # apivfs_script_cmd() and chroot_script_cmd() are executed from within the sandbox, but they still
-        # use sandbox.py, so we make sure it is available inside the sandbox so it can be executed there as
-        # well.
-        "--ro-bind", Path(mkosi.sandbox.__file__), "/sandbox.py",
     ]  # fmt: skip
 
     if overlay and (overlay / "usr").exists():
@@ -548,6 +544,10 @@ def sandbox_cmd(
             "--dir", "/var/tmp",
             "--dir", "/var/log",
             "--unshare-ipc",
+            # apivfs_script_cmd() and chroot_script_cmd() are executed from within the sandbox, but they
+            # still use sandbox.py, so we make sure it is available inside the sandbox so it can be executed
+            # there as well.
+            "--ro-bind", Path(mkosi.sandbox.__file__), "/sandbox.py",
         ]  # fmt: skip
 
         if devices:
