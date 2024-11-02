@@ -4624,9 +4624,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
     # If we're doing an incremental build and the cache is not out of date, don't clean up the
     # tools tree so that we can reuse the previous one.
     if tools and (
-        not tools.incremental
-        or ((args.verb == Verb.build or args.force > 0) and not have_cache(tools))
-        or needs_build(args, tools, force=2)
+        not tools.incremental or ((args.verb == Verb.build or args.force > 0) and not have_cache(tools))
     ):
         if tools.incremental == Incremental.strict:
             die(
