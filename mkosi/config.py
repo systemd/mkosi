@@ -1302,6 +1302,7 @@ def file_run_or_read(file: Path) -> str:
 class KeySourceType(StrEnum):
     file = enum.auto()
     engine = enum.auto()
+    provider = enum.auto()
 
 
 @dataclasses.dataclass(frozen=True)
