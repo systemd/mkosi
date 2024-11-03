@@ -3923,7 +3923,10 @@ class ParseContext:
             self.includes.add((st.st_dev, st.st_ino))
 
             if any(p == Path(c) for c in BUILTIN_CONFIGS):
-                _, [config] = parse_config(["--directory", "", "--include", os.fspath(path)])
+                _, [config] = parse_config(
+                    ["--directory", "", "--include", os.fspath(path)],
+                    only_sections=self.only_sections,
+                )
                 make_executable(
                     *config.configure_scripts,
                     *config.clean_scripts,
@@ -4212,7 +4215,10 @@ class ParseContext:
 
 
 def parse_config(
-    argv: Sequence[str] = (), *, resources: Path = Path("/")
+    argv: Sequence[str] = (),
+    *,
+    resources: Path = Path("/"),
+    only_sections: Sequence[str] = (),
 ) -> tuple[Args, tuple[Config, ...]]:
     argv = list(argv)
 
@@ -4290,6 +4296,7 @@ def parse_config(
 
         context.only_sections = ("Include", "Host")
     else:
+        context.only_sections = tuple(only_sections)
         prev = None
 
     context.parse_new_includes()
