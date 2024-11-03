@@ -82,6 +82,10 @@
   need to acquire some files for the build process place them somewhere
   sensible within `$BUILDROOT` so that they can be cached when building
   incrementally.
+- When using a tools tree and we use a relaxed sandbox to run a command
+  (qemu, nspawn, ...), we now keep $PATH entries inside the user's home
+  intact. Note that this may cause issues if a PATH entry in your home contains
+  binaries linked against libraries in `/usr` from the host.
 
 ## v24
 

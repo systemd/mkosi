@@ -1,7 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
-import asyncio
-import asyncio.tasks
 import contextlib
 import errno
 import fcntl
@@ -346,12 +344,16 @@ class AsyncioThread(threading.Thread):
     """
 
     def __init__(self, target: Awaitable[Any], *args: Any, **kwargs: Any) -> None:
+        import asyncio
+
         self.target = target
         self.loop: queue.SimpleQueue[asyncio.AbstractEventLoop] = queue.SimpleQueue()
         self.exc: queue.SimpleQueue[BaseException] = queue.SimpleQueue()
         super().__init__(*args, **kwargs)
 
     def run(self) -> None:
+        import asyncio
+
         async def wrapper() -> None:
             self.loop.put(asyncio.get_running_loop())
             await self.target
@@ -364,6 +366,8 @@ class AsyncioThread(threading.Thread):
             self.exc.put(e)
 
     def cancel(self) -> None:
+        import asyncio.tasks
+
         loop = self.loop.get()
 
         for task in asyncio.tasks.all_tasks(loop):
@@ -487,10 +491,6 @@ def sandbox_cmd(
         # used instead.
         "--unsetenv", "TMPDIR",
         *network_options(network=network),
-        # apivfs_script_cmd() and chroot_script_cmd() are executed from within the sandbox, but they still
-        # use sandbox.py, so we make sure it is available inside the sandbox so it can be executed there as
-        # well.
-        "--ro-bind", Path(mkosi.sandbox.__file__), "/sandbox.py",
     ]  # fmt: skip
 
     if overlay and (overlay / "usr").exists():
@@ -537,6 +537,11 @@ def sandbox_cmd(
                 else:
                     cmdline += ["--bind", p, p]
 
+            # /etc might be full of symlinks to /usr/share/factory, so make sure we use /usr/share/factory
+            # from the host and not from the tools tree.
+            if tools != Path("/") and (factory := Path("/usr/share/factory")).exists():
+                cmdline += ["--bind", factory, factory]
+
         if home := current_home_dir():
             cmdline += ["--bind", home, home]
     else:
@@ -544,6 +549,10 @@ def sandbox_cmd(
             "--dir", "/var/tmp",
             "--dir", "/var/log",
             "--unshare-ipc",
+            # apivfs_script_cmd() and chroot_script_cmd() are executed from within the sandbox, but they
+            # still use sandbox.py, so we make sure it is available inside the sandbox so it can be executed
+            # there as well.
+            "--ro-bind", Path(mkosi.sandbox.__file__), "/sandbox.py",
         ]  # fmt: skip
 
         if devices:
@@ -554,10 +563,23 @@ def sandbox_cmd(
         if network and Path("/etc/resolv.conf").exists():
             cmdline += ["--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf"]
 
+        home = None
+
     cmdline += [
         "--setenv",
         "PATH",
-        f"/scripts:{'/usr/bin:/usr/sbin' if tools != Path('/') else os.environ['PATH']}",
+        ":".join(
+            [
+                *(["/scripts"] if scripts else []),
+                "/usr/bin",
+                "/usr/sbin",
+                *(
+                    [s for s in os.environ["PATH"].split(":") if home and s.startswith(os.fspath(home))]
+                    if tools != Path("/")
+                    else [os.environ["PATH"]]
+                ),
+            ]
+        ),
     ]
 
     if scripts:
