@@ -104,7 +104,6 @@ class Verb(StrEnum):
             Verb.serve,
             Verb.burn,
             Verb.sysupdate,
-            Verb.sandbox,
         )
 
     def needs_config(self) -> bool:
