@@ -5,7 +5,6 @@ import subprocess
 import sys
 import tempfile
 import textwrap
-import uuid
 from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import Optional
@@ -19,6 +18,7 @@ from mkosi.config import (
     OutputFormat,
     SecureBootSignTool,
     ShimBootloader,
+    systemd_tool_version,
 )
 from mkosi.context import Context
 from mkosi.distributions import Distribution
@@ -681,11 +681,51 @@ def install_systemd_boot(context: Context) -> None:
                 output = directory / f"{input}.signed"
                 sign_efi_binary(context, input, output)
 
+    cmd: list[PathString] = [
+        "bootctl",
+        "install",
+        "--root=/buildroot",
+        "--all-architectures",
+        "--no-variables",
+    ]
+    options: list[PathString] = ["--bind", context.root, "/buildroot"]
+
+    bootctlver = systemd_tool_version("bootctl", sandbox=context.sandbox)
+
+    if context.config.secure_boot and context.config.secure_boot_auto_enroll and bootctlver >= 257:
+        assert context.config.secure_boot_certificate
+        assert context.config.secure_boot_key
+
+        cmd += [
+            "--secure-boot-auto-enroll=yes",
+            "--certificate", workdir(context.config.secure_boot_certificate),
+        ]  # fmt: skip
+        options += [
+            "--ro-bind", context.config.secure_boot_certificate, workdir(context.config.secure_boot_certificate),  # noqa: E501
+        ]  # fmt: skip
+        if context.config.secure_boot_key_source.type == KeySourceType.engine:
+            cmd += ["--private-key-source", str(context.config.secure_boot_key_source)]
+            options += ["--bind", "/run", "/run"]
+        if context.config.secure_boot_key.exists():
+            cmd += ["--private-key", workdir(context.config.secure_boot_key)]
+            options += ["--ro-bind", context.config.secure_boot_key, workdir(context.config.secure_boot_key)]
+        else:
+            cmd += ["--private-key", context.config.secure_boot_key]
+
     with complete_step("Installing systemd-boot…"):
         run(
-            ["bootctl", "install", "--root=/buildroot", "--all-architectures", "--no-variables"],
-            env={"SYSTEMD_ESP_PATH": "/efi", "SYSTEMD_XBOOTLDR_PATH": "/boot"},
-            sandbox=context.sandbox(binary="bootctl", options=["--bind", context.root, "/buildroot"]),
+            cmd,
+            stdin=(
+                sys.stdin
+                if context.config.secure_boot_key_source.type != KeySourceType.file
+                else subprocess.DEVNULL
+            ),
+            env=context.config.environment | {"SYSTEMD_ESP_PATH": "/efi", "SYSTEMD_XBOOTLDR_PATH": "/boot"},
+            sandbox=context.sandbox(
+                binary="bootctl",
+                options=options,
+                devices=context.config.secure_boot_key_source.type != KeySourceType.file,
+            ),
         )
         # TODO: Use --random-seed=no when we can depend on systemd 256.
         Path(context.root / "efi/loader/random-seed").unlink(missing_ok=True)
@@ -696,7 +736,7 @@ def install_systemd_boot(context: Context) -> None:
                 context.root / shim_second_stage_binary(context),
             )
 
-    if context.config.secure_boot and context.config.secure_boot_auto_enroll:
+    if context.config.secure_boot and context.config.secure_boot_auto_enroll and bootctlver < 257:
         assert context.config.secure_boot_key
         assert context.config.secure_boot_certificate
 
@@ -730,7 +770,7 @@ def install_systemd_boot(context: Context) -> None:
                 run(
                     [
                         "sbsiglist",
-                        "--owner", str(uuid.uuid4()),
+                        "--owner", "00000000-0000-0000-0000-000000000000",
                         "--type", "x509",
                         "--output", workdir(context.workspace / "mkosi.esl"),
                         workdir(context.workspace / "mkosi.der"),
@@ -747,14 +787,14 @@ def install_systemd_boot(context: Context) -> None:
             # We reuse the key for all secure boot databases to keep things simple.
             for db in ["PK", "KEK", "db"]:
                 with umask(~0o600):
-                    cmd: list[PathString] = [
+                    cmd = [
                         "sbvarsign",
                         "--attr",
                             "NON_VOLATILE,BOOTSERVICE_ACCESS,RUNTIME_ACCESS,TIME_BASED_AUTHENTICATED_WRITE_ACCESS",
                         "--cert", workdir(context.config.secure_boot_certificate),
                         "--output", workdir(keys / f"{db}.auth"),
                     ]  # fmt: skip
-                    options: list[PathString] = [
+                    options = [
                         "--ro-bind",
                         context.config.secure_boot_certificate,
                         workdir(context.config.secure_boot_certificate),

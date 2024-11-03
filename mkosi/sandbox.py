@@ -210,6 +210,19 @@ def seccomp_suppress_chown() -> None:
         libseccomp.seccomp_release(seccomp)
 
 
+def join_new_session_keyring() -> None:
+    libkeyutils = ctypes.CDLL("libkeyutils.so.1")
+    if libkeyutils is None:
+        raise FileNotFoundError("libkeyutils.so.1")
+
+    libkeyutils.keyctl_join_session_keyring.argtypes = (ctypes.c_char_p,)
+    libkeyutils.keyctl_join_session_keyring.restype = ctypes.c_int32
+
+    keyring = libkeyutils.keyctl_join_session_keyring(None)
+    if keyring == -1:
+        oserror()
+
+
 def mount_rbind(src: str, dst: str, attrs: int = 0) -> None:
     """
     When using the old mount syscall to do a recursive bind mount, mount options are not

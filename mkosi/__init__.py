@@ -115,6 +115,7 @@ from mkosi.sandbox import (
     MS_SLAVE,
     __version__,
     acquire_privileges,
+    join_new_session_keyring,
     mount,
     mount_rbind,
     umask,
@@ -1548,6 +1549,7 @@ def run_ukify(
             if context.config.secure_boot_key_source.type != KeySourceType.file
             else subprocess.DEVNULL
         ),
+        env=context.config.environment,
         sandbox=context.sandbox(
             binary=ukify,
             options=[*opt, *options],
@@ -4664,6 +4666,19 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
     if args.verb != Verb.sandbox and (needs_build(args, last) or args.wipe_build_dir):
         for config in images:
             run_clean(args, config, resources=resources)
+
+    if args.verb != Verb.sandbox:
+        for config in images:
+            if any(
+                source.type != KeySourceType.file
+                for source in (
+                    config.verity_key_source,
+                    config.secure_boot_key_source,
+                    config.sign_expected_pcr_key_source,
+                )
+            ):
+                join_new_session_keyring()
+                break
 
     if tools and not (tools.output_dir_or_cwd() / tools.output).exists():
         with prepend_to_environ_path(tools):
