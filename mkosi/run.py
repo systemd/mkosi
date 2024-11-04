@@ -565,22 +565,22 @@ def sandbox_cmd(
 
         home = None
 
-    cmdline += [
-        "--setenv",
-        "PATH",
-        ":".join(
-            [
-                *(["/scripts"] if scripts else []),
-                "/usr/bin",
-                "/usr/sbin",
-                *(
-                    [s for s in os.environ["PATH"].split(":") if home and s.startswith(os.fspath(home))]
-                    if tools != Path("/")
-                    else [os.environ["PATH"]]
-                ),
-            ]
-        ),
-    ]
+    path = []
+    if scripts:
+        path += ["/scripts"]
+    if tools != Path("/"):
+        path += [
+            s
+            for s in os.environ["PATH"].split(":")
+            if s in ("/usr/bin", "/usr/sbin") or (home and s.startswith(os.fspath(home)))
+        ]
+
+        # Make sure that /usr/bin and /usr/sbin are always in $PATH.
+        path += [s for s in ("/usr/bin", "/usr/sbin") if s not in path]
+    else:
+        path += os.environ["PATH"].split(":")
+
+    cmdline += ["--setenv", "PATH", ":".join(path)]
 
     if scripts:
         cmdline += ["--ro-bind", scripts, "/scripts"]
