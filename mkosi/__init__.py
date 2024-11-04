@@ -4596,7 +4596,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
 
         return
 
-    assert args.verb.needs_build()
+    assert args.verb == Verb.sandbox or args.verb.needs_build()
 
     if (
         tools

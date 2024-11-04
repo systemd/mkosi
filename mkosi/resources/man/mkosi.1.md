@@ -1135,10 +1135,6 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     `SignExpectedPcr=` is also used. When `SecureBootKeySource=` is specified,
     the input type depends on the source.
 
-`SecureBootKeySource=`, `--secure-boot-key-source=`
-:   Source of `SecureBootKey=`, to support OpenSSL engines. E.g.:
-    `--secure-boot-key-source=engine:pkcs11`
-
 `SecureBootCertificate=`, `--secure-boot-certificate=`
 :   Path to the X.509 file containing the certificate for the signed
     UEFI kernel image, if `SecureBoot=` is used.
@@ -1169,10 +1165,6 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     partition is added with systemd-repart. When `VerityKeySource=` is specified, the input type depends on
     the source.
 
-`VerityKeySource=`, `--verity-key-source=`
-:   Source of `VerityKey=`, to support OpenSSL engines. E.g.:
-    `--verity-key-source=engine:pkcs11`
-
 `VerityCertificate=`, `--verity-certificate=`
 :   Path to the X.509 file containing the certificate for signing the verity signature, if a verity signature
     partition is added with systemd-repart.
@@ -1190,12 +1182,13 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     When `SignExpectedPcrKeySource=` is specified, the input type depends on
     the source.
 
-`SignExpectedPcrKeySource=`, `--sign-expected-key-source=`
-:   Source of `VerityKey=`, to support OpenSSL engines. E.g.:
-    `--verity-key-source=engine:pkcs11`
-
 `SignExpectedPcrCertificate=`, `--sign-expected-pcr-certificate=`
 :   Path to the X.509 file containing the certificate for signing the expected PCR signatures.
+
+`SecureBootKeySource=`, `--secure-boot-key-source=`, `VerityKeySource=`, `--verity-key-source=`, `SignExpectedPcrKeySource=`, `--sign-expected-key-source=`
+:   The source of the corresponding private key `SecureBootKey=`, to support OpenSSL engines and providers,
+    e.g. `--secure-boot-key-source=engine:pkcs11` or `--secure-boot-key-source=provider:pkcs11`. Note that
+    providers are currently only supported for the verity key.
 
 `Passphrase=`, `--passphrase`
 :   Specify the path to a file containing the passphrase to use for LUKS

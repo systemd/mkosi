@@ -703,7 +703,7 @@ def install_systemd_boot(context: Context) -> None:
         options += [
             "--ro-bind", context.config.secure_boot_certificate, workdir(context.config.secure_boot_certificate),  # noqa: E501
         ]  # fmt: skip
-        if context.config.secure_boot_key_source.type == KeySourceType.engine:
+        if context.config.secure_boot_key_source.type != KeySourceType.file:
             cmd += ["--private-key-source", str(context.config.secure_boot_key_source)]
             options += ["--bind", "/run", "/run"]
         if context.config.secure_boot_key.exists():
