@@ -1262,7 +1262,11 @@ def finalize_default_initrd(
         "--selinux-relabel", str(relabel),
         *(["-f"] * args.force),
         "--include=mkosi-initrd",
-        *(["--extra-tree", ",".join(str(t) for t in config.extra_initrd_trees)] if config.extra_initrd_trees else []),
+        *(
+            ["--extra-tree", ",".join(str(t) for t in config.extra_initrd_trees)]
+            if config.extra_initrd_trees
+            else []
+        ),
     ]  # fmt: skip
 
     _, [config] = parse_config(cmdline + ["build"], resources=resources)
