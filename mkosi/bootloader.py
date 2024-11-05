@@ -5,15 +5,18 @@ import subprocess
 import sys
 import tempfile
 import textwrap
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
 from typing import Optional
 
 from mkosi.config import (
     BiosBootloader,
     Bootloader,
+    CertificateSource,
+    CertificateSourceType,
     Config,
     ConfigFeature,
+    KeySource,
     KeySourceType,
     OutputFormat,
     SecureBootSignTool,
@@ -27,7 +30,7 @@ from mkosi.partition import Partition
 from mkosi.qemu import KernelType
 from mkosi.run import run, workdir
 from mkosi.sandbox import umask
-from mkosi.types import PathString
+from mkosi.types import _FILE, CompletedProcess, PathString
 from mkosi.util import flatten
 from mkosi.versioncomp import GenericVersion
 
@@ -441,6 +444,67 @@ def certificate_common_name(context: Context, certificate: Path) -> str:
     die(f"Certificate {certificate} is missing Common Name")
 
 
+def run_systemd_sign_tool(
+    config: Config,
+    *,
+    cmdline: Sequence[PathString],
+    options: Sequence[PathString],
+    certificate: Optional[Path],
+    certificate_source: CertificateSource,
+    key: Optional[Path],
+    key_source: KeySource,
+    env: Mapping[str, str] = {},
+    stdout: _FILE = None,
+    devices: bool = False,
+) -> CompletedProcess:
+    if not certificate and not key:
+        return run(
+            cmdline,
+            stdout=stdout,
+            env={**config.environment, **env},
+            sandbox=config.sandbox(binary=cmdline[0], options=options, devices=devices),
+        )
+
+    assert certificate
+    assert key
+
+    cmd: list[PathString] = [*cmdline]
+    opt: list[PathString] = [*options]
+
+    if certificate_source.type != CertificateSourceType.file or key_source.type != KeySourceType.file:
+        opt += ["--bind", "/run", "/run"]
+
+    if certificate_source.type != CertificateSourceType.file:
+        cmd += ["--certificate-source", str(certificate_source)]
+
+    if certificate.exists():
+        cmd += ["--certificate", workdir(certificate)]
+        opt += ["--ro-bind", certificate, workdir(certificate)]
+    else:
+        cmd += ["--certificate", certificate]
+
+    if key_source.type != KeySourceType.file:
+        cmd += ["--private-key-source", str(key_source)]
+
+    if key.exists():
+        cmd += ["--private-key", workdir(key)]
+        opt += ["--ro-bind", key, workdir(key)]
+    else:
+        cmd += ["--private-key", key]
+
+    return run(
+        cmd,
+        stdin=(sys.stdin if key_source.type != KeySourceType.file else subprocess.DEVNULL),
+        stdout=stdout,
+        env={**config.environment, **env},
+        sandbox=config.sandbox(
+            binary=cmd[0],
+            options=opt,
+            devices=devices or key_source.type != KeySourceType.file,
+        ),
+    )
+
+
 def pesign_prepare(context: Context) -> None:
     assert context.config.secure_boot_key
     assert context.config.secure_boot_certificate
@@ -501,17 +565,38 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
     assert context.config.secure_boot_key
     assert context.config.secure_boot_certificate
 
-    if (
+    sbsign = context.config.find_binary("systemd-sbsign", "/usr/lib/systemd/systemd-sbsign")
+    if context.config.secure_boot_sign_tool == SecureBootSignTool.systemd and not sbsign:
+        die("Could not find systemd-sbsign")
+
+    cmd: list[PathString]
+    options: list[PathString]
+
+    if context.config.secure_boot_sign_tool == SecureBootSignTool.systemd or (
+        context.config.secure_boot_sign_tool == SecureBootSignTool.auto and sbsign
+    ):
+        assert sbsign
+
+        run_systemd_sign_tool(
+            context.config,
+            cmdline=[sbsign, "sign", "--output", workdir(output), workdir(input)],
+            options=["--ro-bind", input, workdir(input), "--bind", output.parent, workdir(output.parent)],
+            certificate=context.config.secure_boot_certificate,
+            certificate_source=context.config.secure_boot_certificate_source,
+            key=context.config.secure_boot_key,
+            key_source=context.config.secure_boot_key_source,
+        )
+    elif (
         context.config.secure_boot_sign_tool == SecureBootSignTool.sbsign
         or context.config.secure_boot_sign_tool == SecureBootSignTool.auto
         and context.config.find_binary("sbsign") is not None
     ):
-        cmd: list[PathString] = [
+        cmd = [
             "sbsign",
             "--cert", workdir(context.config.secure_boot_certificate),
             "--output", workdir(output),
         ]  # fmt: skip
-        options: list[PathString] = [
+        options = [
             "--ro-bind", context.config.secure_boot_certificate, workdir(context.config.secure_boot_certificate),  # noqa: E501
             "--ro-bind", input, workdir(input),
             "--bind", output.parent, workdir(output.parent),
@@ -532,6 +617,7 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
                 if context.config.secure_boot_key_source.type != KeySourceType.file
                 else subprocess.DEVNULL
             ),
+            env=context.config.environment,
             sandbox=context.sandbox(
                 binary="sbsign",
                 options=options,
@@ -559,6 +645,7 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
                 if context.config.secure_boot_key_source.type != KeySourceType.file
                 else subprocess.DEVNULL
             ),
+            env=context.config.environment,
             sandbox=context.sandbox(
                 binary="pesign",
                 options=[
@@ -692,40 +779,21 @@ def install_systemd_boot(context: Context) -> None:
 
     bootctlver = systemd_tool_version("bootctl", sandbox=context.sandbox)
 
-    if context.config.secure_boot and context.config.secure_boot_auto_enroll and bootctlver >= 257:
-        assert context.config.secure_boot_certificate
-        assert context.config.secure_boot_key
-
-        cmd += [
-            "--secure-boot-auto-enroll=yes",
-            "--certificate", workdir(context.config.secure_boot_certificate),
-        ]  # fmt: skip
-        options += [
-            "--ro-bind", context.config.secure_boot_certificate, workdir(context.config.secure_boot_certificate),  # noqa: E501
-        ]  # fmt: skip
-        if context.config.secure_boot_key_source.type != KeySourceType.file:
-            cmd += ["--private-key-source", str(context.config.secure_boot_key_source)]
-            options += ["--bind", "/run", "/run"]
-        if context.config.secure_boot_key.exists():
-            cmd += ["--private-key", workdir(context.config.secure_boot_key)]
-            options += ["--ro-bind", context.config.secure_boot_key, workdir(context.config.secure_boot_key)]
-        else:
-            cmd += ["--private-key", context.config.secure_boot_key]
+    if want_bootctl_auto_enroll := (
+        context.config.secure_boot and context.config.secure_boot_auto_enroll and bootctlver >= 257
+    ):
+        cmd += ["--secure-boot-auto-enroll=yes"]
 
     with complete_step("Installing systemd-boot…"):
-        run(
-            cmd,
-            stdin=(
-                sys.stdin
-                if context.config.secure_boot_key_source.type != KeySourceType.file
-                else subprocess.DEVNULL
-            ),
-            env=context.config.environment | {"SYSTEMD_ESP_PATH": "/efi", "SYSTEMD_XBOOTLDR_PATH": "/boot"},
-            sandbox=context.sandbox(
-                binary="bootctl",
-                options=options,
-                devices=context.config.secure_boot_key_source.type != KeySourceType.file,
-            ),
+        run_systemd_sign_tool(
+            context.config,
+            cmdline=cmd,
+            options=options,
+            certificate=context.config.secure_boot_certificate if want_bootctl_auto_enroll else None,
+            certificate_source=context.config.secure_boot_certificate_source,
+            key=context.config.secure_boot_key if want_bootctl_auto_enroll else None,
+            key_source=context.config.secure_boot_key_source,
+            env={"SYSTEMD_ESP_PATH": "/efi", "SYSTEMD_XBOOTLDR_PATH": "/boot"},
         )
         # TODO: Use --random-seed=no when we can depend on systemd 256.
         Path(context.root / "efi/loader/random-seed").unlink(missing_ok=True)

@@ -174,6 +174,7 @@ class SecureBootSignTool(StrEnum):
     auto = enum.auto()
     sbsign = enum.auto()
     pesign = enum.auto()
+    systemd = enum.auto()
 
 
 class OutputFormat(StrEnum):
@@ -629,6 +630,13 @@ def config_parse_key(value: Optional[str], old: Optional[str]) -> Optional[Path]
         return None
 
     return parse_path(value, secret=True) if Path(value).exists() else Path(value)
+
+
+def config_parse_certificate(value: Optional[str], old: Optional[str]) -> Optional[Path]:
+    if not value:
+        return None
+
+    return parse_path(value) if Path(value).exists() else Path(value)
 
 
 def make_tree_parser(absolute: bool = True, required: bool = False) -> Callable[[str], ConfigTree]:
@@ -1327,6 +1335,36 @@ def config_parse_key_source(value: Optional[str], old: Optional[KeySource]) -> O
     return KeySource(type=type, source=source)
 
 
+class CertificateSourceType(StrEnum):
+    file = enum.auto()
+    provider = enum.auto()
+
+
+@dataclasses.dataclass(frozen=True)
+class CertificateSource:
+    type: CertificateSourceType
+    source: str = ""
+
+    def __str__(self) -> str:
+        return f"{self.type}:{self.source}" if self.source else str(self.type)
+
+
+def config_parse_certificate_source(
+    value: Optional[str],
+    old: Optional[CertificateSource],
+) -> Optional[CertificateSource]:
+    if not value:
+        return old
+
+    typ, _, source = value.partition(":")
+    try:
+        type = CertificateSourceType(typ)
+    except ValueError:
+        die(f"'{value}' is not a valid certificate source")
+
+    return CertificateSource(type=type, source=source)
+
+
 def config_parse_artifact_output_list(
     value: Optional[str], old: Optional[list[ArtifactOutput]]
 ) -> Optional[list[ArtifactOutput]]:
@@ -1741,15 +1779,18 @@ class Config:
     secure_boot_key: Optional[Path]
     secure_boot_key_source: KeySource
     secure_boot_certificate: Optional[Path]
+    secure_boot_certificate_source: CertificateSource
     secure_boot_sign_tool: SecureBootSignTool
     verity: ConfigFeature
     verity_key: Optional[Path]
     verity_key_source: KeySource
     verity_certificate: Optional[Path]
+    verity_certificate_source: CertificateSource
     sign_expected_pcr: ConfigFeature
     sign_expected_pcr_key: Optional[Path]
     sign_expected_pcr_key_source: KeySource
     sign_expected_pcr_certificate: Optional[Path]
+    sign_expected_pcr_certificate_source: CertificateSource
     passphrase: Optional[Path]
     checksum: bool
     sign: bool
@@ -2894,9 +2935,18 @@ SETTINGS = (
         dest="secure_boot_certificate",
         metavar="PATH",
         section="Validation",
-        parse=config_make_path_parser(),
+        parse=config_parse_certificate,
         paths=("mkosi.crt",),
         help="UEFI SecureBoot certificate in X509 format",
+    ),
+    ConfigSetting(
+        dest="secure_boot_certificate_source",
+        section="Validation",
+        metavar="SOURCE[:PROVIDER]",
+        parse=config_parse_certificate_source,
+        default=CertificateSource(type=CertificateSourceType.file),
+        help="The source to use to retrieve the secure boot signing certificate",
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="secure_boot_sign_tool",
@@ -2935,9 +2985,18 @@ SETTINGS = (
         dest="verity_certificate",
         metavar="PATH",
         section="Validation",
-        parse=config_make_path_parser(),
+        parse=config_parse_certificate,
         paths=("mkosi.crt",),
         help="Certificate for signing verity signature in X509 format",
+        scope=SettingScope.universal,
+    ),
+    ConfigSetting(
+        dest="verity_certificate_source",
+        section="Validation",
+        metavar="SOURCE[:PROVIDER]",
+        parse=config_parse_certificate_source,
+        default=CertificateSource(type=CertificateSourceType.file),
+        help="The source to use to retrieve the verity signing certificate",
         scope=SettingScope.universal,
     ),
     ConfigSetting(
@@ -2970,9 +3029,18 @@ SETTINGS = (
         dest="sign_expected_pcr_certificate",
         metavar="PATH",
         section="Validation",
-        parse=config_make_path_parser(),
+        parse=config_parse_certificate,
         paths=("mkosi.crt",),
         help="Certificate for signing expected PCR signature in X509 format",
+        scope=SettingScope.universal,
+    ),
+    ConfigSetting(
+        dest="sign_expected_pcr_certificate_source",
+        section="Validation",
+        metavar="SOURCE[:PROVIDER]",
+        parse=config_parse_certificate_source,
+        default=CertificateSource(type=CertificateSourceType.file),
+        help="The source to use to retrieve the expected PCR signing certificate",
         scope=SettingScope.universal,
     ),
     ConfigSetting(
@@ -4678,15 +4746,18 @@ def summary(config: Config) -> str:
              SecureBoot Signing Key: {none_to_none(config.secure_boot_key)}
       SecureBoot Signing Key Source: {config.secure_boot_key_source}
              SecureBoot Certificate: {none_to_none(config.secure_boot_certificate)}
+      SecureBoot Certificate Source: {config.secure_boot_certificate_source}
                SecureBoot Sign Tool: {config.secure_boot_sign_tool}
                              Verity: {config.verity}
                  Verity Signing Key: {none_to_none(config.verity_key)}
           Verity Signing Key Source: {config.verity_key_source}
                  Verity Certificate: {none_to_none(config.verity_certificate)}
+          Verity Certificate Source: {config.verity_certificate_source}
                  Sign Expected PCRs: {config.sign_expected_pcr}
           Expected PCRs Signing Key: {none_to_none(config.sign_expected_pcr_key)}
            Expected PCRs Key Source: {config.sign_expected_pcr_key_source}
           Expected PCRs Certificate: {none_to_none(config.sign_expected_pcr_certificate)}
+   Expected PCRs Certificate Source: {config.sign_expected_pcr_certificate_source}
                          Passphrase: {none_to_none(config.passphrase)}
                            Checksum: {yes_no(config.checksum)}
                                Sign: {yes_no(config.sign)}
@@ -4861,6 +4932,15 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
     ) -> Optional[GenericVersion]:
         return GenericVersion(version) if version is not None else None
 
+    def certificate_source_transformer(
+        certificate_source: dict[str, Any], fieldtype: type[CertificateSource]
+    ) -> CertificateSource:
+        assert "Type" in certificate_source
+        return CertificateSource(
+            type=CertificateSourceType(certificate_source["Type"]),
+            source=certificate_source.get("Source", ""),
+        )
+
     def key_source_transformer(keysource: dict[str, Any], fieldtype: type[KeySource]) -> KeySource:
         assert "Type" in keysource
         return KeySource(type=KeySourceType(keysource["Type"]), source=keysource.get("Source", ""))
@@ -4916,6 +4996,7 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         list[PEAddon]: pe_addon_transformer,
         list[UKIProfile]: uki_profile_transformer,
         list[ArtifactOutput]: enum_list_transformer,
+        CertificateSource: certificate_source_transformer,
     }
 
     def json_transformer(key: str, val: Any) -> Any:

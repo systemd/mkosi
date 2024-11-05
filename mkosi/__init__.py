@@ -39,6 +39,7 @@ from mkosi.bootloader import (
     pesign_prepare,
     prepare_grub_config,
     python_binary,
+    run_systemd_sign_tool,
     shim_second_stage_binary,
     sign_efi_binary,
     want_efi,
@@ -53,6 +54,7 @@ from mkosi.config import (
     ArtifactOutput,
     Bootloader,
     Cacheonly,
+    CertificateSourceType,
     Compression,
     Config,
     ConfigFeature,
@@ -1519,20 +1521,40 @@ def run_ukify(
 
         if context.config.secure_boot_sign_tool != SecureBootSignTool.pesign:
             cmd += [
-                "--signtool", "sbsign",
-                "--secureboot-certificate", workdir(context.config.secure_boot_certificate),
+                "--signtool", (
+                    "sbsign"
+                    if context.config.secure_boot_sign_tool == SecureBootSignTool.sbsign
+                    else "systemd-sbsign"
+                ),
             ]  # fmt: skip
-            opt += [
-                "--ro-bind", context.config.secure_boot_certificate, workdir(context.config.secure_boot_certificate),  # noqa: E501
-            ]  # fmt: skip
+
+            if (
+                context.config.secure_boot_key_source.type != KeySourceType.file
+                or context.config.secure_boot_certificate_source.type != CertificateSourceType.file
+            ):
+                opt += ["--bind", "/run", "/run"]
+
             if context.config.secure_boot_key_source.type == KeySourceType.engine:
                 cmd += ["--signing-engine", context.config.secure_boot_key_source.source]
-                opt += ["--bind", "/run", "/run"]
+            elif context.config.secure_boot_key_source.type == KeySourceType.provider:
+                cmd += ["--signing-provider", context.config.secure_boot_key_source.source]
+
             if context.config.secure_boot_key.exists():
                 cmd += ["--secureboot-private-key", workdir(context.config.secure_boot_key)]
                 opt += ["--ro-bind", context.config.secure_boot_key, workdir(context.config.secure_boot_key)]
             else:
                 cmd += ["--secureboot-private-key", context.config.secure_boot_key]
+
+            if context.config.secure_boot_certificate_source.type == CertificateSourceType.provider:
+                cmd += ["--certificate-provider", context.config.secure_boot_certificate_source.source]
+
+            if context.config.secure_boot_certificate.exists():
+                cmd += ["--secureboot-certificate", workdir(context.config.secure_boot_certificate)]
+                opt += [
+                    "--ro-bind", context.config.secure_boot_certificate, workdir(context.config.secure_boot_certificate),  # noqa: E501
+                ]  # fmt: skip
+            else:
+                cmd += ["--secureboot-certificate", context.config.secure_boot_certificate]
         else:
             pesign_prepare(context)
             cmd += [
@@ -1601,15 +1623,31 @@ def build_uki(
             "--pcr-banks", "sha256",
         ]  # fmt: skip
 
+        # If we're providing the private key via an engine or provider, we have to pass in a X.509
+        # certificate via --pcr-public-key as well.
+        if context.config.sign_expected_pcr_key_source.type != KeySourceType.file:
+            if context.config.sign_expected_pcr_certificate_source.type == CertificateSourceType.provider:
+                arguments += [
+                    "--certificate-provider",
+                    f"provider:{context.config.sign_expected_pcr_certificate_source.source}",
+                ]
+
+            options += ["--bind", "/run", "/run"]
+
+            if context.config.sign_expected_pcr_certificate.exists():
+                arguments += [
+                    "--pcr-public-key", workdir(context.config.sign_expected_pcr_certificate),
+                ]  # fmt: skip
+                options += [
+                    "--ro-bind", context.config.sign_expected_pcr_certificate, workdir(context.config.sign_expected_pcr_certificate),  # noqa: E501
+                ]  # fmt: skip
+            else:
+                arguments += ["--pcr-public-key", context.config.sign_expected_pcr_certificate]
+
         if context.config.sign_expected_pcr_key_source.type == KeySourceType.engine:
-            arguments += [
-                "--signing-engine", context.config.sign_expected_pcr_key_source.source,
-                "--pcr-public-key", workdir(context.config.sign_expected_pcr_certificate),
-            ]  # fmt: skip
-            options += [
-                "--ro-bind", context.config.sign_expected_pcr_certificate, workdir(context.config.sign_expected_pcr_certificate),  # noqa: E501
-                "--bind", "/run", "/run",
-            ]  # fmt: skip
+            arguments += ["--signing-engine", context.config.sign_expected_pcr_key_source.source]
+        elif context.config.sign_expected_pcr_key_source.type == KeySourceType.provider:
+            arguments += ["--signing-provider", context.config.sign_expected_pcr_key_source.source]
 
         if context.config.sign_expected_pcr_key.exists():
             arguments += ["--pcr-private-key", workdir(context.config.sign_expected_pcr_key)]
@@ -2460,6 +2498,11 @@ def check_inputs(config: Config) -> None:
     if config.secure_boot_key_source != config.sign_expected_pcr_key_source:
         die("Secure boot key source and expected PCR signatures key source have to be the same")
 
+    if config.secure_boot_certificate_source != config.sign_expected_pcr_certificate_source:
+        die(
+            "Secure boot certificate source and expected PCR signatures certificate source have to be the same"  # noqa: E501
+        )  # fmt: skip
+
     if config.verity == ConfigFeature.enabled and not config.verity_key:
         die(
             "Verity= is enabled but no verity key is configured",
@@ -3067,23 +3110,6 @@ def make_image(
     if context.config.passphrase:
         cmdline += ["--key-file", workdir(context.config.passphrase)]
         opts += ["--ro-bind", context.config.passphrase, workdir(context.config.passphrase)]
-    if verity:
-        assert context.config.verity_key
-        assert context.config.verity_certificate
-
-        if context.config.verity_key_source.type != KeySourceType.file:
-            cmdline += ["--private-key-source", str(context.config.verity_key_source)]
-            opts += ["--bind", "/run", "/run"]
-        if context.config.verity_key.exists():
-            cmdline += ["--private-key", workdir(context.config.verity_key)]
-            opts += ["--ro-bind", context.config.verity_key, workdir(context.config.verity_key)]
-        else:
-            cmdline += ["--private-key", context.config.verity_key]
-
-        cmdline += ["--certificate", workdir(context.config.verity_certificate)]
-        opts += [
-            "--ro-bind", context.config.verity_certificate, workdir(context.config.verity_certificate),
-        ]  # fmt: skip
     if skip:
         cmdline += ["--defer-partitions", ",".join(skip)]
     if split:
@@ -3102,23 +3128,16 @@ def make_image(
 
     with complete_step(msg):
         output = json.loads(
-            run(
-                cmdline,
-                stdin=(
-                    sys.stdin
-                    if context.config.verity_key_source.type != KeySourceType.file
-                    else subprocess.DEVNULL
-                ),
+            run_systemd_sign_tool(
+                context.config,
+                cmdline=cmdline,
+                options=opts,
+                certificate=context.config.verity_certificate if verity else None,
+                certificate_source=context.config.verity_certificate_source,
+                key=context.config.verity_key if verity else None,
+                key_source=context.config.verity_key_source,
                 stdout=subprocess.PIPE,
-                env=context.config.environment,
-                sandbox=context.sandbox(
-                    binary="systemd-repart",
-                    devices=(
-                        not context.config.repart_offline
-                        or context.config.verity_key_source.type != KeySourceType.file
-                    ),
-                    options=opts,
-                ),
+                devices=not context.config.repart_offline,
             ).stdout
         )
 
@@ -3407,22 +3426,6 @@ def make_extension_image(context: Context, output: Path) -> None:
     if context.config.passphrase:
         cmdline += ["--key-file", context.config.passphrase]
         options += ["--ro-bind", context.config.passphrase, workdir(context.config.passphrase)]
-    if want_verity(context.config):
-        assert context.config.verity_key
-        assert context.config.verity_certificate
-
-        if context.config.verity_key_source.type != KeySourceType.file:
-            cmdline += ["--private-key-source", str(context.config.verity_key_source)]
-        if context.config.verity_key.exists():
-            cmdline += ["--private-key", workdir(context.config.verity_key)]
-            options += ["--ro-bind", context.config.verity_key, workdir(context.config.verity_key)]
-        else:
-            cmdline += ["--private-key", context.config.verity_key]
-
-        cmdline += ["--certificate", workdir(context.config.verity_certificate)]
-        options += [
-            "--ro-bind", context.config.verity_certificate, workdir(context.config.verity_certificate)
-        ]  # fmt: skip
     if context.config.sector_size:
         cmdline += ["--sector-size", str(context.config.sector_size)]
     if ArtifactOutput.partitions in context.config.split_artifacts:
@@ -3430,23 +3433,16 @@ def make_extension_image(context: Context, output: Path) -> None:
 
     with complete_step(f"Building {context.config.output_format} extension image"):
         j = json.loads(
-            run(
-                cmdline,
-                stdin=(
-                    sys.stdin
-                    if context.config.verity_key_source.type != KeySourceType.file
-                    else subprocess.DEVNULL
-                ),
+            run_systemd_sign_tool(
+                context.config,
+                cmdline=cmdline,
+                options=options,
+                certificate=context.config.verity_certificate if want_verity(context.config) else None,
+                certificate_source=context.config.verity_certificate_source,
+                key=context.config.verity_key if want_verity(context.config) else None,
+                key_source=context.config.verity_key_source,
                 stdout=subprocess.PIPE,
-                env=context.config.environment,
-                sandbox=context.sandbox(
-                    binary="systemd-repart",
-                    devices=(
-                        not context.config.repart_offline
-                        or context.config.verity_key_source.type != KeySourceType.file
-                    ),
-                    options=options,
-                ),
+                devices=not context.config.repart_offline,
             ).stdout
         )
 
@@ -4248,6 +4244,48 @@ def run_clean_scripts(config: Config) -> None:
                 )  # fmt: skip
 
 
+def validate_certificates_and_keys(config: Config) -> None:
+    keyutil = config.find_binary("systemd-keyutil", "/usr/lib/systemd/systemd-keyutil")
+    if not keyutil:
+        return
+
+    if want_verity(config):
+        run_systemd_sign_tool(
+            config,
+            cmdline=[keyutil, "validate"],
+            options=[],
+            certificate=config.verity_certificate,
+            certificate_source=config.verity_certificate_source,
+            key=config.verity_key,
+            key_source=config.verity_key_source,
+            stdout=subprocess.DEVNULL,
+        )
+
+    if config.bootable != ConfigFeature.disabled and config.secure_boot:
+        run_systemd_sign_tool(
+            config,
+            cmdline=[keyutil, "validate"],
+            options=[],
+            certificate=config.secure_boot_certificate,
+            certificate_source=config.secure_boot_certificate_source,
+            key=config.secure_boot_key,
+            key_source=config.secure_boot_key_source,
+            stdout=subprocess.DEVNULL,
+        )
+
+    if want_signed_pcrs(config):
+        run_systemd_sign_tool(
+            config,
+            cmdline=[keyutil, "validate"],
+            options=[],
+            certificate=config.sign_expected_pcr_certificate,
+            certificate_source=config.sign_expected_pcr_certificate_source,
+            key=config.sign_expected_pcr_key,
+            key_source=config.sign_expected_pcr_key_source,
+            stdout=subprocess.DEVNULL,
+        )
+
+
 def needs_build(args: Args, config: Config, force: int = 1) -> bool:
     return (
         args.force >= force
@@ -4667,19 +4705,6 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         for config in images:
             run_clean(args, config, resources=resources)
 
-    if args.verb != Verb.sandbox:
-        for config in images:
-            if any(
-                source.type != KeySourceType.file
-                for source in (
-                    config.verity_key_source,
-                    config.secure_boot_key_source,
-                    config.sign_expected_pcr_key_source,
-                )
-            ):
-                join_new_session_keyring()
-                break
-
     if tools and not (tools.output_dir_or_cwd() / tools.output).exists():
         with prepend_to_environ_path(tools):
             check_tools(tools, Verb.build)
@@ -4693,7 +4718,8 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
                 fork_and_wait(run_build, args, tools, resources=resources, metadata_dir=Path(metadata_dir))
 
     if args.verb == Verb.sandbox:
-        return run_sandbox(args, last)
+        with prepend_to_environ_path(last):
+            return run_sandbox(args, last)
 
     for i, config in enumerate(images):
         with prepend_to_environ_path(config):
@@ -4704,6 +4730,23 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
     last = images[-1]
 
     if not (last.output_dir_or_cwd() / last.output).exists() or last.output_format == OutputFormat.none:
+        for config in images:
+            if any(
+                source.type != KeySourceType.file
+                for source in (
+                    config.verity_key_source,
+                    config.secure_boot_key_source,
+                    config.sign_expected_pcr_key_source,
+                )
+            ):
+                join_new_session_keyring()
+                break
+
+        with complete_step("Validating certificates and keys"):
+            for config in images:
+                with prepend_to_environ_path(config):
+                    validate_certificates_and_keys(config)
+
         ensure_directories_exist(last)
 
         with (
