@@ -442,6 +442,7 @@ def test_config() -> None:
         initrd_packages=["clevis"],
         initrd_volatile_packages=["abc"],
         initrds=[Path("/efi/initrd1"), Path("/efi/initrd2")],
+        extra_initrd_trees=[],
         microcode_host=True,
         kernel_command_line=[],
         kernel_command_line_extra=["look", "im", "on", "the", "kernel", "command", "line"],
