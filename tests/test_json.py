@@ -15,6 +15,8 @@ from mkosi.config import (
     BiosBootloader,
     Bootloader,
     Cacheonly,
+    CertificateSource,
+    CertificateSourceType,
     Compression,
     Config,
     ConfigFeature,
@@ -308,6 +310,10 @@ def test_config() -> None:
             "SecureBoot": true,
             "SecureBootAutoEnroll": true,
             "SecureBootCertificate": null,
+            "SecureBootCertificateSource": {
+                "Source": "",
+                "Type": "file"
+            },
             "SecureBootKey": "/path/to/keyfile",
             "SecureBootKeySource": {
                 "Source": "",
@@ -319,6 +325,10 @@ def test_config() -> None:
             "Sign": false,
             "SignExpectedPcr": "disabled",
             "SignExpectedPcrCertificate": "/my/cert",
+            "SignExpectedPcrCertificateSource": {
+                "Source": "",
+                "Type": "file"
+            },
             "SignExpectedPcrKey": "/my/key",
             "SignExpectedPcrKeySource": {
                 "Source": "",
@@ -380,6 +390,10 @@ def test_config() -> None:
             "UseSubvolumes": "auto",
             "Verity": "enabled",
             "VerityCertificate": "/path/to/cert",
+            "VerityCertificateSource": {
+                "Source": "",
+                "Type": "file"
+            },
             "VerityKey": null,
             "VerityKeySource": {
                 "Source": "",
@@ -526,6 +540,7 @@ def test_config() -> None:
         secure_boot=True,
         secure_boot_auto_enroll=True,
         secure_boot_certificate=None,
+        secure_boot_certificate_source=CertificateSource(type=CertificateSourceType.file),
         secure_boot_key=Path("/path/to/keyfile"),
         secure_boot_key_source=KeySource(type=KeySourceType.file),
         secure_boot_sign_tool=SecureBootSignTool.pesign,
@@ -537,6 +552,7 @@ def test_config() -> None:
         sign_expected_pcr_key=Path("/my/key"),
         sign_expected_pcr_key_source=KeySource(type=KeySourceType.file),
         sign_expected_pcr_certificate=Path("/my/cert"),
+        sign_expected_pcr_certificate_source=CertificateSource(type=CertificateSourceType.file),
         skeleton_trees=[ConfigTree(Path("/foo/bar"), Path("/")), ConfigTree(Path("/bar/baz"), Path("/qux"))],
         source_date_epoch=12345,
         split_artifacts=[ArtifactOutput.uki, ArtifactOutput.kernel],
@@ -563,6 +579,7 @@ def test_config() -> None:
         verity_certificate=Path("/path/to/cert"),
         verity_key=None,
         verity_key_source=KeySource(type=KeySourceType.file),
+        verity_certificate_source=CertificateSource(type=CertificateSourceType.file),
         volatile_package_directories=[Path("def")],
         volatile_packages=["abc"],
         with_docs=True,

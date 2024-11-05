@@ -1140,9 +1140,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     UEFI kernel image, if `SecureBoot=` is used.
 
 `SecureBootSignTool=`, `--secure-boot-sign-tool`
-:   Tool to use to sign secure boot PE binaries. Takes one of `sbsign`, `pesign` or `auto`. Defaults to `auto`.
-    If set to `auto`, either sbsign or pesign are used if available, with sbsign being preferred if both are
-    installed.
+:   Tool to use to sign secure boot PE binaries. Takes one of `systemd`, `sbsign`, `pesign` or `auto`.
+    Defaults to `auto`. If set to `auto`, either `systemd-sbsign`, `sbsign` or `pesign` are used if
+    available, with `systemd-sbsign` being preferred.
 
 `Verity=`, `--verity=`
 :   Whether to enforce or disable signed verity for extension images.
@@ -1186,9 +1186,12 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   Path to the X.509 file containing the certificate for signing the expected PCR signatures.
 
 `SecureBootKeySource=`, `--secure-boot-key-source=`, `VerityKeySource=`, `--verity-key-source=`, `SignExpectedPcrKeySource=`, `--sign-expected-key-source=`
-:   The source of the corresponding private key `SecureBootKey=`, to support OpenSSL engines and providers,
-    e.g. `--secure-boot-key-source=engine:pkcs11` or `--secure-boot-key-source=provider:pkcs11`. Note that
-    providers are currently only supported for the verity key.
+:   The source of the corresponding private key, to support OpenSSL engines and providers,
+    e.g. `--secure-boot-key-source=engine:pkcs11` or `--secure-boot-key-source=provider:pkcs11`.
+
+`SecureBootCertificateSource=`, `--secure-boot-certificate-source=`, `VerityCertificateSource=`, `--verity-certificate-source=`, `SignExpectedPcrCertificateSource=`, `--sign-expected-certificate-source=`
+:   The source of the corresponding certificate, to support OpenSSL providers,
+    e.g. `--secure-boot-certificate-source=provider:pkcs11`. Note that engines are not supported.
 
 `Passphrase=`, `--passphrase`
 :   Specify the path to a file containing the passphrase to use for LUKS
