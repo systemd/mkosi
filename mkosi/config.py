@@ -1708,6 +1708,7 @@ class Config:
     unified_kernel_image_format: str
     unified_kernel_image_profiles: list[UKIProfile]
     initrds: list[Path]
+    extra_initrd_trees: list[ConfigTree]
     initrd_packages: list[str]
     initrd_volatile_packages: list[str]
     microcode_host: bool
@@ -2470,6 +2471,15 @@ SETTINGS = (
         parse=config_parse_boolean,
         default=True,
         help="Install documentation",
+    ),
+    ConfigSetting(
+        dest="extra_initrd_trees",
+        long="--extra-initrd-tree",
+        metavar="PATH",
+        section="Content",
+        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser()),
+        paths=("mkosi.initrd.extra", "mkosi.initrd.extra.tar"),
+        help="Copy an extra tree on top of initrd",
     ),
     ConfigSetting(
         dest="base_trees",
@@ -4637,6 +4647,7 @@ def summary(config: Config) -> str:
         Unified Kernel Image Format: {config.unified_kernel_image_format}
       Unified Kernel Image Profiles: {line_join_list(config.unified_kernel_image_profiles)}
                             Initrds: {line_join_list(config.initrds)}
+                Extra Iintird Trees: {line_join_list(config.extra_initrd_trees)}
                     Initrd Packages: {line_join_list(config.initrd_packages)}
            Initrd Volatile Packages: {line_join_list(config.initrd_volatile_packages)}
                 Kernel Command Line: {line_join_list(config.kernel_command_line)}
