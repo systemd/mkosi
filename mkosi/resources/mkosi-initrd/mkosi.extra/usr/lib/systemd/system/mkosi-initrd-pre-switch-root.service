@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
+[Unit]
+Description=mkosi-initrd breakpoint before switch root
+DefaultDependencies=no
+Conflicts=shutdown.target emergency.target
+Wants=remote-fs.target
+After=initrd.target initrd-parse-etc.service sysroot.mount remote-fs.target mkosi-initrd-pre-mount.service
+Before=initrd-cleanup.service
+ConditionPathExists=/etc/initrd-release
+ConditionKernelCommandLine=rd.break=pre-switch-root
+
+[Service]
+Environment=HOME=/root
+Environment=PS1="pre-switch-root:$PWD# "
+WorkingDirectory=/root
+Type=oneshot
+ExecStartPre=-/bin/sh -c "/usr/bin/plymouth quit 2>/dev/null || :"
+ExecStart=-/usr/sbin/sulogin --force
+StandardInput=tty-force
+StandardOutput=inherit
+StandardError=inherit
+TasksMax=infinity
+IgnoreSIGPIPE=no
+KillMode=process
+KillSignal=SIGHUP
+
+[Install]
+WantedBy=initrd.target

@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
+enable mkosi-initrd-pre-mount.service
+enable mkosi-initrd-pre-switch-root.service
+enable mkosi-initrd-pre-udev.service
