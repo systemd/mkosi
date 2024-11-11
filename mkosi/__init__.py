@@ -73,6 +73,7 @@ from mkosi.config import (
     format_bytes,
     parse_boolean,
     parse_config,
+    resolve_deps,
     summary,
     systemd_tool_version,
     want_selinux_relabel,
@@ -4727,7 +4728,9 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
             images[i] = config = run_configure_scripts(config)
 
     # The images array has been modified so we need to reevaluate last again.
+    # Also ensure that all other images are reordered in case their dependencies were modified.
     last = images[-1]
+    images = resolve_deps(images[:-1], last.dependencies) + [last]
 
     if not (last.output_dir_or_cwd() / last.output).exists() or last.output_format == OutputFormat.none:
         for config in images:
