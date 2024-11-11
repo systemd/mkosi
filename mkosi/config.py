@@ -4420,6 +4420,8 @@ def load_environment(args: argparse.Namespace) -> dict[str, str]:
         "TERM": finalize_term(),
     }
 
+    if args.image is not None:
+        env["SUBIMAGE"] = args.image
     if args.image_id is not None:
         env["IMAGE_ID"] = args.image_id
     if args.image_version is not None:
