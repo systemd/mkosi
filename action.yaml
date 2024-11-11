@@ -56,6 +56,10 @@ runs:
         sudo aa-teardown || true
         sudo apt-get remove apparmor
 
+    - name: Install
+      shell: bash
+      run: sudo ln -svf ${{ github.action_path }}/bin/mkosi /usr/bin/mkosi
+
     - name: Dependencies
       shell: bash
       run: |
@@ -64,18 +68,7 @@ runs:
         # For archlinux-keyring and pacman
         sudo add-apt-repository ppa:michel-slm/kernel-utils
         sudo apt-get update
-        sudo apt-get install --assume-yes --no-install-recommends \
-          archlinux-keyring \
-          debian-archive-keyring \
-          dnf \
-          makepkg \
-          pacman-package-manager \
-          systemd-container \
-          zypper
+        mkosi dependencies | xargs -d '\n' sudo apt-get install
 
         sudo pacman-key --init
         sudo pacman-key --populate archlinux
-
-    - name: Install
-      shell: bash
-      run: sudo ln -svf ${{ github.action_path }}/bin/mkosi /usr/bin/mkosi
