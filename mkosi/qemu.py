@@ -1185,18 +1185,11 @@ def run_qemu(args: Args, config: Config) -> None:
 
         apply_runtime_size(config, fname)
 
-        if kernel and (
-            KernelType.identify(config, kernel) != KernelType.uki
-            or not config.architecture.supports_smbios(firmware)
-        ):
-            kcl = config.kernel_command_line + finalize_kernel_command_line_extra(config)
-        else:
-            kcl = finalize_kernel_command_line_extra(config)
-
+        kcl = []
         if kernel:
             cmdline += ["-kernel", kernel]
 
-            if any(s.startswith("root=") for s in kcl):
+            if any(s.startswith("root=") for s in finalize_kernel_command_line_extra(config)):
                 pass
             elif config.output_format == OutputFormat.disk:
                 # We can't rely on gpt-auto-generator when direct kernel booting so synthesize a root=
@@ -1346,11 +1339,13 @@ def run_qemu(args: Args, config: Config) -> None:
             elif kernel:
                 kcl += [f"systemd.set_credential_binary={k}:{payload}"]
 
+        kcl += finalize_kernel_command_line_extra(config)
+
         if kernel and (
             KernelType.identify(config, kernel) != KernelType.uki
             or not config.architecture.supports_smbios(firmware)
         ):
-            cmdline += ["-append", " ".join(kcl)]
+            cmdline += ["-append", " ".join(config.kernel_command_line + kcl)]
         elif config.architecture.supports_smbios(firmware):
             cmdline += [
                 "-smbios",
