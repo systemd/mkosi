@@ -3788,7 +3788,7 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
     return parser
 
 
-def resolve_deps(images: Sequence[argparse.Namespace], include: Sequence[str]) -> list[argparse.Namespace]:
+def resolve_deps(images: Sequence[Config], include: Sequence[str]) -> list[Config]:
     graph = {config.image: config.dependencies for config in images}
 
     if any((missing := i) not in graph for i in include):
@@ -4395,9 +4395,12 @@ def parse_config(
     if dependencies is not None:
         setattr(config, "dependencies", dependencies)
 
-    images = resolve_deps(images, config.dependencies)
+    main = load_config(config)
 
-    return args, tuple([load_config(ns) for ns in images] + [load_config(config)])
+    subimages = [load_config(ns) for ns in images]
+    subimages = resolve_deps(subimages, main.dependencies)
+
+    return args, tuple(subimages + [main])
 
 
 def finalize_term() -> str:
