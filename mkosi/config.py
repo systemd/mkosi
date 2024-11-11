@@ -3595,6 +3595,10 @@ SPECIFIERS = (
         callback=lambda ns, config: ns.distribution.filesystem(),
         depends=("distribution",),
     ),
+    Specifier(
+        char="I",
+        callback=lambda ns, config: ns.image or "",
+    ),
 )
 
 SPECIFIERS_LOOKUP_BY_CHAR = {s.char: s for s in SPECIFIERS}

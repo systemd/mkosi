@@ -2031,11 +2031,12 @@ use `%%`. The following specifiers are understood:
 
 There are also specifiers that are independent of settings:
 
-| Specifier | Value                                   |
-|-----------|-----------------------------------------|
-| `%C`      | Parent directory of current config file |
-| `%P`      | Current working directory               |
-| `%D`      | Directory that mkosi was invoked in     |
+| Specifier | Value                                          |
+|-----------|------------------------------------------------|
+| `%C`      | Parent directory of current config file        |
+| `%P`      | Current working directory                      |
+| `%D`      | Directory that mkosi was invoked in            |
+| `%I`      | Name of the current subimage in `mkosi.images` |
 
 Finally, there are specifiers that are derived from a setting:
 
