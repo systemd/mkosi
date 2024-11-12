@@ -1323,7 +1323,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `ToolsTreeSandboxTrees=`, `--tools-tree-sandbox-tree`
 :   Same as `SandboxTrees=` but for the default tools tree.
 
-`ToolsTreePackages=`, `--tools-tree-packages=`
+`ToolsTreePackages=`, `--tools-tree-package=`
 :   Extra packages to install into the default tools tree. Takes a comma
     separated list of package specifications. This option may be used
     multiple times in which case the specified package lists are combined.
