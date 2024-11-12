@@ -557,6 +557,7 @@ def parse_path(
     expandvars: bool = True,
     secret: bool = False,
     absolute: bool = False,
+    directory: bool = False,
     constants: Sequence[str] = (),
 ) -> Path:
     if value in constants:
@@ -570,8 +571,12 @@ def parse_path(
     if expanduser:
         path = path.expanduser()
 
-    if required and not path.exists():
-        die(f"{value} does not exist")
+    if required:
+        if not path.exists():
+            die(f"{value} does not exist")
+
+        if directory and not path.is_dir():
+            die(f"{value} is not a directory")
 
     if absolute and not path.is_absolute():
         die(f"{value} must be an absolute path")
@@ -639,12 +644,20 @@ def config_parse_certificate(value: Optional[str], old: Optional[str]) -> Option
     return parse_path(value) if Path(value).exists() else Path(value)
 
 
-def make_tree_parser(absolute: bool = True, required: bool = False) -> Callable[[str], ConfigTree]:
+def make_tree_parser(
+    absolute: bool = True,
+    required: bool = False,
+    directory: bool = False,
+) -> Callable[[str], ConfigTree]:
     def parse_tree(value: str) -> ConfigTree:
         src, sep, tgt = value.partition(":")
 
         return ConfigTree(
-            source=parse_path(src, required=required),
+            source=parse_path(
+                src,
+                required=required,
+                directory=directory,
+            ),
             target=parse_path(
                 tgt,
                 required=False,
@@ -3266,7 +3279,14 @@ SETTINGS = (
         dest="build_sources",
         metavar="PATH",
         section="Build",
-        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(absolute=False, required=True)),
+        parse=config_make_list_parser(
+            delimiter=",",
+            parse=make_tree_parser(
+                absolute=False,
+                required=True,
+                directory=True,
+            ),
+        ),
         match=config_match_build_sources,
         default_factory=lambda ns: [ConfigTree(ns.directory, None)] if ns.directory else [],
         help="Path for sources to build",
