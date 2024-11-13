@@ -68,7 +68,7 @@ runs:
         # For archlinux-keyring and pacman
         sudo add-apt-repository ppa:michel-slm/kernel-utils
         sudo apt-get update
-        mkosi dependencies | xargs -d '\n' sudo apt-get install
+        mkosi dependencies | xargs -d '\n' sudo apt-get install --assume-yes --no-install-recommends
 
         sudo pacman-key --init
         sudo pacman-key --populate archlinux
