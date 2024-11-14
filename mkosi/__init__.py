@@ -1525,6 +1525,7 @@ def run_ukify(
                 "--signtool", (
                     "sbsign"
                     if context.config.secure_boot_sign_tool == SecureBootSignTool.sbsign
+                    or not context.config.find_binary("systemd-sbsign", "/usr/lib/systemd/systemd-sbsign")
                     else "systemd-sbsign"
                 ),
             ]  # fmt: skip
