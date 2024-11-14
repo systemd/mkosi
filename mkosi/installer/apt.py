@@ -129,7 +129,7 @@ class Apt(PackageManager):
         sources = context.sandbox_tree / "etc/apt/sources.list.d/mkosi.sources"
         if not sources.exists():
             for repo in repositories:
-                if repo.signedby and not repo.signedby.exists():
+                if repo.signedby and not (context.config.tools() / str(repo.signedby).lstrip("/")).exists():
                     die(
                         f"Keyring for repo {repo.url} not found at {repo.signedby}",
                         hint="Make sure the right keyring package (e.g. debian-archive-keyring, "
