@@ -334,7 +334,7 @@ def become_user(uid: int, gid: int) -> None:
             with open(f"/proc/{ppid}/uid_map", "wb") as f:
                 f.write(f"{uid} {os.getuid()} 1\n".encode())
         except OSError as e:
-            os._exit(e.errno)
+            os._exit(e.errno or 1)
         except BaseException:
             os._exit(1)
         else:
