@@ -169,6 +169,7 @@ class Apt(PackageManager):
             "-o", "APT::Get::Allow-Remove-Essential=true",
             "-o", "APT::Sandbox::User=root",
             "-o", "Acquire::AllowReleaseInfoChange=true",
+            "-o", "Acquire::Check-Valid-Until=false",
             "-o", "Dir::Cache=/var/cache/apt",
             "-o", "Dir::State=/var/lib/apt",
             "-o", "Dir::Log=/var/log/apt",
