@@ -144,6 +144,8 @@ class Installer(DistributionInstaller):
                     "?essential",
                     "?exact-name(usr-is-merged)",
                     "base-files",
+                    "dbus",
+                    "libpam-systemd",
                 ],
                 options=["--bind", f.name, workdir(Path(f.name))],
             )
