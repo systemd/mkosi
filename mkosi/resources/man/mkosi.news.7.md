@@ -86,6 +86,10 @@
   (qemu, nspawn, ...), we now keep $PATH entries inside the user's home
   intact. Note that this may cause issues if a PATH entry in your home contains
   binaries linked against libraries in `/usr` from the host.
+- Introduced new specifier `%I` which resolves to the name of the current
+  subimage when used in a config under `mkosi.images/`. This differs to `%o`
+  as it is always the name of the config file without extension (or the name
+  of the directory).
 
 ## v24
 

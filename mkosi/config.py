@@ -3683,6 +3683,10 @@ SPECIFIERS = (
         callback=lambda ns, config: ns.distribution.filesystem(),
         depends=("distribution",),
     ),
+    Specifier(
+        char="I",
+        callback=lambda ns, config: ns.image or "",
+    ),
 )
 
 SPECIFIERS_LOOKUP_BY_CHAR = {s.char: s for s in SPECIFIERS}
@@ -4507,6 +4511,8 @@ def load_environment(args: argparse.Namespace) -> dict[str, str]:
         "TERM": finalize_term(),
     }
 
+    if args.image is not None:
+        env["SUBIMAGE"] = args.image
     if args.image_id is not None:
         env["IMAGE_ID"] = args.image_id
     if args.image_version is not None:

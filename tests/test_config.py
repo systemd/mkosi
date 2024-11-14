@@ -1104,6 +1104,7 @@ def test_specifiers(tmp_path: Path) -> None:
         Environment=Distribution=%d
                     Release=%r
                     Architecture=%a
+                    Image=%I
                     ImageId=%i
                     ImageVersion=%v
                     OutputDirectory=%O
@@ -1134,13 +1135,22 @@ def test_specifiers(tmp_path: Path) -> None:
         """
     )
 
+    (d / "mkosi.images").mkdir()
+    (d / "mkosi.images/subimage.conf").write_text(
+        """
+        [Build]
+        Environment=Image=%I
+        """
+    )
+
     with chdir(d):
-        _, [config] = parse_config()
+        _, [subimage, config] = parse_config()
 
         expected = {
             "Distribution": "ubuntu",
             "Release": "lunar",
             "Architecture": "arm64",
+            "Image": "",
             "ImageId": "my-image-id",
             "ImageVersion": "1.2.3",
             "OutputDirectory": str(Path.cwd() / "abcde"),
@@ -1158,6 +1168,8 @@ def test_specifiers(tmp_path: Path) -> None:
         }
 
         assert {k: v for k, v in config.environment.items() if k in expected} == expected
+
+        assert subimage.environment["Image"] == "subimage"
 
 
 def test_kernel_specifiers(tmp_path: Path) -> None:
