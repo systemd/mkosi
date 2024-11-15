@@ -472,7 +472,7 @@ class BindOperation(FSOperation):
 
             with umask(~0o644 if isfile else ~0o755):
                 if isfile:
-                    os.close(os.open(dst, os.O_CREAT | os.O_CLOEXEC))
+                    os.close(os.open(dst, os.O_CREAT | os.O_CLOEXEC | os.O_EXCL))
                 else:
                     os.mkdir(dst)
 
@@ -506,7 +506,7 @@ class DevOperation(FSOperation):
 
         for node in ("null", "zero", "full", "random", "urandom", "tty"):
             ndst = joinpath(dst, node)
-            os.close(os.open(ndst, os.O_CREAT | os.O_CLOEXEC))
+            os.close(os.open(ndst, os.O_CREAT | os.O_CLOEXEC | os.O_EXCL))
 
             mount(joinpath(oldroot, "dev", node), ndst, "", MS_BIND, "")
 
@@ -526,7 +526,7 @@ class DevOperation(FSOperation):
         os.symlink("pts/ptmx", joinpath(dst, "ptmx"))
 
         if self.ttyname:
-            os.close(os.open(joinpath(dst, "console"), os.O_CREAT | os.O_CLOEXEC))
+            os.close(os.open(joinpath(dst, "console"), os.O_CREAT | os.O_CLOEXEC | os.O_EXCL))
             mount(joinpath(oldroot, self.ttyname), joinpath(dst, "console"), "", MS_BIND, "")
 
 
