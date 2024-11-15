@@ -21,7 +21,7 @@ from types import TracebackType
 from typing import Any, Callable, NoReturn, Optional, Protocol
 
 import mkosi.sandbox
-from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, die
+from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, ARG_DEBUG_SANDBOX, die
 from mkosi.sandbox import acquire_privileges, joinpath, umask
 from mkosi.types import _FILE, CompletedProcess, PathString, Popen
 from mkosi.util import current_home_dir, flatten, one_zero
@@ -485,6 +485,7 @@ def sandbox_cmd(
 
     cmdline: list[PathString] = [
         *setup,
+        *(["strace", "--detach-on=execve"] if ARG_DEBUG_SANDBOX.get() else []),
         sys.executable, "-SI", mkosi.sandbox.__file__,
         "--proc", "/proc",
         # We mounted a subdirectory of TMPDIR to /var/tmp so we unset TMPDIR so that /tmp or /var/tmp are
