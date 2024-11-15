@@ -562,7 +562,7 @@ class SymlinkOperation(FSOperation):
         try:
             os.symlink(self.src, dst)
         except FileExistsError:
-            if os.readlink(dst) == self.src:
+            if os.path.islink(dst) and os.readlink(dst) == self.src:
                 return
 
             raise
