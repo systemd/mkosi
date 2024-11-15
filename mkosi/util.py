@@ -244,6 +244,9 @@ def current_home_dir() -> Optional[Path]:
     if Path.cwd().is_relative_to("/root"):
         return Path("/root")
 
+    if (home := os.getenv("HOME")) and Path.cwd().is_relative_to(home):
+        return Path(home)
+
     if Path.cwd().is_relative_to("/home"):
         # `Path.parents` only supports slices and negative indexing from Python 3.10 onwards.
         # TODO: Remove list() when we depend on Python 3.10 or newer.
