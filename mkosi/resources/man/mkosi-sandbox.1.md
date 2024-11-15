@@ -54,7 +54,9 @@ host system.
 :   Like `--bind-try`, but does a recursive readonly bind mount.
 
 `--symlink SRC DST`
-:   Creates a symlink at `DST` in the sandbox pointing to `SRC`.
+:   Creates a symlink at `DST` in the sandbox pointing to `SRC`. If `DST` already
+    exists and is a file or symlink, a temporary symlink is created and mounted on
+    top of `DST`.
 
 `--write DATA DST`
 :   Writes the string from `DATA` to `DST` in the sandbox.
