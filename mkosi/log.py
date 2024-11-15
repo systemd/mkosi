@@ -11,6 +11,7 @@ from typing import Any, Final, NoReturn, Optional
 # This global should be initialized after parsing arguments
 ARG_DEBUG = contextvars.ContextVar("debug", default=False)
 ARG_DEBUG_SHELL = contextvars.ContextVar("debug-shell", default=False)
+ARG_DEBUG_SANDBOX = contextvars.ContextVar("debug-sandbox", default=False)
 LEVEL = 0
 
 

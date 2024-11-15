@@ -234,15 +234,18 @@ Those settings cannot be configured in the configuration files.
     for in this directory, hence using this option is an effective way to
     build a project located in a specific directory.
 
-`--debug=`
+`--debug`
 :   Enable additional debugging output.
 
 `--debug-shell`
 :   When executing a command in the image fails, mkosi will start an interactive
     shell in the image allowing further debugging.
 
-`--debug-workspace=`
+`--debug-workspace`
 :   When an error occurs, the workspace directory will not be deleted.
+
+`--debug-sandbox`
+:   Run `mkosi-sandbox` with `strace`.
 
 `--version`
 :   Show package version.
