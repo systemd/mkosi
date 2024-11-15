@@ -464,11 +464,11 @@ class BindOperation(FSOperation):
         if not os.path.exists(src) and not self.required:
             return
 
-        with umask(~0o755):
-            os.makedirs(os.path.dirname(dst), exist_ok=True)
-
         if not os.path.exists(dst):
             isfile = os.path.isfile(src)
+
+            with umask(~0o755):
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
 
             with umask(~0o644 if isfile else ~0o755):
                 if isfile:
