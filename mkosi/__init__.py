@@ -103,7 +103,7 @@ from mkosi.run import (
     chroot_cmd,
     chroot_options,
     finalize_interpreter,
-    finalize_passwd_mounts,
+    finalize_passwd_symlinks,
     fork_and_wait,
     run,
     workdir,
@@ -2822,9 +2822,8 @@ def run_tmpfiles(context: Context) -> None:
                 options=[
                     "--bind", context.root, "/buildroot",
                     # systemd uses acl.h to parse ACLs in tmpfiles snippets which uses the host's
-                    # passwd so we have to mount the image's passwd over it to make ACL parsing
-                    # work.
-                    *finalize_passwd_mounts(context.root),
+                    # passwd so we have to symlink the image's passwd to make ACL parsing work.
+                    *finalize_passwd_symlinks("/buildroot"),
                     # Sometimes directories are configured to be owned by root in tmpfiles snippets
                     # so we want to make sure those chown()'s succeed by making ourselves the root
                     # user so that the root user exists.

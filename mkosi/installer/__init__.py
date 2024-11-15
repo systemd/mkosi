@@ -7,7 +7,7 @@ from pathlib import Path
 from mkosi.config import Config, ConfigFeature, OutputFormat
 from mkosi.context import Context
 from mkosi.mounts import finalize_crypto_mounts
-from mkosi.run import apivfs_options, finalize_interpreter, finalize_passwd_mounts, find_binary
+from mkosi.run import apivfs_options, finalize_interpreter, finalize_passwd_symlinks, find_binary
 from mkosi.tree import rmtree
 from mkosi.types import PathString
 from mkosi.util import flatten, startswith
@@ -109,10 +109,9 @@ class PackageManager:
             "--suppress-chown",
             # Make sure /etc/machine-id is not overwritten by any package manager post install scripts.
             "--ro-bind-try", Path(root) / "etc/machine-id", "/buildroot/etc/machine-id",
-            # If we're already in the sandbox, we want to pick up use the passwd files from /buildroot since
-            # the original root won't be available anymore. If we're not in the sandbox yet, we want to pick
-            # up the passwd files from the original root.
-            *finalize_passwd_mounts(root),
+            # Some package managers (e.g. dpkg) read from the host's /etc/passwd instead of the buildroot's
+            # /etc/passwd so we symlink /etc/passwd from the buildroot to make sure it gets used.
+            *(finalize_passwd_symlinks("/buildroot") if apivfs else []),
         ]  # fmt: skip
 
     @classmethod
