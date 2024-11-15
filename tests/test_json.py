@@ -53,6 +53,7 @@ def test_args(path: Optional[Path]) -> None:
                 "bar"
             ],
             "Debug": false,
+            "DebugSandbox": false,
             "DebugShell": false,
             "DebugWorkspace": false,
             "Directory": {f'"{os.fspath(path)}"' if path is not None else 'null'},
@@ -72,6 +73,7 @@ def test_args(path: Optional[Path]) -> None:
         auto_bump=False,
         cmdline=["foo", "bar"],
         debug=False,
+        debug_sandbox=False,
         debug_shell=False,
         debug_workspace=False,
         directory=Path(path) if path is not None else None,

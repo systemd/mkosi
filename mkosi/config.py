@@ -31,7 +31,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional, TypeVar, Union, cast
 
 from mkosi.distributions import Distribution, detect_distribution
-from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, Style, die
+from mkosi.log import ARG_DEBUG, ARG_DEBUG_SANDBOX, ARG_DEBUG_SHELL, Style, die
 from mkosi.pager import page
 from mkosi.run import SandboxProtocol, find_binary, nosandbox, run, sandbox_cmd, workdir
 from mkosi.sandbox import __version__
@@ -1547,6 +1547,7 @@ class Args:
     debug: bool
     debug_shell: bool
     debug_workspace: bool
+    debug_sandbox: bool
     pager: bool
     genkey_valid_days: str
     genkey_common_name: str
@@ -3776,6 +3777,12 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
         default=False,
     )
     parser.add_argument(
+        "--debug-sandbox",
+        help="Run mkosi-sandbox with strace",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
         "--no-pager",
         action="store_false",
         dest="pager",
@@ -4555,6 +4562,8 @@ def load_args(args: argparse.Namespace) -> Args:
         ARG_DEBUG.set(args.debug)
     if args.debug_shell:
         ARG_DEBUG_SHELL.set(args.debug_shell)
+    if args.debug_sandbox:
+        ARG_DEBUG_SANDBOX.set(args.debug_sandbox)
 
     return Args.from_namespace(args)
 
