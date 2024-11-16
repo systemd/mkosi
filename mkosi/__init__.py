@@ -4161,6 +4161,7 @@ def finalize_default_tools(args: Args, config: Config, *, resources: Path) -> Co
         *(["--package-cache-dir", str(config.package_cache_dir)] if config.package_cache_dir else []),
         "--incremental", str(config.incremental),
         *([f"--package={package}" for package in config.tools_tree_packages]),
+        *([f"--package-directory={directory}" for directory in config.tools_tree_package_directories]),
         "--output=tools",
         *(["--source-date-epoch", str(config.source_date_epoch)] if config.source_date_epoch is not None else []),  # noqa: E501
         *([f"--environment={k}='{v}'" for k, v in config.environment.items()]),

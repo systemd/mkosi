@@ -1331,6 +1331,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     separated list of package specifications. This option may be used
     multiple times in which case the specified package lists are combined.
 
+`ToolsTreePackageDirectories=`, `--tools-tree-package-directory=`
+:   Same as `PackageDirectories=`, but for the default tools tree.
+
 `ToolsTreeCertificates=`, `--tools-tree-certificates=`
 :   Specify whether to use certificates and keys from the tools tree.
     Enabled by default. If enabled, `/etc/pki`, `/etc/ssl`,

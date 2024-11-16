@@ -363,6 +363,9 @@ def test_config() -> None:
             "ToolsTreeCertificates": true,
             "ToolsTreeDistribution": "fedora",
             "ToolsTreeMirror": null,
+            "ToolsTreePackageDirectories": [
+                "/abc"
+            ],
             "ToolsTreePackages": [],
             "ToolsTreeRelease": null,
             "ToolsTreeRepositories": [
@@ -570,6 +573,7 @@ def test_config() -> None:
         tools_tree_mirror=None,
         tools_tree_sandbox_trees=[ConfigTree(Path("/a/b/c"), Path("/"))],
         tools_tree_packages=[],
+        tools_tree_package_directories=[Path("/abc")],
         tools_tree_release=None,
         tools_tree_repositories=["abc"],
         unified_kernel_image_format="myuki",
