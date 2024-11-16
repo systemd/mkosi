@@ -1282,8 +1282,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     | `less`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `mtools`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `nano`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `opensc`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `openssh`               | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `openssl`               | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `pkcs11-provider`       | ✓      |        | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `sed`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `pacman`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
     | `pesign`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
