@@ -1120,8 +1120,13 @@ def run_qemu(args: Args, config: Config) -> None:
         if config.architecture.is_arm_variant():
             cmdline += ["-device", "virtio-gpu-pci"]
         else:
-            cmdline += ["-vga", "virtio"]
-        cmdline += ["-audio", "driver=pipewire,model=virtio"]
+            cmdline += ["-device", "virtio-vga"]
+
+        cmdline += [
+            "-nodefaults",
+            "-display", "sdl,gl=on",
+            "-audio", "driver=pipewire,model=virtio",
+        ]  # fmt: skip
     else:
         # -nodefaults removes the default CDROM device which avoids an error message during boot
         # -serial mon:stdio adds back the serial device removed by -nodefaults.
