@@ -2631,7 +2631,15 @@ def check_tools(config: Config, verb: Verb) -> None:
                 reason="sign verity roothash signature with OpenSSL engine",
             )
 
-        if want_efi(config) and config.secure_boot and config.secure_boot_auto_enroll:
+        if (
+            want_efi(config)
+            and config.secure_boot
+            and config.secure_boot_auto_enroll
+            and (
+                not config.find_binary("bootctl")
+                or systemd_tool_version("bootctl", sandbox=config.sandbox) < "257~devel"
+            )
+        ):
             check_tool(config, "sbsiglist", reason="set up systemd-boot secure boot auto-enrollment")
             check_tool(config, "sbvarsign", reason="set up systemd-boot secure boot auto-enrollment")
 
