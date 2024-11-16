@@ -500,7 +500,11 @@ def run_systemd_sign_tool(
         sandbox=config.sandbox(
             binary=cmd[0],
             options=opt,
-            devices=devices or key_source.type != KeySourceType.file,
+            devices=(
+                devices
+                or key_source.type != KeySourceType.file
+                or certificate_source.type != CertificateSourceType.file
+            ),
         ),
     )
 
