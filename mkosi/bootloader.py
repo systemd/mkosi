@@ -780,7 +780,7 @@ def install_systemd_boot(context: Context) -> None:
     bootctlver = systemd_tool_version("bootctl", sandbox=context.sandbox)
 
     if want_bootctl_auto_enroll := (
-        context.config.secure_boot and context.config.secure_boot_auto_enroll and bootctlver >= 257
+        context.config.secure_boot and context.config.secure_boot_auto_enroll and bootctlver >= "257~devel"
     ):
         cmd += ["--secure-boot-auto-enroll=yes"]
 
@@ -804,7 +804,7 @@ def install_systemd_boot(context: Context) -> None:
                 context.root / shim_second_stage_binary(context),
             )
 
-    if context.config.secure_boot and context.config.secure_boot_auto_enroll and bootctlver < 257:
+    if context.config.secure_boot and context.config.secure_boot_auto_enroll and bootctlver < "257~devel":
         assert context.config.secure_boot_key
         assert context.config.secure_boot_certificate
 
