@@ -103,7 +103,7 @@ from mkosi.run import (
     chroot_cmd,
     chroot_options,
     finalize_interpreter,
-    finalize_passwd_mounts,
+    finalize_passwd_symlinks,
     fork_and_wait,
     run,
     workdir,
@@ -2631,7 +2631,15 @@ def check_tools(config: Config, verb: Verb) -> None:
                 reason="sign verity roothash signature with OpenSSL engine",
             )
 
-        if want_efi(config) and config.secure_boot and config.secure_boot_auto_enroll:
+        if (
+            want_efi(config)
+            and config.secure_boot
+            and config.secure_boot_auto_enroll
+            and (
+                not config.find_binary("bootctl")
+                or systemd_tool_version("bootctl", sandbox=config.sandbox) < "257~devel"
+            )
+        ):
             check_tool(config, "sbsiglist", reason="set up systemd-boot secure boot auto-enrollment")
             check_tool(config, "sbvarsign", reason="set up systemd-boot secure boot auto-enrollment")
 
@@ -2822,9 +2830,8 @@ def run_tmpfiles(context: Context) -> None:
                 options=[
                     "--bind", context.root, "/buildroot",
                     # systemd uses acl.h to parse ACLs in tmpfiles snippets which uses the host's
-                    # passwd so we have to mount the image's passwd over it to make ACL parsing
-                    # work.
-                    *finalize_passwd_mounts(context.root),
+                    # passwd so we have to symlink the image's passwd to make ACL parsing work.
+                    *finalize_passwd_symlinks("/buildroot"),
                     # Sometimes directories are configured to be owned by root in tmpfiles snippets
                     # so we want to make sure those chown()'s succeed by making ourselves the root
                     # user so that the root user exists.
@@ -4162,6 +4169,7 @@ def finalize_default_tools(args: Args, config: Config, *, resources: Path) -> Co
         *(["--package-cache-dir", str(config.package_cache_dir)] if config.package_cache_dir else []),
         "--incremental", str(config.incremental),
         *([f"--package={package}" for package in config.tools_tree_packages]),
+        *([f"--package-directory={directory}" for directory in config.tools_tree_package_directories]),
         "--output=tools",
         *(["--source-date-epoch", str(config.source_date_epoch)] if config.source_date_epoch is not None else []),  # noqa: E501
         *([f"--environment={k}='{v}'" for k, v in config.environment.items()]),

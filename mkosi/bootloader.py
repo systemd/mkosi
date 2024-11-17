@@ -500,7 +500,11 @@ def run_systemd_sign_tool(
         sandbox=config.sandbox(
             binary=cmd[0],
             options=opt,
-            devices=devices or key_source.type != KeySourceType.file,
+            devices=(
+                devices
+                or key_source.type != KeySourceType.file
+                or certificate_source.type != CertificateSourceType.file
+            ),
         ),
     )
 
@@ -591,6 +595,9 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
         or context.config.secure_boot_sign_tool == SecureBootSignTool.auto
         and context.config.find_binary("sbsign") is not None
     ):
+        if context.config.secure_boot_certificate_source.type != CertificateSourceType.file:
+            die("Secure boot certificate source must be 'file' when using sbsign as the signing tool")
+
         cmd = [
             "sbsign",
             "--cert", workdir(context.config.secure_boot_certificate),
@@ -629,6 +636,9 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
         or context.config.secure_boot_sign_tool == SecureBootSignTool.auto
         and context.config.find_binary("pesign") is not None
     ):
+        if context.config.secure_boot_certificate_source.type != CertificateSourceType.file:
+            die("Secure boot certificate source must be 'file' when using pesign as the signing tool")
+
         pesign_prepare(context)
         run(
             [

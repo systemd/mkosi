@@ -560,12 +560,19 @@ class SymlinkOperation(FSOperation):
     def execute(self, oldroot: str, newroot: str) -> None:
         dst = joinpath(newroot, self.dst)
         try:
-            os.symlink(self.src, dst)
+            return os.symlink(self.src, dst)
         except FileExistsError:
-            if os.readlink(dst) == self.src:
+            if os.path.islink(dst) and os.readlink(dst) == self.src:
                 return
 
-            raise
+            if os.path.isdir(dst):
+                raise
+
+        # If the target already exists and is not a directory, create the symlink somewhere else and mount
+        # it over the existing file or symlink.
+        os.symlink(self.src, "/symlink")
+        mount_rbind("/symlink", dst)
+        os.unlink("/symlink")
 
 
 class WriteOperation(FSOperation):

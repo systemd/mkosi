@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Optional
 
 from mkosi.log import log_step
-from mkosi.run import SandboxProtocol, finalize_passwd_mounts, nosandbox, run, workdir
+from mkosi.run import SandboxProtocol, finalize_passwd_symlinks, nosandbox, run, workdir
 from mkosi.sandbox import umask
 from mkosi.types import PathString
 from mkosi.util import chdir
@@ -51,7 +51,7 @@ def make_tar(src: Path, dst: Path, *, sandbox: SandboxProtocol = nosandbox) -> N
             # Make sure tar uses user/group information from the root directory instead of the host.
             sandbox=sandbox(
                 binary="tar",
-                options=["--ro-bind", src, workdir(src), *finalize_passwd_mounts(src)],
+                options=["--ro-bind", src, workdir(src), *finalize_passwd_symlinks(workdir(src))],
             ),
         )  # fmt: skip
 
@@ -98,7 +98,7 @@ def extract_tar(
             options=[
                 "--ro-bind", src, workdir(src),
                 "--bind", dst, workdir(dst),
-                *finalize_passwd_mounts(dst),
+                *finalize_passwd_symlinks(workdir(dst)),
             ],
         ),
     )  # fmt: skip
@@ -136,6 +136,6 @@ def make_cpio(
             stdout=f,
             sandbox=sandbox(
                 binary="cpio",
-                options=["--ro-bind", src, workdir(src), *finalize_passwd_mounts(src)],
+                options=["--ro-bind", src, workdir(src), *finalize_passwd_symlinks(workdir(src))],
             ),
         )  # fmt: skip

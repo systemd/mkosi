@@ -1818,6 +1818,7 @@ class Config:
     tools_tree_repositories: list[str]
     tools_tree_sandbox_trees: list[ConfigTree]
     tools_tree_packages: list[str]
+    tools_tree_package_directories: list[Path]
     tools_tree_certificates: bool
     incremental: Incremental
     cacheonly: Cacheonly
@@ -3165,6 +3166,14 @@ SETTINGS = (
         section="Build",
         parse=config_make_list_parser(delimiter=","),
         help="Add additional packages to the default tools tree",
+    ),
+    ConfigSetting(
+        dest="tools_tree_package_directories",
+        long="--tools-tree-package-directory",
+        metavar="PATH",
+        section="Build",
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        help="Specify a directory containing extra tools tree packages",
     ),
     ConfigSetting(
         dest="tools_tree_certificates",
@@ -4813,6 +4822,7 @@ def summary(config: Config) -> str:
             Tools Tree Repositories: {line_join_list(config.tools_tree_repositories)}
            Tools Tree Sandbox Trees: {line_join_list(config.tools_tree_sandbox_trees)}
                 Tools Tree Packages: {line_join_list(config.tools_tree_packages)}
+     Tools Tree Package Directories: {line_join_list(config.tools_tree_package_directories)}
             Tools Tree Certificates: {yes_no(config.tools_tree_certificates)}
 
                         Incremental: {config.incremental}

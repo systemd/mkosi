@@ -1282,8 +1282,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     | `less`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `mtools`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `nano`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `opensc`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `openssh`               | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `openssl`               | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `pkcs11-provider`       | ✓      |        | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `sed`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `pacman`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
     | `pesign`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
@@ -1330,6 +1332,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   Extra packages to install into the default tools tree. Takes a comma
     separated list of package specifications. This option may be used
     multiple times in which case the specified package lists are combined.
+
+`ToolsTreePackageDirectories=`, `--tools-tree-package-directory=`
+:   Same as `PackageDirectories=`, but for the default tools tree.
 
 `ToolsTreeCertificates=`, `--tools-tree-certificates=`
 :   Specify whether to use certificates and keys from the tools tree.

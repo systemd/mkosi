@@ -415,15 +415,14 @@ def workdir(path: Path, sandbox: Optional[SandboxProtocol] = None) -> str:
     return joinpath(subdir, str(path))
 
 
-def finalize_passwd_mounts(root: PathString) -> list[PathString]:
+def finalize_passwd_symlinks(root: PathString) -> list[PathString]:
     """
     If passwd or a related file exists in the apivfs directory, bind mount it over the host files while we
     run the command, to make sure that the command we run uses user/group information from the apivfs
     directory instead of from the host.
     """
     return flatten(
-        ("--ro-bind-try", Path(root) / "etc" / f, f"/etc/{f}")
-        for f in ("passwd", "group", "shadow", "gshadow")
+        ("--symlink", Path(root) / "etc" / f, f"/etc/{f}") for f in ("passwd", "group", "shadow", "gshadow")
     )
 
 
