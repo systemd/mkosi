@@ -1260,6 +1260,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     | `ca-certificates`       | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `coreutils`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `cpio`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `createrepo_c`          | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `curl`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `debian-keyring`        | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
     | `diffutils`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
