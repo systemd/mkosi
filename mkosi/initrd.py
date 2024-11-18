@@ -101,7 +101,7 @@ def main() -> None:
             "--directory", "",
             "--format", args.format,
             "--output", args.output,
-            "--output-dir", staging_dir,
+            "--output-directory", staging_dir,
             "--extra-tree", f"/usr/lib/modules/{args.kernel_version}:/usr/lib/modules/{args.kernel_version}",
             "--extra-tree=/usr/lib/firmware:/usr/lib/firmware",
             "--remove-files=/usr/lib/firmware/*-ucode",

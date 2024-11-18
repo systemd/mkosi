@@ -577,7 +577,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   Configure the compression level to use. Takes an integer. The possible
     values depend on the compression being used.
 
-`OutputDirectory=`, `--output-dir=`, `-O`
+`OutputDirectory=`, `--output-directory=`, `-O`
 :   Path to a directory where to place all generated artifacts. If this is
     not specified and the directory `mkosi.output/` exists in the local
     directory, it is automatically used for this purpose.
@@ -623,7 +623,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     root or `/usr` partition along with its Verity partition and unified
     kernel. By default `uki`, `kernel` and `initrd` are split out.
 
-`RepartDirectories=`, `--repart-dir=`
+`RepartDirectories=`, `--repart-directory=`
 :   Paths to directories containing systemd-repart partition definition
     files that are used when mkosi invokes systemd-repart when building a
     disk image. If `mkosi.repart/` exists in the local directory, it will
@@ -1386,7 +1386,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     for `/etc/dnf/dnf.conf` in the sandbox trees  if `dnf` is used to
     install packages.
 
-`WorkspaceDirectory=`, `--workspace-dir=`
+`WorkspaceDirectory=`, `--workspace-directory=`
 :   Path to a directory where to store data required temporarily while
     building the image. This directory should have enough space to store
     the full OS image, though in most modes the actually used disk space
@@ -1398,7 +1398,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     should an `mkosi` invocation be aborted abnormally (for example, due
     to reboot/power failure).
 
-`CacheDirectory=`, `--cache-dir=`
+`CacheDirectory=`, `--cache-directory=`
 :   Takes a path to a directory to use as the incremental cache directory
     for the incremental images produced when the `Incremental=` option is
     enabled. If this option is not used, but a `mkosi.cache/` directory is
@@ -1410,7 +1410,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     the distribution package manager used. If unset, a suitable directory
     in the user's home directory or system is used.
 
-`BuildDirectory=`, `--build-dir=`
+`BuildDirectory=`, `--build-directory=`
 :   Takes a path to a directory to use as the build directory for build
     systems that support out-of-tree builds (such as Meson). The directory
     used this way is shared between repeated builds, and allows the build
@@ -1818,7 +1818,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     of file if your workload produces more than `4G` worth of journal
     data.
 
-`SysupdateDirectory=`, `--sysupdate-dir=`
+`SysupdateDirectory=`, `--sysupdate-directory=`
 :   Path to a directory containing systemd-sysupdate transfer definition
     files that are used by `mkosi sysupdate`. If `mkosi.sysupdate/`
     exists in the local directory, it will be used for this purpose as
@@ -2627,8 +2627,8 @@ project.
 re-building of images. Specifically:
 
 1. The package cache of the distribution package manager may be cached
-   between builds. This is configured with the `--cache-dir=` option or
-   the `mkosi.cache/` directory. This form of caching relies on the
+   between builds. This is configured with the `--cache-directory=` option
+   or the `mkosi.cache/` directory. This form of caching relies on the
    distribution's package manager, and caches distribution packages
    (RPM, DEB, …) after they are downloaded, but before they are
    unpacked.
