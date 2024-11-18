@@ -39,6 +39,12 @@ def main() -> None:
         default=platform.uname().release,
     )
     parser.add_argument(
+        "--kernel-image",
+        metavar="KERNEL_IMAGE",
+        help="Kernel image",
+        type=Path,
+    )
+    parser.add_argument(
         "-t",
         "--format",
         choices=[str(OutputFormat.cpio), str(OutputFormat.uki), str(OutputFormat.directory)],
@@ -110,6 +116,11 @@ def main() -> None:
             "--build-sources", "",
             "--include=mkosi-initrd",
         ]  # fmt: skip
+
+        if args.kernel_image:
+            cmdline += [
+                "--extra-tree", f"{args.kernel_image}:/usr/lib/modules/{args.kernel_version}/vmlinuz",
+            ]  # fmt: skip
 
         if args.debug:
             cmdline += ["--debug"]
