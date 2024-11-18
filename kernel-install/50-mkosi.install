@@ -143,7 +143,7 @@ def main() -> None:
     else:
         format = OutputFormat.cpio
 
-    output = "initrd" if format == OutputFormat.cpio else "uki"
+    output = "initrd" if format == OutputFormat.cpio else "uki.efi"
 
     cmdline: list[PathString] = [
         "mkosi-initrd",
