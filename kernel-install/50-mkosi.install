@@ -163,8 +163,6 @@ def main() -> None:
 
     run(cmdline)
 
-    (context.staging_area / output).unlink()
-
     if format == OutputFormat.cpio:
         build_microcode_initrd(context.staging_area / "microcode")
     else:
