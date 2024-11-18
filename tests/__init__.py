@@ -103,7 +103,7 @@ class Image:
             *(f"--kernel-command-line={i}" for i in kcl),
             "--force",
             "--incremental",
-            "--output-dir", self.output_dir,
+            "--output-directory", self.output_dir,
             *(["--debug-shell"] if self.config.debug_shell else []),
             *options,
         ]  # fmt: skip

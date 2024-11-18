@@ -150,7 +150,7 @@ def test_initrd_luks(config: ImageConfig, passphrase: Path) -> None:
         )
 
         with Image(config) as image:
-            image.build(["--repart-dir", repartd, "--passphrase", passphrase, "--format=disk"])
+            image.build(["--repart-directory", repartd, "--passphrase", passphrase, "--format=disk"])
             image.qemu(["--credential=cryptsetup.passphrase=mkosi"])
 
 

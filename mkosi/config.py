@@ -2350,7 +2350,7 @@ SETTINGS = (
         specifier="o",
         parse=config_make_filename_parser(
             "Output= or --output= requires a filename with no path components. "
-            "Use OutputDirectory= or --output-dir= to configure the output directory."
+            "Use OutputDirectory= or --output-directory= to configure the output directory."
         ),
         default_factory=config_default_output,
         default_factory_depends=("image_id", "image_version"),
@@ -2377,6 +2377,8 @@ SETTINGS = (
     ConfigSetting(
         dest="output_dir",
         short="-O",
+        long="--output-directory",
+        compat_longs=("--output-dir",),
         metavar="DIR",
         name="OutputDirectory",
         section="Output",
@@ -2422,7 +2424,8 @@ SETTINGS = (
     ),
     ConfigSetting(
         dest="repart_dirs",
-        long="--repart-dir",
+        long="--repart-directory",
+        compat_longs=("--repart-dir",),
         metavar="PATH",
         name="RepartDirectories",
         section="Output",
@@ -3225,6 +3228,8 @@ SETTINGS = (
     ),
     ConfigSetting(
         dest="workspace_dir",
+        long="--workspace-directory",
+        compat_longs=("--workspace-dir",),
         metavar="DIR",
         name="WorkspaceDirectory",
         section="Build",
@@ -3234,6 +3239,8 @@ SETTINGS = (
     ),
     ConfigSetting(
         dest="cache_dir",
+        long="--cache-directory",
+        compat_longs=("--cache-dir",),
         metavar="PATH",
         name="CacheDirectory",
         section="Build",
@@ -3244,6 +3251,8 @@ SETTINGS = (
     ),
     ConfigSetting(
         dest="package_cache_dir",
+        long="--package-cache-directory",
+        compat_longs=("--package-cache-dir",),
         metavar="PATH",
         name="PackageCacheDirectory",
         section="Build",
@@ -3253,6 +3262,8 @@ SETTINGS = (
     ),
     ConfigSetting(
         dest="build_dir",
+        long="--build-directory",
+        compat_longs=("--build-dir",),
         metavar="PATH",
         name="BuildDirectory",
         section="Build",
@@ -3532,7 +3543,8 @@ SETTINGS = (
     ),
     ConfigSetting(
         dest="sysupdate_dir",
-        long="--sysupdate-dir",
+        long="--sysupdate-directory",
+        compat_longs=("--sysupdate-dir",),
         metavar="PATH",
         name="SysupdateDirectory",
         section="Host",
