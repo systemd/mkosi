@@ -166,9 +166,6 @@ def main() -> None:
 
     if format == OutputFormat.cpio:
         build_microcode_initrd(context.staging_area / "microcode")
-    else:
-        (context.staging_area / f"{output}.vmlinuz").unlink()
-        (context.staging_area / f"{output}.initrd").unlink()
 
 
 if __name__ == "__main__":
