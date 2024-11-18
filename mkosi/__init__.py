@@ -4647,13 +4647,17 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
 
     if (
         tools
-        and not (tools.output_dir_or_cwd() / tools.output).exists()
+        and (
+            not (tools.output_dir_or_cwd() / tools.output).exists()
+            or (tools.incremental and not have_cache(tools))
+        )
         and args.verb != Verb.build
         and not args.force
     ):
         die(
-            f"Default tools tree requested for image '{last.name()}' but it has not been built yet",
-            hint="Make sure to build the image first with 'mkosi build' or use '--force'",
+            f"Default tools tree requested for image '{last.name()}' but it is out-of-date or has not been "
+            "built yet",
+            hint="Make sure to (re)build the image first with 'mkosi build' or use '--force'",
         )
 
     if not last.repart_offline and os.getuid() != 0:
