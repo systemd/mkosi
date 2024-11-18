@@ -5,6 +5,7 @@ import argparse
 import dataclasses
 import logging
 import os
+import sys
 import tempfile
 from pathlib import Path
 from typing import Optional
@@ -161,7 +162,7 @@ def main() -> None:
 
     logging.info(f"Building {output}")
 
-    run(cmdline)
+    run(cmdline, stdin=sys.stdin, stdout=sys.stdout)
 
     if format == OutputFormat.cpio:
         build_microcode_initrd(context.staging_area / "microcode")
