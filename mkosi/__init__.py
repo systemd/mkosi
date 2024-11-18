@@ -4186,7 +4186,7 @@ def finalize_default_tools(config: Config, *, resources: Path) -> Config:
         resources=resources,
     )
 
-    tools = dataclasses.replace(tools, image=f"{config.tools_tree_distribution}-tools")
+    tools = dataclasses.replace(tools, image="tools")
 
     return tools
 
