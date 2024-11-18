@@ -4651,7 +4651,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
             not (tools.output_dir_or_cwd() / tools.output).exists()
             or (tools.incremental and not have_cache(tools))
         )
-        and args.verb != Verb.build
+        and (args.verb != Verb.build or last.output_format == OutputFormat.none)
         and not args.force
     ):
         die(
