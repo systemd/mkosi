@@ -4146,7 +4146,7 @@ def prepend_to_environ_path(config: Config) -> Iterator[None]:
             os.environ["PATH"] = ":".join(olds)
 
 
-def finalize_default_tools(args: Args, config: Config, *, resources: Path) -> Config:
+def finalize_default_tools(config: Config, *, resources: Path) -> Config:
     if not config.tools_tree_distribution:
         die(
             f"{config.distribution} does not have a default tools tree distribution",
@@ -4179,7 +4179,6 @@ def finalize_default_tools(args: Args, config: Config, *, resources: Path) -> Co
         *(["--proxy-peer-certificate", str(p)] if (p := config.proxy_peer_certificate) else []),
         *(["--proxy-client-certificate", str(p)] if (p := config.proxy_client_certificate) else []),
         *(["--proxy-client-key", str(p)] if (p := config.proxy_client_key) else []),
-        *(["-f"] * args.force),
     ]  # fmt: skip
 
     _, [tools] = parse_config(
@@ -4616,7 +4615,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         }[args.verb](args, last)
 
     if last.tools_tree and last.tools_tree == Path("default"):
-        tools = finalize_default_tools(args, last, resources=resources)
+        tools = finalize_default_tools(last, resources=resources)
     else:
         tools = None
 
