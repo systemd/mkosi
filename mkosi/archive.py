@@ -32,7 +32,7 @@ def make_tar(src: Path, dst: Path, *, sandbox: SandboxProtocol = nosandbox) -> N
                 "tar",
                 "--create",
                 "--file", "-",
-                "--directory", workdir(src),
+                "--directory", workdir(src, sandbox),
                 "--acls",
                 "--selinux",
                 # --xattrs implies --format=pax
@@ -51,7 +51,10 @@ def make_tar(src: Path, dst: Path, *, sandbox: SandboxProtocol = nosandbox) -> N
             # Make sure tar uses user/group information from the root directory instead of the host.
             sandbox=sandbox(
                 binary="tar",
-                options=["--ro-bind", src, workdir(src), *finalize_passwd_symlinks(workdir(src))],
+                options=[
+                    "--ro-bind", src, workdir(src, sandbox),
+                    *finalize_passwd_symlinks(workdir(src, sandbox)),
+                ],
             ),
         )  # fmt: skip
 
@@ -78,8 +81,8 @@ def extract_tar(
         [
             "tar",
             "--extract",
-            "--file", workdir(src),
-            "--directory", workdir(dst),
+            "--file", workdir(src, sandbox),
+            "--directory", workdir(dst, sandbox),
             "--keep-directory-symlink",
             "--no-overwrite-dir",
             "--same-permissions",
@@ -96,9 +99,9 @@ def extract_tar(
             binary="tar",
             # Make sure tar uses user/group information from the root directory instead of the host.
             options=[
-                "--ro-bind", src, workdir(src),
-                "--bind", dst, workdir(dst),
-                *finalize_passwd_symlinks(workdir(dst)),
+                "--ro-bind", src, workdir(src, sandbox),
+                "--bind", dst, workdir(dst, sandbox),
+                *finalize_passwd_symlinks(workdir(dst, sandbox)),
             ],
         ),
     )  # fmt: skip
@@ -129,13 +132,16 @@ def make_cpio(
                 "--null",
                 "--format=newc",
                 "--quiet",
-                "--directory", workdir(src),
+                "--directory", workdir(src, sandbox),
                 *(["--owner=0:0"] if os.getuid() != 0 else []),
             ],
             input="\0".join(os.fspath(f) for f in files),
             stdout=f,
             sandbox=sandbox(
                 binary="cpio",
-                options=["--ro-bind", src, workdir(src), *finalize_passwd_symlinks(workdir(src))],
+                options=[
+                    "--ro-bind", src, workdir(src, sandbox),
+                    *finalize_passwd_symlinks(workdir(src, sandbox))
+                ],
             ),
         )  # fmt: skip
