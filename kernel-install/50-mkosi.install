@@ -5,6 +5,7 @@ import argparse
 import dataclasses
 import logging
 import os
+import sys
 import tempfile
 from pathlib import Path
 from typing import Optional
@@ -143,7 +144,7 @@ def main() -> None:
     else:
         format = OutputFormat.cpio
 
-    output = "initrd" if format == OutputFormat.cpio else "uki"
+    output = "initrd" if format == OutputFormat.cpio else "uki.efi"
 
     cmdline: list[PathString] = [
         "mkosi-initrd",
@@ -153,20 +154,18 @@ def main() -> None:
         "--output-dir", context.staging_area,
     ]  # fmt: skip
 
+    if context.kernel_image:
+        cmdline += ["--kernel-image", context.kernel_image]
+
     if context.verbose:
         cmdline += ["--debug"]
 
     logging.info(f"Building {output}")
 
-    run(cmdline)
-
-    (context.staging_area / output).unlink()
+    run(cmdline, stdin=sys.stdin, stdout=sys.stdout)
 
     if format == OutputFormat.cpio:
         build_microcode_initrd(context.staging_area / "microcode")
-    else:
-        (context.staging_area / f"{output}.vmlinuz").unlink()
-        (context.staging_area / f"{output}.initrd").unlink()
 
 
 if __name__ == "__main__":
