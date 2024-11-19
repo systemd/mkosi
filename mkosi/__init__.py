@@ -1256,6 +1256,7 @@ def finalize_default_initrd(
         *(["--root-password", rootpwopt] if rootpwopt else []),
         *([f"--environment={k}='{v}'" for k, v in config.environment.items()]),
         *(["--tools-tree", str(config.tools_tree)] if config.tools_tree and tools else []),
+        "--tools-tree-certificates", str(config.tools_tree_certificates),
         *([f"--extra-search-path={p}" for p in config.extra_search_paths]),
         *(["--proxy-url", config.proxy_url] if config.proxy_url else []),
         *([f"--proxy-exclude={host}" for host in config.proxy_exclude]),
