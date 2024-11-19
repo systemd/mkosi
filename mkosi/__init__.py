@@ -4146,7 +4146,7 @@ def prepend_to_environ_path(config: Config) -> Iterator[None]:
             os.environ["PATH"] = ":".join(olds)
 
 
-def finalize_default_tools(args: Args, config: Config, *, resources: Path) -> Config:
+def finalize_default_tools(config: Config, *, resources: Path) -> Config:
     if not config.tools_tree_distribution:
         die(
             f"{config.distribution} does not have a default tools tree distribution",
@@ -4179,7 +4179,6 @@ def finalize_default_tools(args: Args, config: Config, *, resources: Path) -> Co
         *(["--proxy-peer-certificate", str(p)] if (p := config.proxy_peer_certificate) else []),
         *(["--proxy-client-certificate", str(p)] if (p := config.proxy_client_certificate) else []),
         *(["--proxy-client-key", str(p)] if (p := config.proxy_client_key) else []),
-        *(["-f"] * args.force),
     ]  # fmt: skip
 
     _, [tools] = parse_config(
@@ -4187,7 +4186,7 @@ def finalize_default_tools(args: Args, config: Config, *, resources: Path) -> Co
         resources=resources,
     )
 
-    tools = dataclasses.replace(tools, image=f"{config.tools_tree_distribution}-tools")
+    tools = dataclasses.replace(tools, image="tools")
 
     return tools
 
@@ -4616,7 +4615,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         }[args.verb](args, last)
 
     if last.tools_tree and last.tools_tree == Path("default"):
-        tools = finalize_default_tools(args, last, resources=resources)
+        tools = finalize_default_tools(last, resources=resources)
     else:
         tools = None
 
@@ -4648,13 +4647,17 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
 
     if (
         tools
-        and not (tools.output_dir_or_cwd() / tools.output).exists()
-        and args.verb != Verb.build
+        and (
+            not (tools.output_dir_or_cwd() / tools.output).exists()
+            or (tools.incremental and not have_cache(tools))
+        )
+        and (args.verb != Verb.build or last.output_format == OutputFormat.none)
         and not args.force
     ):
         die(
-            f"Default tools tree requested for image '{last.name()}' but it has not been built yet",
-            hint="Make sure to build the image first with 'mkosi build' or use '--force'",
+            f"Default tools tree requested for image '{last.name()}' but it is out-of-date or has not been "
+            "built yet",
+            hint="Make sure to (re)build the image first with 'mkosi build' or use '--force'",
         )
 
     if not last.repart_offline and os.getuid() != 0:
