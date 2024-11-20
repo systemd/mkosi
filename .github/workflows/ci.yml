@@ -35,7 +35,11 @@ jobs:
       - name: Run ruff format
         run: |
           ruff --version
-          ruff format --check mkosi/ tests/ kernel-install/50-mkosi.install
+          if ! ruff format --check --quiet mkosi/ tests/ kernel-install/50-mkosi.install
+          then
+              echo "Please run 'ruff format' on the above files or apply the diffs below manually"
+              ruff format --check --quiet --diff mkosi/ tests/ kernel-install/50-mkosi.install
+          fi
 
       - name: Check that tabs are not used in code
         run: sh -c '! git grep -P "\\t" "*.py"'
