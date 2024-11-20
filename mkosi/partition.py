@@ -33,10 +33,10 @@ class Partition:
 def find_partitions(image: Path, *, sandbox: SandboxProtocol = nosandbox) -> list[Partition]:
     output = json.loads(
         run(
-            ["systemd-repart", "--json=short", workdir(image)],
+            ["systemd-repart", "--json=short", workdir(image, sandbox)],
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
-            sandbox=sandbox(binary="systemd-repart", options=["--ro-bind", image, workdir(image)]),
+            sandbox=sandbox(binary="systemd-repart", options=["--ro-bind", image, workdir(image, sandbox)]),
         ).stdout
     )
     return [Partition.from_dict(d) for d in output]
