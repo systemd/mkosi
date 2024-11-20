@@ -570,13 +570,13 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
     assert context.config.secure_boot_certificate
 
     sbsign = context.config.find_binary("systemd-sbsign", "/usr/lib/systemd/systemd-sbsign")
-    if context.config.secure_boot_sign_tool == SecureBootSignTool.systemd and not sbsign:
+    if context.config.secure_boot_sign_tool == SecureBootSignTool.systemd_sbsign and not sbsign:
         die("Could not find systemd-sbsign")
 
     cmd: list[PathString]
     options: list[PathString]
 
-    if context.config.secure_boot_sign_tool == SecureBootSignTool.systemd or (
+    if context.config.secure_boot_sign_tool == SecureBootSignTool.systemd_sbsign or (
         context.config.secure_boot_sign_tool == SecureBootSignTool.auto and sbsign
     ):
         assert sbsign

@@ -174,7 +174,7 @@ class SecureBootSignTool(StrEnum):
     auto = enum.auto()
     sbsign = enum.auto()
     pesign = enum.auto()
-    systemd = enum.auto()
+    systemd_sbsign = enum.auto()
 
 
 class OutputFormat(StrEnum):
