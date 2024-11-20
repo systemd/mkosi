@@ -1341,3 +1341,27 @@ def test_split_artifacts_compat(tmp_path: Path) -> None:
     with chdir(d):
         _, [config] = parse_config()
         assert config.split_artifacts == ArtifactOutput.compat_yes()
+
+
+def test_cli_collection_reset(tmp_path: Path) -> None:
+    d = tmp_path
+
+    (d / "mkosi.conf").write_text(
+        """
+        [Content]
+        Packages=abc
+        """
+    )
+
+    with chdir(d):
+        _, [config] = parse_config(["--package", ""])
+        assert config.packages == []
+
+        _, [config] = parse_config(["--package", "", "--package", "foo"])
+        assert config.packages == ["foo"]
+
+        _, [config] = parse_config(["--package", "foo", "--package", "", "--package", "bar"])
+        assert config.packages == ["bar"]
+
+        _, [config] = parse_config(["--package", "foo", "--package", ""])
+        assert config.packages == []
