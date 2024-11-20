@@ -4300,11 +4300,10 @@ def needs_build(args: Args, config: Config, force: int = 1) -> bool:
     return (
         args.force >= force
         or not (config.output_dir_or_cwd() / config.output_with_compression).exists()
-        or
-        # When the output is a directory, its name is the same as the symlink we create that points
-        # to the actual output when not building a directory. So if the full output path exists, we
-        # have to check that it's not a symlink as well.
-        (config.output_dir_or_cwd() / config.output_with_compression).is_symlink()
+        # When the output is a directory, its name is the same as the symlink we create that points to the
+        # actual output when not building a directory. So if the full output path exists, we have to check
+        # that it's not a symlink as well.
+        or (config.output_dir_or_cwd() / config.output_with_compression).is_symlink()
     )
 
 
