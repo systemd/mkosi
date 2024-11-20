@@ -106,18 +106,19 @@ def resolve_module_dependencies(
             if not sep:
                 key, sep, value = line.partition("=")
 
+            value = value.strip()
+
             if key == "depends":
-                depends.update(normalize_module_name(d) for d in value.strip().split(",") if d)
+                depends.update(normalize_module_name(d) for d in value.split(",") if d)
 
             elif key == "softdep":
                 # softdep is delimited by spaces and can contain strings like pre: and post: so discard
                 # anything that ends with a colon.
-                depends.update(
-                    normalize_module_name(d) for d in value.strip().split() if not d.endswith(":")
-                )
+                depends.update(normalize_module_name(d) for d in value.split() if not d.endswith(":"))
 
             elif key == "firmware":
-                fw = [f for f in Path("usr/lib/firmware").glob(f"{value.strip()}*")]
+                glob = "" if value.endswith("*") else "*"
+                fw = [f for f in Path("usr/lib/firmware").glob(f"{value}{glob}")]
                 if not fw:
                     logging.debug(f"Not including missing firmware /usr/lib/firmware/{value} in the initrd")
 
@@ -126,7 +127,7 @@ def resolve_module_dependencies(
             elif key == "name":
                 # The file names use dashes, but the module names use underscores. We track the names in
                 # terms of the file names, since the depends use dashes and therefore filenames as well.
-                name = normalize_module_name(value.strip())
+                name = normalize_module_name(value)
 
                 moddep[name] = depends
                 firmwaredep[name] = firmware
