@@ -3950,11 +3950,14 @@ class ConfigAction(argparse.Action):
         s = SETTINGS_LOOKUP_BY_DEST[self.dest]
 
         if values is None or isinstance(values, str):
-            setattr(namespace, s.dest, s.parse(values, getattr(namespace, self.dest, None)))
-        else:
-            for v in values:
-                assert isinstance(v, str)
-                setattr(namespace, s.dest, s.parse(v, getattr(namespace, self.dest, None)))
+            values = [values]
+
+        for v in values:
+            assert isinstance(v, str) or v is None
+            parsed_value = s.parse(v, getattr(namespace, self.dest, None))
+            if parsed_value is None:
+                setattr(namespace, f"{s.dest}_was_none", True)
+            setattr(namespace, s.dest, parsed_value)
 
 
 class ParseContext:
@@ -4066,8 +4069,10 @@ class ParseContext:
         # If a value was specified on the CLI, it always takes priority. If the setting is a collection of
         # values, we merge the value from the CLI with the value from the configuration, making sure that the
         # value from the CLI always takes priority.
-        if hasattr(self.cli, setting.dest) and (v := getattr(self.cli, setting.dest)) is not None:
-            if isinstance(v, list):
+        if (v := getattr(self.cli, setting.dest, None)) is not None:
+            if getattr(self.cli, f"{setting.dest}_was_none", False):
+                return v
+            elif isinstance(v, list):
                 return (getattr(self.config, setting.dest, None) or []) + v
             elif isinstance(v, dict):
                 return (getattr(self.config, setting.dest, None) or {}) | v
