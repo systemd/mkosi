@@ -896,6 +896,11 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     shipped by distributions will load their configuration from this
     location by default.
 
+    Kernels need to be placed into the root filesystem (for example using
+    `ExtraTrees=`) under `/usr/lib/modules/$version`, named `vmlinux` or
+    `vmlinuz`. The `$version` is as produced by Kbuild's `kernelversion` make
+    target.
+
 `BiosBootloader=`, `--bios-bootloader=`
 :   Takes one of `none` or `grub`. Defaults to `none`. If set to `none`,
     no BIOS bootloader will be installed. If set to `grub`, grub is
