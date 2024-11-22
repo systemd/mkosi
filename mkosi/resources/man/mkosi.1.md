@@ -76,17 +76,18 @@ The following command line verbs are known:
 
 `shell`
 :   This builds the image if it is not built yet, and then invokes
-    `systemd-nspawn` to acquire an interactive shell prompt in it. An optional
-    command line may be specified after the `shell` verb, to be invoked in place
-    of the shell in the container. Use `-f` in order to rebuild the image
+    `systemd-nspawn` to run an interactive shell in the image. This doesn't
+    require booting the system, it's like a better chroot. An optional command
+    line may be specified after the `shell` verb, to be invoked in place of the
+    shell in the container. Use `-f` in order to rebuild the image
     unconditionally before acquiring the shell, see below. This command must be
     executed as `root`.
 
 `boot`
-:   Similar to `shell`, but boots the image using `systemd-nspawn`. An
-    optional command line may be specified after the `boot` verb, which
-    can contain extra nspawn options as well as arguments which are passed
-    as the *kernel command line* to the init system in the image.
+:   Similar to `shell`, but instead of spawning a shell, it boots systemd in the
+    image using `systemd-nspawn`. An optional command line may be specified after
+    the `boot` verb, which can contain extra nspawn options as well as arguments
+    which are passed as the *kernel command line* to the init system in the image.
 
 `qemu`
 :   Similar to `boot`, but uses the configured virtual machine monitor (by
