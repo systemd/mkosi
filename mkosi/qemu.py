@@ -328,9 +328,6 @@ def start_virtiofsd(
     name: Optional[str] = None,
     selinux: bool = False,
 ) -> Iterator[Path]:
-    if name is None:
-        name = systemd_escape(config, directory, path=True)
-
     virtiofsd = find_virtiofsd(root=config.tools(), extra=config.extra_search_paths)
     if virtiofsd is None:
         die("virtiofsd must be installed to boot directory images or use RuntimeTrees= with mkosi qemu")
@@ -383,9 +380,13 @@ def start_virtiofsd(
         # We want RuntimeBuildSources= and RuntimeTrees= to do the right thing even when running mkosi qemu
         # as root without the source directories necessarily being owned by root. We achieve this by running
         # virtiofsd as the owner of the source directory and then mapping that uid to root.
+        if not name:
+            name = f"{config.machine_or_name()}-{systemd_escape(config, directory, path=True)}"
+        else:
+            name = systemd_escape(config, name)
 
         name = f"mkosi-virtiofsd-{name}"
-        description = f"virtiofsd for {directory}"
+        description = f"virtiofsd for machine {config.machine_or_name()} for {directory}"
         scope = []
         if st:
             scope = scope_cmd(name=name, description=description, user=st.st_uid, group=st.st_gid)
