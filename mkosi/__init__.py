@@ -3975,16 +3975,12 @@ def run_shell(args: Args, config: Config) -> None:
 
 
 def run_systemd_tool(tool: str, args: Args, config: Config) -> None:
-    if (
-        config.output_format not in (OutputFormat.disk, OutputFormat.directory)
-        and not config.forward_journal
-    ):
+    if config.output_format not in (OutputFormat.disk, OutputFormat.directory):
         die(f"{config.output_format} images cannot be inspected with {tool}")
 
     if (
         args.verb in (Verb.journalctl, Verb.coredumpctl)
         and config.output_format == OutputFormat.disk
-        and not config.forward_journal
         and os.getuid() != 0
     ):
         need_root = True
@@ -3994,30 +3990,17 @@ def run_systemd_tool(tool: str, args: Args, config: Config) -> None:
     if (tool_path := config.find_binary(tool)) is None:
         die(f"Failed to find {tool}")
 
-    if config.ephemeral and not config.forward_journal:
+    if config.ephemeral:
         die(f"Images booted in ephemeral mode cannot be inspected with {tool}")
 
-    output = config.output_dir_or_cwd() / config.output
-
-    if config.forward_journal and not config.forward_journal.exists():
+    if not (output := config.output_dir_or_cwd() / config.output).exists():
         die(
-            "Journal directory/file configured with ForwardJournal= does not exist, "
-            f"cannot inspect with {tool}"
+            f"Output {output} does not exist, cannot inspect with {tool}",
+            hint=f"Build and boot the image first before inspecting it with {tool}",
         )
-    elif not output.exists():
-        die(
-            f"Output {config.output_dir_or_cwd() / config.output} does not exist, cannot inspect with {tool}"
-        )
-
-    cmd: list[PathString] = [tool_path]
-
-    if config.forward_journal:
-        cmd += ["--directory" if config.forward_journal.is_dir() else "--file", config.forward_journal]
-    else:
-        cmd += ["--root" if output.is_dir() else "--image", output]
 
     run(
-        [*cmd, *args.cmdline],
+        [tool_path, "--root" if output.is_dir() else "--image", output, *args.cmdline],
         stdin=sys.stdin,
         stdout=sys.stdout,
         env=os.environ | config.environment,
@@ -4605,22 +4588,13 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
     if (minversion := last.minimum_version) and minversion > __version__:
         die(f"mkosi {minversion} or newer is required by this configuration (found {__version__})")
 
-    if args.verb in (Verb.journalctl, Verb.coredumpctl, Verb.ssh):
-        # We don't use a tools tree for verbs that don't need an image build.
-        last = dataclasses.replace(images[-1], tools_tree=None)
-        return {
-            Verb.ssh: run_ssh,
-            Verb.journalctl: run_journalctl,
-            Verb.coredumpctl: run_coredumpctl,
-        }[args.verb](args, last)
-
     if last.tools_tree and last.tools_tree == Path("default"):
         tools = finalize_default_tools(last, resources=resources)
     else:
         tools = None
 
     for i, config in enumerate(images):
-        images[i] = config = dataclasses.replace(
+        images[i] = dataclasses.replace(
             config,
             tools_tree=(
                 tools.output_dir_or_cwd() / tools.output
@@ -4643,8 +4617,6 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
 
         return
 
-    assert args.verb == Verb.sandbox or args.verb.needs_build()
-
     if (
         tools
         and (
@@ -4660,9 +4632,6 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
             hint="Make sure to (re)build the image first with 'mkosi build' or use '--force'",
         )
 
-    if not last.repart_offline and os.getuid() != 0:
-        die(f"Must be root to build {last.name()} image configured with RepartOffline=no")
-
     output = last.output_dir_or_cwd() / last.output_with_compression
 
     if (
@@ -4675,29 +4644,33 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         logging.info(f"Output path {output} exists already. (Use --force to rebuild.)")
         return
 
-    if args.verb not in (Verb.build, Verb.sandbox) and not args.force and not output.exists():
-        die(
-            f"Image '{last.name()}' has not been built yet",
-            hint="Make sure to build the image first with 'mkosi build' or use '--force'",
-        )
-
-    check_workspace_directory(last)
-
-    if args.verb != Verb.sandbox and last.incremental == Incremental.strict:
-        if args.force > 1:
+    if args.verb.needs_build():
+        if args.verb != Verb.build and not args.force and not output.exists():
             die(
-                "Cannot remove incremental caches when building with Incremental=strict",
-                hint="Build once with -i yes to update the image cache",
+                f"Image '{last.name()}' has not been built yet",
+                hint="Make sure to build the image first with 'mkosi build' or use '--force'",
             )
 
-        for config in images:
-            if have_cache(config):
-                continue
+        if not last.repart_offline and os.getuid() != 0:
+            die(f"Must be root to build {last.name()} image configured with RepartOffline=no")
 
-            die(
-                f"Strict incremental mode is enabled but the cache for image {config.name()} is out-of-date",
-                hint="Build once with -i yes to update the image cache",
-            )
+        check_workspace_directory(last)
+
+        if last.incremental == Incremental.strict:
+            if args.force > 1:
+                die(
+                    "Cannot remove incremental caches when building with Incremental=strict",
+                    hint="Build once with -i yes to update the image cache",
+                )
+
+            for config in images:
+                if have_cache(config):
+                    continue
+
+                die(
+                    f"Strict incremental mode is enabled and cache for image {config.name()} is out-of-date",
+                    hint="Build once with -i yes to update the image cache",
+                )
 
     # If we're doing an incremental build and the cache is not out of date, don't clean up the
     # tools tree so that we can reuse the previous one.
@@ -4714,7 +4687,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
 
     # First, process all directory removals because otherwise if different images share directories
     # a later image build could end up deleting the output generated by an earlier image build.
-    if args.verb != Verb.sandbox and (needs_build(args, last) or args.wipe_build_dir):
+    if args.verb.needs_build() and (needs_build(args, last) or args.wipe_build_dir):
         for config in images:
             run_clean(args, config, resources=resources)
 
@@ -4730,9 +4703,14 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
                 sync_repository_metadata(args, [tools], resources=resources, dst=Path(metadata_dir))
                 fork_and_wait(run_build, args, tools, resources=resources, metadata_dir=Path(metadata_dir))
 
-    if args.verb == Verb.sandbox:
+    if not args.verb.needs_build():
         with prepend_to_environ_path(last):
-            return run_sandbox(args, last)
+            return {
+                Verb.ssh: run_ssh,
+                Verb.journalctl: run_journalctl,
+                Verb.coredumpctl: run_coredumpctl,
+                Verb.sandbox: run_sandbox,
+            }[args.verb](args, last)
 
     for i, config in enumerate(images):
         with prepend_to_environ_path(config):
