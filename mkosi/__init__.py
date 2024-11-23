@@ -4620,7 +4620,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         tools = None
 
     for i, config in enumerate(images):
-        images[i] = config = dataclasses.replace(
+        images[i] = dataclasses.replace(
             config,
             tools_tree=(
                 tools.output_dir_or_cwd() / tools.output
