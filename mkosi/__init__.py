@@ -3975,16 +3975,12 @@ def run_shell(args: Args, config: Config) -> None:
 
 
 def run_systemd_tool(tool: str, args: Args, config: Config) -> None:
-    if (
-        config.output_format not in (OutputFormat.disk, OutputFormat.directory)
-        and not config.forward_journal
-    ):
+    if config.output_format not in (OutputFormat.disk, OutputFormat.directory):
         die(f"{config.output_format} images cannot be inspected with {tool}")
 
     if (
         args.verb in (Verb.journalctl, Verb.coredumpctl)
         and config.output_format == OutputFormat.disk
-        and not config.forward_journal
         and os.getuid() != 0
     ):
         need_root = True
@@ -3994,30 +3990,17 @@ def run_systemd_tool(tool: str, args: Args, config: Config) -> None:
     if (tool_path := config.find_binary(tool)) is None:
         die(f"Failed to find {tool}")
 
-    if config.ephemeral and not config.forward_journal:
+    if config.ephemeral:
         die(f"Images booted in ephemeral mode cannot be inspected with {tool}")
 
-    output = config.output_dir_or_cwd() / config.output
-
-    if config.forward_journal and not config.forward_journal.exists():
+    if not (output := config.output_dir_or_cwd() / config.output).exists():
         die(
-            "Journal directory/file configured with ForwardJournal= does not exist, "
-            f"cannot inspect with {tool}"
+            f"Output {output} does not exist, cannot inspect with {tool}",
+            hint=f"Build and boot the image first before inspecting it with {tool}",
         )
-    elif not output.exists():
-        die(
-            f"Output {config.output_dir_or_cwd() / config.output} does not exist, cannot inspect with {tool}"
-        )
-
-    cmd: list[PathString] = [tool_path]
-
-    if config.forward_journal:
-        cmd += ["--directory" if config.forward_journal.is_dir() else "--file", config.forward_journal]
-    else:
-        cmd += ["--root" if output.is_dir() else "--image", output]
 
     run(
-        [*cmd, *args.cmdline],
+        [tool_path, "--root" if output.is_dir() else "--image", output, *args.cmdline],
         stdin=sys.stdin,
         stdout=sys.stdout,
         env=os.environ | config.environment,
