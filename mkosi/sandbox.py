@@ -500,7 +500,7 @@ class DevOperation(FSOperation):
         with umask(~0o755):
             os.makedirs(dst, exist_ok=True)
 
-        # Note that the mode is curcial here. If the default mode (1777) is used, trying to access
+        # Note that the mode is crucial here. If the default mode (1777) is used, trying to access
         # /dev/null fails with EACCESS for unknown reasons.
         mount("tmpfs", dst, "tmpfs", 0, "mode=0755")
 
