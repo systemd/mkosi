@@ -3889,7 +3889,8 @@ def run_shell(args: Args, config: Config) -> None:
                 cmdline += ["--bind", f"{src}:{dst}:norbind,{uidmap}"]
 
             if config.build_dir:
-                cmdline += ["--bind", f"{config.build_dir}:/work/build:norbind,noidmap"]
+                uidmap = "rootidmap" if config.build_dir.stat().st_uid != 0 else "noidmap"
+                cmdline += ["--bind", f"{config.build_dir}:/work/build:norbind,{uidmap}"]
 
         for tree in config.runtime_trees:
             target = Path("/root/src") / (tree.target or "")
