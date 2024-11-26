@@ -4356,7 +4356,7 @@ def run_clean(args: Args, config: Config, *, resources: Path) -> None:
         if any(p.exists() for p in itertools.chain(cache_tree_paths(config), initrd, metadata)):
             with complete_step(f"Removing cache entries of {config.name()} image…"):
                 rmtree(
-                    *(p for p in itertools.chain(cache_tree_paths(config), initrd) if p.exists()),
+                    *(p for p in itertools.chain(cache_tree_paths(config), initrd, metadata) if p.exists()),
                     sandbox=sandbox,
                 )
 
