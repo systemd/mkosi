@@ -1166,6 +1166,13 @@ def gzip_binary(context: Context) -> str:
     return "pigz" if context.config.find_binary("pigz") else "gzip"
 
 
+def _kernel_inspect(path: Path) -> str:
+    r = run(["file", "-bL", path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    match = re.search("version ([^ ]*)", r.stdout)
+    return match.group(1) if match else "unknown"
+
+
+
 def fixup_vmlinuz_location(context: Context) -> None:
     # Some architectures ship an uncompressed vmlinux (ppc64el, riscv64)
     for type in ("vmlinuz", "vmlinux"):
@@ -1173,7 +1180,8 @@ def fixup_vmlinuz_location(context: Context) -> None:
             if d.is_symlink():
                 continue
 
-            kver = d.name.removeprefix(f"{type}-")
+            # kver = d.name.removeprefix(f"{type}-")
+            kver = _kernel_inspect(d)
             vmlinuz = context.root / "usr/lib/modules" / kver / type
             if not vmlinuz.parent.exists():
                 continue

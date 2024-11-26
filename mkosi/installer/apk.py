@@ -58,13 +58,13 @@ class Apk(PackageManager):
 
     @classmethod
     def cmd(cls, context: Context) -> list[PathString]:
-        # return ["tree", context.root, "--"]
         return [
             "apk",
             "--root", "/buildroot",
             # Make sure pacman looks at our local repository first by putting it as the first cache directory. We mount
             # it read-only so the second directory will still be used for writing new cache entries.
             #"--cache-dir=" + str(context.root / "var/cache/apk/mkosi"),
+            "--cache-dir", "/var/cache/apk",
             "--arch", context.config.distribution.architecture(context.config.architecture),
             "--no-interactive",
             "--update-cache",

@@ -6,4 +6,4 @@ if [ "$1" = "build" ]; then
     exit 0
 fi
 
-mkosi-chroot "$SRCDIR"/bin/mkosi dependencies | xargs -d '\n' mkosi-install
+# mkosi-chroot "$SRCDIR"/bin/mkosi dependencies | xargs -d '\n' mkosi-install

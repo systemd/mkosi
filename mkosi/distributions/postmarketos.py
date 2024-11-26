@@ -42,6 +42,13 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def install(cls, context: Context) -> None:
+        import logging
+        (context.root / "lib").symlink_to("usr/lib")
+        (context.root / "bin").symlink_to("usr/bin")
+        (context.root / "usr/lib").mkdir(parents=True, exist_ok=True)
+        (context.root / "usr/bin").mkdir(parents=True, exist_ok=True)
+        for p in context.root.rglob("*"):
+            logging.warning(str(p))
         cls.install_packages(context, [
             "--initdb",
             "alpine-base",
