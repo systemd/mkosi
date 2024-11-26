@@ -1309,9 +1309,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     | `zypper`                | ✓      |        | ✓      | ✓    | ✓      | ✓    |          |
 
 `ToolsTreeDistribution=`, `--tools-tree-distribution=`
-:   Set the distribution to use for the default tools tree.
-    Defaults to the distribution of the host
-    or `custom` if the distribution of the host is not a supported distribution.
+:   Set the distribution to use for the default tools tree. Defaults to the host distribution except for
+    Ubuntu, which defaults to Debian, and RHEL, CentOS, Alma and Rocky, which default to Fedora, or `custom`
+    if the distribution of the host is not a supported distribution.
 
 `ToolsTreeRelease=`, `--tools-tree-release=`
 :   Set the distribution release to use for the default tools tree. By
@@ -1919,22 +1919,22 @@ This table shows which matchers support globs, rich comparisons and the default
 value that is matched against if no value has been configured at the time the
 config file is read:
 
-| Matcher                  | Globs | Rich Comparisons | Default                               |
-|--------------------------|-------|------------------|---------------------------------------|
-| `Profiles=`              | no    | no               | match fails                           |
-| `Distribution=`          | no    | no               | match host distribution               |
-| `Release=`               | no    | no               | match host release                    |
-| `Architecture=`          | no    | no               | match host architecture               |
-| `PathExists=`            | no    | no               | n/a                                   |
-| `ImageId=`               | yes   | no               | match fails                           |
-| `ImageVersion=`          | no    | yes              | match fails                           |
-| `Bootable=`              | no    | no               | match auto feature                    |
-| `Format=`                | no    | no               | match default format                  |
-| `SystemdVersion=`        | no    | yes              | n/a                                   |
-| `BuildSources=`          | no    | no               | match fails                           |
-| `HostArchitecture=`      | no    | no               | n/a                                   |
-| `ToolsTreeDistribution=` | no    | no               | match default tools tree distribution |
-| `Environment=`           | no    | no               | n/a                                   |
+| Matcher                  | Globs | Rich Comparisons | Default                                                                                |
+|--------------------------|-------|------------------|----------------------------------------------------------------------------------------|
+| `Profiles=`              | no    | no               | match fails                                                                            |
+| `Distribution=`          | no    | no               | match host distribution                                                                |
+| `Release=`               | no    | no               | match host release                                                                     |
+| `Architecture=`          | no    | no               | match host architecture                                                                |
+| `PathExists=`            | no    | no               | n/a                                                                                    |
+| `ImageId=`               | yes   | no               | match fails                                                                            |
+| `ImageVersion=`          | no    | yes              | match fails                                                                            |
+| `Bootable=`              | no    | no               | match auto feature                                                                     |
+| `Format=`                | no    | no               | match default format                                                                   |
+| `SystemdVersion=`        | no    | yes              | n/a                                                                                    |
+| `BuildSources=`          | no    | no               | match fails                                                                            |
+| `HostArchitecture=`      | no    | no               | n/a                                                                                    |
+| `ToolsTreeDistribution=` | no    | no               | match the fallback tools tree distribution (see `ToolsTreeDistribution=` in `[Build]`) |
+| `Environment=`           | no    | no               | n/a                                                                                    |
 
 ### [Include]
 
