@@ -29,7 +29,7 @@ class Installer(DistributionInstaller):
         return "rolling"
 
     @classmethod
-    def package_manager(cls, config: "Config") -> type[PackageManager]:
+    def package_manager(cls, config: Config) -> type[PackageManager]:
         return Pacman
 
     @classmethod
