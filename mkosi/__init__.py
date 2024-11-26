@@ -1194,7 +1194,6 @@ def want_initrd(context: Context) -> bool:
 
 
 def finalize_default_initrd(
-    args: Args,
     config: Config,
     *,
     resources: Path,
@@ -1264,7 +1263,6 @@ def finalize_default_initrd(
         *(["--proxy-client-certificate", str(p)] if (p := config.proxy_client_certificate) else []),
         *(["--proxy-client-key", str(p)] if (p := config.proxy_client_key) else []),
         "--selinux-relabel", str(relabel),
-        *(["-f"] * args.force),
         "--include=mkosi-initrd",
     ]  # fmt: skip
 
@@ -1280,7 +1278,6 @@ def build_default_initrd(context: Context) -> Path:
         die("Building a default initrd is not supported for custom distributions")
 
     config = finalize_default_initrd(
-        context.args,
         context.config,
         resources=context.resources,
         output_dir=context.workspace,
@@ -1402,7 +1399,7 @@ def build_microcode_initrd(context: Context) -> list[Path]:
 def finalize_kernel_modules_include(context: Context, *, include: Sequence[str], host: bool) -> set[str]:
     final = {i for i in include if i not in ("default", "host")}
     if "default" in include:
-        initrd = finalize_default_initrd(context.args, context.config, resources=context.resources)
+        initrd = finalize_default_initrd(context.config, resources=context.resources)
         final.update(initrd.kernel_modules_include)
     if host or "host" in include:
         final.update(loaded_modules())
@@ -4351,7 +4348,7 @@ def run_clean(args: Args, config: Config, *, resources: Path) -> None:
         metadata = [metadata_cache(config)] if not config.image else []
 
         initrd = (
-            cache_tree_paths(finalize_default_initrd(args, config, tools=False, resources=resources))
+            cache_tree_paths(finalize_default_initrd(config, tools=False, resources=resources))
             if config.distribution != Distribution.custom
             else []
         )
