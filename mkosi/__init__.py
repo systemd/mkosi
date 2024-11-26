@@ -2620,6 +2620,13 @@ def check_tools(config: Config, verb: Verb) -> None:
                     reason="sign PCR hashes with OpenSSL engine",
                 )
 
+        if config.unified_kernel_image_profiles:
+            check_ukify(
+                config,
+                version="257~devel",
+                reason="add unified kernel image profiles",
+            )
+
         if config.verity_key_source.type != KeySourceType.file:
             check_systemd_tool(
                 config,
