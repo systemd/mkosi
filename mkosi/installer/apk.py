@@ -1,20 +1,12 @@
 # SPDX-License-Identifier: LGPL-2.1+
-import os
-import shutil
-import textwrap
 from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import NamedTuple
 
 from mkosi.config import Config
 from mkosi.context import Context
 from mkosi.installer import PackageManager
-from mkosi.mounts import finalize_source_mounts
 from mkosi.run import run
-from mkosi.sandbox import apivfs_cmd
 from mkosi.types import _FILE, CompletedProcess, PathString
-from mkosi.util import umask
-from mkosi.versioncomp import GenericVersion
 
 
 class Apk(PackageManager):
@@ -33,12 +25,12 @@ class Apk(PackageManager):
     @classmethod
     def scripts(cls, context: Context) -> dict[str, list[PathString]]:
         return {
-            "apk": apivfs_cmd(context.root) + cls.cmd(context),
-            "mkosi-install"  : ["apk", "--update-cache", "add"],
-            "mkosi-upgrade"  : ["apk", "--update-cache", "upgrade"],
-            "mkosi-remove"   : ["apk", "--remove", "del"],
+            "apk": cls.apivfs_script_cmd(context) + cls.cmd(context),
+            "mkosi-install":   ["apk", "--update-cache", "add"],
+            "mkosi-upgrade":   ["apk", "--update-cache", "upgrade"],
+            "mkosi-remove":    ["apk", "--remove", "del"],
             "mkosi-reinstall": ["apk", "--update-cache", "fix"],
-        }
+        }  # fmt: skip
 
     @classmethod
     def mounts(cls, context: Context) -> list[PathString]:
@@ -46,7 +38,7 @@ class Apk(PackageManager):
             *super().mounts(context),
             # pacman writes downloaded packages to the first writable cache directory. We don't want it to write to our
             # local repository directory so we expose it as a read-only directory to pacman.
-            "--ro-bind", context.packages, "/var/cache/apk",
+            # "--ro-bind", context.packages, "/var/cache/apk",
         ]
 
         return mounts
@@ -66,19 +58,18 @@ class Apk(PackageManager):
 
     @classmethod
     def cmd(cls, context: Context) -> list[PathString]:
-        _cmd = [
+        # return ["tree", context.root, "--"]
+        return [
             "apk",
-            "--root", context.root,
+            "--root", "/buildroot",
             # Make sure pacman looks at our local repository first by putting it as the first cache directory. We mount
             # it read-only so the second directory will still be used for writing new cache entries.
             #"--cache-dir=" + str(context.root / "var/cache/apk/mkosi"),
             "--arch", context.config.distribution.architecture(context.config.architecture),
             "--no-interactive",
             "--update-cache",
-        ]
-        #if not context.config.repository_key_check:
-        _cmd += ["--allow-untrusted"]
-        return _cmd
+            *(["--allow-untrusted"] if not context.config.repository_key_check else []),
+        ]  # fmt: skip
 
     @classmethod
     def invoke(
@@ -90,32 +81,16 @@ class Apk(PackageManager):
         apivfs: bool = False,
         stdout: _FILE = None,
     ) -> CompletedProcess:
-        with finalize_source_mounts(
-            context.config,
-            ephemeral=os.getuid() == 0 and context.config.build_sources_ephemeral,
-        ) as sources:
-            return run(
-                cls.cmd(context) + [operation, *arguments],
-                sandbox=(
-                    context.sandbox(
-                        network=True,
-                        options=[
-                            "--bind", context.root, context.root,
-                            *cls.mounts(context),
-                            *sources,
-                            "--chdir", "/work/src",
-                            # pacman will fail unless invoked as root so make sure we're uid/gid 0 in the sandbox.
-                            "--uid", "0",
-                            "--gid", "0",
-                        ],
-                    ) + (apivfs_cmd(context.root) if apivfs else [])
-                ),
-                env=context.config.environment,
-                stdout=stdout,
-            )
+        return run(
+            cls.cmd(context) + [operation, *arguments],
+            sandbox=cls.sandbox(context, apivfs=apivfs),
+            env=cls.finalize_environment(context),
+            stdout=stdout,
+        )
 
     @classmethod
-    def sync(cls, context: Context) -> None:
+    def sync(cls, context: Context, force: bool) -> None:
+        # TODO implement force
         if (context.root / "etc/apk/world").exists():
             cls.invoke(context, "update", [])
 
