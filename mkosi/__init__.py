@@ -396,7 +396,7 @@ def configure_autologin_service(context: Context, service: str, extra: str) -> N
                 f"""\
                 [Service]
                 ExecStart=
-                ExecStart=-agetty -o '-f -p -- \\\\u' --autologin root {extra} /bin/ash
+                ExecStart=-agetty -o '-f -p -- \\\\u' --autologin root {extra} $TERM
                 StandardInput=tty
                 StandardOutput=tty
                 """
@@ -2855,8 +2855,6 @@ def run_preset(context: Context) -> None:
     if not context.config.find_binary("systemctl"):
         logging.warning("systemctl is not installed, not applying presets")
         return
-
-    return
 
     with complete_step("Applying presets…"):
         run(

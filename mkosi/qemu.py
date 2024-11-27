@@ -40,6 +40,7 @@ from mkosi.config import (
     want_selinux_relabel,
     yes_no,
 )
+from mkosi.distributions import Distribution
 from mkosi.log import ARG_DEBUG, die
 from mkosi.partition import finalize_root, find_partitions
 from mkosi.run import SD_LISTEN_FDS_START, AsyncioThread, find_binary, fork_and_wait, run, spawn, workdir
@@ -1346,7 +1347,7 @@ def run_qemu(args: Args, config: Config) -> None:
 
         for k, v in credentials.items():
             payload = base64.b64encode(v.encode()).decode()
-            if config.architecture.supports_smbios(firmware):
+            if config.architecture.supports_smbios(firmware) and not config.distribution == Distribution.postmarketos:
                 cmdline += ["-smbios", f"type=11,value=io.systemd.credential.binary:{k}={payload}"]
             # qemu's fw_cfg device only supports keys up to 55 characters long.
             elif config.architecture.supports_fw_cfg() and len(k) <= 55 - len("opt/io.systemd.credentials/"):
