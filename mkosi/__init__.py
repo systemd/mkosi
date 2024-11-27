@@ -1197,6 +1197,7 @@ def finalize_default_initrd(
     config: Config,
     *,
     resources: Path,
+    tools: bool = True,
     output_dir: Optional[Path] = None,
 ) -> Config:
     if config.root_password:
@@ -1253,7 +1254,7 @@ def finalize_default_initrd(
         *(["--hostname", config.hostname] if config.hostname else []),
         *(["--root-password", rootpwopt] if rootpwopt else []),
         *([f"--environment={k}='{v}'" for k, v in config.environment.items()]),
-        *(["--tools-tree", str(config.tools_tree)] if config.tools_tree else []),
+        *(["--tools-tree", str(config.tools_tree)] if config.tools_tree and tools else []),
         "--tools-tree-certificates", str(config.tools_tree_certificates),
         *([f"--extra-search-path={p}" for p in config.extra_search_paths]),
         *(["--proxy-url", config.proxy_url] if config.proxy_url else []),
@@ -4605,7 +4606,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
             run_clean(args, config)
 
         if last.output_format != OutputFormat.none:
-            run_clean(args, finalize_default_initrd(last, resources=resources))
+            run_clean(args, finalize_default_initrd(last, tools=False, resources=resources))
 
         rmtree(Path(".mkosi-private"))
 
@@ -4686,7 +4687,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
             run_clean(args, config)
 
         if last.output_format != OutputFormat.none:
-            run_clean(args, finalize_default_initrd(last, resources=resources))
+            run_clean(args, finalize_default_initrd(last, tools=False, resources=resources))
 
     if tools and not (tools.output_dir_or_cwd() / tools.output).exists():
         with prepend_to_environ_path(tools):
