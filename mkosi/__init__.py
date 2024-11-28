@@ -2156,7 +2156,10 @@ def compressor_command(context: Context, compression: Compression) -> list[PathS
 
 
 def maybe_compress(
-    context: Context, compression: Compression, src: Path, dst: Optional[Path] = None
+    context: Context,
+    compression: Compression,
+    src: Path,
+    dst: Optional[Path] = None,
 ) -> None:
     if not compression or src.is_dir():
         if dst:
