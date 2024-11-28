@@ -1285,6 +1285,12 @@ def build_default_initrd(context: Context) -> Path:
 
     assert config.output_dir
 
+    if config.incremental == Incremental.strict and not have_cache(config):
+        die(
+            f"Strict incremental mode is enabled and cache for image {config.name()} is out-of-date",
+            hint="Build once with -i yes to update the image cache",
+        )
+
     config.output_dir.mkdir(exist_ok=True)
 
     if (config.output_dir / config.output).exists():
