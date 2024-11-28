@@ -4302,6 +4302,20 @@ def needs_build(args: Args, config: Config, force: int = 1) -> bool:
     )
 
 
+def remove_cache_entries(config: Config, *, extra: Sequence[Path] = ()) -> None:
+    if not config.cache_dir:
+        return
+
+    sandbox = functools.partial(config.sandbox, tools=False)
+
+    if any(p.exists() for p in itertools.chain(cache_tree_paths(config), extra)):
+        with complete_step(f"Removing cache entries of {config.name()} image…"):
+            rmtree(
+                *(p for p in itertools.chain(cache_tree_paths(config), extra) if p.exists()),
+                sandbox=sandbox,
+            )
+
+
 def run_clean(args: Args, config: Config) -> None:
     # We remove any cached images if either the user used --force twice, or he/she called "clean"
     # with it passed once. Let's also remove the downloaded package cache if the user specified one
@@ -4360,13 +4374,7 @@ def run_clean(args: Args, config: Config) -> None:
 
     if remove_image_cache and config.cache_dir:
         metadata = [metadata_cache(config)] if not config.image else []
-
-        if any(p.exists() for p in itertools.chain(cache_tree_paths(config), metadata)):
-            with complete_step(f"Removing cache entries of {config.name()} image…"):
-                rmtree(
-                    *(p for p in itertools.chain(cache_tree_paths(config), metadata) if p.exists()),
-                    sandbox=sandbox,
-                )
+        remove_cache_entries(config, extra=metadata)
 
     if remove_package_cache and any(config.package_cache_dir_or_default().glob("*")):
         subdir = config.distribution.package_manager(config).subdir(config)
@@ -4619,8 +4627,8 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         for config in images:
             run_clean(args, config)
 
-        if last.output_format != OutputFormat.none:
-            run_clean(args, finalize_default_initrd(last, tools=False, resources=resources))
+        if args.force > 0:
+            remove_cache_entries(finalize_default_initrd(last, tools=False, resources=resources))
 
         rmtree(Path(".mkosi-private"))
 
@@ -4700,8 +4708,10 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         for config in images:
             run_clean(args, config)
 
-        if last.output_format != OutputFormat.none:
-            run_clean(args, finalize_default_initrd(last, tools=False, resources=resources))
+        initrd = finalize_default_initrd(last, tools=False, resources=resources)
+
+        if args.force > 1 or not have_cache(initrd):
+            remove_cache_entries(initrd)
 
     if tools and not (tools.output_dir_or_cwd() / tools.output).exists():
         with prepend_to_environ_path(tools):
