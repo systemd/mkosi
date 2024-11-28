@@ -4355,6 +4355,15 @@ class ParseContext:
         return True
 
 
+def have_history(args: Args) -> bool:
+    return (
+        args.verb.needs_build()
+        and args.verb != Verb.build
+        and not args.force
+        and Path(".mkosi-private/history/latest.json").exists()
+    )
+
+
 def parse_config(
     argv: Sequence[str] = (),
     *,
@@ -4404,12 +4413,7 @@ def parse_config(
     if not args.verb.needs_config():
         return args, ()
 
-    if (
-        args.verb.needs_build()
-        and args.verb != Verb.build
-        and not args.force
-        and Path(".mkosi-private/history/latest.json").exists()
-    ):
+    if have_history(args):
         try:
             prev = Config.from_json(Path(".mkosi-private/history/latest.json").read_text())
         except ValueError:
