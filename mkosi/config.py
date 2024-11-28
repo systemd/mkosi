@@ -4458,9 +4458,6 @@ def parse_config(
     for s in SETTINGS:
         setattr(config, s.dest, context.finalize_value(s))
 
-    if prev:
-        return args, (load_config(config),)
-
     images = []
 
     # If Dependencies= was not explicitly specified on the CLI or in the configuration,
