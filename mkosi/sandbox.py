@@ -459,11 +459,17 @@ class BindOperation(FSOperation):
 
     def execute(self, oldroot: str, newroot: str) -> None:
         src = chase(oldroot, self.src)
-        dst = chase(newroot, self.dst)
 
         if not os.path.exists(src) and not self.required:
             return
 
+        # If we're mounting a file on top of a symlink, mount directly on top of the symlink instead of
+        # resolving it.
+        dst = joinpath(newroot, self.dst)
+        if not os.path.isdir(src) and os.path.islink(dst):
+            return mount_rbind(src, dst, attrs=MOUNT_ATTR_RDONLY if self.readonly else 0)
+
+        dst = chase(newroot, self.dst)
         if not os.path.exists(dst):
             isfile = os.path.isfile(src)
 
