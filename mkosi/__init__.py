@@ -4677,7 +4677,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
             if args.force > 1:
                 die(
                     "Cannot remove incremental caches when building with Incremental=strict",
-                    hint="Build once with -i yes to update the image cache",
+                    hint="Build once with '-i yes' to update the image cache",
                 )
 
             for config in images:
@@ -4686,7 +4686,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
 
                 die(
                     f"Strict incremental mode is enabled and cache for image {config.name()} is out-of-date",
-                    hint="Build once with -i yes to update the image cache",
+                    hint="Build once with '-i yes' to update the image cache",
                 )
 
     # If we're doing an incremental build and the cache is not out of date, don't clean up the
@@ -4697,7 +4697,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         if tools.incremental == Incremental.strict:
             die(
                 "Tools tree does not exist or is out-of-date but the strict incremental mode is enabled",
-                hint="Build once with -i yes to update the tools tree",
+                hint="Build once with '-i yes' to update the tools tree",
             )
 
         run_clean(args, tools)
