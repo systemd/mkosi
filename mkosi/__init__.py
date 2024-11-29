@@ -2163,7 +2163,10 @@ def compressor_command(context: Context, compression: Compression) -> list[PathS
 
 
 def maybe_compress(
-    context: Context, compression: Compression, src: Path, dst: Optional[Path] = None
+    context: Context,
+    compression: Compression,
+    src: Path,
+    dst: Optional[Path] = None,
 ) -> None:
     if not compression or src.is_dir():
         if dst:
@@ -2580,21 +2583,24 @@ def check_ukify(
 
 def check_tools(config: Config, verb: Verb) -> None:
     if verb == Verb.build:
+        if config.output_format == OutputFormat.none:
+            return
+
         if config.bootable != ConfigFeature.disabled:
             check_tool(config, "depmod", reason="generate kernel module dependencies")
 
-        if want_efi(config) and config.unified_kernel_images == ConfigFeature.enabled:
+        if want_efi(config):
             if config.unified_kernel_image_profiles:
                 check_ukify(
                     config,
-                    version="257",
+                    version="257~devel",
                     reason="build unified kernel image profiles",
                     hint=(
                         "Use ToolsTree=default to download most required tools including ukify "
                         "automatically"
                     ),
                 )
-            else:
+            elif config.unified_kernel_images == ConfigFeature.enabled:
                 check_ukify(
                     config,
                     version="254",
@@ -2627,13 +2633,6 @@ def check_tools(config: Config, verb: Verb) -> None:
                     version="256",
                     reason="sign PCR hashes with OpenSSL engine",
                 )
-
-        if config.unified_kernel_image_profiles:
-            check_ukify(
-                config,
-                version="257~devel",
-                reason="add unified kernel image profiles",
-            )
 
         if config.verity_key_source.type != KeySourceType.file:
             check_systemd_tool(

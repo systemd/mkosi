@@ -23,7 +23,10 @@ class Partition:
             type=dict["type"],
             uuid=dict["uuid"],
             partno=int(partno) if (partno := dict.get("partno")) else None,
-            split_path=Path(p) if ((p := dict.get("split_path")) and p != "-") else None,
+            # We have to translate the sandbox path to the path on the host by removing the /work prefix.
+            split_path=(
+                Path(p.removeprefix("/work")) if ((p := dict.get("split_path")) and p != "-") else None
+            ),
             roothash=dict.get("roothash"),
         )
 
