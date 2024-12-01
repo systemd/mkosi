@@ -4265,7 +4265,12 @@ def validate_certificates_and_keys(config: Config) -> None:
             stdout=subprocess.DEVNULL,
         )
 
-    if config.bootable != ConfigFeature.disabled and config.secure_boot:
+    if (
+        config.bootable != ConfigFeature.disabled
+        and config.secure_boot
+        and config.secure_boot_certificate
+        and config.secure_boot_key
+    ):
         run_systemd_sign_tool(
             config,
             cmdline=[keyutil, "validate"],
