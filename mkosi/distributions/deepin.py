@@ -1,0 +1,257 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
+import tempfile
+from collections.abc import Iterable, Sequence
+from pathlib import Path
+
+from mkosi.archive import extract_tar
+from mkosi.config import Architecture, Config
+from mkosi.context import Context
+from mkosi.distributions import DistributionInstaller, PackageType
+from mkosi.installer import PackageManager
+from mkosi.installer.apt import Apt, AptRepository
+from mkosi.log import die
+from mkosi.run import run, workdir
+from mkosi.sandbox import umask
+
+
+class Installer(DistributionInstaller):
+    @classmethod
+    def pretty_name(cls) -> str:
+        return "deepin"
+
+    @classmethod
+    def filesystem(cls) -> str:
+        return "ext4"
+
+    @classmethod
+    def package_type(cls) -> PackageType:
+        return PackageType.deb
+
+    @classmethod
+    def default_release(cls) -> str:
+        return "testing"
+
+    @classmethod
+    def package_manager(cls, config: Config) -> type[PackageManager]:
+        return Apt
+
+    @classmethod
+    def repositories(cls, context: Context, local: bool = True) -> Iterable[AptRepository]:
+        types = ("deb", "deb-src")
+        components = ("main", *context.config.repositories)
+
+        if context.config.local_mirror and local:
+            yield AptRepository(
+                types=("deb",),
+                url=context.config.local_mirror,
+                suite=context.config.release,
+                components=("main",),
+                signedby=None,
+            )
+            return
+
+        mirror = context.config.mirror or "https://community-packages.deepin.com/deepin"
+        signedby = Path("/usr/share/keyrings/deepin-archive-camel-keyring.gpg")
+
+        yield AptRepository(
+            types=types,
+            url=mirror,
+            suite=context.config.release,
+            components=components,
+            signedby=signedby,
+        )
+
+        if context.config.release in ("unstable", "sid"):
+            return
+
+    @classmethod
+    def setup(cls, context: Context) -> None:
+        Apt.setup(context, list(cls.repositories(context)))
+
+    @classmethod
+    def install(cls, context: Context) -> None:
+        # Instead of using debootstrap, we replicate its core functionality here. Because dpkg does not have
+        # an option to delay running pre-install maintainer scripts when it installs a package, it's
+        # impossible to use apt directly to bootstrap a Debian chroot since dpkg will try to run a maintainer
+        # script which depends on some basic tool to be available in the chroot from a deb which hasn't been
+        # unpacked yet, causing the script to fail. To avoid these issues, we have to extract all the
+        # essential debs first, and only then run the maintainer scripts for them.
+
+        # First, we set up merged usr.  This list is taken from
+        # https://salsa.debian.org/installer-team/debootstrap/-/blob/master/functions#L1369.
+        subdirs = ["bin", "sbin", "lib"] + {
+            "amd64"       : ["lib32", "lib64", "libx32"],
+            "i386"        : ["lib64", "libx32"],
+            "loongarch64" : ["lib32", "lib64"],
+        }.get(context.config.distribution.architecture(context.config.architecture), [])  # fmt: skip
+
+        with umask(~0o755):
+            for d in subdirs:
+                (context.root / d).symlink_to(f"usr/{d}")
+                (context.root / f"usr/{d}").mkdir(parents=True, exist_ok=True)
+
+        # Next, we invoke apt-get install to download all the essential packages. With
+        # DPkg::Pre-Install-Pkgs, we specify a shell command that will receive the list of packages that will
+        # be installed on stdin.  By configuring Debug::pkgDpkgPm=1, apt-get install will not actually
+        # execute any dpkg commands, so all it does is download the essential debs and tell us their full in
+        # the apt cache without actually installing them.
+        with tempfile.NamedTemporaryFile(mode="r") as f:
+            Apt.invoke(
+                context,
+                "install",
+                [
+                    "-oDebug::pkgDPkgPm=1",
+                    f"-oDPkg::Pre-Install-Pkgs::=cat >{workdir(Path(f.name))}",
+                    "?essential",
+                    "?exact-name(usr-is-merged)",
+                    "base-files",
+                ],
+                options=["--bind", f.name, workdir(Path(f.name))],
+            )
+
+            essential = f.read().strip().splitlines()
+
+        # Now, extract the debs to the chroot by first extracting the sources tar file out of the deb and
+        # then extracting the tar file into the chroot.
+
+        for deb in essential:
+            # If a deb path is in the form of "/var/cache/apt/<deb>", we transform it to the corresponding
+            # path in mkosi's package cache directory. If it's relative to /repository, we transform it to
+            # the corresponding path in mkosi's local package repository. Otherwise, we use the path as is.
+            if Path(deb).is_relative_to("/var/cache"):
+                path = context.config.package_cache_dir_or_default() / Path(deb).relative_to("/var")
+            elif Path(deb).is_relative_to("/repository"):
+                path = context.repository / Path(deb).relative_to("/repository")
+            else:
+                path = Path(deb)
+
+            with open(path, "rb") as i, tempfile.NamedTemporaryFile() as o:
+                run(
+                    ["dpkg-deb", "--fsys-tarfile", "/dev/stdin"],
+                    stdin=i,
+                    stdout=o,
+                    sandbox=context.sandbox(binary="dpkg-deb"),
+                )
+                extract_tar(
+                    Path(o.name),
+                    context.root,
+                    log=False,
+                    options=(
+                        [f"--exclude=./{glob}" for glob in Apt.documentation_exclude_globs]
+                        if not context.config.with_docs
+                        else []
+                    ),
+                    sandbox=context.sandbox,
+                )
+
+        # Finally, run apt to properly install packages in the chroot without having to worry that maintainer
+        # scripts won't find basic tools that they depend on.
+
+        cls.install_packages(
+            context, [Path(deb).name.partition("_")[0].removesuffix(".deb") for deb in essential]
+        )
+
+        fixup_os_release(context)
+
+    @classmethod
+    def install_packages(cls, context: Context, packages: Sequence[str], apivfs: bool = True) -> None:
+        # Debian policy is to start daemons by default. The policy-rc.d script can be used choose which ones
+        # to start. Let's install one that denies all daemon startups.
+        # See https://people.debian.org/~hmh/invokerc.d-policyrc.d-specification.txt for more information.
+        # Note: despite writing in /usr/sbin, this file is not shipped by the OS and instead should be
+        # managed by the admin.
+        policyrcd = context.root / "usr/sbin/policy-rc.d"
+        with umask(~0o755):
+            policyrcd.parent.mkdir(parents=True, exist_ok=True)
+        with umask(~0o644):
+            policyrcd.write_text("#!/bin/sh\nexit 101\n")
+
+        Apt.invoke(context, "install", packages, apivfs=apivfs)
+        install_apt_sources(context, cls.repositories(context, local=False))
+
+        policyrcd.unlink()
+
+        # systemd-gpt-auto-generator is disabled by default in Ubuntu:
+        # https://git.launchpad.net/ubuntu/+source/systemd/tree/debian/systemd.links?h=ubuntu/noble-proposed.
+        # Let's make sure it is enabled by default in our images.
+        (context.root / "etc/systemd/system-generators/systemd-gpt-auto-generator").unlink(missing_ok=True)
+
+    @classmethod
+    def remove_packages(cls, context: Context, packages: Sequence[str]) -> None:
+        Apt.invoke(context, "purge", packages, apivfs=True)
+
+    @classmethod
+    def architecture(cls, arch: Architecture) -> str:
+        a = {
+            Architecture.arm64:       "arm64",
+            Architecture.x86_64:      "amd64",
+            Architecture.loongarch64: "loongarch64",
+            Architecture.riscv64:     "riscv64",
+        }.get(arch)  # fmt: skip
+
+        if not a:
+            die(f"Architecture {arch} is not supported by deepin")
+
+        return a
+
+
+def install_apt_sources(context: Context, repos: Iterable[AptRepository]) -> None:
+    if not (context.root / "usr/bin/apt").exists():
+        return
+
+    sources = context.root / f"etc/apt/sources.list.d/{context.config.release}.sources"
+    if not sources.exists():
+        with sources.open("w") as f:
+            for repo in repos:
+                f.write(str(repo))
+
+
+def fixup_os_release(context: Context) -> None:
+    if context.config.release not in ("unstable", "beige"):
+        return
+
+    # Debian being Debian means we need to special case handling os-release. Fix the content to actually
+    # match what we are building, and set up a diversion so that dpkg doesn't overwrite it on package
+    # updates.  Upstream bug report: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1008735.
+    for candidate in ["etc/os-release", "usr/lib/os-release", "usr/lib/initrd-release"]:
+        osrelease = context.root / candidate
+        newosrelease = osrelease.with_suffix(".new")
+
+        if not osrelease.is_file():
+            continue
+
+        if osrelease.is_symlink() and candidate != "etc/os-release":
+            continue
+
+        with osrelease.open("r") as old, newosrelease.open("w") as new:
+            for line in old.readlines():
+                if line.startswith("VERSION_CODENAME="):
+                    new.write("VERSION_CODENAME=beige\n")
+                else:
+                    new.write(line)
+
+        # On dpkg distributions we cannot simply overwrite /etc/os-release as it is owned by a package.  We
+        # need to set up a diversion first, so that it is not overwritten by package updates.  We do this for
+        # /etc/os-release as that will be overwritten on package updates and has precedence over
+        # /usr/lib/os-release, and ignore the latter and assume that if an usr-only image is built then the
+        # package manager will not run on it.
+        if candidate == "etc/os-release":
+            run(
+                [
+                    "dpkg-divert",
+                    "--quiet",
+                    "--root=/buildroot",
+                    "--local",
+                    "--add",
+                    "--rename",
+                    "--divert",
+                    f"/{candidate}.dpkg",
+                    f"/{candidate}",
+                ],
+                sandbox=context.sandbox(
+                    binary="dpkg-divert", options=["--bind", context.root, "/buildroot"]
+                ),
+            )
+
+        newosrelease.rename(osrelease)
