@@ -240,7 +240,7 @@ class Installer(DistributionInstaller):
         }.get(arch)  # fmt: skip
 
         if not a:
-            die(f"Architecture {arch} is not supported by Debian")
+            die(f"Architecture {arch} is not supported by {cls.pretty_name()}")
 
         return a
 
