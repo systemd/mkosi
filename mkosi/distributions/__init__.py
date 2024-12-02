@@ -188,7 +188,7 @@ def detect_distribution(root: Path = Path("/")) -> tuple[Optional[Distribution],
         if d is not None:
             break
 
-    if d in {Distribution.debian, Distribution.ubuntu, Distribution.kali} and version_codename:
+    if d and d.is_apt_distribution() and version_codename:
         version_id = version_codename
 
     return d, version_id
