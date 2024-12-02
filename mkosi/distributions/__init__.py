@@ -77,6 +77,7 @@ class Distribution(StrEnum):
     # of the mkosi maintainers before implementing a new distribution.
     fedora = enum.auto()
     debian = enum.auto()
+    deepin = enum.auto()
     kali = enum.auto()
     ubuntu = enum.auto()
     arch = enum.auto()
@@ -101,7 +102,12 @@ class Distribution(StrEnum):
         )
 
     def is_apt_distribution(self) -> bool:
-        return self in (Distribution.debian, Distribution.ubuntu, Distribution.kali)
+        return self in (
+            Distribution.debian,
+            Distribution.deepin,
+            Distribution.ubuntu,
+            Distribution.kali,
+        )
 
     def is_rpm_distribution(self) -> bool:
         return self in (
@@ -164,7 +170,9 @@ class Distribution(StrEnum):
         return cast(type[DistributionInstaller], installer)
 
 
-def detect_distribution(root: Path = Path("/")) -> tuple[Optional[Distribution], Optional[str]]:
+def detect_distribution(
+    root: Path = Path("/"),
+) -> tuple[Optional[Distribution], Optional[str]]:
     try:
         os_release = read_env_file(root / "etc/os-release")
     except FileNotFoundError:
@@ -188,7 +196,16 @@ def detect_distribution(root: Path = Path("/")) -> tuple[Optional[Distribution],
         if d is not None:
             break
 
-    if d in {Distribution.debian, Distribution.ubuntu, Distribution.kali} and version_codename:
+    if (
+        d
+        in {
+            Distribution.debian,
+            Distribution.deepin,
+            Distribution.ubuntu,
+            Distribution.kali,
+        }
+        and version_codename
+    ):
         version_id = version_codename
 
     return d, version_id
