@@ -1471,6 +1471,6 @@ def run_ssh(args: Args, config: Config) -> None:
             network=True,
             devices=True,
             relaxed=True,
-            options=["--same-dir"],
+            options=["--same-dir", "--become-root"],
         ),
     )
