@@ -475,6 +475,7 @@ class Architecture(StrEnum):
             Architecture.ppc:      "pseries",
             Architecture.ppc64:    "pseries",
             Architecture.ppc64_le: "pseries",
+            Architecture.riscv64:  "virt",
         }  # fmt: skip
 
         if self not in m:
