@@ -4665,6 +4665,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
     if args.verb == Verb.documentation:
         if args.cmdline:
             manual = {
+                "addon": "mkosi-addon",
                 "initrd": "mkosi-initrd",
                 "sandbox": "mkosi-sandbox",
                 "news": "mkosi.news",

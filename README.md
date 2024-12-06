@@ -79,17 +79,31 @@ when not installed as a zipapp.
 Please note, that the python module exists solely for the usage of the
 mkosi binary and is not to be considered a public API.
 
-## kernel-install plugin
+## kernel-install plugins
 
-mkosi can also be used as a kernel-install plugin to build initrds. To
-enable this feature, install `kernel-install/50-mkosi.install`
+mkosi can also be used as a kernel-install plugin to build initrds and addons.
+It is recommended to use only one of these two plugins at a given time.
+
+## UKI plugin
+To enable this feature, install `kernel-install/50-mkosi.install`
 into `/usr/lib/kernel/install.d`. Extra distro configuration for the
 initrd can be configured in `/usr/lib/mkosi-initrd`. Users can add their
-own customizations in `/etc/mkosi-initrd`.
+own customizations in `/etc/mkosi-initrd`. A full self-contained UKI will
+be built and installed.
 
 Once installed, the mkosi plugin can be enabled by writing
-`initrd_generator=mkosi-initrd` to `/usr/lib/kernel/install.conf` or to
-`/etc/kernel/install.conf`.
+`initrd_generator=mkosi-initrd` and `layout=uki` to `/usr/lib/kernel/install.conf`
+or to `/etc/kernel/install.conf`.
+
+## Addon plugin
+To enable this feature, install `kernel-install/51-mkosi-addon.install` into
+`/usr/lib/kernel/install.d`. Extra distro configuration for the addon can be
+configured in `/usr/lib/mkosi-addon`. Users can add their own customizations in
+`/etc/mkosi-addon` and `/run/mkosi-addon`. Note that unless at least one of the
+last two directories are present, the plugin will not operate.
+
+This plugin is useful to enhance a vendor-provided UKI with local-only
+modifications.
 
 # Hacking on mkosi
 

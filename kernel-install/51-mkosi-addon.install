@@ -1,0 +1,54 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
+import logging
+import sys
+from pathlib import Path
+
+from mkosi.initrd import KernelInstallContext
+from mkosi.log import log_setup
+from mkosi.run import run, uncaught_exception_handler
+from mkosi.types import PathString
+
+
+@uncaught_exception_handler()
+def main() -> None:
+    log_setup()
+
+    context = KernelInstallContext.parse(
+        "kernel-install plugin to build local addon for initrd/cmdline",
+        "51-mkosi-addon.install COMMAND KERNEL_VERSION ENTRY_DIR KERNEL_IMAGE…",
+    )
+
+    # No local configuration? Then nothing to do
+    if not Path("/etc/mkosi-addon").exists() and not Path("/run/mkosi-addon").exists():
+        if context.verbose:
+            logging.info("No local configuration defined, skipping mkosi-addon")
+        return
+
+    if context.command != "add" or context.layout != "uki":
+        if context.verbose:
+            logging.info("Not an UKI layout 'add' step, skipping mkosi-addon")
+        return
+
+    if not context.kernel_image or not context.kernel_image.exists():
+        if context.verbose:
+            logging.info("No kernel image provided, skipping mkosi-addon")
+        return
+
+    cmdline: list[PathString] = [
+        "mkosi-addon",
+        "--output", "mkosi-local.addon.efi",
+        "--output-dir", context.staging_area / "uki.efi.extra.d",
+    ]  # fmt: skip
+
+    if context.verbose:
+        cmdline += ["--debug"]
+
+    logging.info("Building mkosi-local.addon.efi")
+
+    run(cmdline, stdin=sys.stdin, stdout=sys.stdout)
+
+
+if __name__ == "__main__":
+    main()

@@ -256,3 +256,10 @@ def current_home_dir() -> Optional[Path]:
 
 def unique(seq: Sequence[T]) -> list[T]:
     return list(dict.fromkeys(seq))
+
+
+def mandatory_variable(name: str) -> str:
+    try:
+        return os.environ[name]
+    except KeyError:
+        die(f"${name} must be set in the environment")
