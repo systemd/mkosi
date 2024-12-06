@@ -88,7 +88,7 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def default_release(cls) -> str:
-        return "40"
+        return "41"
 
     @classmethod
     def grub_prefix(cls) -> str:
