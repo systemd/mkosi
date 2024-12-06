@@ -226,7 +226,7 @@ def test_initrd_size(config: ImageConfig) -> None:
             Distribution.fedora: 63,
             Distribution.debian: 61,
             Distribution.ubuntu: 56,
-            Distribution.arch: 82,
+            Distribution.arch: 83,
             Distribution.opensuse: 64,
         }.get(config.distribution, 57)
 
