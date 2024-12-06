@@ -4253,7 +4253,7 @@ def validate_certificates_and_keys(config: Config) -> None:
     if not keyutil:
         return
 
-    if want_verity(config):
+    if config.verity != ConfigFeature.disabled and config.verity_certificate and config.verity_key:
         run_systemd_sign_tool(
             config,
             cmdline=[keyutil, "validate"],
@@ -4282,7 +4282,12 @@ def validate_certificates_and_keys(config: Config) -> None:
             stdout=subprocess.DEVNULL,
         )
 
-    if want_signed_pcrs(config):
+    if (
+        config.bootable != ConfigFeature.disabled
+        and config.sign_expected_pcr != ConfigFeature.disabled
+        and config.sign_expected_pcr_certificate
+        and config.sign_expected_pcr_key
+    ):
         run_systemd_sign_tool(
             config,
             cmdline=[keyutil, "validate"],
