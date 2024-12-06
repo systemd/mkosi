@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
-import argparse
-import dataclasses
 import logging
-import os
 import sys
 import tempfile
 from pathlib import Path
@@ -13,36 +10,15 @@ from typing import Optional
 from mkosi import identify_cpu
 from mkosi.archive import make_cpio
 from mkosi.config import OutputFormat
-from mkosi.log import die, log_setup
+from mkosi.initrd import KernelInstallContext
+from mkosi.log import log_setup
 from mkosi.run import run, uncaught_exception_handler
-from mkosi.sandbox import __version__, umask
+from mkosi.sandbox import umask
 from mkosi.types import PathString
 
 
-@dataclasses.dataclass(frozen=True)
-class Context:
-    command: str
-    kernel_version: str
-    entry_dir: Path
-    kernel_image: Path
-    initrds: list[Path]
-    staging_area: Path
-    layout: str
-    image_type: str
-    initrd_generator: Optional[str]
-    uki_generator: Optional[str]
-    verbose: bool
-
-
-def we_are_wanted(context: Context) -> bool:
+def we_are_wanted(context: KernelInstallContext) -> bool:
     return context.uki_generator == "mkosi" or context.initrd_generator in ("mkosi", "mkosi-initrd")
-
-
-def mandatory_variable(name: str) -> str:
-    try:
-        return os.environ[name]
-    except KeyError:
-        die(f"${name} must be set in the environment")
 
 
 def build_microcode_initrd(output: Path) -> Optional[Path]:
@@ -75,57 +51,9 @@ def build_microcode_initrd(output: Path) -> Optional[Path]:
 def main() -> None:
     log_setup()
 
-    parser = argparse.ArgumentParser(
-        description="kernel-install plugin to build initrds or Unified Kernel Images using mkosi",
-        allow_abbrev=False,
-        usage="50-mkosi.install COMMAND KERNEL_VERSION ENTRY_DIR KERNEL_IMAGE INITRD…",
-    )
-
-    parser.add_argument(
-        "command",
-        metavar="COMMAND",
-        help="The action to perform. Only 'add' is supported.",
-    )
-    parser.add_argument(
-        "kernel_version",
-        metavar="KERNEL_VERSION",
-        help="Kernel version string",
-    )
-    parser.add_argument(
-        "entry_dir",
-        metavar="ENTRY_DIR",
-        type=Path,
-        nargs="?",
-        help="Type#1 entry directory (ignored)",
-    )
-    parser.add_argument(
-        "kernel_image",
-        metavar="KERNEL_IMAGE",
-        type=Path,
-        nargs="?",
-        help="Kernel image",
-    )
-    parser.add_argument(
-        "initrds",
-        metavar="INITRD…",
-        type=Path,
-        nargs="*",
-        help="Initrd files",
-    )
-    parser.add_argument(
-        "--version",
-        action="version",
-        version=f"mkosi {__version__}",
-    )
-
-    context = Context(
-        **vars(parser.parse_args()),
-        staging_area=Path(mandatory_variable("KERNEL_INSTALL_STAGING_AREA")),
-        layout=mandatory_variable("KERNEL_INSTALL_LAYOUT"),
-        image_type=mandatory_variable("KERNEL_INSTALL_IMAGE_TYPE"),
-        initrd_generator=os.getenv("KERNEL_INSTALL_INITRD_GENERATOR"),
-        uki_generator=os.getenv("KERNEL_INSTALL_UKI_GENERATOR"),
-        verbose=int(os.getenv("KERNEL_INSTALL_VERBOSE", 0)) > 0,
+    context = KernelInstallContext.parse(
+        "kernel-install plugin to build initrds or Unified Kernel Images using mkosi",
+        "50-mkosi.install COMMAND KERNEL_VERSION ENTRY_DIR KERNEL_IMAGE INITRD…",
     )
 
     if context.command != "add" or not we_are_wanted(context):

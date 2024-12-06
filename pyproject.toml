@@ -22,6 +22,7 @@ bootable = [
 mkosi = "mkosi.__main__:main"
 mkosi-initrd = "mkosi.initrd:main"
 mkosi-sandbox = "mkosi.sandbox:main"
+mkosi-addon = "mkosi.addon:main"
 
 [tool.setuptools]
 packages = [
@@ -35,6 +36,7 @@ packages = [
 "mkosi.resources" = [
     "completion.*",
     "man/*",
+    "mkosi-addon/**/*",
     "mkosi-initrd/**/*",
     "mkosi-tools/**/*",
     "mkosi-vm/**/*",
