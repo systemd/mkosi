@@ -2965,12 +2965,14 @@ Note that the minimum required Python version is 3.9.
   Alternatively, the `z` or `Z` directives for `systemd-tmpfiles` can be used to chown
   various directories and files to their owning user when the system first boots up.
 
-- Why does `portablectl inspect` say my portable service isn't one?
+- Why does `portablectl inspect <image>`/`systemd-dissect <image>` say my portable service isn't one?
 
-  `portablectl inspect` checks for `PORTABLE_PREFIXES=` in `os-release` and if the key is missing, will fail
-  to recognise a portable service as one. Since there is no good default to set for this key and the
-  generated portable service images will still attach properly, even when the key is not set, mkosi doesn't
-  set one.
+  `systemd-dissect` and`portablectl inspect` check for `PORTABLE_PREFIXES=` in `os-release` and if the key is
+  missing, will fail to recognise a portable service as one, showing ✗ under *Use as* for in the case of
+  `systemd-dissect` or `n/a` under *Portable Service* for `portablectl`.
+
+  Since there is no good default to set for this key and the generated portable service images will still
+  attach properly, even when the key is not set, mkosi doesn't set one.
 
   You can set `PORTABLE_PREFIXES=` in the `os-release` file yourself in a postinst script.
 
