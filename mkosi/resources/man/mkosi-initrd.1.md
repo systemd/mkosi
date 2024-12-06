@@ -35,6 +35,10 @@ initrds and Unified Kernel Images for the current running system.
 :   Path to a directory where to place all generated artifacts. Defaults to the
     current working directory.
 
+`--host-only`
+:   Embed artifacts specific to the host where the build is being performed.
+    Kernel modules, firmware and /etc/crypttab will be included in the UKI.
+
 `--debug=`
 :   Enable additional debugging output.
 
