@@ -2904,6 +2904,29 @@ images you want to build.
 
 Note that the minimum required Python version is 3.9.
 
+mkosi needs unrestricted abilities to create and act within namespaces. Some
+distros restrict creation of, or capabilities within, user namespaces, which
+breaks mkosi.
+
+For information about Ubuntu, that implements such restrictions using AppArmor, see
+https://ubuntu.com/blog/ubuntu-23-10-restricted-unprivileged-user-namespaces.
+For other systems, try researching the `kernel.unprivileged_userns_clone` or
+`user.max.user_namespace` sysctls.
+
+For Ubuntu systems, you can remove the restrictions for mkosi by
+adapting this snippet to point to your mkosi binary, copying it to
+`/etc/apparmor.d/path.to.mkosi`, and then running `systemctl reload apparmor`:
+
+```
+abi <abi/4.0>,
+
+include <tunables/global>
+
+/path/to/mkosi flags=(default_allow) {
+  userns,
+}
+```
+
 # Frequently Asked Questions (FAQ)
 
 - Why does `mkosi qemu` with KVM not work on Debian/Kali/Ubuntu?
