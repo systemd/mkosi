@@ -197,6 +197,9 @@ def main() -> None:
                     f.write("\n".join(crypttab))
                 cmdline += ["--extra-tree", f"{staging_dir}/crypttab:/etc/crypttab"]
 
+        if Path("/etc/kernel/cmdline").exists():
+            cmdline += ["--kernel-command-line", Path("/etc/kernel/cmdline").read_text()]
+
         # Prefer dnf as dnf5 has not yet officially replaced it and there's a much bigger chance that there
         # will be a populated dnf cache directory.
         run(
