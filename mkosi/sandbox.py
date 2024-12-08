@@ -28,6 +28,7 @@ CLONE_NEWIPC = 0x08000000
 CLONE_NEWNET = 0x40000000
 CLONE_NEWNS = 0x00020000
 CLONE_NEWUSER = 0x10000000
+EPERM = 1
 ENOENT = 2
 LINUX_CAPABILITY_U32S_3 = 2
 LINUX_CAPABILITY_VERSION_3 = 0x20080522
@@ -342,6 +343,10 @@ def become_user(uid: int, gid: int) -> None:
 
     try:
         unshare(CLONE_NEWUSER)
+    except OSError as e:
+        if e.errno == EPERM:
+            print(UNSHARE_EPERM_MSG, file=sys.stderr)
+        raise
     finally:
         os.write(event, ctypes.c_uint64(1))
         os.close(event)
@@ -694,6 +699,16 @@ See the mkosi-sandbox(1) man page for details.\
 """
 
 
+UNSHARE_EPERM_MSG = """
+mkosi was forbidden to unshare namespaces.
+
+This probably means your distribution has restricted unprivileged user namespaces.
+
+Please consult the REQUIREMENTS section of the mkosi man page, e.g. via "mkosi
+documentation", for workarounds.
+"""
+
+
 def main() -> None:
     # We don't use argparse as it takes +- 10ms to import and since this is purely for internal
     # use, it's not necessary to have good UX for this CLI interface so it's trivial to write
@@ -806,7 +821,14 @@ def main() -> None:
     if suppress_chown and (userns or userns_has_single_user()):
         seccomp_suppress_chown()
 
-    unshare(namespaces)
+    try:
+        unshare(namespaces)
+    except OSError as e:
+        # This can happen here as well as in become_user, it depends on exactly
+        # how the userns restrictions are implemented.
+        if e.errno == EPERM:
+            print(UNSHARE_EPERM_MSG, file=sys.stderr)
+        raise
 
     # If we unshared the user namespace the mount propagation of root is changed to slave automatically.
     if not userns:
