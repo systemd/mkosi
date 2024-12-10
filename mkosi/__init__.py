@@ -194,7 +194,7 @@ def remove_files(context: Context) -> None:
 
 
 def install_distribution(context: Context) -> None:
-    if context.config.base_trees:
+    if context.config.base_trees or context.config.output_format == OutputFormat.addon:
         if not context.config.packages:
             return
 
@@ -288,7 +288,7 @@ def remove_packages(context: Context) -> None:
 
 
 def check_root_populated(context: Context) -> None:
-    if context.config.output_format in (OutputFormat.sysext, OutputFormat.confext):
+    if context.config.output_format in (OutputFormat.sysext, OutputFormat.confext, OutputFormat.addon):
         return
 
     """Check that the root was populated by looking for a os-release file."""
@@ -308,7 +308,11 @@ def configure_os_release(context: Context) -> None:
     if not (context.config.image_id or context.config.image_version or context.config.hostname):
         return
 
-    if context.config.overlay or context.config.output_format in (OutputFormat.sysext, OutputFormat.confext):
+    if context.config.overlay or context.config.output_format in (
+        OutputFormat.sysext,
+        OutputFormat.confext,
+        OutputFormat.addon,
+    ):
         return
 
     for candidate in ["usr/lib/os-release", "usr/lib/initrd-release", "etc/os-release"]:
@@ -2084,7 +2088,7 @@ def install_kernel(context: Context, partitions: Sequence[Partition]) -> None:
     # single-file images have the benefit that they can be signed like normal EFI binaries, and can
     # encode everything necessary to boot a specific root device, including the root hash.
 
-    if context.config.output_format in (OutputFormat.uki, OutputFormat.esp):
+    if context.config.output_format in (OutputFormat.uki, OutputFormat.esp, OutputFormat.addon):
         return
 
     if context.config.bootable == ConfigFeature.disabled:
@@ -2147,6 +2151,51 @@ def make_uki(
 
     if ArtifactOutput.initrd in context.config.split_artifacts:
         extract_pe_section(context, output, ".initrd", context.staging / context.config.output_split_initrd)
+
+
+def make_addon(context: Context, microcodes: list[Path], output: Path) -> None:
+    make_cpio(context.root, context.workspace / "initrd", sandbox=context.sandbox)
+    maybe_compress(
+        context, context.config.compress_output, context.workspace / "initrd", context.workspace / "initrd"
+    )
+
+    arch = context.config.architecture.to_efi()
+    stub = Path(f"/usr/lib/systemd/boot/efi/addon{arch}.efi.stub")
+    if not stub.exists():
+        die("sd-stub not found")
+
+    arguments: list[PathString] = [
+        "--initrd",
+        workdir(context.workspace / "initrd"),
+    ]
+    options: list[PathString] = [
+        "--ro-bind",
+        context.workspace / "initrd",
+        workdir(context.workspace / "initrd"),
+    ]
+
+    if microcodes:
+        # new .ucode section support?
+        check_ukify(
+            context.config,
+            version="256~devel",
+            reason="build addon with .ucode section support",
+            hint=("Use ToolsTree=default to download most required tools including ukify " "automatically"),
+        )
+
+        for microcode in microcodes:
+            arguments += ["--microcode", workdir(microcode)]
+            options += ["--ro-bind", microcode, workdir(microcode)]
+
+    with complete_step(f"Generating PE addon {output}"):
+        run_ukify(
+            context,
+            stub,
+            output,
+            cmdline=context.config.kernel_command_line,
+            arguments=arguments,
+            options=options,
+        )
 
 
 def compressor_command(context: Context, compression: Compression) -> list[PathString]:
@@ -2590,7 +2639,7 @@ def check_tools(config: Config, verb: Verb) -> None:
             check_tool(config, "depmod", reason="generate kernel module dependencies")
 
         if want_efi(config):
-            if config.unified_kernel_image_profiles:
+            if config.unified_kernel_image_profiles or config.output_format == OutputFormat.addon:
                 check_ukify(
                     config,
                     version="257~devel",
@@ -2726,7 +2775,11 @@ def configure_ssh(context: Context) -> None:
 
 
 def configure_initrd(context: Context) -> None:
-    if context.config.overlay or context.config.output_format.is_extension_image():
+    if (
+        context.config.overlay
+        or context.config.output_format.is_extension_image()
+        or context.config.output_format == OutputFormat.addon
+    ):
         return
 
     if (
@@ -2747,7 +2800,11 @@ def configure_initrd(context: Context) -> None:
 
 
 def configure_clock(context: Context) -> None:
-    if context.config.overlay or context.config.output_format in (OutputFormat.sysext, OutputFormat.confext):
+    if context.config.overlay or context.config.output_format in (
+        OutputFormat.sysext,
+        OutputFormat.confext,
+        OutputFormat.addon,
+    ):
         return
 
     with umask(~0o644):
@@ -2794,7 +2851,11 @@ def run_depmod(context: Context, *, cache: bool = False) -> None:
 
 
 def run_sysusers(context: Context) -> None:
-    if context.config.overlay or context.config.output_format in (OutputFormat.sysext, OutputFormat.confext):
+    if context.config.overlay or context.config.output_format in (
+        OutputFormat.sysext,
+        OutputFormat.confext,
+        OutputFormat.addon,
+    ):
         return
 
     if not context.config.find_binary("systemd-sysusers"):
@@ -2811,7 +2872,11 @@ def run_sysusers(context: Context) -> None:
 
 
 def run_tmpfiles(context: Context) -> None:
-    if context.config.overlay or context.config.output_format in (OutputFormat.sysext, OutputFormat.confext):
+    if context.config.overlay or context.config.output_format in (
+        OutputFormat.sysext,
+        OutputFormat.confext,
+        OutputFormat.addon,
+    ):
         return
 
     if not context.config.find_binary("systemd-tmpfiles"):
@@ -2853,7 +2918,11 @@ def run_tmpfiles(context: Context) -> None:
 
 
 def run_preset(context: Context) -> None:
-    if context.config.overlay or context.config.output_format in (OutputFormat.sysext, OutputFormat.confext):
+    if context.config.overlay or context.config.output_format in (
+        OutputFormat.sysext,
+        OutputFormat.confext,
+        OutputFormat.addon,
+    ):
         return
 
     if not context.config.find_binary("systemctl"):
@@ -2872,7 +2941,11 @@ def run_preset(context: Context) -> None:
 
 
 def run_hwdb(context: Context) -> None:
-    if context.config.overlay or context.config.output_format in (OutputFormat.sysext, OutputFormat.confext):
+    if context.config.overlay or context.config.output_format in (
+        OutputFormat.sysext,
+        OutputFormat.confext,
+        OutputFormat.addon,
+    ):
         return
 
     if not context.config.find_binary("systemd-hwdb"):
@@ -3732,6 +3805,8 @@ def build_image(context: Context) -> None:
         )
     elif context.config.output_format == OutputFormat.cpio:
         make_cpio(context.root, context.staging / context.config.output_with_format, sandbox=context.sandbox)
+    elif context.config.output_format == OutputFormat.addon:
+        make_addon(context, microcode, context.staging / context.config.output_with_format)
     elif context.config.output_format == OutputFormat.uki:
         assert stub and kver and kimg
         make_uki(context, stub, kver, kimg, microcode, context.staging / context.config.output_with_format)
@@ -3744,7 +3819,7 @@ def build_image(context: Context) -> None:
     elif context.config.output_format == OutputFormat.directory:
         context.root.rename(context.staging / context.config.output_with_format)
 
-    if context.config.output_format not in (OutputFormat.uki, OutputFormat.esp):
+    if context.config.output_format not in (OutputFormat.uki, OutputFormat.esp, OutputFormat.addon):
         maybe_compress(
             context,
             context.config.compress_output,
@@ -3795,7 +3870,7 @@ def run_sandbox(args: Args, config: Config) -> None:
 
 def run_shell(args: Args, config: Config) -> None:
     opname = "acquire shell in" if args.verb == Verb.shell else "boot"
-    if config.output_format in (OutputFormat.tar, OutputFormat.cpio):
+    if config.output_format in (OutputFormat.tar, OutputFormat.cpio, OutputFormat.addon):
         die(f"Sorry, can't {opname} a {config.output_format} archive.")
     if config.output_format.use_outer_compression() and config.compress_output:
         die(f"Sorry, can't {opname} a compressed image.")
@@ -4552,6 +4627,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
     if args.verb == Verb.documentation:
         if args.cmdline:
             manual = {
+                "addon": "mkosi-addon",
                 "initrd": "mkosi-initrd",
                 "sandbox": "mkosi-sandbox",
                 "news": "mkosi.news",
