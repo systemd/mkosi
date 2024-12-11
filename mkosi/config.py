@@ -2069,12 +2069,14 @@ class Config:
         options: Sequence[PathString] = (),
         setup: Sequence[PathString] = (),
     ) -> AbstractContextManager[list[PathString]]:
-        opt: list[PathString] = [
-            *options,
-            *(["--ro-bind", str(p), "/proxy.cacert"] if (p := self.proxy_peer_certificate) else []),
-            *(["--ro-bind", str(p), "/proxy.clientcert"] if (p := self.proxy_client_certificate) else []),
-            *(["--ro-bind", str(p), "/proxy.clientkey"] if (p := self.proxy_client_key) else []),
-        ]
+        opt: list[PathString] = [*options]
+        if not relaxed:
+            if p := self.proxy_peer_certificate:
+                opt += ["--ro-bind", os.fspath(p), "/proxy.cacert"]
+            if p := self.proxy_client_certificate:
+                opt += ["--ro-bind", os.fspath(p), "/proxy.clientcert"]
+            if p := self.proxy_client_key:
+                opt += ["--ro-bind", os.fspath(p), "/proxy.clientkey"]
 
         if (
             binary
