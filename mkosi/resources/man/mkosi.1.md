@@ -784,6 +784,13 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     file may be provided too. `mkosi.skeleton.tar` will be automatically
     used if found in the local directory.
 
+    To add extra package manager configuration files such as extra
+    repositories, use `SandboxTrees=` as mkosi invokes the package
+    managers from outside the image and not inside so any package
+    manager configuration files provided via `SkeletonTrees=` won't
+    take effect when mkosi invokes a package manager to install
+    packages.
+
 `ExtraTrees=`, `--extra-tree=`
 :   Takes a comma separated list of colon separated path pairs. The first
     path of each pair refers to a directory to copy from the host into the
