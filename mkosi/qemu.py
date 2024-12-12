@@ -1093,6 +1093,7 @@ def run_qemu(args: Args, config: Config) -> None:
             accel += ",device=/dev/fdset/1"
     else:
         accel = "tcg"
+        cmdline += ["-cpu", "max"]
 
     cmdline += ["-accel", accel]
 
@@ -1114,8 +1115,6 @@ def run_qemu(args: Args, config: Config) -> None:
 
         index = list(qemu_device_fds.keys()).index(QemuDeviceNode.vhost_vsock)
         cmdline += ["-device", f"vhost-vsock-pci,guest-cid={cid},vhostfd={SD_LISTEN_FDS_START + index}"]
-
-    cmdline += ["-cpu", "max"]
 
     if config.qemu_gui:
         if config.architecture.is_arm_variant():
