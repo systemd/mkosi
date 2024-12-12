@@ -1073,14 +1073,7 @@ def install_sandbox_trees(config: Config, dst: Path) -> None:
     # Ensure /etc exists in the sandbox
     (dst / "etc").mkdir(exist_ok=True)
 
-    if (p := config.tools() / "etc/crypto-policies").exists():
-        copy_tree(
-            p,
-            dst / "etc/crypto-policies",
-            preserve=False,
-            dereference=True,
-            sandbox=config.sandbox,
-        )  # fmt: skip
+    (dst / "etc/crypto-policies").mkdir(exist_ok=True)
 
     if config.sandbox_trees:
         with complete_step("Copying in sandbox trees…"):
