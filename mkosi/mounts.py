@@ -104,4 +104,7 @@ def finalize_crypto_mounts(config: Config) -> list[PathString]:
     if (config.tools() / "etc/pacman.d/gnupg").exists():
         mounts += [(config.tools() / "etc/pacman.d/gnupg", Path("/etc/pacman.d/gnupg"))]
 
+    if (config.tools() / "etc/crypto-policies").exists():
+        mounts += [(config.tools() / "etc/crypto-policies", Path("/etc/crypto-policies"))]
+
     return flatten(("--ro-bind", src, target) for src, target in sorted(set(mounts), key=lambda s: s[1]))

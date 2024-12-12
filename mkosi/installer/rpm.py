@@ -95,7 +95,8 @@ def setup_rpm(
     # Write an rpm sequoia policy that allows SHA1 as various distribution GPG keys (openSUSE) still use SHA1
     # for various things.
     # TODO: Remove when all rpm distribution GPG keys have stopped using SHA1.
-    if not (p := context.sandbox_tree / "etc/crypto-policies/back-ends/rpm-sequoia.config").exists():
+    if not (context.config.tools() / "etc/crypto-policies").exists():
+        p = context.sandbox_tree / "etc/crypto-policies/back-ends/rpm-sequoia.config"
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(
             textwrap.dedent(
