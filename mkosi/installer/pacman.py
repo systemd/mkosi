@@ -119,6 +119,16 @@ class Pacman(PackageManager):
             # This has to go first so that our local repository always takes precedence over any other ones.
             f.write("Include = /etc/mkosi-local.conf\n")
 
+            if any((context.sandbox_tree / "etc/pacman.d/").glob("*.conf")):
+                f.write(
+                    textwrap.dedent(
+                        """\
+
+                        Include = /etc/pacman.d/*.conf
+                        """
+                    )
+                )
+
             for repo in repositories:
                 f.write(
                     textwrap.dedent(
@@ -126,16 +136,6 @@ class Pacman(PackageManager):
 
                         [{repo.id}]
                         Server = {repo.url}
-                        """
-                    )
-                )
-
-            if any((context.sandbox_tree / "etc/pacman.d/").glob("*.conf")):
-                f.write(
-                    textwrap.dedent(
-                        """\
-
-                        Include = /etc/pacman.d/*.conf
                         """
                     )
                 )
