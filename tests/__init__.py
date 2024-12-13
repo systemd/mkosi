@@ -102,7 +102,7 @@ class Image:
             "--release", self.config.release,
             *(f"--kernel-command-line={i}" for i in kcl),
             "--force",
-            "--incremental",
+            "--incremental=strict",
             "--output-directory", self.output_dir,
             *(["--debug-shell"] if self.config.debug_shell else []),
             *options,
