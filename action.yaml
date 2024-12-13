@@ -45,6 +45,15 @@ runs:
         sudo sysctl --ignore --write kernel.apparmor_restrict_unprivileged_unconfined=0
         sudo sysctl --ignore --write kernel.apparmor_restrict_unprivileged_userns=0
 
+    - name: Create missing mountpoints
+      shell: bash
+      run: |
+        for p in /etc/pki /etc/pacman.d/gnupg /etc/ssl /etc/ca-certificates /var/lib/ca-certificates /etc/crypto-policies; do
+          if [[ ! -e "$p" ]]; then
+            sudo mkdir -p "$p"
+          fi
+        done
+
     # Both the unix-chkpwd and swtpm profiles are broken (https://gitlab.com/apparmor/apparmor/-/issues/402) so let's
     # just disable and remove apparmor completely. It's not relevant in this context anyway.
     # TODO: Remove if https://github.com/actions/runner-images/issues/10015 is ever fixed.

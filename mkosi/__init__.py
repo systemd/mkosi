@@ -3768,7 +3768,20 @@ def run_sandbox(args: Args, config: Config) -> None:
     # If we're not using tools tree certificates we don't have to do anything since the relaxed sandbox will
     # already have /etc and /var from the host so we don't need to do anything extra.
     if config.tools_tree_certificates:
-        options += finalize_crypto_mounts(config)
+        mounts = finalize_crypto_mounts(config)
+
+        # Since we reuse almost every top level directory from the host except /usr, the crypto mountpoints
+        # have to exist already in these directories or we'll fail with a permission error. Let's check this
+        # early and show a better error and a suggestion on how users can fix this issue. We use slice
+        # notation to get every 3rd item from the mounts list which is the destination path.
+        for dst in mounts[2::3]:
+            if not Path(dst).exists():
+                die(
+                    f"Missing mountpoint {dst}",
+                    hint=f"Create an empty directory at {dst} using 'mkdir -p {dst}' as root and try again",
+                )
+
+        options += mounts
 
     run(
         cmdline,
