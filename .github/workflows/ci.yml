@@ -211,12 +211,11 @@ jobs:
       - name: Build tools tree
         run: |
           # TODO: Remove grub2 hack when https://bugzilla.opensuse.org/show_bug.cgi?id=1227464 is resolved.
-          sudo --preserve-env \
-              mkosi \
-              --directory "" \
-              --distribution ${{ matrix.tools }} \
-              --include mkosi-tools \
-              $( [[ ${{ matrix.tools }} == opensuse ]] && echo --package=grub2)
+          mkosi \
+            --directory "" \
+            --distribution ${{ matrix.tools }} \
+            --include mkosi-tools \
+            $( [[ ${{ matrix.tools }} == opensuse ]] && echo --package=grub2)
 
       - name: Run integration tests
         run: |
