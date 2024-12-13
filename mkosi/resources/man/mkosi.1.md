@@ -1046,11 +1046,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     the image.
 
 `KernelModulesInitrd=`, `--kernel-modules-initrd=`
-:   Enable/Disable generation of the kernel modules initrd when building a bootable image. Enabled by default.
-    If enabled, when building a bootable image, for each kernel that we assemble a unified kernel image for we
-    generate an extra initrd containing only the kernel modules for that kernel version and append it to the
-    prebuilt initrd. This allows generating kernel independent initrds which are augmented with the necessary
-    kernel modules when the UKI is assembled.
+:   Enable/Disable generation of the kernel modules' initrd when building a bootable image. Enabled by default.
+
+    If enabled, when building a bootable image, mkosi will generate an extra initrd for each kernel version it assembles. Such an initrd only contains modules to append to the prebuilt initrd. This allows generating kernel independent initrds which are augmented with the necessary modules when the UKI is assembled.
 
 `KernelModulesInitrdInclude=`, `--kernel-modules-initrd-include=`
 :   Like `KernelModulesInclude=`, but applies to the kernel modules included in the kernel modules initrd.
