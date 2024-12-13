@@ -217,6 +217,9 @@ jobs:
             --include mkosi-tools \
             $( [[ ${{ matrix.tools }} == opensuse ]] && echo --package=grub2)
 
+      - name: Build image
+        run: mkosi --distribution ${{ matrix.distro }} -f
+
       - name: Run integration tests
         run: |
           sudo --preserve-env \
