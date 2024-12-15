@@ -229,7 +229,7 @@ The following settings cannot be configured in the configuration files:
     This pro-active approach leads to a better understanding on how `mkosi` works for future usage.
 
 `--debug-shell`
-:   When executing a command in the image fails, mkosi will start an interactive shell inside of the
+:   When executing a command that fails to build an image, mkosi will start an interactive shell inside of the
     interrupted or failed image build. This feature helps to acquire additional insights for troubleshooting.
 
 `--debug-workspace`
