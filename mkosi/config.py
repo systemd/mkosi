@@ -178,6 +178,7 @@ class SecureBootSignTool(StrEnum):
 
 
 class OutputFormat(StrEnum):
+    addon = enum.auto()
     confext = enum.auto()
     cpio = enum.auto()
     directory = enum.auto()
@@ -192,6 +193,7 @@ class OutputFormat(StrEnum):
 
     def extension(self) -> str:
         return {
+            OutputFormat.addon:    ".addon.efi",
             OutputFormat.confext:  ".raw",
             OutputFormat.cpio:     ".cpio",
             OutputFormat.disk:     ".raw",
@@ -809,7 +811,13 @@ def config_parse_mode(value: Optional[str], old: Optional[int]) -> Optional[int]
 
 
 def config_default_compression(namespace: argparse.Namespace) -> Compression:
-    if namespace.output_format in (OutputFormat.tar, OutputFormat.cpio, OutputFormat.uki, OutputFormat.esp):
+    if namespace.output_format in (
+        OutputFormat.tar,
+        OutputFormat.cpio,
+        OutputFormat.uki,
+        OutputFormat.esp,
+        OutputFormat.addon,
+    ):
         if namespace.distribution == Distribution.ubuntu and namespace.release == "focal":
             return Compression.xz
         else:
