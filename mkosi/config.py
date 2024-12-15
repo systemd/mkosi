@@ -1381,7 +1381,7 @@ def config_parse_artifact_output_list(
     value: Optional[str], old: Optional[list[ArtifactOutput]]
 ) -> Optional[list[ArtifactOutput]]:
     if not value:
-        return None
+        return []
 
     # Keep for backwards compatibility
     boolean_value = try_parse_boolean(value)
@@ -1389,8 +1389,7 @@ def config_parse_artifact_output_list(
         return ArtifactOutput.compat_yes() if boolean_value else ArtifactOutput.compat_no()
 
     list_parser = config_make_list_parser(delimiter=",", parse=make_enum_parser(ArtifactOutput))
-    list_value = list_parser(value, old)
-    return cast(list[ArtifactOutput], list_value)
+    return list_parser(value, old)
 
 
 class SettingScope(StrEnum):
