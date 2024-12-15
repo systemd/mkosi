@@ -204,80 +204,67 @@ The following command line verbs are known:
 
 ## Commandline-only Options
 
-Those settings cannot be configured in the configuration files.
+The following settings cannot be configured in the configuration files:
+
+`--help`, `-h`
+:   Show brief usage information.
 
 `--force`, `-f`
-:   Replace the output file if it already exists, when building an
-    image. By default when building an image and an output artifact
-    already exists `mkosi` will refuse operation. Specify this option
-    once to delete all build artifacts from a previous run before
-    re-building the image. If incremental builds are enabled,
-    specifying this option twice will ensure the intermediary
-    cache files are removed, too, before the re-build is initiated. If a
-    package cache is used (also see the **Files** section below),
-    specifying this option thrice will ensure the package cache is
-    removed too, before the re-build is initiated. For the `clean`
-    operation this option has a slightly different effect: by default
-    the verb will only remove build artifacts from a previous run, when
-    specified once the incremental cache files are deleted too, and when
-    specified twice the package cache is also removed.
+:   Replace the output file if it already exists, by default `mkosi`refuses to overwrite an existing image.
+    This option can be specified once, twice or trice to change the scope of artifact removals.
+    Specify once to delete all build artifacts from a previous run. Twice to include removal of the
+    intermediary package cache from incremental builds. Thrice to remove all build artifacts and the the full
+    package cache. See the **Files** section for more context and details.
+    If `mkosi` is followed by the `clean` verb, the `-f` option can only be specified twice, see the
+    description of the command line verbs above.
 
 `--directory=`, `-C`
-:   Takes a path to a directory. `mkosi` switches to this directory before
-    doing anything. Note that the various configuration files are searched
-    for in this directory, hence using this option is an effective way to
-    build a project located in a specific directory.
+:   Specify a path to a directory. `mkosi` switches to this directory before doing anything. Note that the
+    various configuration files are searched for in this directory by default. Using this option can be used
+    to take advantage of defaults when executing mkosi inside of a profile directory or to execute `mkosi` in
+    any other directory deemed useful.
 
 `--debug`
-:   Enable additional debugging output.
+:   Enable additional debugging output. Also useful to observe from time to time when everything just works.
+    This pro-active approach leads to a better understanding on how `mkosi` works for future usage.
 
 `--debug-shell`
-:   When executing a command in the image fails, mkosi will start an interactive
-    shell in the image allowing further debugging.
+:   When executing a command in the image fails, mkosi will start an interactive shell inside of the
+    interrupted or failed image build. This feature helps to acquire additional insights for troubleshooting.
 
 `--debug-workspace`
-:   When an error occurs, the workspace directory will not be deleted.
+:   When an error occurs, the workspace directory will not be deleted. The workspace files that existed
+    before an interruption, can be verified.
 
 `--debug-sandbox`
 :   Run `mkosi-sandbox` with `strace`.
 
 `--version`
-:   Show package version.
-
-`--help`, `-h`
-:   Show brief usage information.
+:   Show package version, build from source to have the latest version ahead of a new release.
 
 `--genkey-common-name=`
-:   Common name to be used when generating keys via mkosi's `genkey` command. Defaults to `mkosi of %u`, where
-    `%u` expands to the username of the user invoking mkosi.
+:   Common name to be used when generating keys via mkosi's `genkey` command. Defaults to `mkosi of %u`,
+    where `%u` expands to the username of the user invoking mkosi.
 
 `--genkey-valid-days=`
 :   Number of days that the keys should remain valid when generating keys via mkosi's `genkey` command.
     Defaults to two years (730 days).
 
 `--auto-bump=`, `-B`
-:   If specified, after each successful build the version is bumped in a
-    fashion equivalent to the `bump` verb, in preparation for the next
-    build. This is useful for simple, linear version management: each
-    build in a series will have a version number one higher then the
-    previous one.
+:   Automatically increment, or bump, the version know to `mkosi`, after a successful build. Each build in a
+    series will have a version number one higher then the previous one. See also the description of the
+    related `bump` verb above.
 
 `--doc-format`
-:   The format to show the documentation in. Supports the values `markdown`,
-    `man`, `pandoc`, `system` and `auto`. In the case of `markdown` the
-    documentation is shown in the original Markdown format. `man` shows the
-    documentation in man page format, if it is available. `pandoc` will generate
-    the man page format on the fly, if `pandoc` is available. `system` will show
-    the system-wide man page for mkosi, which may or may not correspond to the
-    version you are using, depending on how you installed mkosi. `auto`, which is
-    the default, will try all methods in the order `man`, `pandoc`, `markdown`,
-    `system`.
+:   The format to view documentation. The default, `auto` will try the 4 supported methods in this order:
+    `man`, `pandoc`,`markdown` and `system`.  This is done in an effort to avoid unsupported formats on the
+    host. `system` will show the system-wide man page, `pandoc` can generate the man page format on the fly.
 
 `--json`
 :   Show the summary output as JSON-SEQ.
 
 `--wipe-build-dir`, `-w`
-:   Wipe the build directory if one is configured before building the image.
+:   Unconditionally wipe the build directory if one is configured and found.
 
 ## Supported output formats
 
