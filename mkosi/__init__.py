@@ -201,10 +201,7 @@ def install_distribution(context: Context) -> None:
         with complete_step(f"Installing extra packages for {context.config.distribution.pretty_name()}"):
             context.config.distribution.install_packages(context, context.config.packages)
     else:
-        if context.config.overlay or context.config.output_format in (
-            OutputFormat.sysext,
-            OutputFormat.confext,
-        ):
+        if context.config.overlay or context.config.output_format.is_extension_image():
             if context.config.packages:
                 die(
                     "Cannot install packages in extension images without a base tree",
@@ -288,7 +285,7 @@ def remove_packages(context: Context) -> None:
 
 
 def check_root_populated(context: Context) -> None:
-    if context.config.output_format in (OutputFormat.sysext, OutputFormat.confext):
+    if context.config.output_format.is_extension_image():
         return
 
     """Check that the root was populated by looking for a os-release file."""
@@ -308,7 +305,7 @@ def configure_os_release(context: Context) -> None:
     if not (context.config.image_id or context.config.image_version or context.config.hostname):
         return
 
-    if context.config.overlay or context.config.output_format in (OutputFormat.sysext, OutputFormat.confext):
+    if context.config.overlay or context.config.output_format.is_extension_image():
         return
 
     for candidate in ["usr/lib/os-release", "usr/lib/initrd-release", "etc/os-release"]:
@@ -2085,7 +2082,7 @@ def install_kernel(context: Context, partitions: Sequence[Partition]) -> None:
 
     if context.config.bootable == ConfigFeature.auto and (
         context.config.output_format == OutputFormat.cpio
-        or context.config.output_format.is_extension_image()
+        or context.config.output_format.is_extension_or_portable_image()
         or context.config.overlay
     ):
         return
@@ -2115,11 +2112,19 @@ def install_kernel(context: Context, partitions: Sequence[Partition]) -> None:
 
 
 def make_uki(
-    context: Context, stub: Path, kver: str, kimg: Path, microcode: list[Path], output: Path
+    context: Context,
+    stub: Path,
+    kver: str,
+    kimg: Path,
+    microcode: list[Path],
+    output: Path,
 ) -> None:
     make_cpio(context.root, context.workspace / "initrd", sandbox=context.sandbox)
     maybe_compress(
-        context, context.config.compress_output, context.workspace / "initrd", context.workspace / "initrd"
+        context,
+        context.config.compress_output,
+        context.workspace / "initrd",
+        context.workspace / "initrd",
     )
 
     initrds = [context.workspace / "initrd"]
@@ -2140,6 +2145,29 @@ def make_uki(
 
     if ArtifactOutput.initrd in context.config.split_artifacts:
         extract_pe_section(context, output, ".initrd", context.staging / context.config.output_split_initrd)
+
+
+def make_initrd_addon(context: Context, stub: Path, output: Path) -> None:
+    make_cpio(context.root, context.workspace / "initrd", sandbox=context.sandbox)
+    maybe_compress(
+        context,
+        context.config.compress_output,
+        context.workspace / "initrd",
+        context.workspace / "initrd",
+    )
+    arguments: list[PathString] = ["--initrd", workdir(context.workspace / "initrd")]
+    options: list[PathString] = [
+        "--ro-bind", context.workspace / "initrd", workdir(context.workspace / "initrd")
+    ]  # fmt: skip
+
+    with complete_step(f"Generating initrd PE addon {output}"):
+        run_ukify(
+            context,
+            stub,
+            output,
+            arguments=arguments,
+            options=options,
+        )
 
 
 def compressor_command(context: Context, compression: Compression) -> list[PathString]:
@@ -2719,7 +2747,7 @@ def configure_ssh(context: Context) -> None:
 
 
 def configure_initrd(context: Context) -> None:
-    if context.config.overlay or context.config.output_format.is_extension_image():
+    if context.config.overlay or context.config.output_format.is_extension_or_portable_image():
         return
 
     if (
@@ -2740,7 +2768,7 @@ def configure_initrd(context: Context) -> None:
 
 
 def configure_clock(context: Context) -> None:
-    if context.config.overlay or context.config.output_format in (OutputFormat.sysext, OutputFormat.confext):
+    if context.config.overlay or context.config.output_format.is_extension_image():
         return
 
     with umask(~0o644):
@@ -2748,7 +2776,7 @@ def configure_clock(context: Context) -> None:
 
 
 def run_depmod(context: Context, *, cache: bool = False) -> None:
-    if context.config.overlay or context.config.output_format.is_extension_image():
+    if context.config.overlay or context.config.output_format.is_extension_or_portable_image():
         return
 
     outputs = (
@@ -2787,7 +2815,7 @@ def run_depmod(context: Context, *, cache: bool = False) -> None:
 
 
 def run_sysusers(context: Context) -> None:
-    if context.config.overlay or context.config.output_format in (OutputFormat.sysext, OutputFormat.confext):
+    if context.config.overlay or context.config.output_format.is_extension_image():
         return
 
     if not context.config.find_binary("systemd-sysusers"):
@@ -2804,7 +2832,7 @@ def run_sysusers(context: Context) -> None:
 
 
 def run_tmpfiles(context: Context) -> None:
-    if context.config.overlay or context.config.output_format in (OutputFormat.sysext, OutputFormat.confext):
+    if context.config.overlay or context.config.output_format.is_extension_image():
         return
 
     if not context.config.find_binary("systemd-tmpfiles"):
@@ -2846,7 +2874,7 @@ def run_tmpfiles(context: Context) -> None:
 
 
 def run_preset(context: Context) -> None:
-    if context.config.overlay or context.config.output_format in (OutputFormat.sysext, OutputFormat.confext):
+    if context.config.overlay or context.config.output_format.is_extension_image():
         return
 
     if not context.config.find_binary("systemctl"):
@@ -2865,7 +2893,7 @@ def run_preset(context: Context) -> None:
 
 
 def run_hwdb(context: Context) -> None:
-    if context.config.overlay or context.config.output_format in (OutputFormat.sysext, OutputFormat.confext):
+    if context.config.overlay or context.config.output_format.is_extension_image():
         return
 
     if not context.config.find_binary("systemd-hwdb"):
@@ -2883,7 +2911,7 @@ def run_hwdb(context: Context) -> None:
 
 
 def run_firstboot(context: Context) -> None:
-    if context.config.overlay or context.config.output_format.is_extension_image():
+    if context.config.overlay or context.config.output_format.is_extension_or_portable_image():
         return
 
     if not context.config.find_binary("systemd-firstboot"):
@@ -3057,9 +3085,16 @@ def reuse_cache(context: Context) -> bool:
     return True
 
 
-def save_uki_components(
+def save_esp_components(
     context: Context,
 ) -> tuple[Optional[Path], Optional[str], Optional[Path], list[Path]]:
+    if context.config.output_format == OutputFormat.initrd_addon:
+        stub = systemd_addon_stub_binary(context)
+        if not stub.exists():
+            die(f"sd-stub not found at /{stub.relative_to(context.root)} in the image")
+
+        return shutil.copy2(stub, context.workspace), None, None, []
+
     if context.config.output_format not in (OutputFormat.uki, OutputFormat.esp):
         return None, None, None, []
 
@@ -3408,7 +3443,7 @@ def make_esp(context: Context, uki: Path) -> list[Partition]:
     )
 
 
-def make_extension_image(context: Context, output: Path) -> None:
+def make_extension_or_portable_image(context: Context, output: Path) -> None:
     unsigned = "-unsigned" if not want_verity(context.config) else ""
     r = context.resources / f"repart/definitions/{context.config.output_format}{unsigned}.repart.d"
 
@@ -3685,7 +3720,7 @@ def build_image(context: Context) -> None:
         run_hwdb(context)
 
         # These might be removed by the next steps, so let's save them for later if needed.
-        stub, kver, kimg, microcode = save_uki_components(context)
+        stub, kver, kimg, microcode = save_esp_components(context)
 
         remove_packages(context)
 
@@ -3732,8 +3767,11 @@ def build_image(context: Context) -> None:
         assert stub and kver and kimg
         make_uki(context, stub, kver, kimg, microcode, context.staging / context.config.output_split_uki)
         make_esp(context, context.staging / context.config.output_split_uki)
-    elif context.config.output_format.is_extension_image():
-        make_extension_image(context, context.staging / context.config.output_with_format)
+    elif context.config.output_format == OutputFormat.initrd_addon:
+        assert stub
+        make_initrd_addon(context, stub, context.staging / context.config.output_with_format)
+    elif context.config.output_format.is_extension_or_portable_image():
+        make_extension_or_portable_image(context, context.staging / context.config.output_with_format)
     elif context.config.output_format == OutputFormat.directory:
         context.root.rename(context.staging / context.config.output_with_format)
 

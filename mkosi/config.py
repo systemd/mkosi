@@ -189,24 +189,36 @@ class OutputFormat(StrEnum):
     tar = enum.auto()
     uki = enum.auto()
     oci = enum.auto()
+    initrd_addon = enum.auto()
 
     def extension(self) -> str:
         return {
-            OutputFormat.confext:  ".raw",
-            OutputFormat.cpio:     ".cpio",
-            OutputFormat.disk:     ".raw",
-            OutputFormat.esp:      ".raw",
-            OutputFormat.portable: ".raw",
-            OutputFormat.sysext:   ".raw",
-            OutputFormat.tar:      ".tar",
-            OutputFormat.uki:      ".efi",
+            OutputFormat.confext:      ".raw",
+            OutputFormat.cpio:         ".cpio",
+            OutputFormat.disk:         ".raw",
+            OutputFormat.esp:          ".raw",
+            OutputFormat.portable:     ".raw",
+            OutputFormat.sysext:       ".raw",
+            OutputFormat.tar:          ".tar",
+            OutputFormat.uki:          ".efi",
+            OutputFormat.initrd_addon: ".efi",
         }.get(self, "")  # fmt: skip
 
     def use_outer_compression(self) -> bool:
-        return self in (OutputFormat.tar, OutputFormat.cpio, OutputFormat.disk) or self.is_extension_image()
+        return self in (
+            OutputFormat.tar,
+            OutputFormat.cpio,
+            OutputFormat.disk,
+            OutputFormat.sysext,
+            OutputFormat.confext,
+            OutputFormat.portable,
+        )
 
     def is_extension_image(self) -> bool:
-        return self in (OutputFormat.sysext, OutputFormat.confext, OutputFormat.portable)
+        return self in (OutputFormat.sysext, OutputFormat.confext, OutputFormat.initrd_addon)
+
+    def is_extension_or_portable_image(self) -> bool:
+        return self.is_extension_image() or self == OutputFormat.portable
 
 
 class ManifestFormat(StrEnum):
@@ -4817,7 +4829,7 @@ def summary(config: Config) -> str:
                     SELinux Relabel: {config.selinux_relabel}
 """
 
-    if config.output_format.is_extension_image() or config.output_format in (
+    if config.output_format.is_extension_or_portable_image() or config.output_format in (
         OutputFormat.disk,
         OutputFormat.uki,
         OutputFormat.esp,

@@ -505,9 +505,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     partition table), `uki` (a unified kernel image with the OS image in
     the `.initrd` PE section), `esp` (`uki` but wrapped in a disk image
     with only an ESP partition), `oci` (a directory compatible with the
-    OCI image specification), `sysext`, `confext`, `portable` or `none`
-    (the OS image is solely intended as a build image to produce another
-    artifact).
+    OCI image specification), `sysext`, `confext`, `portable`,
+    `initrd-addon` or `none` (the OS image is solely intended as a build
+    image to produce another artifact).
 
     If the `disk` output format is used, the disk image is generated using
     `systemd-repart`. The repart partition definition files to use can be
