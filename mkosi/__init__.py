@@ -2112,11 +2112,19 @@ def install_kernel(context: Context, partitions: Sequence[Partition]) -> None:
 
 
 def make_uki(
-    context: Context, stub: Path, kver: str, kimg: Path, microcode: list[Path], output: Path
+    context: Context,
+    stub: Path,
+    kver: str,
+    kimg: Path,
+    microcode: list[Path],
+    output: Path,
 ) -> None:
     make_cpio(context.root, context.workspace / "initrd", sandbox=context.sandbox)
     maybe_compress(
-        context, context.config.compress_output, context.workspace / "initrd", context.workspace / "initrd"
+        context,
+        context.config.compress_output,
+        context.workspace / "initrd",
+        context.workspace / "initrd",
     )
 
     initrds = [context.workspace / "initrd"]
