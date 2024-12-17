@@ -253,7 +253,7 @@ The following settings cannot be configured in the configuration files:
 `--auto-bump=`, `-B`
 :   Automatically increment, or bump, the version know to `mkosi`, after a successful build. Each build in a
     series will have a version number one higher then the previous one. See also the description of the
-    related `bump` verb above.
+    related `bump` verb above and `mkosi.version` in the **Files** section.
 
 `--doc-format`
 :   The format to view documentation. The default, `auto` will try the 4 supported methods in this order:
