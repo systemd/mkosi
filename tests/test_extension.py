@@ -4,12 +4,15 @@ from pathlib import Path
 
 import pytest
 
+from mkosi.config import OutputFormat
+
 from . import Image, ImageConfig
 
 pytestmark = pytest.mark.integration
 
 
-def test_sysext(config: ImageConfig) -> None:
+@pytest.mark.parametrize("format", [f for f in OutputFormat if f.is_extension_image()])
+def test_extension(config: ImageConfig, format: OutputFormat) -> None:
     with Image(config) as image:
         image.build(["--clean-package-metadata=no", "--format=directory"])
 
@@ -19,10 +22,9 @@ def test_sysext(config: ImageConfig) -> None:
                     "--directory",
                     "",
                     "--incremental=no",
-                    "--base-tree",
-                    Path(image.output_dir) / "image",
+                    "--base-tree", Path(image.output_dir) / "image",
                     "--overlay",
                     "--package=dnsmasq",
-                    "--format=disk",
+                    f"--format={format}",
                 ]
-            )
+            )  # fmt: skip

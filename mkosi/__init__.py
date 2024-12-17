@@ -2147,6 +2147,29 @@ def make_uki(
         extract_pe_section(context, output, ".initrd", context.staging / context.config.output_split_initrd)
 
 
+def make_initrd_addon(context: Context, stub: Path, output: Path) -> None:
+    make_cpio(context.root, context.workspace / "initrd", sandbox=context.sandbox)
+    maybe_compress(
+        context,
+        context.config.compress_output,
+        context.workspace / "initrd",
+        context.workspace / "initrd",
+    )
+    arguments: list[PathString] = ["--initrd", workdir(context.workspace / "initrd")]
+    options: list[PathString] = [
+        "--ro-bind", context.workspace / "initrd", workdir(context.workspace / "initrd")
+    ]  # fmt: skip
+
+    with complete_step(f"Generating initrd PE addon {output}"):
+        run_ukify(
+            context,
+            stub,
+            output,
+            arguments=arguments,
+            options=options,
+        )
+
+
 def compressor_command(context: Context, compression: Compression) -> list[PathString]:
     """Returns a command suitable for compressing archives."""
 
@@ -3062,9 +3085,16 @@ def reuse_cache(context: Context) -> bool:
     return True
 
 
-def save_uki_components(
+def save_esp_components(
     context: Context,
 ) -> tuple[Optional[Path], Optional[str], Optional[Path], list[Path]]:
+    if context.config.output_format == OutputFormat.initrd_addon:
+        stub = systemd_addon_stub_binary(context)
+        if not stub.exists():
+            die(f"sd-stub not found at /{stub.relative_to(context.root)} in the image")
+
+        return shutil.copy2(stub, context.workspace), None, None, []
+
     if context.config.output_format not in (OutputFormat.uki, OutputFormat.esp):
         return None, None, None, []
 
@@ -3690,7 +3720,7 @@ def build_image(context: Context) -> None:
         run_hwdb(context)
 
         # These might be removed by the next steps, so let's save them for later if needed.
-        stub, kver, kimg, microcode = save_uki_components(context)
+        stub, kver, kimg, microcode = save_esp_components(context)
 
         remove_packages(context)
 
@@ -3737,6 +3767,9 @@ def build_image(context: Context) -> None:
         assert stub and kver and kimg
         make_uki(context, stub, kver, kimg, microcode, context.staging / context.config.output_split_uki)
         make_esp(context, context.staging / context.config.output_split_uki)
+    elif context.config.output_format == OutputFormat.initrd_addon:
+        assert stub
+        make_initrd_addon(context, stub, context.staging / context.config.output_with_format)
     elif context.config.output_format.is_extension_or_portable_image():
         make_extension_or_portable_image(context, context.staging / context.config.output_with_format)
     elif context.config.output_format == OutputFormat.directory:
