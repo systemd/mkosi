@@ -22,9 +22,7 @@ def have_vmspawn() -> bool:
     )
 
 
-@pytest.mark.parametrize(
-    "format", [f for f in OutputFormat if f not in (OutputFormat.confext, OutputFormat.sysext)]
-)
+@pytest.mark.parametrize("format", [f for f in OutputFormat if not f.is_extension_image()])
 def test_format(config: ImageConfig, format: OutputFormat) -> None:
     with Image(config) as image:
         if image.config.distribution == Distribution.rhel_ubi and format in (
@@ -50,7 +48,7 @@ def test_format(config: ImageConfig, format: OutputFormat) -> None:
         if image.config.distribution == Distribution.rhel_ubi:
             return
 
-        if format in (OutputFormat.tar, OutputFormat.oci, OutputFormat.none) or format.is_extension_image():
+        if format in (OutputFormat.tar, OutputFormat.oci, OutputFormat.none, OutputFormat.portable):
             return
 
         if format == OutputFormat.directory and not find_virtiofsd():

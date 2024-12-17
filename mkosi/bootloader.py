@@ -51,7 +51,7 @@ def want_efi(config: Config) -> bool:
 
     if (
         config.output_format == OutputFormat.cpio
-        or config.output_format.is_extension_image()
+        or config.output_format.is_extension_or_portable_image()
         or config.overlay
     ) and config.bootable == ConfigFeature.auto:
         return False
