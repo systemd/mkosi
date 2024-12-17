@@ -4722,6 +4722,10 @@ def summary(config: Config) -> str:
 
     summary = f"""\
 {bold(f"IMAGE: {config.image or 'default'}")}
+"""
+
+    if not config.image:
+        summary += f"""\
 
     {bold("CONFIG")}:
                            Profiles: {line_join_list(config.profiles)}
@@ -4739,6 +4743,9 @@ def summary(config: Config) -> str:
            Repo Signature/Key check: {yes_no(config.repository_key_check)}
               Fetch Repository Keys: {yes_no(config.repository_key_fetch)}
                        Repositories: {line_join_list(config.repositories)}
+"""
+
+    summary += f"""\
 
     {bold("OUTPUT")}:
                       Output Format: {config.output_format}
@@ -4849,7 +4856,8 @@ def summary(config: Config) -> str:
                             GPG Key: ({"default" if config.key is None else config.key})
 """
 
-    summary += f"""\
+    if not config.image:
+        summary += f"""\
 
     {bold("BUILD CONFIGURATION")}:
                          Tools Tree: {config.tools_tree}
