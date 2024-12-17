@@ -211,7 +211,7 @@ The following settings cannot be configured in the configuration files:
 
 `--force`, `-f`
 :   Replace the output file if it already exists. By default `mkosi` refuses to overwrite an existing image.
-    This option can be specified once, twice or trice to change the scope of artifact removals.
+    This option can be specified once, twice or thrice to change the scope of artifact removals.
     Specify once to delete all build artifacts from a previous run. Twice to include removal of the
     intermediary package cache from incremental builds. Thrice to remove all build artifacts and the the full
     package cache. See the **Files** section for more context and details.
