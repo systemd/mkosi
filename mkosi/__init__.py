@@ -1996,30 +1996,6 @@ def install_uki(
             f.write("fi\n")
 
 
-def install_pe_addons(context: Context) -> None:
-    if not context.config.pe_addons:
-        return
-
-    stub = systemd_addon_stub_binary(context)
-    if not stub.exists():
-        die(f"sd-stub not found at /{stub.relative_to(context.root)} in the image")
-
-    addon_dir = context.root / "boot/loader/addons"
-    with umask(~0o700):
-        addon_dir.mkdir(parents=True, exist_ok=True)
-
-    for addon in context.config.pe_addons:
-        output = addon_dir / f"{addon.output}.addon.efi"
-
-        with complete_step(f"Generating PE addon /{output.relative_to(context.root)}"):
-            run_ukify(
-                context,
-                stub,
-                output,
-                cmdline=addon.cmdline,
-            )
-
-
 def systemd_addon_stub_binary(context: Context) -> Path:
     arch = context.config.architecture.to_efi()
     stub = context.root / f"usr/lib/systemd/boot/efi/addon{arch}.efi.stub"
@@ -2545,13 +2521,6 @@ def check_inputs(config: Config) -> None:
             "Verity= is enabled but no verity certificate is configured",
             hint="Run mkosi genkey to generate a key/certificate pair",
         )
-
-    for addon in config.pe_addons:
-        if not addon.output:
-            die(
-                "PE addon configured without output filename",
-                hint="Use Output= to configure the output filename",
-            )
 
     for profile in config.unified_kernel_image_profiles:
         if "ID" not in profile.profile:
@@ -3711,7 +3680,6 @@ def build_image(context: Context) -> None:
         install_systemd_boot(context)
         install_grub(context)
         install_shim(context)
-        install_pe_addons(context)
         run_sysusers(context)
         run_tmpfiles(context)
         run_preset(context)

@@ -28,7 +28,6 @@ from mkosi.config import (
     ManifestFormat,
     Network,
     OutputFormat,
-    PEAddon,
     QemuDrive,
     QemuFirmware,
     QemuVsockCID,
@@ -215,14 +214,6 @@ def test_config() -> None:
                 "abc"
             ],
             "Passphrase": null,
-            "PeAddons": [
-                {
-                    "Cmdline": [
-                        "key=value"
-                    ],
-                    "Output": "abc"
-                }
-            ],
             "PostInstallationScripts": [
                 "/bar/qux"
             ],
@@ -495,7 +486,6 @@ def test_config() -> None:
         packages=[],
         pass_environment=["abc"],
         passphrase=None,
-        pe_addons=[PEAddon(output="abc", cmdline=["key=value"])],
         postinst_scripts=[Path("/bar/qux")],
         postoutput_scripts=[Path("/foo/src")],
         prepare_scripts=[Path("/run/foo")],
