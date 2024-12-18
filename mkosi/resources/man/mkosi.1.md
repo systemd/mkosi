@@ -978,17 +978,6 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     See the documentation for the `UKIProfile` section for information
     on which settings can be configured in UKI profile config files.
 
-`PeAddons=`, `--pe-addon`
-:   Build additional PE addons. Takes a comma separated list of paths to
-    PE addon config files. This option may be used multiple times in which case
-    each config gets built into a corresponding addon. Each addon has the name
-    of the config file, with the extension replaced with `.addon.efi`.
-    Config files in the `mkosi.pe-addons/` directory are automatically picked
-    up.
-
-    See the documentation for the `PEAddon` section for information on
-    which settings can be configured in PE addon config files.
-
 `Initrds=`, `--initrd`
 :   Use user-provided initrd(s). Takes a comma separated list of paths to initrd
     files. This option may be used multiple times in which case the initrd lists
@@ -1992,22 +1981,6 @@ config file is read:
     building multiple images, pass the listed environment variables to
     each individual subimage as if they were "universal" settings. See
     the **Building multiple images** section for more information.
-
-### [PEAddon] Section
-
-The `PEAddon` section can be used in UKI profile config files which are
-passed to the `PEAddons=` setting. The following settings can be
-specified in the `PEAddon` section:
-
-`Output=`
-:   The name the addon should have in the addons directory in the ESP.
-    The final name is the name specified here suffixed with
-    `.addon.efi`.
-
-`Cmdline=`
-:   The kernel command line arguments to store in the `.cmdline` section
-    of the addon. Takes a space delimited list of extra kernel command
-    line arguments.
 
 ### [UKIProfile] Section
 

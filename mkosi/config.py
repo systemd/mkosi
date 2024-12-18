@@ -1634,12 +1634,6 @@ PACKAGE_GLOBS = (
 
 
 @dataclasses.dataclass(frozen=True)
-class PEAddon:
-    output: str
-    cmdline: list[str]
-
-
-@dataclasses.dataclass(frozen=True)
 class UKIProfile:
     profile: dict[str, str]
     cmdline: list[str]
@@ -1783,7 +1777,6 @@ class Config:
     kernel_modules_include: list[str]
     kernel_modules_exclude: list[str]
     kernel_modules_include_host: bool
-    pe_addons: list[PEAddon]
 
     kernel_modules_initrd: bool
     kernel_modules_initrd_include: list[str]
@@ -2175,21 +2168,6 @@ def parse_ini(path: Path, only_sections: Collection[str] = ()) -> Iterator[tuple
 
     if section:
         yield section, "", ""
-
-
-PE_ADDON_SETTINGS: list[ConfigSetting[Any]] = [
-    ConfigSetting(
-        dest="output",
-        section="PEAddon",
-        parse=config_make_filename_parser("Output= requires a filename with no path components."),
-        default="",
-    ),
-    ConfigSetting(
-        dest="cmdline",
-        section="PEAddon",
-        parse=config_make_list_parser(delimiter=" "),
-    ),
-]
 
 
 UKI_PROFILE_SETTINGS: list[ConfigSetting[Any]] = [
@@ -2796,18 +2774,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Content",
         parse=config_make_list_parser(delimiter=","),
         help="Exclude the specified kernel modules from the image",
-    ),
-    ConfigSetting(
-        dest="pe_addons",
-        long="--pe-addon",
-        metavar="PATH",
-        section="Content",
-        parse=config_make_list_parser(
-            delimiter=",",
-            parse=make_simple_config_parser(PE_ADDON_SETTINGS, PEAddon),
-        ),
-        recursive_paths=("mkosi.pe-addons/*.conf",),
-        help="Configuration files to generate PE addons",
     ),
     ConfigSetting(
         dest="kernel_modules_initrd",
@@ -4815,7 +4781,6 @@ def summary(config: Config) -> str:
              Kernel Modules Include: {line_join_list(config.kernel_modules_include)}
              Kernel Modules Exclude: {line_join_list(config.kernel_modules_exclude)}
         Kernel Modules Include Host: {yes_no(config.kernel_modules_include_host)}
-                          PE Addons: {line_join_list(config.pe_addons)}
 
               Kernel Modules Initrd: {yes_no(config.kernel_modules_initrd)}
       Kernel Modules Initrd Include: {line_join_list(config.kernel_modules_initrd_include)}
@@ -5052,9 +5017,6 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         assert "Type" in keysource
         return KeySource(type=KeySourceType(keysource["Type"]), source=keysource.get("Source", ""))
 
-    def pe_addon_transformer(addons: list[dict[str, Any]], fieldtype: type[PEAddon]) -> list[PEAddon]:
-        return [PEAddon(output=addon["Output"], cmdline=addon["Cmdline"]) for addon in addons]
-
     def uki_profile_transformer(
         profiles: list[dict[str, Any]],
         fieldtype: type[UKIProfile],
@@ -5100,7 +5062,6 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         Network: enum_transformer,
         KeySource: key_source_transformer,
         Vmm: enum_transformer,
-        list[PEAddon]: pe_addon_transformer,
         list[UKIProfile]: uki_profile_transformer,
         list[ArtifactOutput]: enum_list_transformer,
         CertificateSource: certificate_source_transformer,
