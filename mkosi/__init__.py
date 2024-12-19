@@ -498,10 +498,7 @@ def finalize_host_scripts(
         if context.config.find_binary(binary):
             scripts[binary] = (binary, "--root", "/buildroot")
     if ukify := context.config.find_binary("ukify"):
-        # A script will always run with the tools tree mounted, so we pass binary=None to disable
-        # the conditional search logic of python_binary() depending on whether the binary is in an
-        # extra search path or not.
-        scripts["ukify"] = (python_binary(context.config, binary=None), ukify)
+        scripts["ukify"] = (python_binary(context.config), ukify)
     return finalize_scripts(context.config, scripts | dict(helpers))
 
 
@@ -542,7 +539,6 @@ def run_configure_scripts(config: Config) -> Config:
                     ["/work/configure"],
                     env=env | config.environment,
                     sandbox=config.sandbox(
-                        binary=None,
                         options=[
                             "--dir", "/work/src",
                             "--chdir", "/work/src",
@@ -617,7 +613,6 @@ def run_sync_scripts(config: Config) -> None:
                     env=env | config.environment,
                     stdin=sys.stdin,
                     sandbox=config.sandbox(
-                        binary=None,
                         network=True,
                         options=options,
                         overlay=Path(sandbox_tree),
@@ -656,7 +651,6 @@ def script_maybe_chroot_sandbox(
     with finalize_host_scripts(context, helpers) as hd:
         if script.suffix != ".chroot":
             with context.sandbox(
-                binary=None,
                 network=network,
                 options=[
                     *options,
@@ -981,7 +975,6 @@ def run_postoutput_scripts(context: Context) -> None:
                     ["/work/postoutput"],
                     env=env | context.config.environment,
                     sandbox=context.sandbox(
-                        binary=None,
                         # postoutput scripts should run as (fake) root so that file ownership is
                         # always recorded as if owned by root.
                         options=[
@@ -1034,7 +1027,6 @@ def install_tree(
             ["systemd-dissect", "--copy-from", workdir(src), "/", workdir(t)],
             env=dict(SYSTEMD_DISSECT_VERITY_EMBEDDED="no", SYSTEMD_DISSECT_VERITY_SIDECAR="no"),
             sandbox=config.sandbox(
-                binary="systemd-dissect",
                 devices=True,
                 network=True,
                 options=[
@@ -1495,7 +1487,7 @@ def run_ukify(
     (context.workspace / "cmdline").write_text(f"{' '.join(cmdline)}\x00")
 
     cmd = [
-        python_binary(context.config, binary=ukify),
+        python_binary(context.config),
         ukify,
         "build",
         *arguments,
@@ -1570,7 +1562,6 @@ def run_ukify(
         ),
         env=context.config.environment,
         sandbox=context.sandbox(
-            binary=ukify,
             options=[*opt, *options],
             devices=context.config.secure_boot_key_source.type != KeySourceType.file,
         ),
@@ -1658,7 +1649,7 @@ def build_uki(
         # new .ucode section support?
         if (
             systemd_tool_version(
-                python_binary(context.config, binary=ukify),
+                python_binary(context.config),
                 ukify,
                 sandbox=context.sandbox,
             )
@@ -1731,7 +1722,7 @@ def find_entry_token(context: Context) -> str:
             not in run(
                 ["kernel-install", "--help"],
                 stdout=subprocess.PIPE,
-                sandbox=context.sandbox(binary="kernel-install"),
+                sandbox=context.sandbox(),
             ).stdout
         )
         or systemd_tool_version("kernel-install", sandbox=context.sandbox) < "255.1"
@@ -1741,9 +1732,7 @@ def find_entry_token(context: Context) -> str:
     output = json.loads(
         run(
             ["kernel-install", "--root=/buildroot", "--json=pretty", "inspect"],
-            sandbox=context.sandbox(
-                binary="kernel-install", options=["--ro-bind", context.root, "/buildroot"]
-            ),
+            sandbox=context.sandbox(options=["--ro-bind", context.root, "/buildroot"]),
             stdout=subprocess.PIPE,
             env={"BOOT_ROOT": "/boot"},
         ).stdout
@@ -2186,7 +2175,7 @@ def maybe_compress(
             src.unlink()
 
             with dst.open("wb") as o:
-                run(cmd, stdin=i, stdout=o, sandbox=context.sandbox(binary=cmd[0]))
+                run(cmd, stdin=i, stdout=o, sandbox=context.sandbox())
 
 
 def copy_nspawn_settings(context: Context) -> None:
@@ -2336,10 +2325,7 @@ def calculate_signature_gpg(context: Context) -> None:
         run(
             cmdline,
             env=env,
-            sandbox=context.sandbox(
-                binary="gpg",
-                options=options,
-            ),
+            sandbox=context.sandbox(options=options),
         )
 
 
@@ -2358,7 +2344,6 @@ def calculate_signature_sop(context: Context) -> None:
             stdin=i,
             stdout=o,
             sandbox=context.sandbox(
-                binary=context.config.openpgp_tool,
                 options=[
                     "--bind", context.config.key, "/signing-key.pgp",
                     "--bind", context.staging, workdir(context.staging),
@@ -2563,7 +2548,7 @@ def check_ukify(
 ) -> None:
     ukify = check_tool(config, "ukify", "/usr/lib/systemd/ukify", reason=reason, hint=hint)
 
-    v = systemd_tool_version(python_binary(config, binary=ukify), ukify, sandbox=config.sandbox)
+    v = systemd_tool_version(python_binary(config), ukify, sandbox=config.sandbox)
     if v < version:
         die(
             f"Found '{ukify}' with version {v} but version {version} or newer is required to {reason}.",
@@ -2794,9 +2779,7 @@ def run_sysusers(context: Context) -> None:
     with complete_step("Generating system users"):
         run(
             ["systemd-sysusers", "--root=/buildroot"],
-            sandbox=context.sandbox(
-                binary="systemd-sysusers", options=["--bind", context.root, "/buildroot"]
-            ),
+            sandbox=context.sandbox(options=["--bind", context.root, "/buildroot"]),
         )
 
 
@@ -2827,7 +2810,6 @@ def run_tmpfiles(context: Context) -> None:
             # as success by the systemd-tmpfiles service so we handle those as success as well.
             success_exit_status=(0, 65, 73),
             sandbox=context.sandbox(
-                binary="systemd-tmpfiles",
                 options=[
                     "--bind", context.root, "/buildroot",
                     # systemd uses acl.h to parse ACLs in tmpfiles snippets which uses the host's
@@ -2853,11 +2835,11 @@ def run_preset(context: Context) -> None:
     with complete_step("Applying presets…"):
         run(
             ["systemctl", "--root=/buildroot", "preset-all"],
-            sandbox=context.sandbox(binary="systemctl", options=["--bind", context.root, "/buildroot"]),
+            sandbox=context.sandbox(options=["--bind", context.root, "/buildroot"]),
         )
         run(
             ["systemctl", "--root=/buildroot", "--global", "preset-all"],
-            sandbox=context.sandbox(binary="systemctl", options=["--bind", context.root, "/buildroot"]),
+            sandbox=context.sandbox(options=["--bind", context.root, "/buildroot"]),
         )
 
 
@@ -2872,7 +2854,7 @@ def run_hwdb(context: Context) -> None:
     with complete_step("Generating hardware database"):
         run(
             ["systemd-hwdb", "--root=/buildroot", "--usr", "--strict", "update"],
-            sandbox=context.sandbox(binary="systemd-hwdb", options=["--bind", context.root, "/buildroot"]),
+            sandbox=context.sandbox(options=["--bind", context.root, "/buildroot"]),
         )
 
     # Remove any existing hwdb in /etc in favor of the one we just put in /usr.
@@ -2891,7 +2873,7 @@ def run_firstboot(context: Context) -> None:
     if password and not hashed:
         password = run(
             ["openssl", "passwd", "-stdin", "-6"],
-            sandbox=context.sandbox(binary="openssl"),
+            sandbox=context.sandbox(),
             input=password,
             stdout=subprocess.PIPE,
         ).stdout.strip()
@@ -2925,9 +2907,7 @@ def run_firstboot(context: Context) -> None:
     with complete_step("Applying first boot settings"):
         run(
             ["systemd-firstboot", "--root=/buildroot", "--force", *options],
-            sandbox=context.sandbox(
-                binary="systemd-firstboot", options=["--bind", context.root, "/buildroot"]
-            ),
+            sandbox=context.sandbox(options=["--bind", context.root, "/buildroot"]),
         )
 
         # Initrds generally don't ship with only /usr so there's not much point in putting the
@@ -2952,7 +2932,7 @@ def run_selinux_relabel(context: Context) -> None:
     with complete_step(f"Relabeling files using {policy} policy"):
         run(
             [setfiles, "-mFr", "/buildroot", "-c", binpolicy, fc, "/buildroot"],
-            sandbox=context.sandbox(binary=setfiles, options=["--bind", context.root, "/buildroot"]),
+            sandbox=context.sandbox(options=["--bind", context.root, "/buildroot"]),
             check=context.config.selinux_relabel == ConfigFeature.enabled,
         )
 
@@ -3017,7 +2997,6 @@ def have_cache(config: Config) -> bool:
                     input=new,
                     check=False,
                     sandbox=config.sandbox(
-                        binary="diff",
                         tools=False,
                         options=["--bind", manifest, workdir(manifest)],
                     ),
@@ -3575,10 +3554,9 @@ def copy_repository_metadata(config: Config, dst: Path) -> None:
 
                 def sandbox(
                     *,
-                    binary: Optional[PathString],
                     options: Sequence[PathString] = (),
                 ) -> AbstractContextManager[list[PathString]]:
-                    return config.sandbox(binary=binary, options=[*options, *exclude])
+                    return config.sandbox(options=[*options, *exclude])
 
                 copy_tree(src, subdst, sandbox=sandbox)
 
@@ -3796,7 +3774,6 @@ def run_sandbox(args: Args, config: Config) -> None:
         env=os.environ | {"MKOSI_IN_SANDBOX": "1"},
         log=False,
         sandbox=config.sandbox(
-            binary=cmdline[0],
             devices=True,
             network=True,
             relaxed=True,
@@ -3876,7 +3853,6 @@ def run_shell(args: Args, config: Config) -> None:
                 stdin=sys.stdin,
                 env=config.environment,
                 sandbox=config.sandbox(
-                    binary="systemd-repart",
                     network=True,
                     devices=True,
                     options=["--bind", fname, workdir(fname)],
@@ -3987,7 +3963,6 @@ def run_shell(args: Args, config: Config) -> None:
             env=os.environ | config.environment,
             log=False,
             sandbox=config.sandbox(
-                binary="systemd-nspawn",
                 devices=True,
                 network=True,
                 relaxed=True,
@@ -4029,7 +4004,6 @@ def run_systemd_tool(tool: str, args: Args, config: Config) -> None:
         env=os.environ | config.environment,
         log=False,
         sandbox=config.sandbox(
-            binary=tool_path,
             network=True,
             devices=config.output_format == OutputFormat.disk,
             relaxed=True,
@@ -4050,11 +4024,10 @@ def run_serve(args: Args, config: Config) -> None:
     """Serve the output directory via a tiny HTTP server"""
 
     run(
-        [python_binary(config, binary=None), "-m", "http.server", "8081"],
+        [python_binary(config), "-m", "http.server", "8081"],
         stdin=sys.stdin,
         stdout=sys.stdout,
         sandbox=config.sandbox(
-            binary=python_binary(config, binary=None),
             network=True,
             relaxed=True,
             options=["--chdir", config.output_dir_or_cwd()],
@@ -4244,7 +4217,6 @@ def run_clean_scripts(config: Config) -> None:
                     ["/work/clean"],
                     env=env | config.environment,
                     sandbox=config.sandbox(
-                        binary=None,
                         tools=False,
                         options=[
                             "--dir", "/work/src",

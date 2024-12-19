@@ -169,7 +169,7 @@ class Installer(DistributionInstaller):
                     ["dpkg-deb", "--fsys-tarfile", "/dev/stdin"],
                     stdin=i,
                     stdout=o,
-                    sandbox=context.sandbox(binary="dpkg-deb"),
+                    sandbox=context.sandbox(),
                 )
                 extract_tar(
                     Path(o.name),
@@ -298,9 +298,7 @@ def fixup_os_release(context: Context) -> None:
                     f"/{candidate}.dpkg",
                     f"/{candidate}",
                 ],
-                sandbox=context.sandbox(
-                    binary="dpkg-divert", options=["--bind", context.root, "/buildroot"]
-                ),
+                sandbox=context.sandbox(options=["--bind", context.root, "/buildroot"]),
             )
 
         newosrelease.rename(osrelease)
