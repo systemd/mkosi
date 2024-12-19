@@ -111,7 +111,7 @@ class Manifest:
             ],
             stdout=subprocess.PIPE,
             sandbox=(
-                self.context.sandbox(binary="rpm", options=["--ro-bind", self.context.root, "/buildroot"])
+                self.context.sandbox(options=["--ro-bind", self.context.root, "/buildroot"])
             ),
         )  # fmt: skip
 
@@ -158,10 +158,7 @@ class Manifest:
                     ],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.DEVNULL,
-                    sandbox=self.context.sandbox(
-                        binary="rpm",
-                        options=["--ro-bind", self.context.root, "/buildroot"],
-                    ),
+                    sandbox=self.context.sandbox(options=["--ro-bind", self.context.root, "/buildroot"]),
                 )
                 changelog = c.stdout.strip()
                 source = SourcePackageManifest(srpm, changelog)
@@ -178,10 +175,7 @@ class Manifest:
                 "--showformat", r"${Package}\t${source:Package}\t${Version}\t${Architecture}\t${Installed-Size}\t${db-fsys:Last-Modified}\n",  # noqa: E501
             ],
             stdout=subprocess.PIPE,
-            sandbox=self.context.sandbox(
-                binary="dpkg-query",
-                options=["--ro-bind", self.context.root, "/buildroot"],
-            ),
+            sandbox=self.context.sandbox(options=["--ro-bind", self.context.root, "/buildroot"]),
         )  # fmt: skip
 
         packages = sorted(c.stdout.splitlines())

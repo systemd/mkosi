@@ -63,14 +63,12 @@ class Context:
     def sandbox(
         self,
         *,
-        binary: Optional[PathString],
         network: bool = False,
         devices: bool = False,
         scripts: Optional[Path] = None,
         options: Sequence[PathString] = (),
     ) -> AbstractContextManager[list[PathString]]:
         return self.config.sandbox(
-            binary=binary,
             network=network,
             devices=devices,
             scripts=scripts,

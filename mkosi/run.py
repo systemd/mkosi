@@ -397,14 +397,12 @@ class SandboxProtocol(Protocol):
     def __call__(
         self,
         *,
-        binary: Optional[PathString],
         options: Sequence[PathString] = (),
     ) -> AbstractContextManager[list[PathString]]: ...
 
 
 def nosandbox(
     *,
-    binary: Optional[PathString],
     options: Sequence[PathString] = (),
 ) -> AbstractContextManager[list[PathString]]:
     return contextlib.nullcontext([])
