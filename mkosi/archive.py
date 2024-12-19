@@ -50,7 +50,6 @@ def make_tar(src: Path, dst: Path, *, sandbox: SandboxProtocol = nosandbox) -> N
             stdout=f,
             # Make sure tar uses user/group information from the root directory instead of the host.
             sandbox=sandbox(
-                binary="tar",
                 options=[
                     "--ro-bind", src, workdir(src, sandbox),
                     *finalize_passwd_symlinks(workdir(src, sandbox)),
@@ -96,7 +95,6 @@ def extract_tar(
             *options,
         ],
         sandbox=sandbox(
-            binary="tar",
             # Make sure tar uses user/group information from the root directory instead of the host.
             options=[
                 "--ro-bind", src, workdir(src, sandbox),
@@ -138,7 +136,6 @@ def make_cpio(
             input="\0".join(os.fspath(f) for f in files),
             stdout=f,
             sandbox=sandbox(
-                binary="cpio",
                 options=[
                     "--ro-bind", src, workdir(src, sandbox),
                     *finalize_passwd_symlinks(workdir(src, sandbox))

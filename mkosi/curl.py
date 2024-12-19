@@ -24,7 +24,6 @@ def curl(config: Config, url: str, output_dir: Path) -> None:
             url,
         ],
         sandbox=config.sandbox(
-            binary="curl",
             network=True,
             options=["--bind", output_dir, workdir(output_dir), *finalize_crypto_mounts(config)],
         ),

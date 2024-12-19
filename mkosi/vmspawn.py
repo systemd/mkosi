@@ -115,7 +115,6 @@ def run_vmspawn(args: Args, config: Config) -> None:
             env=os.environ | config.environment,
             log=False,
             sandbox=config.sandbox(
-                binary=cmdline[0],
                 network=True,
                 devices=True,
                 relaxed=True,

@@ -135,7 +135,6 @@ class PackageManager:
         options: Sequence[PathString] = (),
     ) -> AbstractContextManager[list[PathString]]:
         return context.sandbox(
-            binary=cls.executable(context.config),
             network=True,
             options=[
                 "--bind", context.root, "/buildroot",

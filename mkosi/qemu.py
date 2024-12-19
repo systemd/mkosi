@@ -159,7 +159,7 @@ class KernelType(StrEnum):
         type = run(
             ["bootctl", "kernel-identify", workdir(path)],
             stdout=subprocess.PIPE,
-            sandbox=config.sandbox(binary="bootctl", options=["--ro-bind", path, workdir(path)]),
+            sandbox=config.sandbox(options=["--ro-bind", path, workdir(path)]),
         ).stdout.strip()
 
         try:
@@ -178,15 +178,13 @@ class OvmfConfig:
     vars_format: str
 
 
-def find_ovmf_firmware(config: Config, qemu: Path, firmware: QemuFirmware) -> Optional[OvmfConfig]:
+def find_ovmf_firmware(config: Config, firmware: QemuFirmware) -> Optional[OvmfConfig]:
     if not firmware.is_uefi():
         return None
 
-    tools = Path("/") if any(qemu.is_relative_to(d) for d in config.extra_search_paths) else config.tools()
-
-    desc = list((tools / "usr/share/qemu/firmware").glob("*"))
-    if tools == Path("/"):
-        desc += list((tools / "etc/qemu/firmware").glob("*"))
+    desc = list((config.tools() / "usr/share/qemu/firmware").glob("*"))
+    if config.tools() == Path("/"):
+        desc += list((config.tools() / "etc/qemu/firmware").glob("*"))
 
     arch = config.architecture.to_qemu()
     machine = config.architecture.default_qemu_machine()
@@ -235,7 +233,7 @@ def find_ovmf_firmware(config: Config, qemu: Path, firmware: QemuFirmware) -> Op
         logging.debug(f"Using {p.name} firmware description")
 
         return OvmfConfig(
-            description=Path("/") / p.relative_to(tools),
+            description=Path("/") / p.relative_to(config.tools()),
             firmware=Path(j["mapping"]["executable"]["filename"]),
             format=j["mapping"]["executable"]["format"],
             vars=Path(j["mapping"]["nvram-template"]["filename"]),
@@ -258,10 +256,7 @@ def start_swtpm(config: Config) -> Iterator[Path]:
                 "sha256",
                 "--config", "/dev/null",
             ],
-            sandbox=config.sandbox(
-                binary="swtpm_setup",
-                options=["--bind", state, workdir(Path(state))],
-            ),
+            sandbox=config.sandbox(options=["--bind", state, workdir(Path(state))]),
             stdout=None if ARG_DEBUG.get() else subprocess.DEVNULL,
         )  # fmt: skip
 
@@ -280,7 +275,6 @@ def start_swtpm(config: Config) -> Iterator[Path]:
                 cmdline,
                 pass_fds=(sock.fileno(),),
                 sandbox=config.sandbox(
-                    binary="swtpm",
                     options=["--bind", state, workdir(Path(state))],
                     setup=scope_cmd(
                         name=f"mkosi-swtpm-{config.machine_or_name()}",
@@ -314,9 +308,7 @@ def systemd_escape(config: Config, s: PathString, path: bool = False) -> str:
     if path:
         cmdline += ["--path"]
 
-    return run(
-        cmdline, stdout=subprocess.PIPE, sandbox=config.sandbox(binary="systemd-escape")
-    ).stdout.strip()
+    return run(cmdline, stdout=subprocess.PIPE, sandbox=config.sandbox()).stdout.strip()
 
 
 @contextlib.contextmanager
@@ -404,7 +396,6 @@ def start_virtiofsd(
             # features.
             preexec_fn=become_root_in_subuid_range if not scope and not uidmap else None,
             sandbox=config.sandbox(
-                binary=virtiofsd,
                 options=[
                     "--bind", directory, workdir(directory),
                     *(["--become-root"] if uidmap else []),
@@ -476,7 +467,7 @@ def make_nocow(config: Config, path: Path) -> None:
         ["chattr", "+C", workdir(path)],
         check=False,
         stderr=subprocess.DEVNULL if not ARG_DEBUG.get() else None,
-        sandbox=config.sandbox(binary="chattr", options=["--bind", path, workdir(path)]),
+        sandbox=config.sandbox(options=["--bind", path, workdir(path)]),
     )
 
 
@@ -537,7 +528,6 @@ def start_journal_remote(config: Config, sockfd: int) -> Iterator[None]:
             ],
             pass_fds=(sockfd,),
             sandbox=config.sandbox(
-                binary=bin,
                 options=[
                     "--bind", config.forward_journal.parent, workdir(config.forward_journal.parent),
                     "--ro-bind", f.name, "/etc/systemd/journal-remote.conf",
@@ -591,7 +581,7 @@ def copy_ephemeral(config: Config, src: Path) -> Iterator[Path]:
             if config.output_format in (OutputFormat.disk, OutputFormat.esp):
                 attr = run(
                     ["lsattr", "-l", workdir(src)],
-                    sandbox=config.sandbox(binary="lsattr", options=["--ro-bind", src, workdir(src)]),
+                    sandbox=config.sandbox(options=["--ro-bind", src, workdir(src)]),
                     stdout=subprocess.PIPE,
                 ).stdout
 
@@ -629,7 +619,7 @@ def qemu_version(config: Config, binary: Path) -> GenericVersion:
         run(
             [binary, "--version"],
             stdout=subprocess.PIPE,
-            sandbox=config.sandbox(binary=binary),
+            sandbox=config.sandbox(),
         ).stdout.split()[3]
     )
 
@@ -650,10 +640,7 @@ def generate_scratch_fs(config: Config) -> Iterator[Path]:
         run(
             [f"mkfs.{fs}", "-L", "scratch", *extra.split(), workdir(Path(scratch.name))],
             stdout=subprocess.DEVNULL,
-            sandbox=config.sandbox(
-                binary=f"mkfs.{fs}",
-                options=["--bind", scratch.name, workdir(Path(scratch.name))],
-            ),
+            sandbox=config.sandbox(options=["--bind", scratch.name, workdir(Path(scratch.name))]),
         )
         yield Path(scratch.name)
 
@@ -708,7 +695,6 @@ def finalize_firmware_variables(
                 "--loglevel", "WARNING",
             ],
             sandbox=config.sandbox(
-                binary=qemu,
                 options=[
                     "--bind", ovmf_vars.name, workdir(Path(ovmf_vars.name)),
                     "--ro-bind", ovmf.vars, workdir(ovmf.vars),
@@ -717,11 +703,8 @@ def finalize_firmware_variables(
             ),
         )  # fmt: skip
     else:
-        tools = (
-            Path("/") if any(qemu.is_relative_to(d) for d in config.extra_search_paths) else config.tools()
-        )
         vars = (
-            tools / ovmf.vars.relative_to("/")
+            config.tools() / ovmf.vars.relative_to("/")
             if config.qemu_firmware_variables == Path("microsoft") or not config.qemu_firmware_variables
             else config.qemu_firmware_variables
         )
@@ -745,7 +728,7 @@ def apply_runtime_size(config: Config, image: Path) -> None:
             "--offline=yes",
             workdir(image),
         ],
-        sandbox=config.sandbox(binary="systemd-repart", options=["--bind", image, workdir(image)]),
+        sandbox=config.sandbox(options=["--bind", image, workdir(image)]),
     )  # fmt: skip
 
 
@@ -949,7 +932,7 @@ def register_machine(config: Config, pid: int, fname: Path) -> None:
         ],  # fmt: skip
         foreground=False,
         env=os.environ | config.environment,
-        sandbox=config.sandbox(binary="busctl", relaxed=True),
+        sandbox=config.sandbox(relaxed=True),
         # systemd-machined might not be installed so let's ignore any failures unless running in debug mode.
         check=ARG_DEBUG.get(),
         stderr=None if ARG_DEBUG.get() else subprocess.DEVNULL,
@@ -1045,7 +1028,7 @@ def run_qemu(args: Args, config: Config) -> None:
                 "or provide a -kernel argument to mkosi qemu"
             )
 
-    ovmf = find_ovmf_firmware(config, qemu, firmware)
+    ovmf = find_ovmf_firmware(config, firmware)
 
     # A shared memory backend might increase ram usage so only add one if actually necessary for virtiofsd.
     shm = []
@@ -1176,7 +1159,6 @@ def run_qemu(args: Args, config: Config) -> None:
                     workdir(fname),
                 ],  # fmt: skip
                 sandbox=config.sandbox(
-                    binary="systemd-repart",
                     options=[
                         "--bind", fname.parent, workdir(fname.parent),
                         "--ro-bind", src, workdir(src),
@@ -1405,7 +1387,6 @@ def run_qemu(args: Args, config: Config) -> None:
             env=os.environ | config.environment,
             foreground=True,
             sandbox=config.sandbox(
-                binary=qemu,
                 network=True,
                 devices=True,
                 relaxed=True,
@@ -1466,7 +1447,6 @@ def run_ssh(args: Args, config: Config) -> None:
         env=os.environ | config.environment,
         log=False,
         sandbox=config.sandbox(
-            binary="ssh",
             network=True,
             devices=True,
             relaxed=True,

@@ -571,6 +571,7 @@ def parse_path(
     secret: bool = False,
     absolute: bool = False,
     directory: bool = False,
+    exclude: Sequence[PathString] = (),
     constants: Sequence[str] = (),
 ) -> Path:
     if value in constants:
@@ -593,6 +594,10 @@ def parse_path(
 
     if absolute and not path.is_absolute():
         die(f"{value} must be an absolute path")
+
+    for e in exclude:
+        if path.is_relative_to(e):
+            die(f"{path} can not be relative to {e}")
 
     if resolve:
         path = path.resolve()
@@ -1094,6 +1099,7 @@ def make_path_parser(
     expanduser: bool = True,
     expandvars: bool = True,
     secret: bool = False,
+    exclude: Sequence[PathString] = (),
     constants: Sequence[str] = (),
 ) -> Callable[[str], Path]:
     return functools.partial(
@@ -1103,6 +1109,7 @@ def make_path_parser(
         expanduser=expanduser,
         expandvars=expandvars,
         secret=secret,
+        exclude=exclude,
         constants=constants,
     )
 
@@ -2062,7 +2069,6 @@ class Config:
     def sandbox(
         self,
         *,
-        binary: Optional[PathString],
         network: bool = False,
         devices: bool = False,
         relaxed: bool = False,
@@ -2073,21 +2079,16 @@ class Config:
         setup: Sequence[PathString] = (),
     ) -> AbstractContextManager[list[PathString]]:
         opt: list[PathString] = [*options]
+
         if not relaxed:
+            opt += flatten(("--ro-bind", d, d) for d in self.extra_search_paths)
+
             if p := self.proxy_peer_certificate:
                 opt += ["--ro-bind", os.fspath(p), "/proxy.cacert"]
             if p := self.proxy_client_certificate:
                 opt += ["--ro-bind", os.fspath(p), "/proxy.clientcert"]
             if p := self.proxy_client_key:
                 opt += ["--ro-bind", os.fspath(p), "/proxy.clientkey"]
-
-        if (
-            binary
-            and (path := self.find_binary(binary, tools=tools))
-            and any(path.is_relative_to(d) for d in self.extra_search_paths)
-        ):
-            tools = False
-            opt += flatten(("--ro-bind", d, d) for d in self.extra_search_paths if not relaxed)
 
         return sandbox_cmd(
             network=network,
@@ -3175,7 +3176,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--extra-search-path",
         metavar="PATH",
         section="Build",
-        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser(exclude=["/usr"])),
         help="List of comma-separated paths to look for programs before looking in PATH",
         scope=SettingScope.universal,
     ),
@@ -5102,7 +5103,7 @@ def want_selinux_relabel(
 
     policy = run(
         ["sh", "-c", f". {workdir(selinux)} && echo $SELINUXTYPE"],
-        sandbox=config.sandbox(binary="sh", options=["--ro-bind", selinux, workdir(selinux)]),
+        sandbox=config.sandbox(options=["--ro-bind", selinux, workdir(selinux)]),
         stdout=subprocess.PIPE,
     ).stdout.strip()
     if not policy:
@@ -5144,7 +5145,7 @@ def systemd_tool_version(*tool: PathString, sandbox: SandboxProtocol = nosandbox
         run(
             [*tool, "--version"],
             stdout=subprocess.PIPE,
-            sandbox=sandbox(binary=tool[-1]),
+            sandbox=sandbox(),
         )
         .stdout.split()[2]
         .strip("()")

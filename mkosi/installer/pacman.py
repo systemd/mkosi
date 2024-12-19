@@ -191,10 +191,7 @@ class Pacman(PackageManager):
                     key=lambda p: GenericVersion(Path(p).name),
                 ),
             ],
-            sandbox=context.sandbox(
-                binary="repo-add",
-                options=["--bind", context.repository, workdir(context.repository)],
-            ),
+            sandbox=context.sandbox(options=["--bind", context.repository, workdir(context.repository)]),
         )
 
         (context.sandbox_tree / "etc/mkosi-local.conf").write_text(

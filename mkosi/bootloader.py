@@ -232,7 +232,6 @@ def grub_mkimage(
                 *modules,
             ],
             sandbox=context.sandbox(
-                binary=mkimage,
                 options=[
                     "--bind", directory, "/grub",
                     "--ro-bind", earlyconfig.name, workdir(Path(earlyconfig.name)),
@@ -262,17 +261,11 @@ def find_signed_grub_image(context: Context) -> Optional[Path]:
     return None
 
 
-def python_binary(config: Config, *, binary: Optional[PathString]) -> PathString:
-    tools = (
-        not binary
-        or not (path := config.find_binary(binary))
-        or not any(path.is_relative_to(d) for d in config.extra_search_paths)
-    )
-
+def python_binary(config: Config) -> PathString:
     # If there's no tools tree, prefer the interpreter from MKOSI_INTERPRETER. If there is a tools
     # tree, just use the default python3 interpreter.
     exe = Path(sys.executable)
-    return "python3" if (tools and config.tools_tree) or not exe.is_relative_to("/usr") else exe
+    return "python3" if config.tools_tree or not exe.is_relative_to("/usr") else exe
 
 
 def extract_pe_section(context: Context, binary: Path, section: str, output: Path) -> Path:
@@ -297,11 +290,10 @@ def extract_pe_section(context: Context, binary: Path, section: str, output: Pat
 
     with open(output, "wb") as f:
         result = run(
-            [python_binary(context.config, binary=None)],
+            [python_binary(context.config)],
             input=pefile,
             stdout=f,
             sandbox=context.sandbox(
-                binary=python_binary(context.config, binary=None),
                 options=["--ro-bind", binary, workdir(binary)],
             ),
             success_exit_status=(0, 67),
@@ -392,7 +384,6 @@ def grub_bios_setup(context: Context, partitions: Sequence[Partition]) -> None:
                 workdir(context.staging / context.config.output_with_format),
             ],
             sandbox=context.sandbox(
-                binary=setup,
                 options=[
                     "--bind", directory, "/grub",
                     "--bind", context.staging, workdir(context.staging),
@@ -428,7 +419,7 @@ def certificate_common_name(context: Context, certificate: Path) -> str:
             "-in", workdir(certificate),
         ],
         stdout=subprocess.PIPE,
-        sandbox=context.sandbox(binary="openssl", options=["--ro-bind", certificate, workdir(certificate)]),
+        sandbox=context.sandbox(options=["--ro-bind", certificate, workdir(certificate)]),
     ).stdout  # fmt: skip
 
     for line in output.splitlines():
@@ -462,7 +453,7 @@ def run_systemd_sign_tool(
             cmdline,
             stdout=stdout,
             env={**config.environment, **env},
-            sandbox=config.sandbox(binary=cmdline[0], options=options, devices=devices),
+            sandbox=config.sandbox(options=options, devices=devices),
         )
 
     assert certificate
@@ -498,7 +489,6 @@ def run_systemd_sign_tool(
         stdout=stdout,
         env={**config.environment, **env},
         sandbox=config.sandbox(
-            binary=cmd[0],
             options=opt,
             devices=(
                 devices
@@ -537,7 +527,6 @@ def pesign_prepare(context: Context) -> None:
             ],
             stdout=f,
             sandbox=context.sandbox(
-                binary="openssl",
                 options=[
                     "--ro-bind", context.config.secure_boot_key, workdir(context.config.secure_boot_key),
                     "--ro-bind", context.config.secure_boot_certificate, workdir(context.config.secure_boot_certificate),  # noqa: E501
@@ -556,7 +545,6 @@ def pesign_prepare(context: Context) -> None:
             "-d", workdir(context.workspace / "pesign"),
         ],
         sandbox=context.sandbox(
-            binary="pk12util",
             options=[
                 "--ro-bind", context.workspace / "secure-boot.p12", workdir(context.workspace / "secure-boot.p12"),  # noqa: E501
                 "--ro-bind", context.workspace / "pesign", workdir(context.workspace / "pesign"),
@@ -626,7 +614,6 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
             ),
             env=context.config.environment,
             sandbox=context.sandbox(
-                binary="sbsign",
                 options=options,
                 devices=context.config.secure_boot_key_source.type != KeySourceType.file,
             ),
@@ -657,7 +644,6 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
             ),
             env=context.config.environment,
             sandbox=context.sandbox(
-                binary="pesign",
                 options=[
                     "--ro-bind", context.workspace / "pesign", workdir(context.workspace / "pesign"),
                     "--ro-bind", input, workdir(input),
@@ -834,7 +820,6 @@ def install_systemd_boot(context: Context) -> None:
                         "-out", workdir(context.workspace / "mkosi.der"),
                     ],
                     sandbox=context.sandbox(
-                        binary="openssl",
                         options=[
                             "--ro-bind",
                             context.config.secure_boot_certificate,
@@ -854,7 +839,6 @@ def install_systemd_boot(context: Context) -> None:
                         workdir(context.workspace / "mkosi.der"),
                     ],
                     sandbox=context.sandbox(
-                        binary="sbsiglist",
                         options=[
                             "--bind", context.workspace, workdir(context.workspace),
                             "--ro-bind", context.workspace / "mkosi.der", workdir(context.workspace / "mkosi.der"),  # noqa: E501
@@ -898,7 +882,6 @@ def install_systemd_boot(context: Context) -> None:
                             else subprocess.DEVNULL
                         ),
                         sandbox=context.sandbox(
-                            binary="sbvarsign",
                             options=options,
                             devices=context.config.secure_boot_key_source.type != KeySourceType.file,
                         ),

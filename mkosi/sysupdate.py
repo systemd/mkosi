@@ -51,7 +51,6 @@ def run_sysupdate(args: Args, config: Config) -> None:
             env=os.environ | config.environment,
             log=False,
             sandbox=config.sandbox(
-                binary=sysupdate,
                 devices=True,
                 network=True,
                 relaxed=True,

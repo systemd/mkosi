@@ -115,7 +115,6 @@ class Installer(DistributionInstaller):
                         *(key.removeprefix("file://") for key in gpgkeys),
                     ],
                     sandbox=context.sandbox(
-                        binary="rpm",
                         options=[
                             "--bind", context.root, "/buildroot",
                             *finalize_crypto_mounts(context.config),

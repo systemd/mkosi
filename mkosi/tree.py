@@ -26,7 +26,7 @@ def cp_version(*, sandbox: SandboxProtocol = nosandbox) -> GenericVersion:
     return GenericVersion(
         run(
             ["cp", "--version"],
-            sandbox=sandbox(binary="cp"),
+            sandbox=sandbox(),
             stdout=subprocess.PIPE,
         )
         .stdout.splitlines()[0]
@@ -52,7 +52,7 @@ def make_tree(
     if use_subvolumes != ConfigFeature.disabled:
         result = run(
             ["btrfs", "subvolume", "create", workdir(path, sandbox)],
-            sandbox=sandbox(binary="btrfs", options=["--bind", path.parent, workdir(path.parent, sandbox)]),
+            sandbox=sandbox(options=["--bind", path.parent, workdir(path.parent, sandbox)]),
             check=use_subvolumes == ConfigFeature.enabled,
         ).returncode
     else:
@@ -117,7 +117,7 @@ def copy_tree(
         if src.is_dir():
             cmdline += ["--no-target-directory"]
 
-        run(cmdline, sandbox=sandbox(binary="cp", options=options))
+        run(cmdline, sandbox=sandbox(options=options))
 
     # Subvolumes always have inode 256 so we can use that to check if a directory is a subvolume.
     if (
@@ -138,7 +138,7 @@ def copy_tree(
     result = run(
         ["btrfs", "subvolume", "snapshot", workdir(src, sandbox), workdir(dst, sandbox)],
         check=use_subvolumes == ConfigFeature.enabled,
-        sandbox=sandbox(binary="btrfs", options=options),
+        sandbox=sandbox(options=options),
     ).returncode
 
     if result != 0:
@@ -161,7 +161,6 @@ def rmtree(*paths: Path, sandbox: SandboxProtocol = nosandbox) -> None:
             ["btrfs", "subvolume", "delete", *(workdir(p, sandbox) for p in subvolumes)],
             check=False,
             sandbox=sandbox(
-                binary="btrfs",
                 options=flatten(("--bind", p.parent, workdir(p.parent, sandbox)) for p in subvolumes),
             ),
             stdout=subprocess.DEVNULL if not ARG_DEBUG.get() else None,
@@ -173,7 +172,6 @@ def rmtree(*paths: Path, sandbox: SandboxProtocol = nosandbox) -> None:
         run(
             ["rm", "-rf", "--", *(workdir(p, sandbox) for p in filtered)],
             sandbox=sandbox(
-                binary="rm",
                 options=flatten(("--bind", p.parent, workdir(p.parent, sandbox)) for p in filtered),
             ),
         )

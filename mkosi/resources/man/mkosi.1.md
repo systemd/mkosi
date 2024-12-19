@@ -1227,8 +1227,12 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     but the `mkosi.tools/` directory is found in the local directory it is
     automatically used for this purpose with the root directory as target.
 
-    Note if a binary is found in any of the paths configured with
-    `ExtraSearchPaths=`, the binary will be executed on the host.
+    Note that binaries found in any of the paths configured with
+    `ExtraSearchPaths=` will be executed with `/usr/` from the tools
+    tree instead of from the host. If the host distribution or release
+    does not match the tools tree distribution or release respectively,
+    this might result in failures when trying to execute binaries from
+    any of the extra search paths.
 
     If set to `default`, mkosi will automatically add an extra tools tree
     image and use it as the tools tree.

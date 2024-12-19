@@ -83,7 +83,7 @@ def setup_rpm(
     plugindir = Path(
         run(
             ["rpm", "--eval", "%{__plugindir}"],
-            sandbox=context.sandbox(binary="rpm"),
+            sandbox=context.sandbox(),
             stdout=subprocess.PIPE,
         ).stdout.strip()
     )

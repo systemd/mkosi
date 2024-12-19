@@ -256,7 +256,6 @@ class Apt(PackageManager):
                 *(d.name for glob in PACKAGE_GLOBS for d in context.repository.glob(glob) if "deb" in glob),
             ],
             sandbox=context.sandbox(
-                binary="reprepro",
                 options=[
                     "--bind", context.repository, workdir(context.repository),
                     "--chdir", workdir(context.repository),

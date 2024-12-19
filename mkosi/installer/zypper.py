@@ -139,10 +139,7 @@ class Zypper(PackageManager):
     def createrepo(cls, context: Context) -> None:
         run(
             ["createrepo_c", workdir(context.repository)],
-            sandbox=context.sandbox(
-                binary="createrepo_c",
-                options=["--bind", context.repository, workdir(context.repository)],
-            ),
+            sandbox=context.sandbox(options=["--bind", context.repository, workdir(context.repository)]),
         )
 
         (context.sandbox_tree / "etc/zypp/repos.d/mkosi-local.repo").write_text(
