@@ -26,12 +26,13 @@ listed below instead.
 To run mkosi straight from its git repository, you can invoke the shim
 `bin/mkosi`. The `MKOSI_INTERPRETER` environment variable can be set
 when using the `bin/mkosi` shim to configure the python interpreter used
-to execute mkosi. The shim can be symlinked to e.g. `/usr/local/bin` to
-make it accessible from the `PATH`.
+to execute mkosi. The shim can be symlinked to e.g. `~/.local/bin` to
+make it accessible from the `PATH`. Note that to make this work you
+might have to add `~/.local/bin` to your user's `PATH`.
 
 ```shell
 git clone https://github.com/systemd/mkosi
-ln -s $PWD/mkosi/bin/mkosi /usr/local/bin/mkosi
+ln -s $PWD/mkosi/bin/mkosi ~/.local/bin/mkosi
 mkosi --version
 ```
 
