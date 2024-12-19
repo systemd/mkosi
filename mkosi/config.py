@@ -3436,7 +3436,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         name="NSpawnSettings",
         long="--settings",
         metavar="PATH",
-        section="Host",
+        section="Runtime",
         parse=config_make_path_parser(),
         paths=("mkosi.nspawn",),
         help="Add in .nspawn settings file",
@@ -3444,7 +3444,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ConfigSetting(
         dest="ephemeral",
         metavar="BOOL",
-        section="Host",
+        section="Runtime",
         parse=config_parse_boolean,
         help=(
             "If specified, the container/VM is run with a temporary snapshot of the output "
@@ -3456,7 +3456,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         dest="credentials",
         long="--credential",
         metavar="NAME=VALUE",
-        section="Host",
+        section="Runtime",
         parse=config_make_dict_parser(delimiter=" ", parse=parse_key_value, allow_paths=True, unescape=True),
         help="Pass a systemd credential to systemd-nspawn or qemu",
         paths=("mkosi.credentials",),
@@ -3464,7 +3464,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ConfigSetting(
         dest="kernel_command_line_extra",
         metavar="OPTIONS",
-        section="Host",
+        section="Runtime",
         parse=config_make_list_parser(delimiter=" "),
         help="Append extra entries to the kernel command line when booting the image",
     ),
@@ -3472,27 +3472,27 @@ SETTINGS: list[ConfigSetting[Any]] = [
         dest="runtime_trees",
         long="--runtime-tree",
         metavar="SOURCE:[TARGET]",
-        section="Host",
+        section="Runtime",
         parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(absolute=False)),
         help="Additional mounts to add when booting the image",
     ),
     ConfigSetting(
         dest="runtime_size",
         metavar="SIZE",
-        section="Host",
+        section="Runtime",
         parse=config_parse_bytes,
         help="Grow disk images to the specified size before booting them",
     ),
     ConfigSetting(
         dest="runtime_scratch",
         metavar="FEATURE",
-        section="Host",
+        section="Runtime",
         parse=config_parse_feature,
         help="Mount extra scratch space to /var/tmp",
     ),
     ConfigSetting(
         dest="runtime_network",
-        section="Host",
+        section="Runtime",
         parse=config_make_enum_parser(Network),
         choices=Network.choices(),
         help="Set networking backend to use when booting the image",
@@ -3501,14 +3501,14 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ConfigSetting(
         dest="runtime_build_sources",
         metavar="BOOL",
-        section="Host",
+        section="Runtime",
         parse=config_parse_boolean,
         help="Mount build sources and build directory in /work when booting the image",
     ),
     ConfigSetting(
         dest="runtime_home",
         metavar="BOOL",
-        section="Host",
+        section="Runtime",
         parse=config_parse_boolean,
         help="Mount current home directory to /root when booting the image",
     ),
@@ -3516,14 +3516,14 @@ SETTINGS: list[ConfigSetting[Any]] = [
         dest="unit_properties",
         long="--unit-property",
         metavar="PROPERTY",
-        section="Host",
+        section="Runtime",
         parse=config_make_list_parser(delimiter=" ", unescape=True),
         help="Set properties on the scopes spawned by systemd-nspawn or systemd-run",
     ),
     ConfigSetting(
         dest="ssh_key",
         metavar="PATH",
-        section="Host",
+        section="Runtime",
         parse=config_make_path_parser(secret=True),
         paths=("mkosi.key",),
         help="Private key for use with mkosi ssh in PEM format",
@@ -3531,7 +3531,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ConfigSetting(
         dest="ssh_certificate",
         metavar="PATH",
-        section="Host",
+        section="Runtime",
         parse=config_make_path_parser(),
         paths=("mkosi.crt",),
         help="Certificate for use with mkosi ssh in X509 format",
@@ -3539,7 +3539,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ConfigSetting(
         dest="vmm",
         name="VirtualMachineMonitor",
-        section="Host",
+        section="Runtime",
         choices=Vmm.choices(),
         parse=config_make_enum_parser(Vmm),
         default=Vmm.qemu,
@@ -3548,13 +3548,13 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ConfigSetting(
         dest="machine",
         metavar="NAME",
-        section="Host",
+        section="Runtime",
         help="Set the machine name to use when booting the image",
     ),
     ConfigSetting(
         dest="forward_journal",
         metavar="PATH",
-        section="Host",
+        section="Runtime",
         parse=config_make_path_parser(required=False),
         help="Set the path used to store forwarded machine journals",
     ),
@@ -3564,7 +3564,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         compat_longs=("--sysupdate-dir",),
         metavar="PATH",
         name="SysupdateDirectory",
-        section="Host",
+        section="Runtime",
         parse=config_make_path_parser(),
         paths=("mkosi.sysupdate",),
         help="Directory containing systemd-sysupdate transfer definitions",
@@ -3573,14 +3573,14 @@ SETTINGS: list[ConfigSetting[Any]] = [
         dest="qemu_gui",
         metavar="BOOL",
         nargs="?",
-        section="Host",
+        section="Runtime",
         parse=config_parse_boolean,
         help="Start QEMU in graphical mode",
     ),
     ConfigSetting(
         dest="qemu_smp",
         metavar="SMP",
-        section="Host",
+        section="Runtime",
         parse=config_parse_number,
         default=1,
         help="Configure guest's SMP settings",
@@ -3588,7 +3588,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ConfigSetting(
         dest="qemu_mem",
         metavar="MEM",
-        section="Host",
+        section="Runtime",
         parse=config_parse_bytes,
         default=parse_bytes("2G"),
         help="Configure guest's RAM size",
@@ -3597,7 +3597,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         dest="qemu_kvm",
         metavar="FEATURE",
         nargs="?",
-        section="Host",
+        section="Runtime",
         parse=config_parse_feature,
         help="Configure whether to use KVM or not",
     ),
@@ -3605,7 +3605,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         dest="qemu_vsock",
         metavar="FEATURE",
         nargs="?",
-        section="Host",
+        section="Runtime",
         parse=config_parse_feature,
         help="Configure whether to use qemu with a vsock or not",
     ),
@@ -3614,7 +3614,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         name="QemuVsockConnectionId",
         long="--qemu-vsock-cid",
         metavar="NUMBER|auto|hash",
-        section="Host",
+        section="Runtime",
         parse=config_parse_vsock_cid,
         default=QemuVsockCID.auto,
         help="Specify the VSock connection ID to use",
@@ -3623,7 +3623,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         dest="qemu_swtpm",
         metavar="FEATURE",
         nargs="?",
-        section="Host",
+        section="Runtime",
         parse=config_parse_feature,
         help="Configure whether to use qemu with swtpm or not",
     ),
@@ -3631,7 +3631,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         dest="qemu_cdrom",
         metavar="BOOLEAN",
         nargs="?",
-        section="Host",
+        section="Runtime",
         parse=config_parse_boolean,
         help="Attach the image as a CD-ROM to the virtual machine",
     ),
@@ -3639,13 +3639,13 @@ SETTINGS: list[ConfigSetting[Any]] = [
         dest="qemu_removable",
         metavar="BOOLEAN",
         nargs="?",
-        section="Host",
+        section="Runtime",
         parse=config_parse_boolean,
         help="Attach the image as a removable drive to the virtual machine",
     ),
     ConfigSetting(
         dest="qemu_firmware",
-        section="Host",
+        section="Runtime",
         parse=config_make_enum_parser(QemuFirmware),
         default=QemuFirmware.auto,
         help="Set qemu firmware to use",
@@ -3654,14 +3654,14 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ConfigSetting(
         dest="qemu_firmware_variables",
         metavar="PATH",
-        section="Host",
+        section="Runtime",
         parse=config_make_path_parser(constants=("custom", "microsoft")),
         help="Set the path to the qemu firmware variables file to use",
     ),
     ConfigSetting(
         dest="qemu_kernel",
         metavar="PATH",
-        section="Host",
+        section="Runtime",
         parse=config_make_path_parser(),
         help="Specify the kernel to use for qemu direct kernel boot",
     ),
@@ -3669,14 +3669,14 @@ SETTINGS: list[ConfigSetting[Any]] = [
         dest="qemu_drives",
         long="--qemu-drive",
         metavar="DRIVE",
-        section="Host",
+        section="Runtime",
         parse=config_make_list_parser(delimiter=" ", parse=parse_drive),
         help="Specify a qemu drive that mkosi should create and pass to qemu",
     ),
     ConfigSetting(
         dest="qemu_args",
         metavar="ARGS",
-        section="Host",
+        section="Runtime",
         parse=config_make_list_parser(delimiter=" ", unescape=True),
         # Suppress the command line option because it's already possible to pass qemu args as normal
         # arguments.
@@ -4302,7 +4302,8 @@ class ParseContext:
             files += [abs_path]
 
             for section, k, v in parse_ini(
-                path, only_sections=self.only_sections or {s.section for s in SETTINGS}
+                path,
+                only_sections=self.only_sections or {s.section for s in SETTINGS} | {"Host"},
             ):
                 if not k and not v:
                     continue
@@ -4440,7 +4441,7 @@ def parse_config(
         # build the previous image from there instead of parsing configuration files, except for the Host
         # section settings which we allow changing without requiring a rebuild of the image.
         for s in SETTINGS:
-            if s.section in ("Include", "Host"):
+            if s.section in ("Include", "Runtime"):
                 continue
 
             if hasattr(context.cli, s.dest) and getattr(context.cli, s.dest) != getattr(prev, s.dest):
@@ -4452,7 +4453,7 @@ def parse_config(
             if hasattr(context.config, s.dest):
                 delattr(context.config, s.dest)
 
-        context.only_sections = ("Include", "Host")
+        context.only_sections = ("Include", "Runtime", "Host")
     else:
         context.only_sections = tuple(only_sections)
         prev = None

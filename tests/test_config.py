@@ -110,7 +110,7 @@ def test_parse_config(tmp_path: Path) -> None:
         Format=cpio
         ImageId=base
 
-        [Host]
+        [Runtime]
         Credentials=my.cred=my.value
         """
     )
@@ -356,7 +356,7 @@ def test_profiles(tmp_path: Path) -> None:
         [Distribution]
         Distribution=fedora
 
-        [Host]
+        [Runtime]
         QemuKvm=yes
         """
     )
@@ -425,8 +425,6 @@ def test_override_default(tmp_path: Path) -> None:
         """\
         [Build]
         Environment=MY_KEY=MY_VALUE
-
-        [Host]
         ToolsTree=default
         """
     )

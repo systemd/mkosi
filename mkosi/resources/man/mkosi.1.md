@@ -1556,7 +1556,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     Currently, setting a proxy client key is only supported when `dnf` or
     `dnf5` is used to build the image.
 
-### [Host] Section
+### [Runtime] Section (previously known as the [Host] section)
 
 `NSpawnSettings=`, `--settings=`
 :   Specifies a `.nspawn` settings file for `systemd-nspawn` to use in
@@ -1685,7 +1685,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     **Example usage:**
 
     ```ini
-    [Host]
+    [Runtime]
     QemuDrives=btrfs:10G
                ext4:20G
     QemuArgs=-device nvme,serial=btrfs,drive=btrfs

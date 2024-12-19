@@ -177,7 +177,7 @@ jobs:
           [Build]
           Environment=SYSTEMD_REPART_MKFS_OPTIONS_EROFS="--quiet"
 
-          [Host]
+          [Runtime]
           QemuKvm=yes
           EOF
 
