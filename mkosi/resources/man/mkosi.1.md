@@ -1349,6 +1349,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     tools tree are used. Otherwise, these directories are picked up from
     the host.
 
+`ExtraSearchPaths=`, `--extra-search-path=`
+:   List of colon-separated paths to look for tools in, before using the
+    regular `$PATH` search path.
+
 `Incremental=`, `--incremental=`, `-i`
 :   Takes either `strict` or a boolean value as its argument. Enables
     incremental build mode. In this mode, a copy of the OS image is created
@@ -1519,8 +1523,6 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     passed to the `mkosi.build` build scripts indicating whether the
     build is done with or without network.
 
-### [Host] Section
-
 `ProxyUrl=`, `--proxy-url=`
 :   Configure a proxy to be used for all outgoing network connections.
     Various tools that mkosi invokes and for which the proxy can be
@@ -1554,6 +1556,8 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     Currently, setting a proxy client key is only supported when `dnf` or
     `dnf5` is used to build the image.
 
+### [Host] Section
+
 `NSpawnSettings=`, `--settings=`
 :   Specifies a `.nspawn` settings file for `systemd-nspawn` to use in
     the `boot` and `shell` verbs, and to place next to the generated
@@ -1561,10 +1565,6 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     environment when the image is run. If this setting is not used but
     an `mkosi.nspawn` file found in the local directory it is
     automatically used for this purpose.
-
-`ExtraSearchPaths=`, `--extra-search-path=`
-:   List of colon-separated paths to look for tools in, before using the
-    regular `$PATH` search path.
 
 `VirtualMachineMonitor=`, `--vmm=`
 :   Configures the virtual machine monitor to use. Takes one of `qemu` or

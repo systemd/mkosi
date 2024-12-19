@@ -1836,6 +1836,7 @@ class Config:
     tools_tree_packages: list[str]
     tools_tree_package_directories: list[Path]
     tools_tree_certificates: bool
+    extra_search_paths: list[Path]
     incremental: Incremental
     cacheonly: Cacheonly
     sandbox_trees: list[ConfigTree]
@@ -1852,14 +1853,13 @@ class Config:
     environment_files: list[Path]
     with_tests: bool
     with_network: bool
-
     proxy_url: Optional[str]
     proxy_exclude: list[str]
     proxy_peer_certificate: Optional[Path]
     proxy_client_certificate: Optional[Path]
     proxy_client_key: Optional[Path]
+
     nspawn_settings: Optional[Path]
-    extra_search_paths: list[Path]
     ephemeral: bool
     credentials: dict[str, str]
     kernel_command_line_extra: list[str]
@@ -3205,6 +3205,15 @@ SETTINGS: list[ConfigSetting[Any]] = [
         scope=SettingScope.universal,
     ),
     ConfigSetting(
+        dest="extra_search_paths",
+        long="--extra-search-path",
+        metavar="PATH",
+        section="Build",
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        help="List of comma-separated paths to look for programs before looking in PATH",
+        scope=SettingScope.universal,
+    ),
+    ConfigSetting(
         dest="incremental",
         short="-i",
         nargs="?",
@@ -3377,10 +3386,9 @@ SETTINGS: list[ConfigSetting[Any]] = [
         help="Run build and postinst scripts with network access (instead of private network)",
         scope=SettingScope.universal,
     ),
-    # Host section
     ConfigSetting(
         dest="proxy_url",
-        section="Host",
+        section="Build",
         default_factory=config_default_proxy_url,
         default_factory_depends=("environment",),
         metavar="URL",
@@ -3389,7 +3397,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ),
     ConfigSetting(
         dest="proxy_exclude",
-        section="Host",
+        section="Build",
         metavar="HOST",
         parse=config_make_list_parser(delimiter=","),
         help="Don't use the configured proxy for the specified host(s)",
@@ -3397,7 +3405,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ),
     ConfigSetting(
         dest="proxy_peer_certificate",
-        section="Host",
+        section="Build",
         parse=config_make_path_parser(),
         paths=(
             "/etc/pki/tls/certs/ca-bundle.crt",
@@ -3408,20 +3416,21 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ),
     ConfigSetting(
         dest="proxy_client_certificate",
-        section="Host",
+        section="Build",
         parse=config_make_path_parser(secret=True),
         help="Set the proxy client certificate",
         scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="proxy_client_key",
-        section="Host",
+        section="Build",
         default_factory=lambda ns: ns.proxy_client_certificate,
         default_factory_depends=("proxy_client_certificate",),
         parse=config_make_path_parser(secret=True),
         help="Set the proxy client key",
         scope=SettingScope.universal,
     ),
+    # Host section
     ConfigSetting(
         dest="nspawn_settings",
         name="NSpawnSettings",
@@ -3431,15 +3440,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
         parse=config_make_path_parser(),
         paths=("mkosi.nspawn",),
         help="Add in .nspawn settings file",
-    ),
-    ConfigSetting(
-        dest="extra_search_paths",
-        long="--extra-search-path",
-        metavar="PATH",
-        section="Host",
-        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
-        help="List of comma-separated paths to look for programs before looking in PATH",
-        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="ephemeral",
@@ -4874,6 +4874,7 @@ def summary(config: Config) -> str:
      Tools Tree Package Directories: {line_join_list(config.tools_tree_package_directories)}
             Tools Tree Certificates: {yes_no(config.tools_tree_certificates)}
 
+                 Extra Search Paths: {line_join_list(config.extra_search_paths)}
                         Incremental: {config.incremental}
              Use Only Package Cache: {config.cacheonly}
                       Sandbox Trees: {line_join_list(config.sandbox_trees)}
@@ -4891,13 +4892,13 @@ def summary(config: Config) -> str:
          Run Tests in Build Scripts: {yes_no(config.with_tests)}
                Scripts With Network: {yes_no(config.with_network)}
 
-    {bold("HOST CONFIGURATION")}:
                           Proxy URL: {none_to_none(config.proxy_url)}
              Proxy Peer Certificate: {none_to_none(config.proxy_peer_certificate)}
            Proxy Client Certificate: {none_to_none(config.proxy_client_certificate)}
                    Proxy Client Key: {none_to_none(config.proxy_client_key)}
+
+    {bold("HOST CONFIGURATION")}:
                     NSpawn Settings: {none_to_none(config.nspawn_settings)}
-                 Extra Search Paths: {line_join_list(config.extra_search_paths)}
                           Ephemeral: {config.ephemeral}
                         Credentials: {line_join_list(config.credentials.keys())}
           Extra Kernel Command Line: {line_join_list(config.kernel_command_line_extra)}
