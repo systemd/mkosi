@@ -3524,12 +3524,10 @@ def setup_workspace(args: Args, config: Config) -> Iterator[Path]:
         with scopedenv({"TMPDIR": os.fspath(workspace / "tmp")}):
             try:
                 yield Path(workspace)
-            except BaseException:
+            finally:
                 if args.debug_workspace:
                     stack.pop_all()
                     log_notice(f"Workspace: {workspace}")
-
-                raise
 
 
 @contextlib.contextmanager
@@ -3762,7 +3760,9 @@ def build_image(context: Context) -> None:
 
     run_postoutput_scripts(context)
     finalize_staging(context)
-    rmtree(context.root)
+
+    if not context.args.debug_workspace:
+        rmtree(context.root)
 
     print_output_size(context.config.output_dir_or_cwd() / context.config.output_with_compression)
 

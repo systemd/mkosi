@@ -236,7 +236,8 @@ Those settings cannot be configured in the configuration files.
     shell in the image allowing further debugging.
 
 `--debug-workspace`
-:   When an error occurs, the workspace directory will not be deleted.
+:   When specified, the workspace directory will not be deleted and its
+    location will be logged when mkosi exits.
 
 `--debug-sandbox`
 :   Run `mkosi-sandbox` with `strace`.
