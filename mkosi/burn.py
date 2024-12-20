@@ -12,6 +12,9 @@ def run_burn(args: Args, config: Config) -> None:
     if config.output_format not in (OutputFormat.disk, OutputFormat.esp):
         die(f"{config.output_format} images cannot be burned to disk")
 
+    if not args.cmdline:
+        die("Please specify a device to burn the image to", hint="For example /dev/disk/by-id/usb-foobar")
+
     fname = config.output_dir_or_cwd() / config.output
 
     if len(args.cmdline) != 1:
