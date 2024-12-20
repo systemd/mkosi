@@ -833,11 +833,13 @@ def finalize_credentials(config: Config) -> dict[str, str]:
     }
 
     if "firstboot.timezone" not in creds:
-        if find_binary("timedatectl"):
+        if config.find_binary("timedatectl"):
             tz = run(
                 ["timedatectl", "show", "-p", "Timezone", "--value"],
                 stdout=subprocess.PIPE,
                 check=False,
+                # timedatectl needs to be able to talk via dbus to timedated.
+                sandbox=config.sandbox(options=["--ro-bind", "/run", "/run"]),
             ).stdout.strip()
         else:
             tz = "UTC"
@@ -847,12 +849,19 @@ def finalize_credentials(config: Config) -> dict[str, str]:
     if "ssh.authorized_keys.root" not in creds:
         if config.ssh_certificate:
             pubkey = run(
-                ["openssl", "x509", "-in", config.ssh_certificate, "-pubkey", "-noout"],
+                ["openssl", "x509", "-in", workdir(config.ssh_certificate), "-pubkey", "-noout"],
                 stdout=subprocess.PIPE,
                 env=dict(OPENSSL_CONF="/dev/null"),
+                sandbox=config.sandbox(
+                    options=["--ro-bind", config.ssh_certificate, workdir(config.ssh_certificate)],
+                ),
             ).stdout.strip()
             sshpubkey = run(
-                ["ssh-keygen", "-f", "/dev/stdin", "-i", "-m", "PKCS8"], input=pubkey, stdout=subprocess.PIPE
+                ["ssh-keygen", "-f", "/dev/stdin", "-i", "-m", "PKCS8"],
+                input=pubkey,
+                stdout=subprocess.PIPE,
+                # ssh-keygen needs to be able to resolve the current user.
+                sandbox=config.sandbox(options=["--ro-bind", "/etc", "/etc", "--ro-bind", "/run", "/run"]),
             ).stdout.strip()
             creds["ssh.authorized_keys.root"] = sshpubkey
         elif config.ssh:
