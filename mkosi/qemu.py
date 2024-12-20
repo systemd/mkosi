@@ -860,8 +860,9 @@ def finalize_credentials(config: Config) -> dict[str, str]:
                 ["ssh-keygen", "-f", "/dev/stdin", "-i", "-m", "PKCS8"],
                 input=pubkey,
                 stdout=subprocess.PIPE,
-                # ssh-keygen needs to be able to resolve the current user.
-                sandbox=config.sandbox(options=["--ro-bind", "/etc", "/etc", "--ro-bind", "/run", "/run"]),
+                # ssh-keygen insists on being able to resolve the current user which doesn't always work
+                # (think sssd or similar) so let's switch to root which is always resolvable.
+                sandbox=config.sandbox(options=["--become-root", "--ro-bind", "/etc/passwd", "/etc/passwd"]),
             ).stdout.strip()
             creds["ssh.authorized_keys.root"] = sshpubkey
         elif config.ssh:
@@ -1459,6 +1460,8 @@ def run_ssh(args: Args, config: Config) -> None:
             network=True,
             devices=True,
             relaxed=True,
-            options=["--same-dir"],
+            # ssh insists on being able to resolve the current user which doesn't always work (think sssd or
+            # similar) so let's switch to root which is always resolvable.
+            options=["--same-dir", "--become-root"],
         ),
     )
