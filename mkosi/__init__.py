@@ -3750,25 +3750,18 @@ def build_image(context: Context) -> None:
 
 def run_sandbox(args: Args, config: Config) -> None:
     cmdline = args.cmdline or [os.getenv("SHELL", "bash")]
-    options: list[PathString] = ["--same-dir"]
+    mounts = finalize_crypto_mounts(config, relaxed=True)
 
-    # If we're not using tools tree certificates we don't have to do anything since the relaxed sandbox will
-    # already have /etc and /var from the host so we don't need to do anything extra.
-    if config.tools_tree_certificates:
-        mounts = finalize_crypto_mounts(config)
-
-        # Since we reuse almost every top level directory from the host except /usr, the crypto mountpoints
-        # have to exist already in these directories or we'll fail with a permission error. Let's check this
-        # early and show a better error and a suggestion on how users can fix this issue. We use slice
-        # notation to get every 3rd item from the mounts list which is the destination path.
-        for dst in mounts[2::3]:
-            if not Path(dst).exists():
-                die(
-                    f"Missing mountpoint {dst}",
-                    hint=f"Create an empty directory at {dst} using 'mkdir -p {dst}' as root and try again",
-                )
-
-        options += mounts
+    # Since we reuse almost every top level directory from the host except /usr, the crypto mountpoints
+    # have to exist already in these directories or we'll fail with a permission error. Let's check this
+    # early and show a better error and a suggestion on how users can fix this issue. We use slice
+    # notation to get every 3rd item from the mounts list which is the destination path.
+    for dst in mounts[2::3]:
+        if not Path(dst).exists():
+            die(
+                f"Missing mountpoint {dst}",
+                hint=f"Create an empty directory at {dst} using 'mkdir -p {dst}' as root and try again",
+            )
 
     run(
         cmdline,
@@ -3780,7 +3773,7 @@ def run_sandbox(args: Args, config: Config) -> None:
             devices=True,
             network=True,
             relaxed=True,
-            options=options,
+            options=["--same-dir", *mounts],
         ),
     )
 
