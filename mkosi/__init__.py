@@ -2394,12 +2394,15 @@ def print_output_size(path: Path) -> None:
 
 
 def cache_tree_paths(config: Config) -> tuple[Path, Path, Path]:
-    fragments = [config.distribution, config.release, config.architecture]
+    if config.image == "tools":
+        key = "tools"
+    else:
+        fragments = [config.distribution, config.release, config.architecture]
 
-    if config.image:
-        fragments += [config.image]
+        if config.image:
+            fragments += [config.image]
 
-    key = "~".join(str(s) for s in fragments)
+        key = "~".join(str(s) for s in fragments)
 
     assert config.cache_dir
     return (
