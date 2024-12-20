@@ -3749,7 +3749,9 @@ def build_image(context: Context) -> None:
 
 
 def run_sandbox(args: Args, config: Config) -> None:
-    cmdline = args.cmdline or [os.getenv("SHELL", "bash")]
+    if not args.cmdline:
+        die("Please specify a command to execute in the sandbox")
+
     mounts = finalize_crypto_mounts(config, relaxed=True)
 
     # Since we reuse almost every top level directory from the host except /usr, the crypto mountpoints
@@ -3764,7 +3766,7 @@ def run_sandbox(args: Args, config: Config) -> None:
             )
 
     run(
-        cmdline,
+        args.cmdline,
         stdin=sys.stdin,
         stdout=sys.stdout,
         env=os.environ | {"MKOSI_IN_SANDBOX": "1"},
