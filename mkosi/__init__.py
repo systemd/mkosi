@@ -4156,7 +4156,6 @@ def finalize_default_tools(config: Config, *, resources: Path) -> Config:
         "--output=tools",
         *(["--source-date-epoch", str(config.source_date_epoch)] if config.source_date_epoch is not None else []),  # noqa: E501
         *([f"--environment={k}='{v}'" for k, v in config.environment.items()]),
-        *([f"--extra-search-path={p}" for p in config.extra_search_paths]),
         *(["--proxy-url", config.proxy_url] if config.proxy_url else []),
         *([f"--proxy-exclude={host}" for host in config.proxy_exclude]),
         *(["--proxy-peer-certificate", str(p)] if (p := config.proxy_peer_certificate) else []),
@@ -4710,16 +4709,15 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
             remove_cache_entries(initrd)
 
     if tools and not (tools.output_dir_or_cwd() / tools.output).exists():
-        with prepend_to_environ_path(tools):
-            check_tools(tools, Verb.build)
-            ensure_directories_exist(tools)
+        check_tools(tools, Verb.build)
+        ensure_directories_exist(tools)
 
-            with tempfile.TemporaryDirectory(
-                dir=tools.workspace_dir_or_default(),
-                prefix="mkosi-metadata-",
-            ) as metadata_dir:
-                sync_repository_metadata(args, [tools], resources=resources, dst=Path(metadata_dir))
-                fork_and_wait(run_build, args, tools, resources=resources, metadata_dir=Path(metadata_dir))
+        with tempfile.TemporaryDirectory(
+            dir=tools.workspace_dir_or_default(),
+            prefix="mkosi-metadata-",
+        ) as metadata_dir:
+            sync_repository_metadata(args, [tools], resources=resources, dst=Path(metadata_dir))
+            fork_and_wait(run_build, args, tools, resources=resources, metadata_dir=Path(metadata_dir))
 
     if not args.verb.needs_build():
         with prepend_to_environ_path(last):
