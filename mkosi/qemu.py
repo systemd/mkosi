@@ -1084,6 +1084,7 @@ def run_qemu(args: Args, config: Config) -> None:
             index = list(qemu_device_fds.keys()).index(QemuDeviceNode.kvm)
             cmdline += ["--add-fd", f"fd={SD_LISTEN_FDS_START + index},set=1,opaque=/dev/kvm"]
             accel += ",device=/dev/fdset/1"
+        cmdline += ["-cpu", "host"]
     else:
         accel = "tcg"
         cmdline += ["-cpu", "max"]
