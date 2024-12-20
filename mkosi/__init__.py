@@ -2982,11 +2982,11 @@ def have_cache(config: Config) -> bool:
 
     final, build, manifest = cache_tree_paths(config)
     if not final.exists():
-        logging.info(f"{final} does not exist, not reusing cached images")
+        logging.debug(f"{final} does not exist, not reusing cached images")
         return False
 
     if need_build_overlay(config) and not build.exists():
-        logging.info(f"{build} does not exist, not reusing cached images")
+        logging.debug(f"{build} does not exist, not reusing cached images")
         return False
 
     if manifest.exists():
@@ -3007,7 +3007,7 @@ def have_cache(config: Config) -> bool:
 
             return False
     else:
-        logging.info(f"{manifest} does not exist, not reusing cached images")
+        logging.debug(f"{manifest} does not exist, not reusing cached images")
         return False
 
     return True
