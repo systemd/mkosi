@@ -123,7 +123,6 @@ class PackageManager:
             "--bind", "/var/tmp", "/buildroot/var/tmp",
             *apivfs_options(),
             *cls.options(root="/buildroot"),
-            "--",
         ]  # fmt: skip
 
     @classmethod

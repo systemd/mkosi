@@ -261,6 +261,9 @@ def spawn(
     with sandbox as sbx:
         prefix = [os.fspath(x) for x in sbx]
 
+        if prefix:
+            prefix += ["--"]
+
         try:
             with subprocess.Popen(
                 [*prefix, *cmdline],
@@ -605,7 +608,7 @@ def sandbox_cmd(
 
         if not overlay and not relaxed:
             tmp = stack.enter_context(vartmpdir())
-            yield [*cmdline, "--bind", tmp, "/var/tmp", "--dir", "/tmp", "--dir", "/run", *options, "--"]
+            yield [*cmdline, "--bind", tmp, "/var/tmp", "--dir", "/tmp", "--dir", "/run", *options]
             return
 
         for d in ("etc", "opt"):
@@ -645,7 +648,7 @@ def sandbox_cmd(
             tmp = stack.enter_context(vartmpdir())
             cmdline += ["--bind", tmp, "/var/tmp"]
 
-        yield [*cmdline, *options, "--"]
+        yield [*cmdline, *options]
 
 
 def apivfs_options(*, root: Path = Path("/buildroot")) -> list[PathString]:
@@ -700,7 +703,7 @@ def chroot_cmd(
         cmdline += ["--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf"]
 
     with vartmpdir() as dir:
-        yield [*cmdline, "--bind", dir, "/var/tmp", *options, "--"]
+        yield [*cmdline, "--bind", dir, "/var/tmp", *options]
 
 
 def finalize_interpreter(tools: bool) -> str:
