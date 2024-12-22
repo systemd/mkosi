@@ -4724,7 +4724,9 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
 
     for i, config in enumerate(images):
         with prepend_to_environ_path(config):
-            check_tools(config, args.verb)
+            if args.verb != Verb.build:
+                check_tools(config, args.verb)
+
             images[i] = config = run_configure_scripts(config)
 
     # The images array has been modified so we need to reevaluate last again.
@@ -4774,8 +4776,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
                     continue
 
                 with prepend_to_environ_path(config):
-                    if args.verb != Verb.build:
-                        check_tools(config, Verb.build)
+                    check_tools(config, Verb.build)
 
                     check_inputs(config)
                     ensure_directories_exist(config)
