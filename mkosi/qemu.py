@@ -19,6 +19,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import time
 import uuid
 from collections.abc import Iterator, Sequence
 from pathlib import Path
@@ -917,11 +918,38 @@ def scope_cmd(
     ]  # fmt: skip
 
 
-def register_machine(config: Config, pid: int, fname: Path) -> None:
+def register_machine(config: Config, pid: int, fname: Path, unit: str) -> None:
     if os.getuid() != 0 or (
         "DBUS_SYSTEM_ADDRESS" not in os.environ and not Path("/run/dbus/system_bus_socket").exists()
     ):
         return
+
+    # Wait for the scope unit to be actually active before registering the machine with systemd,
+    # otherwise the process will still be in the session scope of the caller, and if it fails
+    # machined will stop the session.
+    for i in range(300):
+        if (
+            str(pid)
+            in run(
+                [
+                    "busctl",
+                    "call",
+                    "org.freedesktop.systemd1",
+                    f"/org/freedesktop/systemd1/unit/{unit.replace('-', '_2d').replace('.', '_2e')}_2escope",
+                    "org.freedesktop.systemd1.Scope",
+                    "GetProcesses",
+                ],  # fmt: skip
+                foreground=False,
+                env=os.environ | config.environment,
+                sandbox=config.sandbox(relaxed=True),
+                stdout=subprocess.PIPE,
+            ).stdout.strip()
+        ):
+            break
+
+        time.sleep(0.1)
+    else:
+        die(f"systemd-run scope unit {unit}.scope did not become active within 30 seconds")
 
     run(
         [
@@ -1415,7 +1443,7 @@ def run_qemu(args: Args, config: Config) -> None:
             for fd in qemu_device_fds.values():
                 os.close(fd)
 
-            register_machine(config, proc.pid, fname)
+            register_machine(config, proc.pid, fname, name)
 
         if status := int(notifications.get("EXIT_STATUS", 0)):
             raise subprocess.CalledProcessError(status, cmdline)
