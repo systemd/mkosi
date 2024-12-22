@@ -3,6 +3,7 @@
 import contextlib
 import errno
 import fcntl
+import functools
 import itertools
 import logging
 import os
@@ -166,6 +167,44 @@ def run(
     return CompletedProcess(cmdline, process.returncode, out, err)
 
 
+def preexec(
+    *,
+    foreground: bool,
+    preexec_fn: Optional[Callable[[], None]],
+    pass_fds: Collection[int],
+) -> None:
+    if foreground:
+        make_foreground_process()
+    if preexec_fn:
+        preexec_fn()
+
+    if not pass_fds:
+        return
+
+    # The systemd socket activation interface requires any passed file descriptors to start at '3' and
+    # incrementally increase from there. The file descriptors we got from the caller might be arbitrary,
+    # so we need to move them around to make sure they start at '3' and incrementally increase.
+    for i, fd in enumerate(pass_fds):
+        # Don't do anything if the file descriptor is already what we need it to be.
+        if fd == SD_LISTEN_FDS_START + i:
+            continue
+
+        # Close any existing file descriptor that occupies the id that we want to move to. This is safe
+        # because using pass_fds implies using close_fds as well, except that file descriptors are closed
+        # by python after running the preexec function, so we have to close a few of those manually here
+        # to make room if needed.
+        try:
+            os.close(SD_LISTEN_FDS_START + i)
+        except OSError as e:
+            if e.errno != errno.EBADF:
+                raise
+
+        nfd = fcntl.fcntl(fd, fcntl.F_DUPFD, SD_LISTEN_FDS_START + i)
+        # fcntl.F_DUPFD uses the closest available file descriptor ID, so make sure it actually picked
+        # the ID we expect it to pick.
+        assert nfd == SD_LISTEN_FDS_START + i
+
+
 @contextlib.contextmanager
 def spawn(
     cmdline: Sequence[PathString],
@@ -219,38 +258,6 @@ def spawn(
     if pass_fds:
         env["LISTEN_FDS"] = str(len(pass_fds))
 
-    def preexec() -> None:
-        if foreground:
-            make_foreground_process()
-        if preexec_fn:
-            preexec_fn()
-
-        if not pass_fds:
-            return
-
-        # The systemd socket activation interface requires any passed file descriptors to start at '3' and
-        # incrementally increase from there. The file descriptors we got from the caller might be arbitrary,
-        # so we need to move them around to make sure they start at '3' and incrementally increase.
-        for i, fd in enumerate(pass_fds):
-            # Don't do anything if the file descriptor is already what we need it to be.
-            if fd == SD_LISTEN_FDS_START + i:
-                continue
-
-            # Close any existing file descriptor that occupies the id that we want to move to. This is safe
-            # because using pass_fds implies using close_fds as well, except that file descriptors are closed
-            # by python after running the preexec function, so we have to close a few of those manually here
-            # to make room if needed.
-            try:
-                os.close(SD_LISTEN_FDS_START + i)
-            except OSError as e:
-                if e.errno != errno.EBADF:
-                    raise
-
-            nfd = fcntl.fcntl(fd, fcntl.F_DUPFD, SD_LISTEN_FDS_START + i)
-            # fcntl.F_DUPFD uses the closest available file descriptor ID, so make sure it actually picked
-            # the ID we expect it to pick.
-            assert nfd == SD_LISTEN_FDS_START + i
-
     with sandbox as sbx:
         prefix = [os.fspath(x) for x in sbx]
 
@@ -268,7 +275,12 @@ def spawn(
                 # transformation in preexec().
                 pass_fds=[SD_LISTEN_FDS_START + i for i in range(len(pass_fds))],
                 env=env,
-                preexec_fn=preexec,
+                preexec_fn=functools.partial(
+                    preexec,
+                    foreground=foreground,
+                    preexec_fn=preexec_fn,
+                    pass_fds=pass_fds,
+                ),
             ) as proc:
                 try:
                     yield proc
@@ -290,7 +302,12 @@ def spawn(
                             user=user,
                             group=group,
                             env=env,
-                            preexec_fn=preexec,
+                            preexec_fn=functools.partial(
+                                preexec,
+                                foreground=True,
+                                preexec_fn=preexec_fn,
+                                pass_fds=tuple(),
+                            ),
                         )
                     raise subprocess.CalledProcessError(returncode, cmdline)
         except FileNotFoundError as e:
