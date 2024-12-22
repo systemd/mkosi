@@ -30,6 +30,9 @@ CLONE_NEWNS = 0x00020000
 CLONE_NEWUSER = 0x10000000
 EPERM = 1
 ENOENT = 2
+F_GETFD = 1
+F_SETFD = 2
+FD_CLOEXEC = 1
 LINUX_CAPABILITY_U32S_3 = 2
 LINUX_CAPABILITY_VERSION_3 = 0x20080522
 MNT_DETACH = 2
@@ -93,6 +96,7 @@ libc.pivot_root.argtypes = (ctypes.c_char_p, ctypes.c_char_p)
 libc.umount2.argtypes = (ctypes.c_char_p, ctypes.c_int)
 libc.capget.argtypes = (ctypes.c_void_p, ctypes.c_void_p)
 libc.capset.argtypes = (ctypes.c_void_p, ctypes.c_void_p)
+libc.fcntl.argtypes = (ctypes.c_int, ctypes.c_int, ctypes.c_int)
 
 
 def oserror(filename: str = "") -> None:
@@ -410,6 +414,11 @@ def is_relative_to(one: str, two: str) -> bool:
     return os.path.commonpath((one, two)) == two
 
 
+def fd_make_cloexec(fd: int) -> None:
+    flags = libc.fcntl(fd, F_GETFD, 0)
+    libc.fcntl(fd, F_SETFD, flags | FD_CLOEXEC)
+
+
 class FSOperation:
     def __init__(self, dst: str) -> None:
         self.dst = dst
@@ -694,6 +703,7 @@ mkosi-sandbox [OPTIONS...] COMMAND [ARGUMENTS...]
      --suppress-chown             Make chown() syscalls in the sandbox a noop
      --unshare-net                Unshare the network namespace if possible
      --unshare-ipc                Unshare the IPC namespace if possible
+     --exec-fd FD                 Close FD before execve()
 
 See the mkosi-sandbox(1) man page for details.\
 """
@@ -780,6 +790,8 @@ def main() -> None:
             unshare_net = True
         elif arg == "--unshare-ipc":
             unshare_ipc = True
+        elif arg == "--exec-fd":
+            fd_make_cloexec(int(argv.pop()))
         elif arg.startswith("-"):
             raise ValueError(f"Unrecognized option {arg}")
         else:

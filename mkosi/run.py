@@ -3,6 +3,7 @@
 import contextlib
 import errno
 import fcntl
+import functools
 import itertools
 import logging
 import os
@@ -166,6 +167,50 @@ def run(
     return CompletedProcess(cmdline, process.returncode, out, err)
 
 
+def fd_move_above(fd: int, above: int) -> int:
+    dup = fcntl.fcntl(fd, fcntl.F_DUPFD, above)
+    os.close(fd)
+    return dup
+
+
+def preexec(
+    *,
+    foreground: bool,
+    preexec_fn: Optional[Callable[[], None]],
+    pass_fds: Collection[int],
+) -> None:
+    if foreground:
+        make_foreground_process()
+    if preexec_fn:
+        preexec_fn()
+
+    if not pass_fds:
+        return
+
+    # The systemd socket activation interface requires any passed file descriptors to start at '3' and
+    # incrementally increase from there. The file descriptors we got from the caller might be arbitrary,
+    # so we need to move them around to make sure they start at '3' and incrementally increase.
+    for i, fd in enumerate(pass_fds):
+        # Don't do anything if the file descriptor is already what we need it to be.
+        if fd == SD_LISTEN_FDS_START + i:
+            continue
+
+        # Close any existing file descriptor that occupies the id that we want to move to. This is safe
+        # because using pass_fds implies using close_fds as well, except that file descriptors are closed
+        # by python after running the preexec function, so we have to close a few of those manually here
+        # to make room if needed.
+        try:
+            os.close(SD_LISTEN_FDS_START + i)
+        except OSError as e:
+            if e.errno != errno.EBADF:
+                raise
+
+        nfd = fcntl.fcntl(fd, fcntl.F_DUPFD, SD_LISTEN_FDS_START + i)
+        # fcntl.F_DUPFD uses the closest available file descriptor ID, so make sure it actually picked
+        # the ID we expect it to pick.
+        assert nfd == SD_LISTEN_FDS_START + i
+
+
 @contextlib.contextmanager
 def spawn(
     cmdline: Sequence[PathString],
@@ -219,44 +264,27 @@ def spawn(
     if pass_fds:
         env["LISTEN_FDS"] = str(len(pass_fds))
 
-    def preexec() -> None:
-        if foreground:
-            make_foreground_process()
-        if preexec_fn:
-            preexec_fn()
-
-        if not pass_fds:
-            return
-
-        # The systemd socket activation interface requires any passed file descriptors to start at '3' and
-        # incrementally increase from there. The file descriptors we got from the caller might be arbitrary,
-        # so we need to move them around to make sure they start at '3' and incrementally increase.
-        for i, fd in enumerate(pass_fds):
-            # Don't do anything if the file descriptor is already what we need it to be.
-            if fd == SD_LISTEN_FDS_START + i:
-                continue
-
-            # Close any existing file descriptor that occupies the id that we want to move to. This is safe
-            # because using pass_fds implies using close_fds as well, except that file descriptors are closed
-            # by python after running the preexec function, so we have to close a few of those manually here
-            # to make room if needed.
-            try:
-                os.close(SD_LISTEN_FDS_START + i)
-            except OSError as e:
-                if e.errno != errno.EBADF:
-                    raise
-
-            nfd = fcntl.fcntl(fd, fcntl.F_DUPFD, SD_LISTEN_FDS_START + i)
-            # fcntl.F_DUPFD uses the closest available file descriptor ID, so make sure it actually picked
-            # the ID we expect it to pick.
-            assert nfd == SD_LISTEN_FDS_START + i
-
     with sandbox as sbx:
         prefix = [os.fspath(x) for x in sbx]
 
+        if prefix:
+            prfd, pwfd = os.pipe2(os.O_CLOEXEC)
+
+            # Make sure the write end of the pipe (which we pass to the subprocess) is higher than all the
+            # file descriptors we'll pass to the subprocess, so that it doesn't accidentally get closed by
+            # the logic in preexec().
+            if pass_fds:
+                pwfd = fd_move_above(pwfd, list(pass_fds)[-1])
+
+            exec_prefix = ["--exec-fd", f"{SD_LISTEN_FDS_START + len(pass_fds)}", "--"]
+            pass_fds = [*pass_fds, pwfd]
+        else:
+            exec_prefix = []
+            prfd, pwfd = None, None
+
         try:
             with subprocess.Popen(
-                [*prefix, *cmdline],
+                [*prefix, *exec_prefix, *cmdline],
                 stdin=stdin,
                 stdout=stdout,
                 stderr=stderr,
@@ -268,17 +296,35 @@ def spawn(
                 # transformation in preexec().
                 pass_fds=[SD_LISTEN_FDS_START + i for i in range(len(pass_fds))],
                 env=env,
-                preexec_fn=preexec,
+                preexec_fn=functools.partial(
+                    preexec,
+                    foreground=foreground,
+                    preexec_fn=preexec_fn,
+                    pass_fds=pass_fds,
+                ),
             ) as proc:
+                if pwfd is not None:
+                    os.close(pwfd)
+
+                if prfd is not None:
+                    os.read(prfd, 1)
+                    os.close(prfd)
+
+                def failed() -> bool:
+                    return check and (rc := proc.poll()) is not None and rc not in success_exit_status
+
                 try:
-                    yield proc
+                    # Don't bother yielding if we've already failed by the time we get here. We'll raise an
+                    # exception later on so it's not a problem that we don't yield at all.
+                    if not failed():
+                        yield proc
                 except BaseException:
                     proc.terminate()
                     raise
                 finally:
                     returncode = proc.wait()
 
-                if check and returncode not in success_exit_status:
+                if failed():
                     if log:
                         log_process_failure(prefix, cmd, returncode)
                     if ARG_DEBUG_SHELL.get():
@@ -290,7 +336,12 @@ def spawn(
                             user=user,
                             group=group,
                             env=env,
-                            preexec_fn=preexec,
+                            preexec_fn=functools.partial(
+                                preexec,
+                                foreground=True,
+                                preexec_fn=preexec_fn,
+                                pass_fds=tuple(),
+                            ),
                         )
                     raise subprocess.CalledProcessError(returncode, cmdline)
         except FileNotFoundError as e:
@@ -588,7 +639,7 @@ def sandbox_cmd(
 
         if not overlay and not relaxed:
             tmp = stack.enter_context(vartmpdir())
-            yield [*cmdline, "--bind", tmp, "/var/tmp", "--dir", "/tmp", "--dir", "/run", *options, "--"]
+            yield [*cmdline, "--bind", tmp, "/var/tmp", "--dir", "/tmp", "--dir", "/run", *options]
             return
 
         for d in ("etc", "opt"):
@@ -628,7 +679,7 @@ def sandbox_cmd(
             tmp = stack.enter_context(vartmpdir())
             cmdline += ["--bind", tmp, "/var/tmp"]
 
-        yield [*cmdline, *options, "--"]
+        yield [*cmdline, *options]
 
 
 def apivfs_options(*, root: Path = Path("/buildroot")) -> list[PathString]:
@@ -683,7 +734,7 @@ def chroot_cmd(
         cmdline += ["--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf"]
 
     with vartmpdir() as dir:
-        yield [*cmdline, "--bind", dir, "/var/tmp", *options, "--"]
+        yield [*cmdline, "--bind", dir, "/var/tmp", *options]
 
 
 def finalize_interpreter(tools: bool) -> str:

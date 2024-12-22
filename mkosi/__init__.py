@@ -642,7 +642,6 @@ def script_maybe_chroot_sandbox(
             "--chdir", "/work/src",
             *(["--ro-bind-try", "/etc/resolv.conf", "/etc/resolv.conf"] if network else []),
             *(["--suppress-chown"] if suppress_chown else []),
-            "--",
         ],
         "mkosi-as-caller": mkosi_as_caller(),
         **context.config.distribution.package_manager(context.config).scripts(context),
