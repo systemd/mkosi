@@ -312,7 +312,7 @@ def test_config() -> None:
                 "Source": "",
                 "Type": "file"
             },
-            "SecureBootSignTool": "pesign",
+            "SecureBootSignTool": "systemd-sbsign",
             "Seed": "7496d7d8-7f08-4a2b-96c6-ec8c43791b60",
             "ShimBootloader": "none",
             "Sign": false,
@@ -538,7 +538,7 @@ def test_config() -> None:
         secure_boot_certificate_source=CertificateSource(type=CertificateSourceType.file),
         secure_boot_key=Path("/path/to/keyfile"),
         secure_boot_key_source=KeySource(type=KeySourceType.file),
-        secure_boot_sign_tool=SecureBootSignTool.pesign,
+        secure_boot_sign_tool=SecureBootSignTool.systemd_sbsign,
         seed=uuid.UUID("7496d7d8-7f08-4a2b-96c6-ec8c43791b60"),
         selinux_relabel=ConfigFeature.disabled,
         shim_bootloader=ShimBootloader.none,

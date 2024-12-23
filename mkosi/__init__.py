@@ -28,7 +28,6 @@ from typing import Optional, Union, cast
 
 from mkosi.archive import can_extract_tar, extract_tar, make_cpio, make_tar
 from mkosi.bootloader import (
-    certificate_common_name,
     efi_boot_binary,
     extract_pe_section,
     gen_kernel_images,
@@ -36,7 +35,6 @@ from mkosi.bootloader import (
     install_grub,
     install_shim,
     install_systemd_boot,
-    pesign_prepare,
     prepare_grub_config,
     python_binary,
     run_systemd_sign_tool,
@@ -1506,51 +1504,42 @@ def run_ukify(
         assert context.config.secure_boot_key
         assert context.config.secure_boot_certificate
 
-        if context.config.secure_boot_sign_tool != SecureBootSignTool.pesign:
-            cmd += [
-                "--signtool", (
-                    "sbsign"
-                    if context.config.secure_boot_sign_tool == SecureBootSignTool.sbsign
-                    or not context.config.find_binary("systemd-sbsign", "/usr/lib/systemd/systemd-sbsign")
-                    else "systemd-sbsign"
-                ),
-            ]  # fmt: skip
+        cmd += [
+            "--signtool", (
+                "sbsign"
+                if context.config.secure_boot_sign_tool == SecureBootSignTool.sbsign
+                or not context.config.find_binary("systemd-sbsign", "/usr/lib/systemd/systemd-sbsign")
+                else "systemd-sbsign"
+            ),
+        ]  # fmt: skip
 
-            if (
-                context.config.secure_boot_key_source.type != KeySourceType.file
-                or context.config.secure_boot_certificate_source.type != CertificateSourceType.file
-            ):
-                opt += ["--bind", "/run", "/run"]
+        if (
+            context.config.secure_boot_key_source.type != KeySourceType.file
+            or context.config.secure_boot_certificate_source.type != CertificateSourceType.file
+        ):
+            opt += ["--bind", "/run", "/run"]
 
-            if context.config.secure_boot_key_source.type == KeySourceType.engine:
-                cmd += ["--signing-engine", context.config.secure_boot_key_source.source]
-            elif context.config.secure_boot_key_source.type == KeySourceType.provider:
-                cmd += ["--signing-provider", context.config.secure_boot_key_source.source]
+        if context.config.secure_boot_key_source.type == KeySourceType.engine:
+            cmd += ["--signing-engine", context.config.secure_boot_key_source.source]
+        elif context.config.secure_boot_key_source.type == KeySourceType.provider:
+            cmd += ["--signing-provider", context.config.secure_boot_key_source.source]
 
-            if context.config.secure_boot_key.exists():
-                cmd += ["--secureboot-private-key", workdir(context.config.secure_boot_key)]
-                opt += ["--ro-bind", context.config.secure_boot_key, workdir(context.config.secure_boot_key)]
-            else:
-                cmd += ["--secureboot-private-key", context.config.secure_boot_key]
-
-            if context.config.secure_boot_certificate_source.type == CertificateSourceType.provider:
-                cmd += ["--certificate-provider", context.config.secure_boot_certificate_source.source]
-
-            if context.config.secure_boot_certificate.exists():
-                cmd += ["--secureboot-certificate", workdir(context.config.secure_boot_certificate)]
-                opt += [
-                    "--ro-bind", context.config.secure_boot_certificate, workdir(context.config.secure_boot_certificate),  # noqa: E501
-                ]  # fmt: skip
-            else:
-                cmd += ["--secureboot-certificate", context.config.secure_boot_certificate]
+        if context.config.secure_boot_key.exists():
+            cmd += ["--secureboot-private-key", workdir(context.config.secure_boot_key)]
+            opt += ["--ro-bind", context.config.secure_boot_key, workdir(context.config.secure_boot_key)]
         else:
-            pesign_prepare(context)
-            cmd += [
-                "--signtool", "pesign",
-                "--secureboot-certificate-dir", workdir(context.workspace / "pesign"),
-                "--secureboot-certificate-name", certificate_common_name(context, context.config.secure_boot_certificate),  # noqa: E501
+            cmd += ["--secureboot-private-key", context.config.secure_boot_key]
+
+        if context.config.secure_boot_certificate_source.type == CertificateSourceType.provider:
+            cmd += ["--certificate-provider", context.config.secure_boot_certificate_source.source]
+
+        if context.config.secure_boot_certificate.exists():
+            cmd += ["--secureboot-certificate", workdir(context.config.secure_boot_certificate)]
+            opt += [
+                "--ro-bind", context.config.secure_boot_certificate, workdir(context.config.secure_boot_certificate),  # noqa: E501
             ]  # fmt: skip
-            opt += ["--ro-bind", context.workspace / "pesign", workdir(context.workspace / "pesign")]
+        else:
+            cmd += ["--secureboot-certificate", context.config.secure_boot_certificate]
 
     run(
         cmd,
