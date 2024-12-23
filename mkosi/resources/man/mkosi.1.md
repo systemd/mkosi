@@ -1138,8 +1138,8 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     UEFI kernel image, if `SecureBoot=` is used.
 
 `SecureBootSignTool=`, `--secure-boot-sign-tool`
-:   Tool to use to sign secure boot PE binaries. Takes one of `systemd-sbsign`, `sbsign`, `pesign` or `auto`.
-    Defaults to `auto`. If set to `auto`, either `systemd-sbsign`, `sbsign` or `pesign` are used if
+:   Tool to use to sign secure boot PE binaries. Takes one of `systemd-sbsign`, `sbsign` or `auto`.
+    Defaults to `auto`. If set to `auto`, either `systemd-sbsign` or `sbsign` are used if
     available, with `systemd-sbsign` being preferred.
 
 `Verity=`, `--verity=`
@@ -1288,7 +1288,6 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     | `pkcs11-provider`       | ✓      |        | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `sed`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `pacman`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
-    | `pesign`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `policycoreutils`       | ✓      | ✓      | ✓      | ✓    | ✓      |      | ✓        |
     | `qemu`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `sbsigntools`           | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |

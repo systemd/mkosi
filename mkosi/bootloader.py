@@ -408,33 +408,6 @@ def shim_second_stage_binary(context: Context) -> Path:
         return Path(f"efi/EFI/BOOT/grub{arch}.EFI")
 
 
-def certificate_common_name(context: Context, certificate: Path) -> str:
-    output = run(
-        [
-            "openssl",
-            "x509",
-            "-noout",
-            "-subject",
-            "-nameopt", "multiline",
-            "-in", workdir(certificate),
-        ],
-        stdout=subprocess.PIPE,
-        sandbox=context.sandbox(options=["--ro-bind", certificate, workdir(certificate)]),
-    ).stdout  # fmt: skip
-
-    for line in output.splitlines():
-        if not line.strip().startswith("commonName"):
-            continue
-
-        _, sep, value = line.partition("=")
-        if not sep:
-            die("Missing '=' delimiter in openssl output")
-
-        return value.strip()
-
-    die(f"Certificate {certificate} is missing Common Name")
-
-
 def run_systemd_sign_tool(
     config: Config,
     *,
@@ -497,60 +470,6 @@ def run_systemd_sign_tool(
             ),
         ),
     )
-
-
-def pesign_prepare(context: Context) -> None:
-    assert context.config.secure_boot_key
-    assert context.config.secure_boot_certificate
-
-    if (context.workspace / "pesign").exists():
-        return
-
-    (context.workspace / "pesign").mkdir()
-
-    # pesign takes a certificate directory and a certificate common name as input arguments, so we have
-    # to transform our input key and cert into that format. Adapted from
-    # https://www.mankier.com/1/pesign#Examples-Signing_with_the_certificate_and_private_key_in_individual_files
-    with open(context.workspace / "secure-boot.p12", "wb") as f:
-        run(
-            [
-                "openssl",
-                "pkcs12",
-                "-export",
-                # Arcane incantation to create a pkcs12 certificate without a password.
-                "-keypbe", "NONE",
-                "-certpbe", "NONE",
-                "-nomaciter",
-                "-passout", "pass:",
-                "-inkey", workdir(context.config.secure_boot_key),
-                "-in", workdir(context.config.secure_boot_certificate),
-            ],
-            stdout=f,
-            sandbox=context.sandbox(
-                options=[
-                    "--ro-bind", context.config.secure_boot_key, workdir(context.config.secure_boot_key),
-                    "--ro-bind", context.config.secure_boot_certificate, workdir(context.config.secure_boot_certificate),  # noqa: E501
-                ],
-            ),
-        )  # fmt: skip
-
-    (context.workspace / "pesign").mkdir(exist_ok=True)
-
-    run(
-        [
-            "pk12util",
-            "-K", "",
-            "-W", "",
-            "-i", workdir(context.workspace / "secure-boot.p12"),
-            "-d", workdir(context.workspace / "pesign"),
-        ],
-        sandbox=context.sandbox(
-            options=[
-                "--ro-bind", context.workspace / "secure-boot.p12", workdir(context.workspace / "secure-boot.p12"),  # noqa: E501
-                "--ro-bind", context.workspace / "pesign", workdir(context.workspace / "pesign"),
-            ],
-        ),
-    )  # fmt: skip
 
 
 def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
@@ -618,41 +537,8 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
                 devices=context.config.secure_boot_key_source.type != KeySourceType.file,
             ),
         )
-    elif (
-        context.config.secure_boot_sign_tool == SecureBootSignTool.pesign
-        or context.config.secure_boot_sign_tool == SecureBootSignTool.auto
-        and context.config.find_binary("pesign") is not None
-    ):
-        if context.config.secure_boot_certificate_source.type != CertificateSourceType.file:
-            die("Secure boot certificate source must be 'file' when using pesign as the signing tool")
-
-        pesign_prepare(context)
-        run(
-            [
-                "pesign",
-                "--certdir", workdir(context.workspace / "pesign"),
-                "--certificate", certificate_common_name(context, context.config.secure_boot_certificate),
-                "--sign",
-                "--force",
-                "--in", workdir(input),
-                "--out", workdir(output),
-            ],
-            stdin=(
-                sys.stdin
-                if context.config.secure_boot_key_source.type != KeySourceType.file
-                else subprocess.DEVNULL
-            ),
-            env=context.config.environment,
-            sandbox=context.sandbox(
-                options=[
-                    "--ro-bind", context.workspace / "pesign", workdir(context.workspace / "pesign"),
-                    "--ro-bind", input, workdir(input),
-                    "--bind", output.parent, workdir(output),
-                ]
-            ),
-        )  # fmt: skip
     else:
-        die("One of sbsign or pesign is required to use SecureBoot=")
+        die("One of systemd-sbsign or sbsign is required to use SecureBoot=")
 
     return output
 
