@@ -3803,6 +3803,8 @@ def run_shell(args: Args, config: Config) -> None:
     for k, v in finalize_credentials(config).items():
         cmdline += [f"--set-credential={k}:{v}"]
 
+    cmdline += ["--register", yes_no(config.register)]
+
     with contextlib.ExitStack() as stack:
         # Make sure the latest nspawn settings are always used.
         if config.nspawn_settings:

@@ -262,6 +262,7 @@ def test_config() -> None:
             "QemuSwtpm": "auto",
             "QemuVsock": "enabled",
             "QemuVsockConnectionId": -2,
+            "Register": true,
             "Release": "53",
             "RemoveFiles": [],
             "RemovePackages": [
@@ -512,6 +513,7 @@ def test_config() -> None:
         qemu_swtpm=ConfigFeature.auto,
         qemu_vsock=ConfigFeature.enabled,
         qemu_vsock_cid=QemuVsockCID.hash,
+        register=True,
         release="53",
         remove_files=[],
         remove_packages=["all"],
