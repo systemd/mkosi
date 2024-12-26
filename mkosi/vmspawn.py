@@ -59,6 +59,7 @@ def run_vmspawn(args: Args, config: Config) -> None:
         "--vsock", config.qemu_vsock.to_tristate(),
         "--tpm", config.qemu_swtpm.to_tristate(),
         "--secure-boot", yes_no(config.secure_boot),
+        "--register", yes_no(config.register),
     ]  # fmt: skip
 
     if config.runtime_network == Network.user:

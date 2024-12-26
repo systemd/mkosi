@@ -918,8 +918,10 @@ def scope_cmd(
 
 
 def register_machine(config: Config, pid: int, fname: Path) -> None:
-    if os.getuid() != 0 or (
-        "DBUS_SYSTEM_ADDRESS" not in os.environ and not Path("/run/dbus/system_bus_socket").exists()
+    if (
+        not config.register
+        or os.getuid() != 0
+        or ("DBUS_SYSTEM_ADDRESS" not in os.environ and not Path("/run/dbus/system_bus_socket").exists())
     ):
         return
 

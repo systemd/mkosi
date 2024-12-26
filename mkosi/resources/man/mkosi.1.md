@@ -1801,6 +1801,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     Note that `Ephemeral=` has to be enabled to start multiple instances
     of the same image.
 
+`Register=`, `--register=`
+:   Takes a boolean value. Enabled by default. Specifies whether to register
+    the vm/container with systemd-machined.
+
 `ForwardJournal=`, `--forward-journal=`
 :   Specify the path to which journal logs from containers and virtual
     machines should be forwarded. If the path has the `.journal`
