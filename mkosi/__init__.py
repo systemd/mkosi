@@ -2623,7 +2623,7 @@ def check_tools(config: Config, verb: Verb) -> None:
     if verb == Verb.boot:
         check_systemd_tool(config, "systemd-nspawn", version="254", reason="boot images")
 
-    if verb == Verb.qemu and config.vmm == Vmm.vmspawn:
+    if verb in (Verb.vm, Verb.qemu) and config.vmm == Vmm.vmspawn:
         check_systemd_tool(config, "systemd-vmspawn", version="256", reason="boot images with vmspawn")
 
     if verb == Verb.sysupdate:
@@ -4809,6 +4809,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         {
             Verb.shell: run_shell,
             Verb.boot: run_shell,
+            Verb.vm: run_vm,
             Verb.qemu: run_vm,
             Verb.serve: run_serve,
             Verb.burn: run_burn,

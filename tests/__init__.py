@@ -138,15 +138,15 @@ class Image:
 
         return result
 
-    def vm(self, verb: str, options: Sequence[str] = (), args: Sequence[str] = ()) -> CompletedProcess:
+    def vm(self, options: Sequence[str] = (), args: Sequence[str] = ()) -> CompletedProcess:
         result = self.mkosi(
-            verb,
+            "vm",
             [
                 "--runtime-build-sources=no",
-                "--qemu-vsock=yes",
+                "--vsock=yes",
                 # TODO: Drop once both Hyper-V bugs are fixed in Github Actions.
                 "--qemu-args=-cpu max,pcid=off",
-                "--qemu-mem=2G",
+                "--ram=2G",
                 "--ephemeral",
                 *options,
             ],
@@ -163,12 +163,6 @@ class Image:
             raise subprocess.CalledProcessError(result.returncode, result.args, result.stdout, result.stderr)
 
         return result
-
-    def qemu(self, options: Sequence[str] = (), args: Sequence[str] = ()) -> CompletedProcess:
-        return self.vm("qemu", options, args)
-
-    def vmspawn(self, options: Sequence[str] = (), args: Sequence[str] = ()) -> CompletedProcess:
-        return self.vm("vmspawn", options, args)
 
     def genkey(self) -> CompletedProcess:
         return self.mkosi("genkey", ["--force"], user=self.uid, group=self.gid)

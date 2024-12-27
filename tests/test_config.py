@@ -357,7 +357,7 @@ def test_profiles(tmp_path: Path) -> None:
         Distribution=fedora
 
         [Runtime]
-        QemuKvm=yes
+        KVM=yes
         """
     )
 
@@ -382,7 +382,7 @@ def test_profiles(tmp_path: Path) -> None:
     assert config.profiles == ["profile"]
     # The profile should override mkosi.conf.d/
     assert config.distribution == Distribution.fedora
-    assert config.qemu_kvm == ConfigFeature.enabled
+    assert config.kvm == ConfigFeature.enabled
 
     (d / "mkosi.conf").unlink()
 
@@ -392,7 +392,7 @@ def test_profiles(tmp_path: Path) -> None:
     assert config.profiles == ["profile"]
     # The profile should override mkosi.conf.d/
     assert config.distribution == Distribution.fedora
-    assert config.qemu_kvm == ConfigFeature.enabled
+    assert config.kvm == ConfigFeature.enabled
 
     (d / "mkosi.conf").write_text(
         """\
@@ -489,6 +489,7 @@ def test_parse_load_verb(tmp_path: Path) -> None:
         assert parse_config(["shell"])[0].verb == Verb.shell
         assert parse_config(["boot"])[0].verb == Verb.boot
         assert parse_config(["qemu"])[0].verb == Verb.qemu
+        assert parse_config(["vm"])[0].verb == Verb.vm
         assert parse_config(["journalctl"])[0].verb == Verb.journalctl
         assert parse_config(["coredumpctl"])[0].verb == Verb.coredumpctl
         with pytest.raises(SystemExit):

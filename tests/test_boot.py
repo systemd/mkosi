@@ -5,7 +5,7 @@ import subprocess
 
 import pytest
 
-from mkosi.config import Bootloader, OutputFormat, QemuFirmware
+from mkosi.config import Bootloader, Firmware, OutputFormat
 from mkosi.distributions import Distribution
 from mkosi.qemu import find_virtiofsd
 from mkosi.run import find_binary, run
@@ -54,15 +54,15 @@ def test_format(config: ImageConfig, format: OutputFormat) -> None:
         if format == OutputFormat.directory and not find_virtiofsd():
             return
 
-        image.qemu()
+        image.vm()
 
         if have_vmspawn() and format in (OutputFormat.disk, OutputFormat.directory):
-            image.vmspawn()
+            image.vm(options=["--vmm=vmspawn"])
 
         if format != OutputFormat.disk:
             return
 
-        image.qemu(["--qemu-firmware=bios"])
+        image.vm(["--firmware=bios"])
 
 
 @pytest.mark.parametrize("bootloader", Bootloader)
@@ -70,9 +70,9 @@ def test_bootloader(config: ImageConfig, bootloader: Bootloader) -> None:
     if config.distribution == Distribution.rhel_ubi:
         return
 
-    firmware = QemuFirmware.linux if bootloader == Bootloader.none else QemuFirmware.auto
+    firmware = Firmware.linux if bootloader == Bootloader.none else Firmware.auto
 
     with Image(config) as image:
         image.genkey()
         image.build(["--format=disk", "--bootloader", str(bootloader)])
-        image.qemu(["--qemu-firmware", str(firmware)])
+        image.vm(["--firmware", str(firmware)])
