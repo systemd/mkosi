@@ -8,9 +8,9 @@ from pathlib import Path
 from mkosi.config import (
     Args,
     Config,
+    Firmware,
     Network,
     OutputFormat,
-    QemuFirmware,
     yes_no,
 )
 from mkosi.log import die
@@ -18,8 +18,8 @@ from mkosi.qemu import (
     apply_runtime_size,
     copy_ephemeral,
     finalize_credentials,
+    finalize_firmware,
     finalize_kernel_command_line_extra,
-    finalize_qemu_firmware,
 )
 from mkosi.run import run
 from mkosi.types import PathString
@@ -30,45 +30,43 @@ def run_vmspawn(args: Args, config: Config) -> None:
     if config.output_format not in (OutputFormat.disk, OutputFormat.esp, OutputFormat.directory):
         die(f"{config.output_format} images cannot be booted in systemd-vmspawn")
 
-    if config.qemu_firmware == QemuFirmware.bios:
+    if config.firmware == Firmware.bios:
         die("systemd-vmspawn cannot boot BIOS firmware images")
 
-    if config.qemu_cdrom:
+    if config.cdrom:
         die("systemd-vmspawn does not support CD-ROM images")
 
-    if config.qemu_firmware_variables and config.qemu_firmware_variables != Path("microsoft"):
-        die("mkosi vmspawn does not support QemuFirmwareVariables=")
+    if config.firmware_variables and config.firmware_variables != Path("microsoft"):
+        die("mkosi vmspawn does not support FirmwareVariables=")
 
-    kernel = config.qemu_kernel
-    firmware = finalize_qemu_firmware(config, kernel)
+    kernel = config.linux
+    firmware = finalize_firmware(config, kernel)
 
-    if not kernel and firmware == QemuFirmware.linux:
+    if not kernel and firmware == Firmware.linux:
         kernel = config.output_dir_or_cwd() / config.output_split_kernel
         if not kernel.exists():
             die(
                 f"Kernel or UKI not found at {kernel}",
-                hint="Please install a kernel in the image or provide a --qemu-kernel"
+                hint="Please install a kernel in the image or provide a --linux"
                 " argument to mkosi vmspawn",
             )
 
     cmdline: list[PathString] = [
         "systemd-vmspawn",
-        "--cpus", str(config.qemu_smp or os.cpu_count()),
-        "--ram", str(config.qemu_mem),
-        "--kvm", config.qemu_kvm.to_tristate(),
-        "--vsock", config.qemu_vsock.to_tristate(),
-        "--tpm", config.qemu_swtpm.to_tristate(),
+        "--cpus", str(config.cpus or os.cpu_count()),
+        "--ram", str(config.ram),
+        "--kvm", config.kvm.to_tristate(),
+        "--vsock", config.vsock.to_tristate(),
+        "--tpm", config.tpm.to_tristate(),
         "--secure-boot", yes_no(config.secure_boot),
         "--register", yes_no(config.register),
+        "--console", str(config.console),
     ]  # fmt: skip
 
     if config.runtime_network == Network.user:
         cmdline += ["--network-user-mode"]
     elif config.runtime_network == Network.interface:
         cmdline += ["--network-tap"]
-
-    if config.qemu_gui:
-        cmdline += ["--console=gui"]
 
     cmdline += [f"--set-credential={k}:{v}" for k, v in finalize_credentials(config).items()]
 

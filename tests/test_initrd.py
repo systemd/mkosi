@@ -53,7 +53,7 @@ def passphrase() -> Iterator[Path]:
 def test_initrd(config: ImageConfig) -> None:
     with Image(config) as image:
         image.build(options=["--format=disk"])
-        image.qemu()
+        image.vm()
 
 
 @pytest.mark.skipif(os.getuid() != 0, reason="mkosi-initrd LVM test can only be executed as root")
@@ -94,9 +94,9 @@ def test_initrd_lvm(config: ImageConfig) -> None:
 
         lvm.rename(Path(image.output_dir) / "image.raw")
 
-        image.qemu(
+        image.vm(
             [
-                "--qemu-firmware=linux",
+                "--firmware=linux",
                 # LVM confuses systemd-repart so we mask it for this test.
                 "--kernel-command-line-extra=systemd.mask=systemd-repart.service",
                 "--kernel-command-line-extra=root=LABEL=root",
@@ -151,7 +151,7 @@ def test_initrd_luks(config: ImageConfig, passphrase: Path) -> None:
 
         with Image(config) as image:
             image.build(["--repart-directory", repartd, "--passphrase", passphrase, "--format=disk"])
-            image.qemu(["--credential=cryptsetup.passphrase=mkosi"])
+            image.vm(["--credential=cryptsetup.passphrase=mkosi"])
 
 
 @pytest.mark.skipif(os.getuid() != 0, reason="mkosi-initrd LUKS+LVM test can only be executed as root")
@@ -206,11 +206,11 @@ def test_initrd_luks_lvm(config: ImageConfig, passphrase: Path) -> None:
 
         lvm.rename(Path(image.output_dir) / "image.raw")
 
-        image.qemu(
+        image.vm(
             [
                 "--format=disk",
                 "--credential=cryptsetup.passphrase=mkosi",
-                "--qemu-firmware=linux",
+                "--firmware=linux",
                 "--kernel-command-line-extra=root=LABEL=root",
                 f"--kernel-command-line-extra=rd.luks.uuid={luks_uuid}",
             ]

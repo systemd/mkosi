@@ -18,7 +18,7 @@ mkosi — Build Bespoke OS Images
 
 `mkosi [options…] boot [nspawn settings…]`
 
-`mkosi [options…] qemu [qemu parameters…]`
+`mkosi [options…] vm [vmm parameters…]`
 
 `mkosi [options…] ssh [command line…]`
 
@@ -89,7 +89,7 @@ The following command line verbs are known:
     the `boot` verb, which can contain extra nspawn options as well as arguments
     which are passed as the *kernel command line* to the init system in the image.
 
-`qemu`
+`vm`
 :   Similar to `boot`, but uses the configured virtual machine monitor (by
     default `qemu`) to boot up the image, i.e. instead of container
     virtualization, virtual machine virtualization is used. How extra
@@ -99,8 +99,8 @@ The following command line verbs are known:
 
 `ssh`
 :   When the image is built with the `Ssh=yes` option, this command
-    connects to a booted virtual machine (`qemu`) via SSH. Make sure to
-    run `mkosi ssh` with the same config as `mkosi build` so that it has
+    connects to a booted virtual machine via SSH. Make sure to run `mkosi ssh`
+    with the same config as `mkosi build` so that it has
     the necessary information available to connect to the running virtual
     machine via SSH. Specifically, the SSH private key from the `SshKey=`
     setting is used to connect to the virtual machine. Use `mkosi genkey`
@@ -111,7 +111,7 @@ The following command line verbs are known:
 
     The `Machine=` option can be used to give the machine a custom
     hostname when booting it which can later be used to ssh into the image
-    (e.g. `mkosi --machine=mymachine qemu` followed by
+    (e.g. `mkosi --machine=mymachine vm` followed by
     `mkosi --machine=mymachine ssh`).
 
 `journalctl`
@@ -133,7 +133,7 @@ The following command line verbs are known:
 
 `sandbox`
 :   Run arbitrary commands inside of the same sandbox used to execute
-    other verbs such as `boot`, `shell`, `qemu` and more. This means
+    other verbs such as `boot`, `shell`, `vm` and more. This means
     `/usr` will be replaced by `/usr` from the tools tree if one is used
     while everything else will remain in place. If no command is provided,
     `$SHELL` will be executed or `bash` if `$SHELL` is not set.
@@ -564,7 +564,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     8, which default to `xz`, and OCI images, which default to `gzip`.
     Note that when applied to block device image types,
     compression means the image cannot be started directly but needs to be
-    decompressed first. This also means that the `shell`, `boot`, `qemu` verbs
+    decompressed first. This also means that the `shell`, `boot`, `vm` verbs
     are not available when this option is used. Implied for `tar`, `cpio`, `uki`,
     `esp`, and `oci`.
 
@@ -1076,7 +1076,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `Ssh=`, `--ssh`
 :   If specified, an sshd socket unit and matching service are installed
     in the final image that expose SSH over VSock. When building with this
-    option and running the image using `mkosi qemu`, the `mkosi ssh`
+    option and running the image using `mkosi vm`, the `mkosi ssh`
     command can be used to connect to the container/VM via SSH. Note that
     you still have to make sure openssh is installed in the image to make
     this option behave correctly. Run `mkosi genkey` to automatically
@@ -1461,10 +1461,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     build without specifying `--force`.
 
     To give an example of why this is useful, if you run
-    `mkosi -O my-custom-output-dir -f` followed by `mkosi qemu`, `mkosi`
+    `mkosi -O my-custom-output-dir -f` followed by `mkosi vm`, `mkosi`
     will fail saying the image hasn't been built yet. If you run
     `mkosi -O my-custom-output-dir --history=yes -f` followed by
-    `mkosi qemu`, it will boot the image built in the previous step as
+    `mkosi vm`, it will boot the image built in the previous step as
     expected.
 
 `BuildSources=`, `--build-sources=`
@@ -1574,69 +1574,67 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     invocation and are interpreted as extra vmspawn options and extra
     kernel command line arguments.
 
-`QemuGui=`, `--qemu-gui=`
-:   If enabled, qemu is executed with its graphical interface instead of
-    with a serial console.
+`Console=`, `--console=`
+:   Configures how to set up the console of the VM. Takes one of `interactive`, `read-only`, `native`, or
+    `gui`. Defaults to `interactive`. `interactive` provides an interactive terminal interface to the VM.
+    `read-only` is similar, but is strictly read-only, i.e. does not accept any input from the user.
+    `native` also provides a TTY-based interface, but uses qemu's native implementation (which means the qemu
+    monitor is available). `gui` shows the qemu graphical UI.
 
-`QemuSmp=`, `--qemu-smp=`
-:   When used with the `qemu` verb, this options sets `qemu`'s `-smp`
-    argument which controls the number of guest's CPUs. Defaults to `2`.
+`CPUs=`, `--cpus=`
+:   Configures the number of CPU cores to assign to the guest when booting a virtual machine.
+    Defaults to `2`.
 
     When set to `0`, the number of CPUs available to the mkosi process
     will be used.
 
-`QemuMem=`, `--qemu-mem=`
-:   When used with the `qemu` verb, this options sets `qemu`'s `-m`
-    argument which controls the amount of guest's RAM. Defaults to `2G`.
+`RAM=`, `--ram=`
+:   Configures the amount of RAM assigned to the guest when booting a virtual machine. Defaults to `2G`.
 
-`QemuKvm=`, `--qemu-kvm=`
-:   When used with the `qemu` verb, this option specifies whether QEMU should use KVM acceleration. Takes a
+`KVM=`, `--kvm=`
+:   Configures whether KVM acceleration should be used when booting a virtual machine. Takes a
     boolean value or `auto`. Defaults to `auto`.
 
-`QemuVsock=`, `--qemu-vsock=`
-:   When used with the `qemu` verb, this option specifies whether QEMU should be configured with a vsock. Takes
+`Vsock=`, `--vsock=`
+:   Configures whether to provision a vsock when booting a virtual machine. Takes
     a boolean value or `auto`. Defaults to `auto`.
 
-`QemuVsockConnectionId=`, `--qemu-vsock-cid=`
-:   When used with the `qemu` verb, this option specifies the vsock
-    connection ID to use. Takes a number in the interval `[3, 0xFFFFFFFF)`
-    or `hash` or `auto`. Defaults to `auto`. When set to `hash`, the
-    connection ID will be derived from the full path to the image. When
-    set to `auto`, `mkosi` will try to find a free connection ID
-    automatically. Otherwise, the provided number will be used as is.
+`VsockConnectionId=`, `vsock-cid=`
+:   Configures the vsock connection ID to use when booting a virtual machine.
+    Takes a number in the interval `[3, 0xFFFFFFFF)` or `hash` or `auto`.
+    Defaults to `auto`. When set to `hash`, the connection ID will be derived
+    from the full path to the image. When set to `auto`, `mkosi` will try to
+    find a free connection ID automatically. Otherwise, the provided number will
+    be used as is.
 
-`QemuSwtpm=`, `--qemu-swtpm=`
-:   When used with the `qemu` verb, this option specifies whether to start an instance of swtpm to be used as a
-    TPM with qemu. This requires swtpm to be installed on the host. Takes a boolean value or `auto`. Defaults
-    to `auto`.
+`TPM=`, `--tpm=`
+:   Configure whether to use a virtual TPM when booting a virtual machine.
+    Takes a boolean value or `auto`. Defaults to `auto`.
 
-`QemuCdrom=`, `--qemu-cdrom=`
-:   When used with the `qemu` verb, this option specifies whether to
-    attach the image to the virtual machine as a CD-ROM device. Takes a
-    boolean. Defaults to `no`.
+`Cdrom=`, `--cdrom=`
+:   Configures whether to attach the image as a CD-ROM device when booting a
+    virtual machine. Takes a boolean. Defaults to `no`.
 
-`QemuRemovable=`, `--qemu-removable=`
-:   When used with the `qemu` verb, this option specifies whether to attach the image to the virtual machine
-    as a removable device. Takes a boolean. Defaults to `no`.
+`Removable=`, `--removable=`
+:   Configures whether to attach the image as a removable device when booting
+    a virtual machine. Takes a boolean. Defaults to `no`.
 
-`QemuFirmware=`, `--qemu-firmware=`
-:   When used with the `qemu` verb, this option specifies which firmware
-    to use. Takes one of `uefi`, `uefi-secure-boot`, `bios`, `linux`, or
-    `auto`. Defaults to `auto`. When set to `uefi`, the OVMF firmware
-    without secure boot support is used. When set to `uefi-secure-boot`,
-    the OVMF firmware with secure boot support is used. When set to
-    `bios`, the default SeaBIOS firmware is used. When set to `linux`,
-    direct kernel boot is used. See the `QemuKernel=` option for more
-    details on which kernel image is used with direct kernel boot. When
-    set to `auto`, `uefi-secure-boot` is used if possible and `linux`
-    otherwise.
+`Firmware=`, `--firmware=`
+:   Configures the virtual machine firmware to use. Takes one of `uefi`,
+    `uefi-secure-boot`, `bios`, `linux`, or `auto`. Defaults to `auto`.
+    When set to `uefi`, the OVMF firmware without secure boot support
+    is used. When set to `uefi-secure-boot`, the OVMF firmware with
+    secure boot support is used. When set to `bios`, the default SeaBIOS
+    firmware is used. When set to `linux`, direct kernel boot is used.
+    See the `Linux=` option for more details on which kernel image is
+    used with direct kernel boot. When set to `auto`, `uefi-secure-boot`
+    is used if possible and `linux` otherwise.
 
-`QemuFirmwareVariables=`, `--qemu-firmware-variables=`
-:   When used with the `qemu` verb, this option specifies the path to the
-    the firmware variables file to use. Currently, this option is only
-    taken into account when the `uefi` or `uefi-secure-boot` firmware is
-    used. If not specified, mkosi will search for the default variables
-    file and use that instead.
+`FirmwareVariables=`, `--firmware-variables=`
+:   Configures the path to the the virtual machine firmware variables file
+    to use. Currently, this option is only taken into account when the `uefi`
+    or `uefi-secure-boot` firmware is used. If not specified, mkosi will search
+    for the default variables file and use that instead.
 
     When set to `microsoft`, a firmware variables file with the Microsoft
     secure boot certificates already enrolled will be used.
@@ -1649,7 +1647,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     [virt-firmware](https://gitlab.com/kraxel/virt-firmware) project can
     be used to customize OVMF variable files.
 
-`QemuKernel=`, `--qemu-kernel=`
+`Linux=`, `--linux=`
 :   Set the kernel image to use for qemu direct kernel boot. If not
     specified, mkosi will use the kernel provided via the command line
     (`-kernel` option) or latest the kernel that was installed into
@@ -1660,10 +1658,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     configured firmware, qemu might boot the kernel itself or using the
     configured firmware.
 
-`QemuDrives=`, `--qemu-drive=`
-:   Add a qemu drive. Takes a colon-delimited string of format
+`Drives=`, `--drive=`
+:   Add a drive. Takes a colon-delimited string of format
     `<id>:<size>[:<directory>[:<options>[:<file-id>]]]`. `id` specifies
-    the qemu ID assigned to the drive. This can be used as the `drive=`
+    the ID assigned to the drive. This can be used as the `drive=`
     property in various qemu devices. `size` specifies the size of the
     drive. This takes a size in bytes. Additionally, the suffixes `K`, `M`
     and `G` can be used to specify a size in kilobytes, megabytes and
@@ -1679,8 +1677,8 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
     ```ini
     [Runtime]
-    QemuDrives=btrfs:10G
-               ext4:20G
+    Drives=btrfs:10G
+           ext4:20G
     QemuArgs=-device nvme,serial=btrfs,drive=btrfs
              -device nvme,serial=ext4,drive=ext4
     ```
@@ -1690,14 +1688,14 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     qemu.
 
 `Ephemeral=`, `--ephemeral`
-:   When used with the `shell`, `boot`, or `qemu` verbs, this option runs the specified verb on a temporary
+:   When used with the `shell`, `boot`, or `vm` verbs, this option runs the specified verb on a temporary
     snapshot of the output image that is removed immediately when the container terminates. Taking the
     temporary snapshot is more efficient on file systems that support reflinks natively (btrfs or xfs)
     than on more traditional file systems that do not (ext4).
 
 `Credentials=`, `--credential=`
-:   Set credentials to be passed to systemd-nspawn or qemu respectively
-    when `mkosi shell/boot` or `mkosi qemu` are used. This option takes a
+:   Set credentials to be passed to systemd-nspawn or the virtual machine respectively
+    when `mkosi shell/boot` or `mkosi vm` are used. This option takes a
     space separated list of values which can be either key=value pairs or
     paths. If a path is provided, if it is a file, the credential name
     will be the name of the file. If the file is executable, the
@@ -1731,12 +1729,12 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     machine in these directories will be owned by the user running mkosi
     on the host.
 
-    Note that when using `mkosi qemu` with this feature systemd v254 or
+    Note that when using `mkosi vm` with this feature systemd v254 or
     newer has to be installed in the image.
 
 `RuntimeSize=`, `--runtime-size=`
 :   If specified, disk images are grown to the specified size when
-    they're booted with `mkosi boot` or `mkosi qemu`. Takes a size in
+    they're booted with `mkosi boot` or `mkosi vm`. Takes a size in
     bytes. Additionally, the suffixes `K`, `M` and `G` can be used to
     specify a size in kilobytes, megabytes and gigabytes respectively.
 
@@ -1744,9 +1742,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   Takes a boolean value or `auto`. Specifies whether to mount extra
     scratch space to `/var/tmp`. If enabled, practically unlimited scratch
     space is made available under `/var/tmp` when booting the image with
-    `mkosi qemu`, `mkosi boot` or `mkosi shell`.
+    `mkosi vm`, `mkosi boot` or `mkosi shell`.
 
-    Note that using this feature with `mkosi qemu` requires systemd v254
+    Note that using this feature with `mkosi vm` requires systemd v254
     or newer in the guest.
 
 `RuntimeNetwork=`, `--runtime-network=`
@@ -1755,7 +1753,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     up usermode networking. `interface` sets up a virtual network
     connection between the host and the image. This translates to a veth
     interface for `mkosi shell` and `mkosi boot` and a tap interface for
-    `mkosi qemu` and `mkosi vmspawn`.
+    `mkosi vm` and `mkosi vmspawn`.
 
     Note that when using `interface`, mkosi does not automatically
     configure the host interface. It is expected that a recent version of
@@ -1766,21 +1764,21 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   Mount the build sources configured with `BuildSources=` and the build
     directory (if one is configured) to the same locations in `/work` that
     they were mounted to when running the build script when using `mkosi
-    boot` or `mkosi qemu`.
+    boot` or `mkosi vm`.
 
 `RuntimeHome=`, `--runtime-home=`
 :   Mount the current home directory from which mkosi is running to
-    `/root` when using `mkosi boot` or `mkosi qemu`.
+    `/root` when using `mkosi boot` or `mkosi vm`.
 
 `UnitProperties=`, `--unit-property=`
 :   Configure systemd unit properties to add to the systemd scopes
-    allocated when using `mkosi boot` or `mkosi qemu`. These are passed
+    allocated when using `mkosi boot` or `mkosi vm`. These are passed
     directly to the `--property` options of `systemd-nspawn` and
     `systemd-run` respectively.
 
 `SshKey=`, `--ssh-key=`
 :   Path to the X509 private key in PEM format to use to connect to a
-    virtual machine started with `mkosi qemu` and built with the `Ssh=`
+    virtual machine started with `mkosi vm` and built with the `Ssh=`
     option enabled via the `mkosi ssh` command. If not configured and
     `mkosi.key` exists in the working directory, it will automatically be
     used for this purpose. Run `mkosi genkey` to automatically generate
@@ -1788,7 +1786,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `SshCertificate=`, `--ssh-certificate=`
 :   Path to the X509 certificate in PEM format to provision as the SSH
-    public key in virtual machines started with `mkosi qemu`.  If not
+    public key in virtual machines started with `mkosi vm`.  If not
     configured and `mkosi.crt` exists in the working directory, it will
     automatically be used for this purpose. Run `mkosi genkey` to
     automatically generate a certificate in `mkosi.crt`.
@@ -2190,7 +2188,7 @@ current working directory. The following scripts are supported:
   modify the configuration. It receives the configuration serialized as
   JSON on stdin and should output the modified configuration serialized
   as JSON on stdout. Note that this script only runs when building or
-  booting the image (`build`, `qemu`, `boot` and `shell` verbs). If a
+  booting the image (`build`, `vm`, `boot` and `shell` verbs). If a
   default tools tree is configured, it will be built before running the
   configure scripts and the configure scripts will run with the tools
   tree available. This also means that the modifications made by
@@ -2765,7 +2763,7 @@ Create and run a bootable *GPT* image, as `foobar.raw`:
 ```console
 $ mkosi -d fedora -p kernel-core -p systemd -p systemd-boot -p udev -o foobar.raw
 # mkosi --output foobar.raw boot
-$ mkosi --output foobar.raw qemu
+$ mkosi --output foobar.raw vm
 ```
 
 Create and run a *Fedora Linux* image in a plain directory:
@@ -2815,7 +2813,7 @@ $ chmod +x mkosi.build
 # systemd-nspawn -bi image.raw
 ```
 
-## Different ways to boot with `qemu`
+## Different ways to boot with `vm`
 
 The easiest way to boot a virtual machine is to build an image with the
 required components and let `mkosi` call `qemu` with all the right options:
@@ -2824,7 +2822,7 @@ $ mkosi -d fedora \
     --autologin \
     -p systemd-udev,systemd-boot,kernel-core \
     build
-$ mkosi -d fedora qemu
+$ mkosi -d fedora vm
 ...
 fedora login: root (automatic login)
 [root@fedora ~]#
@@ -2839,13 +2837,13 @@ The qemu monitor may for example be used to inject special keys
 or shut down the machine quickly. Alternatively the machine can be shut down
 using `Ctrl-a x`.
 
-To boot with a graphical window, add `--qemu-qui`:
+To boot with a graphical window, add `--console=gui`:
 ```console
-$ mkosi -d fedora --qemu-gui qemu
+$ mkosi -d fedora --console=gui qemu
 ```
 
 A kernel may be booted directly with
-`mkosi qemu -kernel ... -initrd ... -append '...'`.
+`mkosi vm -kernel ... -initrd ... -append '...'`.
 This is a bit faster because no boot loader is used, and it is also
 easier to experiment with different kernels and kernel commandlines.
 Note that despite the name, qemu's `-append` option replaces
@@ -2854,7 +2852,7 @@ and any previous `-append` specifications.
 
 The UKI is also copied into the output directory and may be booted directly:
 ```console
-$ mkosi qemu -kernel mkosi.output/fedora~38/image.efi
+$ mkosi vm -kernel mkosi.output/fedora~38/image.efi
 ```
 
 When booting using an external kernel, we don't need the kernel *in* the image,
@@ -2863,7 +2861,7 @@ but we would still want the kernel modules to be installed.
 It is also possible to do a *direct kernel boot* into a boot loader,
 taking advantage of the fact that `systemd-boot(7)` is a valid UEFI binary:
 ```console
-$ mkosi qemu -kernel /usr/lib/systemd/boot/efi/systemd-bootx64.efi
+$ mkosi vm -kernel /usr/lib/systemd/boot/efi/systemd-bootx64.efi
 ```
 In this scenario, the kernel is loaded from the ESP in the image by `systemd-boot`.
 
@@ -2916,7 +2914,7 @@ include <tunables/global>
 
 # Frequently Asked Questions (FAQ)
 
-- Why does `mkosi qemu` with KVM not work on Debian/Kali/Ubuntu?
+- Why does `mkosi vm` with KVM not work on Debian/Kali/Ubuntu?
 
   While other distributions are OK with allowing access to `/dev/kvm`, on
   Debian/Kali/Ubuntu this is only allowed for users in the `kvm` group. Because

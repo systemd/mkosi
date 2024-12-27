@@ -28,11 +28,12 @@ from mkosi.config import (
     Args,
     Config,
     ConfigFeature,
+    ConsoleMode,
+    Drive,
+    Firmware,
     Network,
     OutputFormat,
-    QemuDrive,
-    QemuFirmware,
-    QemuVsockCID,
+    VsockCID,
     finalize_term,
     format_bytes,
     systemd_tool_version,
@@ -67,8 +68,8 @@ class QemuDeviceNode(StrEnum):
 
     def feature(self, config: Config) -> ConfigFeature:
         return {
-            QemuDeviceNode.kvm: config.qemu_kvm,
-            QemuDeviceNode.vhost_vsock: config.qemu_vsock,
+            QemuDeviceNode.kvm: config.kvm,
+            QemuDeviceNode.vhost_vsock: config.vsock,
         }[self]
 
     def open(self) -> int:
@@ -178,7 +179,7 @@ class OvmfConfig:
     vars_format: str
 
 
-def find_ovmf_firmware(config: Config, firmware: QemuFirmware) -> Optional[OvmfConfig]:
+def find_ovmf_firmware(config: Config, firmware: Firmware) -> Optional[OvmfConfig]:
     if not firmware.is_uefi():
         return None
 
@@ -214,19 +215,19 @@ def find_ovmf_firmware(config: Config, firmware: QemuFirmware) -> Optional[OvmfC
             )
             continue
 
-        if firmware == QemuFirmware.uefi_secure_boot and "secure-boot" not in j["features"]:
+        if firmware == Firmware.uefi_secure_boot and "secure-boot" not in j["features"]:
             logging.debug(f"{p.name} firmware description does not include secure boot, skipping")
             continue
 
-        if firmware != QemuFirmware.uefi_secure_boot and "secure-boot" in j["features"]:
+        if firmware != Firmware.uefi_secure_boot and "secure-boot" in j["features"]:
             logging.debug(f"{p.name} firmware description includes secure boot, skipping")
             continue
 
-        if config.qemu_firmware_variables == Path("microsoft") and "enrolled-keys" not in j["features"]:
+        if config.firmware_variables == Path("microsoft") and "enrolled-keys" not in j["features"]:
             logging.debug(f"{p.name} firmware description does not have enrolled Microsoft keys, skipping")
             continue
 
-        if config.qemu_firmware_variables != Path("microsoft") and "enrolled-keys" in j["features"]:
+        if config.firmware_variables != Path("microsoft") and "enrolled-keys" in j["features"]:
             logging.debug(f"{p.name} firmware description has enrolled Microsoft keys, skipping")
             continue
 
@@ -322,7 +323,7 @@ def start_virtiofsd(
 ) -> Iterator[Path]:
     virtiofsd = find_virtiofsd(root=config.tools(), extra=config.extra_search_paths)
     if virtiofsd is None:
-        die("virtiofsd must be installed to boot directory images or use RuntimeTrees= with mkosi qemu")
+        die("virtiofsd must be installed to boot directory images or use RuntimeTrees= with mkosi vm")
 
     cmdline: list[PathString] = [
         virtiofsd,
@@ -369,7 +370,7 @@ def start_virtiofsd(
 
         cmdline += ["--fd", str(SD_LISTEN_FDS_START)]
 
-        # We want RuntimeBuildSources= and RuntimeTrees= to do the right thing even when running mkosi qemu
+        # We want RuntimeBuildSources= and RuntimeTrees= to do the right thing even when running mkosi vm
         # as root without the source directories necessarily being owned by root. We achieve this by running
         # virtiofsd as the owner of the source directory and then mapping that uid to root.
         if not name:
@@ -645,28 +646,28 @@ def generate_scratch_fs(config: Config) -> Iterator[Path]:
         yield Path(scratch.name)
 
 
-def finalize_qemu_firmware(config: Config, kernel: Optional[Path]) -> QemuFirmware:
-    if config.qemu_firmware != QemuFirmware.auto:
-        return config.qemu_firmware
+def finalize_firmware(config: Config, kernel: Optional[Path]) -> Firmware:
+    if config.firmware != Firmware.auto:
+        return config.firmware
 
     if kernel:
         if KernelType.identify(config, kernel) != KernelType.unknown:
-            return QemuFirmware.uefi_secure_boot
+            return Firmware.uefi_secure_boot
 
-        return QemuFirmware.linux
+        return Firmware.linux
 
     if (
         config.output_format in (OutputFormat.cpio, OutputFormat.directory)
         or config.architecture.to_efi() is None
     ):
-        return QemuFirmware.linux
+        return Firmware.linux
 
     # At the moment there are no qemu firmware descriptions for non-x86 architectures that advertise
     # secure-boot support so let's default to no secure boot for non-x86 architectures.
     if config.architecture.is_x86_variant():
-        return QemuFirmware.uefi_secure_boot
+        return Firmware.uefi_secure_boot
 
-    return QemuFirmware.uefi
+    return Firmware.uefi
 
 
 def finalize_firmware_variables(
@@ -676,12 +677,12 @@ def finalize_firmware_variables(
     stack: contextlib.ExitStack,
 ) -> tuple[Path, str]:
     ovmf_vars = stack.enter_context(tempfile.NamedTemporaryFile(prefix="mkosi-ovmf-vars-"))
-    if config.qemu_firmware_variables in (None, Path("custom"), Path("microsoft")):
+    if config.firmware_variables in (None, Path("custom"), Path("microsoft")):
         ovmf_vars_format = ovmf.vars_format
     else:
         ovmf_vars_format = "raw"
 
-    if config.qemu_firmware_variables == Path("custom"):
+    if config.firmware_variables == Path("custom"):
         assert config.secure_boot_certificate
         run(
             [
@@ -705,8 +706,8 @@ def finalize_firmware_variables(
     else:
         vars = (
             config.tools() / ovmf.vars.relative_to("/")
-            if config.qemu_firmware_variables == Path("microsoft") or not config.qemu_firmware_variables
-            else config.qemu_firmware_variables
+            if config.firmware_variables == Path("microsoft") or not config.firmware_variables
+            else config.firmware_variables
         )
         shutil.copy2(vars, Path(ovmf_vars.name))
 
@@ -733,7 +734,7 @@ def apply_runtime_size(config: Config, image: Path) -> None:
 
 
 @contextlib.contextmanager
-def finalize_drive(config: Config, drive: QemuDrive) -> Iterator[Path]:
+def finalize_drive(config: Config, drive: Drive) -> Iterator[Path]:
     with tempfile.NamedTemporaryFile(
         dir=drive.directory or "/var/tmp",
         prefix=f"mkosi-drive-{drive.id}",
@@ -802,11 +803,11 @@ def finalize_kernel_command_line_extra(config: Config) -> list[str]:
     ):
         cmdline += [f"systemd.hostname={config.machine}"]
 
-    if config.qemu_cdrom:
+    if config.cdrom:
         # CD-ROMs are read-only so tell systemd to boot in volatile mode.
         cmdline += ["systemd.volatile=yes"]
 
-    if not config.qemu_gui:
+    if config.console != ConsoleMode.gui:
         cmdline += [
             f"systemd.tty.term.console={term}",
             f"systemd.tty.columns.console={columns}",
@@ -963,22 +964,22 @@ def run_qemu(args: Args, config: Config) -> None:
 
     if (
         config.output_format in (OutputFormat.cpio, OutputFormat.uki, OutputFormat.esp)
-        and config.qemu_firmware not in (QemuFirmware.auto, QemuFirmware.linux)
-        and not config.qemu_firmware.is_uefi()
+        and config.firmware not in (Firmware.auto, Firmware.linux)
+        and not config.firmware.is_uefi()
     ):
-        die(f"{config.output_format} images cannot be booted with the '{config.qemu_firmware}' firmware")
+        die(f"{config.output_format} images cannot be booted with the '{config.firmware}' firmware")
 
-    if config.runtime_trees and config.qemu_firmware == QemuFirmware.bios:
+    if config.runtime_trees and config.firmware == Firmware.bios:
         die("RuntimeTrees= cannot be used when booting in BIOS firmware")
 
-    if config.qemu_kvm == ConfigFeature.enabled and not config.architecture.is_native():
+    if config.kvm == ConfigFeature.enabled and not config.architecture.is_native():
         die(
             f"KVM acceleration requested but {config.architecture} does not match "
             "the native host architecture"
         )
 
-    if config.qemu_firmware_variables == Path("custom") and not config.secure_boot_certificate:
-        die("SecureBootCertificate= must be configured to use QemuFirmwareVariables=custom")
+    if config.firmware_variables == Path("custom") and not config.secure_boot_certificate:
+        die("SecureBootCertificate= must be configured to use FirmwareVariables=custom")
 
     # After we unshare the user namespace to sandbox qemu, we might not have access to /dev/kvm or related
     # device nodes anymore as access to these might be gated behind the kvm group and we won't be part of the
@@ -1000,14 +1001,20 @@ def run_qemu(args: Args, config: Config) -> None:
     have_kvm = (qemu_version(config, qemu) < QEMU_KVM_DEVICE_VERSION and QemuDeviceNode.kvm.available()) or (
         qemu_version(config, qemu) >= QEMU_KVM_DEVICE_VERSION and QemuDeviceNode.kvm in qemu_device_fds
     )
-    if config.qemu_kvm == ConfigFeature.enabled and not have_kvm:
+    if config.kvm == ConfigFeature.enabled and not have_kvm:
         die("KVM acceleration requested but cannot access /dev/kvm")
 
-    if config.qemu_vsock == ConfigFeature.enabled and QemuDeviceNode.vhost_vsock not in qemu_device_fds:
+    if config.vsock == ConfigFeature.enabled and QemuDeviceNode.vhost_vsock not in qemu_device_fds:
         die("VSock requested but cannot access /dev/vhost-vsock")
 
-    if config.qemu_kernel:
-        kernel = config.qemu_kernel
+    if config.console not in (ConsoleMode.native, ConsoleMode.gui):
+        die(
+            f"Console mode {config.console} is not supported by the qemu vmm",
+            hint="Try the vmspawn vmm instead",
+        )
+
+    if config.linux:
+        kernel = config.linux
     elif "-kernel" in args.cmdline:
         kernel = Path(args.cmdline[args.cmdline.index("-kernel") + 1])
     else:
@@ -1015,7 +1022,7 @@ def run_qemu(args: Args, config: Config) -> None:
 
     if config.output_format in (OutputFormat.uki, OutputFormat.esp) and kernel:
         logging.warning(
-            f"Booting UKI output, kernel {kernel} configured with QemuKernel= or "
+            f"Booting UKI output, kernel {kernel} configured with Linux= or "
             "passed with -kernel will not be used"
         )
         kernel = None
@@ -1023,10 +1030,10 @@ def run_qemu(args: Args, config: Config) -> None:
     if kernel and not kernel.exists():
         die(f"Kernel not found at {kernel}")
 
-    firmware = finalize_qemu_firmware(config, kernel)
+    firmware = finalize_firmware(config, kernel)
 
     if not kernel and (
-        firmware == QemuFirmware.linux
+        firmware == Firmware.linux
         or config.output_format in (OutputFormat.cpio, OutputFormat.directory, OutputFormat.uki)
     ):
         if firmware.is_uefi():
@@ -1037,7 +1044,7 @@ def run_qemu(args: Args, config: Config) -> None:
         if not kernel.exists():
             die(
                 f"Kernel or UKI not found at {kernel}, please install a kernel in the image "
-                "or provide a -kernel argument to mkosi qemu"
+                "or provide a -kernel argument to mkosi vm"
             )
 
     ovmf = find_ovmf_firmware(config, firmware)
@@ -1050,19 +1057,19 @@ def run_qemu(args: Args, config: Config) -> None:
         or config.runtime_home
         or config.output_format == OutputFormat.directory
     ):
-        shm = ["-object", f"memory-backend-memfd,id=mem,size={config.qemu_mem // 1024**2}M,share=on"]
+        shm = ["-object", f"memory-backend-memfd,id=mem,size={config.ram // 1024**2}M,share=on"]
 
     machine = f"type={config.architecture.default_qemu_machine()}"
     if firmware.is_uefi() and config.architecture.supports_smm():
-        machine += f",smm={'on' if firmware == QemuFirmware.uefi_secure_boot else 'off'}"
+        machine += f",smm={'on' if firmware == Firmware.uefi_secure_boot else 'off'}"
     if shm:
         machine += ",memory-backend=mem"
 
     cmdline: list[PathString] = [
         qemu,
         "-machine", machine,
-        "-smp", str(config.qemu_smp or os.cpu_count()),
-        "-m", f"{config.qemu_mem // 1024**2}M",
+        "-smp", str(config.cpus or os.cpu_count()),
+        "-m", f"{config.ram // 1024**2}M",
         "-object", "rng-random,filename=/dev/urandom,id=rng0",
         "-device", "virtio-rng-pci,rng=rng0,id=rng-device0",
         "-device", "virtio-balloon,free-page-reporting=on",
@@ -1080,7 +1087,7 @@ def run_qemu(args: Args, config: Config) -> None:
     elif config.runtime_network == Network.none:
         cmdline += ["-nic", "none"]
 
-    if config.qemu_kvm != ConfigFeature.disabled and have_kvm and config.architecture.can_kvm():
+    if config.kvm != ConfigFeature.disabled and have_kvm and config.architecture.can_kvm():
         accel = "kvm"
         if qemu_version(config, qemu) >= QEMU_KVM_DEVICE_VERSION:
             index = list(qemu_device_fds.keys()).index(QemuDeviceNode.kvm)
@@ -1095,24 +1102,24 @@ def run_qemu(args: Args, config: Config) -> None:
 
     cid: Optional[int] = None
     if QemuDeviceNode.vhost_vsock in qemu_device_fds:
-        if config.qemu_vsock_cid == QemuVsockCID.auto:
+        if config.vsock_cid == VsockCID.auto:
             cid = find_unused_vsock_cid(config, qemu_device_fds[QemuDeviceNode.vhost_vsock])
-        elif config.qemu_vsock_cid == QemuVsockCID.hash:
+        elif config.vsock_cid == VsockCID.hash:
             cid = hash_to_vsock_cid(hash_output(config))
         else:
-            cid = config.qemu_vsock_cid
+            cid = config.vsock_cid
 
         if vsock_cid_in_use(qemu_device_fds[QemuDeviceNode.vhost_vsock], cid):
             die(
                 f"VSock connection ID {cid} is already in use by another virtual machine",
-                hint="Use QemuVsockConnectionId=auto to have mkosi automatically "
+                hint="Use VsockConnectionId=auto to have mkosi automatically "
                 "find a free vsock connection ID",
             )
 
         index = list(qemu_device_fds.keys()).index(QemuDeviceNode.vhost_vsock)
         cmdline += ["-device", f"vhost-vsock-pci,guest-cid={cid},vhostfd={SD_LISTEN_FDS_START + index}"]
 
-    if config.qemu_gui:
+    if config.console == ConsoleMode.gui:
         if config.architecture.is_arm_variant():
             cmdline += ["-device", "virtio-gpu-pci"]
         else:
@@ -1147,13 +1154,13 @@ def run_qemu(args: Args, config: Config) -> None:
             ovmf_vars, ovmf_vars_format = finalize_firmware_variables(config, qemu, ovmf, stack)
 
             cmdline += ["-drive", f"file={ovmf_vars},if=pflash,format={ovmf_vars_format}"]
-            if firmware == QemuFirmware.uefi_secure_boot:
+            if firmware == Firmware.uefi_secure_boot:
                 cmdline += [
                     "-global", "ICH9-LPC.disable_s3=1",
                     "-global", "driver=cfi.pflash01,property=secure,value=on",
                 ]  # fmt: skip
 
-        if config.qemu_cdrom and config.output_format in (OutputFormat.disk, OutputFormat.esp):
+        if config.cdrom and config.output_format in (OutputFormat.disk, OutputFormat.esp):
             # CD-ROM devices have sector size 2048 so we transform disk images into ones with sector size
             # 2048.
             src = (config.output_dir_or_cwd() / config.output_with_compression).resolve()
@@ -1292,9 +1299,9 @@ def run_qemu(args: Args, config: Config) -> None:
             cache = f"cache.writeback=on,cache.direct={yes_no(direct)},cache.no-flush={yes_no(ephemeral)},aio=io_uring"  # noqa: E501
 
             device_type = "virtio-blk-pci"
-            if config.qemu_cdrom:
+            if config.cdrom:
                 device_type = "scsi-cd"
-            elif config.qemu_removable:
+            elif config.removable:
                 device_type = "scsi-hd,removable=on"
 
             cmdline += [
@@ -1302,8 +1309,8 @@ def run_qemu(args: Args, config: Config) -> None:
                 "-device", f"{device_type},drive=mkosi,bootindex=1",
             ]  # fmt: skip
 
-        if config.qemu_swtpm == ConfigFeature.enabled or (
-            config.qemu_swtpm == ConfigFeature.auto
+        if config.tpm == ConfigFeature.enabled or (
+            config.tpm == ConfigFeature.auto
             and firmware.is_uefi()
             and config.find_binary("swtpm") is not None
         ):
@@ -1355,7 +1362,7 @@ def run_qemu(args: Args, config: Config) -> None:
                 f"type=11,value=io.systemd.boot.kernel-cmdline-extra={' '.join(kcl).replace(',', ',,')}",
             ]
 
-        for _, drives in groupby(config.qemu_drives, key=lambda d: d.file_id):
+        for _, drives in groupby(config.drives, key=lambda d: d.file_id):
             file = stack.enter_context(finalize_drive(config, drives[0]))
 
             for drive in drives:
@@ -1428,7 +1435,7 @@ def run_ssh(args: Args, config: Config) -> None:
         if not (p := INVOKING_USER.runtime_dir() / "machine" / f"{config.machine_or_name()}.json").exists():
             die(
                 f"{p} not found, cannot SSH into virtual machine {config.machine_or_name()}",
-                hint="Is the machine running and was it built with Ssh=yes and QemuVsock=yes?",
+                hint="Is the machine running and was it built with Ssh=yes and Vsock=yes?",
             )
 
         state = json.loads(p.read_text())

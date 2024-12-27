@@ -57,4 +57,4 @@ used:
   another existing distribution, update the `[Match]` blocks for the
   existing distribution to also match against the new distribution. To
   test whether all necessary changes were made, you can run
-  `mkosi -d <distribution> --tools-tree -t disk -f qemu`.
+  `mkosi -d <distribution> --tools-tree -t disk -f vm`.

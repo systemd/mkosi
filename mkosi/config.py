@@ -64,6 +64,7 @@ class Verb(StrEnum):
     cat_config = enum.auto()
     shell = enum.auto()
     boot = enum.auto()
+    vm = enum.auto()
     qemu = enum.auto()
     ssh = enum.auto()
     serve = enum.auto()
@@ -84,6 +85,7 @@ class Verb(StrEnum):
             Verb.build,
             Verb.shell,
             Verb.boot,
+            Verb.vm,
             Verb.qemu,
             Verb.ssh,
             Verb.journalctl,
@@ -100,6 +102,7 @@ class Verb(StrEnum):
             Verb.build,
             Verb.shell,
             Verb.boot,
+            Verb.vm,
             Verb.qemu,
             Verb.serve,
             Verb.burn,
@@ -145,7 +148,7 @@ class ConfigTree:
 
 
 @dataclasses.dataclass(frozen=True)
-class QemuDrive:
+class Drive:
     id: str
     size: int
     directory: Optional[Path]
@@ -155,16 +158,16 @@ class QemuDrive:
 
 # We use negative numbers for specifying special constants
 # for VSock CIDs since they're not valid CIDs anyway.
-class QemuVsockCID(enum.IntEnum):
+class VsockCID(enum.IntEnum):
     auto = -1
     hash = -2
 
     @classmethod
     def format(cls, cid: int) -> str:
-        if cid == QemuVsockCID.auto:
+        if cid == VsockCID.auto:
             return "auto"
 
-        if cid == QemuVsockCID.hash:
+        if cid == VsockCID.hash:
             return "hash"
 
         return str(cid)
@@ -297,7 +300,7 @@ class Cacheonly(StrEnum):
     never = enum.auto()
 
 
-class QemuFirmware(StrEnum):
+class Firmware(StrEnum):
     auto = enum.auto()
     linux = enum.auto()
     uefi = enum.auto()
@@ -305,7 +308,14 @@ class QemuFirmware(StrEnum):
     bios = enum.auto()
 
     def is_uefi(self) -> bool:
-        return self in (QemuFirmware.uefi, QemuFirmware.uefi_secure_boot)
+        return self in (Firmware.uefi, Firmware.uefi_secure_boot)
+
+
+class ConsoleMode(StrEnum):
+    interactive = enum.auto()
+    read_only = enum.auto()
+    native = enum.auto()
+    gui = enum.auto()
 
 
 class Network(StrEnum):
@@ -458,7 +468,7 @@ class Architecture(StrEnum):
 
         return a
 
-    def supports_smbios(self, firmware: QemuFirmware) -> bool:
+    def supports_smbios(self, firmware: Firmware) -> bool:
         if self.is_x86_variant():
             return True
 
@@ -1243,7 +1253,7 @@ def parse_profile(value: str) -> str:
     return value
 
 
-def parse_drive(value: str) -> QemuDrive:
+def parse_drive(value: str) -> Drive:
     parts = value.split(":", maxsplit=3)
     if not parts or not parts[0]:
         die(f"No ID specified for drive '{value}'")
@@ -1264,7 +1274,7 @@ def parse_drive(value: str) -> QemuDrive:
     options = parts[3] if len(parts) > 3 and parts[3] else None
     file_id = parts[4] if len(parts) > 4 and parts[4] else id
 
-    return QemuDrive(id=id, size=size, directory=directory, options=options, file_id=file_id)
+    return Drive(id=id, size=size, directory=directory, options=options, file_id=file_id)
 
 
 def config_parse_sector_size(value: Optional[str], old: Optional[int]) -> Optional[int]:
@@ -1290,10 +1300,10 @@ def config_parse_vsock_cid(value: Optional[str], old: Optional[int]) -> Optional
         return None
 
     if value == "auto":
-        return QemuVsockCID.auto
+        return VsockCID.auto
 
     if value == "hash":
-        return QemuVsockCID.hash
+        return VsockCID.hash
 
     try:
         cid = int(value)
@@ -1874,22 +1884,21 @@ class Config:
     ssh_certificate: Optional[Path]
     machine: Optional[str]
     forward_journal: Optional[Path]
-    vmm: Vmm
 
-    # QEMU-specific options
-    qemu_gui: bool
-    qemu_smp: int
-    qemu_mem: int
-    qemu_kvm: ConfigFeature
-    qemu_vsock: ConfigFeature
-    qemu_vsock_cid: int
-    qemu_swtpm: ConfigFeature
-    qemu_cdrom: bool
-    qemu_removable: bool
-    qemu_firmware: QemuFirmware
-    qemu_firmware_variables: Optional[Path]
-    qemu_kernel: Optional[Path]
-    qemu_drives: list[QemuDrive]
+    vmm: Vmm
+    console: ConsoleMode
+    cpus: int
+    ram: int
+    kvm: ConfigFeature
+    vsock: ConfigFeature
+    vsock_cid: int
+    tpm: ConfigFeature
+    cdrom: bool
+    removable: bool
+    firmware: Firmware
+    firmware_variables: Optional[Path]
+    linux: Optional[Path]
+    drives: list[Drive]
     qemu_args: list[str]
 
     image: Optional[str]
@@ -3425,7 +3434,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="NAME=VALUE",
         section="Runtime",
         parse=config_make_dict_parser(delimiter=" ", parse=parse_key_value, allow_paths=True, unescape=True),
-        help="Pass a systemd credential to systemd-nspawn or qemu",
+        help="Pass a systemd credential to a systemd-nspawn container or a virtual machine",
         paths=("mkosi.credentials",),
     ),
     ConfigSetting(
@@ -3510,7 +3519,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         choices=Vmm.choices(),
         parse=config_make_enum_parser(Vmm),
         default=Vmm.qemu,
-        help="Set the virtual machine monitor to use for mkosi qemu",
+        help="Set the virtual machine monitor to use for mkosi vm",
     ),
     ConfigSetting(
         dest="machine",
@@ -3537,108 +3546,137 @@ SETTINGS: list[ConfigSetting[Any]] = [
         help="Directory containing systemd-sysupdate transfer definitions",
     ),
     ConfigSetting(
-        dest="qemu_gui",
-        metavar="BOOL",
+        dest="console",
+        metavar="MODE",
         nargs="?",
         section="Runtime",
-        parse=config_parse_boolean,
-        help="Start QEMU in graphical mode",
+        parse=config_make_enum_parser(ConsoleMode),
+        help="Configure the virtual machine console mode to use",
+        default=ConsoleMode.native,
     ),
     ConfigSetting(
-        dest="qemu_smp",
-        metavar="SMP",
+        dest="cpus",
+        name="CPUs",
+        metavar="CPUS",
         section="Runtime",
         parse=config_parse_number,
         default=1,
-        help="Configure guest's SMP settings",
+        help="Configure number of CPUs in virtual machine",
+        compat_longs=("--qemu-smp",),
+        compat_names=("QemuSmp",),
     ),
     ConfigSetting(
-        dest="qemu_mem",
-        metavar="MEM",
+        dest="ram",
+        name="RAM",
+        metavar="BYTES",
         section="Runtime",
         parse=config_parse_bytes,
         default=parse_bytes("2G"),
         help="Configure guest's RAM size",
+        compat_longs=("--qemu-mem",),
+        compat_names=("QemuMem",),
     ),
     ConfigSetting(
-        dest="qemu_kvm",
+        dest="kvm",
+        name="KVM",
         metavar="FEATURE",
         nargs="?",
         section="Runtime",
         parse=config_parse_feature,
         help="Configure whether to use KVM or not",
+        compat_longs=("--qemu-kvm",),
+        compat_names=("QemuKvm",),
     ),
     ConfigSetting(
-        dest="qemu_vsock",
+        dest="vsock",
         metavar="FEATURE",
         nargs="?",
         section="Runtime",
         parse=config_parse_feature,
-        help="Configure whether to use qemu with a vsock or not",
+        help="Configure whether to use vsock or not",
+        compat_longs=("--qemu-vsock",),
+        compat_names=("QemuVsock",),
     ),
     ConfigSetting(
-        dest="qemu_vsock_cid",
-        name="QemuVsockConnectionId",
-        long="--qemu-vsock-cid",
+        dest="vsock_cid",
+        name="VsockConnectionId",
+        long="--vsock-cid",
         metavar="NUMBER|auto|hash",
         section="Runtime",
         parse=config_parse_vsock_cid,
-        default=QemuVsockCID.auto,
-        help="Specify the VSock connection ID to use",
+        default=VsockCID.auto,
+        help="Specify the vsock connection ID to use",
+        compat_longs=("--qemu-vsock-cid",),
+        compat_names=("QemuVsockConnectionId",),
     ),
     ConfigSetting(
-        dest="qemu_swtpm",
+        dest="tpm",
+        name="TPM",
         metavar="FEATURE",
         nargs="?",
         section="Runtime",
         parse=config_parse_feature,
-        help="Configure whether to use qemu with swtpm or not",
+        help="Configure whether to use a virtual tpm or not",
+        compat_longs=("--qemu-swtpm",),
+        compat_names=("QemuSwtpm",),
     ),
     ConfigSetting(
-        dest="qemu_cdrom",
+        dest="cdrom",
         metavar="BOOLEAN",
         nargs="?",
         section="Runtime",
         parse=config_parse_boolean,
         help="Attach the image as a CD-ROM to the virtual machine",
+        compat_longs=("--qemu-cdrom",),
+        compat_names=("QemuCdrom",),
     ),
     ConfigSetting(
-        dest="qemu_removable",
+        dest="removable",
         metavar="BOOLEAN",
         nargs="?",
         section="Runtime",
         parse=config_parse_boolean,
         help="Attach the image as a removable drive to the virtual machine",
+        compat_longs=("--qemu-removable",),
+        compat_names=("QemuRemovable",),
     ),
     ConfigSetting(
-        dest="qemu_firmware",
+        dest="firmware",
         section="Runtime",
-        parse=config_make_enum_parser(QemuFirmware),
-        default=QemuFirmware.auto,
-        help="Set qemu firmware to use",
-        choices=QemuFirmware.choices(),
+        parse=config_make_enum_parser(Firmware),
+        default=Firmware.auto,
+        help="Select the virtual machine firmware to use",
+        choices=Firmware.choices(),
+        compat_longs=("--qemu-firmware",),
+        compat_names=("QemuFirmware",),
     ),
     ConfigSetting(
-        dest="qemu_firmware_variables",
+        dest="firmware_variables",
         metavar="PATH",
         section="Runtime",
         parse=config_make_path_parser(constants=("custom", "microsoft")),
-        help="Set the path to the qemu firmware variables file to use",
+        help="Set the path to the firmware variables file to use",
+        compat_longs=("--qemu-firmware-variables",),
+        compat_names=("QemuFirmwareVariables",),
     ),
     ConfigSetting(
-        dest="qemu_kernel",
+        dest="linux",
         metavar="PATH",
         section="Runtime",
         parse=config_make_path_parser(),
-        help="Specify the kernel to use for qemu direct kernel boot",
+        help="Specify the kernel to use for direct kernel boot",
+        compat_longs=("--qemu-kernel",),
+        compat_names=("QemuKernel",),
     ),
     ConfigSetting(
-        dest="qemu_drives",
-        long="--qemu-drive",
+        dest="drives",
+        long="--drive",
         metavar="DRIVE",
         section="Runtime",
         parse=config_make_list_parser(delimiter=" ", parse=parse_drive),
-        help="Specify a qemu drive that mkosi should create and pass to qemu",
+        help="Specify drive that mkosi should create and pass to the virtual machine",
+        compat_longs=("--qemu-drive",),
+        compat_names=("QemuDrives",),
     ),
     ConfigSetting(
         dest="qemu_args",
@@ -3725,7 +3763,7 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
                 mkosi [options…] {b}build{e}         [command line…]
                 mkosi [options…] {b}shell{e}         [command line…]
                 mkosi [options…] {b}boot{e}          [nspawn settings…]
-                mkosi [options…] {b}qemu{e}          [qemu parameters…]
+                mkosi [options…] {b}vm{e}            [vmm parameters…]
                 mkosi [options…] {b}ssh{e}           [command line…]
                 mkosi [options…] {b}journalctl{e}    [command line…]
                 mkosi [options…] {b}coredumpctl{e}   [command line…]
@@ -4411,7 +4449,7 @@ def parse_config(
                 hint="Build with -f to generate a new history file from scratch",
             )
 
-        # If we're operating on a previously built image (qemu, boot, shell, ...), we're not rebuilding the
+        # If we're operating on a previously built image (vm, boot, shell, ...), we're not rebuilding the
         # image and the configuration of the latest build is available, we load the config that was used to
         # build the previous image from there instead of parsing configuration files, except for the Host
         # section settings which we allow changing without requiring a rebuild of the image.
@@ -4899,17 +4937,17 @@ def summary(config: Config) -> str:
        Register guest with machined: {yes_no(config.register)}
 
             Virtual Machine Monitor: {config.vmm}
-                           QEMU GUI: {yes_no(config.qemu_gui)}
-                     QEMU CPU Cores: {config.qemu_smp}
-                        QEMU Memory: {config.qemu_mem}
-                       QEMU Use KVM: {config.qemu_kvm}
-                     QEMU Use VSock: {config.qemu_vsock}
-           QEMU VSock Connection ID: {QemuVsockCID.format(config.qemu_vsock_cid)}
-                     QEMU Use Swtpm: {config.qemu_swtpm}
-                    QEMU Use CD-ROM: {yes_no(config.qemu_cdrom)}
-                      QEMU Firmware: {config.qemu_firmware}
-            QEMU Firmware Variables: {none_to_none(config.qemu_firmware_variables)}
-                        QEMU Kernel: {none_to_none(config.qemu_kernel)}
+                            Console: {config.console}
+                          CPU Cores: {config.cpus}
+                                RAM: {format_bytes(config.ram)}
+                                KVM: {config.kvm}
+                              VSock: {config.vsock}
+                VSock Connection ID: {VsockCID.format(config.vsock_cid)}
+                                TPM: {config.tpm}
+                             CD-ROM: {yes_no(config.cdrom)}
+                           Firmware: {config.firmware}
+                 Firmware Variables: {none_to_none(config.firmware_variables)}
+                              Linux: {none_to_none(config.linux)}
                QEMU Extra Arguments: {line_join_list(config.qemu_args)}
 """
 
@@ -4987,9 +5025,7 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         enumtype = fieldtype.__args__[0]  # type: ignore
         return [enumtype[e] for e in enumlist]
 
-    def config_drive_transformer(
-        drives: list[dict[str, Any]], fieldtype: type[QemuDrive]
-    ) -> list[QemuDrive]:
+    def config_drive_transformer(drives: list[dict[str, Any]], fieldtype: type[Drive]) -> list[Drive]:
         # TODO: exchange for TypeGuard and list comprehension once on 3.10
         ret = []
 
@@ -4997,7 +5033,7 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
             assert "Id" in d
             assert "Size" in d
             ret.append(
-                QemuDrive(
+                Drive(
                     id=d["Id"],
                     size=d["Size"] if isinstance(d["Size"], int) else parse_bytes(d["Size"]),
                     directory=Path(d["Directory"]) if d.get("Directory") else None,
@@ -5059,14 +5095,14 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         ConfigFeature: enum_transformer,
         Distribution: enum_transformer,
         OutputFormat: enum_transformer,
-        QemuFirmware: enum_transformer,
+        Firmware: enum_transformer,
         SecureBootSignTool: enum_transformer,
         Incremental: enum_transformer,
         Optional[Distribution]: optional_enum_transformer,
         list[ManifestFormat]: enum_list_transformer,
         Verb: enum_transformer,
         DocFormat: enum_transformer,
-        list[QemuDrive]: config_drive_transformer,
+        list[Drive]: config_drive_transformer,
         GenericVersion: generic_version_transformer,
         Cacheonly: enum_transformer,
         Network: enum_transformer,
@@ -5075,6 +5111,7 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         list[UKIProfile]: uki_profile_transformer,
         list[ArtifactOutput]: enum_list_transformer,
         CertificateSource: certificate_source_transformer,
+        ConsoleMode: enum_transformer,
     }
 
     def json_transformer(key: str, val: Any) -> Any:
