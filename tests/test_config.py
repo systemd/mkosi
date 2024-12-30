@@ -417,6 +417,20 @@ def test_profiles(tmp_path: Path) -> None:
     assert config.profiles == ["profile", "abc"]
     assert config.distribution == Distribution.opensuse
 
+    # Check that mkosi.profiles/ is parsed in subimages as well.
+    (d / "mkosi.images/subimage/mkosi.profiles").mkdir(parents=True)
+    (d / "mkosi.images/subimage/mkosi.profiles/abc.conf").write_text(
+        """
+        [Build]
+        Environment=Image=%I
+        """
+    )
+
+    with chdir(d):
+        _, [subimage, config] = parse_config()
+
+    assert subimage.environment["Image"] == "subimage"
+
 
 def test_override_default(tmp_path: Path) -> None:
     d = tmp_path
