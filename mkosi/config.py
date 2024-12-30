@@ -3966,7 +3966,6 @@ class ParseContext:
         self.defaults = argparse.Namespace()
         # Compare inodes instead of paths so we can't get tricked by bind mounts and such.
         self.includes: set[tuple[int, int]] = set()
-        self.immutable: set[str] = set()
         self.only_sections: tuple[str, ...] = tuple()
 
     def expand_specifiers(self, text: str, path: Path) -> str:
@@ -4297,8 +4296,6 @@ class ParseContext:
                     and (image := getattr(self.config, "image", None)) is not None
                 ):
                     die(f"{path.absolute()}: Setting {name} cannot be configured in subimage {image}")
-                if name in self.immutable:
-                    die(f"{path.absolute()}: Setting {name} cannot be modified anymore at this point")
 
                 if section != s.section:
                     logging.warning(
@@ -4316,30 +4313,19 @@ class ParseContext:
                 setattr(self.config, s.dest, s.parse(v, getattr(self.config, s.dest, None)))
                 self.parse_new_includes()
 
-        profilepaths = []
-        if parse_profiles:
-            profiles = self.finalize_value(SETTINGS_LOOKUP_BY_DEST["profiles"])
-            self.immutable.add("Profiles")
-
-            for profile in profiles or []:
-                for p in (Path(profile), Path(f"{profile}.conf")):
-                    p = Path("mkosi.profiles") / p
-                    if p.exists():
-                        break
-                else:
-                    die(f"Profile '{profile}' not found in mkosi.profiles/")
-
-                profilepaths += [p]
-
         if extras and (path.parent / "mkosi.conf.d").exists():
             for p in sorted((path.parent / "mkosi.conf.d").iterdir()):
                 if p.is_dir() or p.suffix == ".conf":
                     with chdir(p if p.is_dir() else Path.cwd()):
                         self.parse_config_one(p if p.is_file() else Path("."))
 
-        for p in profilepaths:
-            with chdir(p if p.is_dir() else Path.cwd()):
-                self.parse_config_one(p if p.is_file() else Path("."))
+        if parse_profiles:
+            for profile in self.finalize_value(SETTINGS_LOOKUP_BY_DEST["profiles"]) or []:
+                for p in (Path(profile), Path(f"{profile}.conf")):
+                    p = Path("mkosi.profiles") / p
+                    if p.exists():
+                        with chdir(p if p.is_dir() else Path.cwd()):
+                            self.parse_config_one(p if p.is_file() else Path("."))
 
         return True
 
@@ -4513,7 +4499,11 @@ def parse_config(
             context.defaults = argparse.Namespace()
 
             with chdir(p if p.is_dir() else Path.cwd()):
-                if not context.parse_config_one(p if p.is_file() else Path("."), parse_local=True):
+                if not context.parse_config_one(
+                    p if p.is_file() else Path("."),
+                    parse_profiles=True,
+                    parse_local=True,
+                ):
                     continue
 
             # Consolidate all settings into one namespace again.
