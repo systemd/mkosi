@@ -118,10 +118,10 @@ def test_config() -> None:
                 }
             ],
             "BuildSourcesEphemeral": true,
+            "CDROM": false,
             "CPUs": 2,
             "CacheDirectory": "/is/this/the/cachedir",
             "CacheOnly": "always",
-            "Cdrom": false,
             "Checksum": false,
             "CleanPackageMetadata": "auto",
             "CleanScripts": [

@@ -3622,6 +3622,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ),
     ConfigSetting(
         dest="cdrom",
+        name="CDROM",
         metavar="BOOLEAN",
         nargs="?",
         section="Runtime",
