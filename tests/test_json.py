@@ -384,6 +384,8 @@ def test_config() -> None:
                 "PROPERTY=VALUE"
             ],
             "UseSubvolumes": "auto",
+            "VSock": "enabled",
+            "VSockCID": -2,
             "Verity": "enabled",
             "VerityCertificate": "/path/to/cert",
             "VerityCertificateSource": {
@@ -402,8 +404,6 @@ def test_config() -> None:
             "VolatilePackages": [
                 "abc"
             ],
-            "Vsock": "enabled",
-            "VsockConnectionId": -2,
             "WithDocs": true,
             "WithNetwork": false,
             "WithRecommends": true,

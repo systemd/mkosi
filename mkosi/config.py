@@ -3589,6 +3589,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ),
     ConfigSetting(
         dest="vsock",
+        name="VSock",
         metavar="FEATURE",
         nargs="?",
         section="Runtime",
@@ -3599,7 +3600,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ),
     ConfigSetting(
         dest="vsock_cid",
-        name="VsockConnectionId",
+        name="VSockCID",
         long="--vsock-cid",
         metavar="NUMBER|auto|hash",
         section="Runtime",
