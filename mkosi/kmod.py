@@ -10,6 +10,7 @@ from pathlib import Path
 
 from mkosi.log import complete_step, log_step
 from mkosi.run import chroot_cmd, run
+from mkosi.sandbox import chase
 from mkosi.util import chdir, parents_below
 
 
@@ -179,6 +180,15 @@ def gen_required_kernel_modules(
         with chdir(root):
             mods = set(modulesd.rglob("*.ko*"))
         firmware = set()
+
+    # Some firmware dependencies are symbolic links, so the targets for those must be included in the list
+    # of required firmware files too. Intermediate symlinks are not included, and so links pointing to links
+    # results in dangling symlinks in the final image.
+    for fw in firmware.copy():
+        if (root / fw).is_symlink():
+            target = Path(chase(os.fspath(root), os.fspath(fw)))
+            if target.exists():
+                firmware.add(target.relative_to(root))
 
     yield from sorted(
         itertools.chain(
