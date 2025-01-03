@@ -2504,7 +2504,7 @@ local directory:
   copied will be owned by root. To preserve ownership, use a tar
   archive.
 
-* The **`mkosi.pkgmngr/`** directory or **`mkosi.pkgmngr.tar`** archive
+* The **`mkosi.sandbox/`** directory or **`mkosi.sandbox.tar`** archive
   may be used to configure the package manager without the files being
   inserted into the image. If the files should be included in the image
   `mkosi.skeleton/` and `mkosi.skeleton.tar` should be used instead.
