@@ -1077,6 +1077,29 @@ def install_sandbox_trees(config: Config, dst: Path) -> None:
     Path(dst / "etc/resolv.conf").unlink(missing_ok=True)
     Path(dst / "etc/resolv.conf").touch()
 
+    if not (dst / "etc/nsswitch.conf").exists():
+        (dst / "etc/nsswitch.conf").write_text(
+            textwrap.dedent(
+                """\
+                passwd:     files
+                shadow:     files
+                group:      files
+                hosts:      files myhostname resolve [!UNAVAIL=return] dns
+                services:   files
+                netgroup:   files
+                automount:  files
+
+                aliases:    files
+                ethers:     files
+                gshadow:    files
+                networks:   files dns
+                protocols:  files
+                publickey:  files
+                rpc:        files
+                """
+            )
+        )
+
     Path(dst / "etc/static").unlink(missing_ok=True)
     if (config.tools() / "etc/static").is_symlink():
         (dst / "etc/static").symlink_to((config.tools() / "etc/static").readlink())
@@ -3442,7 +3465,10 @@ def make_extension_or_portable_image(context: Context, output: Path) -> None:
 
 
 def finalize_staging(context: Context) -> None:
-    rmtree(*(context.config.output_dir_or_cwd() / f.name for f in context.staging.iterdir()))
+    rmtree(
+        *(context.config.output_dir_or_cwd() / f.name for f in context.staging.iterdir()),
+        sandbox=context.sandbox,
+    )
 
     for f in context.staging.iterdir():
         if f.is_symlink():
@@ -3624,7 +3650,7 @@ def build_image(context: Context) -> None:
 
         if context.config.output_format == OutputFormat.none:
             finalize_staging(context)
-            rmtree(context.root)
+            rmtree(context.root, sandbox=context.sandbox)
             return
 
         if wantrepo:
@@ -3731,7 +3757,7 @@ def build_image(context: Context) -> None:
     finalize_staging(context)
 
     if not context.args.debug_workspace:
-        rmtree(context.root)
+        rmtree(context.root, sandbox=context.sandbox)
 
     print_output_size(context.config.output_dir_or_cwd() / context.config.output_with_compression)
 
