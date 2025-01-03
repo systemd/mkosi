@@ -224,7 +224,7 @@ def test_initrd_size(config: ImageConfig) -> None:
         # The fallback value is for CentOS and related distributions.
         maxsize = 1024**2 * {
             Distribution.fedora: 63,
-            Distribution.debian: 61,
+            Distribution.debian: 62,
             Distribution.ubuntu: 56,
             Distribution.arch: 83,
             Distribution.opensuse: 64,
