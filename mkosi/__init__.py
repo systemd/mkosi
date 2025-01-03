@@ -1077,6 +1077,29 @@ def install_sandbox_trees(config: Config, dst: Path) -> None:
     Path(dst / "etc/resolv.conf").unlink(missing_ok=True)
     Path(dst / "etc/resolv.conf").touch()
 
+    if not (dst / "etc/nsswitch.conf").exists():
+        (dst / "etc/nsswitch.conf").write_text(
+            textwrap.dedent(
+                """\
+                passwd:     files
+                shadow:     files
+                group:      files
+                hosts:      files myhostname resolve [!UNAVAIL=return] dns
+                services:   files
+                netgroup:   files
+                automount:  files
+
+                aliases:    files
+                ethers:     files
+                gshadow:    files
+                networks:   files dns
+                protocols:  files
+                publickey:  files
+                rpc:        files
+                """
+            )
+        )
+
     Path(dst / "etc/static").unlink(missing_ok=True)
     if (config.tools() / "etc/static").is_symlink():
         (dst / "etc/static").symlink_to((config.tools() / "etc/static").readlink())

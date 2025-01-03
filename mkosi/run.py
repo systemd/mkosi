@@ -609,8 +609,10 @@ def sandbox_cmd(
         else:
             cmdline += ["--dev", "/dev"]
 
-        if network and Path("/etc/resolv.conf").exists():
-            cmdline += ["--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf"]
+        if network:
+            for p in (Path("/etc/resolv.conf"), Path("/run/systemd/resolve")):
+                if p.exists():
+                    cmdline += ["--ro-bind", p, p]
 
         home = None
 
@@ -734,8 +736,10 @@ def chroot_cmd(
         *chroot_options(),
     ]  # fmt: skip
 
-    if network and Path("/etc/resolv.conf").exists():
-        cmdline += ["--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf"]
+    if network:
+        for p in (Path("/etc/resolv.conf"), Path("/run/systemd/resolve")):
+            if p.exists():
+                cmdline += ["--ro-bind", p, p]
 
     with vartmpdir() as dir:
         yield [*cmdline, "--bind", dir, "/var/tmp", *options]
