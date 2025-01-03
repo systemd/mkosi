@@ -1007,11 +1007,10 @@ def run_qemu(args: Args, config: Config) -> None:
     if config.vsock == ConfigFeature.enabled and QemuDeviceNode.vhost_vsock not in qemu_device_fds:
         die("VSock requested but cannot access /dev/vhost-vsock")
 
-    if config.console not in (ConsoleMode.native, ConsoleMode.gui):
-        die(
-            f"Console mode {config.console} is not supported by the qemu vmm",
-            hint="Try the vmspawn vmm instead",
-        )
+    if config.console not in (ConsoleMode.native, ConsoleMode.gui) and not config.find_binary(
+        "systemd-pty-forward"
+    ):
+        die(f"Console mode {config.console} requested but systemd-pty-forward not found")
 
     if config.linux:
         kernel = config.linux
@@ -1065,7 +1064,18 @@ def run_qemu(args: Args, config: Config) -> None:
     if shm:
         machine += ",memory-backend=mem"
 
-    cmdline: list[PathString] = [
+    cmdline: list[PathString] = []
+
+    if config.console in (ConsoleMode.interactive, ConsoleMode.read_only):
+        cmdline += [
+            "systemd-pty-forward", "--background=48;2;12;51;19",  # green
+            "--title", f"Virtual Machine {config.machine_or_name()}",
+        ]  # fmt: skip
+
+        if config.console == ConsoleMode.read_only:
+            cmdline += ["--read-only"]
+
+    cmdline += [
         qemu,
         "-machine", machine,
         "-smp", str(config.cpus or os.cpu_count()),
