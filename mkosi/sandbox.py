@@ -720,8 +720,8 @@ documentation", for workarounds.
 
 
 def main() -> None:
-    # We don't use argparse as it takes +- 10ms to import and since this is purely for internal
-    # use, it's not necessary to have good UX for this CLI interface so it's trivial to write
+    # We don't use argparse as it takes +- 10ms to import and since this is primarily for internal
+    # use, it's not necessary to have amazing UX for this CLI interface so it's trivial to write
     # ourselves.
     argv = list(reversed(sys.argv[1:]))
     fsops: list[FSOperation] = []
