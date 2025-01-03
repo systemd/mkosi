@@ -614,6 +614,10 @@ def sandbox_cmd(
 
         home = None
 
+    # We leak most of the $PATH from the host into the non-relaxed sandbox as well but this shouldn't be a
+    # problem in practice as the directories themselves won't be in the sandbox and so we shouldn't
+    # accidentally pick up anything from them.
+
     path = []
     if scripts:
         path += ["/scripts"]
@@ -621,7 +625,7 @@ def sandbox_cmd(
         path += [
             s
             for s in os.environ["PATH"].split(":")
-            if s in ("/usr/bin", "/usr/sbin") or (home and s.startswith(os.fspath(home)))
+            if s in ("/usr/bin", "/usr/sbin") or not s.startswith("/usr")
         ]
 
         # Make sure that /usr/bin and /usr/sbin are always in $PATH.
