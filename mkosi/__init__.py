@@ -4607,7 +4607,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         for config in images:
             run_clean(args, config)
 
-        if args.force > 0:
+        if args.force > 0 and last.distribution != Distribution.custom:
             remove_cache_entries(finalize_default_initrd(last, tools=False, resources=resources))
 
         rmtree(Path(".mkosi-private"))
@@ -4688,10 +4688,11 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         for config in images:
             run_clean(args, config)
 
-        initrd = finalize_default_initrd(last, tools=False, resources=resources)
+        if last.distribution != Distribution.custom:
+            initrd = finalize_default_initrd(last, tools=False, resources=resources)
 
-        if args.force > 1 or not have_cache(initrd):
-            remove_cache_entries(initrd)
+            if args.force > 1 or not have_cache(initrd):
+                remove_cache_entries(initrd)
 
     if tools and not (tools.output_dir_or_cwd() / tools.output).exists():
         check_tools(tools, Verb.build)
