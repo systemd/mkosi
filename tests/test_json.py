@@ -118,10 +118,10 @@ def test_config() -> None:
                 }
             ],
             "BuildSourcesEphemeral": true,
+            "CDROM": false,
             "CPUs": 2,
             "CacheDirectory": "/is/this/the/cachedir",
             "CacheOnly": "always",
-            "Cdrom": false,
             "Checksum": false,
             "CleanPackageMetadata": "auto",
             "CleanScripts": [
@@ -384,6 +384,8 @@ def test_config() -> None:
                 "PROPERTY=VALUE"
             ],
             "UseSubvolumes": "auto",
+            "VSock": "enabled",
+            "VSockCID": -2,
             "Verity": "enabled",
             "VerityCertificate": "/path/to/cert",
             "VerityCertificateSource": {
@@ -402,8 +404,6 @@ def test_config() -> None:
             "VolatilePackages": [
                 "abc"
             ],
-            "Vsock": "enabled",
-            "VsockConnectionId": -2,
             "WithDocs": true,
             "WithNetwork": false,
             "WithRecommends": true,
