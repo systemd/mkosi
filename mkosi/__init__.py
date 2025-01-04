@@ -1100,6 +1100,9 @@ def install_sandbox_trees(config: Config, dst: Path) -> None:
             )
         )
 
+    if not (dst / "etc/hosts").exists() and Path("/etc/hosts").exists():
+        shutil.copy("/etc/hosts", dst / "etc/hosts")
+
     Path(dst / "etc/static").unlink(missing_ok=True)
     if (config.tools() / "etc/static").is_symlink():
         (dst / "etc/static").symlink_to((config.tools() / "etc/static").readlink())
