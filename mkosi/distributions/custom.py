@@ -11,6 +11,10 @@ from mkosi.log import die
 
 class Installer(DistributionInstaller):
     @classmethod
+    def pretty_name(cls) -> str:
+        return "Custom"
+
+    @classmethod
     def architecture(cls, arch: Architecture) -> str:
         return str(arch)
 
