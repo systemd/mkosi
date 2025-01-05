@@ -147,11 +147,30 @@ def resolve_module_dependencies(
         depends = moddep.get(m, set())
         for d in depends:
             if d not in nametofile and d not in builtin:
-                logging.warning(f"{d} is a dependency of {m} but is not installed, ignoring ")
+                logging.warning(f"{d} is a dependency of {m} but is not installed, ignoring")
 
         mods.add(m)
         todo += depends
-        firmware.update(firmwaredep.get(m, set()))
+
+        with chdir(root):
+            fwdeps = firmwaredep.get(m, set())
+            for fw in fwdeps:
+                # The path to the firmware may be a symbolic link. Add both symbolic link and the resolved
+                # file in that case.
+                n = 10
+                p = root / fw
+                while p.is_symlink():
+                    n -= 1
+                    if n <= 0:
+                        logging.warning(f"Too many symbolic links were encountered in resolving {fw}, ignoring")
+                        break
+
+                    firmware.add(p.relative_to(root))
+                    # Here, we assume that symbolic link target is relative.
+                    p = Path(os.path.normpath(os.path.join(os.path.dirname(p), os.readlink(p))))
+
+                if p.is_file():
+                    firmware.add(p.relative_to(root))
 
     return set(nametofile[m] for m in mods if m in nametofile), set(firmware)
 
