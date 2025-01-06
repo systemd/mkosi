@@ -225,9 +225,9 @@ def test_initrd_size(config: ImageConfig) -> None:
         maxsize = 1024**2 * {
             Distribution.fedora: 63,
             Distribution.debian: 62,
-            Distribution.ubuntu: 56,
+            Distribution.ubuntu: 57,
             Distribution.arch: 83,
             Distribution.opensuse: 64,
-        }.get(config.distribution, 57)
+        }.get(config.distribution, 58)
 
         assert (Path(image.output_dir) / "image.initrd").stat().st_size <= maxsize

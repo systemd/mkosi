@@ -1016,10 +1016,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `KernelModulesInclude=`, `--kernel-modules-include=`
 :   Takes a list of regex patterns that specify kernel modules to include in the image. Patterns should be
-    relative to the `/usr/lib/modules/<kver>/kernel` directory. mkosi checks for a match anywhere in the module
-    path (e.g. `i915` will match against `drivers/gpu/drm/i915.ko`). All modules that match any of the
-    specified patterns are included in the image. All module and firmware dependencies of the matched modules
-    are included in the image as well.
+    relative to `/usr/lib/modules/<kver>/<subdir>` paths. mkosi checks for a match anywhere in the module path
+    (e.g. `i915` will match against `drivers/gpu/drm/i915.ko`). All modules that match any of the specified
+    patterns are included in the image. All module and firmware dependencies of the matched modules are included
+    in the image as well.
 
     If the special value `default` is used, the default kernel modules
     defined in the `mkosi-initrd` configuration are included as well.
