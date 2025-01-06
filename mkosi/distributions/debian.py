@@ -142,7 +142,6 @@ class Installer(DistributionInstaller):
                     "-oDebug::pkgDPkgPm=1",
                     f"-oDPkg::Pre-Install-Pkgs::=cat >{workdir(Path(f.name))}",
                     "?essential",
-                    "?exact-name(usr-is-merged)",
                     "base-files",
                 ],
                 options=["--bind", f.name, workdir(Path(f.name))],
