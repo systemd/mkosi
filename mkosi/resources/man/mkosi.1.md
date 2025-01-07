@@ -409,7 +409,7 @@ in `[Match]`, i.e. all normal conditions are joined by a logical AND and
 all triggering conditions are joined by a logical OR. When mixing
 `[Match]` and `[TriggerMatch]` sections, a match is achieved when all
 `[Match]` sections match and at least one `[TriggerMatch]` section
-matches. No match sections are valued as true. Logically this means:
+matches. The absence of match sections is valued as true. Logically this means:
 
 ```
 (⋀ᵢ Matchᵢ) ∧ (⋁ᵢ TriggerMatchᵢ)
