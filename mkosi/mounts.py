@@ -6,9 +6,9 @@ import stat
 import tempfile
 from collections.abc import Iterator, Sequence
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
-from mkosi.config import Config
+from mkosi.config import BuildSourcesEphemeral, Config
 from mkosi.sandbox import OverlayOperation
 from mkosi.types import PathString
 from mkosi.util import flatten
@@ -57,7 +57,11 @@ def mount_overlay(
 
 
 @contextlib.contextmanager
-def finalize_source_mounts(config: Config, *, ephemeral: bool) -> Iterator[list[PathString]]:
+def finalize_source_mounts(
+    config: Config,
+    *,
+    ephemeral: Union[BuildSourcesEphemeral, bool],
+) -> Iterator[list[PathString]]:
     with contextlib.ExitStack() as stack:
         options: list[PathString] = []
 
@@ -65,12 +69,18 @@ def finalize_source_mounts(config: Config, *, ephemeral: bool) -> Iterator[list[
             src, dst = t.with_prefix("/work/src")
 
             if ephemeral:
-                upperdir = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="volatile-overlay")))
-                os.chmod(upperdir, src.stat().st_mode)
+                if ephemeral == BuildSourcesEphemeral.buildcache and config.build_dir is not None:
+                    upperdir = config.build_dir / f"mkosi.buildovl.{src.name}"
+                    upperdir.mkdir(mode=src.stat().st_mode, exist_ok=True)
+                else:
+                    upperdir = Path(
+                        stack.enter_context(tempfile.TemporaryDirectory(prefix="volatile-overlay."))
+                    )
+                    os.chmod(upperdir, src.stat().st_mode)
 
                 workdir = Path(
                     stack.enter_context(
-                        tempfile.TemporaryDirectory(dir=upperdir.parent, prefix=f"{upperdir.name}-workdir")
+                        tempfile.TemporaryDirectory(dir=upperdir.parent, prefix=f"{upperdir.name}-workdir.")
                     )
                 )
 
