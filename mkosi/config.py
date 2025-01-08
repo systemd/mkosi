@@ -354,6 +354,15 @@ class Incremental(StrEnum):
         return self != Incremental.no
 
 
+class BuildSourcesEphemeral(StrEnum):
+    yes = enum.auto()
+    no = enum.auto()
+    buildcache = enum.auto()
+
+    def __bool__(self) -> bool:
+        return self != BuildSourcesEphemeral.no
+
+
 class Architecture(StrEnum):
     alpha = enum.auto()
     arc = enum.auto()
@@ -1897,7 +1906,7 @@ class Config:
     repart_offline: bool
     history: bool
     build_sources: list[ConfigTree]
-    build_sources_ephemeral: bool
+    build_sources_ephemeral: BuildSourcesEphemeral
     environment: dict[str, str]
     environment_files: list[Path]
     with_tests: bool
@@ -3360,11 +3369,15 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ),
     ConfigSetting(
         dest="build_sources_ephemeral",
-        metavar="BOOL",
+        nargs="?",
         section="Build",
-        parse=config_parse_boolean,
+        parse=config_make_enum_parser_with_boolean(
+            BuildSourcesEphemeral, yes=BuildSourcesEphemeral.yes, no=BuildSourcesEphemeral.no
+        ),
+        default=BuildSourcesEphemeral.no,
         help="Make build sources ephemeral when running scripts",
         scope=SettingScope.universal,
+        choices=BuildSourcesEphemeral.values(),
     ),
     ConfigSetting(
         dest="environment",
@@ -4943,7 +4956,7 @@ def summary(config: Config) -> str:
                      Repart Offline: {yes_no(config.repart_offline)}
                        Save History: {yes_no(config.history)}
                       Build Sources: {line_join_list(config.build_sources)}
-            Build Sources Ephemeral: {yes_no(config.build_sources_ephemeral)}
+            Build Sources Ephemeral: {config.build_sources_ephemeral}
                  Script Environment: {line_join_list(env)}
                   Environment Files: {line_join_list(config.environment_files)}
          Run Tests in Build Scripts: {yes_no(config.with_tests)}
@@ -5134,6 +5147,7 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         Firmware: enum_transformer,
         SecureBootSignTool: enum_transformer,
         Incremental: enum_transformer,
+        BuildSourcesEphemeral: enum_transformer,
         Optional[Distribution]: optional_enum_transformer,
         list[ManifestFormat]: enum_list_transformer,
         Verb: enum_transformer,

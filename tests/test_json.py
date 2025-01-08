@@ -14,6 +14,7 @@ from mkosi.config import (
     ArtifactOutput,
     BiosBootloader,
     Bootloader,
+    BuildSourcesEphemeral,
     Cacheonly,
     CertificateSource,
     CertificateSourceType,
@@ -117,7 +118,7 @@ def test_config() -> None:
                     "Target": "/frob"
                 }
             ],
-            "BuildSourcesEphemeral": true,
+            "BuildSourcesEphemeral": "yes",
             "CDROM": false,
             "CPUs": 2,
             "CacheDirectory": "/is/this/the/cachedir",
@@ -424,7 +425,7 @@ def test_config() -> None:
         build_dir=None,
         build_packages=["pkg1", "pkg2"],
         build_scripts=[Path("/path/to/buildscript")],
-        build_sources_ephemeral=True,
+        build_sources_ephemeral=BuildSourcesEphemeral.yes,
         build_sources=[ConfigTree(Path("/qux"), Path("/frob"))],
         cache_dir=Path("/is/this/the/cachedir"),
         cacheonly=Cacheonly.always,

@@ -1476,11 +1476,16 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     working directory is mounted to `/work/src`.
 
 `BuildSourcesEphemeral=`, `--build-sources-ephemeral=`
-:   Takes a boolean. Disabled by default. Configures whether changes to
-    source directories (the working directory and configured using
-    `BuildSources=`) are persisted. If enabled, all source directories
-    will be reset to their original state every time after running all
+:   Takes a boolean or the special value `buildcache`. Disabled by default. Configures whether changes to
+    source directories, the working directory and configured using `BuildSources=`, are persisted. If
+    enabled, all source directories will be reset to their original state every time after running all
     scripts of a specific type (except sync scripts).
+
+    💥💣💥 If set to `buildcache` the overlay is not discarded when running build scripts, but saved to the
+    build directory, configured via `BuildDirectory=`, and will be reused on subsequent runs. The overlay is
+    still discarded for all other scripts. This option can be used to implement more advanced caching of
+    builds, but can lead to unexpected states of the source directory. When using this option, a build
+    directory must be configured. 💥💣💥
 
 `Environment=`, `--environment=`
 :   Adds variables to the environment that package managers and the

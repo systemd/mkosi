@@ -729,7 +729,10 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
 
     with (
         mount_build_overlay(context) if build else contextlib.nullcontext(),
-        finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources,
+        finalize_source_mounts(
+            context.config,
+            ephemeral=bool(context.config.build_sources_ephemeral),
+        ) as sources,
         finalize_config_json(context.config) as json,
     ):
         if build:
@@ -871,7 +874,10 @@ def run_postinst_scripts(context: Context) -> None:
     env |= context.config.environment
 
     with (
-        finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources,
+        finalize_source_mounts(
+            context.config,
+            ephemeral=bool(context.config.build_sources_ephemeral),
+        ) as sources,
         finalize_config_json(context.config) as json,
     ):
         for script in context.config.postinst_scripts:
@@ -937,7 +943,10 @@ def run_finalize_scripts(context: Context) -> None:
     env |= context.config.environment
 
     with (
-        finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources,
+        finalize_source_mounts(
+            context.config,
+            ephemeral=bool(context.config.build_sources_ephemeral),
+        ) as sources,
         finalize_config_json(context.config) as json,
     ):
         for script in context.config.finalize_scripts:
@@ -989,7 +998,10 @@ def run_postoutput_scripts(context: Context) -> None:
         env["PROFILES"] = " ".join(context.config.profiles)
 
     with (
-        finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources,
+        finalize_source_mounts(
+            context.config,
+            ephemeral=bool(context.config.build_sources_ephemeral),
+        ) as sources,
         finalize_config_json(context.config) as json,
     ):
         for script in context.config.postoutput_scripts:
