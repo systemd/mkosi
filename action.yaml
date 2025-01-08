@@ -39,6 +39,14 @@ runs:
       shell: bash
       run: env
 
+    - name: Show CPU
+      shell: bash
+      run: lscpu
+
+    - name: Show memory
+      shell: bash
+      run: lsmem
+
     - name: Enable unprivileged user namespaces
       shell: bash
       run: |
