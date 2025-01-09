@@ -200,13 +200,14 @@ def main() -> None:
         if Path("/etc/kernel/cmdline").exists():
             cmdline += ["--kernel-command-line", Path("/etc/kernel/cmdline").read_text()]
 
-        # Prefer dnf as dnf5 has not yet officially replaced it and there's a much bigger chance that there
-        # will be a populated dnf cache directory.
+        # Resolve dnf binary to determine which version the host uses by default
+        # (to avoid preferring dnf5 if the host uses dnf4)
+        # as there's a much bigger chance that it has a populated dnf cache directory.
         run(
             cmdline,
             stdin=sys.stdin,
             stdout=sys.stdout,
-            env={"MKOSI_DNF": dnf.name} if (dnf := find_binary("dnf", "dnf5")) else {},
+            env={"MKOSI_DNF": dnf.resolve().name} if (dnf := find_binary("dnf")) else {},
         )
 
         if args.output_dir:

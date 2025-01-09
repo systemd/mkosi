@@ -52,7 +52,7 @@ class Dnf(PackageManager):
             with config.open("w") as f:
                 # Make sure we download filelists so all dependencies can be resolved.
                 # See https://bugzilla.redhat.com/show_bug.cgi?id=2180842
-                if cls.executable(context.config).endswith("dnf5") and filelists:
+                if cls.executable(context.config) == "dnf5" and filelists:
                     f.write("[main]\noptional_metadata_types=filelists\n")
 
         # The versionlock plugin will fail if enabled without a configuration file so lets' write a noop
@@ -128,11 +128,11 @@ class Dnf(PackageManager):
             f"--setopt=persistdir=/var/lib/{cls.subdir(context.config)}",
             f"--setopt=install_weak_deps={int(context.config.with_recommends)}",
             "--setopt=check_config_file_age=0",
-            "--disable-plugin=*" if dnf.endswith("dnf5") else "--disableplugin=*",
+            "--disable-plugin=*" if dnf == "dnf5" else "--disableplugin=*",
         ]  # fmt: skip
 
         for plugin in ("builddep", "versionlock"):
-            cmdline += ["--enable-plugin", plugin] if dnf.endswith("dnf5") else ["--enableplugin", plugin]
+            cmdline += ["--enable-plugin", plugin] if dnf == "dnf5" else ["--enableplugin", plugin]
 
         if ARG_DEBUG.get():
             cmdline += ["--setopt=debuglevel=10"]
@@ -141,7 +141,7 @@ class Dnf(PackageManager):
             cmdline += ["--nogpgcheck"]
 
         if context.config.repositories:
-            opt = "--enable-repo" if dnf.endswith("dnf5") else "--enablerepo"
+            opt = "--enable-repo" if dnf == "dnf5" else "--enablerepo"
             cmdline += [f"{opt}={repo}" for repo in context.config.repositories]
 
         if context.config.cacheonly == Cacheonly.always:
@@ -157,9 +157,9 @@ class Dnf(PackageManager):
             ]
 
         if not context.config.with_docs:
-            cmdline += ["--no-docs" if dnf.endswith("dnf5") else "--nodocs"]
+            cmdline += ["--no-docs" if dnf == "dnf5" else "--nodocs"]
 
-        if dnf.endswith("dnf5"):
+        if dnf == "dnf5":
             cmdline += ["--use-host-config"]
         else:
             cmdline += [
