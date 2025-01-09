@@ -29,7 +29,8 @@ def show_docs(
                 return
             elif form == DocFormat.pandoc:
                 if not find_binary("pandoc"):
-                    logging.error("pandoc is not available")
+                    logging.warn("pandoc is not available")
+                    continue
                 pandoc = run(
                     ["pandoc", "-t", "man", "-s", resources / f"man/{manual}.{man_chapter}.md"],
                     stdout=subprocess.PIPE,
