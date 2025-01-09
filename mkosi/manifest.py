@@ -270,5 +270,5 @@ class Manifest:
         out.write(f"Size:     {sum(p.size for p in self.packages)}")
 
         for package in self.source_packages.values():
-            out.write(f"\n{80*'-'}\n")
+            out.write(f"\n{80 * '-'}\n")
             out.write(package.report())

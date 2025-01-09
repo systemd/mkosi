@@ -56,7 +56,7 @@ def test_args(path: Optional[Path]) -> None:
             "DebugSandbox": false,
             "DebugShell": false,
             "DebugWorkspace": false,
-            "Directory": {f'"{os.fspath(path)}"' if path is not None else 'null'},
+            "Directory": {f'"{os.fspath(path)}"' if path is not None else "null"},
             "DocFormat": "auto",
             "Force": 9001,
             "GenkeyCommonName": "test",
