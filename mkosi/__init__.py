@@ -1844,7 +1844,7 @@ def install_type1(
             )
 
             for initrd in initrds:
-                f.write(f'initrd /{initrd.relative_to(context.root / "boot")}\n')
+                f.write(f"initrd /{initrd.relative_to(context.root / 'boot')}\n")
 
     if want_grub_efi(context) or want_grub_bios(context, partitions):
         config = prepare_grub_config(context)
@@ -2588,8 +2588,7 @@ def check_tools(config: Config, verb: Verb) -> None:
                     version="257~devel",
                     reason="build unified kernel image profiles",
                     hint=(
-                        "Use ToolsTree=default to download most required tools including ukify "
-                        "automatically"
+                        "Use ToolsTree=default to download most required tools including ukify automatically"
                     ),
                 )
             elif config.unified_kernel_images == ConfigFeature.enabled:
