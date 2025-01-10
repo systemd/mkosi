@@ -1282,6 +1282,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     | `openssh`               | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `openssl`               | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `pkcs11-provider`       | ✓      |        | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `perf`                  | ✓      | ✓      | ✓      | ✓    |        | ✓    | ✓        |
     | `sed`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `pacman`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
     | `policycoreutils`       | ✓      | ✓      | ✓      | ✓    | ✓      |      | ✓        |
