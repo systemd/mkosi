@@ -1172,7 +1172,6 @@ def _kernel_inspect(path: Path) -> str:
     return match.group(1) if match else "unknown"
 
 
-
 def fixup_vmlinuz_location(context: Context) -> None:
     # Some architectures ship an uncompressed vmlinux (ppc64el, riscv64)
     for type in ("vmlinuz", "vmlinux"):

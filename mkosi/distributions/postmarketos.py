@@ -46,13 +46,17 @@ class Installer(DistributionInstaller):
             (context.root / "usr" / dir).mkdir(parents=True, exist_ok=True)
             (context.root / dir).symlink_to(f"usr/{dir}")
 
-        cls.install_packages(context, [
-            "--initdb",
-            "alpine-base",
-            "postmarketos-base",
-            # "device-qemu-amd64",
-            # "device-qemu-amd64-kernel-edge",
-        ], apivfs=False)
+        cls.install_packages(
+            context,
+            [
+                "--initdb",
+                "alpine-base",
+                "postmarketos-base",
+                # "device-qemu-amd64",
+                # "device-qemu-amd64-kernel-edge",
+            ],
+            apivfs=False,
+        )
 
     @classmethod
     def install_packages(cls, context: Context, packages: Sequence[str], apivfs: bool = True) -> None:
@@ -70,13 +74,15 @@ class Installer(DistributionInstaller):
     @classmethod
     def repositories(cls, context: Context) -> Iterable[str]:
         print("fetch repos")
-        return iter([
-            "https://mirror.postmarketos.org/postmarketos/staging/systemd/master/",
-            "http://mirror.postmarketos.org/postmarketos/master",
-            "http://dl-cdn.alpinelinux.org/alpine/edge/main",
-            "http://dl-cdn.alpinelinux.org/alpine/edge/community",
-            "http://dl-cdn.alpinelinux.org/alpine/edge/testing",
-        ])
+        return iter(
+            [
+                "https://mirror.postmarketos.org/postmarketos/extra-repos/systemd/master/",
+                "https://mirror.postmarketos.org/postmarketos/master",
+                "https://dl-cdn.alpinelinux.org/alpine/edge/main",
+                "https://dl-cdn.alpinelinux.org/alpine/edge/community",
+                "https://dl-cdn.alpinelinux.org/alpine/edge/testing",
+            ]
+        )
 
     @classmethod
     def architecture(cls, arch: Architecture) -> str:

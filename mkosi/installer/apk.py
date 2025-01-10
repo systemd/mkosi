@@ -36,8 +36,9 @@ class Apk(PackageManager):
     def mounts(cls, context: Context) -> list[PathString]:
         mounts: list[PathString] = [
             *super().mounts(context),
-            # pacman writes downloaded packages to the first writable cache directory. We don't want it to write to our
-            # local repository directory so we expose it as a read-only directory to pacman.
+            # pacman writes downloaded packages to the first writable cache directory.
+            # We don't want it to write to our local repository directory so we expose it
+            # as a read-only directory to pacman.
             # "--ro-bind", context.packages, "/var/cache/apk",
         ]
 
@@ -61,8 +62,8 @@ class Apk(PackageManager):
         return [
             "apk",
             "--root", "/buildroot",
-            # Make sure pacman looks at our local repository first by putting it as the first cache directory. We mount
-            # it read-only so the second directory will still be used for writing new cache entries.
+            # Make sure pacman looks at our local repository first by putting it as the first cache dir.
+            # We mount it read-only so the second directory will still be used for writing new cache entries.
             #"--cache-dir=" + str(context.root / "var/cache/apk/mkosi"),
             "--cache-dir", "/var/cache/apk",
             "--arch", context.config.distribution.architecture(context.config.architecture),
