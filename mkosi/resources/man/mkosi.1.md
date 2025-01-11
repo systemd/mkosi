@@ -392,7 +392,7 @@ sections. These are identical to triggering conditions except they apply
 to the entire match section instead of just a single condition. As an
 example, the following will match if the distribution is `debian` and
 the release is `bookworm` or if the distribution is `ubuntu` and the
-release is `focal`.
+release is `noble`.
 
 ```ini
 [TriggerMatch]
@@ -401,7 +401,7 @@ Release=bookworm
 
 [TriggerMatch]
 Distribution=ubuntu
-Release=focal
+Release=noble
 ```
 
 The semantics of conditions in `[TriggerMatch]` sections is the same as
