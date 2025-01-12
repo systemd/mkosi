@@ -588,7 +588,11 @@ def sandbox_cmd(
 
             # /etc might be full of symlinks to /usr/share/factory, so make sure we use /usr/share/factory
             # from the host and not from the tools tree.
-            if tools != Path("/") and (factory := Path("/usr/share/factory")).exists():
+            if (
+                tools != Path("/")
+                and (tools / "usr/share/factory").exists()
+                and (factory := Path("/usr/share/factory")).exists()
+            ):
                 cmdline += ["--bind", factory, factory]
 
         if home := current_home_dir():
