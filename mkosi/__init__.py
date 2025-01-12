@@ -1226,8 +1226,8 @@ def finalize_default_initrd(
         *(["--mirror", config.mirror] if config.mirror else []),
         "--repository-key-check", str(config.repository_key_check),
         "--repository-key-fetch", str(config.repository_key_fetch),
-        "--repositories", ",".join(config.repositories),
-        "--sandbox-tree", ",".join(str(t) for t in config.sandbox_trees),
+        *([f"--repositories={repository}" for repository in config.repositories]),
+        *([f"--sandbox-tree={tree}" for tree in config.sandbox_trees]),
         # Note that when compress_output == Compression.none == 0 we don't pass --compress-output
         # which means the default compression will get picked. This is exactly what we want so that
         # initrds are always compressed.
@@ -4154,8 +4154,8 @@ def finalize_default_tools(config: Config, *, resources: Path) -> Config:
         "--distribution", str(config.tools_tree_distribution),
         *(["--release", config.tools_tree_release] if config.tools_tree_release else []),
         *(["--mirror", config.tools_tree_mirror] if config.tools_tree_mirror else []),
-        "--repositories", ",".join(config.tools_tree_repositories),
-        "--sandbox-tree", ",".join(str(t) for t in config.tools_tree_sandbox_trees),
+        *([f"--repositories={repository}" for repository in config.tools_tree_repositories]),
+        *([f"--sandbox-tree={tree}" for tree in config.tools_tree_sandbox_trees]),
         "--repository-key-check", str(config.repository_key_check),
         "--repository-key-fetch", str(config.repository_key_fetch),
         "--cache-only", str(config.cacheonly),
