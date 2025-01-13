@@ -24,7 +24,7 @@ def test_extension(config: ImageConfig, format: OutputFormat) -> None:
                     "--incremental=no",
                     "--base-tree", Path(image.output_dir) / "image",
                     "--overlay",
-                    "--package=dnsmasq",
+                    "--package=lsof",
                     f"--format={format}",
                 ]
             )  # fmt: skip
