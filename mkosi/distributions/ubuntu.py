@@ -25,11 +25,8 @@ class Installer(debian.Installer):
     def repositories(cls, context: Context, local: bool = True) -> Iterable[AptRepository]:
         types = ("deb", "deb-src")
 
-        # From kinetic onwards, the usr-is-merged package is available in universe and is required by
-        # mkosi to set up a proper usr-merged system so we add the universe repository unconditionally.
         components = (
             "main",
-            *(["universe"] if context.config.release not in ("focal", "jammy") else []),
             *context.config.repositories,
         )
 

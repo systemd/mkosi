@@ -836,10 +836,7 @@ def config_parse_mode(value: Optional[str], old: Optional[int]) -> Optional[int]
 
 def config_default_compression(namespace: argparse.Namespace) -> Compression:
     if namespace.output_format in (OutputFormat.tar, OutputFormat.cpio, OutputFormat.uki, OutputFormat.esp):
-        if namespace.distribution == Distribution.ubuntu and namespace.release == "focal":
-            return Compression.xz
-        else:
-            return Compression.zstd
+        return Compression.zstd
     elif namespace.output_format == OutputFormat.oci:
         return Compression.gz
     else:
