@@ -654,6 +654,7 @@ def install_systemd_boot(context: Context) -> None:
         "bootctl",
         "install",
         "--root=/buildroot",
+        "--install-source=image",
         "--all-architectures",
         "--no-variables",
     ]
