@@ -122,7 +122,6 @@ jobs:
           - fedora
           - opensuse
           - ubuntu
-          - azure
         tools:
           - arch
           - debian
