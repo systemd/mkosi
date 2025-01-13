@@ -2108,6 +2108,7 @@ class Config:
             overlay=overlay,
             options=opt,
             setup=setup,
+            extra=self.extra_search_paths,
         )
 
 
