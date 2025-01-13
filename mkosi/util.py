@@ -253,3 +253,7 @@ def current_home_dir() -> Optional[Path]:
         return list(Path.cwd().parents)[-3]
 
     return None
+
+
+def unique(seq: Sequence[T]) -> list[T]:
+    return list(dict.fromkeys(seq))

@@ -4,7 +4,6 @@ import contextlib
 import errno
 import fcntl
 import functools
-import itertools
 import logging
 import os
 import queue
@@ -25,7 +24,7 @@ import mkosi.sandbox
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SANDBOX, ARG_DEBUG_SHELL, die
 from mkosi.sandbox import acquire_privileges, joinpath, umask
 from mkosi.types import _FILE, CompletedProcess, PathString, Popen
-from mkosi.util import current_home_dir, flatten, one_zero
+from mkosi.util import current_home_dir, flatten, one_zero, unique
 
 SD_LISTEN_FDS_START = 3
 
@@ -351,22 +350,40 @@ def spawn(
                 make_foreground_process(new_process_group=False)
 
 
+def finalize_path(
+    root: Optional[Path] = None,
+    extra: Sequence[Path] = (),
+    prefix_usr: bool = False,
+    relaxed: bool = False,
+) -> str:
+    root = root or Path("/")
+    path = [os.fspath(p) for p in extra]
+
+    if relaxed:
+        path += [
+            s
+            for s in os.environ["PATH"].split(":")
+            if s in ("/usr/bin", "/usr/sbin") or not s.startswith("/usr")
+        ]
+
+        # Make sure that /usr/bin and /usr/sbin are always in $PATH.
+        path += [s for s in ("/usr/bin", "/usr/sbin") if s not in path]
+    else:
+        path += ["/usr/bin", "/usr/sbin"]
+
+    if prefix_usr:
+        path = [os.fspath(root / s.lstrip("/")) if s in ("/usr/bin", "/usr/sbin") else s for s in path]
+
+    return ":".join(unique(path))
+
+
 def find_binary(
     *names: PathString,
     root: Optional[Path] = None,
     extra: Sequence[Path] = (),
 ) -> Optional[Path]:
     root = root or Path("/")
-
-    if root != Path("/"):
-        path = ":".join(
-            itertools.chain(
-                (os.fspath(p) for p in extra),
-                (os.fspath(p) for p in (root / "usr/bin", root / "usr/sbin")),
-            )
-        )
-    else:
-        path = os.environ["PATH"]
+    path = finalize_path(root=root, extra=extra, prefix_usr=True)
 
     for name in names:
         if any(Path(name).is_relative_to(d) for d in extra):
@@ -528,6 +545,7 @@ def sandbox_cmd(
     overlay: Optional[Path] = None,
     options: Sequence[PathString] = (),
     setup: Sequence[PathString] = (),
+    extra: Sequence[Path] = (),
 ) -> Iterator[list[PathString]]:
     assert not (overlay and relaxed)
 
@@ -620,26 +638,8 @@ def sandbox_cmd(
 
         home = None
 
-    # We leak most of the $PATH from the host into the non-relaxed sandbox as well but this shouldn't be a
-    # problem in practice as the directories themselves won't be in the sandbox and so we shouldn't
-    # accidentally pick up anything from them.
-
-    path = []
-    if scripts:
-        path += ["/scripts"]
-    if tools != Path("/"):
-        path += [
-            s
-            for s in os.environ["PATH"].split(":")
-            if s in ("/usr/bin", "/usr/sbin") or not s.startswith("/usr")
-        ]
-
-        # Make sure that /usr/bin and /usr/sbin are always in $PATH.
-        path += [s for s in ("/usr/bin", "/usr/sbin") if s not in path]
-    else:
-        path += os.environ["PATH"].split(":")
-
-    cmdline += ["--setenv", "PATH", ":".join(path)]
+    path = finalize_path(root=tools, extra=[Path("/scripts"), *extra] if scripts else extra, relaxed=relaxed)
+    cmdline += ["--setenv", "PATH", path]
 
     if scripts:
         cmdline += ["--ro-bind", scripts, "/scripts"]

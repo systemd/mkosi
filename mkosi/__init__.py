@@ -4118,27 +4118,6 @@ def expand_specifier(s: str) -> str:
     return s.replace("%u", INVOKING_USER.name())
 
 
-@contextlib.contextmanager
-def prepend_to_environ_path(config: Config) -> Iterator[None]:
-    if not config.extra_search_paths:
-        yield
-        return
-
-    with tempfile.TemporaryDirectory(prefix="mkosi.path-") as d:
-        for path in config.extra_search_paths:
-            if not path.is_dir():
-                (Path(d) / path.name).symlink_to(path.absolute())
-
-        news = [os.fspath(path) for path in [Path(d), *config.extra_search_paths] if path.is_dir()]
-        olds = os.getenv("PATH", "").split(":")
-        os.environ["PATH"] = ":".join(news + olds)
-
-        try:
-            yield
-        finally:
-            os.environ["PATH"] = ":".join(olds)
-
-
 def finalize_default_tools(config: Config, *, resources: Path) -> Config:
     if not config.tools_tree_distribution:
         die(
@@ -4731,20 +4710,18 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
             fork_and_wait(run_build, args, tools, resources=resources, metadata_dir=Path(metadata_dir))
 
     if not args.verb.needs_build():
-        with prepend_to_environ_path(last):
-            return {
-                Verb.ssh: run_ssh,
-                Verb.journalctl: run_journalctl,
-                Verb.coredumpctl: run_coredumpctl,
-                Verb.sandbox: run_sandbox,
-            }[args.verb](args, last)
+        return {
+            Verb.ssh: run_ssh,
+            Verb.journalctl: run_journalctl,
+            Verb.coredumpctl: run_coredumpctl,
+            Verb.sandbox: run_sandbox,
+        }[args.verb](args, last)
 
     for i, config in enumerate(images):
-        with prepend_to_environ_path(config):
-            if args.verb != Verb.build:
-                check_tools(config, args.verb)
+        if args.verb != Verb.build:
+            check_tools(config, args.verb)
 
-            images[i] = config = run_configure_scripts(config)
+        images[i] = config = run_configure_scripts(config)
 
     # The images array has been modified so we need to reevaluate last again.
     # Also ensure that all other images are reordered in case their dependencies were modified.
@@ -4768,8 +4745,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
 
         with complete_step("Validating certificates and keys"):
             for config in images:
-                with prepend_to_environ_path(config):
-                    validate_certificates_and_keys(config)
+                validate_certificates_and_keys(config)
 
         ensure_directories_exist(last)
 
@@ -4792,19 +4768,18 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
                 if config.output_format == OutputFormat.none and not config.build_scripts:
                     continue
 
-                with prepend_to_environ_path(config):
-                    check_tools(config, Verb.build)
+                check_tools(config, Verb.build)
 
-                    check_inputs(config)
-                    ensure_directories_exist(config)
-                    fork_and_wait(
-                        run_build,
-                        args,
-                        config,
-                        resources=resources,
-                        metadata_dir=Path(metadata_dir),
-                        package_dir=Path(package_dir),
-                    )
+                check_inputs(config)
+                ensure_directories_exist(config)
+                fork_and_wait(
+                    run_build,
+                    args,
+                    config,
+                    resources=resources,
+                    metadata_dir=Path(metadata_dir),
+                    package_dir=Path(package_dir),
+                )
 
         if args.auto_bump:
             bump_image_version()
@@ -4826,18 +4801,17 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
             hint="Clean the root owned image by running mkosi -ff clean as root and then rebuild the image",
         )
 
-    with prepend_to_environ_path(last):
-        run_vm = {
-            Vmm.qemu: run_qemu,
-            Vmm.vmspawn: run_vmspawn,
-        }[last.vmm]
+    run_vm = {
+        Vmm.qemu: run_qemu,
+        Vmm.vmspawn: run_vmspawn,
+    }[last.vmm]
 
-        {
-            Verb.shell: run_shell,
-            Verb.boot: run_shell,
-            Verb.vm: run_vm,
-            Verb.qemu: run_vm,
-            Verb.serve: run_serve,
-            Verb.burn: run_burn,
-            Verb.sysupdate: run_sysupdate,
-        }[args.verb](args, last)
+    {
+        Verb.shell: run_shell,
+        Verb.boot: run_shell,
+        Verb.vm: run_vm,
+        Verb.qemu: run_vm,
+        Verb.serve: run_serve,
+        Verb.burn: run_burn,
+        Verb.sysupdate: run_sysupdate,
+    }[args.verb](args, last)
