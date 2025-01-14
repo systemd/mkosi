@@ -218,7 +218,7 @@ def grub_mkimage(
                 "fat",
                 "hello",
                 "help",
-                "keylayouts",
+                *(["keylayouts"] if context.config.architecture.is_x86_variant() else []),
                 "linux",
                 "loadenv",
                 "ls",
