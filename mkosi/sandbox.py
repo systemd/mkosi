@@ -526,7 +526,7 @@ class DevOperation(FSOperation):
 
         for node in ("null", "zero", "full", "random", "urandom", "tty", "fuse"):
             nsrc = joinpath(oldroot, "dev", node)
-            if not os.path.exists(nsrc) and node == "fuse":
+            if node == "fuse" and not os.path.exists(nsrc):
                 continue
 
             ndst = joinpath(dst, node)
