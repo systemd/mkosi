@@ -90,6 +90,8 @@
   subimage when used in a config under `mkosi.images/`. This differs to `%o`
   as it is always the name of the config file without extension (or the name
   of the directory).
+- If /dev/fuse is found in the host context, it is made available in the
+  sandbox context too.
 
 ## v24
 
