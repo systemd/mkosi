@@ -524,11 +524,15 @@ class DevOperation(FSOperation):
         # /dev/null fails with EACCESS for unknown reasons.
         mount("tmpfs", dst, "tmpfs", 0, "mode=0755")
 
-        for node in ("null", "zero", "full", "random", "urandom", "tty"):
+        for node in ("null", "zero", "full", "random", "urandom", "tty", "fuse"):
+            nsrc = joinpath(oldroot, "dev", node)
+            if not os.path.exists(nsrc) and node == "fuse":
+                continue
+
             ndst = joinpath(dst, node)
             os.close(os.open(ndst, os.O_CREAT | os.O_CLOEXEC | os.O_EXCL))
 
-            mount(joinpath(oldroot, "dev", node), ndst, "", MS_BIND, "")
+            mount(nsrc, ndst, "", MS_BIND, "")
 
         for i, node in enumerate(("stdin", "stdout", "stderr")):
             os.symlink(f"/proc/self/fd/{i}", joinpath(dst, node))
