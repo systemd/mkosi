@@ -422,6 +422,14 @@ class Architecture(StrEnum):
             Architecture.loongarch64: "loongarch64",
         }.get(self)  # fmt: skip
 
+    def to_grub(self) -> Optional[str]:
+        return {
+            Architecture.x86_64: "x86_64",
+            Architecture.x86:    "i386",
+            Architecture.arm64:  "arm64",
+            Architecture.arm:    "arm",
+        }.get(self)  # fmt: skip
+
     def to_qemu(self) -> str:
         a = {
             Architecture.alpha:       "alpha",
