@@ -82,16 +82,53 @@
   need to acquire some files for the build process place them somewhere
   sensible within `$BUILDROOT` so that they can be cached when building
   incrementally.
-- When using a tools tree and we use a relaxed sandbox to run a command
-  (qemu, nspawn, ...), we now keep $PATH entries inside the user's home
-  intact. Note that this may cause issues if a PATH entry in your home contains
-  binaries linked against libraries in `/usr` from the host.
-- Introduced new specifier `%I` which resolves to the name of the current
+- When using a tools tree and a relaxed sandbox is used to run a command
+  (qemu, nspawn, ...), we now keep all entries from `$PATH` outside of
+  `/usr` intact. Note that this may cause issues if a `$PATH` entry
+  contains binaries linked against libraries in `/usr` from the host.
+- Introduced a new specifier `%I` which resolves to the name of the current
   subimage when used in a config under `mkosi.images/`. This differs to `%o`
   as it is always the name of the config file without extension (or the name
   of the directory).
-- If /dev/fuse is found in the host context, it is made available in the
+- If `/dev/fuse` is found in the host context, it is made available in the
   sandbox context too.
+- Added a `sandbox` verb to run a command within a relaxed mkosi sandbox
+  (the same sandbox that `mkosi vm`, `mkosi boot`, ... run in).
+- OpenSSL providers are now supported as key sources for the various key
+  settings if a recent enough systemd version (257 or newer) is used.
+- Added support for loading X.509 certificates from OpenSSL providers if
+  a recent enough systemd version (257 or newer) is used.
+- Added `ToolsTreePackageDirectories=`
+- Added `--kernel-image=` to `mkosi-initrd` to specify the kernel image to
+  use when building a UKI.
+- Setting a collection based setting to the empty string via the CLI and
+  then appending to the same setting will now override the settings
+  coming from configuration files, whereas previously the CLI values
+  would be appended to the values from configuration files.
+- The `mkosi-initrd` default config now includes various extra kernel
+  modules by default.
+- The `coredumpctl` and `journalctl` verbs will now always operate on
+  the image, even if `ForwardJournal=` is configured.
+- Bumped default Fedora release to `41`.
+- Added `initrd-addon` output format to build initrd addons.
+- Renamed `[Host]` section to `[Runtime]` section.
+- Renamed various settings from `[Host]`.
+- Binaries coming from `ExtraSearchPaths=` are now executed with the
+  tools tree mounted if one is configured (unlike before where the tools
+  tree was not mounted). This means that any binaries coming from
+  `ExtraSearchPaths=` have to be linked against libraries from the tools
+  tree (or have to be statically linked). Alternatively, the tools tree
+  distribution and release have to match the host.
+- Binaries from `ExtraSearchPaths=` are not used anymore when building
+  the default tools tree.
+- Dropped support for `pesign` as a secure boot signing tool.
+- Added support for `systemd-sbsign` as a secure boot signing tool.
+- Added `--register=` to control whether to register containers and VMs
+  with systemd-machined or not.
+- `mkosi.profiles` is now parsed in subimages as well.
+- `mkosi-initrd` now uses `dnf5` on systems where it is the default.
+- Added various packages to the default tools tree.
+- Dropped support for Ubuntu Focal.
 
 ## v24
 
