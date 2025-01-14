@@ -861,6 +861,9 @@ def config_default_output(namespace: argparse.Namespace) -> str:
 
 
 def config_default_distribution(namespace: argparse.Namespace) -> Distribution:
+    if d := os.getenv("MKOSI_HOST_DISTRIBUTION"):
+        return Distribution(d)
+
     detected = detect_distribution()[0]
 
     if not detected:
@@ -874,8 +877,15 @@ def config_default_distribution(namespace: argparse.Namespace) -> Distribution:
 
 
 def config_default_release(namespace: argparse.Namespace) -> str:
+    hd: Optional[Distribution]
+    hr: Optional[str]
+
+    if (d := os.getenv("MKOSI_HOST_DISTRIBUTION")) and (r := os.getenv("MKOSI_HOST_RELEASE")):
+        hd, hr = Distribution(d), r
+    else:
+        hd, hr = detect_distribution()
+
     # If the configured distribution matches the host distribution, use the same release as the host.
-    hd, hr = detect_distribution()
     if namespace.distribution == hd and hr is not None:
         return hr
 

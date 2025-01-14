@@ -79,7 +79,7 @@ from mkosi.config import (
     yes_no,
 )
 from mkosi.context import Context
-from mkosi.distributions import Distribution
+from mkosi.distributions import Distribution, detect_distribution
 from mkosi.documentation import show_docs
 from mkosi.installer import clean_package_manager_metadata
 from mkosi.kmod import gen_required_kernel_modules, loaded_modules, process_kernel_modules
@@ -3778,11 +3778,19 @@ def run_sandbox(args: Args, config: Config) -> None:
                 hint=f"Create an empty directory at {dst} using 'mkdir -p {dst}' as root and try again",
             )
 
+    hd, hr = detect_distribution()
+
+    env = {"MKOSI_IN_SANDBOX": "1"}
+    if hd:
+        env |= {"MKOSI_HOST_DISTRIBUTION": str(hd)}
+    if hr:
+        env |= {"MKOSI_HOST_RELEASE": hr}
+
     run(
         args.cmdline,
         stdin=sys.stdin,
         stdout=sys.stdout,
-        env=os.environ | {"MKOSI_IN_SANDBOX": "1"},
+        env=os.environ | env,
         log=False,
         sandbox=config.sandbox(
             devices=True,
