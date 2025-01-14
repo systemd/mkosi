@@ -72,8 +72,11 @@ def want_grub_efi(context: Context) -> bool:
     if context.config.bootloader != Bootloader.grub:
         return False
 
+    if not (arch := context.config.architecture.to_grub()):
+        return False
+
     if context.config.shim_bootloader != ShimBootloader.signed:
-        have = find_grub_directory(context, target="x86_64-efi") is not None
+        have = find_grub_directory(context, target=f"{arch}-efi") is not None
         if not have and context.config.bootable == ConfigFeature.enabled:
             die("An EFI bootable image with grub was requested but grub for EFI is not installed")
 
@@ -339,7 +342,13 @@ def install_grub(context: Context) -> None:
             else:
                 sbat = None
 
-            grub_mkimage(context, target="x86_64-efi", output=output, modules=("chain",), sbat=sbat)
+            grub_mkimage(
+                context,
+                target=f"{context.config.architecture.to_grub()}-efi",
+                output=output,
+                modules=("chain",),
+                sbat=sbat,
+            )
             if context.config.secure_boot:
                 sign_efi_binary(context, output, output)
 
