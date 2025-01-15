@@ -918,38 +918,63 @@ def scope_cmd(
     ]  # fmt: skip
 
 
-def register_machine(config: Config, pid: int, fname: Path) -> None:
-    if (
-        not config.register
-        or os.getuid() != 0
-        or ("DBUS_SYSTEM_ADDRESS" not in os.environ and not Path("/run/dbus/system_bus_socket").exists())
-    ):
+def register_machine(config: Config, pid: int, fname: Path, cid: Optional[int]) -> None:
+    if not config.register or os.getuid() != 0:
         return
 
-    run(
-        [
-            "busctl",
-            "call",
-            "--quiet",
-            "org.freedesktop.machine1",
-            "/org/freedesktop/machine1",
-            "org.freedesktop.machine1.Manager",
-            "RegisterMachine",
-            "sayssus",
-            config.machine_or_name().replace("_", "-"),
-            "0",
-            "mkosi",
-            "vm",
-            str(pid),
-            fname if fname.is_dir() else "",
-        ],  # fmt: skip
-        foreground=False,
-        env=os.environ | config.environment,
-        sandbox=config.sandbox(relaxed=True),
-        # systemd-machined might not be installed so let's ignore any failures unless running in debug mode.
-        check=ARG_DEBUG.get(),
-        stderr=None if ARG_DEBUG.get() else subprocess.DEVNULL,
-    )
+    if (p := Path("/run/systemd/machine/io.systemd.Machine")).is_socket():
+        run(
+            [
+                "varlinkctl",
+                "call",
+                p,
+                "io.systemd.Machine.Register",
+                json.dumps(
+                    {
+                        "name": config.machine_or_name().replace("_", "-"),
+                        "service": "mkosi",
+                        "class": "vm",
+                        "leader": pid,
+                        **({"rootDirectory": os.fspath(fname)} if fname.is_dir() else {}),
+                        **({"vSockCid": cid} if cid is not None else {}),
+                        **({"sshAddress": f"vsock/{cid}"} if cid is not None else {}),
+                        **({"sshPrivateKeyPath": f"{config.ssh_key}"} if config.ssh_key else {}),
+                    }
+                ),
+            ],
+            foreground=False,
+            env=os.environ | config.environment,
+            sandbox=config.sandbox(relaxed=True),
+            # Make sure varlinkctl doesn't write to stdout which messes up the terminal.
+            stdout=subprocess.DEVNULL,
+            stderr=sys.stderr,
+        )
+    elif "DBUS_SYSTEM_ADDRESS" in os.environ or Path("/run/dbus/system_bus_socket").is_socket():
+        run(
+            [
+                "busctl",
+                "call",
+                "--quiet",
+                "org.freedesktop.machine1",
+                "/org/freedesktop/machine1",
+                "org.freedesktop.machine1.Manager",
+                "RegisterMachine",
+                "sayssus",
+                config.machine_or_name().replace("_", "-"),
+                "0",
+                "mkosi",
+                "vm",
+                str(pid),
+                fname if fname.is_dir() else "",
+            ],  # fmt: skip
+            foreground=False,
+            env=os.environ | config.environment,
+            sandbox=config.sandbox(relaxed=True),
+            # systemd-machined might not be installed so let's ignore any failures unless running in debug
+            # mode.
+            check=ARG_DEBUG.get(),
+            stderr=None if ARG_DEBUG.get() else subprocess.DEVNULL,
+        )
 
 
 def run_qemu(args: Args, config: Config) -> None:
@@ -1434,7 +1459,7 @@ def run_qemu(args: Args, config: Config) -> None:
             for fd in qemu_device_fds.values():
                 os.close(fd)
 
-            register_machine(config, proc.pid, fname)
+            register_machine(config, proc.pid, fname, cid)
 
         if status := int(notifications.get("EXIT_STATUS", 0)):
             raise subprocess.CalledProcessError(status, cmdline)
