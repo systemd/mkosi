@@ -3111,13 +3111,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         dest="tools_tree",
         metavar="PATH",
         section="Build",
-        parse=(
-            # If we're running inside of mkosi sandbox, the tools tree is already in place so don't pick it
-            # up again.
-            config_make_path_parser(constants=("default",))
-            if not os.getenv("MKOSI_IN_SANDBOX")
-            else lambda value, old: None
-        ),
+        parse=config_make_path_parser(constants=("default",)),
         paths=("mkosi.tools",),
         help="Look up programs to execute inside the given tree",
         nargs="?",

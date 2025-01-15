@@ -3761,6 +3761,10 @@ def build_image(context: Context) -> None:
     print_output_size(context.config.output_dir_or_cwd() / context.config.output_with_compression)
 
 
+def in_sandbox() -> bool:
+    return parse_boolean(os.getenv("MKOSI_IN_SANDBOX", "0"))
+
+
 def run_sandbox(args: Args, config: Config) -> None:
     if not args.cmdline:
         die("Please specify a command to execute in the sandbox")
@@ -4604,20 +4608,20 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
     if (minversion := last.minimum_version) and minversion > __version__:
         die(f"mkosi {minversion} or newer is required by this configuration (found {__version__})")
 
-    if last.tools_tree and last.tools_tree == Path("default"):
+    if not in_sandbox() and last.tools_tree and last.tools_tree == Path("default"):
         tools = finalize_default_tools(last, resources=resources)
     else:
         tools = None
 
     for i, config in enumerate(images):
-        images[i] = dataclasses.replace(
-            config,
-            tools_tree=(
-                tools.output_dir_or_cwd() / tools.output
-                if tools and config.tools_tree == Path("default")
-                else config.tools_tree
-            ),
-        )
+        if in_sandbox():
+            tools_tree = None
+        elif tools and config.tools_tree == Path("default"):
+            tools_tree = tools.output_dir_or_cwd() / tools.output
+        else:
+            tools_tree = config.tools_tree
+
+        images[i] = dataclasses.replace(config, tools_tree=tools_tree)
 
     # The images array has been modified so we need to reevaluate last again.
     last = images[-1]
