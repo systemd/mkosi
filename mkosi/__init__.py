@@ -3766,6 +3766,12 @@ def in_sandbox() -> bool:
 
 
 def run_sandbox(args: Args, config: Config) -> None:
+    if in_sandbox():
+        die(
+            "mkosi sandbox cannot be invoked from within another mkosi sandbox environment",
+            hint="Exit the current sandbox environment and try again",
+        )
+
     if not args.cmdline:
         die("Please specify a command to execute in the sandbox")
 
