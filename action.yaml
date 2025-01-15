@@ -56,7 +56,7 @@ runs:
     - name: Create missing mountpoints
       shell: bash
       run: |
-        for p in /etc/pki /etc/pacman.d/gnupg /etc/ssl /etc/ca-certificates /var/lib/ca-certificates /etc/crypto-policies; do
+        for p in /etc/pki /etc/ssl /etc/ca-certificates /var/lib/ca-certificates /etc/crypto-policies; do
           if [[ ! -e "$p" ]]; then
             sudo mkdir -p "$p"
           fi
@@ -88,7 +88,6 @@ runs:
         # This is added by default, and it is often broken, but we don't need anything from it
         sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
         # For archlinux-keyring and pacman
-        sudo add-apt-repository ppa:michel-slm/kernel-utils
         sudo apt-get update
         mkosi dependencies | xargs -d '\n' sudo apt-get install --assume-yes --no-install-recommends
 

@@ -19,6 +19,7 @@ class Context:
         *,
         workspace: Path,
         resources: Path,
+        keyring_dir: Path,
         metadata_dir: Path,
         package_dir: Optional[Path] = None,
     ) -> None:
@@ -26,6 +27,7 @@ class Context:
         self.config = config
         self.workspace = workspace
         self.resources = resources
+        self.keyring_dir = keyring_dir
         self.metadata_dir = metadata_dir
         self.package_dir = package_dir or (self.workspace / "packages")
 
