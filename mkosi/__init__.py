@@ -3786,8 +3786,18 @@ def run_sandbox(args: Args, config: Config) -> None:
     if hr:
         env |= {"MKOSI_HOST_RELEASE": hr}
 
+    cmdline = [*args.cmdline]
+
+    if sys.stdin.isatty() and config.find_binary("systemd-pty-forward"):
+        cmdline = [
+            "systemd-pty-forward",
+            "--title=mkosi-sandbox",
+            "--background=48;2;12;51;51",  # cyan
+            *cmdline,
+        ]
+
     run(
-        args.cmdline,
+        cmdline,
         stdin=sys.stdin,
         stdout=sys.stdout,
         env=os.environ | env,
