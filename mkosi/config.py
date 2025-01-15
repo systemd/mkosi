@@ -893,6 +893,9 @@ def config_default_release(namespace: argparse.Namespace) -> str:
 
 
 def config_default_tools_tree_distribution(namespace: argparse.Namespace) -> Distribution:
+    if d := os.getenv("MKOSI_HOST_DISTRIBUTION"):
+        return Distribution(d).default_tools_tree_distribution()
+
     detected = detect_distribution()[0]
 
     if not detected:
