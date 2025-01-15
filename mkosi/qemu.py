@@ -401,7 +401,10 @@ def start_virtiofsd(
                     "--bind", directory, workdir(directory),
                     *(["--become-root"] if uidmap else []),
                 ],
-                setup=scope + become_root_in_subuid_range_cmd() if scope and not uidmap else [],
+                setup=(
+                    scope +
+                    (become_root_in_subuid_range_cmd() if scope and not uidmap else [])
+                ),
             ),
         ) as proc:  # fmt: skip
             yield path
