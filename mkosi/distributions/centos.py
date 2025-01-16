@@ -98,15 +98,35 @@ class Installer(DistributionInstaller):
 
     @staticmethod
     def gpgurls(context: Context) -> tuple[str, ...]:
+        # First, start with the names of the appropriate keys in /etc/pki/rpm-gpg.
+
+        if context.config.release == "9":
+            rel = "RPM-GPG-KEY-centosofficial"
+        else:
+            rel = "RPM-GPG-KEY-centosofficial-SHA256"
+
+        one = find_rpm_gpgkey(context, rel, required=False)
+
+        # Next, follow up with the names of the appropriate keys in /usr/share/distribution-gpg-keys.
+
         if context.config.release == "9":
             rel = "RPM-GPG-KEY-CentOS-Official"
         else:
             rel = "RPM-GPG-KEY-CentOS-Official-SHA256"
 
-        return tuple(
-            find_rpm_gpgkey(context, key, f"https://www.centos.org/keys/{key}")
-            for key in (rel, "RPM-GPG-KEY-CentOS-SIG-Extras")
+        # The key in /usr/share/distribution-gpg-keys is only required if we didn't find one in
+        # /etc/pki/rpm-gpg.
+        two = find_rpm_gpgkey(context, rel, f"https://www.centos.org/keys/{rel}", required=bool(one))
+
+        # Finally, look up the key for the SIG-Extras repository.
+
+        sig = find_rpm_gpgkey(
+            context,
+            "RPM-GPG-KEY-CentOS-SIG-Extras",
+            "https://www.centos.org/keys/RPM-GPG-KEY-CentOS-SIG-Extras",
         )
+
+        return tuple(key for key in (one, two, sig) if key is not None)
 
     @classmethod
     def repository_variants(cls, context: Context, repo: str) -> Iterable[RpmRepository]:
