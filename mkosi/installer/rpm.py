@@ -36,7 +36,11 @@ def find_rpm_gpgkey(
 
 @overload
 def find_rpm_gpgkey(
-    context: Context, key: str, fallback: Optional[str] = None, *, required: Literal[False]
+    context: Context,
+    key: str,
+    fallback: Optional[str] = None,
+    *,
+    required: bool,
 ) -> Optional[str]: ...
 
 
