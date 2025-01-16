@@ -2034,6 +2034,7 @@ class Config:
             "release": self.release,
             "mirror": self.mirror,
             "architecture": self.architecture,
+            "package_manager": self.distribution.package_manager(self).executable(self),
             "packages": sorted(self.packages),
             "build_packages": sorted(self.build_packages),
             "package_directories": [
