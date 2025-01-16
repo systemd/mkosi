@@ -45,7 +45,11 @@ def find_rpm_gpgkey(
 
 
 def find_rpm_gpgkey(
-    context: Context, key: str, fallback: Optional[str] = None, *, required: bool = True
+    context: Context,
+    key: str,
+    fallback: Optional[str] = None,
+    *,
+    required: bool = True,
 ) -> Optional[str]:
     root = context.config.tools() if context.config.tools_tree_certificates else Path("/")
 
