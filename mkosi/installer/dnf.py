@@ -2,6 +2,7 @@
 import textwrap
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Optional
 
 from mkosi.config import Cacheonly, Config
 from mkosi.context import Context
@@ -41,7 +42,13 @@ class Dnf(PackageManager):
         }  # fmt: skip
 
     @classmethod
-    def setup(cls, context: Context, repositories: Sequence[RpmRepository], filelists: bool = True) -> None:
+    def setup(
+        cls,
+        context: Context,
+        repositories: Sequence[RpmRepository],
+        filelists: bool = True,
+        metadata_expire: Optional[str] = None,
+    ) -> None:
         (context.sandbox_tree / "etc/dnf/vars").mkdir(parents=True, exist_ok=True)
         (context.sandbox_tree / "etc/yum.repos.d").mkdir(parents=True, exist_ok=True)
 
@@ -95,6 +102,8 @@ class Dnf(PackageManager):
                         f.write(f"sslclientkey={repo.sslclientkey}\n")
                     if repo.priority:
                         f.write(f"priority={repo.priority}\n")
+                    if metadata_expire:
+                        f.write(f"metadata_expire={metadata_expire}\n")
 
                     for i, url in enumerate(repo.gpgurls):
                         f.write("gpgkey=" if i == 0 else len("gpgkey=") * " ")
