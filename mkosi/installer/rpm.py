@@ -36,12 +36,20 @@ def find_rpm_gpgkey(
 
 @overload
 def find_rpm_gpgkey(
-    context: Context, key: str, fallback: Optional[str] = None, *, required: Literal[False]
+    context: Context,
+    key: str,
+    fallback: Optional[str] = None,
+    *,
+    required: bool,
 ) -> Optional[str]: ...
 
 
 def find_rpm_gpgkey(
-    context: Context, key: str, fallback: Optional[str] = None, *, required: bool = True
+    context: Context,
+    key: str,
+    fallback: Optional[str] = None,
+    *,
+    required: bool = True,
 ) -> Optional[str]:
     root = context.config.tools() if context.config.tools_tree_certificates else Path("/")
 
@@ -51,7 +59,7 @@ def find_rpm_gpgkey(
     if gpgpath := next(Path(context.sandbox_tree / "etc/pki/rpm-gpg").rglob(key), None):
         return (Path("/") / gpgpath.relative_to(context.sandbox_tree)).as_uri()
 
-    if context.config.repository_key_fetch:
+    if fallback and context.config.repository_key_fetch:
         return fallback
 
     if required:
