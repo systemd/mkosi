@@ -59,7 +59,7 @@ def find_rpm_gpgkey(
     if gpgpath := next(Path(context.sandbox_tree / "etc/pki/rpm-gpg").rglob(key), None):
         return (Path("/") / gpgpath.relative_to(context.sandbox_tree)).as_uri()
 
-    if context.config.repository_key_fetch:
+    if fallback and context.config.repository_key_fetch:
         return fallback
 
     if required:
