@@ -3037,7 +3037,7 @@ def have_cache(config: Config) -> bool:
         prev = json.loads(manifest.read_text())
         new = json.dumps(config.cache_manifest(), cls=JsonEncoder, indent=4, sort_keys=True)
         if prev != json.loads(new):
-            logging.info("Cache manifest mismatch, not reusing cached images")
+            logging.info(f"Cache manifest mismatch for {config.name()} image, not reusing cached images")
             if ARG_DEBUG.get():
                 run(
                     ["diff", "--unified", workdir(manifest), "-"],
