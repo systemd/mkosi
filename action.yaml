@@ -90,6 +90,3 @@ runs:
         # For archlinux-keyring and pacman
         sudo apt-get update
         mkosi dependencies | xargs -d '\n' sudo apt-get install --assume-yes --no-install-recommends
-
-        sudo pacman-key --init
-        sudo pacman-key --populate archlinux
