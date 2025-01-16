@@ -101,7 +101,12 @@ class Installer(DistributionInstaller):
     @classmethod
     def setup(cls, context: Context) -> None:
         setup_rpm(context)
-        Dnf.setup(context, list(cls.repositories(context)), filelists=False)
+        Dnf.setup(
+            context,
+            list(cls.repositories(context)),
+            filelists=False,
+            metadata_expire="6h" if context.config.release == "rawhide" else None,
+        )
 
     @classmethod
     def install(cls, context: Context) -> None:
