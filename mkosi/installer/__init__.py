@@ -109,6 +109,8 @@ class PackageManager:
             "--suppress-chown",
             # Make sure /etc/machine-id is not overwritten by any package manager post install scripts.
             "--ro-bind-try", Path(root) / "etc/machine-id", "/buildroot/etc/machine-id",
+            # Nudge gpg to create its sockets in /run by making sure /run/user/0 exists.
+            "--dir", "/run/user/0",
             # Some package managers (e.g. dpkg) read from the host's /etc/passwd instead of the buildroot's
             # /etc/passwd so we symlink /etc/passwd from the buildroot to make sure it gets used.
             *(finalize_passwd_symlinks("/buildroot") if apivfs else []),

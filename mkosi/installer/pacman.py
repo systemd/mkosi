@@ -4,13 +4,17 @@ import dataclasses
 import shutil
 import textwrap
 from collections.abc import Sequence
+from contextlib import AbstractContextManager
 from pathlib import Path
 
 from mkosi.config import Config
 from mkosi.context import Context
+from mkosi.distributions import detect_distribution
 from mkosi.installer import PackageManager
+from mkosi.log import complete_step
 from mkosi.run import run, workdir
 from mkosi.sandbox import umask
+from mkosi.tree import copy_tree
 from mkosi.types import _FILE, CompletedProcess, PathString
 from mkosi.versioncomp import GenericVersion
 
@@ -55,6 +59,7 @@ class Pacman(PackageManager):
             # pacman writes downloaded packages to the first writable cache directory. We don't want it to
             # write to our local repository directory so we expose it as a read-only directory to pacman.
             "--ro-bind", context.repository, "/var/cache/pacman/mkosi",
+            "--ro-bind", context.keyring_dir, "/etc/pacman.d/gnupg",
         ]  # fmt: skip
 
         if (context.root / "var/lib/pacman/local").exists():
@@ -174,6 +179,36 @@ class Pacman(PackageManager):
             env=cls.finalize_environment(context),
             stdout=stdout,
         )
+
+    @classmethod
+    def keyring(cls, context: Context) -> None:
+        def sandbox() -> AbstractContextManager[list[PathString]]:
+            return cls.sandbox(
+                context,
+                apivfs=False,
+                # By default the keyring is mounted read-only so we override the read-only mount with a
+                # writable mount to make it writable for the following pacman-key commands.
+                options=["--bind", context.keyring_dir, "/etc/pacman.d/gnupg"],
+            )
+
+        if (
+            (d := detect_distribution(context.config.tools())[0])
+            and d.is_apt_distribution()
+            and (context.sandbox_tree / "usr/share/pacman/keyrings").exists()
+        ):
+            # pacman on Debian/Ubuntu looks for keyrings in /usr/share/keyrings so make sure all sandbox
+            # trees keyrings are available in that location as well.
+            (context.sandbox_tree / "usr/share").mkdir(parents=True, exist_ok=True)
+            copy_tree(
+                context.sandbox_tree / "usr/share/pacman/keyrings",
+                context.sandbox_tree / "usr/share/keyrings",
+                dereference=True,
+                sandbox=context.sandbox,
+            )
+
+        with complete_step("Populating pacman keyring"):
+            run(["pacman-key", "--init"], sandbox=sandbox())
+            run(["pacman-key", "--populate"], sandbox=sandbox())
 
     @classmethod
     def sync(cls, context: Context, force: bool) -> None:

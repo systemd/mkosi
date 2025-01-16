@@ -1312,7 +1312,9 @@ def build_default_initrd(context: Context) -> Path:
                 config,
                 workspace=workspace,
                 resources=context.resources,
-                # Reuse the repository metadata snapshot from the main image for the initrd.
+                # Reuse the keyring, repository metadata and local package repository from the main image for
+                # the default initrd.
+                keyring_dir=context.keyring_dir,
                 metadata_dir=context.metadata_dir,
                 package_dir=context.package_dir,
             )
@@ -4417,8 +4419,8 @@ def run_clean(args: Args, config: Config) -> None:
             rmtree(*config.build_dir.iterdir(), sandbox=sandbox)
 
     if remove_image_cache and config.cache_dir:
-        metadata = [metadata_cache(config)] if not config.image else []
-        remove_cache_entries(config, extra=metadata)
+        extra = [keyring_cache(config), metadata_cache(config)] if not config.image else []
+        remove_cache_entries(config, extra=extra)
 
     if remove_package_cache and any(config.package_cache_dir_or_default().glob("*")):
         subdir = config.distribution.package_manager(config).subdir(config)
@@ -4454,6 +4456,13 @@ def ensure_directories_exist(config: Config) -> None:
             config.build_dir.chmod(stat.S_IMODE(st.st_mode) & ~(stat.S_ISGID | stat.S_ISUID))
 
 
+def keyring_cache(config: Config) -> Path:
+    assert config.cache_dir
+    fragments = [config.distribution, config.release, config.architecture]
+
+    return config.cache_dir / f"{'~'.join(str(s) for s in fragments)}.keyring.cache"
+
+
 def metadata_cache(config: Config) -> Path:
     assert config.cache_dir
     fragments = [config.distribution, config.release, config.architecture]
@@ -4461,19 +4470,42 @@ def metadata_cache(config: Config) -> Path:
     return config.cache_dir / f"{'~'.join(str(s) for s in fragments)}.metadata.cache"
 
 
-def sync_repository_metadata(args: Args, images: Sequence[Config], *, resources: Path, dst: Path) -> None:
+def sync_repository_metadata(
+    args: Args,
+    images: Sequence[Config],
+    *,
+    resources: Path,
+    keyring_dir: Path,
+    metadata_dir: Path,
+) -> None:
     last = images[-1]
 
     # If we have a metadata cache and any cached image and using cached metadata is not explicitly disabled,
     # reuse the metadata cache.
     if (
         last.incremental
+        and keyring_cache(last).exists()
         and metadata_cache(last).exists()
         and last.cacheonly != Cacheonly.never
         and any(have_cache(config) for config in images)
     ):
+        if any(keyring_cache(last).iterdir()):
+            with complete_step("Copying cached package manager keyring"):
+                copy_tree(
+                    keyring_cache(last),
+                    keyring_dir,
+                    use_subvolumes=last.use_subvolumes,
+                    sandbox=last.sandbox,
+                )
+
         with complete_step("Copying cached package manager metadata"):
-            copy_tree(metadata_cache(last), dst, use_subvolumes=last.use_subvolumes, sandbox=last.sandbox)
+            copy_tree(
+                metadata_cache(last),
+                metadata_dir,
+                use_subvolumes=last.use_subvolumes,
+                sandbox=last.sandbox,
+            )
+
         return
 
     subdir = last.distribution.package_manager(last).subdir(last)
@@ -4483,16 +4515,13 @@ def sync_repository_metadata(args: Args, images: Sequence[Config], *, resources:
 
     # Sync repository metadata unless explicitly disabled.
     if last.cacheonly not in (Cacheonly.always, Cacheonly.metadata):
-        with (
-            complete_step("Syncing package manager metadata"),
-            lock_repository_metadata(last),
-            setup_workspace(args, last) as workspace,
-        ):
+        with setup_workspace(args, last) as workspace:
             context = Context(
                 args,
                 last,
                 workspace=workspace,
                 resources=resources,
+                keyring_dir=keyring_dir,
                 metadata_dir=last.package_cache_dir_or_default(),
             )
             context.root.mkdir(mode=0o755)
@@ -4500,24 +4529,36 @@ def sync_repository_metadata(args: Args, images: Sequence[Config], *, resources:
             install_sandbox_trees(context.config, context.sandbox_tree)
             context.config.distribution.setup(context)
 
-            context.config.distribution.package_manager(context.config).sync(
-                context,
-                force=context.args.force > 1 or context.config.cacheonly == Cacheonly.never,
-            )
+            context.config.distribution.keyring(context)
+
+            with complete_step("Syncing package manager metadata"), lock_repository_metadata(last):
+                context.config.distribution.package_manager(context.config).sync(
+                    context,
+                    force=context.args.force > 1 or context.config.cacheonly == Cacheonly.never,
+                )
 
     src = last.package_cache_dir_or_default() / "cache" / subdir
     for p in last.distribution.package_manager(last).cache_subdirs(src):
         p.mkdir(parents=True, exist_ok=True)
 
-    # If we're in incremental mode and caching metadata is not explicitly disabled, cache the synced
-    # repository metadata so we can reuse it later.
+    # If we're in incremental mode and caching metadata is not explicitly disabled, cache the keyring and the
+    # synced repository metadata so we can reuse them later.
     if last.incremental and last.cacheonly != Cacheonly.never:
-        rmtree(metadata_cache(last), sandbox=last.sandbox)
-        make_tree(metadata_cache(last), use_subvolumes=last.use_subvolumes, sandbox=last.sandbox)
+        rmtree(keyring_cache(last), metadata_cache(last), sandbox=last.sandbox)
+
+        for p in (keyring_cache(last), metadata_cache(last)):
+            make_tree(p, use_subvolumes=last.use_subvolumes, sandbox=last.sandbox)
+
+        copy_tree(keyring_dir, keyring_cache(last), use_subvolumes=last.use_subvolumes, sandbox=last.sandbox)
         copy_repository_metadata(last, metadata_cache(last))
-        copy_tree(metadata_cache(last), dst, use_subvolumes=last.use_subvolumes, sandbox=last.sandbox)
+        copy_tree(
+            metadata_cache(last),
+            metadata_dir,
+            use_subvolumes=last.use_subvolumes,
+            sandbox=last.sandbox,
+        )
     else:
-        copy_repository_metadata(last, dst)
+        copy_repository_metadata(last, metadata_dir)
 
 
 def run_build(
@@ -4525,6 +4566,7 @@ def run_build(
     config: Config,
     *,
     resources: Path,
+    keyring_dir: Path,
     metadata_dir: Path,
     package_dir: Optional[Path] = None,
 ) -> None:
@@ -4572,6 +4614,7 @@ def run_build(
                 config,
                 workspace=workspace,
                 resources=resources,
+                keyring_dir=keyring_dir,
                 metadata_dir=metadata_dir,
                 package_dir=package_dir,
             )
@@ -4762,12 +4805,31 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         check_tools(tools, Verb.build)
         ensure_directories_exist(tools)
 
-        with tempfile.TemporaryDirectory(
-            dir=tools.workspace_dir_or_default(),
-            prefix="mkosi-metadata-",
-        ) as metadata_dir:
-            sync_repository_metadata(args, [tools], resources=resources, dst=Path(metadata_dir))
-            fork_and_wait(run_build, args, tools, resources=resources, metadata_dir=Path(metadata_dir))
+        with (
+            tempfile.TemporaryDirectory(
+                dir=tools.workspace_dir_or_default(),
+                prefix="mkosi-keyring-",
+            ) as keyring_dir,
+            tempfile.TemporaryDirectory(
+                dir=tools.workspace_dir_or_default(),
+                prefix="mkosi-metadata-",
+            ) as metadata_dir,
+        ):
+            sync_repository_metadata(
+                args,
+                [tools],
+                resources=resources,
+                keyring_dir=Path(keyring_dir),
+                metadata_dir=Path(metadata_dir),
+            )
+            fork_and_wait(
+                run_build,
+                args,
+                tools,
+                resources=resources,
+                keyring_dir=Path(keyring_dir),
+                metadata_dir=Path(metadata_dir),
+            )
 
     if not args.verb.needs_build():
         return {
@@ -4811,13 +4873,25 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
 
         with (
             tempfile.TemporaryDirectory(
-                dir=last.workspace_dir_or_default(), prefix="mkosi-metadata-"
+                dir=last.workspace_dir_or_default(),
+                prefix="mkosi-keyring-",
+            ) as keyring_dir,
+            tempfile.TemporaryDirectory(
+                dir=last.workspace_dir_or_default(),
+                prefix="mkosi-metadata-",
             ) as metadata_dir,
             tempfile.TemporaryDirectory(
-                dir=last.workspace_dir_or_default(), prefix="mkosi-packages-"
+                dir=last.workspace_dir_or_default(),
+                prefix="mkosi-packages-",
             ) as package_dir,
         ):
-            sync_repository_metadata(args, images, resources=resources, dst=Path(metadata_dir))
+            sync_repository_metadata(
+                args,
+                images,
+                resources=resources,
+                keyring_dir=Path(keyring_dir),
+                metadata_dir=Path(metadata_dir),
+            )
 
             for config in images:
                 run_sync_scripts(config)
@@ -4837,6 +4911,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
                     args,
                     config,
                     resources=resources,
+                    keyring_dir=Path(keyring_dir),
                     metadata_dir=Path(metadata_dir),
                     package_dir=Path(package_dir),
                 )

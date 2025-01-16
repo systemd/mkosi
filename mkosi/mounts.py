@@ -103,11 +103,6 @@ def finalize_crypto_mounts(config: Config, relaxed: bool = False) -> list[PathSt
         ]
 
     if not relaxed or config.tools() != Path("/"):
-        # This contains the Arch Linux keyring, which isn't certificates so ToolsTreeCertificates= doesn't
-        # apply.
-        if (config.tools() / "etc/pacman.d/gnupg").exists():
-            mounts += [(config.tools() / "etc/pacman.d/gnupg", Path("/etc/pacman.d/gnupg"))]
-
         if (config.tools() / "etc/crypto-policies").exists():
             mounts += [(config.tools() / "etc/crypto-policies", Path("/etc/crypto-policies"))]
 

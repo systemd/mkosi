@@ -492,12 +492,12 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `RepositoryKeyFetch=`, `--repository-key-fetch=`
 :   Controls whether **mkosi** will fetch distribution GPG keys remotely. Enabled by
     default on Ubuntu when not using a tools tree or when using Ubuntu tools trees to build
-    RPM-based distributions. Disabled by default on all other distributions. When disabled,
-    the distribution GPG keys for the target distribution have to be installed locally on the
-    host system alongside the package manager for that distribution.
+    Arch Linux or RPM-based distributions. Disabled by default on all other distributions.
+    When disabled, the distribution GPG keys for the target distribution have to be installed
+    locally on the host system alongside the package manager for that distribution.
 
-    This setting is only implemented for distributions using **dnf** or **zypper** as their
-    package manager. For other distributions the distribution GPG keys are always looked
+    This setting is only implemented for distributions using **dnf**, **pacman** or **zypper**
+    as their package manager. For other distributions the distribution GPG keys are always looked
     up locally regardless of the value of this setting. To make the distribution GPG keys
     for distributions available without enabling this setting, the corresponding package
     has to be installed on the host. This is usually one of `archlinux-keyring`,

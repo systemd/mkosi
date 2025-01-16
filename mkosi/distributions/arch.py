@@ -1,13 +1,17 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
+import tempfile
 from collections.abc import Iterable, Sequence
+from pathlib import Path
 
+from mkosi.archive import extract_tar
 from mkosi.config import Architecture, Config
 from mkosi.context import Context
+from mkosi.curl import curl
 from mkosi.distributions import DistributionInstaller, PackageType
 from mkosi.installer import PackageManager
 from mkosi.installer.pacman import Pacman, PacmanRepository
-from mkosi.log import die
+from mkosi.log import complete_step, die
 from mkosi.util import sort_packages
 
 
@@ -31,6 +35,27 @@ class Installer(DistributionInstaller):
     @classmethod
     def package_manager(cls, config: "Config") -> type[PackageManager]:
         return Pacman
+
+    @classmethod
+    def keyring(cls, context: Context) -> None:
+        if context.config.repository_key_fetch:
+            with (
+                complete_step(f"Downloading {cls.pretty_name()} keyring"),
+                tempfile.TemporaryDirectory() as d,
+            ):
+                curl(
+                    context.config,
+                    "https://archlinux.org/packages/core/any/archlinux-keyring/download",
+                    Path(d),
+                )
+                extract_tar(
+                    next(Path(d).iterdir()),
+                    context.sandbox_tree,
+                    dirs=["usr/share/pacman/keyrings"],
+                    sandbox=context.sandbox,
+                )
+
+        Pacman.keyring(context)
 
     @classmethod
     def setup(cls, context: Context) -> None:

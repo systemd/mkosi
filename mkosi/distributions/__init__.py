@@ -32,6 +32,10 @@ class DistributionInstaller:
         raise NotImplementedError
 
     @classmethod
+    def keyring(cls, context: "Context") -> None:
+        pass
+
+    @classmethod
     def setup(cls, context: "Context") -> None:
         raise NotImplementedError
 
@@ -122,6 +126,9 @@ class Distribution(StrEnum):
 
     def package_manager(self, config: "Config") -> type["PackageManager"]:
         return self.installer().package_manager(config)
+
+    def keyring(self, context: "Context") -> None:
+        return self.installer().keyring(context)
 
     def setup(self, context: "Context") -> None:
         return self.installer().setup(context)

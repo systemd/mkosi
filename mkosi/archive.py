@@ -67,6 +67,7 @@ def extract_tar(
     dst: Path,
     *,
     log: bool = True,
+    dirs: Sequence[PathString] = (),
     options: Sequence[PathString] = (),
     sandbox: SandboxProtocol = nosandbox,
 ) -> None:
@@ -93,6 +94,7 @@ def extract_tar(
             "--force-local",
             *tar_exclude_apivfs_tmp(),
             *options,
+            *dirs,
         ],
         sandbox=sandbox(
             # Make sure tar uses user/group information from the root directory instead of the host.

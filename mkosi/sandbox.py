@@ -428,12 +428,12 @@ class FSOperation:
 
     @classmethod
     def optimize(cls, fsops: list["FSOperation"]) -> list["FSOperation"]:
-        binds = set()
+        binds: dict[BindOperation, None] = {}
         rest = []
 
         for fsop in fsops:
             if isinstance(fsop, BindOperation):
-                binds.add(fsop)
+                binds[fsop] = None
             else:
                 rest.append(fsop)
 

@@ -905,26 +905,25 @@ def config_default_tools_tree_distribution(namespace: argparse.Namespace) -> Dis
 
 
 def config_default_repository_key_fetch(namespace: argparse.Namespace) -> bool:
+    def needs_repository_key_fetch(distribution: Distribution) -> bool:
+        return distribution == Distribution.arch or distribution.is_rpm_distribution()
+
     if detect_distribution()[0] != Distribution.ubuntu:
         return False
 
     if namespace.tools_tree is None:
-        return cast(bool, namespace.distribution.is_rpm_distribution())
+        return needs_repository_key_fetch(namespace.distribution)
 
     if namespace.tools_tree != Path("default"):
         return (
             detect_distribution(namespace.tools_tree)[0] == Distribution.ubuntu
-            and namespace.distribution.is_rpm_distribution()
-        )
+            and needs_repository_key_fetch(namespace.distribution)
+        )  # fmt: skip
 
-    return cast(
-        bool,
-        (
-            namespace.tools_tree_distribution == Distribution.ubuntu
-            and namespace.distribution.is_rpm_distribution()
-        )
-        or namespace.tools_tree_distribution.is_rpm_distribution(),
-    )
+    return (
+        namespace.tools_tree_distribution == Distribution.ubuntu
+        and needs_repository_key_fetch(namespace.distribution)
+    ) or needs_repository_key_fetch(namespace.tools_tree_distribution)
 
 
 def config_default_source_date_epoch(namespace: argparse.Namespace) -> Optional[int]:
