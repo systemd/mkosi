@@ -82,6 +82,11 @@ runs:
         mkdir -p $HOME/.local/bin
         ln -svf ${{ github.action_path }}/bin/mkosi $HOME/.local/bin/mkosi
 
+    # TODO: Remove when https://github.com/actions/runner-images/issues/11414 is fixed.
+    - name: Fix $PATH
+      shell: bash
+      run: echo "PATH=$HOME/.local/bin:$PATH" >>"$GITHUB_ENV"
+
     - name: Dependencies
       shell: bash
       run: |
