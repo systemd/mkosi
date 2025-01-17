@@ -157,9 +157,7 @@ class Image:
             check=False,
         )
 
-        rc = 0 if self.config.distribution.is_centos_variant() else 123
-
-        if result.returncode != rc:
+        if result.returncode != 123:
             raise subprocess.CalledProcessError(result.returncode, result.args, result.stdout, result.stderr)
 
         return result
