@@ -227,12 +227,18 @@ class Installer(DistributionInstaller):
             return
 
         if mirror := context.config.mirror:
-            for repo, dir in (
+            # epel-next does not exist anymore since EPEL 10.
+            repodirs = [
                 ("epel", "epel"),
-                ("epel-next", "epel/next"),
                 ("epel-testing", "epel/testing"),
-                ("epel-next-testing", "epel/testing/next"),
-            ):
+            ]
+            if int(context.config.release) < 10:
+                repodirs += [
+                    ("epel-next", "epel/next"),
+                    ("epel-next-testing", "epel/testing/next"),
+                ]
+
+            for repo, dir in repodirs:
                 # For EPEL we make the assumption that epel is mirrored in the parent directory of the mirror
                 # URL and path we were given. Since this doesn't work for all scenarios, we also allow
                 # overriding the mirror via an environment variable.
@@ -257,7 +263,13 @@ class Installer(DistributionInstaller):
                 )
         else:
             url = "metalink=https://mirrors.fedoraproject.org/metalink?arch=$basearch"
-            for repo in ("epel", "epel-next"):
+
+            # epel-next does not exist anymore since EPEL 10.
+            repos = ["epel"]
+            if int(context.config.release) < 10:
+                repos += ["epel-next"]
+
+            for repo in repos:
                 yield RpmRepository(
                     repo,
                     f"{url}&repo={repo}-$releasever",
@@ -295,24 +307,27 @@ class Installer(DistributionInstaller):
                 gpgurls,
                 enabled=False,
             )
-            yield RpmRepository(
-                "epel-next-testing",
-                f"{url}&repo=epel-testing-next-$releasever",
-                gpgurls,
-                enabled=False,
-            )
-            yield RpmRepository(
-                "epel-next-testing-debuginfo",
-                f"{url}&repo=epel-testing-next-debug-$releasever",
-                gpgurls,
-                enabled=False,
-            )
-            yield RpmRepository(
-                "epel-next-testing-source",
-                f"{url}&repo=epel-testing-next-source-$releasever",
-                gpgurls,
-                enabled=False,
-            )
+
+            # epel-next does not exist anymore since EPEL 10.
+            if int(context.config.release) < 10:
+                yield RpmRepository(
+                    "epel-next-testing",
+                    f"{url}&repo=epel-testing-next-$releasever",
+                    gpgurls,
+                    enabled=False,
+                )
+                yield RpmRepository(
+                    "epel-next-testing-debuginfo",
+                    f"{url}&repo=epel-testing-next-debug-$releasever",
+                    gpgurls,
+                    enabled=False,
+                )
+                yield RpmRepository(
+                    "epel-next-testing-source",
+                    f"{url}&repo=epel-testing-next-source-$releasever",
+                    gpgurls,
+                    enabled=False,
+                )
 
     @classmethod
     def sig_repositories(cls, context: Context) -> Iterable[RpmRepository]:
