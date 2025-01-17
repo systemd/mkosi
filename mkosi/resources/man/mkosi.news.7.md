@@ -138,6 +138,7 @@
 - mkosi now manages the pacman keyring itself so `/etc/pacman.d/gnupg`
   from the host is not used anymore and mkosi will run
   `pacman-key --init` and `pacman-key --populate` itself.
+- Added `ToolsTreeRelease=` match
 
 ## v24
 
