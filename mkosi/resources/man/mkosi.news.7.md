@@ -29,7 +29,7 @@
 - Introduced `RepositoryKeyFetch=` to control whether to fetch
   distribution GPG keys remotely. This setting is **disabled** by
   default for security reasons except when building rpm based
-  distributions on Ubuntu.
+  or Arch Linux images on Ubuntu.
 - We now handle `SIGHUP` gracefully
 - Universal settings that take a collection of values cannot be
   appended to anymore in subimages. Usage of package manager trees in
@@ -129,6 +129,15 @@
 - `mkosi-initrd` now uses `dnf5` on systems where it is the default.
 - Added various packages to the default tools tree.
 - Dropped support for Ubuntu Focal.
+- Added `Devicetree=` setting for configuring bootloader device trees
+- Added systemd-machined registration using varlink for `mkosi qemu` vms,
+  which includes the vsock CID so that `ssh vsock/<cid>` or
+  `ssh machine/<name>` will work on systems running `systemd-machined`
+  257 or newer.
+- Bumped CentOS Stream default release to 10.
+- mkosi now manages the pacman keyring itself so `/etc/pacman.d/gnupg`
+  from the host is not used anymore and mkosi will run
+  `pacman-key --init` and `pacman-key --populate` itself.
 
 ## v24
 
