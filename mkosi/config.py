@@ -3143,6 +3143,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="RELEASE",
         section="Build",
         parse=config_parse_string,
+        match=config_make_string_matcher(),
         default_factory_depends=("tools_tree_distribution",),
         default_factory=lambda ns: d.default_release() if (d := ns.tools_tree_distribution) else None,
         help="Set the release to use for the default tools tree",

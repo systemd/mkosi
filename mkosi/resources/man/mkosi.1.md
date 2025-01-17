@@ -1914,6 +1914,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `ToolsTreeDistribution=`
 :   Matches against the configured tools tree distribution.
 
+`ToolsTreeRelease=`
+:   Matches against the configured tools tree release.
+
 `Environment=`
 :   Matches against a specific key/value pair configured with
     `Environment=`. If no value is provided, check if the given key is in
@@ -1938,6 +1941,7 @@ config file is read:
 | `BuildSources=`          | no    | no               | match fails                                                                            |
 | `HostArchitecture=`      | no    | no               | n/a                                                                                    |
 | `ToolsTreeDistribution=` | no    | no               | match the fallback tools tree distribution (see `ToolsTreeDistribution=` in `[Build]`) |
+| `ToolsTreeRelease=`      | no    | no               | match default tools tree release                                                       |
 | `Environment=`           | no    | no               | n/a                                                                                    |
 
 ### [Include]
