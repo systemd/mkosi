@@ -1,0 +1,67 @@
+#!/bin/bash
+# SPDX-License-Identifier: LGPL-2.1-or-later
+#
+# End of first stage of build:
+# - built UKI is in $OUTPUTDIR
+# - get PCR policy digests if any, or PE hash(es) with pesign
+# - pack them up in a cpio as OBS expects and store them in OTHER/
+# - create minimal recipe for second stage that will continue from here
+
+set -e
+
+declare -a UKIS
+UKIS=( "$(find "$OUTPUTDIR" -type f -name "*.efi" -printf '%P\n')" )
+declare -a KERNELS
+KERNELS=( "$(find "$OUTPUTDIR" -type f -name "vmlinu*" -printf '%P\n')" )
+
+if ((${#UKIS[@]} == 0)) && ((${#KERNELS[@]} == 0)); then
+    echo "No unsigned files found, exiting"
+    exit 0
+fi
+
+nss_db="$PWD/nss-db"
+# certutil will fail if it's called twice
+rm -rf "$nss_db"
+mkdir -p "$nss_db" hashes
+certutil -N -d sql:"$nss_db" --empty-password
+
+for f in "${UKIS[@]}"; do
+    test -f "${OUTPUTDIR}/${f}" || continue
+    if [ -f "${OUTPUTDIR}/${f%.efi}.pcrs" ]; then
+        mkdir -p "hashes/pcrs/$f"
+        while read -r pol; do
+            echo -n "$pol" | tr '[:lower:]' '[:upper:]' | basenc --base16 --decode >"hashes/pcrs/${f}/${pol}"
+        done < <(jq -r 'to_entries[] | .value[].pol' <"${OUTPUTDIR}/${f%.efi}.pcrs")
+    else
+        mkdir -p hashes/ukis
+        pesign --force -n sql:"$nss_db" -i "${OUTPUTDIR}/${f}" -E "hashes/ukis/$f"
+    fi
+done
+
+for f in "${KERNELS[@]}"; do
+    test -f "${OUTPUTDIR}/${f}" || continue
+    mkdir -p hashes/kernels
+    pesign --force -n sql:"$nss_db" -i "${OUTPUTDIR}/${f}" -E "hashes/kernels/$f"
+done
+
+# Pack everything into a CPIO archive and place it where OBS expects it
+pushd hashes
+find . -type f | cpio -H newc -o >"$OUTPUTDIR/hashes.cpio.rsasign"
+popd
+rm -rf hashes "$nss_db"
+
+echo "Staging the following files for signing:"
+cpio -t <"$OUTPUTDIR/hashes.cpio.rsasign"
+
+# The second stage will not do a full rebuild, but only attach signatures to the existing UKI
+cat >"$OUTPUTDIR/mkosi.conf" <<EOF
+[Distribution]
+Distribution=custom
+[Output]
+Format=none
+ImageId=$IMAGE_ID
+[Include]
+Include=mkosi-obs
+[Build]
+BuildSources=/usr/src/packages/OTHER:/usr/src/packages/OTHER
+EOF

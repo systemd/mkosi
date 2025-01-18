@@ -38,6 +38,7 @@ packages = [
     "man/*",
     "mkosi-addon/**/*",
     "mkosi-initrd/**/*",
+    "mkosi-obs/**/*",
     "mkosi-tools/**/*",
     "mkosi-vm/**/*",
     "repart/**/*",
