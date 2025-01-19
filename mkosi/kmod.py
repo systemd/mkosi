@@ -8,6 +8,7 @@ import subprocess
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 
+from mkosi.context import Context
 from mkosi.log import complete_step, log_step
 from mkosi.run import chroot_cmd, run
 from mkosi.sandbox import chase
@@ -63,7 +64,7 @@ def module_path_to_name(path: Path) -> str:
 
 
 def resolve_module_dependencies(
-    root: Path,
+    context: Context,
     kver: str,
     modules: Iterable[str],
 ) -> tuple[set[Path], set[Path]]:
@@ -73,11 +74,11 @@ def resolve_module_dependencies(
     root directory.
     """
     modulesd = Path("usr/lib/modules") / kver
-    if (p := root / modulesd / "modules.builtin").exists():
+    if (p := context.root / modulesd / "modules.builtin").exists():
         builtin = set(module_path_to_name(Path(m)) for m in p.read_text().splitlines())
     else:
         builtin = set()
-    with chdir(root):
+    with chdir(context.root):
         allmodules = set(modulesd.rglob("*.ko*"))
     nametofile = {module_path_to_name(m): m for m in allmodules}
 
@@ -94,7 +95,7 @@ def resolve_module_dependencies(
         info += run(
             ["modinfo", "--set-version", kver, "--null", *chunk],
             stdout=subprocess.PIPE,
-            sandbox=chroot_cmd(root=root),
+            sandbox=chroot_cmd(root=context.root),
         ).stdout.strip()
 
     log_step("Calculating required kernel modules and firmware")
@@ -105,7 +106,7 @@ def resolve_module_dependencies(
     depends: set[str] = set()
     firmware: set[Path] = set()
 
-    with chdir(root):
+    with chdir(context.root):
         for line in info.split("\0"):
             key, sep, value = line.partition(":")
             if not sep:
@@ -162,7 +163,7 @@ def resolve_module_dependencies(
 
 
 def gen_required_kernel_modules(
-    root: Path,
+    context: Context,
     kver: str,
     *,
     include: Iterable[str],
@@ -173,15 +174,15 @@ def gen_required_kernel_modules(
     # There is firmware in /usr/lib/firmware that is not depended on by any modules so if any firmware was
     # installed we have to take the slow path to make sure we don't copy firmware into the initrd that is not
     # depended on by any kernel modules.
-    if exclude or (root / "usr/lib/firmware").glob("*"):
-        modules = filter_kernel_modules(root, kver, include=include, exclude=exclude)
+    if exclude or (context.root / "usr/lib/firmware").glob("*"):
+        modules = filter_kernel_modules(context.root, kver, include=include, exclude=exclude)
         names = [module_path_to_name(m) for m in modules]
-        mods, firmware = resolve_module_dependencies(root, kver, names)
+        mods, firmware = resolve_module_dependencies(context, kver, names)
     else:
         logging.debug(
             "No modules excluded and no firmware installed, using kernel modules generation fast path"
         )
-        with chdir(root):
+        with chdir(context.root):
             mods = set(modulesd.rglob("*.ko*"))
         firmware = set()
 
@@ -189,36 +190,37 @@ def gen_required_kernel_modules(
     # of required firmware files too. Intermediate symlinks are not included, and so links pointing to links
     # results in dangling symlinks in the final image.
     for fw in firmware.copy():
-        if (root / fw).is_symlink():
-            target = Path(chase(os.fspath(root), os.fspath(fw)))
+        if (context.root / fw).is_symlink():
+            target = Path(chase(os.fspath(context.root), os.fspath(fw)))
             if target.exists():
-                firmware.add(target.relative_to(root))
+                firmware.add(target.relative_to(context.root))
 
     yield from sorted(
         itertools.chain(
             {
-                p.relative_to(root)
+                p.relative_to(context.root)
                 for f in mods | firmware
-                for p in parents_below(root / f, root / "usr/lib")
+                for p in parents_below(context.root / f, context.root / "usr/lib")
             },
             mods,
             firmware,
-            (p.relative_to(root) for p in (root / modulesd).glob("modules*")),
+            (p.relative_to(context.root) for p in (context.root / modulesd).glob("modules*")),
         )
     )
 
     if (modulesd / "vdso").exists():
         if not mods:
             yield from (
-                p.relative_to(root) for p in parents_below(root / modulesd / "vdso", root / "usr/lib")
+                p.relative_to(context.root)
+                for p in parents_below(context.root / modulesd / "vdso", context.root / "usr/lib")
             )
 
         yield modulesd / "vdso"
-        yield from sorted(p.relative_to(root) for p in (root / modulesd / "vdso").iterdir())
+        yield from sorted(p.relative_to(context.root) for p in (context.root / modulesd / "vdso").iterdir())
 
 
 def process_kernel_modules(
-    root: Path,
+    context: Context,
     kver: str,
     *,
     include: Iterable[str],
@@ -231,9 +233,9 @@ def process_kernel_modules(
     firmwared = Path("usr/lib/firmware")
 
     with complete_step("Applying kernel module filters"):
-        required = set(gen_required_kernel_modules(root, kver, include=include, exclude=exclude))
+        required = set(gen_required_kernel_modules(context, kver, include=include, exclude=exclude))
 
-        with chdir(root):
+        with chdir(context.root):
             modules = sorted(modulesd.rglob("*.ko*"), reverse=True)
             firmware = sorted(firmwared.rglob("*"), reverse=True)
 
@@ -241,7 +243,7 @@ def process_kernel_modules(
             if m in required:
                 continue
 
-            p = root / m
+            p = context.root / m
             if p.is_file() or p.is_symlink():
                 p.unlink()
             elif p.exists():
@@ -254,10 +256,10 @@ def process_kernel_modules(
             if any(fw.is_relative_to(firmwared / d) for d in ("amd-ucode", "intel-ucode")):
                 continue
 
-            p = root / fw
+            p = context.root / fw
             if p.is_file() or p.is_symlink():
                 p.unlink()
-                if p.parent != root / firmwared and not any(p.parent.iterdir()):
+                if p.parent != context.root / firmwared and not any(p.parent.iterdir()):
                     p.parent.rmdir()
             elif p.exists():
                 p.rmdir()
