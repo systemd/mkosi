@@ -3783,7 +3783,7 @@ def build_image(context: Context) -> None:
     elif context.config.output_format == OutputFormat.directory:
         context.root.rename(context.staging / context.config.output_with_format)
 
-    if context.config.output_format not in (OutputFormat.uki, OutputFormat.esp):
+    if context.config.output_format.use_outer_compression():
         maybe_compress(
             context,
             context.config.compress_output,
