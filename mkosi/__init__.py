@@ -2170,17 +2170,21 @@ def make_uki(
 
 
 def make_addon(context: Context, stub: Path, output: Path) -> None:
-    make_cpio(context.root, context.workspace / "initrd", sandbox=context.sandbox)
-    maybe_compress(
-        context,
-        context.config.compress_output,
-        context.workspace / "initrd",
-        context.workspace / "initrd",
-    )
-    arguments: list[PathString] = ["--initrd", workdir(context.workspace / "initrd")]
-    options: list[PathString] = [
-        "--ro-bind", context.workspace / "initrd", workdir(context.workspace / "initrd")
-    ]  # fmt: skip
+    arguments: list[PathString] = []
+    options: list[PathString] = []
+
+    if any(context.root.iterdir()):
+        make_cpio(context.root, context.workspace / "initrd", sandbox=context.sandbox)
+        maybe_compress(
+            context,
+            context.config.compress_output,
+            context.workspace / "initrd",
+            context.workspace / "initrd",
+        )
+        arguments += ["--initrd", workdir(context.workspace / "initrd")]
+        options += [
+            "--ro-bind", context.workspace / "initrd", workdir(context.workspace / "initrd")
+        ]  # fmt: skip
 
     with complete_step(f"Generating PE addon {output}"):
         run_ukify(
