@@ -519,7 +519,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     the `.initrd` PE section), `esp` (`uki` but wrapped in a disk image
     with only an ESP partition), `oci` (a directory compatible with the
     OCI image specification), `sysext`, `confext`, `portable`,
-    `initrd-addon` or `none` (the OS image is solely intended as a build
+    `addon` or `none` (the OS image is solely intended as a build
     image to produce another artifact).
 
     If the `disk` output format is used, the disk image is generated using

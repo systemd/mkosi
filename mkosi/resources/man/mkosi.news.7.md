@@ -110,7 +110,7 @@
 - The `coredumpctl` and `journalctl` verbs will now always operate on
   the image, even if `ForwardJournal=` is configured.
 - Bumped default Fedora release to `41`.
-- Added `initrd-addon` output format to build initrd addons.
+- Added `addon` output format to build UKI addons.
 - Renamed `[Host]` section to `[Runtime]` section.
 - Renamed various settings from `[Host]`.
 - Binaries coming from `ExtraSearchPaths=` are now executed with the

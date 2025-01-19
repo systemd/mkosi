@@ -2157,7 +2157,7 @@ def make_uki(
         extract_pe_section(context, output, ".initrd", context.staging / context.config.output_split_initrd)
 
 
-def make_initrd_addon(context: Context, stub: Path, output: Path) -> None:
+def make_addon(context: Context, stub: Path, output: Path) -> None:
     make_cpio(context.root, context.workspace / "initrd", sandbox=context.sandbox)
     maybe_compress(
         context,
@@ -2170,7 +2170,7 @@ def make_initrd_addon(context: Context, stub: Path, output: Path) -> None:
         "--ro-bind", context.workspace / "initrd", workdir(context.workspace / "initrd")
     ]  # fmt: skip
 
-    with complete_step(f"Generating initrd PE addon {output}"):
+    with complete_step(f"Generating PE addon {output}"):
         run_ukify(
             context,
             stub,
@@ -3083,7 +3083,7 @@ def reuse_cache(context: Context) -> bool:
 def save_esp_components(
     context: Context,
 ) -> tuple[Optional[Path], Optional[str], Optional[Path], list[Path]]:
-    if context.config.output_format == OutputFormat.initrd_addon:
+    if context.config.output_format == OutputFormat.addon:
         stub = systemd_addon_stub_binary(context)
         if not stub.exists():
             die(f"sd-stub not found at /{stub.relative_to(context.root)} in the image")
@@ -3761,9 +3761,9 @@ def build_image(context: Context) -> None:
         assert stub and kver and kimg
         make_uki(context, stub, kver, kimg, microcode, context.staging / context.config.output_split_uki)
         make_esp(context, context.staging / context.config.output_split_uki)
-    elif context.config.output_format == OutputFormat.initrd_addon:
+    elif context.config.output_format == OutputFormat.addon:
         assert stub
-        make_initrd_addon(context, stub, context.staging / context.config.output_with_format)
+        make_addon(context, stub, context.staging / context.config.output_with_format)
     elif context.config.output_format.is_extension_or_portable_image():
         make_extension_or_portable_image(context, context.staging / context.config.output_with_format)
     elif context.config.output_format == OutputFormat.directory:
