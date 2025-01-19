@@ -23,7 +23,11 @@ def loaded_modules() -> list[str]:
 
 
 def filter_kernel_modules(
-    root: Path, kver: str, *, include: Iterable[str], exclude: Iterable[str]
+    root: Path,
+    kver: str,
+    *,
+    include: Iterable[str],
+    exclude: Iterable[str],
 ) -> list[Path]:
     modulesd = Path("usr/lib/modules") / kver
     with chdir(root):
