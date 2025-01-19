@@ -565,7 +565,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     compression means the image cannot be started directly but needs to be
     decompressed first. This also means that the `shell`, `boot`, `vm` verbs
     are not available when this option is used. Implied for `tar`, `cpio`, `uki`,
-    `esp`, and `oci`.
+    `esp`, `oci` and `addon`.
 
 `CompressLevel=`, `--compress-level=`
 :   Configure the compression level to use. Takes an integer. The possible

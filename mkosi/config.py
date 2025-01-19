@@ -843,7 +843,13 @@ def config_parse_mode(value: Optional[str], old: Optional[int]) -> Optional[int]
 
 
 def config_default_compression(namespace: argparse.Namespace) -> Compression:
-    if namespace.output_format in (OutputFormat.tar, OutputFormat.cpio, OutputFormat.uki, OutputFormat.esp):
+    if namespace.output_format in (
+        OutputFormat.tar,
+        OutputFormat.cpio,
+        OutputFormat.uki,
+        OutputFormat.esp,
+        OutputFormat.addon,
+    ):
         return Compression.zstd
     elif namespace.output_format == OutputFormat.oci:
         return Compression.gz
