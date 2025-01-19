@@ -3858,10 +3858,10 @@ def run_sandbox(args: Args, config: Config) -> None:
 
 def run_shell(args: Args, config: Config) -> None:
     opname = "acquire shell in" if args.verb == Verb.shell else "boot"
-    if config.output_format in (OutputFormat.tar, OutputFormat.cpio):
-        die(f"Sorry, can't {opname} a {config.output_format} archive.")
+    if config.output_format not in (OutputFormat.directory, OutputFormat.disk):
+        die(f"Cannot {opname} {config.output_format} images with systemd-nspawn")
     if config.output_format.use_outer_compression() and config.compress_output:
-        die(f"Sorry, can't {opname} a compressed image.")
+        die(f"Cannot {opname} compressed {config.output_format} images with systemd-nspawn")
 
     cmdline: list[PathString] = ["systemd-nspawn", "--quiet", "--link-journal=no"]
 
