@@ -63,6 +63,22 @@ def module_path_to_name(path: Path) -> str:
     return normalize_module_name(path.name.partition(".")[0])
 
 
+def modinfo(context: Context, kver: str, modules: Iterable[str]) -> str:
+    cmdline = ["modinfo", "--set-version", kver, "--null"]
+
+    if context.config.output_format.is_extension_image() and not context.config.overlay:
+        cmdline += ["--basedir", "/buildroot"]
+        sandbox = context.sandbox(options=["--ro-bind", context.root, "/buildroot"])
+    else:
+        sandbox = chroot_cmd(root=context.root)
+
+    return run(
+        ["modinfo", "--set-version", kver, "--null", *modules],
+        stdout=subprocess.PIPE,
+        sandbox=sandbox,
+    ).stdout.strip()
+
+
 def resolve_module_dependencies(
     context: Context,
     kver: str,
@@ -92,11 +108,7 @@ def resolve_module_dependencies(
     info = ""
     for i in range(0, len(nametofile.keys()), 8500):
         chunk = list(nametofile.keys())[i : i + 8500]
-        info += run(
-            ["modinfo", "--set-version", kver, "--null", *chunk],
-            stdout=subprocess.PIPE,
-            sandbox=chroot_cmd(root=context.root),
-        ).stdout.strip()
+        info += modinfo(context, kver, chunk)
 
     log_step("Calculating required kernel modules and firmware")
 
