@@ -2778,7 +2778,23 @@ def configure_clock(context: Context) -> None:
 
 
 def run_depmod(context: Context, *, cache: bool = False) -> None:
-    if context.config.overlay or context.config.output_format.is_extension_or_portable_image():
+    if context.config.overlay:
+        return
+
+    if not cache:
+        for kver, _ in gen_kernel_images(context):
+            process_kernel_modules(
+                context.root,
+                kver,
+                include=finalize_kernel_modules_include(
+                    context,
+                    include=context.config.kernel_modules_include,
+                    host=context.config.kernel_modules_include_host,
+                ),
+                exclude=context.config.kernel_modules_exclude,
+            )
+
+    if context.config.output_format.is_extension_or_portable_image():
         return
 
     outputs = (
@@ -2799,18 +2815,6 @@ def run_depmod(context: Context, *, cache: bool = False) -> None:
             mtime = (modulesd / "modules.dep").stat().st_mtime
             if all(m.stat().st_mtime <= mtime for m in modulesd.rglob("*.ko*")):
                 continue
-
-        if not cache:
-            process_kernel_modules(
-                context.root,
-                kver,
-                include=finalize_kernel_modules_include(
-                    context,
-                    include=context.config.kernel_modules_include,
-                    host=context.config.kernel_modules_include_host,
-                ),
-                exclude=context.config.kernel_modules_exclude,
-            )
 
         with complete_step(f"Running depmod for {kver}"):
             run(["depmod", "--all", kver], sandbox=chroot_cmd(root=context.root))
