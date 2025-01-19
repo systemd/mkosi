@@ -1439,7 +1439,7 @@ def build_kernel_modules_initrd(context: Context, kver: str) -> Path:
         context.root,
         kmods,
         files=gen_required_kernel_modules(
-            context.root,
+            context,
             kver,
             include=finalize_kernel_modules_include(
                 context,
@@ -2793,7 +2793,7 @@ def run_depmod(context: Context, *, cache: bool = False) -> None:
     if not cache:
         for kver, _ in gen_kernel_images(context):
             process_kernel_modules(
-                context.root,
+                context,
                 kver,
                 include=finalize_kernel_modules_include(
                     context,
