@@ -183,12 +183,18 @@ def mount_base_trees(context: Context) -> Iterator[None]:
 def remove_files(context: Context) -> None:
     """Remove files based on user-specified patterns"""
 
-    if not context.config.remove_files and not (context.root / "work").exists():
-        return
+    if context.config.remove_files or (context.root / "work").exists():
+        with complete_step("Removing files…"):
+            remove = flatten(
+                context.root.glob(pattern.lstrip("/")) for pattern in context.config.remove_files
+            )
+            rmtree(*remove, context.root / "work", sandbox=context.sandbox)
 
-    with complete_step("Removing files…"):
-        remove = flatten(context.root.glob(pattern.lstrip("/")) for pattern in context.config.remove_files)
-        rmtree(*remove, context.root / "work", sandbox=context.sandbox)
+    if context.config.output_format.is_extension_image():
+        with complete_step("Removing empty directories…"):
+            for d in reversed(sorted(context.root.glob("**/"))):
+                if not any(d.iterdir()):
+                    d.rmdir()
 
 
 def install_distribution(context: Context) -> None:
