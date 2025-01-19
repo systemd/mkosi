@@ -283,7 +283,10 @@ def remove_packages(context: Context) -> None:
 
 
 def check_root_populated(context: Context) -> None:
-    if context.config.output_format.is_extension_image():
+    if (
+        context.config.output_format == OutputFormat.none
+        or context.config.output_format.is_extension_image()
+    ):
         return
 
     """Check that the root was populated by looking for a os-release file."""
