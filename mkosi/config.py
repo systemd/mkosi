@@ -191,7 +191,7 @@ class OutputFormat(StrEnum):
     tar = enum.auto()
     uki = enum.auto()
     oci = enum.auto()
-    initrd_addon = enum.auto()
+    addon = enum.auto()
 
     def extension(self) -> str:
         return {
@@ -203,7 +203,7 @@ class OutputFormat(StrEnum):
             OutputFormat.sysext:       ".raw",
             OutputFormat.tar:          ".tar",
             OutputFormat.uki:          ".efi",
-            OutputFormat.initrd_addon: ".efi",
+            OutputFormat.addon:        ".efi",
         }.get(self, "")  # fmt: skip
 
     def use_outer_compression(self) -> bool:
@@ -217,7 +217,7 @@ class OutputFormat(StrEnum):
         )
 
     def is_extension_image(self) -> bool:
-        return self in (OutputFormat.sysext, OutputFormat.confext, OutputFormat.initrd_addon)
+        return self in (OutputFormat.sysext, OutputFormat.confext, OutputFormat.addon)
 
     def is_extension_or_portable_image(self) -> bool:
         return self.is_extension_image() or self == OutputFormat.portable
