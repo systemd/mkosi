@@ -193,6 +193,9 @@ def remove_files(context: Context) -> None:
     if context.config.output_format.is_extension_image():
         with complete_step("Removing empty directories…"):
             for d in reversed(sorted(context.root.glob("**/"))):
+                if d == context.root:
+                    continue
+
                 if not any(d.iterdir()):
                     d.rmdir()
 
