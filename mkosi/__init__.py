@@ -2175,6 +2175,7 @@ def make_addon(context: Context, stub: Path, output: Path) -> None:
             context,
             stub,
             output,
+            cmdline=context.config.kernel_command_line,
             arguments=arguments,
             options=options,
         )
