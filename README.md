@@ -84,7 +84,7 @@ mkosi binary and is not to be considered a public API.
 mkosi can also be used as a kernel-install plugin to build initrds and addons.
 It is recommended to use only one of these two plugins at a given time.
 
-## UKI plugin
+### UKI plugin
 To enable this feature, install `kernel-install/50-mkosi.install`
 into `/usr/lib/kernel/install.d`. Extra distro configuration for the
 initrd can be configured in `/usr/lib/mkosi-initrd`. Users can add their
@@ -95,7 +95,7 @@ Once installed, the mkosi plugin can be enabled by writing
 `initrd_generator=mkosi-initrd` and `layout=uki` to `/usr/lib/kernel/install.conf`
 or to `/etc/kernel/install.conf`.
 
-## Addon plugin
+### Addon plugin
 To enable this feature, install `kernel-install/51-mkosi-addon.install` into
 `/usr/lib/kernel/install.d`. Extra distro configuration for the addon can be
 configured in `/usr/lib/mkosi-addon`. Users can add their own customizations in
