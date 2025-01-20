@@ -175,9 +175,22 @@ def mount_base_trees(context: Context) -> Iterator[None]:
             else:
                 die(f"Unsupported base tree source {path}")
 
-        stack.enter_context(mount_overlay(bases, context.root, upperdir=context.root))
+        with mount_overlay(bases, context.root, upperdir=context.root):
+            yield
 
-        yield
+        stack.enter_context(mount_overlay(bases, context.workspace / "lower"))
+
+        for p in context.root.rglob("*"):
+            rel = p.relative_to(context.root)
+            q = context.workspace / "lower" / rel
+
+            if not q.is_symlink() and q.is_dir():
+                if p.is_symlink() or not p.is_dir():
+                    die(f"/{rel} is a directory in the base tree but not in the overlay")
+                shutil.copystat(q, p)
+            elif q.is_symlink() or q.exists():
+                logging.info(f"Removing duplicate path /{rel} from overlay")
+                p.unlink()
 
 
 def remove_files(context: Context) -> None:
