@@ -238,21 +238,20 @@ def groupby(seq: Sequence[T], key: Callable[[T], S]) -> list[tuple[S, list[T]]]:
 
 
 def current_home_dir() -> Optional[Path]:
+    home = Path(h) if (h := os.getenv("HOME")) else None
+
     if Path.cwd() in (Path("/"), Path("/home")):
-        return None
+        return home
 
     if Path.cwd().is_relative_to("/root"):
         return Path("/root")
-
-    if (home := os.getenv("HOME")) and Path.cwd().is_relative_to(home):
-        return Path(home)
 
     if Path.cwd().is_relative_to("/home"):
         # `Path.parents` only supports slices and negative indexing from Python 3.10 onwards.
         # TODO: Remove list() when we depend on Python 3.10 or newer.
         return list(Path.cwd().parents)[-3]
 
-    return None
+    return home
 
 
 def unique(seq: Sequence[T]) -> list[T]:
