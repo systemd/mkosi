@@ -86,7 +86,7 @@ def finalize_source_mounts(config: Config, *, ephemeral: bool) -> Iterator[list[
         yield options
 
 
-def finalize_crypto_mounts(config: Config, relaxed: bool = False) -> list[PathString]:
+def finalize_certificate_mounts(config: Config, relaxed: bool = False) -> list[PathString]:
     mounts = []
     root = config.tools() if config.tools_tree_certificates else Path("/")
 
@@ -101,9 +101,5 @@ def finalize_crypto_mounts(config: Config, relaxed: bool = False) -> list[PathSt
             )
             if (root / subdir).exists() and any(p for p in (root / subdir).rglob("*") if not p.is_dir())
         ]
-
-    if not relaxed or config.tools() != Path("/"):
-        if (config.tools() / "etc/crypto-policies").exists():
-            mounts += [(config.tools() / "etc/crypto-policies", Path("/etc/crypto-policies"))]
 
     return flatten(("--ro-bind", src, target) for src, target in sorted(set(mounts), key=lambda s: s[1]))

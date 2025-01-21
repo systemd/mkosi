@@ -83,7 +83,7 @@ from mkosi.installer import clean_package_manager_metadata
 from mkosi.kmod import gen_required_kernel_modules, loaded_modules, process_kernel_modules
 from mkosi.log import ARG_DEBUG, complete_step, die, log_notice, log_step
 from mkosi.manifest import Manifest
-from mkosi.mounts import finalize_crypto_mounts, finalize_source_mounts, mount_overlay
+from mkosi.mounts import finalize_certificate_mounts, finalize_source_mounts, mount_overlay
 from mkosi.pager import page
 from mkosi.partition import Partition, finalize_root, finalize_roothash
 from mkosi.qemu import (
@@ -612,7 +612,7 @@ def run_sync_scripts(config: Config) -> None:
 
         for script in config.sync_scripts:
             options = [
-                *finalize_crypto_mounts(config),
+                *finalize_certificate_mounts(config),
                 "--ro-bind", script, "/work/sync",
                 "--ro-bind", json, "/work/config.json",
                 "--dir", "/work/src",
@@ -1083,7 +1083,9 @@ def install_sandbox_trees(config: Config, dst: Path) -> None:
     # Ensure /etc exists in the sandbox
     (dst / "etc").mkdir(exist_ok=True)
 
-    (dst / "etc/crypto-policies").mkdir(exist_ok=True)
+    if (p := config.tools() / "usr/share/crypto-policies/DEFAULT").exists():
+        Path(dst / "etc/crypto-policies").mkdir(exist_ok=True)
+        copy_tree(p, dst / "etc/crypto-policies/back-ends", sandbox=config.sandbox)
 
     if config.sandbox_trees:
         with complete_step("Copying in sandbox trees…"):
@@ -3824,7 +3826,10 @@ def run_sandbox(args: Args, config: Config) -> None:
     if not args.cmdline:
         die("Please specify a command to execute in the sandbox")
 
-    mounts = finalize_crypto_mounts(config, relaxed=True)
+    mounts = finalize_certificate_mounts(config, relaxed=True)
+
+    if config.tools() != Path("/") and (config.tools() / "etc/crypto-policies").exists():
+        mounts += ["--ro-bind", config.tools() / "etc/crypto-policies", Path("/etc/crypto-policies")]
 
     # Since we reuse almost every top level directory from the host except /usr, the crypto mountpoints
     # have to exist already in these directories or we'll fail with a permission error. Let's check this
