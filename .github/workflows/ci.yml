@@ -121,13 +121,21 @@ jobs:
           - ubuntu
         tools:
           - arch
+          - centos
           - debian
           - fedora
           - opensuse
           - ubuntu
-          # TODO: Add CentOS once they have systemd v254 or newer.
         exclude:
-          # pacman and archlinux-keyring are not packaged in openSUSE.
+          # pacman is not packaged in EPEL.
+          - distro: arch
+            tools: centos
+          # apt and debian-keyring are not packaged in EPEL.
+          - distro: debian
+            tools: centos
+          - distro: ubuntu
+            tools: centos
+          # pacman is not packaged in openSUSE.
           - distro: arch
             tools: opensuse
           # apt, debian-keyring and ubuntu-keyring are not packaged in openSUSE.
