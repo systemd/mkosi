@@ -37,11 +37,11 @@ class KernelInstallContext:
     verbose: bool
 
     @staticmethod
-    def parse(description: str, usage: str) -> "KernelInstallContext":
+    def parse(*, name: str, description: str) -> "KernelInstallContext":
         parser = argparse.ArgumentParser(
             description=description,
             allow_abbrev=False,
-            usage=usage,
+            usage=f"{name} COMMAND KERNEL_VERSION ENTRY_DIR KERNEL_IMAGE…",
         )
 
         parser.add_argument(
@@ -176,6 +176,17 @@ def initrd_common_args(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def include_system_config(name: str) -> list[str]:
+    cmdline = []
+
+    for d in ("/usr/lib", "/usr/local/lib", "/run", "/etc"):
+        p = Path(d) / name
+        if p.exists():
+            cmdline += ["--include", os.fspath(p)]
+
+    return cmdline
+
+
 @uncaught_exception_handler()
 def main() -> None:
     log_setup()
@@ -255,14 +266,7 @@ def main() -> None:
             if args.format != OutputFormat.directory.value:
                 cmdline += ["--output-mode=600"]
 
-        for d in (
-            "/usr/lib/mkosi-initrd",
-            "/usr/local/lib/mkosi-initrd",
-            "/run/mkosi-initrd",
-            "/etc/mkosi-initrd",
-        ):
-            if Path(d).exists():
-                cmdline += ["--include", d]
+        cmdline += include_system_config("mkosi-initrd")
 
         # Make sure we don't use any of mkosi's default repositories.
         for p in (

@@ -13,27 +13,24 @@ from mkosi.types import PathString
 
 @uncaught_exception_handler()
 def main() -> None:
-    log_setup()
-
     context = KernelInstallContext.parse(
-        "kernel-install plugin to build local addon for initrd/cmdline",
-        "51-mkosi-addon.install COMMAND KERNEL_VERSION ENTRY_DIR KERNEL_IMAGE…",
+        name="51-mkosi-addon.install",
+        description="kernel-install plugin to build local addon for initrd/cmdline",
     )
+
+    log_setup(default_log_level="info" if context.verbose else "warning")
 
     # No local configuration? Then nothing to do
     if not Path("/etc/mkosi-addon").exists() and not Path("/run/mkosi-addon").exists():
-        if context.verbose:
-            logging.info("No local configuration defined, skipping mkosi-addon")
+        logging.info("No local configuration defined, skipping mkosi-addon")
         return
 
     if context.command != "add" or context.layout != "uki":
-        if context.verbose:
-            logging.info("Not an UKI layout 'add' step, skipping mkosi-addon")
+        logging.info("Not an UKI layout 'add' step, skipping mkosi-addon")
         return
 
-    if not context.kernel_image or not context.kernel_image.exists():
-        if context.verbose:
-            logging.info("No kernel image provided, skipping mkosi-addon")
+    if context.image_type != "uki":
+        logging.info("Provided kernel image is not a unified kernel image, skipping mkosi-addon")
         return
 
     cmdline: list[PathString] = [
