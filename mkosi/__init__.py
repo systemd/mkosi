@@ -5,7 +5,6 @@ import dataclasses
 import datetime
 import functools
 import hashlib
-import io
 import itertools
 import json
 import logging
@@ -92,6 +91,7 @@ from mkosi.qemu import (
     copy_ephemeral,
     finalize_credentials,
     finalize_kernel_command_line_extra,
+    join_initrds,
     run_qemu,
     run_ssh,
     start_journal_remote,
@@ -137,7 +137,6 @@ from mkosi.util import (
     make_executable,
     one_zero,
     read_env_file,
-    round_up,
     scopedenv,
 )
 from mkosi.versioncomp import GenericVersion
@@ -1499,25 +1498,6 @@ def find_devicetree(context: Context, kver: str) -> Path:
     die(f"Requested devicetree {context.config.devicetree} not found")
 
 
-def join_initrds(initrds: Sequence[Path], output: Path) -> Path:
-    assert initrds
-
-    if len(initrds) == 1:
-        shutil.copy2(initrds[0], output)
-        return output
-
-    seq = io.BytesIO()
-    for p in initrds:
-        initrd = p.read_bytes()
-        n = len(initrd)
-        padding = b"\0" * (round_up(n, 4) - n)  # pad to 32 bit alignment
-        seq.write(initrd)
-        seq.write(padding)
-
-    output.write_bytes(seq.getbuffer())
-    return output
-
-
 def want_signed_pcrs(config: Config) -> bool:
     return config.sign_expected_pcr == ConfigFeature.enabled or (
         config.sign_expected_pcr == ConfigFeature.auto
@@ -2338,7 +2318,7 @@ def copy_initrd(context: Context) -> None:
         if context.config.kernel_modules_initrd:
             kver = next(gen_kernel_images(context))[0]
             initrds += [build_kernel_modules_initrd(context, kver)]
-        join_initrds(initrds, context.staging / context.config.output_split_initrd)
+        join_initrds(context.config, initrds, context.staging / context.config.output_split_initrd)
         break
 
 

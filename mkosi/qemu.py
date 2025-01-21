@@ -7,6 +7,7 @@ import enum
 import errno
 import fcntl
 import hashlib
+import io
 import json
 import logging
 import os
@@ -636,6 +637,25 @@ def copy_ephemeral(config: Config, src: Path) -> Iterator[Path]:
             rmtree(tmp, sandbox=config.sandbox)
 
         fork_and_wait(rm)
+
+
+def join_initrds(config: Config, initrds: Sequence[Path], output: Path) -> Path:
+    assert initrds
+
+    if len(initrds) == 1:
+        copy_tree(initrds[0], output, sandbox=config.sandbox)
+        return output
+
+    seq = io.BytesIO()
+    for p in initrds:
+        initrd = p.read_bytes()
+        n = len(initrd)
+        padding = b"\0" * (round_up(n, 4) - n)  # pad to 32 bit alignment
+        seq.write(initrd)
+        seq.write(padding)
+
+    output.write_bytes(seq.getbuffer())
+    return output
 
 
 def qemu_version(config: Config, binary: Path) -> GenericVersion:
@@ -1343,9 +1363,14 @@ def run_qemu(args: Args, config: Config) -> None:
             kernel
             and KernelType.identify(config, kernel) != KernelType.uki
             and "-initrd" not in args.cmdline
-            and (config.output_dir_or_cwd() / config.output_split_initrd).exists()
         ):
-            cmdline += ["-initrd", config.output_dir_or_cwd() / config.output_split_initrd]
+            if (config.output_dir_or_cwd() / config.output_split_initrd).exists():
+                cmdline += ["-initrd", config.output_dir_or_cwd() / config.output_split_initrd]
+            elif config.initrds:
+                initrd = config.output_dir_or_cwd() / f"initrd-{uuid.uuid4().hex}"
+                join_initrds(config, config.initrds, initrd)
+                stack.callback(lambda: initrd.unlink())
+                cmdline += ["-initrd", fname]
 
         if config.output_format in (OutputFormat.disk, OutputFormat.esp):
             direct = fname.stat().st_size % resource.getpagesize() == 0
