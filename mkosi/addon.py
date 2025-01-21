@@ -9,7 +9,7 @@ from pathlib import Path
 import mkosi.resources
 from mkosi.config import DocFormat
 from mkosi.documentation import show_docs
-from mkosi.initrd import initrd_common_args, initrd_finalize, process_crypttab
+from mkosi.initrd import include_system_config, initrd_common_args, initrd_finalize, process_crypttab
 from mkosi.log import log_setup
 from mkosi.run import run, uncaught_exception_handler
 from mkosi.types import PathString
@@ -69,15 +69,7 @@ def main() -> None:
                 "--output-mode=600",
             ]
 
-        for d in (
-            "/usr/lib/mkosi-addon",
-            "/usr/local/lib/mkosi-addon",
-            "/run/mkosi-addon",
-            "/etc/mkosi-addon",
-        ):
-            if Path(d).exists():
-                cmdline += ["--include", d]
-
+        cmdline += include_system_config("mkosi-addon")
         cmdline += process_crypttab(staging_dir)
 
         if Path("/etc/kernel/cmdline").exists():
