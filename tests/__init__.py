@@ -31,9 +31,6 @@ class ImageConfig:
 class Image:
     def __init__(self, config: ImageConfig) -> None:
         self.config = config
-        st = Path.cwd().stat()
-        self.uid = st.st_uid
-        self.gid = st.st_gid
 
     def __enter__(self) -> "Image":
         self.output_dir = Path(os.getenv("TMPDIR", "/var/tmp")) / uuid.uuid4().hex[:16]
@@ -108,15 +105,13 @@ class Image:
             *options,
         ]  # fmt: skip
 
-        self.mkosi("summary", opt, user=self.uid, group=self.uid, env=env)
+        self.mkosi("summary", opt, env=env)
 
         return self.mkosi(
             "build",
             opt,
             args,
             stdin=sys.stdin if sys.stdin.isatty() else None,
-            user=self.uid,
-            group=self.gid,
             env=env,
         )
 
@@ -152,8 +147,6 @@ class Image:
             ],
             args,
             stdin=sys.stdin if sys.stdin.isatty() else None,
-            user=self.uid,
-            group=self.gid,
             check=False,
         )
 
@@ -163,7 +156,7 @@ class Image:
         return result
 
     def genkey(self) -> CompletedProcess:
-        return self.mkosi("genkey", ["--force"], user=self.uid, group=self.gid)
+        return self.mkosi("genkey", ["--force"])
 
 
 @pytest.fixture(scope="session", autouse=True)
