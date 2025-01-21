@@ -872,7 +872,8 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     added to the image if the disk output format is used.
 
 `Bootloader=`, `--bootloader=`
-:   Takes one of `none`, `systemd-boot`, `uki` or `grub`. Defaults to
+:   Takes one of `none`, `systemd-boot`, `uki`, `grub`,
+    `systemd-boot-signed`, `uki-signed` or `grub-signed`. Defaults to
     `systemd-boot`. If set to `none`, no EFI bootloader will be installed
     into the image. If set to `systemd-boot`, **systemd-boot** will be
     installed and for each installed kernel, a UKI will be generated and
@@ -886,6 +887,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     `EFI/<distribution>/grub.cfg` in the ESP which loads `grub/grub.cfg`
     in the ESP for compatibility with signed versions of grub which load
     the grub configuration from this location.
+
+    The `signed` variants will only install pre-signed EFI binaries
+    shipped by the distribution.
 
     Kernels need to be placed into the root filesystem (for example using
     `ExtraTrees=`) under `/usr/lib/modules/$version`, named `vmlinux` or

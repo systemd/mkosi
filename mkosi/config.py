@@ -279,6 +279,21 @@ class Bootloader(StrEnum):
     uki = enum.auto()
     systemd_boot = enum.auto()
     grub = enum.auto()
+    uki_signed = enum.auto()
+    systemd_boot_signed = enum.auto()
+    grub_signed = enum.auto()
+
+    def is_uki(self) -> bool:
+        return self in (Bootloader.uki, Bootloader.uki_signed)
+
+    def is_systemd_boot(self) -> bool:
+        return self in (Bootloader.systemd_boot, Bootloader.systemd_boot_signed)
+
+    def is_grub(self) -> bool:
+        return self in (Bootloader.grub, Bootloader.grub_signed)
+
+    def is_signed(self) -> bool:
+        return self in (Bootloader.uki_signed, Bootloader.systemd_boot_signed, Bootloader.grub_signed)
 
 
 class BiosBootloader(StrEnum):
