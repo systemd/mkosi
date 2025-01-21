@@ -4121,7 +4121,7 @@ class ParseContext:
                 )
 
             with chdir(path if path.is_dir() else Path.cwd()):
-                self.parse_config_one(path if path.is_file() else Path("."))
+                self.parse_config_one(path if path.is_file() else Path("."), parse_profiles=True)
 
     def finalize_value(self, setting: ConfigSetting[T]) -> Optional[T]:
         # If a value was specified on the CLI, it always takes priority. If the setting is a collection of
