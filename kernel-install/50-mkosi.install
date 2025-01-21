@@ -52,8 +52,8 @@ def main() -> None:
     log_setup()
 
     context = KernelInstallContext.parse(
-        "kernel-install plugin to build initrds or Unified Kernel Images using mkosi",
-        "50-mkosi.install COMMAND KERNEL_VERSION ENTRY_DIR KERNEL_IMAGE INITRD…",
+        name="50-mkosi.install",
+        description="kernel-install plugin to build initrds or Unified Kernel Images using mkosi",
     )
 
     if context.command != "add" or not we_are_wanted(context):

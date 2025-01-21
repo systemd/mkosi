@@ -16,8 +16,8 @@ def main() -> None:
     log_setup()
 
     context = KernelInstallContext.parse(
-        "kernel-install plugin to build local addon for initrd/cmdline",
-        "51-mkosi-addon.install COMMAND KERNEL_VERSION ENTRY_DIR KERNEL_IMAGE…",
+        name="51-mkosi-addon.install",
+        description="kernel-install plugin to build local addon for initrd/cmdline",
     )
 
     # No local configuration? Then nothing to do

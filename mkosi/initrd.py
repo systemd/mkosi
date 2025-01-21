@@ -37,11 +37,11 @@ class KernelInstallContext:
     verbose: bool
 
     @staticmethod
-    def parse(description: str, usage: str) -> "KernelInstallContext":
+    def parse(*, name: str, description: str) -> "KernelInstallContext":
         parser = argparse.ArgumentParser(
             description=description,
             allow_abbrev=False,
-            usage=usage,
+            usage=f"{name} COMMAND KERNEL_VERSION ENTRY_DIR KERNEL_IMAGE…",
         )
 
         parser.add_argument(
