@@ -93,9 +93,11 @@ class Formatter(logging.Formatter):
         return self.formatters[record.levelno].format(record)
 
 
-def log_setup() -> None:
+def log_setup(default_log_level: str = "info") -> None:
     handler = logging.StreamHandler(stream=sys.stderr)
     handler.setFormatter(Formatter())
 
     logging.getLogger().addHandler(handler)
-    logging.getLogger().setLevel(logging.getLevelName(os.getenv("SYSTEMD_LOG_LEVEL", "info").upper()))
+    logging.getLogger().setLevel(
+        logging.getLevelName(os.getenv("SYSTEMD_LOG_LEVEL", default_log_level).upper())
+    )

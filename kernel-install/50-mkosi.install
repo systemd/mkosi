@@ -49,22 +49,25 @@ def build_microcode_initrd(output: Path) -> Optional[Path]:
 
 @uncaught_exception_handler()
 def main() -> None:
-    log_setup()
-
     context = KernelInstallContext.parse(
         name="50-mkosi.install",
         description="kernel-install plugin to build initrds or Unified Kernel Images using mkosi",
     )
 
+    log_setup(default_log_level="info" if context.verbose else "warning")
+
     if context.command != "add" or not we_are_wanted(context):
+        logging.info("mkosi-initrd is not enabled, skipping")
         return
 
     # If kernel-install was passed a UKI, there's no need to build anything ourselves.
     if context.image_type == "uki":
+        logging.info("Provided kernel image is already a unified kernel image, skipping mkosi-initrd")
         return
 
     # If the initrd was provided on the kernel command line, we shouldn't generate our own.
     if context.layout != "uki" and context.initrds:
+        logging.info("Pre-built initrds were provided, skipping mkosi-initrd")
         return
 
     if context.layout == "uki" and context.uki_generator == "mkosi":
