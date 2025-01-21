@@ -215,6 +215,10 @@ def find_ovmf_firmware(config: Config, firmware: Firmware) -> Optional[OvmfConfi
             )
             continue
 
+        if "nvram-template" not in j["mapping"]:
+            logging.debug(f"{p.name} firmware description is missing nvram-template, skipping")
+            continue
+
         if firmware == Firmware.uefi_secure_boot and "secure-boot" not in j["features"]:
             logging.debug(f"{p.name} firmware description does not include secure boot, skipping")
             continue
