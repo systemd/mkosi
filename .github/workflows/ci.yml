@@ -153,12 +153,9 @@ jobs:
           sudo mv /opt/hostedtoolcache /opt/hostedtoolcache.trash
           sudo systemd-run rm -rf /usr/local.trash /opt/hostedtoolcache.trash
 
+      # Make sure the latest changes from the pull request are used.
       - name: Install
-        run: |
-          sudo apt-get update
-          sudo apt-get install python3-pytest lvm2 cryptsetup-bin btrfs-progs sqop
-          # Make sure the latest changes from the pull request are used.
-          sudo ln -svf $PWD/bin/mkosi /usr/bin/mkosi
+        run: sudo ln -svf $PWD/bin/mkosi /usr/bin/mkosi
         working-directory: ./
 
       - name: Configure
@@ -171,6 +168,8 @@ jobs:
           KernelCommandLine=systemd.default_device_timeout_sec=180
 
           [Build]
+          ToolsTree=default
+          ToolsTreeDistribution=${{ matrix.tools }}
           Environment=SYSTEMD_REPART_MKFS_OPTIONS_EROFS="--quiet"
 
           [Runtime]
@@ -205,22 +204,19 @@ jobs:
           done
 
       - name: Build tools tree
-        run: |
-          mkosi \
-            --directory "" \
-            --distribution ${{ matrix.tools }} \
-            --include mkosi-tools
+        run: sudo mkosi -f sandbox true
 
       - name: Build image
-        run: mkosi --distribution ${{ matrix.distro }} -f
+        run: sudo mkosi --distribution ${{ matrix.distro }} -f
 
       - name: Run integration tests
         run: |
-          sudo --preserve-env \
-              timeout -k 30 1h python3 -m pytest \
-              --tb=no \
-              --capture=no \
-              --verbose \
-              -m integration \
-              --distribution ${{ matrix.distro }} \
-              tests/
+          sudo mkosi sandbox \
+            timeout -k 30 1h \
+            python3 -m pytest \
+            --tb=no \
+            --capture=no \
+            --verbose \
+            -m integration \
+            --distribution ${{ matrix.distro }} \
+            tests/

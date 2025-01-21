@@ -14,11 +14,8 @@ pytestmark = pytest.mark.integration
 
 
 def test_signing_checksums_with_sop(config: ImageConfig) -> None:
-    if find_binary("sqop", root=config.tools) is None:
-        pytest.skip("Needs 'sqop' binary in tools tree PATH to perform sop tests.")
-
     if find_binary("sqop") is None:
-        pytest.skip("Needs 'sqop' binary in host system PATH to perform sop tests.")
+        pytest.skip("Need 'sqop' binary to perform sop tests.")
 
     with tempfile.TemporaryDirectory() as path, Image(config) as image:
         tmp_path = Path(path)
