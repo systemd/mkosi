@@ -170,6 +170,22 @@ class KernelType(StrEnum):
             return KernelType.unknown
 
 
+def find_qemu_binary(config: Config) -> Path:
+    options = [f"qemu-system-{config.architecture.to_qemu()}"]
+
+    if config.architecture.is_native():
+        options += ["/usr/libexec/qemu-kvm"]
+
+    for o in options:
+        if qemu := config.find_binary(o):
+            return qemu
+
+    die(
+        "qemu not found.",
+        hint=f"Is qemu-system-{config.architecture.to_qemu()} installed?",
+    )
+
+
 @dataclasses.dataclass(frozen=True)
 class OvmfConfig:
     description: Path
@@ -1024,11 +1040,7 @@ def run_qemu(args: Args, config: Config) -> None:
         if d.feature(config) != ConfigFeature.disabled and d.available(log=True)
     }
 
-    if not (qemu := config.find_binary(f"qemu-system-{config.architecture.to_qemu()}")):
-        die(
-            "qemu not found.",
-            hint=f"Is qemu-system-{config.architecture.to_qemu()} installed on the host system?",
-        )
+    qemu = find_qemu_binary(config)
 
     have_kvm = (qemu_version(config, qemu) < QEMU_KVM_DEVICE_VERSION and QemuDeviceNode.kvm.available()) or (
         qemu_version(config, qemu) >= QEMU_KVM_DEVICE_VERSION and QemuDeviceNode.kvm in qemu_device_fds
