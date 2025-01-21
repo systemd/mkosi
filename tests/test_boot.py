@@ -67,7 +67,7 @@ def test_format(config: ImageConfig, format: OutputFormat) -> None:
 
 @pytest.mark.parametrize("bootloader", Bootloader)
 def test_bootloader(config: ImageConfig, bootloader: Bootloader) -> None:
-    if config.distribution == Distribution.rhel_ubi:
+    if config.distribution == Distribution.rhel_ubi or bootloader.is_signed():
         return
 
     firmware = Firmware.linux if bootloader == Bootloader.none else Firmware.auto

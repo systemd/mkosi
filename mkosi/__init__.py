@@ -50,7 +50,6 @@ from mkosi.config import (
     PACKAGE_GLOBS,
     Args,
     ArtifactOutput,
-    Bootloader,
     Cacheonly,
     CertificateSourceType,
     Compression,
@@ -1763,7 +1762,7 @@ def systemd_stub_version(context: Context, stub: Path) -> Optional[GenericVersio
 
 def want_uki(context: Context) -> bool:
     return want_efi(context.config) and (
-        context.config.bootloader == Bootloader.uki
+        context.config.bootloader.is_uki()
         or context.config.unified_kernel_images == ConfigFeature.enabled
         or (
             context.config.unified_kernel_images == ConfigFeature.auto
@@ -1870,6 +1869,7 @@ def install_type1(
             want_efi(context.config)
             and context.config.secure_boot
             and context.config.shim_bootloader != ShimBootloader.signed
+            and not context.config.bootloader.is_signed()
             and KernelType.identify(context.config, kimg) == KernelType.pe
         ):
             kimg = sign_efi_binary(context, kimg, dst / "vmlinuz")
@@ -1993,7 +1993,7 @@ def install_uki(
         boot_count=boot_count,
     )
 
-    if context.config.bootloader == Bootloader.uki:
+    if context.config.bootloader.is_uki():
         if context.config.shim_bootloader != ShimBootloader.none:
             boot_binary = context.root / shim_second_stage_binary(context)
         else:
@@ -2005,7 +2005,7 @@ def install_uki(
     with umask(~0o700):
         boot_binary.parent.mkdir(parents=True, exist_ok=True)
 
-    if context.config.shim_bootloader == ShimBootloader.signed:
+    if context.config.shim_bootloader == ShimBootloader.signed or context.config.bootloader.is_signed():
         for p in (context.root / "usr/lib/modules" / kver).glob("*.efi"):
             log_step(f"Installing prebuilt UKI at {p} to {boot_binary}")
             shutil.copy2(p, boot_binary)
@@ -2143,7 +2143,7 @@ def install_kernel(context: Context, partitions: Sequence[Partition]) -> None:
         if not want_uki(context) or want_grub_bios(context, partitions):
             install_type1(context, kver, kimg, token, partitions, cmdline)
 
-        if context.config.bootloader == Bootloader.uki:
+        if context.config.bootloader.is_uki():
             break
 
 

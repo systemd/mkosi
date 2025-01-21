@@ -872,7 +872,8 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     added to the image if the disk output format is used.
 
 `Bootloader=`, `--bootloader=`
-:   Takes one of `none`, `systemd-boot`, `uki` or `grub`. Defaults to
+:   Takes one of `none`, `systemd-boot`, `uki`, `grub`,
+    `systemd-boot-signed`, `uki-signed` or `grub-signed`. Defaults to
     `systemd-boot`. If set to `none`, no EFI bootloader will be installed
     into the image. If set to `systemd-boot`, **systemd-boot** will be
     installed and for each installed kernel, a UKI will be generated and
@@ -887,14 +888,8 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     in the ESP for compatibility with signed versions of grub which load
     the grub configuration from this location.
 
-    Note that we do not yet install grub to the ESP when `Bootloader=` is
-    set to `grub`. This has to be done manually in a postinst or finalize
-    script. The grub EFI binary should be installed to
-    `/efi/EFI/BOOT/BOOTX64.EFI` (or similar depending on the architecture)
-    and should be configured to load its configuration from
-    `EFI/<distribution>/grub.cfg` in the ESP. Signed versions of grub
-    shipped by distributions will load their configuration from this
-    location by default.
+    The `signed` variants will only install pre-signed EFI binaries
+    shipped by the distribution.
 
     Kernels need to be placed into the root filesystem (for example using
     `ExtraTrees=`) under `/usr/lib/modules/$version`, named `vmlinux` or
