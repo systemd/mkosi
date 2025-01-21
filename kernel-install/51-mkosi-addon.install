@@ -31,9 +31,9 @@ def main() -> None:
             logging.info("Not an UKI layout 'add' step, skipping mkosi-addon")
         return
 
-    if not context.kernel_image or not context.kernel_image.exists():
+    if context.image_type != "uki":
         if context.verbose:
-            logging.info("No kernel image provided, skipping mkosi-addon")
+            logging.info("Provided kernel image is not a unified kernel image, skipping mkosi-addon")
         return
 
     cmdline: list[PathString] = [
