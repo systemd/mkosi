@@ -3068,6 +3068,12 @@ def have_cache(config: Config) -> bool:
         logging.debug(f"{final} does not exist, not reusing cached images")
         return False
 
+    if (uid := final.stat().st_uid) != os.getuid():
+        logging.debug(
+            f"{final} uid ({uid}) does not match user uid ({os.getuid()}), not reusing cached images"
+        )
+        return False
+
     if need_build_overlay(config) and not build.exists():
         logging.debug(f"{build} does not exist, not reusing cached images")
         return False
@@ -3101,9 +3107,6 @@ def reuse_cache(context: Context) -> bool:
         return False
 
     final, build, _ = cache_tree_paths(context.config)
-
-    if final.stat().st_uid != os.getuid():
-        return False
 
     with complete_step("Copying cached trees"):
         copy_tree(
