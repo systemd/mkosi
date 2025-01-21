@@ -1196,8 +1196,8 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     access mode of 0600 or less.
 
 `Checksum=`, `--checksum`
-:   Generate a `SHA256SUMS` file of all generated artifacts after the
-    build is complete.
+:   Generate a `<output>.SHA256SUMS` file of all generated artifacts
+    after the build is complete.
 
 `Sign=`, `--sign`
 :   Sign the generated `SHA256SUMS` using **gpg** after completion.
