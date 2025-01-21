@@ -16,3 +16,5 @@ mkosi-chroot \
     --groups "$SUDO_GROUP",systemd-journal \
     --shell /bin/bash \
     mkosi
+
+systemctl --root="$BUILDROOT" mask lvm2-monitor.service
