@@ -80,8 +80,9 @@ runs:
     - name: Dependencies
       shell: bash
       run: |
-        # This is added by default, and it is often broken, but we don't need anything from it
-        sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
-        # For archlinux-keyring and pacman
-        sudo apt-get update
-        mkosi dependencies | xargs -d '\n' sudo apt-get install --assume-yes --no-install-recommends
+        sudo apt-get install --assume-yes --no-install-recommends \
+          debian-archive-keyring \
+          dnf \
+          makepkg \
+          pacman-package-manager \
+          zypper
