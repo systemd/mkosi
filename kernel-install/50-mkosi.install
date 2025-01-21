@@ -83,10 +83,8 @@ def main() -> None:
         "--format", str(format),
         "--output", output,
         "--output-dir", context.staging_area,
+        "--kernel-image", context.kernel_image,
     ]  # fmt: skip
-
-    if context.kernel_image:
-        cmdline += ["--kernel-image", context.kernel_image]
 
     if context.verbose:
         cmdline += ["--debug"]
