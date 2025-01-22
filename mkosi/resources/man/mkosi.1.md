@@ -1637,6 +1637,13 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     When set to `microsoft`, a firmware variables file with the Microsoft
     secure boot certificates already enrolled will be used.
 
+    When set to `microsoft-mok`, a firmware variables file with the
+    Microsoft secure boot certificates already enrolled will be extended
+    with a `MokList` variable containing the secure boot certificate
+    from `SecureBootCertificate=`. This is intended to be used together
+    with shim binaries signed by the distribution and locally signed EFI
+    binaries.
+
     When set to `custom`, the secure boot certificate from
     `SecureBootCertificate=` will be enrolled into the default firmware
     variables file.

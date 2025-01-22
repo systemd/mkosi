@@ -3699,7 +3699,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         dest="firmware_variables",
         metavar="PATH",
         section="Runtime",
-        parse=config_make_path_parser(constants=("custom", "microsoft")),
+        parse=config_make_path_parser(constants=("custom", "microsoft", "microsoft-mok")),
         help="Set the path to the firmware variables file to use",
         compat_longs=("--qemu-firmware-variables",),
         compat_names=("QemuFirmwareVariables",),
