@@ -58,7 +58,7 @@ class Image:
         user: Optional[int] = None,
         group: Optional[int] = None,
         check: bool = True,
-        env: Mapping[str, str] = os.environ,
+        env: Mapping[str, str] = {},
     ) -> CompletedProcess:
         return run(
             [
@@ -74,14 +74,14 @@ class Image:
             stdout=sys.stdout,
             user=user,
             group=group,
-            env=env,
+            env=os.environ | env,
         )  # fmt: skip
 
     def build(
         self,
         options: Sequence[PathString] = (),
         args: Sequence[str] = (),
-        env: Mapping[str, str] = os.environ,
+        env: Mapping[str, str] = {},
     ) -> CompletedProcess:
         kcl = [
             "loglevel=6",
