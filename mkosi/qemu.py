@@ -714,11 +714,10 @@ def finalize_firmware(config: Config, kernel: Optional[Path]) -> Firmware:
 
 def finalize_firmware_variables(
     config: Config,
-    qemu: Path,
     ovmf: OvmfConfig,
     stack: contextlib.ExitStack,
 ) -> tuple[Path, str]:
-    ovmf_vars = stack.enter_context(tempfile.NamedTemporaryFile(prefix="mkosi-ovmf-vars-"))
+    ovmf_vars = Path(stack.enter_context(tempfile.NamedTemporaryFile(prefix="mkosi-ovmf-vars-")).name)
     if config.firmware_variables in (None, Path("custom"), Path("microsoft")):
         ovmf_vars_format = ovmf.vars_format
     else:
@@ -730,7 +729,7 @@ def finalize_firmware_variables(
             [
                 "virt-fw-vars",
                 "--input", workdir(ovmf.vars),
-                "--output", workdir(Path(ovmf_vars.name)),
+                "--output", workdir(ovmf_vars),
                 "--enroll-cert", workdir(config.secure_boot_certificate),
                 "--add-db", "OvmfEnrollDefaultKeys", workdir(config.secure_boot_certificate),
                 "--no-microsoft",
@@ -739,7 +738,7 @@ def finalize_firmware_variables(
             ],
             sandbox=config.sandbox(
                 options=[
-                    "--bind", ovmf_vars.name, workdir(Path(ovmf_vars.name)),
+                    "--bind", ovmf_vars, workdir(ovmf_vars),
                     "--ro-bind", ovmf.vars, workdir(ovmf.vars),
                     "--ro-bind", config.secure_boot_certificate, workdir(config.secure_boot_certificate),
                 ],
@@ -751,9 +750,9 @@ def finalize_firmware_variables(
             if config.firmware_variables == Path("microsoft") or not config.firmware_variables
             else config.firmware_variables
         )
-        shutil.copy2(vars, Path(ovmf_vars.name))
+        shutil.copy2(vars, ovmf_vars)
 
-    return Path(ovmf_vars.name), ovmf_vars_format
+    return ovmf_vars, ovmf_vars_format
 
 
 def apply_runtime_size(config: Config, image: Path) -> None:
@@ -1263,7 +1262,7 @@ def run_qemu(args: Args, config: Config) -> None:
     with contextlib.ExitStack() as stack:
         if firmware.is_uefi():
             assert ovmf
-            ovmf_vars, ovmf_vars_format = finalize_firmware_variables(config, qemu, ovmf, stack)
+            ovmf_vars, ovmf_vars_format = finalize_firmware_variables(config, ovmf, stack)
 
             cmdline += ["-drive", f"file={ovmf_vars},if=pflash,format={ovmf_vars_format}"]
             if firmware == Firmware.uefi_secure_boot:

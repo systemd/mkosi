@@ -74,7 +74,7 @@ def want_grub_efi(context: Context) -> bool:
     if not (arch := context.config.architecture.to_grub()):
         return False
 
-    if context.config.shim_bootloader != ShimBootloader.signed and not context.config.bootloader.is_signed():
+    if not context.config.bootloader.is_signed():
         have = find_grub_directory(context, target=f"{arch}-efi") is not None
         if not have and context.config.bootable == ConfigFeature.enabled:
             die("An EFI bootable image with grub was requested but grub for EFI is not installed")
@@ -322,7 +322,7 @@ def install_grub(context: Context) -> None:
         with umask(~0o700):
             output.parent.mkdir(parents=True, exist_ok=True)
 
-        if context.config.shim_bootloader == ShimBootloader.signed or context.config.bootloader.is_signed():
+        if context.config.bootloader.is_signed():
             if not (signed := find_signed_grub_image(context)):
                 if context.config.bootable == ConfigFeature.enabled:
                     die("Couldn't find a signed grub EFI binary installed in the image")
@@ -643,7 +643,7 @@ def install_systemd_boot(context: Context) -> None:
         return
 
     directory = context.root / "usr/lib/systemd/boot/efi"
-    signed = context.config.shim_bootloader == ShimBootloader.signed or context.config.bootloader.is_signed()
+    signed = context.config.bootloader.is_signed()
     if not directory.glob("*.efi.signed" if signed else "*.efi"):
         if context.config.bootable == ConfigFeature.enabled:
             die(

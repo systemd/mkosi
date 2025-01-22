@@ -1089,6 +1089,12 @@ def install_sandbox_trees(config: Config, dst: Path) -> None:
         Path(dst / "etc/crypto-policies").mkdir(exist_ok=True)
         copy_tree(p, dst / "etc/crypto-policies/back-ends", sandbox=config.sandbox)
 
+        # The files in /usr/share/crypto-policies have the .txt extension but in /etc/crypto-policies it
+        # should have the .config extension so rename all the files after copying them.
+        for p in (dst / "etc/crypto-policies/back-ends").iterdir():
+            if p.suffix == ".txt":
+                p.rename(p.with_suffix(".config"))
+
     if config.sandbox_trees:
         with complete_step("Copying in sandbox trees…"):
             for tree in config.sandbox_trees:
@@ -1852,7 +1858,6 @@ def install_type1(
         if (
             want_efi(context.config)
             and context.config.secure_boot
-            and context.config.shim_bootloader != ShimBootloader.signed
             and not context.config.bootloader.is_signed()
             and KernelType.identify(context.config, kimg) == KernelType.pe
         ):
@@ -1989,7 +1994,7 @@ def install_uki(
     with umask(~0o700):
         boot_binary.parent.mkdir(parents=True, exist_ok=True)
 
-    if context.config.shim_bootloader == ShimBootloader.signed or context.config.bootloader.is_signed():
+    if context.config.bootloader.is_signed():
         for p in (context.root / "usr/lib/modules" / kver).glob("*.efi"):
             log_step(f"Installing prebuilt UKI at {p} to {boot_binary}")
             shutil.copy2(p, boot_binary)
