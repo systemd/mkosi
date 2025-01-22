@@ -8,6 +8,7 @@ import pytest
 import mkosi.resources
 from mkosi.config import parse_config
 from mkosi.distributions import Distribution, detect_distribution
+from mkosi.log import log_setup
 from mkosi.util import resource_path
 
 from . import ImageConfig, ci_group
@@ -57,3 +58,8 @@ def config(request: Any) -> ImageConfig:
 def ci_sections(request: Any) -> Iterator[None]:
     with ci_group(request.node.name):
         yield
+
+
+@pytest.fixture(scope="session", autouse=True)
+def logging() -> None:
+    log_setup()
