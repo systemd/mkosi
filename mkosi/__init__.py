@@ -20,6 +20,7 @@ import sys
 import tempfile
 import textwrap
 import uuid
+import zipapp
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import AbstractContextManager
 from pathlib import Path
@@ -3881,19 +3882,31 @@ def run_sandbox(args: Args, config: Config) -> None:
             *cmdline,
         ]
 
-    run(
-        cmdline,
-        stdin=sys.stdin,
-        stdout=sys.stdout,
-        env=os.environ | env,
-        log=False,
-        sandbox=config.sandbox(
-            devices=True,
-            network=True,
-            relaxed=True,
-            options=["--same-dir", *mounts],
-        ),
-    )
+    with contextlib.ExitStack() as stack:
+        if config.tools() != Path("/"):
+            d = stack.enter_context(tempfile.TemporaryDirectory(prefix="mkosi-path-"))
+            zipapp.create_archive(
+                source=Path(__file__).parent,
+                target=Path(d) / "mkosi",
+                interpreter="/usr/bin/env python3",
+            )
+            make_executable(Path(d) / "mkosi")
+            mounts += ["--ro-bind", d, "/mkosi"]
+            stack.enter_context(scopedenv({"PATH": f"/mkosi:{os.environ['PATH']}"}))
+
+        run(
+            cmdline,
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            env=os.environ | env,
+            log=False,
+            sandbox=config.sandbox(
+                devices=True,
+                network=True,
+                relaxed=True,
+                options=["--same-dir", *mounts],
+            ),
+        )
 
 
 def run_shell(args: Args, config: Config) -> None:

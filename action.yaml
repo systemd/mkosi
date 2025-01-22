@@ -75,12 +75,7 @@ runs:
 
     - name: Install
       shell: bash
-      run: |
-        sudo ln -svf ${{ github.action_path }}/bin/mkosi /usr/bin/mkosi
-        # Make sure that mkosi is still found inside "mkosi sandbox" where /usr is potentially replaced with
-        # a tools tree's /usr.
-        mkdir -p $HOME/.local/bin
-        ln -svf ${{ github.action_path }}/bin/mkosi $HOME/.local/bin/mkosi
+      run: sudo ln -svf ${{ github.action_path }}/bin/mkosi /usr/bin/mkosi
 
     - name: Dependencies
       shell: bash
