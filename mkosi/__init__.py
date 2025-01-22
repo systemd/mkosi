@@ -2472,17 +2472,23 @@ def cache_tree_paths(config: Config) -> tuple[Path, Path, Path]:
 
 
 def keyring_cache(config: Config) -> Path:
-    assert config.cache_dir
-    fragments = [config.distribution, config.release, config.architecture]
+    if config.image == "tools":
+        key = "tools"
+    else:
+        key = f"{'~'.join(str(s) for s in (config.distribution, config.release, config.architecture))}"
 
-    return config.cache_dir / f"{'~'.join(str(s) for s in fragments)}.keyring.cache"
+    assert config.cache_dir
+    return config.cache_dir / f"{key}.keyring.cache"
 
 
 def metadata_cache(config: Config) -> Path:
-    assert config.cache_dir
-    fragments = [config.distribution, config.release, config.architecture]
+    if config.image == "tools":
+        key = "tools"
+    else:
+        key = f"{'~'.join(str(s) for s in (config.distribution, config.release, config.architecture))}"
 
-    return config.cache_dir / f"{'~'.join(str(s) for s in fragments)}.metadata.cache"
+    assert config.cache_dir
+    return config.cache_dir / f"{key}.metadata.cache"
 
 
 def check_inputs(config: Config) -> None:
