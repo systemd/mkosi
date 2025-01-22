@@ -8,8 +8,7 @@ from typing import Optional
 from mkosi.log import log_step
 from mkosi.run import SandboxProtocol, finalize_passwd_symlinks, nosandbox, run, workdir
 from mkosi.sandbox import umask
-from mkosi.types import PathString
-from mkosi.util import chdir
+from mkosi.util import PathString, chdir
 
 
 def tar_exclude_apivfs_tmp() -> list[str]:

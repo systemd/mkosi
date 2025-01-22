@@ -126,9 +126,9 @@ from mkosi.sandbox import (
 )
 from mkosi.sysupdate import run_sysupdate
 from mkosi.tree import copy_tree, make_tree, move_tree, rmtree
-from mkosi.types import PathString
 from mkosi.user import INVOKING_USER
 from mkosi.util import (
+    PathString,
     current_home_dir,
     flatten,
     flock,

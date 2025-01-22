@@ -35,10 +35,11 @@ from mkosi.log import ARG_DEBUG, ARG_DEBUG_SANDBOX, ARG_DEBUG_SHELL, Style, die
 from mkosi.pager import page
 from mkosi.run import SandboxProtocol, find_binary, nosandbox, run, sandbox_cmd, workdir
 from mkosi.sandbox import __version__
-from mkosi.types import PathString, SupportsRead
 from mkosi.user import INVOKING_USER
 from mkosi.util import (
+    PathString,
     StrEnum,
+    SupportsRead,
     chdir,
     flatten,
     is_power_of_2,

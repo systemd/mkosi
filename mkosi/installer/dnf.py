@@ -9,8 +9,8 @@ from mkosi.context import Context
 from mkosi.installer import PackageManager
 from mkosi.installer.rpm import RpmRepository, rpm_cmd
 from mkosi.log import ARG_DEBUG
-from mkosi.run import run, workdir
-from mkosi.types import _FILE, CompletedProcess, PathString
+from mkosi.run import CompletedProcess, run, workdir
+from mkosi.util import _FILE, PathString
 
 
 class Dnf(PackageManager):

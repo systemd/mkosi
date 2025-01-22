@@ -10,7 +10,7 @@ from mkosi.context import Context
 from mkosi.distributions import Distribution
 from mkosi.log import die
 from mkosi.run import run
-from mkosi.types import PathString
+from mkosi.util import PathString
 
 
 @dataclasses.dataclass(frozen=True)

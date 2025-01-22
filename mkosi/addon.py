@@ -12,8 +12,7 @@ from mkosi.documentation import show_docs
 from mkosi.initrd import include_system_config, initrd_common_args, initrd_finalize, process_crypttab
 from mkosi.log import log_setup
 from mkosi.run import run, uncaught_exception_handler
-from mkosi.types import PathString
-from mkosi.util import resource_path
+from mkosi.util import PathString, resource_path
 
 
 @uncaught_exception_handler()

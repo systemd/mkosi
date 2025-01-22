@@ -14,7 +14,7 @@ from mkosi.distributions import Distribution
 from mkosi.run import run
 from mkosi.sandbox import umask
 from mkosi.tree import copy_tree
-from mkosi.types import PathString
+from mkosi.util import PathString
 
 from . import Image, ImageConfig
 

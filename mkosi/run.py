@@ -18,15 +18,25 @@ from collections.abc import Awaitable, Collection, Iterator, Mapping, Sequence
 from contextlib import AbstractContextManager
 from pathlib import Path
 from types import TracebackType
-from typing import Any, Callable, NoReturn, Optional, Protocol
+from typing import TYPE_CHECKING, Any, Callable, NoReturn, Optional, Protocol
 
 import mkosi.sandbox
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SANDBOX, ARG_DEBUG_SHELL, die
 from mkosi.sandbox import acquire_privileges, joinpath, umask
-from mkosi.types import _FILE, CompletedProcess, PathString, Popen
-from mkosi.util import current_home_dir, flatten, one_zero, unique
+from mkosi.util import _FILE, PathString, current_home_dir, flatten, one_zero, unique
 
 SD_LISTEN_FDS_START = 3
+
+
+# These types are only generic during type checking and not at runtime, leading
+# to a TypeError during compilation.
+# Let's be as strict as we can with the description for the usage we have.
+if TYPE_CHECKING:
+    CompletedProcess = subprocess.CompletedProcess[str]
+    Popen = subprocess.Popen[str]
+else:
+    CompletedProcess = subprocess.CompletedProcess
+    Popen = subprocess.Popen
 
 
 def make_foreground_process(*, new_process_group: bool = True) -> None:

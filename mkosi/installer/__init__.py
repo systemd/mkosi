@@ -9,8 +9,7 @@ from mkosi.context import Context
 from mkosi.mounts import finalize_certificate_mounts
 from mkosi.run import apivfs_options, finalize_interpreter, finalize_passwd_symlinks, find_binary
 from mkosi.tree import rmtree
-from mkosi.types import PathString
-from mkosi.util import flatten, startswith
+from mkosi.util import PathString, flatten, startswith
 
 
 class PackageManager:

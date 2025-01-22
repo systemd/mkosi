@@ -10,8 +10,7 @@ from typing import Optional
 
 from mkosi.config import Config
 from mkosi.sandbox import OverlayOperation
-from mkosi.types import PathString
-from mkosi.util import flatten
+from mkosi.util import PathString, flatten
 
 
 def stat_is_whiteout(st: os.stat_result) -> bool:

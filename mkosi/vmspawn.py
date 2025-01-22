@@ -23,8 +23,7 @@ from mkosi.qemu import (
     finalize_register,
 )
 from mkosi.run import run
-from mkosi.types import PathString
-from mkosi.util import current_home_dir
+from mkosi.util import PathString, current_home_dir
 
 
 def run_vmspawn(args: Args, config: Config) -> None:
