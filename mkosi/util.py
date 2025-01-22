@@ -20,15 +20,28 @@ import tempfile
 from collections.abc import Hashable, Iterable, Iterator, Mapping, Sequence
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Callable, Optional, TypeVar
+from typing import IO, Any, Callable, Optional, Protocol, TypeVar, Union
 
 from mkosi.backport import as_file
 from mkosi.log import die
-from mkosi.types import PathString
 
 T = TypeVar("T")
 V = TypeVar("V")
 S = TypeVar("S", bound=Hashable)
+
+# Borrowed from https://github.com/python/typeshed/blob/3d14016085aed8bcf0cf67e9e5a70790ce1ad8ea/stdlib/3/subprocess.pyi#L24
+_FILE = Union[None, int, IO[Any]]
+PathString = Union[Path, str]
+
+# Borrowed from
+# https://github.com/python/typeshed/blob/ec52bf1adde1d3183d0595d2ba982589df48dff1/stdlib/_typeshed/__init__.pyi#L19
+# and
+# https://github.com/python/typeshed/blob/ec52bf1adde1d3183d0595d2ba982589df48dff1/stdlib/_typeshed/__init__.pyi#L224
+_T_co = TypeVar("_T_co", covariant=True)
+
+
+class SupportsRead(Protocol[_T_co]):
+    def read(self, __length: int = ...) -> _T_co: ...
 
 
 def dictify(f: Callable[..., Iterator[tuple[T, V]]]) -> Callable[..., dict[T, V]]:

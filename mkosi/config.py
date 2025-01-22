@@ -35,10 +35,11 @@ from mkosi.log import ARG_DEBUG, ARG_DEBUG_SANDBOX, ARG_DEBUG_SHELL, Style, die
 from mkosi.pager import page
 from mkosi.run import SandboxProtocol, find_binary, nosandbox, run, sandbox_cmd, workdir
 from mkosi.sandbox import __version__
-from mkosi.types import PathString, SupportsRead
 from mkosi.user import INVOKING_USER
 from mkosi.util import (
+    PathString,
     StrEnum,
+    SupportsRead,
     chdir,
     flatten,
     is_power_of_2,
@@ -1911,7 +1912,7 @@ class Config:
     ephemeral: bool
     credentials: dict[str, str]
     kernel_command_line_extra: list[str]
-    register: bool
+    register: ConfigFeature
     runtime_trees: list[ConfigTree]
     runtime_size: Optional[int]
     runtime_scratch: ConfigFeature
@@ -3735,8 +3736,8 @@ SETTINGS: list[ConfigSetting[Any]] = [
         dest="register",
         metavar="BOOL",
         section="Runtime",
-        parse=config_parse_boolean,
-        default=True,
+        parse=config_parse_feature,
+        default=ConfigFeature.auto,
         help="Register booted vm/container with systemd-machined",
     ),
 ]
@@ -4969,7 +4970,7 @@ def summary(config: Config) -> str:
                     SSH Certificate: {none_to_none(config.ssh_certificate)}
                             Machine: {config.machine_or_name()}
                     Forward Journal: {none_to_none(config.forward_journal)}
-       Register guest with machined: {yes_no(config.register)}
+       Register guest with machined: {config.register}
 
             Virtual Machine Monitor: {config.vmm}
                             Console: {config.console}

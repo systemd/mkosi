@@ -14,7 +14,7 @@ from mkosi.installer.dnf import Dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey, setup_rpm
 from mkosi.installer.zypper import Zypper
 from mkosi.log import die
-from mkosi.mounts import finalize_crypto_mounts
+from mkosi.mounts import finalize_certificate_mounts
 from mkosi.run import run
 from mkosi.util import sort_packages
 
@@ -117,7 +117,7 @@ class Installer(DistributionInstaller):
                     sandbox=context.sandbox(
                         options=[
                             "--bind", context.root, "/buildroot",
-                            *finalize_crypto_mounts(context.config),
+                            *finalize_certificate_mounts(context.config),
                         ],
                     ),
                 )  # fmt: skip

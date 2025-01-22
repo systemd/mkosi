@@ -20,6 +20,7 @@ import sys
 import tempfile
 import textwrap
 import uuid
+import zipapp
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import AbstractContextManager
 from pathlib import Path
@@ -83,7 +84,7 @@ from mkosi.installer import clean_package_manager_metadata
 from mkosi.kmod import gen_required_kernel_modules, loaded_modules, process_kernel_modules
 from mkosi.log import ARG_DEBUG, complete_step, die, log_notice, log_step
 from mkosi.manifest import Manifest
-from mkosi.mounts import finalize_crypto_mounts, finalize_source_mounts, mount_overlay
+from mkosi.mounts import finalize_certificate_mounts, finalize_source_mounts, mount_overlay
 from mkosi.pager import page
 from mkosi.partition import Partition, finalize_root, finalize_roothash
 from mkosi.qemu import (
@@ -91,6 +92,7 @@ from mkosi.qemu import (
     copy_ephemeral,
     finalize_credentials,
     finalize_kernel_command_line_extra,
+    finalize_register,
     join_initrds,
     run_qemu,
     run_ssh,
@@ -125,9 +127,9 @@ from mkosi.sandbox import (
 )
 from mkosi.sysupdate import run_sysupdate
 from mkosi.tree import copy_tree, make_tree, move_tree, rmtree
-from mkosi.types import PathString
 from mkosi.user import INVOKING_USER
 from mkosi.util import (
+    PathString,
     current_home_dir,
     flatten,
     flock,
@@ -612,7 +614,7 @@ def run_sync_scripts(config: Config) -> None:
 
         for script in config.sync_scripts:
             options = [
-                *finalize_crypto_mounts(config),
+                *finalize_certificate_mounts(config),
                 "--ro-bind", script, "/work/sync",
                 "--ro-bind", json, "/work/config.json",
                 "--dir", "/work/src",
@@ -1083,7 +1085,9 @@ def install_sandbox_trees(config: Config, dst: Path) -> None:
     # Ensure /etc exists in the sandbox
     (dst / "etc").mkdir(exist_ok=True)
 
-    (dst / "etc/crypto-policies").mkdir(exist_ok=True)
+    if (p := config.tools() / "usr/share/crypto-policies/DEFAULT").exists():
+        Path(dst / "etc/crypto-policies").mkdir(exist_ok=True)
+        copy_tree(p, dst / "etc/crypto-policies/back-ends", sandbox=config.sandbox)
 
     if config.sandbox_trees:
         with complete_step("Copying in sandbox trees…"):
@@ -2468,6 +2472,26 @@ def cache_tree_paths(config: Config) -> tuple[Path, Path, Path]:
     )
 
 
+def keyring_cache(config: Config) -> Path:
+    if config.image == "tools":
+        key = "tools"
+    else:
+        key = f"{'~'.join(str(s) for s in (config.distribution, config.release, config.architecture))}"
+
+    assert config.cache_dir
+    return config.cache_dir / f"{key}.keyring.cache"
+
+
+def metadata_cache(config: Config) -> Path:
+    if config.image == "tools":
+        key = "tools"
+    else:
+        key = f"{'~'.join(str(s) for s in (config.distribution, config.release, config.architecture))}"
+
+    assert config.cache_dir
+    return config.cache_dir / f"{key}.metadata.cache"
+
+
 def check_inputs(config: Config) -> None:
     """
     Make sure all the inputs exist that aren't checked during config parsing because they might
@@ -3044,6 +3068,12 @@ def have_cache(config: Config) -> bool:
         logging.debug(f"{final} does not exist, not reusing cached images")
         return False
 
+    if (uid := final.stat().st_uid) != os.getuid():
+        logging.debug(
+            f"{final} uid ({uid}) does not match user uid ({os.getuid()}), not reusing cached images"
+        )
+        return False
+
     if need_build_overlay(config) and not build.exists():
         logging.debug(f"{build} does not exist, not reusing cached images")
         return False
@@ -3077,9 +3107,6 @@ def reuse_cache(context: Context) -> bool:
         return False
 
     final, build, _ = cache_tree_paths(context.config)
-
-    if final.stat().st_uid != os.getuid():
-        return False
 
     with complete_step("Copying cached trees"):
         copy_tree(
@@ -3824,7 +3851,10 @@ def run_sandbox(args: Args, config: Config) -> None:
     if not args.cmdline:
         die("Please specify a command to execute in the sandbox")
 
-    mounts = finalize_crypto_mounts(config, relaxed=True)
+    mounts = finalize_certificate_mounts(config, relaxed=True)
+
+    if config.tools() != Path("/") and (config.tools() / "etc/crypto-policies").exists():
+        mounts += ["--ro-bind", config.tools() / "etc/crypto-policies", Path("/etc/crypto-policies")]
 
     # Since we reuse almost every top level directory from the host except /usr, the crypto mountpoints
     # have to exist already in these directories or we'll fail with a permission error. Let's check this
@@ -3855,19 +3885,31 @@ def run_sandbox(args: Args, config: Config) -> None:
             *cmdline,
         ]
 
-    run(
-        cmdline,
-        stdin=sys.stdin,
-        stdout=sys.stdout,
-        env=os.environ | env,
-        log=False,
-        sandbox=config.sandbox(
-            devices=True,
-            network=True,
-            relaxed=True,
-            options=["--same-dir", *mounts],
-        ),
-    )
+    with contextlib.ExitStack() as stack:
+        if config.tools() != Path("/"):
+            d = stack.enter_context(tempfile.TemporaryDirectory(prefix="mkosi-path-"))
+            zipapp.create_archive(
+                source=Path(__file__).parent,
+                target=Path(d) / "mkosi",
+                interpreter="/usr/bin/env python3",
+            )
+            make_executable(Path(d) / "mkosi")
+            mounts += ["--ro-bind", d, "/mkosi"]
+            stack.enter_context(scopedenv({"PATH": f"/mkosi:{os.environ['PATH']}"}))
+
+        run(
+            cmdline,
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            env=os.environ | env,
+            log=False,
+            sandbox=config.sandbox(
+                devices=True,
+                network=True,
+                relaxed=True,
+                options=["--same-dir", *mounts],
+            ),
+        )
 
 
 def run_shell(args: Args, config: Config) -> None:
@@ -3905,7 +3947,7 @@ def run_shell(args: Args, config: Config) -> None:
     for k, v in finalize_credentials(config).items():
         cmdline += [f"--set-credential={k}:{v}"]
 
-    cmdline += ["--register", yes_no(config.register)]
+    cmdline += ["--register", yes_no(finalize_register(config))]
 
     with contextlib.ExitStack() as stack:
         # Make sure the latest nspawn settings are always used.
@@ -4469,20 +4511,6 @@ def ensure_directories_exist(config: Config) -> None:
         # Discard setuid/setgid bits if set as these are inherited and can leak into the image.
         if stat.S_IMODE(st.st_mode) & (stat.S_ISGID | stat.S_ISUID):
             config.build_dir.chmod(stat.S_IMODE(st.st_mode) & ~(stat.S_ISGID | stat.S_ISUID))
-
-
-def keyring_cache(config: Config) -> Path:
-    assert config.cache_dir
-    fragments = [config.distribution, config.release, config.architecture]
-
-    return config.cache_dir / f"{'~'.join(str(s) for s in fragments)}.keyring.cache"
-
-
-def metadata_cache(config: Config) -> Path:
-    assert config.cache_dir
-    fragments = [config.distribution, config.release, config.architecture]
-
-    return config.cache_dir / f"{'~'.join(str(s) for s in fragments)}.metadata.cache"
 
 
 def sync_repository_metadata(

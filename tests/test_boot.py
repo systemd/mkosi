@@ -9,6 +9,7 @@ from mkosi.config import Bootloader, Firmware, OutputFormat
 from mkosi.distributions import Distribution
 from mkosi.qemu import find_virtiofsd
 from mkosi.run import find_binary, run
+from mkosi.sandbox import userns_has_single_user
 from mkosi.versioncomp import GenericVersion
 
 from . import Image, ImageConfig
@@ -51,7 +52,13 @@ def test_format(config: ImageConfig, format: OutputFormat) -> None:
         if format in (OutputFormat.tar, OutputFormat.oci, OutputFormat.none, OutputFormat.portable):
             return
 
-        if format == OutputFormat.directory and not find_virtiofsd():
+        if format == OutputFormat.directory:
+            if not find_virtiofsd():
+                pytest.skip("virtiofsd is not installed, cannot boot from directory output")
+
+            if userns_has_single_user():
+                pytest.skip("Running in user namespace with single user, cannot boot from directory")
+
             return
 
         image.vm()

@@ -10,9 +10,9 @@ from mkosi.config import PACKAGE_GLOBS, Config, ConfigFeature
 from mkosi.context import Context
 from mkosi.installer import PackageManager
 from mkosi.log import die
-from mkosi.run import run, workdir
+from mkosi.run import CompletedProcess, run, workdir
 from mkosi.sandbox import umask
-from mkosi.types import _FILE, CompletedProcess, PathString
+from mkosi.util import _FILE, PathString
 
 
 @dataclasses.dataclass(frozen=True)

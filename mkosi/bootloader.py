@@ -28,10 +28,9 @@ from mkosi.distributions import Distribution
 from mkosi.log import complete_step, die, log_step
 from mkosi.partition import Partition
 from mkosi.qemu import KernelType
-from mkosi.run import run, workdir
+from mkosi.run import CompletedProcess, run, workdir
 from mkosi.sandbox import umask
-from mkosi.types import _FILE, CompletedProcess, PathString
-from mkosi.util import flatten
+from mkosi.util import _FILE, PathString, flatten
 from mkosi.versioncomp import GenericVersion
 
 

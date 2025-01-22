@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Optional
 
 from mkosi.config import Args, Config
-from mkosi.types import PathString
+from mkosi.util import PathString
 
 
 class Context:

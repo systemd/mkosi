@@ -13,8 +13,7 @@ from mkosi.config import ConfigFeature
 from mkosi.log import ARG_DEBUG, die
 from mkosi.run import SandboxProtocol, nosandbox, run, workdir
 from mkosi.sandbox import BTRFS_SUPER_MAGIC, statfs
-from mkosi.types import PathString
-from mkosi.util import flatten
+from mkosi.util import PathString, flatten
 from mkosi.versioncomp import GenericVersion
 
 

@@ -18,8 +18,7 @@ from mkosi.log import log_notice, log_setup
 from mkosi.run import find_binary, run, uncaught_exception_handler
 from mkosi.sandbox import __version__, umask
 from mkosi.tree import copy_tree
-from mkosi.types import PathString
-from mkosi.util import mandatory_variable, resource_path
+from mkosi.util import PathString, mandatory_variable, resource_path
 
 
 @dataclasses.dataclass(frozen=True)

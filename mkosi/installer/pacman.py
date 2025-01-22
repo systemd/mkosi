@@ -12,10 +12,10 @@ from mkosi.context import Context
 from mkosi.distributions import detect_distribution
 from mkosi.installer import PackageManager
 from mkosi.log import complete_step
-from mkosi.run import run, workdir
+from mkosi.run import CompletedProcess, run, workdir
 from mkosi.sandbox import umask
 from mkosi.tree import copy_tree
-from mkosi.types import _FILE, CompletedProcess, PathString
+from mkosi.util import _FILE, PathString
 from mkosi.versioncomp import GenericVersion
 
 

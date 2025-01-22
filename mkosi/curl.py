@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from mkosi.config import Config
-from mkosi.mounts import finalize_crypto_mounts
+from mkosi.mounts import finalize_certificate_mounts
 from mkosi.run import run, workdir
 
 
@@ -25,6 +25,6 @@ def curl(config: Config, url: str, output_dir: Path) -> None:
         ],
         sandbox=config.sandbox(
             network=True,
-            options=["--bind", output_dir, workdir(output_dir), *finalize_crypto_mounts(config)],
+            options=["--bind", output_dir, workdir(output_dir), *finalize_certificate_mounts(config)],
         ),
     )  # fmt: skip

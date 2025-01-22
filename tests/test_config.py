@@ -997,11 +997,11 @@ def test_match_environment(tmp_path: Path) -> None:
     with chdir(d):
         _, [conf] = parse_config(["--environment", "MYENV=abc"])
         assert conf.image_id == "matched"
-        _, [conf] = parse_config(["--environment", "MYENV=abd"])
+        _, [conf] = parse_config(["--environment", "MYENV=bad"])
         assert conf.image_id != "matched"
         _, [conf] = parse_config(["--environment", "MYEN=abc"])
         assert conf.image_id != "matched"
-        _, [conf] = parse_config(["--environment", "MYEN=abd"])
+        _, [conf] = parse_config(["--environment", "MYEN=bad"])
         assert conf.image_id != "matched"
 
     (d / "mkosi.conf").write_text(
@@ -1017,7 +1017,7 @@ def test_match_environment(tmp_path: Path) -> None:
     with chdir(d):
         _, [conf] = parse_config(["--environment", "MYENV=abc"])
         assert conf.image_id == "matched"
-        _, [conf] = parse_config(["--environment", "MYENV=abd"])
+        _, [conf] = parse_config(["--environment", "MYENV=bad"])
         assert conf.image_id == "matched"
         _, [conf] = parse_config(["--environment", "MYEN=abc"])
         assert conf.image_id != "matched"

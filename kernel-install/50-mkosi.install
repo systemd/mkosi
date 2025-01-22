@@ -14,7 +14,7 @@ from mkosi.initrd import KernelInstallContext
 from mkosi.log import log_setup
 from mkosi.run import run, uncaught_exception_handler
 from mkosi.sandbox import umask
-from mkosi.types import PathString
+from mkosi.util import PathString
 
 
 def we_are_wanted(context: KernelInstallContext) -> bool:

@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 
-import os
 import tempfile
 from pathlib import Path
 
@@ -15,15 +14,11 @@ pytestmark = pytest.mark.integration
 
 
 def test_signing_checksums_with_sop(config: ImageConfig) -> None:
-    if find_binary("sqop", root=config.tools) is None:
-        pytest.skip("Needs 'sqop' binary in tools tree PATH to perform sop tests.")
-
     if find_binary("sqop") is None:
-        pytest.skip("Needs 'sqop' binary in host system PATH to perform sop tests.")
+        pytest.skip("Need 'sqop' binary to perform sop tests.")
 
     with tempfile.TemporaryDirectory() as path, Image(config) as image:
         tmp_path = Path(path)
-        os.chown(tmp_path, image.uid, image.gid)
 
         signing_key = tmp_path / "signing-key.pgp"
         signing_cert = tmp_path / "signing-cert.pgp"
@@ -50,27 +45,17 @@ def test_signing_checksums_with_sop(config: ImageConfig) -> None:
 def test_signing_checksums_with_gpg(config: ImageConfig) -> None:
     with tempfile.TemporaryDirectory() as path, Image(config) as image:
         tmp_path = Path(path)
-        os.chown(tmp_path, image.uid, image.gid)
 
         signing_key = "mkosi-test@example.org"
         signing_cert = tmp_path / "signing-cert.pgp"
         gnupghome = tmp_path / ".gnupg"
-
-        env = dict(GNUPGHOME=str(gnupghome))
-
-        # Creating GNUPGHOME directory and appending an *empty* common.conf
-        # file stops GnuPG from spawning keyboxd which causes issues when switching
-        # users. See https://stackoverflow.com/a/72278246 for details
         gnupghome.mkdir()
-        os.chown(gnupghome, image.uid, image.gid)
-        (gnupghome / "common.conf").touch()
+        env = dict(GNUPGHOME=str(gnupghome))
 
         # create a brand new signing key
         run(
             cmdline=["gpg", "--quick-gen-key", "--batch", "--passphrase", "", signing_key],
             env=env,
-            user=image.uid,
-            group=image.gid,
         )
 
         # export public key (certificate)
@@ -79,8 +64,6 @@ def test_signing_checksums_with_gpg(config: ImageConfig) -> None:
                 cmdline=["gpg", "--export", signing_key],
                 env=env,
                 stdout=o,
-                user=image.uid,
-                group=image.gid,
             )
 
         image.build(options=["--checksum=true", "--sign=true", f"--key={signing_key}"], env=env)

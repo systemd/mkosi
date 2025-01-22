@@ -7,9 +7,10 @@ from pathlib import Path
 from typing import Literal, Optional, overload
 
 from mkosi.context import Context
+from mkosi.distributions import Distribution
 from mkosi.log import die
 from mkosi.run import run
-from mkosi.types import PathString
+from mkosi.util import PathString
 
 
 @dataclasses.dataclass(frozen=True)
@@ -100,25 +101,38 @@ def setup_rpm(
             for plugin in plugindir.iterdir():
                 f.write(f"%__transaction_{plugin.stem} %{{nil}}\n")
 
-    # Write an rpm sequoia policy that allows SHA1 as various distribution GPG keys (openSUSE) still use SHA1
-    # for various things.
-    # TODO: Remove when all rpm distribution GPG keys have stopped using SHA1.
-    if not (context.config.tools() / "etc/crypto-policies").exists():
+    if context.config.distribution == Distribution.opensuse or (
+        context.config.distribution.is_centos_variant() and context.config.release == "9"
+    ):
+        # Write an rpm sequoia policy that makes sure "sha1.second_preimage_resistance = always" is
+        # configured and makes sure that a minimal config is in place to make sure builds succeed.
+        # TODO: Remove when distributions GPG keys are accepted by the default rpm-sequoia config everywhere.
+
         p = context.sandbox_tree / "etc/crypto-policies/back-ends/rpm-sequoia.config"
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(
-            textwrap.dedent(
-                """
-                [hash_algorithms]
-                sha1.second_preimage_resistance = "always"
-                sha224 = "always"
-                sha256 = "always"
-                sha384 = "always"
-                sha512 = "always"
-                default_disposition = "never"
-                """
-            )
-        )
+        prev = p.read_text() if p.exists() else ""
+
+        with p.open("w") as f:
+            for line in prev.splitlines(keepends=True):
+                if line.startswith("sha1.second_preimage_resistance"):
+                    f.write('sha1.second_preimage_resistance = "always"\n')
+                else:
+                    f.write(line)
+
+            if not any(line.startswith("[hash_algorithms]") for line in prev.splitlines()):
+                f.write(
+                    textwrap.dedent(
+                        """
+                        [hash_algorithms]
+                        sha1.second_preimage_resistance = "always"
+                        sha224 = "always"
+                        sha256 = "always"
+                        sha384 = "always"
+                        sha512 = "always"
+                        default_disposition = "never"
+                        """
+                    )
+                )
 
 
 def rpm_cmd() -> list[PathString]:

@@ -14,10 +14,10 @@ from typing import Any, Optional
 import pytest
 
 from mkosi.distributions import Distribution
-from mkosi.run import fork_and_wait, run
+from mkosi.run import CompletedProcess, fork_and_wait, run
 from mkosi.sandbox import acquire_privileges
 from mkosi.tree import rmtree
-from mkosi.types import _FILE, CompletedProcess, PathString
+from mkosi.util import _FILE, PathString
 
 
 @dataclasses.dataclass(frozen=True)
@@ -31,9 +31,6 @@ class ImageConfig:
 class Image:
     def __init__(self, config: ImageConfig) -> None:
         self.config = config
-        st = Path.cwd().stat()
-        self.uid = st.st_uid
-        self.gid = st.st_gid
 
     def __enter__(self) -> "Image":
         self.output_dir = Path(os.getenv("TMPDIR", "/var/tmp")) / uuid.uuid4().hex[:16]
@@ -61,7 +58,7 @@ class Image:
         user: Optional[int] = None,
         group: Optional[int] = None,
         check: bool = True,
-        env: Mapping[str, str] = os.environ,
+        env: Mapping[str, str] = {},
     ) -> CompletedProcess:
         return run(
             [
@@ -77,14 +74,14 @@ class Image:
             stdout=sys.stdout,
             user=user,
             group=group,
-            env=env,
+            env=os.environ | env,
         )  # fmt: skip
 
     def build(
         self,
         options: Sequence[PathString] = (),
         args: Sequence[str] = (),
-        env: Mapping[str, str] = os.environ,
+        env: Mapping[str, str] = {},
     ) -> CompletedProcess:
         kcl = [
             "loglevel=6",
@@ -108,15 +105,13 @@ class Image:
             *options,
         ]  # fmt: skip
 
-        self.mkosi("summary", opt, user=self.uid, group=self.uid, env=env)
+        self.mkosi("summary", opt, env=env)
 
         return self.mkosi(
             "build",
             opt,
             args,
             stdin=sys.stdin if sys.stdin.isatty() else None,
-            user=self.uid,
-            group=self.gid,
             env=env,
         )
 
@@ -126,6 +121,7 @@ class Image:
             [
                 "--runtime-build-sources=no",
                 "--ephemeral",
+                "--register=no",
                 *options,
             ],
             args,
@@ -148,12 +144,11 @@ class Image:
                 "--qemu-args=-cpu max,pcid=off",
                 "--ram=2G",
                 "--ephemeral",
+                "--register=no",
                 *options,
             ],
             args,
             stdin=sys.stdin if sys.stdin.isatty() else None,
-            user=self.uid,
-            group=self.gid,
             check=False,
         )
 
@@ -163,7 +158,7 @@ class Image:
         return result
 
     def genkey(self) -> CompletedProcess:
-        return self.mkosi("genkey", ["--force"], user=self.uid, group=self.gid)
+        return self.mkosi("genkey", ["--force"])
 
 
 @pytest.fixture(scope="session", autouse=True)

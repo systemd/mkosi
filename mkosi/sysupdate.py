@@ -9,7 +9,7 @@ from pathlib import Path
 from mkosi.config import Args, ArtifactOutput, Config
 from mkosi.log import die
 from mkosi.run import run
-from mkosi.types import PathString
+from mkosi.util import PathString
 
 
 def run_sysupdate(args: Args, config: Config) -> None:

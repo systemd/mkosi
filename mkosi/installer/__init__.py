@@ -6,11 +6,10 @@ from pathlib import Path
 
 from mkosi.config import Config, ConfigFeature, OutputFormat
 from mkosi.context import Context
-from mkosi.mounts import finalize_crypto_mounts
+from mkosi.mounts import finalize_certificate_mounts
 from mkosi.run import apivfs_options, finalize_interpreter, finalize_passwd_symlinks, find_binary
 from mkosi.tree import rmtree
-from mkosi.types import PathString
-from mkosi.util import flatten, startswith
+from mkosi.util import PathString, flatten, startswith
 
 
 class PackageManager:
@@ -68,7 +67,7 @@ class PackageManager:
     @classmethod
     def mounts(cls, context: Context) -> list[PathString]:
         mounts = [
-            *finalize_crypto_mounts(context.config),
+            *finalize_certificate_mounts(context.config),
             "--bind", context.repository, "/repository",
         ]  # fmt: skip
 

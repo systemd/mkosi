@@ -1798,8 +1798,12 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     of the same image.
 
 `Register=`, `--register=`
-:   Takes a boolean value. Enabled by default. Specifies whether to register
-    the vm/container with systemd-machined.
+:   Takes a boolean value or `auto`. Specifies whether to register the
+    vm/container with systemd-machined. If enabled, mkosi will fail if
+    it can't register the vm/container with systemd-machined. If
+    disabled, mkosi will not register the vm/container with
+    systemd-machined. If `auto`, mkosi will register the vm/container
+    with systemd-machined if it is available. Defaults to `auto`.
 
 `ForwardJournal=`, `--forward-journal=`
 :   Specify the path to which journal logs from containers and virtual

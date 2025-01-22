@@ -16,10 +16,7 @@ jobs:
 
       - name: Install
         run: |
-          # This is added by default, and it is often broken, but we don't need anything from it
-          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
-          sudo apt-get update
-          sudo apt-get install pandoc python3-pytest
+          sudo apt-get install --assume-yes --no-install-recommends pandoc python3-pytest shellcheck
           python3 -m pip install --break-system-packages --upgrade setuptools wheel pip
           python3 -m pip install --break-system-packages codespell mypy reuse ruff
           npm install -g pyright
@@ -96,7 +93,6 @@ jobs:
 
       - name: Run shellcheck on scripts
         run: |
-          sudo apt-get update && sudo apt-get install --no-install-recommends shellcheck
           bash -c 'shopt -s globstar; shellcheck bin/mkosi tools/*.sh'
           bin/mkosi completion bash | shellcheck -
 
@@ -121,13 +117,21 @@ jobs:
           - ubuntu
         tools:
           - arch
+          - centos
           - debian
           - fedora
           - opensuse
           - ubuntu
-          # TODO: Add CentOS once they have systemd v254 or newer.
         exclude:
-          # pacman and archlinux-keyring are not packaged in openSUSE.
+          # pacman is not packaged in EPEL.
+          - distro: arch
+            tools: centos
+          # apt and debian-keyring are not packaged in EPEL.
+          - distro: debian
+            tools: centos
+          - distro: ubuntu
+            tools: centos
+          # pacman is not packaged in openSUSE.
           - distro: arch
             tools: opensuse
           # apt, debian-keyring and ubuntu-keyring are not packaged in openSUSE.
@@ -135,10 +139,6 @@ jobs:
             tools: opensuse
           - distro: ubuntu
             tools: opensuse
-          # archlinux-keyring on Ubuntu is too old
-          # TODO: Re-enable if https://bugs.launchpad.net/ubuntu/+source/archlinux-keyring/+bug/2076416/ is resolved.
-          - distro: arch
-            tools: ubuntu
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -153,12 +153,9 @@ jobs:
           sudo mv /opt/hostedtoolcache /opt/hostedtoolcache.trash
           sudo systemd-run rm -rf /usr/local.trash /opt/hostedtoolcache.trash
 
+      # Make sure the latest changes from the pull request are used.
       - name: Install
-        run: |
-          sudo apt-get update
-          sudo apt-get install python3-pytest lvm2 cryptsetup-bin btrfs-progs sqop
-          # Make sure the latest changes from the pull request are used.
-          sudo ln -svf $PWD/bin/mkosi /usr/bin/mkosi
+        run: sudo ln -svf $PWD/bin/mkosi /usr/bin/mkosi
         working-directory: ./
 
       - name: Configure
@@ -171,6 +168,8 @@ jobs:
           KernelCommandLine=systemd.default_device_timeout_sec=180
 
           [Build]
+          ToolsTree=default
+          ToolsTreeDistribution=${{ matrix.tools }}
           Environment=SYSTEMD_REPART_MKFS_OPTIONS_EROFS="--quiet"
 
           [Runtime]
@@ -205,24 +204,19 @@ jobs:
           done
 
       - name: Build tools tree
-        run: |
-          # TODO: Remove grub2 hack when https://bugzilla.opensuse.org/show_bug.cgi?id=1227464 is resolved.
-          mkosi \
-            --directory "" \
-            --distribution ${{ matrix.tools }} \
-            --include mkosi-tools \
-            $( [[ ${{ matrix.tools }} == opensuse ]] && echo --package=grub2)
+        run: sudo mkosi -f sandbox true
 
       - name: Build image
-        run: mkosi --distribution ${{ matrix.distro }} -f
+        run: sudo mkosi --distribution ${{ matrix.distro }} -f
 
       - name: Run integration tests
         run: |
-          sudo --preserve-env \
-              timeout -k 30 1h python3 -m pytest \
-              --tb=no \
-              --capture=no \
-              --verbose \
-              -m integration \
-              --distribution ${{ matrix.distro }} \
-              tests/
+          sudo mkosi sandbox \
+            timeout -k 30 1h \
+            python3 -m pytest \
+            --tb=no \
+            --capture=no \
+            --verbose \
+            -m integration \
+            --distribution ${{ matrix.distro }} \
+            tests/
