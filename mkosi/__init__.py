@@ -2471,6 +2471,20 @@ def cache_tree_paths(config: Config) -> tuple[Path, Path, Path]:
     )
 
 
+def keyring_cache(config: Config) -> Path:
+    assert config.cache_dir
+    fragments = [config.distribution, config.release, config.architecture]
+
+    return config.cache_dir / f"{'~'.join(str(s) for s in fragments)}.keyring.cache"
+
+
+def metadata_cache(config: Config) -> Path:
+    assert config.cache_dir
+    fragments = [config.distribution, config.release, config.architecture]
+
+    return config.cache_dir / f"{'~'.join(str(s) for s in fragments)}.metadata.cache"
+
+
 def check_inputs(config: Config) -> None:
     """
     Make sure all the inputs exist that aren't checked during config parsing because they might
@@ -4475,20 +4489,6 @@ def ensure_directories_exist(config: Config) -> None:
         # Discard setuid/setgid bits if set as these are inherited and can leak into the image.
         if stat.S_IMODE(st.st_mode) & (stat.S_ISGID | stat.S_ISUID):
             config.build_dir.chmod(stat.S_IMODE(st.st_mode) & ~(stat.S_ISGID | stat.S_ISUID))
-
-
-def keyring_cache(config: Config) -> Path:
-    assert config.cache_dir
-    fragments = [config.distribution, config.release, config.architecture]
-
-    return config.cache_dir / f"{'~'.join(str(s) for s in fragments)}.keyring.cache"
-
-
-def metadata_cache(config: Config) -> Path:
-    assert config.cache_dir
-    fragments = [config.distribution, config.release, config.architecture]
-
-    return config.cache_dir / f"{'~'.join(str(s) for s in fragments)}.metadata.cache"
 
 
 def sync_repository_metadata(
