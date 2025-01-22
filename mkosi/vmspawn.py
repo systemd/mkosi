@@ -20,6 +20,7 @@ from mkosi.qemu import (
     finalize_credentials,
     finalize_firmware,
     finalize_kernel_command_line_extra,
+    finalize_register,
 )
 from mkosi.run import run
 from mkosi.types import PathString
@@ -58,7 +59,7 @@ def run_vmspawn(args: Args, config: Config) -> None:
         "--vsock", config.vsock.to_tristate(),
         "--tpm", config.tpm.to_tristate(),
         "--secure-boot", yes_no(config.secure_boot),
-        "--register", yes_no(config.register),
+        "--register", yes_no(finalize_register(config)),
         "--console", str(config.console),
     ]  # fmt: skip
 

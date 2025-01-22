@@ -91,6 +91,7 @@ from mkosi.qemu import (
     copy_ephemeral,
     finalize_credentials,
     finalize_kernel_command_line_extra,
+    finalize_register,
     join_initrds,
     run_qemu,
     run_ssh,
@@ -3910,7 +3911,7 @@ def run_shell(args: Args, config: Config) -> None:
     for k, v in finalize_credentials(config).items():
         cmdline += [f"--set-credential={k}:{v}"]
 
-    cmdline += ["--register", yes_no(config.register)]
+    cmdline += ["--register", yes_no(finalize_register(config))]
 
     with contextlib.ExitStack() as stack:
         # Make sure the latest nspawn settings are always used.

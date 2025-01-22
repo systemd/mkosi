@@ -1911,7 +1911,7 @@ class Config:
     ephemeral: bool
     credentials: dict[str, str]
     kernel_command_line_extra: list[str]
-    register: bool
+    register: ConfigFeature
     runtime_trees: list[ConfigTree]
     runtime_size: Optional[int]
     runtime_scratch: ConfigFeature
@@ -3735,8 +3735,8 @@ SETTINGS: list[ConfigSetting[Any]] = [
         dest="register",
         metavar="BOOL",
         section="Runtime",
-        parse=config_parse_boolean,
-        default=True,
+        parse=config_parse_feature,
+        default=ConfigFeature.auto,
         help="Register booted vm/container with systemd-machined",
     ),
 ]
@@ -4969,7 +4969,7 @@ def summary(config: Config) -> str:
                     SSH Certificate: {none_to_none(config.ssh_certificate)}
                             Machine: {config.machine_or_name()}
                     Forward Journal: {none_to_none(config.forward_journal)}
-       Register guest with machined: {yes_no(config.register)}
+       Register guest with machined: {config.register}
 
             Virtual Machine Monitor: {config.vmm}
                             Console: {config.console}

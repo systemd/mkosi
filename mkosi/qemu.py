@@ -961,8 +961,47 @@ def scope_cmd(
     ]  # fmt: skip
 
 
+def machine1_is_available(config: Config) -> bool:
+    if "DBUS_SYSTEM_ADDRESS" not in os.environ and not Path("/run/dbus/system_bus_socket").is_socket():
+        return False
+
+    services = json.loads(
+        run(
+            ["busctl", "list", "--json=pretty"],
+            foreground=False,
+            env=os.environ | config.environment,
+            sandbox=config.sandbox(relaxed=True),
+            stdout=subprocess.PIPE,
+            stderr=sys.stderr,
+        ).stdout.strip()
+    )
+
+    return any(service.name == "org.freedesktop.machine1" for service in services)
+
+
+def finalize_register(config: Config) -> bool:
+    if config.register == ConfigFeature.disabled:
+        return False
+
+    if os.getuid() == 0 and (
+        Path("/run/systemd/machine/io.systemd.Machine").is_socket() or machine1_is_available(config)
+    ):
+        return True
+
+    if config.register == ConfigFeature.enabled:
+        if os.getuid() != 0:
+            die("Container registration requires root privileges")
+        else:
+            die(
+                "Container registration was requested but systemd-machined is not available",
+                hint="Is the systemd-container package installed?",
+            )
+
+    return False
+
+
 def register_machine(config: Config, pid: int, fname: Path, cid: Optional[int]) -> None:
-    if not config.register or os.getuid() != 0:
+    if not finalize_register(config):
         return
 
     if (p := Path("/run/systemd/machine/io.systemd.Machine")).is_socket():
@@ -992,7 +1031,7 @@ def register_machine(config: Config, pid: int, fname: Path, cid: Optional[int]) 
             stdout=subprocess.DEVNULL,
             stderr=sys.stderr,
         )
-    elif "DBUS_SYSTEM_ADDRESS" in os.environ or Path("/run/dbus/system_bus_socket").is_socket():
+    else:
         run(
             [
                 "busctl",
