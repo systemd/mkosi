@@ -121,6 +121,7 @@ class Image:
             [
                 "--runtime-build-sources=no",
                 "--ephemeral",
+                "--register=no",
                 *options,
             ],
             args,
@@ -143,6 +144,7 @@ class Image:
                 "--qemu-args=-cpu max,pcid=off",
                 "--ram=2G",
                 "--ephemeral",
+                "--register=no",
                 *options,
             ],
             args,
