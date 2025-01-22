@@ -1858,7 +1858,6 @@ def install_type1(
         if (
             want_efi(context.config)
             and context.config.secure_boot
-            and context.config.shim_bootloader != ShimBootloader.signed
             and not context.config.bootloader.is_signed()
             and KernelType.identify(context.config, kimg) == KernelType.pe
         ):
@@ -1995,7 +1994,7 @@ def install_uki(
     with umask(~0o700):
         boot_binary.parent.mkdir(parents=True, exist_ok=True)
 
-    if context.config.shim_bootloader == ShimBootloader.signed or context.config.bootloader.is_signed():
+    if context.config.bootloader.is_signed():
         for p in (context.root / "usr/lib/modules" / kver).glob("*.efi"):
             log_step(f"Installing prebuilt UKI at {p} to {boot_binary}")
             shutil.copy2(p, boot_binary)
