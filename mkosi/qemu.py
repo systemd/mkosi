@@ -243,11 +243,17 @@ def find_ovmf_firmware(config: Config, firmware: Firmware) -> Optional[OvmfConfi
             logging.debug(f"{p.name} firmware description includes secure boot, skipping")
             continue
 
-        if config.firmware_variables == Path("microsoft") and "enrolled-keys" not in j["features"]:
+        if (
+            config.firmware_variables in (Path("microsoft"), Path("microsoft-mok"))
+            and "enrolled-keys" not in j["features"]
+        ):
             logging.debug(f"{p.name} firmware description does not have enrolled Microsoft keys, skipping")
             continue
 
-        if config.firmware_variables != Path("microsoft") and "enrolled-keys" in j["features"]:
+        if (
+            config.firmware_variables not in (Path("microsoft"), Path("microsoft-mok"))
+            and "enrolled-keys" in j["features"]
+        ):
             logging.debug(f"{p.name} firmware description has enrolled Microsoft keys, skipping")
             continue
 
@@ -744,6 +750,25 @@ def finalize_firmware_variables(
                 ],
             ),
         )  # fmt: skip
+    elif config.firmware_variables == Path("microsoft-mok"):
+        assert config.secure_boot_certificate
+
+        run(
+            [
+                "virt-fw-vars",
+                "--input", workdir(ovmf.vars),
+                "--output", workdir(ovmf_vars),
+                "--add-mok", "605dab50-e046-4300-abb6-3dd810dd8b23", workdir(config.secure_boot_certificate),
+                "--loglevel", "WARNING",
+            ],
+            sandbox=config.sandbox(
+                options=[
+                    "--bind", ovmf_vars, workdir(ovmf_vars),
+                    "--ro-bind", ovmf.vars, workdir(ovmf.vars),
+                    "--ro-bind", config.secure_boot_certificate, workdir(config.secure_boot_certificate),
+                ],
+            ),
+        )  # fmt: skip
     else:
         vars = (
             config.tools() / ovmf.vars.relative_to("/")
@@ -1083,8 +1108,11 @@ def run_qemu(args: Args, config: Config) -> None:
             "the native host architecture"
         )
 
-    if config.firmware_variables == Path("custom") and not config.secure_boot_certificate:
-        die("SecureBootCertificate= must be configured to use FirmwareVariables=custom")
+    if (
+        config.firmware_variables in (Path("custom"), Path("microsoft-mok"))
+        and not config.secure_boot_certificate
+    ):
+        die("SecureBootCertificate= must be configured to use FirmwareVariables=custom|microsoft-mok")
 
     # After we unshare the user namespace to sandbox qemu, we might not have access to /dev/kvm or related
     # device nodes anymore as access to these might be gated behind the kvm group and we won't be part of the
