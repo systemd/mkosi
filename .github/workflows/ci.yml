@@ -16,10 +16,7 @@ jobs:
 
       - name: Install
         run: |
-          # This is added by default, and it is often broken, but we don't need anything from it
-          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
-          sudo apt-get update
-          sudo apt-get install pandoc python3-pytest
+          sudo apt-get install --assume-yes --no-install-recommends pandoc python3-pytest shellcheck
           python3 -m pip install --break-system-packages --upgrade setuptools wheel pip
           python3 -m pip install --break-system-packages codespell mypy reuse ruff
           npm install -g pyright
@@ -96,7 +93,6 @@ jobs:
 
       - name: Run shellcheck on scripts
         run: |
-          sudo apt-get update && sudo apt-get install --no-install-recommends shellcheck
           bash -c 'shopt -s globstar; shellcheck bin/mkosi tools/*.sh'
           bin/mkosi completion bash | shellcheck -
 
