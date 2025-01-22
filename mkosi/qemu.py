@@ -714,7 +714,6 @@ def finalize_firmware(config: Config, kernel: Optional[Path]) -> Firmware:
 
 def finalize_firmware_variables(
     config: Config,
-    qemu: Path,
     ovmf: OvmfConfig,
     stack: contextlib.ExitStack,
 ) -> tuple[Path, str]:
@@ -1263,7 +1262,7 @@ def run_qemu(args: Args, config: Config) -> None:
     with contextlib.ExitStack() as stack:
         if firmware.is_uefi():
             assert ovmf
-            ovmf_vars, ovmf_vars_format = finalize_firmware_variables(config, qemu, ovmf, stack)
+            ovmf_vars, ovmf_vars_format = finalize_firmware_variables(config, ovmf, stack)
 
             cmdline += ["-drive", f"file={ovmf_vars},if=pflash,format={ovmf_vars_format}"]
             if firmware == Firmware.uefi_secure_boot:
