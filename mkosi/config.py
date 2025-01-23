@@ -3302,6 +3302,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         name="PackageCacheDirectory",
         section="Build",
         parse=config_make_path_parser(required=False),
+        paths=("mkosi.pkgcache",),
         help="Package cache directory",
         scope=SettingScope.universal,
     ),
