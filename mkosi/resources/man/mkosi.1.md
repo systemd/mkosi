@@ -1299,7 +1299,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     | `ubuntu-keyring`        | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
     | `util-linux`            | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `virtiofsd`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `virt-firmware`         | ✓      | ✓      |        |      |        | ✓    |          |
+    | `virt-firmware`         | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `xfsprogs`              | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `xz`                    | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `zstd`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
