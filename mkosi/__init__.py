@@ -139,6 +139,7 @@ from mkosi.util import (
     make_executable,
     one_zero,
     read_env_file,
+    resource_path,
     scopedenv,
 )
 from mkosi.versioncomp import GenericVersion
@@ -3902,12 +3903,11 @@ def run_sandbox(args: Args, config: Config) -> None:
             # trying to run a zipapp created from a packaged version of mkosi. While zipapp.create_archive()
             # supports a filter= argument, trying to use this within a site-packages directory is rather slow
             # so we copy the mkosi package to a temporary directory instead which is much faster.
-            with tempfile.TemporaryDirectory(prefix="mkosi-zipapp-") as tmp:
-                copy_tree(
-                    Path(__file__).parent,
-                    Path(tmp) / Path(__file__).parent.name,
-                    sandbox=config.sandbox,
-                )
+            with (
+                tempfile.TemporaryDirectory(prefix="mkosi-zipapp-") as tmp,
+                resource_path(sys.modules[__package__ or __name__]) as module,
+            ):
+                copy_tree(module, Path(tmp) / module.name, sandbox=config.sandbox)
                 zipapp.create_archive(
                     source=tmp,
                     target=Path(d) / "mkosi",

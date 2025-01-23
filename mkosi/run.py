@@ -20,10 +20,9 @@ from pathlib import Path
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Callable, NoReturn, Optional, Protocol
 
-import mkosi.sandbox
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SANDBOX, ARG_DEBUG_SHELL, die
 from mkosi.sandbox import acquire_privileges, joinpath, umask
-from mkosi.util import _FILE, PathString, current_home_dir, flatten, one_zero, unique
+from mkosi.util import _FILE, PathString, current_home_dir, flatten, one_zero, resource_path, unique
 
 SD_LISTEN_FDS_START = 3
 
@@ -559,100 +558,106 @@ def sandbox_cmd(
 ) -> Iterator[list[PathString]]:
     assert not (overlay and relaxed)
 
-    cmdline: list[PathString] = [
-        *setup,
-        *(["strace", "--detach-on=execve"] if ARG_DEBUG_SANDBOX.get() else []),
-        sys.executable, "-SI", mkosi.sandbox.__file__,
-        "--proc", "/proc",
-        # We mounted a subdirectory of TMPDIR to /var/tmp so we unset TMPDIR so that /tmp or /var/tmp are
-        # used instead.
-        "--unsetenv", "TMPDIR",
-        *network_options(network=network),
-    ]  # fmt: skip
-
-    if overlay and (overlay / "usr").exists():
-        cmdline += [
-            "--overlay-lowerdir", tools / "usr",
-            "--overlay-lowerdir", overlay / "usr",
-            "--overlay", "/usr",
-        ]  # fmt: skip
-    else:
-        cmdline += ["--ro-bind", tools / "usr", "/usr"]
-
-    for d in ("bin", "sbin", "lib", "lib32", "lib64"):
-        if (p := tools / d).is_symlink():
-            cmdline += ["--symlink", p.readlink(), Path("/") / p.relative_to(tools)]
-        elif p.is_dir():
-            cmdline += ["--ro-bind", p, Path("/") / p.relative_to(tools)]
-
-    # If we're using /usr from a tools tree, we have to use /etc/alternatives and /etc/ld.so.cache from the
-    # tools tree as well if they exists since those are directly related to /usr. In relaxed mode, we only do
-    # this if the mountpoint already exists on the host as otherwise we'd modify the host's /etc by creating
-    # the mountpoint ourselves (or fail when trying to create it).
-    for p in (Path("etc/alternatives"), Path("etc/ld.so.cache")):
-        if (tools / p).exists() and (not relaxed or (Path("/") / p).exists()):
-            cmdline += ["--ro-bind", tools / p, Path("/") / p]
-
-    if (tools / "nix/store").exists():
-        cmdline += ["--bind", tools / "nix/store", "/nix/store"]
-
-    if relaxed:
-        for p in Path("/").iterdir():
-            if p not in (
-                Path("/home"),
-                Path("/proc"),
-                Path("/usr"),
-                Path("/nix"),
-                Path("/bin"),
-                Path("/sbin"),
-                Path("/lib"),
-                Path("/lib32"),
-                Path("/lib64"),
-            ):
-                if p.is_symlink():
-                    cmdline += ["--symlink", p.readlink(), p]
-                else:
-                    cmdline += ["--bind", p, p]
-
-            # /etc might be full of symlinks to /usr/share/factory, so make sure we use /usr/share/factory
-            # from the host and not from the tools tree.
-            if (
-                tools != Path("/")
-                and (tools / "usr/share/factory").exists()
-                and (factory := Path("/usr/share/factory")).exists()
-            ):
-                cmdline += ["--bind", factory, factory]
-
-        if home := current_home_dir():
-            cmdline += ["--bind", home, home]
-    else:
-        cmdline += [
-            "--dir", "/var/tmp",
-            "--dir", "/var/log",
-            "--unshare-ipc",
-            # apivfs_script_cmd() and chroot_script_cmd() are executed from within the sandbox, but they
-            # still use sandbox.py, so we make sure it is available inside the sandbox so it can be executed
-            # there as well.
-            "--ro-bind", Path(mkosi.sandbox.__file__), "/sandbox.py",
-        ]  # fmt: skip
-
-        if devices:
-            cmdline += ["--bind", "/sys", "/sys", "--bind", "/dev", "/dev"]
-        else:
-            cmdline += ["--dev", "/dev"]
-
-        if network:
-            for p in (Path("/etc/resolv.conf"), Path("/run/systemd/resolve")):
-                if p.exists():
-                    cmdline += ["--ro-bind", p, p]
-
-    path = finalize_path(root=tools, extra=[Path("/scripts"), *extra] if scripts else extra, relaxed=relaxed)
-    cmdline += ["--setenv", "PATH", path]
-
-    if scripts:
-        cmdline += ["--ro-bind", scripts, "/scripts"]
-
     with contextlib.ExitStack() as stack:
+        module = stack.enter_context(resource_path(sys.modules[__package__ or __name__]))
+
+        cmdline: list[PathString] = [
+            *setup,
+            *(["strace", "--detach-on=execve"] if ARG_DEBUG_SANDBOX.get() else []),
+            sys.executable, "-SI", module / "sandbox.py",
+            "--proc", "/proc",
+            # We mounted a subdirectory of TMPDIR to /var/tmp so we unset TMPDIR so that /tmp or /var/tmp are
+            # used instead.
+            "--unsetenv", "TMPDIR",
+            *network_options(network=network),
+        ]  # fmt: skip
+
+        if overlay and (overlay / "usr").exists():
+            cmdline += [
+                "--overlay-lowerdir", tools / "usr",
+                "--overlay-lowerdir", overlay / "usr",
+                "--overlay", "/usr",
+            ]  # fmt: skip
+        else:
+            cmdline += ["--ro-bind", tools / "usr", "/usr"]
+
+        for d in ("bin", "sbin", "lib", "lib32", "lib64"):
+            if (p := tools / d).is_symlink():
+                cmdline += ["--symlink", p.readlink(), Path("/") / p.relative_to(tools)]
+            elif p.is_dir():
+                cmdline += ["--ro-bind", p, Path("/") / p.relative_to(tools)]
+
+        # If we're using /usr from a tools tree, we have to use /etc/alternatives and /etc/ld.so.cache from
+        # the tools tree as well if they exists since those are directly related to /usr. In relaxed mode, we
+        # only do this if the mountpoint already exists on the host as otherwise we'd modify the host's /etc
+        # by creating the mountpoint ourselves (or fail when trying to create it).
+        for p in (Path("etc/alternatives"), Path("etc/ld.so.cache")):
+            if (tools / p).exists() and (not relaxed or (Path("/") / p).exists()):
+                cmdline += ["--ro-bind", tools / p, Path("/") / p]
+
+        if (tools / "nix/store").exists():
+            cmdline += ["--bind", tools / "nix/store", "/nix/store"]
+
+        if relaxed:
+            for p in Path("/").iterdir():
+                if p not in (
+                    Path("/home"),
+                    Path("/proc"),
+                    Path("/usr"),
+                    Path("/nix"),
+                    Path("/bin"),
+                    Path("/sbin"),
+                    Path("/lib"),
+                    Path("/lib32"),
+                    Path("/lib64"),
+                ):
+                    if p.is_symlink():
+                        cmdline += ["--symlink", p.readlink(), p]
+                    else:
+                        cmdline += ["--bind", p, p]
+
+                # /etc might be full of symlinks to /usr/share/factory, so make sure we use
+                # /usr/share/factory from the host and not from the tools tree.
+                if (
+                    tools != Path("/")
+                    and (tools / "usr/share/factory").exists()
+                    and (factory := Path("/usr/share/factory")).exists()
+                ):
+                    cmdline += ["--bind", factory, factory]
+
+            if home := current_home_dir():
+                cmdline += ["--bind", home, home]
+        else:
+            cmdline += [
+                "--dir", "/var/tmp",
+                "--dir", "/var/log",
+                "--unshare-ipc",
+                # apivfs_script_cmd() and chroot_script_cmd() are executed from within the sandbox, but they
+                # still use sandbox.py, so we make sure it is available inside the sandbox so it can be
+                # executed there as well.
+                "--ro-bind", module / "sandbox.py", "/sandbox.py",
+            ]  # fmt: skip
+
+            if devices:
+                cmdline += ["--bind", "/sys", "/sys", "--bind", "/dev", "/dev"]
+            else:
+                cmdline += ["--dev", "/dev"]
+
+            if network:
+                for p in (Path("/etc/resolv.conf"), Path("/run/systemd/resolve")):
+                    if p.exists():
+                        cmdline += ["--ro-bind", p, p]
+
+        path = finalize_path(
+            root=tools,
+            extra=[Path("/scripts"), *extra] if scripts else extra,
+            relaxed=relaxed,
+        )
+        cmdline += ["--setenv", "PATH", path]
+
+        if scripts:
+            cmdline += ["--ro-bind", scripts, "/scripts"]
+
         tmp: Optional[Path]
 
         if not overlay and not relaxed:
@@ -737,23 +742,23 @@ def chroot_cmd(
     network: bool = False,
     options: Sequence[PathString] = (),
 ) -> Iterator[list[PathString]]:
-    cmdline: list[PathString] = [
-        sys.executable, "-SI", mkosi.sandbox.__file__,
-        "--bind", root, "/",
-        # We mounted a subdirectory of TMPDIR to /var/tmp so we unset TMPDIR so that /tmp or /var/tmp are
-        # used instead.
-        "--unsetenv", "TMPDIR",
-        *network_options(network=network),
-        *apivfs_options(root=Path("/")),
-        *chroot_options(),
-    ]  # fmt: skip
+    with vartmpdir() as dir, resource_path(sys.modules[__package__ or __name__]) as module:
+        cmdline: list[PathString] = [
+            sys.executable, "-SI", module / "sandbox.py",
+            "--bind", root, "/",
+            # We mounted a subdirectory of TMPDIR to /var/tmp so we unset TMPDIR so that /tmp or /var/tmp are
+            # used instead.
+            "--unsetenv", "TMPDIR",
+            *network_options(network=network),
+            *apivfs_options(root=Path("/")),
+            *chroot_options(),
+        ]  # fmt: skip
 
-    if network:
-        for p in (Path("/etc/resolv.conf"), Path("/run/systemd/resolve")):
-            if p.exists():
-                cmdline += ["--ro-bind", p, p]
+        if network:
+            for p in (Path("/etc/resolv.conf"), Path("/run/systemd/resolve")):
+                if p.exists():
+                    cmdline += ["--ro-bind", p, p]
 
-    with vartmpdir() as dir:
         yield [*cmdline, "--bind", dir, "/var/tmp", *options]
 
 
