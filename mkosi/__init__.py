@@ -3896,11 +3896,25 @@ def run_sandbox(args: Args, config: Config) -> None:
     with contextlib.ExitStack() as stack:
         if config.tools() != Path("/"):
             d = stack.enter_context(tempfile.TemporaryDirectory(prefix="mkosi-path-"))
-            zipapp.create_archive(
-                source=Path(__file__).parent,
-                target=Path(d) / "mkosi",
-                interpreter="/usr/bin/env python3",
-            )
+
+            # We have to point zipapp to a directory containing the mkosi module and set the entrypoint
+            # manually instead of directly at the mkosi package, otherwise we get ModuleNotFoundError when
+            # trying to run a zipapp created from a packaged version of mkosi. While zipapp.create_archive()
+            # supports a filter= argument, trying to use this within a site-packages directory is rather slow
+            # so we copy the mkosi package to a temporary directory instead which is much faster.
+            with tempfile.TemporaryDirectory(prefix="mkosi-zipapp-") as tmp:
+                copy_tree(
+                    Path(__file__).parent,
+                    Path(tmp) / Path(__file__).parent.name,
+                    sandbox=config.sandbox,
+                )
+                zipapp.create_archive(
+                    source=tmp,
+                    target=Path(d) / "mkosi",
+                    main="mkosi.__main__:main",
+                    interpreter="/usr/bin/env python3",
+                )
+
             make_executable(Path(d) / "mkosi")
             mounts += ["--ro-bind", d, "/mkosi"]
             stack.enter_context(scopedenv({"PATH": f"/mkosi:{os.environ['PATH']}"}))
