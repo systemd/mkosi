@@ -2662,7 +2662,7 @@ def check_tools(config: Config, verb: Verb) -> None:
             if config.unified_kernel_image_profiles:
                 check_ukify(
                     config,
-                    version="257~devel",
+                    version="257",
                     reason="build unified kernel image profiles",
                     hint=(
                         "Use ToolsTree=default to download most required tools including ukify automatically"
@@ -2716,7 +2716,7 @@ def check_tools(config: Config, verb: Verb) -> None:
             and config.secure_boot_auto_enroll
             and (
                 not config.find_binary("bootctl")
-                or systemd_tool_version("bootctl", sandbox=config.sandbox) < "257~devel"
+                or systemd_tool_version("bootctl", sandbox=config.sandbox) < "257"
             )
         ):
             check_tool(config, "sbsiglist", reason="set up systemd-boot secure boot auto-enrollment")
@@ -2733,7 +2733,7 @@ def check_tools(config: Config, verb: Verb) -> None:
             config,
             "systemd-sysupdate",
             "/usr/lib/systemd/systemd-sysupdate",
-            version="257~devel",
+            version="257",
             reason="Update the host system with systemd-sysupdate",
         )
 
