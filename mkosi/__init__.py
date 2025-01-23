@@ -1085,15 +1085,9 @@ def install_sandbox_trees(config: Config, dst: Path) -> None:
     # Ensure /etc exists in the sandbox
     (dst / "etc").mkdir(exist_ok=True)
 
-    if (p := config.tools() / "usr/share/crypto-policies/DEFAULT").exists():
+    if (p := config.tools() / "usr/share/crypto-policies/back-ends/DEFAULT").exists():
         Path(dst / "etc/crypto-policies").mkdir(exist_ok=True)
         copy_tree(p, dst / "etc/crypto-policies/back-ends", sandbox=config.sandbox)
-
-        # The files in /usr/share/crypto-policies have the .txt extension but in /etc/crypto-policies it
-        # should have the .config extension so rename all the files after copying them.
-        for p in (dst / "etc/crypto-policies/back-ends").iterdir():
-            if p.suffix == ".txt":
-                p.rename(p.with_suffix(".config"))
 
     if config.sandbox_trees:
         with complete_step("Copying in sandbox trees…"):
