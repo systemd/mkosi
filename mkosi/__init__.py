@@ -3067,7 +3067,7 @@ def save_cache(context: Context) -> None:
         )
 
 
-def have_cache(config: Config) -> bool:
+def have_cache(config: Config, check_uid: bool = True) -> bool:
     if not config.incremental or config.base_trees or config.overlay:
         return False
 
@@ -3076,7 +3076,7 @@ def have_cache(config: Config) -> bool:
         logging.debug(f"{final} does not exist, not reusing cached images")
         return False
 
-    if (uid := final.stat().st_uid) != os.getuid():
+    if check_uid and (uid := final.stat().st_uid) != os.getuid():
         logging.debug(
             f"{final} uid ({uid}) does not match user uid ({os.getuid()}), not reusing cached images"
         )
@@ -4791,7 +4791,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         tools
         and (
             not (tools.output_dir_or_cwd() / tools.output).exists()
-            or (tools.incremental and not have_cache(tools))
+            or (tools.incremental and not have_cache(tools, check_uid=False))
         )
         and (args.verb != Verb.build or last.output_format == OutputFormat.none)
         and not args.force
@@ -4805,7 +4805,8 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
     # If we're doing an incremental build and the cache is not out of date, don't clean up the
     # tools tree so that we can reuse the previous one.
     if tools and (
-        not tools.incremental or ((args.verb == Verb.build or args.force > 0) and not have_cache(tools))
+        not tools.incremental
+        or ((args.verb == Verb.build or args.force > 0) and not have_cache(tools, check_uid=False))
     ):
         if tools.incremental == Incremental.strict:
             die(
