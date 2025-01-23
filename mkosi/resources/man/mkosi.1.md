@@ -1252,7 +1252,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     | `archlinux-keyring`     | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
     | `attr`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `bash`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `btrfs-progs`           | ✓      |        | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `btrfs-progs`           | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `ca-certificates`       | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `coreutils`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `cpio`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
@@ -1260,15 +1260,15 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     | `curl`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `debian-keyring`        | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
     | `diffutils`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `distribution-gpg-keys` | ✓      | ✓      |        |      |        | ✓    | ✓        |
+    | `distribution-gpg-keys` | ✓      | ✓      | ✓      | ✓    |        | ✓    | ✓        |
     | `dnf`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `dnf-plugins-core`      | ✓      | ✓      |        |      |        |      | ✓        |
-    | `dnf5`                  | ✓      |        |        |      |        |      |          |
-    | `dnf5-plugins`          | ✓      |        |        |      |        |      |          |
+    | `dnf5`                  | ✓      |        |        |      |        |      | ✓        |
+    | `dnf5-plugins`          | ✓      |        |        |      |        |      | ✓        |
     | `dosfstools`            | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `e2fsprogs`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `edk2-ovmf`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `erofs-utils`           | ✓      |        | ✓      | ✓    | ✓      | ✓    | ✓        |
+    | `erofs-utils`           | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `findutils`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `git`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `grep`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
@@ -1303,7 +1303,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     | `xfsprogs`              | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `xz`                    | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `zstd`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `zypper`                | ✓      |        | ✓      | ✓    | ✓      | ✓    |          |
+    | `zypper`                | ✓      |        | ✓      | ✓    | ✓      |      | ✓         |
 
 `ToolsTreeDistribution=`, `--tools-tree-distribution=`
 :   Set the distribution to use for the default tools tree. Defaults to the host distribution except for
