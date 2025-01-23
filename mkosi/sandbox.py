@@ -30,6 +30,7 @@ CLONE_NEWNS = 0x00020000
 CLONE_NEWUSER = 0x10000000
 EPERM = 1
 ENOENT = 2
+ENOSYS = 38
 F_GETFD = 1
 F_SETFD = 2
 FD_CLOEXEC = 1
@@ -99,13 +100,24 @@ libc.capset.argtypes = (ctypes.c_void_p, ctypes.c_void_p)
 libc.fcntl.argtypes = (ctypes.c_int, ctypes.c_int, ctypes.c_int)
 
 
-def oserror(filename: str = "") -> None:
+ENOSYS_MSG = """
+mkosi was unable to invoke the {syscall}() system call.
+
+This probably means either the system call is not implemented by the running kernel version ({kver}) or the
+system call is prohibited via seccomp if mkosi is being executed inside a containerized environment.
+"""
+
+
+def oserror(syscall: str, filename: str = "") -> None:
+    if ctypes.get_errno() == ENOSYS:
+        print(ENOSYS_MSG.format(syscall=syscall, kver=os.uname().version), file=sys.stderr)
+
     raise OSError(ctypes.get_errno(), os.strerror(ctypes.get_errno()), filename or None)
 
 
 def unshare(flags: int) -> None:
     if libc.unshare(flags) < 0:
-        oserror()
+        oserror("unshare")
 
 
 def statfs(path: str) -> int:
@@ -115,7 +127,7 @@ def statfs(path: str) -> int:
     buffer = (ctypes.c_long * 15)()
 
     if libc.statfs(path.encode(), ctypes.byref(buffer)) < 0:
-        oserror(path)
+        oserror("statfs", path)
 
     return int(buffer[0])
 
@@ -125,12 +137,12 @@ def mount(src: str, dst: str, type: str, flags: int, options: str) -> None:
     typeb = type.encode() if type else None
     optionsb = options.encode() if options else None
     if libc.mount(srcb, dst.encode(), typeb, flags, optionsb) < 0:
-        oserror(dst)
+        oserror("mount", dst)
 
 
 def umount2(path: str, flags: int = 0) -> None:
     if libc.umount2(path.encode(), flags) < 0:
-        oserror(path)
+        oserror("umount2", path)
 
 
 def cap_permitted_to_ambient() -> None:
@@ -146,13 +158,13 @@ def cap_permitted_to_ambient() -> None:
     payload = (cap_user_data_t * LINUX_CAPABILITY_U32S_3)()
 
     if libc.capget(ctypes.addressof(header), ctypes.byref(payload)) < 0:
-        oserror()
+        oserror("capget")
 
     payload[0].inheritable = payload[0].permitted
     payload[1].inheritable = payload[1].permitted
 
     if libc.capset(ctypes.addressof(header), ctypes.byref(payload)) < 0:
-        oserror()
+        oserror("capset")
 
     effective = payload[1].effective << 32 | payload[0].effective
 
@@ -166,7 +178,7 @@ def cap_permitted_to_ambient() -> None:
             break
 
         if effective & (1 << cap) and libc.prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_RAISE, cap, 0, 0) < 0:
-            oserror()
+            oserror("prctl")
 
 
 def have_effective_cap(capability: int) -> bool:
@@ -225,7 +237,7 @@ def join_new_session_keyring() -> None:
 
     keyring = libkeyutils.keyctl_join_session_keyring(None)
     if keyring == -1:
-        oserror()
+        oserror("keyctl")
 
 
 def mount_rbind(src: str, dst: str, attrs: int = 0) -> None:
@@ -245,7 +257,7 @@ def mount_rbind(src: str, dst: str, attrs: int = 0) -> None:
         fd = libc.syscall(NR_open_tree, AT_FDCWD, src.encode(), flags)
 
     if fd < 0:
-        oserror(src)
+        oserror("open_tree", src)
 
     try:
         attr = mount_attr()
@@ -274,7 +286,7 @@ def mount_rbind(src: str, dst: str, attrs: int = 0) -> None:
             r = libc.syscall(NR_mount_setattr, fd, b"", flags, ctypes.addressof(attr), MOUNT_ATTR_SIZE_VER0)
 
         if r < 0:
-            oserror(src)
+            oserror("mount_setattr", src)
 
         try:
             libc.move_mount.argtypes = (
@@ -297,7 +309,7 @@ def mount_rbind(src: str, dst: str, attrs: int = 0) -> None:
             r = libc.syscall(NR_move_mount, fd, b"", AT_FDCWD, dst.encode(), MOVE_MOUNT_F_EMPTY_PATH)
 
         if r < 0:
-            oserror(dst)
+            oserror("move_mount", dst)
     finally:
         os.close(fd)
 
@@ -325,7 +337,7 @@ def become_user(uid: int, gid: int) -> None:
 
     event = libc.eventfd(0, 0)
     if event < 0:
-        oserror()
+        oserror("eventfd")
 
     pid = os.fork()
     if pid == 0:
@@ -896,7 +908,7 @@ def main() -> None:
     # We're guaranteed to have / be a mount when we get here, so pivot_root() won't fail anymore,
     # even if we're in the initramfs.
     if libc.pivot_root(b".", b".") < 0:
-        oserror()
+        oserror("pivot_root")
 
     # As documented in the pivot_root() man page, this will unmount the old rootfs.
     umount2(".", MNT_DETACH)
