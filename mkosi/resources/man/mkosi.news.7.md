@@ -164,6 +164,11 @@
   keys enrolled will be extended to include a `MokList` entry that
   trusts the certificate configured with `SecureBootCertificate=` and
   passed to `qemu`.
+- We now use `mkosi.pkgcache` as the package cache directory if the
+  directory exists.
+- `BuildSourcesEphemeral=` learned a new variant `buildcache` in which
+  case the overlay will be cached in the build directory configured with
+  `BuildDirectory=`.
 
 ## v24
 
