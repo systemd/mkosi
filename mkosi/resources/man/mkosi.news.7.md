@@ -72,7 +72,7 @@
 - `run0` is now automatically used to escalate privileges for commands that need it, like the `burn` verb.
 - `/usr/share/keyrings` and `/usr/share/distribution-gpg-keys` are no longer automatically picked up from the
   tools tree when `ToolsTreeCertificates=` is set, since they aren't certificates, use a sandbox tree
-  instead. This allows to override `SignedBy=` keys for APT repositories.
+  instead. This allows one to override `SignedBy=` keys for APT repositories.
 - The `agetty.autologin` and `login.noauth` credentials are no longer set unconditionally.
 - Access to the output directory in build scripts was removed. To put artifacts
   from the build directory into the output directory, copy them from the build directory
