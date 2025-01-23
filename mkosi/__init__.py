@@ -2655,9 +2655,6 @@ def check_tools(config: Config, verb: Verb) -> None:
         if config.output_format == OutputFormat.none:
             return
 
-        if config.bootable != ConfigFeature.disabled:
-            check_tool(config, "depmod", reason="generate kernel module dependencies")
-
         if want_efi(config):
             if config.unified_kernel_image_profiles:
                 check_ukify(
