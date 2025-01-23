@@ -75,7 +75,7 @@ def finalize_source_mounts(
                             "BuildSourcesEphemeral=buildcache was configured, but no build directory exists.",  # noqa: E501
                             hint="Configure BuildDirectory= or create mkosi.builddir.",
                         )
-                    assert config.build_dir
+
                     upperdir = config.build_dir / f"mkosi.buildovl.{src.name}"
                     upperdir.mkdir(mode=src.stat().st_mode, exist_ok=True)
                 else:
