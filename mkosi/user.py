@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 
 from mkosi.log import die
-from mkosi.run import spawn
+from mkosi.run import find_binary, spawn
 from mkosi.sandbox import CLONE_NEWUSER, unshare
 from mkosi.util import flock, parents_below
 
@@ -183,3 +183,10 @@ def become_root_in_subuid_range_cmd() -> list[str]:
     ]  # fmt: skip
 
     return [str(x) for x in cmd]
+
+
+def become_root_cmd() -> list[str]:
+    if os.getuid() == 0:
+        return []
+
+    return ["run0"] if find_binary("run0") else ["sudo"]
