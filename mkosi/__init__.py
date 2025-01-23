@@ -127,7 +127,7 @@ from mkosi.sandbox import (
 )
 from mkosi.sysupdate import run_sysupdate
 from mkosi.tree import copy_tree, make_tree, move_tree, rmtree
-from mkosi.user import INVOKING_USER
+from mkosi.user import INVOKING_USER, become_root_cmd
 from mkosi.util import (
     PathString,
     current_home_dir,
@@ -4121,7 +4121,7 @@ def run_shell(args: Args, config: Config) -> None:
                 network=True,
                 relaxed=True,
                 options=["--same-dir"],
-                setup=["run0"] if os.getuid() != 0 else [],
+                setup=become_root_cmd(),
             ),
         )
 
@@ -4161,7 +4161,7 @@ def run_systemd_tool(tool: str, args: Args, config: Config) -> None:
             network=True,
             devices=config.output_format == OutputFormat.disk,
             relaxed=True,
-            setup=["run0"] if need_root else [],
+            setup=become_root_cmd() if need_root else [],
         ),
     )
 

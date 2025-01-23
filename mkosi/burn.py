@@ -6,6 +6,7 @@ import sys
 from mkosi.config import Args, Config, OutputFormat
 from mkosi.log import complete_step, die
 from mkosi.run import run
+from mkosi.user import become_root_cmd
 
 
 def run_burn(args: Args, config: Config) -> None:
@@ -44,6 +45,6 @@ def run_burn(args: Args, config: Config) -> None:
                 network=True,
                 relaxed=True,
                 options=["--same-dir"],
-                setup=["run0"] if os.getuid() != 0 else [],
+                setup=become_root_cmd(),
             ),
         )

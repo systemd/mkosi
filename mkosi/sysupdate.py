@@ -9,6 +9,7 @@ from pathlib import Path
 from mkosi.config import Args, ArtifactOutput, Config
 from mkosi.log import die
 from mkosi.run import run
+from mkosi.user import become_root_cmd
 from mkosi.util import PathString
 
 
@@ -54,7 +55,7 @@ def run_sysupdate(args: Args, config: Config) -> None:
                 devices=True,
                 network=True,
                 relaxed=True,
-                setup=["run0"] if os.getuid() != 0 else [],
+                setup=become_root_cmd(),
                 options=[
                     *(["--bind", "/boot", "/boot"] if Path("/boot").exists() else []),
                     *(["--bind", "/efi", "/efi"] if Path("/efi").exists() else []),
