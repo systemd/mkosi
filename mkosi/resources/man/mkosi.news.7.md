@@ -139,6 +139,31 @@
   from the host is not used anymore and mkosi will run
   `pacman-key --init` and `pacman-key --populate` itself.
 - Added `ToolsTreeRelease=` match
+- mkosi now enforces that images built with `Overlay=yes` only add files
+  on top of the base tree(s) and don't overwrite any existing files or
+  directories.
+- Added a `mkosi-addon` tool and accompanying kernel-install plugin that
+  allows building PE addons to extend a vendor provided unified kernel
+  image.
+- Added `systemd-boot-signed`, `uki-signed` and `grub-signed` variants
+  for the `Bootloader=` option which instruct mkosi to only install
+  pre-signed EFI binaries.
+- `mkosi.profiles` is now parsed in configuration included with
+  `Include=`.
+- Any initrds configured with `Initrds=` are now used as fallback when
+  booting with qemu direct kernel boot (`--firmware=linux`) if no split
+  initrd was produced by the image build.
+- mkosi now makes a greater effort to ensure the crypto-policies are
+  configured to allow GPG keys from older distributions.
+- We don't pick up pre-signed bootloader binaries anymore when
+  `ShimBootloader=signed` is configured. To force usage of pre-signed
+  EFI binaries, use the new `systemd-boot-signed`, `uki-signed` and
+  `grub-signed` variants for the `Bootloader=` option.
+- Added a new constant `microsoft-mok` for the `FirmwareVariables=`
+  option. If specified, a firmware variables file with the Microsoft
+  keys enrolled will be extended to include a `MokList` entry that
+  trusts the certificate configured with `SecureBootCertificate=` and
+  passed to `qemu`.
 
 ## v24
 
