@@ -1406,9 +1406,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     purpose.
 
 `PackageCacheDirectory=`, `--package-cache-dir`
-:   Takes a path to a directory to use as the package cache directory for
-    the distribution package manager used. If unset, a suitable directory
-    in the user's home directory or system is used.
+:   Takes a path to a directory to use as the package cache directory for the distribution package manager
+    used. If unset, but a `mkosi.pkgcache/` directory is found in the local directory it is automatically
+    used for this purpose, otherwise a suitable directory in the user's home directory or system is used.
 
 `BuildDirectory=`, `--build-directory=`
 :   Takes a path to a directory to use as the build directory for build
