@@ -3026,7 +3026,7 @@ def run_selinux_relabel(context: Context) -> None:
 
     with complete_step(f"Relabeling files using {policy} policy"):
         run(
-            [setfiles, "-mFr", "/buildroot", "-c", binpolicy, fc, "/buildroot"],
+            [setfiles, "-mFr", "/buildroot", "-T0", "-c", binpolicy, fc, "/buildroot"],
             sandbox=context.sandbox(options=["--bind", context.root, "/buildroot"]),
             check=context.config.selinux_relabel == ConfigFeature.enabled,
         )
