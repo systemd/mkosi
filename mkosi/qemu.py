@@ -1039,7 +1039,7 @@ def register_machine(config: Config, pid: int, fname: Path, cid: Optional[int]) 
                         "name": config.machine_or_name().replace("_", "-"),
                         "service": "mkosi",
                         "class": "vm",
-                        "leader": pid,
+                        "leader": {"pid": pid},
                         **({"rootDirectory": os.fspath(fname)} if fname.is_dir() else {}),
                         **({"vSockCid": cid} if cid is not None else {}),
                         **({"sshAddress": f"vsock/{cid}"} if cid is not None else {}),
