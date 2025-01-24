@@ -646,8 +646,6 @@ def sandbox_cmd(
                 if p.exists():
                     cmdline += ["--ro-bind", p, p]
 
-        home = None
-
     path = finalize_path(root=tools, extra=[Path("/scripts"), *extra] if scripts else extra, relaxed=relaxed)
     cmdline += ["--setenv", "PATH", path]
 
