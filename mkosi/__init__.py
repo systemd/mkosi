@@ -4010,6 +4010,7 @@ def run_shell(args: Args, config: Config) -> None:
                     network=True,
                     devices=True,
                     options=["--bind", fname, workdir(fname)],
+                    setup=become_root_cmd(),
                 ),
             )  # fmt: skip
 
