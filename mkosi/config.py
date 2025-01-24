@@ -4151,7 +4151,7 @@ class ParseContext:
                 )
 
             with chdir(path if path.is_dir() else Path.cwd()):
-                self.parse_config_one(path if path.is_file() else Path.cwd(), parse_profiles=True)
+                self.parse_config_one(path if path.is_file() else Path.cwd(), parse_profiles=p.is_dir())
 
     def finalize_value(self, setting: ConfigSetting[T]) -> Optional[T]:
         # If a value was specified on the CLI, it always takes priority. If the setting is a collection of
@@ -4603,7 +4603,7 @@ def parse_config(
             with chdir(p if p.is_dir() else Path.cwd()):
                 if not context.parse_config_one(
                     p if p.is_file() else Path.cwd(),
-                    parse_profiles=True,
+                    parse_profiles=p.is_dir(),
                     parse_local=True,
                 ):
                     continue
