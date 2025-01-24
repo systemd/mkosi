@@ -999,7 +999,7 @@ def machine1_is_available(config: Config) -> bool:
         ).stdout.strip()
     )
 
-    return any(service.name == "org.freedesktop.machine1" for service in services)
+    return any(service["name"] == "org.freedesktop.machine1" for service in services)
 
 
 def finalize_register(config: Config) -> bool:
