@@ -4151,7 +4151,7 @@ class ParseContext:
                 )
 
             with chdir(path if path.is_dir() else Path.cwd()):
-                self.parse_config_one(path if path.is_file() else Path("."), parse_profiles=True)
+                self.parse_config_one(path if path.is_file() else Path.cwd(), parse_profiles=True)
 
     def finalize_value(self, setting: ConfigSetting[T]) -> Optional[T]:
         # If a value was specified on the CLI, it always takes priority. If the setting is a collection of
@@ -4297,6 +4297,8 @@ class ParseContext:
         s: Optional[ConfigSetting[object]]  # Hint to mypy that we might assign None
         extras = path.is_dir()
 
+        assert path.is_absolute()
+
         if path.is_dir():
             path /= "mkosi.conf"
 
@@ -4310,7 +4312,7 @@ class ParseContext:
                     or (localpath := path.parent / "mkosi.local.conf").exists()
                 ):  # fmt: skip
                     with chdir(localpath if localpath.is_dir() else Path.cwd()):
-                        self.parse_config_one(localpath if localpath.is_file() else Path("."))
+                        self.parse_config_one(localpath if localpath.is_file() else Path.cwd())
 
                     # Local configuration should override other file based
                     # configuration but not the CLI itself so move the finalized
@@ -4367,10 +4369,9 @@ class ParseContext:
                             )
 
         if path.exists():
-            abs_path = Path.cwd() / path
-            logging.debug(f"Loading configuration file {abs_path}")
+            logging.debug(f"Loading configuration file {path}")
             files = getattr(self.config, "files")
-            files += [abs_path]
+            files += [path]
 
             for section, k, v in parse_ini(
                 path,
@@ -4412,17 +4413,19 @@ class ParseContext:
 
         if extras and (path.parent / "mkosi.conf.d").exists():
             for p in sorted((path.parent / "mkosi.conf.d").iterdir()):
+                p = p.absolute()
+
                 if p.is_dir() or p.suffix == ".conf":
                     with chdir(p if p.is_dir() else Path.cwd()):
-                        self.parse_config_one(p if p.is_file() else Path("."))
+                        self.parse_config_one(p if p.is_file() else Path.cwd())
 
         if parse_profiles:
             for profile in self.finalize_value(SETTINGS_LOOKUP_BY_DEST["profiles"]) or []:
                 for p in (Path(profile), Path(f"{profile}.conf")):
-                    p = Path("mkosi.profiles") / p
+                    p = Path.cwd() / "mkosi.profiles" / p
                     if p.exists():
                         with chdir(p if p.is_dir() else Path.cwd()):
-                            self.parse_config_one(p if p.is_file() else Path("."))
+                            self.parse_config_one(p if p.is_file() else Path.cwd())
 
         return True
 
@@ -4524,7 +4527,7 @@ def parse_config(
 
     # Parse the global configuration unless the user explicitly asked us not to.
     if args.directory is not None:
-        context.parse_config_one(Path("."), parse_profiles=True, parse_local=True)
+        context.parse_config_one(Path.cwd(), parse_profiles=True, parse_local=True)
 
     config = copy.deepcopy(context.config)
 
@@ -4572,6 +4575,8 @@ def parse_config(
         )
 
         for p in sorted(Path("mkosi.images").iterdir()):
+            p = p.absolute()
+
             if not p.is_dir() and not p.suffix == ".conf":
                 continue
 
@@ -4597,7 +4602,7 @@ def parse_config(
 
             with chdir(p if p.is_dir() else Path.cwd()):
                 if not context.parse_config_one(
-                    p if p.is_file() else Path("."),
+                    p if p.is_file() else Path.cwd(),
                     parse_profiles=True,
                     parse_local=True,
                 ):
