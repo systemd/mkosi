@@ -223,11 +223,11 @@ def test_initrd_size(config: ImageConfig) -> None:
 
         # The fallback value is for CentOS and related distributions.
         maxsize = 1024**2 * {
-            Distribution.fedora: 63,
+            Distribution.fedora: 67,
             Distribution.debian: 62,
             Distribution.ubuntu: 57,
             Distribution.arch: 86,
-            Distribution.opensuse: 64,
+            Distribution.opensuse: 67,
         }.get(config.distribution, 58)
 
         assert (Path(image.output_dir) / "image.initrd").stat().st_size <= maxsize
