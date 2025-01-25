@@ -775,7 +775,7 @@ def finalize_firmware_variables(
             if config.firmware_variables == Path("microsoft") or not config.firmware_variables
             else config.firmware_variables
         )
-        shutil.copy2(vars, ovmf_vars)
+        shutil.copy(vars, ovmf_vars)
 
     return ovmf_vars, ovmf_vars_format
 
