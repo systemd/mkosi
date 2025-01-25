@@ -91,6 +91,7 @@ class Distribution(StrEnum):
     rhel_ubi = enum.auto()
     openmandriva = enum.auto()
     rocky = enum.auto()
+    rosa = enum.auto()
     alma = enum.auto()
     azure = enum.auto()
     custom = enum.auto()
@@ -118,6 +119,7 @@ class Distribution(StrEnum):
             Distribution.rhel_ubi,
             Distribution.openmandriva,
             Distribution.rocky,
+            Distribution.rosa,
             Distribution.alma,
         )
 

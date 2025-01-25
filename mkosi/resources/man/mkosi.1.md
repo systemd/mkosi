@@ -426,7 +426,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   The distribution to install in the image. Takes one of the following
     arguments: `fedora`, `debian`, `kali`, `ubuntu`, `arch`, `opensuse`,
     `mageia`, `centos`, `rhel`, `rhel-ubi`, `openmandriva`, `rocky`, `alma`,
-    `azure` or `custom`. If not specified, defaults to the distribution of
+    `rosa`, `azure` or `custom`. If not specified, defaults to the distribution of
     the host or `custom` if the distribution of the host is not a supported
     distribution.
 
@@ -474,6 +474,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     | `mageia`       | https://www.mageia.org            |                                |
     | `openmandriva` | http://mirrors.openmandriva.org   |                                |
     | `azure`        | https://packages.microsoft.com/   |                                |
+    | `rosa`         | https://mirrors.rosa.ru/rosa      |                                |
 
 `LocalMirror=`, `--local-mirror=`
 :   The mirror will be used as a local, plain and direct mirror instead
@@ -2098,6 +2099,8 @@ distributions:
 
 * *Rocky Linux*
 
+* *ROSA Linux*
+
 * *Alma Linux*
 
 * *Azure Linux*
@@ -2880,7 +2883,7 @@ In this scenario, the kernel is loaded from the ESP in the image by **systemd-bo
 # REQUIREMENTS
 
 mkosi is packaged for various distributions: Debian, Kali, Ubuntu, Arch
-Linux, Fedora Linux, OpenMandriva, Gentoo. Note that it has been a while
+Linux, Fedora Linux, OpenMandriva, ROSA Linux, Gentoo. Note that it has been a while
 since the last release and the packages shipped by distributions are
 very out of date. We currently recommend running **mkosi** from git until a
 new release happens.
