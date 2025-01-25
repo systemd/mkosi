@@ -738,6 +738,9 @@ def config_match_build_sources(match: str, value: list[ConfigTree]) -> bool:
 
 def config_make_list_matcher(parse: Callable[[str], T]) -> ConfigMatchCallback[list[T]]:
     def config_match_list(match: str, value: list[T]) -> bool:
+        if not match:
+            return len(value) == 0
+
         return parse(match) in value
 
     return config_match_list
@@ -4254,9 +4257,6 @@ class ParseContext:
             v = v.removeprefix("!")
 
             v = self.expand_specifiers(v, path)
-
-            if not v:
-                die("Match value cannot be empty")
 
             if s := SETTINGS_LOOKUP_BY_NAME.get(k):
                 if not s.match:
