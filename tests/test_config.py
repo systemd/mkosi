@@ -696,6 +696,27 @@ def test_match_multiple(tmp_path: Path) -> None:
         assert config.image_id != "abcde"
 
 
+def test_match_empty(tmp_path: Path) -> None:
+    with chdir(tmp_path):
+        Path("mkosi.conf").write_text(
+            """\
+            [Match]
+            Profiles=
+
+            [Build]
+            Environment=ABC=QED
+            """
+        )
+
+        _, [config] = parse_config([])
+
+        assert config.environment.get("ABC") == "QED"
+
+        _, [config] = parse_config(["--profile", "profile"])
+
+        assert config.environment.get("ABC") is None
+
+
 @pytest.mark.parametrize("dist1,dist2", itertools.combinations_with_replacement(Distribution, 2))
 def test_match_distribution(tmp_path: Path, dist1: Distribution, dist2: Distribution) -> None:
     with chdir(tmp_path):
