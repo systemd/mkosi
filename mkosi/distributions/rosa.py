@@ -5,7 +5,8 @@ from collections.abc import Iterable
 from mkosi.config import Architecture
 from mkosi.context import Context
 from mkosi.distributions import fedora, join_mirror
-from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey
+from mkosi.installer.dnf import Dnf
+from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey, setup_rpm
 from mkosi.log import die
 
 
@@ -17,6 +18,11 @@ class Installer(fedora.Installer):
     @classmethod
     def filesystem(cls) -> str:
         return "ext4"
+
+    @classmethod
+    def setup(cls, context: Context) -> None:
+        setup_rpm(context, dbpath="/var/lib/rpm")
+        Dnf.setup(context, list(cls.repositories(context)), filelists=False)
 
     @classmethod
     def default_release(cls) -> str:
