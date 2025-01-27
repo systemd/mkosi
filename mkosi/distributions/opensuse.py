@@ -131,10 +131,10 @@ class Installer(DistributionInstaller):
                 if context.config.architecture != Architecture.x86_64:
                     die(f"Old snapshots are only supported for x86-64 on {cls.pretty_name()}")
 
-                subdir = f"history/{context.config.release}"
+                subdir = "history/$releasever"
 
             for repo in ("oss", "non-oss"):
-                url = join_mirror(mirror, f"{subdir}/tumbleweed/repo/{repo}")
+                url = join_mirror(mirror, f"{subdir}/$releasever/repo/{repo}")
                 yield RpmRepository(
                     id=repo,
                     url=f"baseurl={url}",
@@ -144,7 +144,7 @@ class Installer(DistributionInstaller):
 
                 if context.config.release == "tumbleweed":
                     for d in ("debug", "source"):
-                        url = join_mirror(mirror, f"{subdir}/{d}/tumbleweed/repo/{repo}")
+                        url = join_mirror(mirror, f"{subdir}/{d}/$releasever/repo/{repo}")
                         yield RpmRepository(
                             id=f"{repo}-{d}",
                             url=f"baseurl={url}",
@@ -153,14 +153,14 @@ class Installer(DistributionInstaller):
                         )
 
             if context.config.release == "tumbleweed":
-                url = join_mirror(mirror, f"{subdir}/update/tumbleweed")
+                url = join_mirror(mirror, f"{subdir}/update/$releasever")
                 yield RpmRepository(
                     id="oss-update",
                     url=f"baseurl={url}",
                     gpgurls=gpgkeys or (fetch_gpgurls(context, url) if not zypper else ()),
                 )
 
-                url = join_mirror(mirror, f"{subdir}/update/tumbleweed-non-oss")
+                url = join_mirror(mirror, f"{subdir}/update/$releasever-non-oss")
                 yield RpmRepository(
                     id="non-oss-update",
                     url=f"baseurl={url}",
@@ -181,7 +181,7 @@ class Installer(DistributionInstaller):
             if context.config.release in ("current", "stable", "leap"):
                 release = "openSUSE-current"
             else:
-                release = f"leap/{context.config.release}"
+                release = "leap/$releasever"
 
             if context.config.architecture == Architecture.x86_64:
                 subdir = ""
