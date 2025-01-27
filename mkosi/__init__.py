@@ -3238,9 +3238,11 @@ def make_image(
     logging.debug(json.dumps(output, indent=4))
 
     partitions = [Partition.from_dict(d) for d in output]
+    arch = context.config.architecture
 
     if context.config.verity == ConfigFeature.enabled and not any(
-        p.type.startswith("usr-verity-sig") or p.type.startswith("root-verity-sig") for p in partitions
+        p.type.startswith(f"usr-{arch}-verity-sig") or p.type.startswith(f"root-{arch}-verity-sig")
+        for p in partitions
     ):
         die(
             "Verity is explicitly enabled but didn't find any verity signature partition",
