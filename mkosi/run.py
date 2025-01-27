@@ -126,8 +126,13 @@ def fork_and_wait(target: Callable[..., None], *args: Any, **kwargs: Any) -> Non
 
 
 def log_process_failure(sandbox: Sequence[str], cmdline: Sequence[str], returncode: int) -> None:
-    if returncode < 0:
+    if -returncode in (signal.SIGINT, signal.SIGTERM):
         logging.error(f"Interrupted by {signal.Signals(-returncode).name} signal")
+    elif returncode < 0:
+        logging.error(
+            f'"{shlex.join([*sandbox, *cmdline] if ARG_DEBUG.get() else cmdline)}"'
+            f" was killed by {signal.Signals(-returncode).name} signal."
+        )
     elif returncode == 127:
         logging.error(f"{cmdline[0]} not found.")
     else:
