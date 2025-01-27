@@ -1256,9 +1256,6 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     | `diffutils`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `distribution-gpg-keys` | ✓      | ✓      | ✓      | ✓    |        | ✓    | ✓        |
     | `dnf`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `dnf-plugins-core`      | ✓      | ✓      |        |      |        |      | ✓        |
-    | `dnf5`                  | ✓      |        |        |      |        |      | ✓        |
-    | `dnf5-plugins`          | ✓      |        |        |      |        |      | ✓        |
     | `dosfstools`            | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `e2fsprogs`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `edk2-ovmf`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
