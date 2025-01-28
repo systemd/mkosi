@@ -3043,6 +3043,7 @@ def save_cache(context: Context) -> None:
     final, build, manifest = cache_tree_paths(context.config)
 
     with complete_step("Installing cache copies"):
+        rmtree(final)
         move_tree(
             context.root,
             final,
@@ -3051,6 +3052,7 @@ def save_cache(context: Context) -> None:
         )
 
         if need_build_overlay(context.config) and (context.workspace / "build-overlay").exists():
+            rmtree(build)
             move_tree(
                 context.workspace / "build-overlay",
                 build,
