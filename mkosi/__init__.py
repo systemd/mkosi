@@ -3114,10 +3114,12 @@ def have_cache(config: Config) -> bool:
 
 
 def reuse_cache(context: Context) -> bool:
-    if not have_cache(context.config):
+    if not context.config.incremental or context.config.base_trees or context.config.overlay:
         return False
 
     final, build, _ = cache_tree_paths(context.config)
+    if not final.exists() or (need_build_overlay(context.config) and not build.exists()):
+        return False
 
     with complete_step("Copying cached trees"):
         copy_tree(
