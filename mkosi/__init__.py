@@ -2059,7 +2059,7 @@ def systemd_addon_stub_binary(context: Context) -> Path:
 
 
 def build_uki_profiles(context: Context, cmdline: Sequence[str]) -> list[Path]:
-    if not want_uki(context) or not context.config.unified_kernel_image_profiles:
+    if not context.config.unified_kernel_image_profiles:
         return []
 
     stub = systemd_addon_stub_binary(context)
@@ -2131,7 +2131,7 @@ def install_kernel(context: Context, partitions: Sequence[Partition]) -> None:
 
     token = find_entry_token(context)
     cmdline = finalize_cmdline(context, partitions, finalize_roothash(partitions))
-    profiles = build_uki_profiles(context, cmdline)
+    profiles = build_uki_profiles(context, cmdline) if want_uki(context) else []
 
     for kver, kimg in gen_kernel_images(context):
         if want_uki(context):
