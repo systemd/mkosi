@@ -24,7 +24,7 @@ import zipapp
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import AbstractContextManager
 from pathlib import Path
-from typing import Optional, Union, cast
+from typing import Any, Optional, Union, cast
 
 from mkosi.archive import can_extract_tar, extract_tar, make_cpio, make_tar
 from mkosi.bootloader import (
@@ -1549,7 +1549,8 @@ def run_ukify(
     arguments: Sequence[PathString] = (),
     options: Sequence[PathString] = (),
     sign: bool = True,
-) -> None:
+    json_out: bool = False,
+) -> dict[str, Any]:
     ukify = context.config.find_binary("ukify", "/usr/lib/systemd/ukify")
     if not ukify:
         die("Could not find ukify")
@@ -1619,19 +1620,31 @@ def run_ukify(
         else:
             cmd += ["--secureboot-certificate", context.config.secure_boot_certificate]
 
-    run(
+    if json_out:
+        cmd += ["--json=short"]
+        stdout = subprocess.PIPE
+    else:
+        stdout = None
+
+    result = run(
         cmd,
         stdin=(
             sys.stdin
             if context.config.secure_boot_key_source.type != KeySourceType.file
             else subprocess.DEVNULL
         ),
+        stdout=stdout,
         env=context.config.environment,
         sandbox=context.sandbox(
             options=[*opt, *options],
             devices=context.config.secure_boot_key_source.type != KeySourceType.file,
         ),
     )
+
+    if json_out:
+        return cast(dict[str, Any], json.loads(result.stdout.strip()))
+
+    return {}
 
 
 def build_uki(
@@ -1644,9 +1657,11 @@ def build_uki(
     cmdline: Sequence[str],
     profiles: Sequence[Path],
     output: Path,
-) -> None:
+) -> dict[str, Any]:
     if not (ukify := context.config.find_binary("ukify", "/usr/lib/systemd/ukify")):
         die("Could not find ukify")
+
+    json_out = False
 
     arguments: list[PathString] = [
         "--os-release", f"@{workdir(context.root / 'usr/lib/os-release')}",
@@ -1740,6 +1755,18 @@ def build_uki(
             ]  # fmt: skip
         else:
             arguments += ["--pcr-private-key", context.config.sign_expected_pcr_key]
+    elif ArtifactOutput.pcrs in context.config.split_artifacts:
+        assert context.config.sign_expected_pcr_certificate
+
+        json_out = True
+        arguments += [
+            "--policy-digest",
+            "--pcr-banks", "sha256",
+            "--pcr-certificate", workdir(context.config.sign_expected_pcr_certificate),
+        ]  # fmt: skip
+        options += [
+            "--ro-bind", context.config.sign_expected_pcr_certificate, workdir(context.config.sign_expected_pcr_certificate),  # noqa: E501
+        ]  # fmt: skip
 
     if microcodes:
         # new .ucode section support?
@@ -1764,7 +1791,15 @@ def build_uki(
         options += ["--ro-bind", initrd, workdir(initrd)]
 
     with complete_step(f"Generating unified kernel image for kernel version {kver}"):
-        run_ukify(context, stub, output, cmdline=cmdline, arguments=arguments, options=options)
+        return run_ukify(
+            context,
+            stub,
+            output,
+            cmdline=cmdline,
+            arguments=arguments,
+            options=options,
+            json_out=json_out,
+        )
 
 
 def systemd_stub_binary(context: Context) -> Path:
@@ -2201,7 +2236,7 @@ def make_uki(
     )
 
     initrds = [context.workspace / "initrd"]
-    build_uki(
+    pcrs = build_uki(
         context,
         stub,
         kver,
@@ -2218,6 +2253,9 @@ def make_uki(
 
     if ArtifactOutput.initrd in context.config.split_artifacts:
         extract_pe_section(context, output, ".initrd", context.staging / context.config.output_split_initrd)
+
+    if ArtifactOutput.pcrs in context.config.split_artifacts and pcrs:
+        (context.staging / context.config.output_split_pcrs).write_text(json.dumps(pcrs))
 
 
 def make_addon(context: Context, stub: Path, output: Path) -> None:
@@ -2763,6 +2801,16 @@ def check_tools(config: Config, verb: Verb) -> None:
         ):
             check_tool(config, "sbsiglist", reason="set up systemd-boot secure boot auto-enrollment")
             check_tool(config, "sbvarsign", reason="set up systemd-boot secure boot auto-enrollment")
+
+        if ArtifactOutput.pcrs in config.split_artifacts:
+            # TODO: bump version to 258 once it is released
+            check_systemd_tool(
+                config,
+                "systemd-measure",
+                "/usr/lib/systemd/systemd-measure",
+                version="257.999",
+                reason="generate TPM2 policy digests",
+            )
 
     if verb == Verb.boot:
         check_systemd_tool(config, "systemd-nspawn", version="254", reason="boot images")
