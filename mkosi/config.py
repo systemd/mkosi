@@ -31,10 +31,10 @@ from pathlib import Path
 from typing import Any, Callable, Generic, Optional, TypeVar, Union, cast
 
 from mkosi.distributions import Distribution, detect_distribution
-from mkosi.log import ARG_DEBUG, ARG_DEBUG_SANDBOX, ARG_DEBUG_SHELL, Style, die
+from mkosi.log import ARG_DEBUG, ARG_DEBUG_SANDBOX, ARG_DEBUG_SHELL, die
 from mkosi.pager import page
 from mkosi.run import SandboxProtocol, find_binary, nosandbox, run, sandbox_cmd, workdir
-from mkosi.sandbox import __version__
+from mkosi.sandbox import Style, __version__
 from mkosi.user import INVOKING_USER
 from mkosi.util import (
     PathString,
