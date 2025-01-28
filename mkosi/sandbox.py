@@ -101,10 +101,7 @@ libc.fcntl.argtypes = (ctypes.c_int, ctypes.c_int, ctypes.c_int)
 
 
 def terminal_is_dumb() -> bool:
-    if not sys.stdout.isatty() and not sys.stderr.isatty():
-        return True
-
-    return os.getenv("TERM", "") == "dumb"
+    return not sys.stdout.isatty() or not sys.stderr.isatty() or os.getenv("TERM", "") == "dumb"
 
 
 class Style:
