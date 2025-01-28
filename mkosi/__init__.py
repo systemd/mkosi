@@ -189,7 +189,7 @@ def mount_base_trees(context: Context) -> Iterator[None]:
                 if p.is_symlink() or not p.is_dir():
                     die(f"/{rel} is a directory in the base tree but not in the overlay")
                 shutil.copystat(q, p)
-            elif q.is_symlink() or q.exists():
+            elif q.is_symlink() or q.exists() and (str(rel) != "usr/lib/os-release"):
                 logging.info(f"Removing duplicate path /{rel} from overlay")
                 p.unlink()
 
@@ -411,6 +411,20 @@ def configure_extension_release(context: Context) -> None:
             f.write(f"ARCHITECTURE={context.config.architecture}\n")
 
     new.rename(p)
+
+
+def configure_portable_release(context: Context) -> None:
+    if context.config.output_format != OutputFormat.portable:
+        return
+
+    p = context.root / "usr/lib"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    new = p / "os-release"
+
+    with new.open("w") as f:
+        f.write(f'ID="{context.config.distribution}"\n')
+        f.write(f'IMAGE_ID="{context.config.image_id}"\n')
+        f.write(f'IMAGE_VERSION="{context.config.image_version}"\n')
 
 
 def configure_autologin_service(context: Context, service: str, extra: str) -> None:
@@ -3750,6 +3764,7 @@ def build_image(context: Context) -> None:
         configure_autologin(context)
         configure_os_release(context)
         configure_extension_release(context)
+        configure_portable_release(context)
         configure_initrd(context)
         configure_ssh(context)
         configure_clock(context)
