@@ -1712,6 +1712,7 @@ PACKAGE_GLOBS = (
 class UKIProfile:
     profile: dict[str, str]
     cmdline: list[str]
+    sign_expected_pcr: bool
 
 
 def make_simple_config_parser(
@@ -2252,6 +2253,12 @@ UKI_PROFILE_SETTINGS: list[ConfigSetting[Any]] = [
         dest="cmdline",
         section="UKIProfile",
         parse=config_make_list_parser(delimiter=" "),
+    ),
+    ConfigSetting(
+        dest="sign_expected_pcr",
+        section="UKIProfile",
+        parse=config_parse_boolean,
+        default=True,
     ),
 ]
 
@@ -5135,7 +5142,14 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         profiles: list[dict[str, Any]],
         fieldtype: type[UKIProfile],
     ) -> list[UKIProfile]:
-        return [UKIProfile(profile=profile["Profile"], cmdline=profile["Cmdline"]) for profile in profiles]
+        return [
+            UKIProfile(
+                profile=profile["Profile"],
+                cmdline=profile["Cmdline"],
+                sign_expected_pcr=profile["SignExpectedPcr"],
+            )
+            for profile in profiles
+        ]
 
     # The type of this should be
     # dict[

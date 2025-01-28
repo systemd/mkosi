@@ -379,7 +379,8 @@ def test_config() -> None:
                     ],
                     "Profile": {
                         "key": "value"
-                    }
+                    },
+                    "SignExpectedPcr": true
                 }
             ],
             "UnifiedKernelImages": "auto",
@@ -568,7 +569,13 @@ def test_config() -> None:
         tools_tree=None,
         tpm=ConfigFeature.auto,
         unified_kernel_image_format="myuki",
-        unified_kernel_image_profiles=[UKIProfile(profile={"key": "value"}, cmdline=["key=value"])],
+        unified_kernel_image_profiles=[
+            UKIProfile(
+                profile={"key": "value"},
+                cmdline=["key=value"],
+                sign_expected_pcr=True,
+            )
+        ],
         unified_kernel_images=ConfigFeature.auto,
         unit_properties=["PROPERTY=VALUE"],
         use_subvolumes=ConfigFeature.auto,
