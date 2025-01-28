@@ -4,6 +4,12 @@
 
 # mkosi Changelog
 
+## v26
+
+- Teach `--verity` a new `hash` value, which skips the verity signature
+  partition for extension / portable images. To align the possible values,
+  `yes` is renamed to `signed`.
+
 ## v25
 
 - Instead of using bubblewrap, sandboxing is now done with a new tool

@@ -65,6 +65,7 @@ from mkosi.config import (
     SecureBootSignTool,
     ShimBootloader,
     Verb,
+    Verity,
     Vmm,
     cat_config,
     format_bytes,
@@ -2603,13 +2604,13 @@ def check_inputs(config: Config) -> None:
             "Secure boot certificate source and expected PCR signatures certificate source have to be the same"  # noqa: E501
         )  # fmt: skip
 
-    if config.verity == ConfigFeature.enabled and not config.verity_key:
+    if config.verity == Verity.signed and not config.verity_key:
         die(
             "Verity= is enabled but no verity key is configured",
             hint="Run mkosi genkey to generate a key/certificate pair",
         )
 
-    if config.verity == ConfigFeature.enabled and not config.verity_certificate:
+    if config.verity == Verity.signed and not config.verity_certificate:
         die(
             "Verity= is enabled but no verity certificate is configured",
             hint="Run mkosi genkey to generate a key/certificate pair",
@@ -3257,7 +3258,7 @@ def make_image(
     partitions = [Partition.from_dict(d) for d in output]
     arch = context.config.architecture
 
-    if context.config.verity == ConfigFeature.enabled and not any(
+    if context.config.verity == Verity.signed and not any(
         p.type.startswith(f"usr-{arch}-verity-sig") or p.type.startswith(f"root-{arch}-verity-sig")
         for p in partitions
     ):
@@ -3275,8 +3276,8 @@ def make_image(
 
 
 def want_verity(config: Config) -> bool:
-    return config.verity == ConfigFeature.enabled or bool(
-        config.verity == ConfigFeature.auto and config.verity_key and config.verity_certificate
+    return config.verity == Verity.signed or bool(
+        config.verity == Verity.auto and config.verity_key and config.verity_certificate
     )
 
 
@@ -3509,7 +3510,11 @@ def make_esp(context: Context, uki: Path) -> list[Partition]:
 
 
 def make_extension_or_portable_image(context: Context, output: Path) -> None:
-    unsigned = "-unsigned" if not want_verity(context.config) else ""
+    if want_verity(context.config) or context.config.verity == Verity.signed:
+        unsigned = ""
+    else:
+        unsigned = "-unsigned"
+
     r = context.resources / f"repart/definitions/{context.config.output_format}{unsigned}.repart.d"
 
     cmdline: list[PathString] = [
@@ -3543,6 +3548,13 @@ def make_extension_or_portable_image(context: Context, output: Path) -> None:
         cmdline += ["--sector-size", str(context.config.sector_size)]
     if ArtifactOutput.partitions in context.config.split_artifacts:
         cmdline += ["--split=yes"]
+
+    verity = [
+        f"root-{context.config.architecture}-verity-sig",
+        f"usr-{context.config.architecture}-verity-sig",
+    ]
+    if context.config.verity == Verity.hash:
+        cmdline += [f"--exclude-partitions={','.join(verity)}"]
 
     with complete_step(f"Building {context.config.output_format} extension image"):
         j = json.loads(
@@ -4389,7 +4401,7 @@ def validate_certificates_and_keys(config: Config) -> None:
     if not keyutil:
         return
 
-    if config.verity != ConfigFeature.disabled and config.verity_certificate and config.verity_key:
+    if config.verity != Verity.disabled and config.verity_certificate and config.verity_key:
         run_systemd_sign_tool(
             config,
             cmdline=[keyutil, "validate"],

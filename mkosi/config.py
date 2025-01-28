@@ -363,6 +363,13 @@ class BuildSourcesEphemeral(StrEnum):
         return self != BuildSourcesEphemeral.no
 
 
+class Verity(StrEnum):
+    disabled = enum.auto()
+    hash = enum.auto()
+    signed = enum.auto()
+    auto = enum.auto()
+
+
 class Architecture(StrEnum):
     alpha = enum.auto()
     arc = enum.auto()
@@ -1872,7 +1879,7 @@ class Config:
     secure_boot_certificate: Optional[Path]
     secure_boot_certificate_source: CertificateSource
     secure_boot_sign_tool: SecureBootSignTool
-    verity: ConfigFeature
+    verity: Verity
     verity_key: Optional[Path]
     verity_key_source: KeySource
     verity_certificate: Optional[Path]
@@ -3034,7 +3041,9 @@ SETTINGS: list[ConfigSetting[Any]] = [
         dest="verity",
         section="Validation",
         metavar="FEATURE",
-        parse=config_parse_feature,
+        parse=config_make_enum_parser_with_boolean(Verity, yes=Verity.signed, no=Verity.disabled),
+        default=Verity.auto,
+        choices=Verity.values(),
         help="Configure whether to enforce or disable verity partitions for disk images",
     ),
     ConfigSetting(
@@ -5171,6 +5180,7 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         list[ArtifactOutput]: enum_list_transformer,
         CertificateSource: certificate_source_transformer,
         ConsoleMode: enum_transformer,
+        Verity: enum_transformer,
     }
 
     def json_transformer(key: str, val: Any) -> Any:
