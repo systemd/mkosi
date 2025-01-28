@@ -2019,6 +2019,10 @@ settings can be specified in the `UKIProfile` section:
     `.cmdline` section and the extra kernel command line arguments
     specified with this setting.
 
+`SignExpectedPcr=`
+:   Sign expected PCR measurements for this UKI profile. Takes a boolean.
+    Enabled by default.
+
 ## Specifiers
 
 The current value of various settings can be accessed when parsing

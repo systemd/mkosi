@@ -1653,6 +1653,18 @@ def build_uki(
         *flatten(["--join-profile", os.fspath(workdir(profile))] for profile in profiles),
     ]  # fmt: skip
 
+    if (
+        context.config.unified_kernel_image_profiles
+        and context.config.sign_expected_pcr
+        and any(not profile.sign_expected_pcr for profile in context.config.unified_kernel_image_profiles)
+    ):
+        arguments += ["--sign-profile=main"]
+        arguments += flatten(
+            ["--sign-profile", profile.profile["ID"]]
+            for profile in context.config.unified_kernel_image_profiles
+            if profile.sign_expected_pcr
+        )
+
     options: list[PathString] = [
         "--ro-bind", context.root / "usr/lib/os-release", workdir(context.root / "usr/lib/os-release"),
         "--ro-bind", kimg, workdir(kimg),
@@ -2670,27 +2682,30 @@ def check_tools(config: Config, verb: Verb) -> None:
         if config.output_format == OutputFormat.none:
             return
 
-        if want_efi(config):
-            if config.unified_kernel_image_profiles:
-                check_ukify(
-                    config,
-                    version="257",
-                    reason="build unified kernel image profiles",
-                    hint=(
-                        "Use ToolsTree=default to download most required tools including ukify automatically"
-                    ),
-                )
-            elif config.unified_kernel_images == ConfigFeature.enabled:
-                check_ukify(
-                    config,
-                    version="254",
-                    reason="build bootable images",
-                    hint=(
-                        "Use ToolsTree=default to download most required tools including ukify "
-                        "automatically or use Bootable=no to create a non-bootable image which doesn't "
-                        "require ukify"
-                    ),
-                )
+        if (
+            want_efi(config) or config.output_format in (OutputFormat.uki, OutputFormat.esp)
+        ) and config.unified_kernel_image_profiles:
+            check_ukify(
+                config,
+                version=(
+                    "258~devel"
+                    if any(not profile.sign_expected_pcr for profile in config.unified_kernel_image_profiles)
+                    else "257"
+                ),
+                reason="build unified kernel image profiles",
+                hint=("Use ToolsTree=default to download most required tools including ukify automatically"),
+            )
+        elif want_efi(config) and config.unified_kernel_images == ConfigFeature.enabled:
+            check_ukify(
+                config,
+                version="254",
+                reason="build bootable images",
+                hint=(
+                    "Use ToolsTree=default to download most required tools including ukify "
+                    "automatically or use Bootable=no to create a non-bootable image which doesn't "
+                    "require ukify"
+                ),
+            )
 
         if config.output_format in (OutputFormat.disk, OutputFormat.esp):
             check_systemd_tool(config, "systemd-repart", version="254", reason="build disk images")
