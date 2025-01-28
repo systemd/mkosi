@@ -4,6 +4,12 @@
 
 # mkosi Changelog
 
+## v26
+
+- Teach --verity a new new `hash` value, which skips the verity signature
+  partition for extension / portable images. To align the possible values,
+  `yes` is renamed to `signed`.
+
 ## v25
 
 - Instead of using bubblewrap, sandboxing is now done with a new tool
@@ -1037,7 +1043,7 @@
   configuration from the host system, instead of the internal list.
 - A new `SshAgent=` option configures the path to the ssh agent.
 - A new `SshPort=` option overrides the port used for ssh.
-- The `Verity=` setting supports a new value `signed`. When set, verity data
+- The `Verity=` setting supports a new value `signature`. When set, verity data
   will be signed and the result inserted as an additional partition in the
   image. See https://systemd.io/DISCOVERABLE_PARTITIONS for details about
   signed disk images. This information is used by `systemd-nspawn`,
