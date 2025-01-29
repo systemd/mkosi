@@ -3043,6 +3043,7 @@ def save_cache(context: Context) -> None:
     final, build, manifest = cache_tree_paths(context.config)
 
     with complete_step("Installing cache copies"):
+        rmtree(final)
         move_tree(
             context.root,
             final,
@@ -3051,6 +3052,7 @@ def save_cache(context: Context) -> None:
         )
 
         if need_build_overlay(context.config) and (context.workspace / "build-overlay").exists():
+            rmtree(build)
             move_tree(
                 context.workspace / "build-overlay",
                 build,
@@ -3068,7 +3070,7 @@ def save_cache(context: Context) -> None:
         )
 
 
-def have_cache(config: Config, check_uid: bool = True) -> bool:
+def have_cache(config: Config) -> bool:
     if not config.incremental or config.base_trees or config.overlay:
         return False
 
@@ -3077,7 +3079,7 @@ def have_cache(config: Config, check_uid: bool = True) -> bool:
         logging.debug(f"{final} does not exist, not reusing cached images")
         return False
 
-    if check_uid and (uid := final.stat().st_uid) != os.getuid():
+    if config.image != "tools" and (uid := final.stat().st_uid) != os.getuid():
         logging.debug(
             f"{final} uid ({uid}) does not match user uid ({os.getuid()}), not reusing cached images"
         )
@@ -3112,10 +3114,12 @@ def have_cache(config: Config, check_uid: bool = True) -> bool:
 
 
 def reuse_cache(context: Context) -> bool:
-    if not have_cache(context.config):
+    if not context.config.incremental or context.config.base_trees or context.config.overlay:
         return False
 
     final, build, _ = cache_tree_paths(context.config)
+    if not final.exists() or (need_build_overlay(context.config) and not build.exists()):
+        return False
 
     with complete_step("Copying cached trees"):
         copy_tree(
@@ -4794,7 +4798,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         tools
         and (
             not (tools.output_dir_or_cwd() / tools.output).exists()
-            or (tools.incremental and not have_cache(tools, check_uid=False))
+            or (tools.incremental and not have_cache(tools))
         )
         and (args.verb != Verb.build or last.output_format == OutputFormat.none)
         and not args.force
@@ -4808,8 +4812,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
     # If we're doing an incremental build and the cache is not out of date, don't clean up the
     # tools tree so that we can reuse the previous one.
     if tools and (
-        not tools.incremental
-        or ((args.verb == Verb.build or args.force > 0) and not have_cache(tools, check_uid=False))
+        not tools.incremental or ((args.verb == Verb.build or args.force > 0) and not have_cache(tools))
     ):
         if tools.incremental == Incremental.strict:
             die(
