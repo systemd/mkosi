@@ -277,6 +277,10 @@ def extract_pe_section(context: Context, binary: Path, section: str, output: Pat
 
     # TODO: Use ignore_padding=True instead of length once we can depend on a newer pefile.
     # TODO: Drop KeyError logic once we drop support for Ubuntu Jammy and sdmagic will always be available.
+    # Misc_VirtualSize is the section size in memory, which can be bigger or smaller than SizeOfRawData,
+    # which is the aligned section size on disk. The closest approximation of the actual section size will be
+    # the minimum of these two. If Misc_VirtualSize < SizeOfRawData, we'll get the actual size. Otherwise
+    # padding might be inclduded.
     pefile = textwrap.dedent(
         f"""\
         import pefile
@@ -286,7 +290,9 @@ def extract_pe_section(context: Context, binary: Path, section: str, output: Pat
         section = {{s.Name.decode().strip("\\0"): s for s in pe.sections}}.get("{section}")
         if not section:
             sys.exit(67)
-        sys.stdout.buffer.write(section.get_data(length=section.Misc_VirtualSize))
+        sys.stdout.buffer.write(
+            section.get_data(length=min(section.Misc_VirtualSize, section.SizeOfRawData))
+        )
         """
     )
 
