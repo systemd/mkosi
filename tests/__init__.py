@@ -17,6 +17,7 @@ from mkosi.distributions import Distribution
 from mkosi.run import CompletedProcess, fork_and_wait, run
 from mkosi.sandbox import acquire_privileges
 from mkosi.tree import rmtree
+from mkosi.user import INVOKING_USER
 from mkosi.util import _FILE, PathString
 
 
@@ -33,7 +34,12 @@ class Image:
         self.config = config
 
     def __enter__(self) -> "Image":
-        self.output_dir = Path(os.getenv("TMPDIR", "/var/tmp")) / uuid.uuid4().hex[:16]
+        if (cache := INVOKING_USER.cache_dir()) and os.access(cache, os.W_OK):
+            tmpdir = cache
+        else:
+            tmpdir = Path("/var/tmp")
+
+        self.output_dir = Path(os.getenv("TMPDIR", tmpdir)) / uuid.uuid4().hex[:16]
 
         return self
 
