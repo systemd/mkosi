@@ -185,11 +185,24 @@ def mount_base_trees(context: Context) -> Iterator[None]:
             rel = p.relative_to(context.root)
             q = context.workspace / "lower" / rel
 
-            if not q.is_symlink() and q.is_dir():
-                if p.is_symlink() or not p.is_dir():
-                    die(f"/{rel} is a directory in the base tree but not in the overlay")
+            if (
+                context.config.output_format == OutputFormat.sysext
+                and not rel.is_relative_to("usr")
+                and not rel.is_relative_to("opt")
+            ):
+                continue
+
+            if context.config.output_format == OutputFormat.confext and not rel.is_relative_to("etc"):
+                continue
+
+            if not q.is_symlink() and not q.exists():
+                continue
+
+            if not p.is_symlink() and p.is_dir():
+                if q.is_symlink() or not q.is_dir():
+                    die(f"/{rel} is a directory in the overlay but not in the base tree")
                 shutil.copystat(q, p)
-            elif q.is_symlink() or q.exists():
+            else:
                 logging.info(f"Removing duplicate path /{rel} from overlay")
                 p.unlink()
 
