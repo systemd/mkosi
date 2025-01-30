@@ -185,6 +185,16 @@ def mount_base_trees(context: Context) -> Iterator[None]:
             rel = p.relative_to(context.root)
             q = context.workspace / "lower" / rel
 
+            if (
+                context.config.output_format == OutputFormat.sysext
+                and not rel.is_relative_to("usr")
+                and not rel.is_relative_to("opt")
+            ):
+                continue
+
+            if context.config.output_format == OutputFormat.confext and not rel.is_relative_to("etc"):
+                continue
+
             if not q.is_symlink() and not q.exists():
                 continue
 
