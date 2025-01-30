@@ -2993,6 +2993,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         parse=config_parse_key,
         paths=("mkosi.key",),
         help="UEFI SecureBoot private key",
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="secure_boot_key_source",
@@ -3001,6 +3002,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         parse=config_parse_key_source,
         default=KeySource(type=KeySourceType.file),
         help="The source to use to retrieve the secure boot signing key",
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="secure_boot_certificate",
@@ -3009,6 +3011,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         parse=config_parse_certificate,
         paths=("mkosi.crt",),
         help="UEFI SecureBoot certificate in X509 format",
+        scope=SettingScope.universal,
     ),
     ConfigSetting(
         dest="secure_boot_certificate_source",
