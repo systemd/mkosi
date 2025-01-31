@@ -13,7 +13,7 @@ import os
 import sys
 import warnings  # noqa: F401 (loaded lazily by os.execvp() which happens too late)
 
-__version__ = "25.3"
+__version__ = "26~devel"
 
 # The following constants are taken from the Linux kernel headers.
 AT_EMPTY_PATH = 0x1000
