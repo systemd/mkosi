@@ -1141,17 +1141,18 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `Verity=`, `--verity=`
 :   Whether to enforce or disable verity for extension images. Takes one of
-    `signed`, `hash`, `auto` or a boolean value. If set to `signed`,
+    `signed`, `hash`, `defer`, `auto` or a boolean value. If set to `signed`,
     a verity key and certificate must be present and the build will fail if
     we don't detect any verity partitions in the disk image produced by
     **systemd-repart**. If disabled, verity partitions will be excluded
     from the extension images produced by **systemd-repart**. If set to
     `hash`, **mkosi** configures **systemd-repart** to create a verity hash
-    partition, but no signature partition. If set to `auto` and a verity key
-    and certificate are present, **mkosi** will pass them to **systemd-repart** and
-    expects the generated disk image to contain verity partitions, but the build
-    won't fail if no verity partitions are found in the disk image produced by
-    **systemd-repart**.
+    partition, but no signature partition. If set to `defer`, space for the verity
+    sig partition will be allocated but it will not be populated yet. If set to
+    `auto` and a verity key and certificate are present, **mkosi** will pass them
+    to **systemd-repart** and expects the generated disk image to contain verity
+    partitions, but the build won't fail if no verity partitions are found in the
+    disk image produced by **systemd-repart**.
 
     Note that explicitly disabling verity signature and/or hash is not yet
     implemented for the `disk` output and only works for extension images at the

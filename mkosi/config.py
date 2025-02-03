@@ -367,6 +367,7 @@ class Verity(StrEnum):
     disabled = enum.auto()
     hash = enum.auto()
     signed = enum.auto()
+    defer = enum.auto()
     auto = enum.auto()
 
 

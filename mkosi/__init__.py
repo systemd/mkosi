@@ -3353,6 +3353,13 @@ def make_disk(
 
         definitions = [defaults]
 
+    if context.config.verity == Verity.defer:
+        skip = [
+            *skip,
+            f"root-{context.config.architecture}-verity-sig",
+            f"usr-{context.config.architecture}-verity-sig",
+        ]
+
     return make_image(
         context,
         msg=msg,
@@ -3555,6 +3562,8 @@ def make_extension_or_portable_image(context: Context, output: Path) -> None:
     ]
     if context.config.verity == Verity.hash:
         cmdline += [f"--exclude-partitions={','.join(verity)}"]
+    elif context.config.verity == Verity.defer:
+        cmdline += [f"--defer-partitions={','.join(verity)}"]
 
     with complete_step(f"Building {context.config.output_format} extension image"):
         j = json.loads(
