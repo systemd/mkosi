@@ -162,6 +162,8 @@ def finalize_completion_fish(options: list[CompletionItem], resources: Path) -> 
         c.write("complete -c mkosi -n '__fish_is_first_token' -a \"")
         c.write(" ".join(str(v) for v in config.Verb))
         c.write('"\n')
+        # Complete paths after first token
+        c.write("complete -c mkosi -F -n 'not __fish_is_first_token'\n")
 
         for option in options:
             if not option.short and not option.long:
