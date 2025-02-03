@@ -4216,11 +4216,11 @@ def generate_key_cert_pair(args: Args) -> None:
     expiration_date = datetime.date.today() + datetime.timedelta(int(args.genkey_valid_days))
     cn = expand_specifier(args.genkey_common_name)
 
-    for f in ("mkosi.key", "mkosi.crt"):
+    for f in ("mkosi.key", "mkosi.crt", "mkosi.pub"):
         if Path(f).exists() and not args.force:
             die(
                 f"{f} already exists",
-                hint="To generate new keys, first remove mkosi.key and mkosi.crt",
+                hint="To generate new keys, first remove mkosi.key, mkosi.crt and mkosi.pub.",
             )
 
     log_step(f"Generating keys rsa:{keylength} for CN {cn!r}.")
@@ -4245,6 +4245,16 @@ def generate_key_cert_pair(args: Args) -> None:
             "-days", str(args.genkey_valid_days),
             "-subj", f"/CN={cn}/",
             "-nodes"
+        ],
+        env=dict(OPENSSL_CONF="/dev/null"),
+    )  # fmt: skip
+    run(
+        [
+            "openssl",
+            "rsa",
+            "-pubout",
+            "-in", "mkosi.key",
+            "-out", "mkosi.pub",
         ],
         env=dict(OPENSSL_CONF="/dev/null"),
     )  # fmt: skip
