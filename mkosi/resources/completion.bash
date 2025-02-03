@@ -10,8 +10,9 @@ _mkosi_compgen_dirs() {
 }
 
 _mkosi_completion() {
-    local -a _mkosi_options _mkosi_verbs
-    local -A _mkosi_nargs _mkosi_choices _mkosi_compgen
+    local -a _mkosi_options
+    local -A _mkosi_nargs _mkosi_choices _mkosi_compgen _mkosi_verbs
+    local -i curword_idx verb_seen
 
 ##VARIABLEDEFINITIONS##
 
@@ -22,7 +23,7 @@ _mkosi_completion() {
     if [[ "$completing_word" =~ ^- ]]  # completing an option
     then
         readarray -t COMPREPLY < <(compgen -W "${_mkosi_options[*]}" -- "${completing_word}")
-
+        return
     elif [[ "$completing_word_preceding" =~ ^- ]]  # the previous word was an option
     then
         current_option="${completing_word_preceding}"
@@ -30,21 +31,42 @@ _mkosi_completion() {
         current_option_choices="${_mkosi_choices[${current_option}]}"
         current_option_compgen="${_mkosi_compgen[${current_option}]}"
 
+        # compgen options if we have them
         if [[ -n "${current_option_compgen}" ]]
         then
             readarray -t COMPREPLY < <("${current_option_compgen}" "${completing_word}")
+            return
         fi
+
+        # add choices if the current option has them
         readarray -t COMPREPLY -O "${#COMPREPLY[@]}" \
                   < <(compgen -W "${current_option_choices}" -- "${completing_word}")
 
-        if [[ "${current_option_nargs}" == "?" ]]
+        # if this (maybe) takes arguments, we'll just fall back to files
+        if [[ "${current_option_nargs}" == "?" ]] || ((current_option_nargs > 0))
         then
             readarray -t COMPREPLY -O "${#COMPREPLY[@]}" \
-                      < <(compgen -W "${_mkosi_verbs[*]}" -- "${completing_word}")
+                      < <(_mkosi_compgen_files "${completing_word}")
+            return
         fi
+    fi
+
+    # the preceding word wasn't an option or one that doesn't take arguments,
+    # let's get creative and check the whole argument list so far
+    while ((curword_idx < COMP_CWORD))
+    do
+        # check if we've seen a verb already, then we just try files
+        if [[ -n "${_mkosi_verbs[${COMP_WORDS[${curword_idx}]}]}" ]]
+        then
+            verb_seen=$curword_idx
+            break
+        fi
+        curword_idx=$((curword_idx + 1))
+    done
+    if ((verb_seen))
+    then
+        readarray -t COMPREPLY < <(_mkosi_compgen_files "${completing_word}")
     else
-        # the preceding word wasn't an option, so we are doing position
-        # arguments now and all of them are verbs
         readarray -t COMPREPLY < <(compgen -W "${_mkosi_verbs[*]}" -- "${completing_word}")
     fi
 }

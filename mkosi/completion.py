@@ -147,7 +147,7 @@ def finalize_completion_bash(options: list[CompletionItem], resources: Path) -> 
         c.write(compgen)
         c.write("\n\n")
 
-        c.write(to_bash_array("_mkosi_verbs", [str(v) for v in config.Verb]))
+        c.write(to_bash_hasharray("_mkosi_verbs", {str(v): str(v) for v in config.Verb}))
 
         definitions = c.getvalue()
 
