@@ -137,9 +137,6 @@ def resolve_module_dependencies(
             elif key == "firmware":
                 glob = "" if value.endswith("*") else "*"
                 fw = [f for f in Path("usr/lib/firmware").glob(f"{value}{glob}")]
-                if not fw:
-                    logging.debug(f"Not including missing firmware /usr/lib/firmware/{value} in the initrd")
-
                 firmware.update(fw)
 
             elif key == "name":
