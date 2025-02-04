@@ -711,41 +711,39 @@ def install_systemd_boot(context: Context) -> None:
                 keys.mkdir(parents=True, exist_ok=True)
 
             # sbsiglist expects a DER certificate.
-            with umask(~0o600):
-                run(
-                    [
-                        "openssl",
-                        "x509",
-                        "-outform", "DER",
-                        "-in", workdir(context.config.secure_boot_certificate),
-                        "-out", workdir(context.workspace / "mkosi.der"),
+            run(
+                [
+                    "openssl",
+                    "x509",
+                    "-outform", "DER",
+                    "-in", workdir(context.config.secure_boot_certificate),
+                    "-out", workdir(context.workspace / "mkosi.der"),
+                ],
+                sandbox=context.sandbox(
+                    options=[
+                        "--ro-bind",
+                        context.config.secure_boot_certificate,
+                        workdir(context.config.secure_boot_certificate),
+                        "--bind", context.workspace, workdir(context.workspace),
                     ],
-                    sandbox=context.sandbox(
-                        options=[
-                            "--ro-bind",
-                            context.config.secure_boot_certificate,
-                            workdir(context.config.secure_boot_certificate),
-                            "--bind", context.workspace, workdir(context.workspace),
-                        ],
-                    ),
-                )  # fmt: skip
+                ),
+            )  # fmt: skip
 
-            with umask(~0o600):
-                run(
-                    [
-                        "sbsiglist",
-                        "--owner", "00000000-0000-0000-0000-000000000000",
-                        "--type", "x509",
-                        "--output", workdir(context.workspace / "mkosi.esl"),
-                        workdir(context.workspace / "mkosi.der"),
-                    ],
-                    sandbox=context.sandbox(
-                        options=[
-                            "--bind", context.workspace, workdir(context.workspace),
-                            "--ro-bind", context.workspace / "mkosi.der", workdir(context.workspace / "mkosi.der"),  # noqa: E501
-                        ]
-                    ),
-                )  # fmt: skip
+            run(
+                [
+                    "sbsiglist",
+                    "--owner", "00000000-0000-0000-0000-000000000000",
+                    "--type", "x509",
+                    "--output", workdir(context.workspace / "mkosi.esl"),
+                    workdir(context.workspace / "mkosi.der"),
+                ],
+                sandbox=context.sandbox(
+                    options=[
+                        "--bind", context.workspace, workdir(context.workspace),
+                        "--ro-bind", context.workspace / "mkosi.der", workdir(context.workspace / "mkosi.der"),  # noqa: E501
+                    ]
+                ),
+            )  # fmt: skip
 
             # We reuse the key for all secure boot databases to keep things simple.
             for db in ["PK", "KEK", "db"]:
