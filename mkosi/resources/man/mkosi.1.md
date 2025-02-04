@@ -1146,7 +1146,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     detect any verity partitions in the disk image produced by
     **systemd-repart**. If disabled, verity partitions will be excluded from
     the extension images produced by **systemd-repart**. If set to `auto` and
-    a verity key and certificate are present, **mkosi** will pass them to systemd-repart
+    a verity key and certificate are present, **mkosi** will pass them to **systemd-repart**
     and expects the generated disk image to contain verity partitions,
     but the build won't fail if no verity partitions are found in the
     disk image produced by **systemd-repart**.
