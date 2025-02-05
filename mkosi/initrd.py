@@ -220,6 +220,13 @@ def main() -> None:
         help="Output format (CPIO archive, UKI or local directory)",
         default="cpio",
     )
+    parser.add_argument(
+        "-g",
+        "--generic",
+        help="Build a generic initrd without host-specific kernel modules",
+        action="store_true",
+        default=False,
+    )
 
     initrd_common_args(parser)
 
@@ -245,10 +252,12 @@ def main() -> None:
             "--extra-tree=/usr/lib/firmware:/usr/lib/firmware",
             "--remove-files=/usr/lib/firmware/*-ucode",
             "--kernel-modules-exclude=.*",
-            "--kernel-modules-include=host",
             "--build-sources", "",
             "--include=mkosi-initrd",
         ]  # fmt: skip
+
+        if not args.generic:
+            cmdline += ["--kernel-modules-include=host"]
 
         if args.kernel_image:
             cmdline += [
