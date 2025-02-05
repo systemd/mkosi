@@ -4,6 +4,16 @@
 
 # mkosi Changelog
 
+## v26
+
+- Teach `--verity` a new `hash` value, which skips the verity signature
+  partition for extension / portable images. To align the possible values,
+  `yes` is renamed to `signed`.
+- Teach `--verity` a new `defer` value, which defers creation of the
+  verity signature partition for disk, extension and portable images (but
+  still allocates space for it). This is useful to implement offline
+  signing of the verity roothash.
+
 ## v25
 
 - Instead of using bubblewrap, sandboxing is now done with a new tool

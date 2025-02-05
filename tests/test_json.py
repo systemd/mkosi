@@ -36,6 +36,7 @@ from mkosi.config import (
     ShimBootloader,
     UKIProfile,
     Verb,
+    Verity,
     Vmm,
     VsockCID,
 )
@@ -388,7 +389,7 @@ def test_config() -> None:
             "UseSubvolumes": "auto",
             "VSock": "enabled",
             "VSockCID": -2,
-            "Verity": "enabled",
+            "Verity": "signed",
             "VerityCertificate": "/path/to/cert",
             "VerityCertificateSource": {
                 "Source": "",
@@ -575,7 +576,7 @@ def test_config() -> None:
         verity_certificate=Path("/path/to/cert"),
         verity_key_source=KeySource(type=KeySourceType.file),
         verity_key=None,
-        verity=ConfigFeature.enabled,
+        verity=Verity.signed,
         vmm=Vmm.qemu,
         volatile_package_directories=[Path("def")],
         volatile_packages=["abc"],
