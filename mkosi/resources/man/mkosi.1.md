@@ -1957,10 +1957,10 @@ config file is read:
     Note that each path containing extra configuration is only parsed
     once, even if included more than once with `Include=`.
 
-    The builtin configs for the **mkosi** default initrd, default tools tree
-    and default virtual machine image can be included by including the
-    literal value `mkosi-initrd`, `mkosi-tools` or `mkosi-vm`
-    respectively.
+    The builtin configs for the **mkosi** default initrd, default tools tree,
+    default virtual machine image and default UKI addon can be included by
+    including the literal value `mkosi-initrd`, `mkosi-tools`, `mkosi-vm` or
+    `mkosi-addon` respectively.
 
     Note: Include names starting with either of the literals `mkosi-` or
     `contrib-` are reserved for use by **mkosi** itself.
