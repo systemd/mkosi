@@ -508,7 +508,7 @@ def finalize_scripts(config: Config, scripts: Mapping[str, Sequence[PathString]]
                         )
                     )
 
-                f.write(f'exec {shlex.join(str(s) for s in script)} "$@"\n')
+                f.write(f'exec {shlex.join(os.fspath(s) for s in script)} "$@"\n')
 
             make_executable(Path(d) / name)
             os.utime(Path(d) / name, (0, 0))
@@ -834,7 +834,7 @@ def run_build_scripts(context: Context) -> None:
                     "--bind", context.artifacts, "/work/artifacts",
                     "--bind", context.package_dir, "/work/packages",
                     *(
-                        ["--bind", str(context.config.build_dir), "/work/build"]
+                        ["--bind", os.fspath(context.config.build_dir), "/work/build"]
                         if context.config.build_dir
                         else []
                     ),
@@ -904,7 +904,7 @@ def run_postinst_scripts(context: Context) -> None:
                     "--bind", context.artifacts, "/work/artifacts",
                     "--bind", context.package_dir, "/work/packages",
                     *(
-                        ["--ro-bind", str(context.config.build_dir), "/work/build"]
+                        ["--ro-bind", os.fspath(context.config.build_dir), "/work/build"]
                         if context.config.build_dir
                         else []
                     ),
@@ -973,7 +973,7 @@ def run_finalize_scripts(context: Context) -> None:
                     "--bind", context.artifacts, "/work/artifacts",
                     "--bind", context.package_dir, "/work/packages",
                     *(
-                        ["--ro-bind", str(context.config.build_dir), "/work/build"]
+                        ["--ro-bind", os.fspath(context.config.build_dir), "/work/build"]
                         if context.config.build_dir
                         else []
                     ),
@@ -1290,10 +1290,10 @@ def finalize_default_initrd(
         "--compress-level", str(config.compress_level),
         "--with-network", str(config.with_network),
         "--cache-only", str(config.cacheonly),
-        *(["--output-directory", str(output_dir)] if output_dir else []),
-        *(["--workspace-directory", str(config.workspace_dir)] if config.workspace_dir else []),
-        *(["--cache-directory", str(config.cache_dir)] if config.cache_dir else []),
-        *(["--package-cache-directory", str(config.package_cache_dir)] if config.package_cache_dir else []),
+        *(["--output-directory", os.fspath(output_dir)] if output_dir else []),
+        *(["--workspace-directory", os.fspath(config.workspace_dir)] if config.workspace_dir else []),
+        *(["--cache-directory", os.fspath(config.cache_dir)] if config.cache_dir else []),
+        *(["--package-cache-directory", os.fspath(config.package_cache_dir)] if config.package_cache_dir else []),  # noqa: E501
         *(["--local-mirror", str(config.local_mirror)] if config.local_mirror else []),
         "--incremental", str(config.incremental),
         *(f"--package={package}" for package in config.initrd_packages),
@@ -1315,14 +1315,14 @@ def finalize_default_initrd(
         *(["--hostname", config.hostname] if config.hostname else []),
         *(["--root-password", rootpwopt] if rootpwopt else []),
         *([f"--environment={k}='{v}'" for k, v in config.environment.items()]),
-        *(["--tools-tree", str(config.tools_tree)] if config.tools_tree and tools else []),
+        *(["--tools-tree", os.fspath(config.tools_tree)] if config.tools_tree and tools else []),
         "--tools-tree-certificates", str(config.tools_tree_certificates),
-        *([f"--extra-search-path={p}" for p in config.extra_search_paths]),
+        *([f"--extra-search-path={os.fspath(p)}" for p in config.extra_search_paths]),
         *(["--proxy-url", config.proxy_url] if config.proxy_url else []),
         *([f"--proxy-exclude={host}" for host in config.proxy_exclude]),
-        *(["--proxy-peer-certificate", str(p)] if (p := config.proxy_peer_certificate) else []),
-        *(["--proxy-client-certificate", str(p)] if (p := config.proxy_client_certificate) else []),
-        *(["--proxy-client-key", str(p)] if (p := config.proxy_client_key) else []),
+        *(["--proxy-peer-certificate", os.fspath(p)] if (p := config.proxy_peer_certificate) else []),
+        *(["--proxy-client-certificate", os.fspath(p)] if (p := config.proxy_client_certificate) else []),
+        *(["--proxy-client-key", os.fspath(p)] if (p := config.proxy_client_key) else []),
         "--selinux-relabel", str(relabel),
         "--include=mkosi-initrd",
     ]  # fmt: skip
@@ -4332,21 +4332,21 @@ def finalize_default_tools(config: Config, *, resources: Path) -> Config:
         "--repository-key-check", str(config.repository_key_check),
         "--repository-key-fetch", str(config.repository_key_fetch),
         "--cache-only", str(config.cacheonly),
-        *(["--output-directory", str(config.output_dir)] if config.output_dir else []),
-        *(["--workspace-directory", str(config.workspace_dir)] if config.workspace_dir else []),
-        *(["--cache-directory", str(config.cache_dir)] if config.cache_dir else []),
-        *(["--package-cache-directory", str(config.package_cache_dir)] if config.package_cache_dir else []),
+        *(["--output-directory", os.fspath(config.output_dir)] if config.output_dir else []),
+        *(["--workspace-directory", os.fspath(config.workspace_dir)] if config.workspace_dir else []),
+        *(["--cache-directory", os.fspath(config.cache_dir)] if config.cache_dir else []),
+        *(["--package-cache-directory", os.fspath(config.package_cache_dir)] if config.package_cache_dir else []),  # noqa: E501
         "--incremental", str(config.incremental),
         *([f"--package={package}" for package in config.tools_tree_packages]),
-        *([f"--package-directory={directory}" for directory in config.tools_tree_package_directories]),
+        *([f"--package-directory={os.fspath(directory)}" for directory in config.tools_tree_package_directories]),  # noqa: E501
         "--output=tools",
         *(["--source-date-epoch", str(config.source_date_epoch)] if config.source_date_epoch is not None else []),  # noqa: E501
         *([f"--environment={k}='{v}'" for k, v in config.environment.items()]),
         *(["--proxy-url", config.proxy_url] if config.proxy_url else []),
         *([f"--proxy-exclude={host}" for host in config.proxy_exclude]),
-        *(["--proxy-peer-certificate", str(p)] if (p := config.proxy_peer_certificate) else []),
-        *(["--proxy-client-certificate", str(p)] if (p := config.proxy_client_certificate) else []),
-        *(["--proxy-client-key", str(p)] if (p := config.proxy_client_key) else []),
+        *(["--proxy-peer-certificate", os.fspath(p)] if (p := config.proxy_peer_certificate) else []),
+        *(["--proxy-client-certificate", os.fspath(p)] if (p := config.proxy_client_certificate) else []),
+        *(["--proxy-client-key", os.fspath(p)] if (p := config.proxy_client_key) else []),
     ]  # fmt: skip
 
     _, [tools] = parse_config(
@@ -4412,7 +4412,7 @@ def run_clean_scripts(config: Config) -> None:
                             "--dir", "/work/out",
                             "--ro-bind", script, "/work/clean",
                             "--ro-bind", json, "/work/config.json",
-                            *(["--bind", str(o), "/work/out"] if (o := config.output_dir_or_cwd()).exists() else []),  # noqa: E501
+                            *(["--bind", os.fspath(o), "/work/out"] if (o := config.output_dir_or_cwd()).exists() else []),  # noqa: E501
                             *sources,
                         ],
                     ),

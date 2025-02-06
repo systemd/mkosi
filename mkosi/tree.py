@@ -19,7 +19,7 @@ from mkosi.versioncomp import GenericVersion
 
 
 def is_subvolume(path: Path) -> bool:
-    return path.is_dir() and path.stat().st_ino == 256 and statfs(str(path)) == BTRFS_SUPER_MAGIC
+    return path.is_dir() and path.stat().st_ino == 256 and statfs(os.fspath(path)) == BTRFS_SUPER_MAGIC
 
 
 def cp_version(*, sandbox: SandboxProtocol = nosandbox) -> GenericVersion:
@@ -42,7 +42,7 @@ def make_tree(
 ) -> Path:
     path = path.absolute()
 
-    if statfs(str(path.parent)) != BTRFS_SUPER_MAGIC:
+    if statfs(os.fspath(path.parent)) != BTRFS_SUPER_MAGIC:
         if use_subvolumes == ConfigFeature.enabled:
             die(f"Subvolumes requested but {path} is not located on a btrfs filesystem")
 
@@ -134,7 +134,7 @@ def copy_tree(
         use_subvolumes == ConfigFeature.disabled
         or not preserve
         or not is_subvolume(src)
-        or statfs(str(dst.parent)) != BTRFS_SUPER_MAGIC
+        or statfs(os.fspath(dst.parent)) != BTRFS_SUPER_MAGIC
         or (dst.exists() and (not dst.is_dir() or any(dst.iterdir())))
     ):
         with preserve_target_directories_stat(src, dst) if not preserve else contextlib.nullcontext():

@@ -1,5 +1,6 @@
 import itertools
 import logging
+import os
 import shutil
 import subprocess
 import sys
@@ -208,7 +209,7 @@ def grub_mkimage(
                 "--prefix", f"/{context.config.distribution.grub_prefix()}",
                 "--output", workdir(output) if output else "/grub/core.img",
                 "--format", target,
-                *(["--sbat", str(workdir(sbat))] if sbat else []),
+                *(["--sbat", os.fspath(workdir(sbat))] if sbat else []),
                 *(["--disable-shim-lock"] if context.config.shim_bootloader == ShimBootloader.none else []),
                 "cat",
                 "cmp",
@@ -237,8 +238,8 @@ def grub_mkimage(
                 options=[
                     "--bind", directory, "/grub",
                     "--ro-bind", earlyconfig.name, workdir(Path(earlyconfig.name)),
-                    *(["--bind", str(output.parent), str(workdir(output.parent))] if output else []),
-                    *(["--ro-bind", str(sbat), str(workdir(sbat))] if sbat else []),
+                    *(["--bind", os.fspath(output.parent), os.fspath(workdir(output.parent))] if output else []),  # noqa: E501
+                    *(["--ro-bind", os.fspath(sbat), os.fspath(workdir(sbat))] if sbat else []),
                 ],
             ),
         )  # fmt: skip

@@ -129,7 +129,7 @@ def initrd_finalize(staging_dir: str, output: str, output_dir: str) -> None:
         with umask(~0o700) if os.getuid() == 0 else cast(umask, contextlib.nullcontext()):
             Path(output_dir).mkdir(parents=True, exist_ok=True)
     else:
-        output_dir = str(Path.cwd())
+        output_dir = os.fspath(Path.cwd())
 
     log_notice(f"Copying {staging_dir}/{output} to {output_dir}/{output}")
     # mkosi symlinks the expected output image, so dereference it

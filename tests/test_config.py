@@ -1188,7 +1188,7 @@ def test_specifiers(tmp_path: Path) -> None:
             "Image": "",
             "ImageId": "my-image-id",
             "ImageVersion": "1.2.3",
-            "OutputDirectory": str(Path.cwd() / "abcde"),
+            "OutputDirectory": os.fspath(Path.cwd() / "abcde"),
             "Output": "test",
             "ConfigRootDirectory": os.fspath(d),
             "ConfigRootConfdir": os.fspath(d),

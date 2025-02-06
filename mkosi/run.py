@@ -492,7 +492,7 @@ def nosandbox(
 
 def workdir(path: Path, sandbox: Optional[SandboxProtocol] = None) -> str:
     subdir = "/" if sandbox and sandbox == nosandbox else "/work"
-    return joinpath(subdir, str(path))
+    return joinpath(subdir, os.fspath(path))
 
 
 def finalize_passwd_symlinks(root: PathString) -> list[PathString]:
@@ -691,7 +691,7 @@ def sandbox_cmd(
                 cmdline += [
                     "--overlay-lowerdir", overlay / d,
                     "--overlay-upperdir", tmp or "tmpfs",
-                    *(["--overlay-workdir", str(work)] if work else []),
+                    *(["--overlay-workdir", os.fspath(work)] if work else []),
                     "--overlay", Path("/") / d,
                 ]  # fmt: skip
             elif not relaxed:
