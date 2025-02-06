@@ -40,7 +40,11 @@ def find_fedora_rpm_gpgkeys(context: Context) -> Iterable[str]:
             path = Path(rhs).resolve()
             if m := versionre.match(path.name):
                 version = int(m.group(1))
-                if key3 := find_rpm_gpgkey(context, key=f"RPM-GPG-KEY-fedora-{version + 1}-primary"):
+                if key3 := find_rpm_gpgkey(
+                    context,
+                    key=f"RPM-GPG-KEY-fedora-{version + 1}-primary",
+                    required=False,
+                ):
                     # We yield the resolved path for key1, to make it clear that it's
                     # for version N, and the other key is for version N+1.
                     key1 = path.as_uri()
