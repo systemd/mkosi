@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 import re
+import subprocess
 import tempfile
 from collections.abc import Iterable, Sequence
 from pathlib import Path
@@ -29,13 +30,15 @@ def find_fedora_rpm_gpgkeys(context: Context) -> Iterable[str]:
         context, key=f"RPM-GPG-KEY-fedora-{context.config.release}-secondary", required=False
     )
 
+    versionre = re.compile(r"RPM-GPG-KEY-fedora-(\d+)-(primary|secondary)")
+
     if key1:
         # During branching, there is always a kerfuffle with the key transition.
         # For Rawhide, try to load the N+1 key, just in case our local configuration
         # still indicates that Rawhide==N, but really Rawhide==N+1.
         if context.config.release == "rawhide" and (rhs := startswith(key1, "file://")):
             path = Path(rhs).resolve()
-            if m := re.match(r"RPM-GPG-KEY-fedora-(\d+)-(primary|secondary)", path.name):
+            if m := versionre.match(path.name):
                 version = int(m.group(1))
                 if key3 := find_rpm_gpgkey(context, key=f"RPM-GPG-KEY-fedora-{version + 1}-primary"):
                     # We yield the resolved path for key1, to make it clear that it's
@@ -66,11 +69,27 @@ def find_fedora_rpm_gpgkeys(context: Context) -> Iterable[str]:
                 curl(context.config, f"{keys}/RPM-GPG-KEY-fedora-rawhide-primary", Path(d))
                 key = (Path(d) / "RPM-GPG-KEY-fedora-rawhide-primary").read_text()
 
-            keyurl = f"{keys}/{key}"
-        else:
-            keyurl = "https://fedoraproject.org/fedora.gpg"
+            yield f"{keys}/{key}"
 
-        yield keyurl
+            # Same as above, the symlink in distribution-gpg-keys might not have been updated yet to point to
+            # the new rawhide key when branching happens, so try to load the N+1 key as well.
+            if m := versionre.match(key):
+                version = int(m.group(1))
+
+                try:
+                    with tempfile.TemporaryDirectory() as d:
+                        curl(
+                            context.config,
+                            f"{keys}/RPM-GPG-KEY-fedora-{version + 1}-primary",
+                            Path(d),
+                            log=False,
+                        )
+
+                    yield f"{keys}/RPM-GPG-KEY-fedora-{version + 1}-primary"
+                except subprocess.CalledProcessError:
+                    pass
+        else:
+            yield "https://fedoraproject.org/fedora.gpg"
 
 
 class Installer(DistributionInstaller):
