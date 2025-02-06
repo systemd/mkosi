@@ -189,4 +189,4 @@ def become_root_cmd() -> list[str]:
     if os.getuid() == 0:
         return []
 
-    return ["run0"] if find_binary("run0") else ["sudo"]
+    return ["run0"] if find_binary("run0") and Path("/run/systemd/system").exists() else ["sudo"]
