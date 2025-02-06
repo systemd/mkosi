@@ -3532,7 +3532,7 @@ def make_esp(context: Context, uki: Path) -> list[Partition]:
 
 
 def make_extension_or_portable_image(context: Context, output: Path) -> None:
-    if want_verity(context.config) or context.config.verity == Verity.signed:
+    if want_verity(context.config) or context.config.verity in (Verity.signed, Verity.hash, Verity.defer):
         unsigned = ""
     else:
         unsigned = "-unsigned"
