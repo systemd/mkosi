@@ -16,6 +16,24 @@ from mkosi.sandbox import umask
 
 
 class Installer(DistributionInstaller):
+    _default_release = "testing"
+    _releasemap = {
+        "11": ("11", "bullseye"),
+        "bullseye": ("11", "bullseye"),
+        "12": ("12", "bookworm"),
+        "bookworm": ("12", "bookworm"),
+        "13": ("13", "trixie"),
+        "trixie": ("13", "trixie"),
+        "14": ("14", "forky"),
+        "forky": ("14", "forky"),
+        "15": ("15", "duke"),
+        "duke": ("15", "duke"),
+        "sid": ("99", "sid"),
+        "stable": ("12", "bookworm"),
+        "testing": ("13", "trixie"),
+        "unstable": ("99", "sid"),
+    }
+
     @classmethod
     def pretty_name(cls) -> str:
         return "Debian"
@@ -27,10 +45,6 @@ class Installer(DistributionInstaller):
     @classmethod
     def package_type(cls) -> PackageType:
         return PackageType.deb
-
-    @classmethod
-    def default_release(cls) -> str:
-        return "testing"
 
     @classmethod
     def package_manager(cls, config: Config) -> type[Apt]:
@@ -45,7 +59,7 @@ class Installer(DistributionInstaller):
             yield AptRepository(
                 types=("deb",),
                 url=context.config.local_mirror,
-                suite=context.config.release,
+                suite=str(context.config.release),
                 components=("main",),
                 signedby=None,
             )
@@ -57,7 +71,7 @@ class Installer(DistributionInstaller):
         yield AptRepository(
             types=types,
             url=mirror,
-            suite=context.config.release,
+            suite=str(context.config.release),
             components=components,
             signedby=signedby,
         )
