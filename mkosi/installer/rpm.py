@@ -52,15 +52,18 @@ def find_rpm_gpgkey(
     *,
     required: bool = True,
 ) -> Optional[str]:
-    root = context.config.tools() if context.config.tools_tree_certificates else Path("/")
-
     # We assume here that GPG keys will only ever be relative symlinks and never absolute symlinks.
 
-    if gpgpath := next((root / "usr/share/distribution-gpg-keys").rglob(key), None):
-        return (Path("/") / gpgpath.resolve().relative_to(root)).as_uri()
+    if gpgpath := next((context.config.tools() / "usr/share/distribution-gpg-keys").rglob(key), None):
+        return (Path("/") / gpgpath.resolve().relative_to(context.config.tools())).as_uri()
 
-    if gpgpath := next(Path(context.sandbox_tree / "etc/pki/rpm-gpg").rglob(key), None):
-        return (Path("/") / gpgpath.resolve().relative_to(context.sandbox_tree)).as_uri()
+    # ToolsTreeCertificates= only applies to certificates but the rpm gpg keys in /etc are located within the
+    # /etc/pki certificates directory so as a result the option has to apply to the rpm gpg keys in /etc as
+    # well
+    root = context.config.tools() if context.config.tools_tree_certificates else Path("/")
+
+    if gpgpath := next(Path(root / "etc/pki/rpm-gpg").rglob(key), None):
+        return (Path("/") / gpgpath.resolve().relative_to(root)).as_uri()
 
     if fallback and context.config.repository_key_fetch:
         return fallback
