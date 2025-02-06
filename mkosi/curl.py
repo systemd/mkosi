@@ -7,7 +7,7 @@ from mkosi.mounts import finalize_certificate_mounts
 from mkosi.run import run, workdir
 
 
-def curl(config: Config, url: str, output_dir: Path) -> None:
+def curl(config: Config, url: str, output_dir: Path, log: bool = True) -> None:
     run(
         [
             "curl",
@@ -16,6 +16,7 @@ def curl(config: Config, url: str, output_dir: Path) -> None:
             "--remote-name",
             "--no-progress-meter",
             "--fail",
+            *(["--silent"] if not log else []),
             *(["--proxy", config.proxy_url] if config.proxy_url else []),
             *(["--noproxy", ",".join(config.proxy_exclude)] if config.proxy_exclude else []),
             *(["--proxy-capath", "/proxy.cacert"] if config.proxy_peer_certificate else []),
@@ -27,4 +28,5 @@ def curl(config: Config, url: str, output_dir: Path) -> None:
             network=True,
             options=["--bind", output_dir, workdir(output_dir), *finalize_certificate_mounts(config)],
         ),
+        log=log,
     )  # fmt: skip
