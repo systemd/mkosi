@@ -18,6 +18,24 @@ from mkosi.sandbox import umask
 
 
 class Installer(DistributionInstaller, distribution=Distribution.debian):
+    _default_release = "testing"
+    _releasemap = {
+        "11": ("11", "bullseye"),
+        "bullseye": ("11", "bullseye"),
+        "12": ("12", "bookworm"),
+        "bookworm": ("12", "bookworm"),
+        "13": ("13", "trixie"),
+        "trixie": ("13", "trixie"),
+        "14": ("14", "forky"),
+        "forky": ("14", "forky"),
+        "15": ("15", "duke"),
+        "duke": ("15", "duke"),
+        "sid": ("9999", "sid"),
+        "stable": ("12", "stable"),
+        "testing": ("13", "testing"),
+        "unstable": ("9999", "sid"),
+    }
+
     @classmethod
     def pretty_name(cls) -> str:
         return "Debian"
@@ -29,10 +47,6 @@ class Installer(DistributionInstaller, distribution=Distribution.debian):
     @classmethod
     def package_type(cls) -> PackageType:
         return PackageType.deb
-
-    @classmethod
-    def default_release(cls) -> str:
-        return "testing"
 
     @classmethod
     def package_manager(cls, config: Config) -> type[Apt]:

@@ -10,6 +10,11 @@ from mkosi.log import die
 
 
 class Installer(fedora.Installer, distribution=Distribution.mageia):
+    _default_distribution = "cauldron"
+    _releasemap = {
+        "cauldron": ("99", "cauldron"),
+    }
+
     @classmethod
     def pretty_name(cls) -> str:
         return "Mageia"
@@ -17,10 +22,6 @@ class Installer(fedora.Installer, distribution=Distribution.mageia):
     @classmethod
     def filesystem(cls) -> str:
         return "ext4"
-
-    @classmethod
-    def default_release(cls) -> str:
-        return "cauldron"
 
     @classmethod
     def install(cls, context: Context) -> None:

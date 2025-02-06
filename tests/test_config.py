@@ -25,7 +25,13 @@ from mkosi.config import (
     parse_config,
     parse_ini,
 )
-from mkosi.distribution import Distribution, detect_distribution
+from mkosi.distribution import (
+    Distribution,
+    DistributionRelease,
+    debian,
+    detect_distribution,
+    ubuntu,
+)
 from mkosi.util import chdir, resource_path
 
 
@@ -1899,3 +1905,103 @@ def test_initrds_custom_only(tmp_path: Path) -> None:
 
     assert len(config.initrds) == 1
     assert config.initrds[0] == d / "myinitrd.cpio"
+
+
+@pytest.mark.parametrize(
+    "s1,s2",
+    itertools.combinations_with_replacement(
+        enumerate(
+            [
+                debian.Installer.parse_release("bullseye"),
+                debian.Installer.parse_release("bookworm"),
+                debian.Installer.parse_release("trixie"),
+                debian.Installer.parse_release("forky"),
+                debian.Installer.parse_release("duke"),
+                debian.Installer.parse_release("sid"),
+            ],
+            start=11,
+        ),
+        2,
+    ),
+)
+def test_debian_release(
+    s1: tuple[int, DistributionRelease],
+    s2: tuple[int, DistributionRelease],
+) -> None:
+    i1, v1 = s1
+    i2, v2 = s2
+    assert (v1 == v2) == (i1 == i2)
+    assert (v1 < v2) == (i1 < i2)
+    assert (v1 <= v2) == (i1 <= i2)
+    assert (v1 > v2) == (i1 > i2)
+    assert (v1 >= v2) == (i1 >= i2)
+    assert (v1 != v2) == (i1 != i2)
+    assert v1 == str(v1)
+    if v1 != debian.Installer.parse_release("sid"):
+        assert v1 == i1
+        assert v1 == str(i1)
+        assert v1 < (i1 + 1)
+        assert v1 > (i1 - 1)
+
+
+def test_debian_unstable() -> None:
+    assert debian.Installer.parse_release("sid") == debian.Installer.parse_release("unstable")
+
+
+def test_debian_not_ubuntu() -> None:
+    assert debian.Installer.parse_release("bookworm") != ubuntu.Installer.parse_release("bookworm")
+
+
+def test_match_distro(tmp_path: Path) -> None:
+    with chdir(tmp_path):
+        Path("mkosi.conf").write_text(
+            """\
+            [Distribution]
+            Distribution=debian
+            Release=trixie
+            """
+        )
+
+        Path("mkosi.conf.d").mkdir()
+        Path("mkosi.conf.d/10-abc.conf").write_text(
+            """\
+            [Match]
+            Release=>=bookworm
+
+            [Build]
+            Environment=FOO=foo
+            """
+        )
+        Path("mkosi.conf.d/20-def.conf").write_text(
+            """\
+            [Match]
+            Release=>=trixie
+
+            [Build]
+            Environment=BAR=bar
+            """
+        )
+        Path("mkosi.conf.d/30-ghi.conf").write_text(
+            """\
+            [Match]
+            Release=<trixie
+
+            [Build]
+            Environment=BAZ=baz
+            """
+        )
+        Path("mkosi.conf.d/30-ghi.conf").write_text(
+            """\
+            [Match]
+            Release=trixie
+
+            [Build]
+            Environment=QUX=qux
+            """
+        )
+
+        _, _, [config] = parse_config()
+        assert config.environment["FOO"] == "foo"
+        assert config.environment["BAR"] == "bar"
+        assert config.environment.get("BAZ") is None
+        assert config.environment.get("QUX") == "qux"

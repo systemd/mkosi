@@ -26,12 +26,12 @@ import tempfile
 import textwrap
 import typing
 import uuid
-from collections.abc import Collection, Iterable, Iterator, Sequence
+from collections.abc import Collection, Iterable, Iterator, Mapping, Sequence
 from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Any, Callable, ClassVar, Generic, Optional, Protocol, TypeVar, Union, cast
 
-from mkosi.distribution import Distribution, detect_distribution
+from mkosi.distribution import Distribution, DistributionRelease, detect_distribution
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SANDBOX, ARG_DEBUG_SHELL, complete_step, die
 from mkosi.pager import page
 from mkosi.run import SandboxProtocol, find_binary, nosandbox, run, sandbox_cmd, workdir
@@ -60,7 +60,7 @@ T = TypeVar("T")
 D = TypeVar("D", bound=DataclassInstance)
 SE = TypeVar("SE", bound=StrEnum)
 
-ConfigParseCallback = Callable[[Optional[str], Optional[T]], Optional[T]]
+ConfigParseCallback = Callable[[Optional[str], Optional[T], Mapping[str, Any]], Optional[T]]
 ConfigMatchCallback = Callable[[str, T], bool]
 ConfigDefaultCallback = Callable[[dict[str, Any]], T]
 
@@ -798,14 +798,22 @@ def parse_paths_from_directory(
     return sorted(parse_path(os.fspath(p), resolve=resolve, secret=secret) for p in path.glob(glob))
 
 
-def config_parse_key(value: Optional[str], old: Optional[str]) -> Optional[Path]:
+def config_parse_key(
+    value: Optional[str],
+    old: Optional[str],
+    namespace: Mapping[str, Any],
+) -> Optional[Path]:
     if not value:
         return None
 
     return parse_path(value, secret=True) if Path(value).exists() else Path(value)
 
 
-def config_parse_certificate(value: Optional[str], old: Optional[str]) -> Optional[Path]:
+def config_parse_certificate(
+    value: Optional[str],
+    old: Optional[str],
+    namespace: Mapping[str, Any],
+) -> Optional[Path]:
     if not value:
         return None
 
@@ -854,7 +862,11 @@ def config_make_list_matcher(parse: Callable[[str], T]) -> ConfigMatchCallback[l
     return config_match_list
 
 
-def config_parse_string(value: Optional[str], old: Optional[str]) -> Optional[str]:
+def config_parse_string(
+    value: Optional[str],
+    old: Optional[str],
+    namespace: Mapping[str, Any],
+) -> Optional[str]:
     return value or None
 
 
@@ -876,7 +888,11 @@ def config_match_key_value(match: str, value: dict[str, str]) -> bool:
     return value.get(k, None) == v
 
 
-def config_parse_boolean(value: Optional[str], old: Optional[bool]) -> Optional[bool]:
+def config_parse_boolean(
+    value: Optional[str],
+    old: Optional[bool],
+    namespace: Mapping[str, Any],
+) -> Optional[bool]:
     if value is None:
         return False
 
@@ -893,7 +909,11 @@ def parse_feature(value: str) -> ConfigFeature:
         return ConfigFeature.enabled if parse_boolean(value) else ConfigFeature.disabled
 
 
-def config_parse_feature(value: Optional[str], old: Optional[ConfigFeature]) -> Optional[ConfigFeature]:
+def config_parse_feature(
+    value: Optional[str],
+    old: Optional[ConfigFeature],
+    namespace: Mapping[str, Any],
+) -> Optional[ConfigFeature]:
     if value is None:
         return ConfigFeature.auto
 
@@ -907,7 +927,23 @@ def config_match_feature(match: str, value: ConfigFeature) -> bool:
     return value == parse_feature(match)
 
 
-def config_parse_compression(value: Optional[str], old: Optional[Compression]) -> Optional[Compression]:
+def config_parse_release(
+    value: Optional[str],
+    old: Optional[DistributionRelease],
+    namespace: Mapping[str, Any],
+) -> Optional[DistributionRelease]:
+    if not value:
+        return None
+
+    distribution = cast(Distribution, namespace.get("distribution", config_default_distribution({})))
+    return distribution.installer.parse_release(value)
+
+
+def config_parse_compression(
+    value: Optional[str],
+    old: Optional[Compression],
+    namespace: Mapping[str, Any],
+) -> Optional[Compression]:
     if not value:
         return None
 
@@ -917,7 +953,11 @@ def config_parse_compression(value: Optional[str], old: Optional[Compression]) -
         return Compression.zstd if parse_boolean(value) else Compression.none
 
 
-def config_parse_uuid(value: Optional[str], old: Optional[str]) -> Optional[uuid.UUID]:
+def config_parse_uuid(
+    value: Optional[str],
+    old: Optional[str],
+    namespace: Mapping[str, Any],
+) -> Optional[uuid.UUID]:
     if not value:
         return None
 
@@ -930,7 +970,11 @@ def config_parse_uuid(value: Optional[str], old: Optional[str]) -> Optional[uuid
         die(f"{value} is not a valid UUID")
 
 
-def config_parse_source_date_epoch(value: Optional[str], old: Optional[int]) -> Optional[int]:
+def config_parse_source_date_epoch(
+    value: Optional[str],
+    old: Optional[int],
+    namespace: Mapping[str, Any],
+) -> Optional[int]:
     if not value:
         return None
 
@@ -945,7 +989,11 @@ def config_parse_source_date_epoch(value: Optional[str], old: Optional[int]) -> 
     return timestamp
 
 
-def config_parse_compress_level(value: Optional[str], old: Optional[int]) -> Optional[int]:
+def config_parse_compress_level(
+    value: Optional[str],
+    old: Optional[int],
+    namespace: Mapping[str, Any],
+) -> Optional[int]:
     if not value:
         return None
 
@@ -960,7 +1008,11 @@ def config_parse_compress_level(value: Optional[str], old: Optional[int]) -> Opt
     return level
 
 
-def config_parse_mode(value: Optional[str], old: Optional[int]) -> Optional[int]:
+def config_parse_mode(
+    value: Optional[str],
+    old: Optional[int],
+    namespace: Mapping[str, Any],
+) -> Optional[int]:
     if not value:
         return None
 
@@ -1013,24 +1065,24 @@ def config_default_distribution(namespace: dict[str, Any]) -> Distribution:
 
     if not isinstance(detected, Distribution):
         logging.info(
-            "Distribution of your host can't be detected or isn't a supported target. "
-            "Defaulting to Distribution=custom."
+            "Distribution of your host can't be detected or isn't a supported target. Defaulting to Distribution=custom."  # noqa: E501
         )
         return Distribution.custom
 
     return detected
 
 
-def config_default_release(namespace: dict[str, Any]) -> str:
+def config_default_release(namespace: dict[str, Any]) -> DistributionRelease:
     hd: Union[Distribution, str, None]
-    hr: Optional[str]
+    hr: Optional[DistributionRelease]
 
     if (
         (d := os.getenv("MKOSI_HOST_DISTRIBUTION"))
         and d in Distribution.values()
         and (r := os.getenv("MKOSI_HOST_RELEASE"))
     ):
-        hd, hr = Distribution(d), r
+        hd = Distribution(d)
+        hr = hd.installer.parse_release(r)
     else:
         hd, hr = detect_distribution()
 
@@ -1038,7 +1090,7 @@ def config_default_release(namespace: dict[str, Any]) -> str:
     if namespace["distribution"] == hd and hr is not None:
         return hr
 
-    return cast(str, namespace["distribution"].installer.default_release())
+    return cast(DistributionRelease, namespace["distribution"].installer.default_release())
 
 
 def config_default_tools_tree_distribution(namespace: dict[str, Any]) -> Distribution:
@@ -1075,7 +1127,7 @@ def config_default_source_date_epoch(namespace: dict[str, Any]) -> Optional[int]
             break
     else:
         s = os.environ.get("SOURCE_DATE_EPOCH")
-    return config_parse_source_date_epoch(s, None)
+    return config_parse_source_date_epoch(s, None, {})
 
 
 def config_default_proxy_url(namespace: dict[str, Any]) -> Optional[str]:
@@ -1152,14 +1204,22 @@ def make_enum_parser(type: type[SE]) -> Callable[[str], SE]:
 
 
 def config_make_enum_parser(type: type[SE]) -> ConfigParseCallback[SE]:
-    def config_parse_enum(value: Optional[str], old: Optional[SE]) -> Optional[SE]:
+    def config_parse_enum(
+        value: Optional[str],
+        old: Optional[SE],
+        namespace: Mapping[str, Any],
+    ) -> Optional[SE]:
         return make_enum_parser(type)(value) if value else None
 
     return config_parse_enum
 
 
 def config_make_enum_parser_with_boolean(type: type[SE], *, yes: SE, no: SE) -> ConfigParseCallback[SE]:
-    def config_parse_enum(value: Optional[str], old: Optional[SE]) -> Optional[SE]:
+    def config_parse_enum(
+        value: Optional[str],
+        old: Optional[SE],
+        namespace: Mapping[str, Any],
+    ) -> Optional[SE]:
         if not value:
             return None
 
@@ -1203,7 +1263,11 @@ def config_make_list_parser(
     reset: bool = True,
     key: Optional[Callable[[T], Any]] = None,
 ) -> ConfigParseCallback[list[T]]:
-    def config_parse_list(value: Optional[str], old: Optional[list[T]]) -> Optional[list[T]]:
+    def config_parse_list(
+        value: Optional[str],
+        old: Optional[list[T]],
+        namespace: Mapping[str, Any],
+    ) -> Optional[list[T]]:
         new = old.copy() if old else []
 
         if value is None:
@@ -1263,6 +1327,31 @@ def config_match_version(match: str, value: str) -> bool:
     return True
 
 
+def config_match_release(match: str, value: DistributionRelease) -> bool:
+    for sigil, opfunc in {
+        "==": operator.eq,
+        "!=": operator.ne,
+        "<=": operator.le,
+        ">=": operator.ge,
+        ">": operator.gt,
+        "<": operator.lt,
+    }.items():
+        if (rhs := startswith(match, sigil)) is not None:
+            op = opfunc
+            comp_version = rhs
+            break
+    else:
+        # default to equality if no operation is specified
+        op = operator.eq
+        comp_version = match
+
+    # all constraints must be fulfilled
+    if not op(value, comp_version):
+        return False
+
+    return True
+
+
 def config_make_dict_parser(
     *,
     delimiter: Optional[str] = None,
@@ -1274,6 +1363,7 @@ def config_make_dict_parser(
     def config_parse_dict(
         value: Optional[str],
         old: Optional[dict[str, PathString]],
+        namespace: Mapping[str, Any],
     ) -> Optional[dict[str, PathString]]:
         new = old.copy() if old else {}
 
@@ -1357,7 +1447,11 @@ def config_make_path_parser(
     absolute: bool = False,
     constants: Sequence[str] = (),
 ) -> ConfigParseCallback[Path]:
-    def config_parse_path(value: Optional[str], old: Optional[Path]) -> Optional[Path]:
+    def config_parse_path(
+        value: Optional[str],
+        old: Optional[Path],
+        namespace: Mapping[str, Any],
+    ) -> Optional[Path]:
         if not value:
             return None
 
@@ -1381,7 +1475,11 @@ def is_valid_filename(s: str) -> bool:
 
 
 def config_make_filename_parser(hint: str) -> ConfigParseCallback[str]:
-    def config_parse_filename(value: Optional[str], old: Optional[str]) -> Optional[str]:
+    def config_parse_filename(
+        value: Optional[str],
+        old: Optional[str],
+        namespace: Mapping[str, Any],
+    ) -> Optional[str]:
         if not value:
             return None
 
@@ -1404,7 +1502,9 @@ def match_path_exists(image: str, value: str) -> bool:
 
 
 def config_parse_root_password(
-    value: Optional[str], old: Optional[tuple[str, bool]]
+    value: Optional[str],
+    old: Optional[tuple[str, bool]],
+    namespace: Mapping[str, Any],
 ) -> Optional[tuple[str, bool]]:
     if not value:
         return None
@@ -1456,14 +1556,22 @@ def parse_bytes(value: str) -> int:
     return result
 
 
-def config_parse_bytes(value: Optional[str], old: Optional[int] = None) -> Optional[int]:
+def config_parse_bytes(
+    value: Optional[str],
+    old: Optional[int] = None,
+    namespace: Mapping[str, Any] = {},
+) -> Optional[int]:
     if not value:
         return None
 
     return parse_bytes(value)
 
 
-def config_parse_number(value: Optional[str], old: Optional[int] = None) -> Optional[int]:
+def config_parse_number(
+    value: Optional[str],
+    old: Optional[int] = None,
+    namespace: Mapping[str, Any] = {},
+) -> Optional[int]:
     if not value:
         return None
 
@@ -1512,7 +1620,11 @@ def parse_drive(value: str) -> Drive:
     )
 
 
-def config_parse_sector_size(value: Optional[str], old: Optional[int]) -> Optional[int]:
+def config_parse_sector_size(
+    value: Optional[str],
+    old: Optional[int],
+    namespace: Mapping[str, Any],
+) -> Optional[int]:
     if not value:
         return None
 
@@ -1530,7 +1642,11 @@ def config_parse_sector_size(value: Optional[str], old: Optional[int]) -> Option
     return size
 
 
-def config_parse_vsock_cid(value: Optional[str], old: Optional[int]) -> Optional[int]:
+def config_parse_vsock_cid(
+    value: Optional[str],
+    old: Optional[int],
+    namespace: Mapping[str, Any],
+) -> Optional[int]:
     if not value:
         return None
 
@@ -1551,7 +1667,11 @@ def config_parse_vsock_cid(value: Optional[str], old: Optional[int]) -> Optional
     return cid
 
 
-def config_parse_minimum_version(value: Optional[str], old: Optional[str]) -> Optional[str]:
+def config_parse_minimum_version(
+    value: Optional[str],
+    old: Optional[str],
+    namespace: Mapping[str, Any],
+) -> Optional[str]:
     if not value:
         return old
 
@@ -1628,7 +1748,11 @@ class KeySource:
         return f"{self.type}:{self.source}" if self.source else str(self.type)
 
 
-def config_parse_key_source(value: Optional[str], old: Optional[KeySource]) -> Optional[KeySource]:
+def config_parse_key_source(
+    value: Optional[str],
+    old: Optional[KeySource],
+    namespace: Mapping[str, Any],
+) -> Optional[KeySource]:
     if not value:
         return KeySource(type=KeySourceType.file)
 
@@ -1658,6 +1782,7 @@ class CertificateSource:
 def config_parse_certificate_source(
     value: Optional[str],
     old: Optional[CertificateSource],
+    namespace: Mapping[str, Any],
 ) -> Optional[CertificateSource]:
     if not value:
         return CertificateSource(type=CertificateSourceType.file)
@@ -1672,7 +1797,9 @@ def config_parse_certificate_source(
 
 
 def config_parse_artifact_output_list(
-    value: Optional[str], old: Optional[list[ArtifactOutput]]
+    value: Optional[str],
+    old: Optional[list[ArtifactOutput]],
+    namespace: Mapping[str, Any],
 ) -> Optional[list[ArtifactOutput]]:
     if not value:
         return []
@@ -1683,7 +1810,7 @@ def config_parse_artifact_output_list(
         return ArtifactOutput.compat_yes() if boolean_value else ArtifactOutput.compat_no()
 
     list_parser = config_make_list_parser(delimiter=",", parse=make_enum_parser(ArtifactOutput))
-    return list_parser(value, old)
+    return list_parser(value, old, namespace)
 
 
 class SettingScope(StrEnum):
@@ -1722,6 +1849,7 @@ class ConfigSetting(Generic[T]):
     section: str
     parse: ConfigParseCallback[T] = config_parse_string  # type: ignore # see mypy#3737
     match: Optional[ConfigMatchCallback[T]] = None
+    depends: tuple[str, ...] = tuple()
     name: str = ""
     default: Optional[T] = None
     default_factory: Optional[ConfigDefaultCallback[T]] = None
@@ -1956,7 +2084,7 @@ def make_simple_config_parser(
         elif setting.default:
             default = setting.default
         else:
-            default = setting.parse(None, None)
+            default = setting.parse(None, None, {})
 
         config[setting.dest] = default
 
@@ -1974,8 +2102,7 @@ def make_simple_config_parser(
 
             if section != s.section:
                 logging.warning(
-                    f"{path.absolute()}: Setting {name} should be configured in [{s.section}], not "
-                    f"[{section}]."
+                    f"{path.absolute()}: Setting {name} should be configured in [{s.section}], not [{section}]."  # noqa: E501
                 )
 
             if name != s.name:
@@ -1983,7 +2110,13 @@ def make_simple_config_parser(
                     f"{path.absolute()}: Setting {name} is deprecated, please use {s.name} instead."
                 )
 
-            config[s.dest] = s.parse(value, config.get(s.dest))
+            current_namespace = {}
+            if s.depends:
+                for d in s.depends:
+                    finalize_value(config, SETTINGS_LOOKUP_BY_DEST[d])
+                    current_namespace[d] = config[d]
+
+            config[s.dest] = s.parse(value, config.get(s.dest), current_namespace)
 
         for setting in settings:
             finalize_value(config, setting)
@@ -2010,7 +2143,7 @@ class Config:
     pass_environment: list[str]
 
     distribution: Distribution
-    release: str
+    release: DistributionRelease
     architecture: Architecture
     mirror: Optional[str]
     snapshot: Optional[str]
@@ -2435,7 +2568,7 @@ class Config:
         specifiers = {
             "&": "&",
             "d": str(self.distribution),
-            "r": self.release,
+            "r": str(self.release),
             "a": str(self.architecture),
             "i": self.image_id or "",
             "v": self.image_version or "",
@@ -2716,8 +2849,9 @@ SETTINGS: list[ConfigSetting[Any]] = [
         short="-r",
         section="Distribution",
         specifier="r",
-        parse=config_parse_string,
-        match=config_make_string_matcher(),
+        parse=config_parse_release,
+        match=config_match_release,
+        depends=("distribution",),
         default_factory=config_default_release,
         default_factory_depends=("distribution",),
         help="Distribution release to install",
@@ -4654,7 +4788,17 @@ class ConfigAction(argparse.Action):
 
         for v in values:
             assert isinstance(v, str) or v is None
-            parsed_value = s.parse(v, getattr(namespace, self.dest, None))
+            current_namespace = {}
+            for d in s.depends:
+                setting = SETTINGS_LOOKUP_BY_DEST[d]
+                if d in namespace:
+                    current_namespace[d] = getattr(namespace, d)
+                elif setting.default_factory:
+                    current_namespace[d] = setting.default_factory(dict(namespace))  # type: ignore
+                else:
+                    current_namespace[d] = setting.default
+
+            parsed_value = s.parse(v, getattr(namespace, self.dest, None), current_namespace)
             if parsed_value is None:
                 setattr(namespace, f"{s.dest}_was_none", True)
             setattr(namespace, s.dest, parsed_value)
@@ -4824,7 +4968,7 @@ class ParseContext:
             and field
             and (origin in (dict, list, str) or (origin is typing.Union and type(None) in args))
         ):
-            default = setting.parse(None, None)
+            default = setting.parse(None, None, {})
         elif setting.dest in self.defaults:
             default = self.defaults[setting.dest]
         elif setting.default_factory:
@@ -4846,7 +4990,7 @@ class ParseContext:
         elif setting.default is not None:
             default = setting.default
         else:
-            default = setting.parse(None, None)
+            default = setting.parse(None, None, {})
 
         self.defaults[setting.dest] = default
 
@@ -4985,6 +5129,7 @@ class ParseContext:
                         self.config[s.dest] = s.parse(
                             file_run_or_read(extra).rstrip("\n") if s.path_read_text else f,
                             self.config.get(s.dest),
+                            {setting: v for setting, v in self.config.items() if setting in s.depends},
                         )
 
                 for f in s.recursive_path_suffixes:
@@ -5000,7 +5145,11 @@ class ParseContext:
                     )
                     for e in recursive_extras:
                         if e.exists():
-                            self.config[s.dest] = s.parse(os.fspath(e), self.config.get(s.dest))
+                            self.config[s.dest] = s.parse(
+                                os.fspath(e),
+                                self.config.get(s.dest),
+                                {setting: v for setting, v in image.items() if setting in s.depends},
+                            )
 
         if path.exists():
             logging.debug(f"Loading configuration file {path}")
@@ -5043,7 +5192,11 @@ class ParseContext:
 
                 v = self.expand_specifiers(v, path)
 
-                self.config[s.dest] = s.parse(v, self.config.get(s.dest))
+                self.config[s.dest] = s.parse(
+                    v,
+                    self.config.get(s.dest),
+                    {setting: v for setting, v in self.config.items() if setting in s.depends},
+                )
                 self.parse_new_includes()
 
         if extras and (path.parent / "mkosi.conf.d").exists():
@@ -5842,6 +5995,8 @@ class JsonEncoder(json.JSONEncoder):
         if isinstance(o, StrEnum):
             return str(o)
         elif isinstance(o, GenericVersion):
+            return str(o)
+        elif isinstance(o, DistributionRelease):
             return str(o)
         elif isinstance(o, os.PathLike):
             return os.fspath(o)
