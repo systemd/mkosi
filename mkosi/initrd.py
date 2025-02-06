@@ -251,13 +251,15 @@ def main() -> None:
             "--extra-tree", f"/usr/lib/modules/{args.kernel_version}:/usr/lib/modules/{args.kernel_version}",
             "--extra-tree=/usr/lib/firmware:/usr/lib/firmware",
             "--remove-files=/usr/lib/firmware/*-ucode",
-            "--kernel-modules-exclude=.*",
             "--build-sources", "",
             "--include=mkosi-initrd",
         ]  # fmt: skip
 
         if not args.generic:
-            cmdline += ["--kernel-modules-include=host"]
+            cmdline += [
+                "--kernel-modules-exclude=.*",
+                "--kernel-modules-include=host",
+            ]
 
         if args.kernel_image:
             cmdline += [
