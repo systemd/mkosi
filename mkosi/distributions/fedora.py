@@ -37,17 +37,13 @@ def find_fedora_rpm_gpgkeys(context: Context) -> Iterable[str]:
         # For Rawhide, try to load the N+1 key, just in case our local configuration
         # still indicates that Rawhide==N, but really Rawhide==N+1.
         if context.config.release == "rawhide" and (rhs := startswith(key1, "file://")):
-            path = Path(rhs).resolve()
-            if m := versionre.match(path.name):
+            if m := versionre.match(Path(rhs).name):
                 version = int(m.group(1))
                 if key3 := find_rpm_gpgkey(
                     context,
                     key=f"RPM-GPG-KEY-fedora-{version + 1}-primary",
                     required=False,
                 ):
-                    # We yield the resolved path for key1, to make it clear that it's
-                    # for version N, and the other key is for version N+1.
-                    key1 = path.as_uri()
                     yield key3
 
         yield key1
