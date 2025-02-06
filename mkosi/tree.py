@@ -123,6 +123,7 @@ def copy_tree(
         use_subvolumes == ConfigFeature.disabled
         or not preserve
         or not is_subvolume(src)
+        or statfs(str(dst.parent)) != BTRFS_SUPER_MAGIC
         or (dst.exists() and (not dst.is_dir() or any(dst.iterdir())))
     ):
         with preserve_target_directories_stat(src, dst) if not preserve else contextlib.nullcontext():
