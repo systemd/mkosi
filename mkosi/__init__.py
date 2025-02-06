@@ -3203,7 +3203,7 @@ def make_image(
     skip: Sequence[str] = [],
     split: bool = False,
     tabs: bool = False,
-    verity: bool = False,
+    verity: Verity = Verity.disabled,
     root: Optional[Path] = None,
     definitions: Sequence[Path] = [],
     options: Sequence[PathString] = (),
@@ -3259,9 +3259,11 @@ def make_image(
                 context.config,
                 cmdline=cmdline,
                 options=opts,
-                certificate=context.config.verity_certificate if verity else None,
+                certificate=(
+                    context.config.verity_certificate if verity in (Verity.auto, Verity.signed) else None
+                ),
                 certificate_source=context.config.verity_certificate_source,
-                key=context.config.verity_key if verity else None,
+                key=context.config.verity_key if verity in (Verity.auto, Verity.signed) else None,
                 key_source=context.config.verity_key_source,
                 stdout=subprocess.PIPE,
                 devices=not context.config.repart_offline,
@@ -3273,7 +3275,7 @@ def make_image(
     partitions = [Partition.from_dict(d) for d in output]
     arch = context.config.architecture
 
-    if context.config.verity == Verity.signed and not any(
+    if verity == Verity.signed and not any(
         p.type.startswith(f"usr-{arch}-verity-sig") or p.type.startswith(f"root-{arch}-verity-sig")
         for p in partitions
     ):
@@ -3288,12 +3290,6 @@ def make_image(
                 maybe_compress(context, context.config.compress_output, p.split_path)
 
     return partitions
-
-
-def want_verity(config: Config) -> bool:
-    return config.verity == Verity.signed or bool(
-        config.verity == Verity.auto and config.verity_key and config.verity_certificate
-    )
 
 
 def make_disk(
@@ -3381,7 +3377,7 @@ def make_disk(
         skip=skip,
         split=split,
         tabs=tabs,
-        verity=want_verity(context.config),
+        verity=context.config.verity,
         root=context.root,
         definitions=definitions,
     )
@@ -3532,10 +3528,13 @@ def make_esp(context: Context, uki: Path) -> list[Partition]:
 
 
 def make_extension_or_portable_image(context: Context, output: Path) -> None:
-    if want_verity(context.config) or context.config.verity == Verity.signed:
-        unsigned = ""
-    else:
+    if context.config.verity == Verity.disabled or (
+        context.config.verity == Verity.auto
+        and (not context.config.verity_key or not context.config.verity_certificate)
+    ):
         unsigned = "-unsigned"
+    else:
+        unsigned = ""
 
     r = context.resources / f"repart/definitions/{context.config.output_format}{unsigned}.repart.d"
 
@@ -3586,9 +3585,17 @@ def make_extension_or_portable_image(context: Context, output: Path) -> None:
                 context.config,
                 cmdline=cmdline,
                 options=options,
-                certificate=context.config.verity_certificate if want_verity(context.config) else None,
+                certificate=(
+                    context.config.verity_certificate
+                    if context.config.verity in (Verity.auto, Verity.signed)
+                    else None
+                ),
                 certificate_source=context.config.verity_certificate_source,
-                key=context.config.verity_key if want_verity(context.config) else None,
+                key=(
+                    context.config.verity_key
+                    if context.config.verity in (Verity.auto, Verity.signed)
+                    else None
+                ),
                 key_source=context.config.verity_key_source,
                 stdout=subprocess.PIPE,
                 devices=not context.config.repart_offline,
@@ -4425,7 +4432,7 @@ def validate_certificates_and_keys(config: Config) -> None:
     if not keyutil:
         return
 
-    if config.verity != Verity.disabled and config.verity_certificate and config.verity_key:
+    if config.verity in (Verity.auto, Verity.signed) and config.verity_certificate and config.verity_key:
         run_systemd_sign_tool(
             config,
             cmdline=[keyutil, "validate"],
