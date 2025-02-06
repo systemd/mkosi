@@ -258,8 +258,20 @@ def process_kernel_modules(
             elif p.exists():
                 p.rmdir()
 
+        # Do not filter out user-defined firmware
+        user_fw = set()
+        for tree in context.config.extra_trees:
+            if (
+                tree.target
+                and (fw := tree.target.relative_to("/")) != firmwared
+                and fw.is_relative_to(firmwared)
+            ) or ((fw := tree.source.relative_to("/")) != firmwared and fw.is_relative_to(firmwared)):
+                user_fw.add(fw)
+                for p in parents_below(context.root / fw, context.root / firmwared):
+                    user_fw.add(p.relative_to(context.root))
+
         for fw in firmware:
-            if fw in required:
+            if fw in required or fw in user_fw:
                 continue
 
             if any(fw.is_relative_to(firmwared / d) for d in ("amd-ucode", "intel-ucode")):
