@@ -3,6 +3,7 @@
 import contextlib
 import errno
 import logging
+import os
 import shutil
 import subprocess
 import tempfile
@@ -12,7 +13,7 @@ from pathlib import Path
 from mkosi.config import ConfigFeature
 from mkosi.log import ARG_DEBUG, die
 from mkosi.run import SandboxProtocol, nosandbox, run, workdir
-from mkosi.sandbox import BTRFS_SUPER_MAGIC, statfs
+from mkosi.sandbox import BTRFS_SUPER_MAGIC, OVERLAYFS_SUPER_MAGIC, statfs
 from mkosi.util import PathString, flatten
 from mkosi.versioncomp import GenericVersion
 
@@ -95,12 +96,22 @@ def copy_tree(
         "--bind", dst.parent, workdir(dst.parent, sandbox),
     ]  # fmt: skip
 
+    attrs = "mode,links"
+    if preserve:
+        attrs += ",timestamps,ownership"
+
+        # Trying to copy selinux xattrs to overlayfs fails with "Operation not supported" in containers.
+        if statfs(os.fspath(dst.parent)) != OVERLAYFS_SUPER_MAGIC or "security.selinux" not in os.listxattr(
+            src
+        ):
+            attrs += ",xattr"
+
     def copy() -> None:
         cmdline: list[PathString] = [
             "cp",
             "--recursive",
             "--dereference" if dereference else "--no-dereference",
-            f"--preserve=mode,links{',timestamps,ownership,xattr' if preserve else ''}",
+            f"--preserve={attrs}",
             "--reflink=auto",
             "--copy-contents",
             workdir(src, sandbox),
