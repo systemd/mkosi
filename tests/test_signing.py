@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 
+import os
 import tempfile
 from pathlib import Path
 
@@ -50,7 +51,7 @@ def test_signing_checksums_with_gpg(config: ImageConfig) -> None:
         signing_cert = tmp_path / "signing-cert.pgp"
         gnupghome = tmp_path / ".gnupg"
         gnupghome.mkdir()
-        env = dict(GNUPGHOME=str(gnupghome))
+        env = dict(GNUPGHOME=os.fspath(gnupghome))
 
         # create a brand new signing key
         run(

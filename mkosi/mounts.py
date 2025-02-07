@@ -50,7 +50,12 @@ def mount_overlay(
         )
 
         try:
-            with OverlayOperation(tuple(str(p) for p in lowerdirs), str(upperdir), str(workdir), str(dst)):
+            with OverlayOperation(
+                tuple(os.fspath(p) for p in lowerdirs),
+                os.fspath(upperdir),
+                os.fspath(workdir),
+                os.fspath(dst),
+            ):
                 yield dst
         finally:
             delete_whiteout_files(upperdir)

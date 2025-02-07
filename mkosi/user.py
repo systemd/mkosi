@@ -182,7 +182,7 @@ def become_root_in_subuid_range_cmd() -> list[str]:
         "--keep-caps",
     ]  # fmt: skip
 
-    return [str(x) for x in cmd]
+    return cmd
 
 
 def become_root_cmd() -> list[str]:
