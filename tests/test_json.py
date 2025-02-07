@@ -171,6 +171,12 @@ def test_config() -> None:
             "Files": [],
             "FinalizeScripts": [],
             "Firmware": "linux",
+            "FirmwareExclude": [
+                "brcm/"
+            ],
+            "FirmwareInclude": [
+                "ath3k-1"
+            ],
             "FirmwareVariables": "/foo/bar",
             "Format": "uki",
             "ForwardJournal": "/mkosi.journal",
@@ -451,6 +457,8 @@ def test_config() -> None:
         extra_trees=[],
         files=[],
         finalize_scripts=[],
+        firmware_exclude=["brcm/"],
+        firmware_include=["ath3k-1"],
         firmware_variables=Path("/foo/bar"),
         firmware=Firmware.linux,
         forward_journal=Path("/mkosi.journal"),

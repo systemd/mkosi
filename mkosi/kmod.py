@@ -55,6 +55,39 @@ def filter_kernel_modules(
     return sorted(modules)
 
 
+def filter_firmware(
+    root: Path,
+    firmware: set[Path],
+    *,
+    include: Iterable[str],
+    exclude: Iterable[str],
+) -> set[Path]:
+    if not include and not exclude:
+        return firmware
+
+    if exclude:
+        remove = set()
+        regex = re.compile("|".join(exclude))
+        for f in firmware:
+            rel = os.fspath(Path(*f.parts[3:]))
+            if regex.search(rel):
+                remove.add(f)
+
+        firmware -= remove
+
+    if include:
+        firmwared = Path("usr/lib/firmware")
+        with chdir(root):
+            all_firmware = set(firmwared.rglob("*"))
+        regex = re.compile("|".join(include))
+        for f in all_firmware:
+            rel = os.fspath(Path(*f.parts[3:]))
+            if regex.search(rel):
+                firmware.add(f)
+
+    return firmware
+
+
 def normalize_module_name(name: str) -> str:
     return name.replace("_", "-")
 
@@ -175,16 +208,19 @@ def gen_required_kernel_modules(
     context: Context,
     kver: str,
     *,
-    include: Iterable[str],
-    exclude: Iterable[str],
+    modules_include: Iterable[str],
+    modules_exclude: Iterable[str],
+    firmware_include: Iterable[str],
+    firmware_exclude: Iterable[str],
 ) -> Iterator[Path]:
     modulesd = Path("usr/lib/modules") / kver
+    firmwared = Path("usr/lib/firmware")
 
     # There is firmware in /usr/lib/firmware that is not depended on by any modules so if any firmware was
     # installed we have to take the slow path to make sure we don't copy firmware into the initrd that is not
     # depended on by any kernel modules.
-    if exclude or (context.root / "usr/lib/firmware").glob("*"):
-        modules = filter_kernel_modules(context.root, kver, include=include, exclude=exclude)
+    if modules_exclude or (context.root / firmwared).glob("*"):
+        modules = filter_kernel_modules(context.root, kver, include=modules_include, exclude=modules_exclude)
         names = [module_path_to_name(m) for m in modules]
         mods, firmware = resolve_module_dependencies(context, kver, names)
     else:
@@ -194,6 +230,9 @@ def gen_required_kernel_modules(
         with chdir(context.root):
             mods = set(modulesd.rglob("*.ko*"))
         firmware = set()
+
+    # Include or exclude firmware explicitly configured
+    firmware = filter_firmware(context.root, firmware, include=firmware_include, exclude=firmware_exclude)
 
     # Some firmware dependencies are symbolic links, so the targets for those must be included in the list
     # of required firmware files too. Intermediate symlinks are not included, and so links pointing to links
@@ -232,17 +271,28 @@ def process_kernel_modules(
     context: Context,
     kver: str,
     *,
-    include: Iterable[str],
-    exclude: Iterable[str],
+    modules_include: Iterable[str],
+    modules_exclude: Iterable[str],
+    firmware_include: Iterable[str],
+    firmware_exclude: Iterable[str],
 ) -> None:
-    if not exclude:
+    if not modules_exclude and not firmware_exclude:
         return
 
     modulesd = Path("usr/lib/modules") / kver
     firmwared = Path("usr/lib/firmware")
 
     with complete_step("Applying kernel module filters"):
-        required = set(gen_required_kernel_modules(context, kver, include=include, exclude=exclude))
+        required = set(
+            gen_required_kernel_modules(
+                context,
+                kver,
+                modules_include=modules_include,
+                modules_exclude=modules_exclude,
+                firmware_include=firmware_include,
+                firmware_exclude=firmware_exclude,
+            )
+        )
 
         with chdir(context.root):
             modules = sorted(modulesd.rglob("*.ko*"), reverse=True)
