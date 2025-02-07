@@ -4815,9 +4815,6 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
 
     last = images[-1]
 
-    if (minversion := last.minimum_version) and minversion > __version__:
-        die(f"mkosi {minversion} or newer is required by this configuration (found {__version__})")
-
     if not in_sandbox() and last.tools_tree and last.tools_tree == Path("default"):
         tools = finalize_default_tools(last, resources=resources)
     else:

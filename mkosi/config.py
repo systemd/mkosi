@@ -1376,12 +1376,16 @@ def config_parse_vsock_cid(value: Optional[str], old: Optional[int]) -> Optional
 
 
 def config_parse_minimum_version(
-    value: Optional[str], old: Optional[GenericVersion]
+    value: Optional[str],
+    old: Optional[GenericVersion],
 ) -> Optional[GenericVersion]:
     if not value:
         return old
 
     new = GenericVersion(value)
+
+    if new > __version__:
+        die(f"mkosi {new} or newer is required by this configuration (found {__version__})")
 
     if not old:
         return new
