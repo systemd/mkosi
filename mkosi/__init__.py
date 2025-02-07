@@ -1487,12 +1487,14 @@ def build_kernel_modules_initrd(context: Context, kver: str) -> Path:
         files=gen_required_kernel_modules(
             context,
             kver,
-            include=finalize_kernel_modules_include(
+            modules_include=finalize_kernel_modules_include(
                 context,
                 include=context.config.kernel_modules_initrd_include,
                 host=context.config.kernel_modules_initrd_include_host,
             ),
-            exclude=context.config.kernel_modules_initrd_exclude,
+            modules_exclude=context.config.kernel_modules_initrd_exclude,
+            firmware_include=context.config.firmware_include,
+            firmware_exclude=context.config.firmware_exclude,
         ),
         sandbox=context.sandbox,
     )
@@ -2858,12 +2860,14 @@ def run_depmod(context: Context, *, cache: bool = False) -> None:
             process_kernel_modules(
                 context,
                 kver,
-                include=finalize_kernel_modules_include(
+                modules_include=finalize_kernel_modules_include(
                     context,
                     include=context.config.kernel_modules_include,
                     host=context.config.kernel_modules_include_host,
                 ),
-                exclude=context.config.kernel_modules_exclude,
+                modules_exclude=context.config.kernel_modules_exclude,
+                firmware_include=context.config.firmware_include,
+                firmware_exclude=context.config.firmware_exclude,
             )
 
     if context.config.output_format.is_extension_or_portable_image():
