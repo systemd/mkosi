@@ -896,6 +896,11 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     `vmlinuz`. The `$version` is as produced by Kbuild's `kernelversion` make
     target.
 
+    Note: When using `systemd-boot` or `systemd-boot-signed`, `mkosi` expects
+    the `systemd-boot` EFI binaries to be present in the image. Depending on
+    your distribution, these may be packaged separately. For example, Debian-
+    based images will need `systemd-boot-efi`.
+
 `BiosBootloader=`, `--bios-bootloader=`
 :   Takes one of `none` or `grub`. Defaults to `none`. If set to `none`,
     no BIOS bootloader will be installed. If set to `grub`, grub is
