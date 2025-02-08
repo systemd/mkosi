@@ -106,11 +106,15 @@ def run_vmspawn(args: Args, config: Config) -> None:
 
         cmdline += [*args.cmdline, *finalize_kernel_command_line_extra(config)]
 
+        env = os.environ.copy()
+        if config.qemu_args:
+            env["SYSTEMD_VMSPAWN_QEMU_EXTRA"] = " ".join(config.qemu_args)
+
         run(
             cmdline,
             stdin=sys.stdin,
             stdout=sys.stdout,
-            env=os.environ | config.environment,
+            env=env | config.environment,
             log=False,
             sandbox=config.sandbox(
                 network=True,
