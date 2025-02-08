@@ -603,10 +603,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `SplitArtifacts=`, `--split-artifacts`
 :   The artifact types to split out of the final image. A comma-delimited
-    list consisting of `uki`, `kernel`, `initrd` and `partitions`. When
-    building a bootable image `kernel` and `initrd` correspond to their
-    artifact found in the image (or in the UKI), while `uki` copies out the
-    entire UKI.
+    list consisting of `uki`, `kernel`, `initrd`, `partitions` and
+    `tar`. When building a bootable image `kernel` and `initrd`
+    correspond to their artifact found in the image (or in the UKI),
+    while `uki` copies out the entire UKI.
 
     When building a disk image and `partitions` is specified,
     pass `--split=yes` to **systemd-repart** to have it write out split partition
@@ -615,7 +615,12 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     page for more information. This is useful in A/B update scenarios where
     an existing disk image shall be augmented with a new version of a
     root or `/usr` partition along with its Verity partition and unified
-    kernel. By default `uki`, `kernel` and `initrd` are split out.
+    kernel.
+
+    When `tar` is specified, the rootfs is additionally archived as a
+    tar archive (compressed according to `CompressOutput=`).
+
+    By default `uki`, `kernel` and `initrd` are split out.
 
 `RepartDirectories=`, `--repart-directory=`
 :   Paths to directories containing **systemd-repart** partition definition
