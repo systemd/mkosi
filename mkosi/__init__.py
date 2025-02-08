@@ -1694,8 +1694,21 @@ def build_uki(
             "--pcr-banks", "sha256",
         ]  # fmt: skip
 
+        # TODO: bump version to 258 once it is released
+        if (
+            systemd_tool_version(
+                python_binary(context.config),
+                ukify,
+                sandbox=context.sandbox,
+            )
+            >= "257.999"
+        ):
+            cert_parameter = "--pcr-certificate"
+        else:
+            cert_parameter = "--pcr-public-key"
+
         # If we're providing the private key via an engine or provider, we have to pass in a X.509
-        # certificate via --pcr-public-key as well.
+        # certificate via --pcr-certificate as well.
         if context.config.sign_expected_pcr_key_source.type != KeySourceType.file:
             if context.config.sign_expected_pcr_certificate_source.type == CertificateSourceType.provider:
                 arguments += [
@@ -1707,13 +1720,13 @@ def build_uki(
 
             if context.config.sign_expected_pcr_certificate.exists():
                 arguments += [
-                    "--pcr-public-key", workdir(context.config.sign_expected_pcr_certificate),
+                    cert_parameter, workdir(context.config.sign_expected_pcr_certificate),
                 ]  # fmt: skip
                 options += [
                     "--ro-bind", context.config.sign_expected_pcr_certificate, workdir(context.config.sign_expected_pcr_certificate),  # noqa: E501
                 ]  # fmt: skip
             else:
-                arguments += ["--pcr-public-key", context.config.sign_expected_pcr_certificate]
+                arguments += [cert_parameter, context.config.sign_expected_pcr_certificate]
 
         if context.config.sign_expected_pcr_key_source.type == KeySourceType.engine:
             arguments += ["--signing-engine", context.config.sign_expected_pcr_key_source.source]
