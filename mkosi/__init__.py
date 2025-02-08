@@ -13,6 +13,7 @@ import re
 import resource
 import shlex
 import shutil
+import signal
 import socket
 import stat
 import subprocess
@@ -107,6 +108,7 @@ from mkosi.run import (
     finalize_passwd_symlinks,
     fork_and_wait,
     run,
+    spawn,
     workdir,
 )
 from mkosi.sandbox import (
@@ -4250,16 +4252,45 @@ def run_coredumpctl(args: Args, config: Config) -> None:
 def run_serve(args: Args, config: Config) -> None:
     """Serve the output directory via a tiny HTTP server"""
 
-    run(
-        [python_binary(config), "-m", "http.server", "8081"],
-        stdin=sys.stdin,
-        stdout=sys.stdout,
-        sandbox=config.sandbox(
-            network=True,
-            relaxed=True,
-            options=["--chdir", config.output_dir_or_cwd()],
-        ),
-    )
+    with contextlib.ExitStack() as stack:
+        want_storagetm = config.output_format == OutputFormat.disk and config.find_binary(
+            "/usr/lib/systemd/systemd-storagetm"
+        )
+
+        http = stack.enter_context(
+            spawn(
+                [python_binary(config), "-m", "http.server", "8081"],
+                stdin=sys.stdin,
+                stdout=sys.stdout,
+                sandbox=config.sandbox(
+                    network=True,
+                    relaxed=True,
+                    options=["--chdir", config.output_dir_or_cwd()],
+                ),
+                foreground=not want_storagetm,
+            )
+        )
+
+        if want_storagetm:
+            storagetm = stack.enter_context(
+                spawn(
+                    ["/usr/lib/systemd/systemd-storagetm", config.output_with_format],
+                    stdin=sys.stdin,
+                    stdout=sys.stdout,
+                    sandbox=config.sandbox(
+                        network=True,
+                        relaxed=True,
+                        options=["--chdir", config.output_dir_or_cwd()],
+                        setup=become_root_cmd(),
+                    ),
+                    foreground=True,
+                )
+            )
+
+            storagetm.wait()
+            http.send_signal(signal.SIGINT)
+
+        http.wait()
 
 
 def generate_key_cert_pair(args: Args) -> None:
