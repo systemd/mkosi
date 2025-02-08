@@ -570,6 +570,7 @@ class ArtifactOutput(StrEnum):
     kernel = enum.auto()
     initrd = enum.auto()
     partitions = enum.auto()
+    tar = enum.auto()
 
     @staticmethod
     def compat_no() -> list["ArtifactOutput"]:
@@ -2062,6 +2063,15 @@ class Config:
         return f"{self.output}.changelog"
 
     @property
+    def output_tar(self) -> str:
+        output = f"{self.output}.tar"
+
+        if self.compress_output:
+            output += self.compress_output.extension()
+
+        return output
+
+    @property
     def outputs(self) -> list[str]:
         return [
             self.output,
@@ -2075,6 +2085,7 @@ class Config:
             self.output_signature,
             self.output_manifest,
             self.output_changelog,
+            self.output_tar,
         ]
 
     def cache_manifest(self) -> dict[str, Any]:

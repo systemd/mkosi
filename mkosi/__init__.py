@@ -3855,6 +3855,12 @@ def build_image(context: Context) -> None:
     if ArtifactOutput.partitions in context.config.split_artifacts:
         make_disk(context, split=True, msg="Extracting partitions")
 
+    if (
+        context.config.output_format != OutputFormat.tar
+        and ArtifactOutput.tar in context.config.split_artifacts
+    ):
+        make_tar(context.root, context.staging / context.config.output_tar, sandbox=context.sandbox)
+
     copy_nspawn_settings(context)
     copy_uki(context)
     copy_vmlinuz(context)
