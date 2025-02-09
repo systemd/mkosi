@@ -1348,6 +1348,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `ToolsTreePackageDirectories=`, `--tools-tree-package-directory=`
 :   Same as `PackageDirectories=`, but for the default tools tree.
 
+`ToolsTreePrepareScripts=`, `--tools-tree-prepare-script=`
+:   Same as `PrepareScripts=`, but for the default tools tree.
+
 `ToolsTreeCertificates=`, `--tools-tree-certificates=`
 :   Specify whether to use certificates and keys from the tools tree.
     Enabled by default. If enabled, `/etc/pki`, `/etc/ssl`,
