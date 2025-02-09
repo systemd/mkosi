@@ -1912,6 +1912,7 @@ class Config:
     tools_tree_sandbox_trees: list[ConfigTree]
     tools_tree_packages: list[str]
     tools_tree_package_directories: list[Path]
+    tools_tree_prepare_scripts: list[Path]
     tools_tree_certificates: bool
     extra_search_paths: list[Path]
     incremental: Incremental
@@ -3276,6 +3277,16 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Build",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         help="Specify a directory containing extra tools tree packages",
+    ),
+    ConfigSetting(
+        dest="tools_tree_prepare_scripts",
+        long="--tools-tree-prepare-script",
+        metavar="PATH",
+        section="Build",
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        paths=("mkosi.tools.prepare", "mkosi.tools.prepare.chroot"),
+        recursive_paths=("mkosi.tools.prepare.d/*",),
+        help="Prepare script to run inside the tools tree before it is cached",
     ),
     ConfigSetting(
         dest="tools_tree_certificates",
@@ -5001,6 +5012,7 @@ def summary(config: Config) -> str:
            Tools Tree Sandbox Trees: {line_join_list(config.tools_tree_sandbox_trees)}
                 Tools Tree Packages: {line_join_list(config.tools_tree_packages)}
      Tools Tree Package Directories: {line_join_list(config.tools_tree_package_directories)}
+         Tools Tree Prepare Scripts: {line_join_list(config.tools_tree_prepare_scripts)}
             Tools Tree Certificates: {yes_no(config.tools_tree_certificates)}
 
                  Extra Search Paths: {line_join_list(config.extra_search_paths)}
