@@ -353,6 +353,7 @@ def test_config() -> None:
             "Ssh": false,
             "SshCertificate": "/path/to/cert",
             "SshKey": null,
+            "StorageTargetMode": "enabled",
             "SyncScripts": [
                 "/sync"
             ],
@@ -566,6 +567,7 @@ def test_config() -> None:
         ssh_certificate=Path("/path/to/cert"),
         ssh_key=None,
         ssh=False,
+        storage_target_mode=ConfigFeature.enabled,
         sync_scripts=[Path("/sync")],
         sysupdate_dir=Path("/sysupdate"),
         timezone=None,

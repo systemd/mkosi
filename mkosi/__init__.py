@@ -101,6 +101,7 @@ from mkosi.qemu import (
     start_journal_remote,
 )
 from mkosi.run import (
+    Popen,
     apivfs_options,
     chroot_cmd,
     chroot_options,
@@ -4310,14 +4311,42 @@ def run_coredumpctl(args: Args, config: Config) -> None:
     run_systemd_tool("coredumpctl", args, config)
 
 
+def start_storage_target_mode(config: Config) -> AbstractContextManager[Optional[Popen]]:
+    if config.storage_target_mode == ConfigFeature.disabled:
+        return contextlib.nullcontext()
+
+    if config.storage_target_mode == ConfigFeature.auto and os.getuid() != 0:
+        return contextlib.nullcontext()
+
+    if config.output_format != OutputFormat.disk:
+        if config.storage_target_mode == ConfigFeature.enabled:
+            die("Storage target mode is only supported for the 'disk' output format")
+
+        return contextlib.nullcontext()
+
+    if not config.find_binary("/usr/lib/systemd/systemd-storagetm"):
+        if config.storage_target_mode == ConfigFeature.enabled:
+            die("Storage target mode enabled but systemd-storagetm is not installed")
+
+        return contextlib.nullcontext()
+
+    return spawn(
+        ["/usr/lib/systemd/systemd-storagetm", config.output_with_format],
+        stdin=sys.stdin,
+        stdout=sys.stdout,
+        sandbox=config.sandbox(
+            network=True,
+            relaxed=True,
+            options=["--chdir", config.output_dir_or_cwd()],
+            setup=become_root_cmd(),
+        ),
+    )
+
+
 def run_serve(args: Args, config: Config) -> None:
     """Serve the output directory via a tiny HTTP server"""
 
     with contextlib.ExitStack() as stack:
-        want_storagetm = config.output_format == OutputFormat.disk and config.find_binary(
-            "/usr/lib/systemd/systemd-storagetm"
-        )
-
         http = stack.enter_context(
             spawn(
                 [python_binary(config), "-m", "http.server", "8081"],
@@ -4331,25 +4360,14 @@ def run_serve(args: Args, config: Config) -> None:
             )
         )
 
-        if want_storagetm:
-            storagetm = stack.enter_context(
-                spawn(
-                    ["/usr/lib/systemd/systemd-storagetm", config.output_with_format],
-                    stdin=sys.stdin,
-                    stdout=sys.stdout,
-                    sandbox=config.sandbox(
-                        network=True,
-                        relaxed=True,
-                        options=["--chdir", config.output_dir_or_cwd()],
-                        setup=become_root_cmd(),
-                    ),
-                )
-            )
+        storagetm = stack.enter_context(start_storage_target_mode(config))
 
+        # If we run systemd-storagetm with run0, it replaces the foreground process group with its own which
+        # means the http process doesn't get SIGINT from the terminal, so let's send it ourselves in that
+        # case.
+        if storagetm and os.getuid() != 0:
             storagetm.wait()
             http.send_signal(signal.SIGINT)
-
-        http.wait()
 
 
 def generate_key_cert_pair(args: Args) -> None:

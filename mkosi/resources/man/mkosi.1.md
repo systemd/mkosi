@@ -1850,6 +1850,16 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     of file if your workload produces more than `4G` worth of journal
     data.
 
+`StorageTargetMode=`, `--storage-target-mode=`
+:   Specifies whether the `serve` verb should start
+    **systemd-storagetm** to serve disk images over NVME-TCP. Takes a
+    boolean value or `auto`. If enabled, systemd-storagetm is always
+    started and mkosi will fail if it cannot start systemd-storagetm. If
+    disabled, systemd-storagetm is never started. If `auto`,
+    systemd-storagetm will be started if a disk image is being built,
+    the systemd-storagetm binary is found and `mkosi serve` is being
+    invoked as the root user.
+
 `SysupdateDirectory=`, `--sysupdate-directory=`
 :   Path to a directory containing systemd-sysupdate transfer definition
     files that are used by `mkosi sysupdate`. If `mkosi.sysupdate/`
