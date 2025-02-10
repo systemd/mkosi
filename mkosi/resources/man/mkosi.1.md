@@ -603,10 +603,13 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `SplitArtifacts=`, `--split-artifacts`
 :   The artifact types to split out of the final image. A comma-delimited
-    list consisting of `uki`, `kernel`, `initrd`, `partitions` and
+    list consisting of `uki`, `kernel`, `initrd`, `prcs`, `partitions` and
     `tar`. When building a bootable image `kernel` and `initrd`
     correspond to their artifact found in the image (or in the UKI),
-    while `uki` copies out the entire UKI.
+    while `uki` copies out the entire UKI. If `pcrs` is specified, a JSON
+    file containing the pre-calculated TPM2 digests is written out, according
+    to the [UKI specification](https://uapi-group.org/specifications/specs/unified_kernel_image/#json-format-for-pcrsig),
+    which is useful for offline signing.
 
     When building a disk image and `partitions` is specified,
     pass `--split=yes` to **systemd-repart** to have it write out split partition
