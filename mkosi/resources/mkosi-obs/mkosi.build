@@ -1,0 +1,114 @@
+#!/bin/bash
+# SPDX-License-Identifier: LGPL-2.1-or-later
+#
+# Second stage of build:
+# - signed hashes are in cpio archive in SOURCES/ together with artifacts from previous build
+# - if there are PCR policies to attach, do so and then prepare the hashes of the UKIs themselves
+# - if not, attach the signatures to the UKI(s) with pesign
+# - remove shasums of previous artifacts, given we are re-creating them after this step
+# - place artifacts from previous builds and signed UKI in output directory
+
+set -e
+
+if [ ! -f /usr/src/packages/SOURCES/hashes.cpio.rsasign.sig ]; then
+    exit 0
+fi
+
+echo "Signed files to be attached:"
+cpio -t </usr/src/packages/SOURCES/hashes.cpio.rsasign.sig
+cpio -t </usr/src/packages/SOURCES/hashes.cpio.rsasign
+mkdir -p hashes
+pushd hashes
+cpio -idm </usr/src/packages/SOURCES/hashes.cpio.rsasign.sig
+cpio -idm </usr/src/packages/SOURCES/hashes.cpio.rsasign
+popd
+
+OUTPUTDIR=/work/src/usr/src/packages/OTHER
+
+# OBS signs a hash without certificate information so it cannot simply be
+# attached to the PE binaries, certificate metadata has to be provided separately
+# so we need to create a certutil db and import the certificate manually
+rm -rf nss-db
+mkdir nss-db
+nss_db="$PWD/nss-db"
+certutil -N -d sql:"$nss_db" --empty-password
+certutil -A -d sql:"$nss_db" -n cert -t CT,CT,CT -i /usr/src/packages/SOURCES/_projectcert.crt
+
+cp -r /usr/src/packages/SOURCES/"$IMAGE_ID"* "$OUTPUTDIR"
+rm -f "$OUTPUTDIR/hashes.cpio.rsasign*" "$OUTPUTDIR"/*.sha*
+
+# First step: if there are UKI signatures, attach them
+while read -r SIG; do
+    infile="${SIG%.sig}"
+    sattrs="hashes/ukis/${SIG%.sig}"
+    test -s "$sattrs"
+
+    DEST="$OUTPUTDIR/${SIG#*/}"
+    DEST="${DEST%%.sig}"
+
+    # ensure the EFI hash matches before and after attaching the signature
+    old_hash=$(pesign -n sql:"$nss_db" -h -P -i "/usr/src/packages/SOURCES/$infile" | cut -d' ' -f1)
+
+    pesign -n sql:"$nss_db" --force -c cert -i "/usr/src/packages/SOURCES/$infile" -o "$DEST" -d sha256 -I "$sattrs" -R "hashes/ukis/$SIG"
+
+    new_hash=$(pesign -n sql:"$nss_db" -h -i "$DEST" | cut -d' ' -f1)
+    if [ "$old_hash" != "$new_hash" ]; then
+        echo "Pesign hash mismatch error: $old_hash $new_hash"
+        exit 1
+    fi
+
+    rm -f "$(basename "${infile}").sattrs" "$SIG" "$infile"
+done < <(find hashes/ukis hashes/kernels -type f \( -name '*efi.sig' -o -name 'vmlinu*.sig' \) -printf '%P\n')
+rm -rf nss-db "$OUTPUTDIR"/*.sig hashes/ukis
+
+# Second step: if there are PCR policy signatures, rebuild the JSON
+# blobs with the attached signatures
+while read -r SIG; do
+    uki="$OUTPUTDIR/$(basename "$(dirname "${SIG%.sig}")")"
+    pcrs="${uki%.efi}.pcrs"
+    pol="$(basename "${SIG%.sig}")"
+
+    test -f "${pcrs}"
+
+    jq -c --arg pol "$pol" --arg sig "$(base64 -w0 <"$SIG")" '
+        to_entries | map(
+            .value |= map(
+                if .pol == $pol then
+                    .sig = $sig
+                else
+                    .
+                end
+            )
+        ) | from_entries
+    ' "$pcrs" >"${pcrs}.new"
+    mv "${pcrs}.new" "$pcrs"
+    cp "$pcrs" "${pcrs}.sig"
+
+    rm -f "$SIG"
+done < <(find hashes/pcrs -type f -name '*.sig')
+rm -rf hashes/pcrs
+
+mkdir -p "$nss_db"
+certutil -N -d sql:"$nss_db" --empty-password
+
+# Third step: now that the JSON blob is rebuilt, merge it in the UKI
+while read -r PCRS; do
+    uki="${PCRS%.pcrs.sig}.efi"
+    ukify --json=short --pcrsig "@$PCRS" --join-pcrsig "$uki" --output "$uki.attached" build
+    mv "$uki.attached" "$uki"
+    mkdir -p hashes/ukis
+    pesign --force -n sql:"$nss_db" -i "$uki" -E "hashes/ukis/$(basename "$uki")"
+done < <(find "$OUTPUTDIR" -type f -name '*.pcrs.sig')
+rm -f "$OUTPUTDIR"/*.pcrs*
+
+# Fourth step: take hash of the UKIs after the signed JSON blobs have been merged
+# and prepare for the next iteration
+if [ -d hashes/ukis ]; then
+    pushd hashes
+    find . -type f | cpio -H newc -o >"$OUTPUTDIR/hashes.cpio.rsasign"
+    popd
+    cp /usr/src/packages/SOURCES/mkosi.conf "$OUTPUTDIR"
+    echo "Staging the following files for signing:"
+    cpio -t <"$OUTPUTDIR/hashes.cpio.rsasign"
+fi
+rm -rf hashes "$nss_db"
