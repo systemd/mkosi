@@ -3357,6 +3357,11 @@ def make_image(
             if p.split_path:
                 maybe_compress(context, context.config.compress_output, p.split_path)
 
+    if ArtifactOutput.roothash in context.config.split_artifacts and (
+        roothash := finalize_roothash(partitions)
+    ):
+        (context.staging / context.config.output_split_roothash).write_text(roothash.partition("=")[2])
+
     return partitions
 
 
