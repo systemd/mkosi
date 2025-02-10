@@ -13,8 +13,10 @@ declare -a UKIS
 UKIS=( "$(find "$OUTPUTDIR" -type f -name "*.efi" -printf '%P\n')" )
 declare -a KERNELS
 KERNELS=( "$(find "$OUTPUTDIR" -type f -name "vmlinu*" -printf '%P\n')" )
+declare -a ROOTHASHES
+ROOTHASHES=( "$(find "$OUTPUTDIR" -type f -name "*.roothash" -printf '%P\n')" )
 
-if ((${#UKIS[@]} == 0)) && ((${#KERNELS[@]} == 0)); then
+if ((${#UKIS[@]} == 0)) && ((${#KERNELS[@]} == 0)) && ((${#ROOTHASHES[@]} == 0)); then
     echo "No unsigned files found, exiting"
     exit 0
 fi
@@ -42,6 +44,12 @@ for f in "${KERNELS[@]}"; do
     test -f "${OUTPUTDIR}/${f}" || continue
     mkdir -p hashes/kernels
     pesign --force -n sql:"$nss_db" -i "${OUTPUTDIR}/${f}" -E "hashes/kernels/$f"
+done
+
+for f in "${ROOTHASHES[@]}"; do
+    test -f "${OUTPUTDIR}/${f}" || continue
+    mkdir -p hashes/roothashes
+    cp "${OUTPUTDIR}/$f" hashes/roothashes/
 done
 
 # Pack everything into a CPIO archive and place it where OBS expects it
