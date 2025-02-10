@@ -994,7 +994,6 @@ def machine1_is_available(config: Config) -> bool:
             env=os.environ | config.environment,
             sandbox=config.sandbox(relaxed=True),
             stdout=subprocess.PIPE,
-            stderr=sys.stderr,
         ).stdout.strip()
     )
 
@@ -1005,28 +1004,33 @@ def finalize_register(config: Config) -> bool:
     if config.register == ConfigFeature.disabled:
         return False
 
-    if os.getuid() == 0 and (
-        Path("/run/systemd/machine/io.systemd.Machine").is_socket() or machine1_is_available(config)
-    ):
-        return True
+    if config.register == ConfigFeature.auto and os.getuid() != 0:
+        return False
 
-    if config.register == ConfigFeature.enabled:
-        if os.getuid() != 0:
-            die("Container registration requires root privileges")
-        else:
+    # Unprivileged registration via polkit was added after the varlink interface was added, so if the varlink
+    # interface is not available, we can assume unprivileged registration is not available either.
+    if (
+        not (p := Path("/run/systemd/machine/io.systemd.Machine")).is_socket()
+        or not os.access(p, os.R_OK | os.W_OK)
+    ) and (not machine1_is_available(config) or os.getuid() != 0):
+        if config.register == ConfigFeature.enabled:
             die(
                 "Container registration was requested but systemd-machined is not available",
-                hint="Is the systemd-container package installed?",
+                hint="Is the systemd-container package installed and is systemd-machined running?",
             )
 
-    return False
+        return False
+
+    return True
 
 
 def register_machine(config: Config, pid: int, fname: Path, cid: Optional[int]) -> None:
     if not finalize_register(config):
         return
 
-    if (p := Path("/run/systemd/machine/io.systemd.Machine")).is_socket():
+    if (p := Path("/run/systemd/machine/io.systemd.Machine")).is_socket() and os.access(
+        p, os.R_OK | os.W_OK
+    ):
         run(
             [
                 "varlinkctl",
@@ -1048,9 +1052,14 @@ def register_machine(config: Config, pid: int, fname: Path, cid: Optional[int]) 
             ],
             env=os.environ | config.environment,
             sandbox=config.sandbox(relaxed=True),
-            # Make sure varlinkctl doesn't write to stdout which messes up the terminal.
+            stdin=sys.stdin,
+            # Prevent varlinkctl's empty '{}' response from showing up in the terminal.
             stdout=subprocess.DEVNULL,
-            stderr=sys.stderr,
+            # systemd 256 exposes the systemd-machined varlink interface only to the root user, but makes the
+            # varlink socket world readable/writable, which means this will fail when executed as an
+            # unprivileged user, so ignore the error in that case.
+            # TODO: Remove when https://github.com/systemd/systemd/pull/36344 is in a stable release.
+            check=os.getuid() == 0,
         )
     else:
         run(
@@ -1072,10 +1081,8 @@ def register_machine(config: Config, pid: int, fname: Path, cid: Optional[int]) 
             ],  # fmt: skip
             env=os.environ | config.environment,
             sandbox=config.sandbox(relaxed=True),
-            # systemd-machined might not be installed so let's ignore any failures unless running in debug
-            # mode.
-            check=ARG_DEBUG.get(),
-            stderr=None if ARG_DEBUG.get() else subprocess.DEVNULL,
+            stdin=sys.stdin,
+            stdout=sys.stdout,
         )
 
 
