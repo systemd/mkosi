@@ -4310,13 +4310,25 @@ def run_coredumpctl(args: Args, config: Config) -> None:
     run_systemd_tool("coredumpctl", args, config)
 
 
+def want_storagetm(config: Config) -> bool:
+    if not Path("/sys/kernel/config/nvmet").exists():
+        logging.warning("/sys/kernel/config/nvmet does not exist. Not starting systemd-storagetm.")
+        return False
+
+    if os.getuid() != 0:
+        logging.warning("Running as normal user. Not starting systemd-storagetm.")
+        return False
+
+    return config.output_format == OutputFormat.disk and bool(
+        config.find_binary("/usr/lib/systemd/systemd-storagetm")
+    )
+
+
 def run_serve(args: Args, config: Config) -> None:
     """Serve the output directory via a tiny HTTP server"""
 
     with contextlib.ExitStack() as stack:
-        want_storagetm = config.output_format == OutputFormat.disk and config.find_binary(
-            "/usr/lib/systemd/systemd-storagetm"
-        )
+        run_storagetm = want_storagetm(config)
 
         http = stack.enter_context(
             spawn(
@@ -4328,11 +4340,11 @@ def run_serve(args: Args, config: Config) -> None:
                     relaxed=True,
                     options=["--chdir", config.output_dir_or_cwd()],
                 ),
-                foreground=not want_storagetm,
+                foreground=not run_storagetm,
             )
         )
 
-        if want_storagetm:
+        if run_storagetm:
             storagetm = stack.enter_context(
                 spawn(
                     ["/usr/lib/systemd/systemd-storagetm", config.output_with_format],
