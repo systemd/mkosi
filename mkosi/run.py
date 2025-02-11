@@ -243,7 +243,9 @@ def spawn(
                 log_process_failure(prefix, cmd, returncode)
             if ARG_DEBUG_SHELL.get():
                 subprocess.run(
-                    [*prefix, "bash"],
+                    # --suspend will freeze the debug shell with no way to unfreeze it so strip it from the
+                    # sandbox if it's there.
+                    [s for s in prefix if s != "--suspend"] + ["bash"],
                     check=False,
                     stdin=sys.stdin,
                     text=True,
