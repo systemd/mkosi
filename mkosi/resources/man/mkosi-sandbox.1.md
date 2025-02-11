@@ -112,7 +112,7 @@ host system.
 `--unshare-ipc`
 :   Specifying this option makes `mkosi-sandbox` unshare an IPC namespace if possible.
 
-`--suspend FD`
+`--suspend`
 :   Make the `mkosi-sandbox` process suspend itself with `SIGSTOP` just before it calls `execve()`.
     This is useful to wait until all setup logic has completed before continuing execution in the parent
     process invoking `mkosi-sandbox` by using `waitid()` with the `WNOWAIT` AND `WSTOPPED` flags.
