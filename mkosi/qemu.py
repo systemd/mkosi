@@ -361,6 +361,7 @@ def start_virtiofsd(
         "--no-announce-submounts",
         "--sandbox=chroot",
         f"--inode-file-handles={'prefer' if os.getuid() == 0 and not uidmap else 'never'}",
+        "--log-level=error",
     ]  # fmt: skip
 
     if selinux:
@@ -687,8 +688,7 @@ def generate_scratch_fs(config: Config) -> Iterator[Path]:
         fs = config.distribution.filesystem()
         extra = config.environment.get(f"SYSTEMD_REPART_MKFS_OPTIONS_{fs.upper()}", "")
         run(
-            [f"mkfs.{fs}", "-L", "scratch", *extra.split(), workdir(Path(scratch.name))],
-            stdout=subprocess.DEVNULL,
+            [f"mkfs.{fs}", "-L", "scratch", "-q", *extra.split(), workdir(Path(scratch.name))],
             sandbox=config.sandbox(options=["--bind", scratch.name, workdir(Path(scratch.name))]),
         )
         yield Path(scratch.name)
