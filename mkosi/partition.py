@@ -56,6 +56,10 @@ def finalize_roothash(partitions: Sequence[Partition]) -> Optional[str]:
         if not (p.type.startswith("usr") or p.type.startswith("root")):
             die(f"Found roothash property on unexpected partition type {p.type}")
 
+        # When the partition is deferred/skipped the roothash is listed as the literal 'TBD' string
+        if h == "TBD":
+            continue
+
         # When there's multiple verity enabled root or usr partitions, the first one wins.
         if p.type.startswith("usr"):
             usrhash = usrhash or h

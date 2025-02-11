@@ -572,6 +572,7 @@ class ArtifactOutput(StrEnum):
     partitions = enum.auto()
     tar = enum.auto()
     pcrs = enum.auto()
+    roothash = enum.auto()
 
     @staticmethod
     def compat_no() -> list["ArtifactOutput"]:
@@ -2050,6 +2051,10 @@ class Config:
         return f"{self.output}.pcrs"
 
     @property
+    def output_split_roothash(self) -> str:
+        return f"{self.output}.roothash"
+
+    @property
     def output_nspawn_settings(self) -> str:
         return f"{self.output}.nspawn"
 
@@ -2088,6 +2093,7 @@ class Config:
             self.output_split_kernel,
             self.output_split_initrd,
             self.output_split_pcrs,
+            self.output_split_roothash,
             self.output_nspawn_settings,
             self.output_checksum,
             self.output_signature,
