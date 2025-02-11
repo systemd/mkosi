@@ -4328,7 +4328,6 @@ def run_serve(args: Args, config: Config) -> None:
                     relaxed=True,
                     options=["--chdir", config.output_dir_or_cwd()],
                 ),
-                foreground=not want_storagetm,
             )
         )
 
@@ -4344,7 +4343,6 @@ def run_serve(args: Args, config: Config) -> None:
                         options=["--chdir", config.output_dir_or_cwd()],
                         setup=become_root_cmd(),
                     ),
-                    foreground=True,
                 )
             )
 

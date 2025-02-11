@@ -566,7 +566,6 @@ def start_journal_remote(config: Config, sockfd: int) -> Iterator[None]:
             ),
             user=user if not scope else None,
             group=group if not scope else None,
-            foreground=False,
         ) as proc:  # fmt: skip
             yield
             proc.terminate()
@@ -991,7 +990,6 @@ def machine1_is_available(config: Config) -> bool:
     services = json.loads(
         run(
             ["busctl", "list", "--json=pretty"],
-            foreground=False,
             env=os.environ | config.environment,
             sandbox=config.sandbox(relaxed=True),
             stdout=subprocess.PIPE,
@@ -1047,7 +1045,6 @@ def register_machine(config: Config, pid: int, fname: Path, cid: Optional[int]) 
                     }
                 ),
             ],
-            foreground=False,
             env=os.environ | config.environment,
             sandbox=config.sandbox(relaxed=True),
             # Make sure varlinkctl doesn't write to stdout which messes up the terminal.
@@ -1072,7 +1069,6 @@ def register_machine(config: Config, pid: int, fname: Path, cid: Optional[int]) 
                 str(pid),
                 fname if fname.is_dir() else "",
             ],  # fmt: skip
-            foreground=False,
             env=os.environ | config.environment,
             sandbox=config.sandbox(relaxed=True),
             # systemd-machined might not be installed so let's ignore any failures unless running in debug
@@ -1549,7 +1545,6 @@ def run_qemu(args: Args, config: Config) -> None:
             stderr=stderr,
             pass_fds=qemu_device_fds.values(),
             env=os.environ | config.environment,
-            foreground=True,
             sandbox=config.sandbox(
                 network=True,
                 devices=True,

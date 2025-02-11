@@ -38,24 +38,6 @@ else:
     Popen = subprocess.Popen
 
 
-def make_foreground_process(*, new_process_group: bool = True) -> None:
-    """
-    If we're connected to a terminal, put the process in a new process group and make that the foreground
-    process group so that only this process receives SIGINT.
-    """
-    STDERR_FILENO = 2
-    if os.isatty(STDERR_FILENO):
-        if new_process_group:
-            os.setpgrp()
-        old = signal.signal(signal.SIGTTOU, signal.SIG_IGN)
-        try:
-            os.tcsetpgrp(STDERR_FILENO, os.getpgrp())
-        except OSError as e:
-            if e.errno != errno.ENOTTY:
-                raise e
-        signal.signal(signal.SIGTTOU, old)
-
-
 def ensure_exc_info() -> tuple[type[BaseException], BaseException, TracebackType]:
     exctype, exc, tb = sys.exc_info()
     assert exctype
@@ -108,16 +90,16 @@ def fork_and_wait(target: Callable[..., None], *args: Any, **kwargs: Any) -> Non
     pid = os.fork()
     if pid == 0:
         with uncaught_exception_handler(exit=os._exit):
-            make_foreground_process()
             target(*args, **kwargs)
 
     try:
         _, status = os.waitpid(pid, 0)
+    except KeyboardInterrupt:
+        os.kill(pid, signal.SIGINT)
+        _, status = os.waitpid(pid, 0)
     except BaseException:
         os.kill(pid, signal.SIGTERM)
         _, status = os.waitpid(pid, 0)
-    finally:
-        make_foreground_process(new_process_group=False)
 
     rc = os.waitstatus_to_exitcode(status)
 
@@ -162,7 +144,6 @@ def run(
     group: Optional[int] = None,
     env: Mapping[str, str] = {},
     log: bool = True,
-    foreground: bool = True,
     success_exit_status: Sequence[int] = (0,),
     sandbox: AbstractContextManager[Sequence[PathString]] = contextlib.nullcontext([]),
 ) -> CompletedProcess:
@@ -180,7 +161,6 @@ def run(
         group=group,
         env=env,
         log=log,
-        foreground=foreground,
         success_exit_status=success_exit_status,
         sandbox=sandbox,
     ) as process:
@@ -197,12 +177,9 @@ def fd_move_above(fd: int, above: int) -> int:
 
 def preexec(
     *,
-    foreground: bool,
     preexec_fn: Optional[Callable[[], None]],
     pass_fds: Collection[int],
 ) -> None:
-    if foreground:
-        make_foreground_process()
     if preexec_fn:
         preexec_fn()
 
@@ -245,7 +222,6 @@ def spawn(
     pass_fds: Collection[int] = (),
     env: Mapping[str, str] = {},
     log: bool = True,
-    foreground: bool = False,
     preexec_fn: Optional[Callable[[], None]] = None,
     success_exit_status: Sequence[int] = (0,),
     sandbox: AbstractContextManager[Sequence[PathString]] = contextlib.nullcontext([]),
@@ -318,12 +294,7 @@ def spawn(
                 # transformation in preexec().
                 pass_fds=[SD_LISTEN_FDS_START + i for i in range(len(pass_fds))],
                 env=env,
-                preexec_fn=functools.partial(
-                    preexec,
-                    foreground=foreground,
-                    preexec_fn=preexec_fn,
-                    pass_fds=pass_fds,
-                ),
+                preexec_fn=functools.partial(preexec, preexec_fn=preexec_fn, pass_fds=pass_fds),
             ) as proc:
                 if pwfd is not None:
                     os.close(pwfd)
@@ -340,6 +311,9 @@ def spawn(
                     # exception later on so it's not a problem that we don't yield at all.
                     if not failed():
                         yield proc
+                except KeyboardInterrupt:
+                    proc.send_signal(signal.SIGINT)
+                    raise
                 except BaseException:
                     proc.terminate()
                     raise
@@ -358,19 +332,11 @@ def spawn(
                             user=user,
                             group=group,
                             env=env,
-                            preexec_fn=functools.partial(
-                                preexec,
-                                foreground=True,
-                                preexec_fn=preexec_fn,
-                                pass_fds=tuple(),
-                            ),
+                            preexec_fn=functools.partial(preexec, preexec_fn=preexec_fn, pass_fds=tuple()),
                         )
                     raise subprocess.CalledProcessError(returncode, cmdline)
         except FileNotFoundError as e:
             die(f"{e.filename} not found.")
-        finally:
-            if foreground:
-                make_foreground_process(new_process_group=False)
 
 
 def finalize_path(
