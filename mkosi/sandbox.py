@@ -28,9 +28,12 @@ CLONE_NEWIPC = 0x08000000
 CLONE_NEWNET = 0x40000000
 CLONE_NEWNS = 0x00020000
 CLONE_NEWUSER = 0x10000000
+EBADF = 9
 EPERM = 1
 ENOENT = 2
 ENOSYS = 38
+F_DUPFD = 0
+F_GETFD = 1
 LINUX_CAPABILITY_U32S_3 = 2
 LINUX_CAPABILITY_VERSION_3 = 0x20080522
 MNT_DETACH = 2
@@ -56,6 +59,7 @@ PR_CAP_AMBIENT_RAISE = 2
 # These definitions are taken from the libseccomp headers
 SCMP_ACT_ALLOW = 0x7FFF0000
 SCMP_ACT_ERRNO = 0x00050000
+SD_LISTEN_FDS_START = 3
 SIGSTOP = 19
 
 
@@ -96,6 +100,7 @@ libc.pivot_root.argtypes = (ctypes.c_char_p, ctypes.c_char_p)
 libc.umount2.argtypes = (ctypes.c_char_p, ctypes.c_int)
 libc.capget.argtypes = (ctypes.c_void_p, ctypes.c_void_p)
 libc.capset.argtypes = (ctypes.c_void_p, ctypes.c_void_p)
+libc.fcntl.argtypes = (ctypes.c_int, ctypes.c_int, ctypes.c_int)
 
 
 def terminal_is_dumb() -> bool:
@@ -438,6 +443,67 @@ def is_relative_to(one: str, two: str) -> bool:
     return os.path.commonpath((one, two)) == two
 
 
+def pack_file_descriptors() -> int:
+    fds = []
+
+    with os.scandir("/proc/self/fd") as it:
+        for e in it:
+            if not e.is_symlink() and (e.is_file() or e.is_dir()):
+                continue
+
+            try:
+                fd = int(e.name)
+            except ValueError:
+                continue
+
+            if fd < SD_LISTEN_FDS_START:
+                continue
+
+            fds.append(fd)
+
+    # os.scandir() either opens a file descriptor to the given path or dups the given file descriptor. Either
+    # way, there will be an extra file descriptor in the fds array that's not valid anymore now, so find out
+    # which one and drop it.
+    fds = sorted(fd for fd in fds if libc.fcntl(fd, F_GETFD, 0) >= 0)
+
+    # The following is a reimplementation of pack_fds() in systemd.
+
+    if len(fds) == 0:
+        return 0
+
+    start = 0
+    while True:
+        restart_from = -1
+
+        for i in range(start, len(fds)):
+            if fds[i] == SD_LISTEN_FDS_START + i:
+                continue
+
+            nfd = libc.fcntl(fds[i], F_DUPFD, SD_LISTEN_FDS_START + i)
+            if nfd < 0:
+                oserror("fnctl")
+
+            try:
+                os.close(fds[i])
+            except OSError as e:
+                if e.errno != EBADF:
+                    raise
+
+            fds[i] = nfd
+
+            if nfd != (SD_LISTEN_FDS_START + i) and restart_from < 0:
+                restart_from = i
+
+        if restart_from < 0:
+            break
+
+        start = restart_from
+
+    assert fds[0] == SD_LISTEN_FDS_START
+
+    return len(fds)
+
+
 class FSOperation:
     def __init__(self, dst: str) -> None:
         self.dst = dst
@@ -752,7 +818,7 @@ def main() -> None:
     upperdir = ""
     workdir = ""
     chdir = None
-    become_root = suppress_chown = unshare_net = unshare_ipc = suspend = False
+    become_root = suppress_chown = unshare_net = unshare_ipc = suspend = pack_fds = False
 
     ttyname = os.ttyname(2) if os.isatty(2) else ""
 
@@ -813,6 +879,8 @@ def main() -> None:
             unshare_ipc = True
         elif arg == "--suspend":
             suspend = True
+        elif arg == "--pack-fds":
+            pack_fds = True
         elif arg.startswith("-"):
             raise ValueError(f"Unrecognized option {arg}")
         else:
@@ -837,9 +905,11 @@ def main() -> None:
         if e in os.environ:
             del os.environ[e]
 
-    # If $LISTEN_FDS is in the environment, let's automatically set $LISTEN_PID to the correct pid as well.
-    if "LISTEN_FDS" in os.environ:
-        os.environ["LISTEN_PID"] = str(os.getpid())
+    if pack_fds:
+        nfds = pack_file_descriptors()
+        if nfds > 0:
+            os.environ["LISTEN_FDS"] = str(nfds)
+            os.environ["LISTEN_PID"] = str(os.getpid())
 
     namespaces = CLONE_NEWNS
     if unshare_net and have_effective_cap(CAP_NET_ADMIN):

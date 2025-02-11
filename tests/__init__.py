@@ -61,8 +61,6 @@ class Image:
         options: Sequence[PathString] = (),
         args: Sequence[str] = (),
         stdin: _FILE = None,
-        user: Optional[int] = None,
-        group: Optional[int] = None,
         check: bool = True,
         env: Mapping[str, str] = {},
     ) -> CompletedProcess:
@@ -78,8 +76,6 @@ class Image:
             check=check,
             stdin=stdin,
             stdout=sys.stdout,
-            user=user,
-            group=group,
             env=os.environ | env,
         )  # fmt: skip
 
