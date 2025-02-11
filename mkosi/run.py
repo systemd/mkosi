@@ -214,7 +214,7 @@ def spawn(
         prefix = [os.fspath(x) for x in sbx]
 
         try:
-            with subprocess.Popen(
+            proc = subprocess.Popen(
                 [*prefix, *cmdline],
                 stdin=stdin,
                 stdout=stdout,
@@ -225,41 +225,38 @@ def spawn(
                 pass_fds=pass_fds,
                 env=env,
                 preexec_fn=preexec,
-            ) as proc:
-
-                def failed() -> bool:
-                    return check and (rc := proc.poll()) is not None and rc not in success_exit_status
-
-                try:
-                    yield proc
-                except KeyboardInterrupt:
-                    proc.send_signal(signal.SIGINT)
-                    raise
-                except BaseException:
-                    proc.terminate()
-                    raise
-                finally:
-                    # Make sure any SIGINT/SIGTERM signal we sent is actually processed.
-                    proc.send_signal(signal.SIGCONT)
-                    returncode = proc.wait()
-
-                if failed():
-                    if log:
-                        log_process_failure(prefix, cmd, returncode)
-                    if ARG_DEBUG_SHELL.get():
-                        subprocess.run(
-                            [*prefix, "bash"],
-                            check=False,
-                            stdin=sys.stdin,
-                            text=True,
-                            user=user,
-                            group=group,
-                            env=env,
-                            preexec_fn=preexec,
-                        )
-                    raise subprocess.CalledProcessError(returncode, cmdline)
+            )
         except FileNotFoundError as e:
             die(f"{e.filename} not found.")
+
+        try:
+            yield proc
+        except KeyboardInterrupt:
+            proc.send_signal(signal.SIGINT)
+            raise
+        except BaseException:
+            proc.terminate()
+            raise
+        finally:
+            # Make sure any SIGINT/SIGTERM signal we sent is actually processed.
+            proc.send_signal(signal.SIGCONT)
+            returncode = proc.wait()
+
+        if check and returncode is not None and returncode not in success_exit_status:
+            if log:
+                log_process_failure(prefix, cmd, returncode)
+            if ARG_DEBUG_SHELL.get():
+                subprocess.run(
+                    [*prefix, "bash"],
+                    check=False,
+                    stdin=sys.stdin,
+                    text=True,
+                    user=user,
+                    group=group,
+                    env=env,
+                    preexec_fn=preexec,
+                )
+            raise subprocess.CalledProcessError(returncode, cmdline)
 
 
 def finalize_path(
