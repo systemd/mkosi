@@ -44,10 +44,19 @@ from mkosi.config import (
 )
 from mkosi.log import ARG_DEBUG, die
 from mkosi.partition import finalize_root, find_partitions
-from mkosi.run import SD_LISTEN_FDS_START, AsyncioThread, find_binary, fork_and_wait, run, spawn, workdir
+from mkosi.run import AsyncioThread, find_binary, fork_and_wait, run, spawn, workdir
 from mkosi.tree import copy_tree, rmtree
 from mkosi.user import INVOKING_USER, become_root_in_subuid_range, become_root_in_subuid_range_cmd
-from mkosi.util import PathString, StrEnum, current_home_dir, flock, flock_or_die, groupby, round_up, try_or
+from mkosi.util import (
+    PathString,
+    StrEnum,
+    current_home_dir,
+    flock,
+    flock_or_die,
+    groupby,
+    round_up,
+    try_or,
+)
 from mkosi.versioncomp import GenericVersion
 
 QEMU_KVM_DEVICE_VERSION = GenericVersion("9.0")
@@ -297,7 +306,7 @@ def start_swtpm(config: Config) -> Iterator[Path]:
             sock.bind(os.fspath(path))
             sock.listen()
 
-            cmdline += ["--ctrl", f"type=unixio,fd={SD_LISTEN_FDS_START}"]
+            cmdline += ["--ctrl", f"type=unixio,fd={sock.fileno()}"]
 
             with spawn(
                 cmdline,
@@ -396,7 +405,7 @@ def start_virtiofsd(
             # Make sure virtiofsd can connect to the socket.
             os.chown(path, st.st_uid, st.st_gid)
 
-        cmdline += ["--fd", str(SD_LISTEN_FDS_START)]
+        cmdline += ["--fd", str(sock.fileno())]
 
         # We want RuntimeBuildSources= and RuntimeTrees= to do the right thing even when running mkosi vm
         # as root without the source directories necessarily being owned by root. We achieve this by running
@@ -423,7 +432,7 @@ def start_virtiofsd(
             # our own function to become root in the subuid range.
             # TODO: Drop this as soon as we drop CentOS Stream 9 support and can rely on newer unshare
             # features.
-            preexec_fn=become_root_in_subuid_range if not scope and not uidmap else None,
+            preexec=become_root_in_subuid_range if not scope and not uidmap else None,
             sandbox=config.sandbox(
                 options=[
                     "--bind", directory, workdir(directory),
@@ -563,6 +572,7 @@ def start_journal_remote(config: Config, sockfd: int) -> Iterator[None]:
                 options=[
                     "--bind", config.forward_journal.parent, workdir(config.forward_journal.parent),
                     "--ro-bind", f.name, "/etc/systemd/journal-remote.conf",
+                    "--pack-fds",
                 ],
                 setup=scope,
             ),
@@ -1233,8 +1243,7 @@ def run_qemu(args: Args, config: Config) -> None:
     if config.kvm != ConfigFeature.disabled and have_kvm and config.architecture.can_kvm():
         accel = "kvm"
         if qemu_version(config, qemu) >= QEMU_KVM_DEVICE_VERSION:
-            index = list(qemu_device_fds.keys()).index(QemuDeviceNode.kvm)
-            cmdline += ["--add-fd", f"fd={SD_LISTEN_FDS_START + index},set=1,opaque=/dev/kvm"]
+            cmdline += ["--add-fd", f"fd={qemu_device_fds[QemuDeviceNode.kvm]},set=1,opaque=/dev/kvm"]
             accel += ",device=/dev/fdset/1"
         cmdline += ["-cpu", "host"]
     else:
@@ -1259,8 +1268,9 @@ def run_qemu(args: Args, config: Config) -> None:
                 "find a free vsock connection ID",
             )
 
-        index = list(qemu_device_fds.keys()).index(QemuDeviceNode.vhost_vsock)
-        cmdline += ["-device", f"vhost-vsock-pci,guest-cid={cid},vhostfd={SD_LISTEN_FDS_START + index}"]
+        cmdline += [
+            "-device", f"vhost-vsock-pci,guest-cid={cid},vhostfd={qemu_device_fds[QemuDeviceNode.vhost_vsock]}",  # noqa: E501
+        ]  # fmt: skip
 
     if config.console == ConsoleMode.gui:
         if config.architecture.is_arm_variant():

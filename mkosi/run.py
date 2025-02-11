@@ -2,8 +2,6 @@
 
 import contextlib
 import errno
-import fcntl
-import functools
 import logging
 import os
 import queue
@@ -23,9 +21,6 @@ from typing import TYPE_CHECKING, Any, Callable, NoReturn, Optional, Protocol
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SANDBOX, ARG_DEBUG_SHELL, die
 from mkosi.sandbox import acquire_privileges, joinpath, umask
 from mkosi.util import _FILE, PathString, current_home_dir, flatten, one_zero, resource_path, unique
-
-SD_LISTEN_FDS_START = 3
-
 
 # These types are only generic during type checking and not at runtime, leading
 # to a TypeError during compilation.
@@ -169,47 +164,6 @@ def run(
     return CompletedProcess(cmdline, process.returncode, out, err)
 
 
-def fd_move_above(fd: int, above: int) -> int:
-    dup = fcntl.fcntl(fd, fcntl.F_DUPFD, above)
-    os.close(fd)
-    return dup
-
-
-def preexec(
-    *,
-    preexec_fn: Optional[Callable[[], None]],
-    pass_fds: Collection[int],
-) -> None:
-    if preexec_fn:
-        preexec_fn()
-
-    if not pass_fds:
-        return
-
-    # The systemd socket activation interface requires any passed file descriptors to start at '3' and
-    # incrementally increase from there. The file descriptors we got from the caller might be arbitrary,
-    # so we need to move them around to make sure they start at '3' and incrementally increase.
-    for i, fd in enumerate(pass_fds):
-        # Don't do anything if the file descriptor is already what we need it to be.
-        if fd == SD_LISTEN_FDS_START + i:
-            continue
-
-        # Close any existing file descriptor that occupies the id that we want to move to. This is safe
-        # because using pass_fds implies using close_fds as well, except that file descriptors are closed
-        # by python after running the preexec function, so we have to close a few of those manually here
-        # to make room if needed.
-        try:
-            os.close(SD_LISTEN_FDS_START + i)
-        except OSError as e:
-            if e.errno != errno.EBADF:
-                raise
-
-        nfd = fcntl.fcntl(fd, fcntl.F_DUPFD, SD_LISTEN_FDS_START + i)
-        # fcntl.F_DUPFD uses the closest available file descriptor ID, so make sure it actually picked
-        # the ID we expect it to pick.
-        assert nfd == SD_LISTEN_FDS_START + i
-
-
 @contextlib.contextmanager
 def spawn(
     cmdline: Sequence[PathString],
@@ -222,12 +176,10 @@ def spawn(
     pass_fds: Collection[int] = (),
     env: Mapping[str, str] = {},
     log: bool = True,
-    preexec_fn: Optional[Callable[[], None]] = None,
+    preexec: Optional[Callable[[], None]] = None,
     success_exit_status: Sequence[int] = (0,),
     sandbox: AbstractContextManager[Sequence[PathString]] = contextlib.nullcontext([]),
 ) -> Iterator[Popen]:
-    assert sorted(set(pass_fds)) == list(pass_fds)
-
     cmd = [os.fspath(x) for x in cmdline]
 
     if ARG_DEBUG.get():
@@ -258,10 +210,6 @@ def spawn(
     if "HOME" not in env:
         env["HOME"] = "/"
 
-    # sandbox.py takes care of setting $LISTEN_PID
-    if pass_fds:
-        env["LISTEN_FDS"] = str(len(pass_fds))
-
     with sandbox as sbx:
         prefix = [os.fspath(x) for x in sbx]
 
@@ -274,12 +222,9 @@ def spawn(
                 text=True,
                 user=user,
                 group=group,
-                # pass_fds only comes into effect after python has invoked the preexec function, so we make
-                # sure that pass_fds contains the file descriptors to keep open after we've done our
-                # transformation in preexec().
-                pass_fds=[SD_LISTEN_FDS_START + i for i in range(len(pass_fds))],
+                pass_fds=pass_fds,
                 env=env,
-                preexec_fn=functools.partial(preexec, preexec_fn=preexec_fn, pass_fds=pass_fds),
+                preexec_fn=preexec,
             ) as proc:
 
                 def failed() -> bool:
@@ -310,7 +255,7 @@ def spawn(
                             user=user,
                             group=group,
                             env=env,
-                            preexec_fn=functools.partial(preexec, preexec_fn=preexec_fn, pass_fds=tuple()),
+                            preexec_fn=preexec,
                         )
                     raise subprocess.CalledProcessError(returncode, cmdline)
         except FileNotFoundError as e:
