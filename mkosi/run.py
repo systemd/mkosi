@@ -265,24 +265,9 @@ def spawn(
     with sandbox as sbx:
         prefix = [os.fspath(x) for x in sbx]
 
-        if prefix:
-            prfd, pwfd = os.pipe2(os.O_CLOEXEC)
-
-            # Make sure the write end of the pipe (which we pass to the subprocess) is higher than all the
-            # file descriptors we'll pass to the subprocess, so that it doesn't accidentally get closed by
-            # the logic in preexec().
-            if pass_fds:
-                pwfd = fd_move_above(pwfd, list(pass_fds)[-1])
-
-            exec_prefix = ["--exec-fd", f"{SD_LISTEN_FDS_START + len(pass_fds)}", "--"]
-            pass_fds = [*pass_fds, pwfd]
-        else:
-            exec_prefix = []
-            prfd, pwfd = None, None
-
         try:
             with subprocess.Popen(
-                [*prefix, *exec_prefix, *cmdline],
+                [*prefix, *cmdline],
                 stdin=stdin,
                 stdout=stdout,
                 stderr=stderr,
@@ -296,21 +281,12 @@ def spawn(
                 env=env,
                 preexec_fn=functools.partial(preexec, preexec_fn=preexec_fn, pass_fds=pass_fds),
             ) as proc:
-                if pwfd is not None:
-                    os.close(pwfd)
-
-                if prfd is not None:
-                    os.read(prfd, 1)
-                    os.close(prfd)
 
                 def failed() -> bool:
                     return check and (rc := proc.poll()) is not None and rc not in success_exit_status
 
                 try:
-                    # Don't bother yielding if we've already failed by the time we get here. We'll raise an
-                    # exception later on so it's not a problem that we don't yield at all.
-                    if not failed():
-                        yield proc
+                    yield proc
                 except KeyboardInterrupt:
                     proc.send_signal(signal.SIGINT)
                     raise
@@ -318,6 +294,8 @@ def spawn(
                     proc.terminate()
                     raise
                 finally:
+                    # Make sure any SIGINT/SIGTERM signal we sent is actually processed.
+                    proc.send_signal(signal.SIGCONT)
                     returncode = proc.wait()
 
                 if failed():

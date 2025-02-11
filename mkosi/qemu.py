@@ -14,6 +14,7 @@ import os
 import random
 import resource
 import shutil
+import signal
 import socket
 import struct
 import subprocess
@@ -1549,7 +1550,7 @@ def run_qemu(args: Args, config: Config) -> None:
                 network=True,
                 devices=True,
                 relaxed=True,
-                options=["--same-dir"],
+                options=["--same-dir", "--suspend"],
                 setup=scope_cmd(
                     name=name,
                     description=f"mkosi Virtual Machine {name}",
@@ -1563,7 +1564,11 @@ def run_qemu(args: Args, config: Config) -> None:
             for fd in qemu_device_fds.values():
                 os.close(fd)
 
+            os.waitid(os.P_PID, proc.pid, os.WEXITED | os.WSTOPPED | os.WNOWAIT)
+
             register_machine(config, proc.pid, fname, cid)
+
+            proc.send_signal(signal.SIGCONT)
 
         if status := int(notifications.get("EXIT_STATUS", 0)):
             raise subprocess.CalledProcessError(status, cmdline)
