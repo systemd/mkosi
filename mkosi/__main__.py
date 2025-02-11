@@ -14,13 +14,21 @@ from mkosi.log import log_setup
 from mkosi.run import find_binary, run, uncaught_exception_handler
 from mkosi.util import resource_path
 
+INTERRUPTED = False
+
 
 def onsignal(signal: int, frame: Optional[FrameType]) -> None:
+    global INTERRUPTED
+    if INTERRUPTED:
+        return
+
+    INTERRUPTED = True
     raise KeyboardInterrupt()
 
 
 @uncaught_exception_handler()
 def main() -> None:
+    signal.signal(signal.SIGINT, onsignal)
     signal.signal(signal.SIGTERM, onsignal)
     signal.signal(signal.SIGHUP, onsignal)
 

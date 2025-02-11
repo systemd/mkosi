@@ -31,9 +31,6 @@ CLONE_NEWUSER = 0x10000000
 EPERM = 1
 ENOENT = 2
 ENOSYS = 38
-F_GETFD = 1
-F_SETFD = 2
-FD_CLOEXEC = 1
 LINUX_CAPABILITY_U32S_3 = 2
 LINUX_CAPABILITY_VERSION_3 = 0x20080522
 MNT_DETACH = 2
@@ -59,6 +56,7 @@ PR_CAP_AMBIENT_RAISE = 2
 # These definitions are taken from the libseccomp headers
 SCMP_ACT_ALLOW = 0x7FFF0000
 SCMP_ACT_ERRNO = 0x00050000
+SIGSTOP = 19
 
 
 class mount_attr(ctypes.Structure):
@@ -98,7 +96,6 @@ libc.pivot_root.argtypes = (ctypes.c_char_p, ctypes.c_char_p)
 libc.umount2.argtypes = (ctypes.c_char_p, ctypes.c_int)
 libc.capget.argtypes = (ctypes.c_void_p, ctypes.c_void_p)
 libc.capset.argtypes = (ctypes.c_void_p, ctypes.c_void_p)
-libc.fcntl.argtypes = (ctypes.c_int, ctypes.c_int, ctypes.c_int)
 
 
 def terminal_is_dumb() -> bool:
@@ -441,11 +438,6 @@ def is_relative_to(one: str, two: str) -> bool:
     return os.path.commonpath((one, two)) == two
 
 
-def fd_make_cloexec(fd: int) -> None:
-    flags = libc.fcntl(fd, F_GETFD, 0)
-    libc.fcntl(fd, F_SETFD, flags | FD_CLOEXEC)
-
-
 class FSOperation:
     def __init__(self, dst: str) -> None:
         self.dst = dst
@@ -734,7 +726,7 @@ mkosi-sandbox [OPTIONS...] COMMAND [ARGUMENTS...]
      --suppress-chown             Make chown() syscalls in the sandbox a noop
      --unshare-net                Unshare the network namespace if possible
      --unshare-ipc                Unshare the IPC namespace if possible
-     --exec-fd FD                 Close FD before execve()
+     --suspend                    Stop process before execve()
 
 See the mkosi-sandbox(1) man page for details.\
 """
@@ -760,7 +752,7 @@ def main() -> None:
     upperdir = ""
     workdir = ""
     chdir = None
-    become_root = suppress_chown = unshare_net = unshare_ipc = False
+    become_root = suppress_chown = unshare_net = unshare_ipc = suspend = False
 
     ttyname = os.ttyname(2) if os.isatty(2) else ""
 
@@ -819,8 +811,8 @@ def main() -> None:
             unshare_net = True
         elif arg == "--unshare-ipc":
             unshare_ipc = True
-        elif arg == "--exec-fd":
-            fd_make_cloexec(int(argv.pop()))
+        elif arg == "--suspend":
+            suspend = True
         elif arg.startswith("-"):
             raise ValueError(f"Unrecognized option {arg}")
         else:
@@ -933,6 +925,9 @@ def main() -> None:
 
     if chdir:
         os.chdir(chdir)
+
+    if suspend:
+        os.kill(os.getpid(), SIGSTOP)
 
     try:
         os.execvp(argv[0], argv)

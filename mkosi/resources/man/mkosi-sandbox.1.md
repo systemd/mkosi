@@ -112,10 +112,10 @@ host system.
 `--unshare-ipc`
 :   Specifying this option makes `mkosi-sandbox` unshare an IPC namespace if possible.
 
-`--exec-fd FD`
-:   The specified `FD` will be closed when `mkosi-sandbox` calls `execvp()`. This is useful
-    to wait until all setup logic has completed before continuing execution in the parent
-    process invoking `mkosi-sandbox`.
+`--suspend FD`
+:   Make the `mkosi-sandbox` process suspend itself with `SIGSTOP` just before it calls `execve()`.
+    This is useful to wait until all setup logic has completed before continuing execution in the parent
+    process invoking `mkosi-sandbox` by using `waitid()` with the `WNOWAIT` AND `WSTOPPED` flags.
 
 `--version`
 :   Show package version.

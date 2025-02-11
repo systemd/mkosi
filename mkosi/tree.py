@@ -51,7 +51,7 @@ def make_tree(
 
     if use_subvolumes != ConfigFeature.disabled:
         result = run(
-            ["btrfs", "subvolume", "create", workdir(path, sandbox)],
+            ["btrfs", "--quiet", "subvolume", "create", workdir(path, sandbox)],
             sandbox=sandbox(options=["--bind", path.parent, workdir(path.parent, sandbox)]),
             check=use_subvolumes == ConfigFeature.enabled,
         ).returncode
@@ -147,7 +147,7 @@ def copy_tree(
         dst.rmdir()
 
     result = run(
-        ["btrfs", "subvolume", "snapshot", workdir(src, sandbox), workdir(dst, sandbox)],
+        ["btrfs", "--quiet", "subvolume", "snapshot", workdir(src, sandbox), workdir(dst, sandbox)],
         check=use_subvolumes == ConfigFeature.enabled,
         sandbox=sandbox(options=options),
     ).returncode
@@ -169,7 +169,7 @@ def rmtree(*paths: Path, sandbox: SandboxProtocol = nosandbox) -> None:
         # Silence and ignore failures since when not running as root, this will fail with a permission error
         # unless the btrfs filesystem is mounted with user_subvol_rm_allowed.
         run(
-            ["btrfs", "subvolume", "delete", *(workdir(p, sandbox) for p in subvolumes)],
+            ["btrfs", "--quiet", "subvolume", "delete", *(workdir(p, sandbox) for p in subvolumes)],
             check=False,
             sandbox=sandbox(
                 options=flatten(("--bind", p.parent, workdir(p.parent, sandbox)) for p in subvolumes),

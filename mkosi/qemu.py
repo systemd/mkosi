@@ -14,6 +14,7 @@ import os
 import random
 import resource
 import shutil
+import signal
 import socket
 import struct
 import subprocess
@@ -360,6 +361,7 @@ def start_virtiofsd(
         "--no-announce-submounts",
         "--sandbox=chroot",
         f"--inode-file-handles={'prefer' if os.getuid() == 0 and not uidmap else 'never'}",
+        "--log-level=error",
     ]  # fmt: skip
 
     if selinux:
@@ -566,7 +568,6 @@ def start_journal_remote(config: Config, sockfd: int) -> Iterator[None]:
             ),
             user=user if not scope else None,
             group=group if not scope else None,
-            foreground=False,
         ) as proc:  # fmt: skip
             yield
             proc.terminate()
@@ -687,8 +688,7 @@ def generate_scratch_fs(config: Config) -> Iterator[Path]:
         fs = config.distribution.filesystem()
         extra = config.environment.get(f"SYSTEMD_REPART_MKFS_OPTIONS_{fs.upper()}", "")
         run(
-            [f"mkfs.{fs}", "-L", "scratch", *extra.split(), workdir(Path(scratch.name))],
-            stdout=subprocess.DEVNULL,
+            [f"mkfs.{fs}", "-L", "scratch", "-q", *extra.split(), workdir(Path(scratch.name))],
             sandbox=config.sandbox(options=["--bind", scratch.name, workdir(Path(scratch.name))]),
         )
         yield Path(scratch.name)
@@ -991,11 +991,9 @@ def machine1_is_available(config: Config) -> bool:
     services = json.loads(
         run(
             ["busctl", "list", "--json=pretty"],
-            foreground=False,
             env=os.environ | config.environment,
             sandbox=config.sandbox(relaxed=True),
             stdout=subprocess.PIPE,
-            stderr=sys.stderr,
         ).stdout.strip()
     )
 
@@ -1006,28 +1004,33 @@ def finalize_register(config: Config) -> bool:
     if config.register == ConfigFeature.disabled:
         return False
 
-    if os.getuid() == 0 and (
-        Path("/run/systemd/machine/io.systemd.Machine").is_socket() or machine1_is_available(config)
-    ):
-        return True
+    if config.register == ConfigFeature.auto and os.getuid() != 0:
+        return False
 
-    if config.register == ConfigFeature.enabled:
-        if os.getuid() != 0:
-            die("Container registration requires root privileges")
-        else:
+    # Unprivileged registration via polkit was added after the varlink interface was added, so if the varlink
+    # interface is not available, we can assume unprivileged registration is not available either.
+    if (
+        not (p := Path("/run/systemd/machine/io.systemd.Machine")).is_socket()
+        or not os.access(p, os.R_OK | os.W_OK)
+    ) and (not machine1_is_available(config) or os.getuid() != 0):
+        if config.register == ConfigFeature.enabled:
             die(
                 "Container registration was requested but systemd-machined is not available",
-                hint="Is the systemd-container package installed?",
+                hint="Is the systemd-container package installed and is systemd-machined running?",
             )
 
-    return False
+        return False
+
+    return True
 
 
 def register_machine(config: Config, pid: int, fname: Path, cid: Optional[int]) -> None:
     if not finalize_register(config):
         return
 
-    if (p := Path("/run/systemd/machine/io.systemd.Machine")).is_socket():
+    if (p := Path("/run/systemd/machine/io.systemd.Machine")).is_socket() and os.access(
+        p, os.R_OK | os.W_OK
+    ):
         run(
             [
                 "varlinkctl",
@@ -1047,12 +1050,16 @@ def register_machine(config: Config, pid: int, fname: Path, cid: Optional[int]) 
                     }
                 ),
             ],
-            foreground=False,
             env=os.environ | config.environment,
             sandbox=config.sandbox(relaxed=True),
-            # Make sure varlinkctl doesn't write to stdout which messes up the terminal.
+            stdin=sys.stdin,
+            # Prevent varlinkctl's empty '{}' response from showing up in the terminal.
             stdout=subprocess.DEVNULL,
-            stderr=sys.stderr,
+            # systemd 256 exposes the systemd-machined varlink interface only to the root user, but makes the
+            # varlink socket world readable/writable, which means this will fail when executed as an
+            # unprivileged user, so ignore the error in that case.
+            # TODO: Remove when https://github.com/systemd/systemd/pull/36344 is in a stable release.
+            check=os.getuid() == 0,
         )
     else:
         run(
@@ -1072,13 +1079,10 @@ def register_machine(config: Config, pid: int, fname: Path, cid: Optional[int]) 
                 str(pid),
                 fname if fname.is_dir() else "",
             ],  # fmt: skip
-            foreground=False,
             env=os.environ | config.environment,
             sandbox=config.sandbox(relaxed=True),
-            # systemd-machined might not be installed so let's ignore any failures unless running in debug
-            # mode.
-            check=ARG_DEBUG.get(),
-            stderr=None if ARG_DEBUG.get() else subprocess.DEVNULL,
+            stdin=sys.stdin,
+            stdout=sys.stdout,
         )
 
 
@@ -1549,12 +1553,11 @@ def run_qemu(args: Args, config: Config) -> None:
             stderr=stderr,
             pass_fds=qemu_device_fds.values(),
             env=os.environ | config.environment,
-            foreground=True,
             sandbox=config.sandbox(
                 network=True,
                 devices=True,
                 relaxed=True,
-                options=["--same-dir"],
+                options=["--same-dir", "--suspend"],
                 setup=scope_cmd(
                     name=name,
                     description=f"mkosi Virtual Machine {name}",
@@ -1568,7 +1571,11 @@ def run_qemu(args: Args, config: Config) -> None:
             for fd in qemu_device_fds.values():
                 os.close(fd)
 
+            os.waitid(os.P_PID, proc.pid, os.WEXITED | os.WSTOPPED | os.WNOWAIT)
+
             register_machine(config, proc.pid, fname, cid)
+
+            proc.send_signal(signal.SIGCONT)
 
         if status := int(notifications.get("EXIT_STATUS", 0)):
             raise subprocess.CalledProcessError(status, cmdline)

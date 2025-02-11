@@ -1943,6 +1943,7 @@ class Config:
     credentials: dict[str, str]
     kernel_command_line_extra: list[str]
     register: ConfigFeature
+    storage_target_mode: ConfigFeature
     runtime_trees: list[ConfigTree]
     runtime_size: Optional[int]
     runtime_scratch: ConfigFeature
@@ -3825,6 +3826,14 @@ SETTINGS: list[ConfigSetting[Any]] = [
         default=ConfigFeature.auto,
         help="Register booted vm/container with systemd-machined",
     ),
+    ConfigSetting(
+        dest="storage_target_mode",
+        metavar="FEATURE",
+        section="Runtime",
+        parse=config_parse_feature,
+        default=ConfigFeature.auto,
+        help="Run systemd-storagetm as part of the serve verb",
+    ),
 ]
 SETTINGS_LOOKUP_BY_NAME = {name: s for s in SETTINGS for name in [s.name, *s.compat_names]}
 SETTINGS_LOOKUP_BY_DEST = {s.dest: s for s in SETTINGS}
@@ -5061,6 +5070,7 @@ def summary(config: Config) -> str:
                             Machine: {config.machine_or_name()}
                     Forward Journal: {none_to_none(config.forward_journal)}
        Register guest with machined: {config.register}
+                Storage Target Mode: {config.storage_target_mode}
 
             Virtual Machine Monitor: {config.vmm}
                             Console: {config.console}
