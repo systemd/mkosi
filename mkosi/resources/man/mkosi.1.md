@@ -562,6 +562,12 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     specific output format, compression and image version used, the full
     output name might be `image_7.8.raw.xz`.
 
+`OutputExtension=`, `--output-extension=`
+:   Use the specified extension for the output file. Defaults to the appropriate
+    extension based on the output format. Only includes the file extension, not
+    any compression extension which will be appended to this extension if compression
+    is enabled.
+
 `CompressOutput=`, `--compress-output=`
 :   Configure compression for the resulting image or archive. The argument can be
     either a boolean or a compression algorithm (**xz**, **zstd**). **zstd**

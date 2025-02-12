@@ -2332,7 +2332,7 @@ def maybe_compress(
         return
 
     if not dst:
-        dst = src.parent / f"{src.name}{compression.extension()}"
+        dst = src.parent / f"{src.name}.{compression.extension()}"
 
     cmd = compressor_command(context, compression)
 
