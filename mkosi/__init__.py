@@ -2035,15 +2035,12 @@ def expand_kernel_specifiers(text: str, kver: str, token: str, roothash: str, bo
     return re.sub(r"&(?P<specifier>[&a-zA-Z])", replacer, text)
 
 
-def install_uki(
+def finalize_bootloader_entry_format(
     context: Context,
     kver: str,
-    kimg: Path,
     token: str,
-    partitions: Sequence[Partition],
-    profiles: Sequence[Path],
-    cmdline: list[str],
-) -> None:
+    partitions: Sequence[Partition] = (),
+) -> str:
     bootloader_entry_format = context.config.unified_kernel_image_format or "&e-&k"
 
     roothash_value = ""
@@ -2060,7 +2057,7 @@ def install_uki(
         if not context.config.unified_kernel_image_format:
             bootloader_entry_format += "+&c"
 
-    bootloader_entry = expand_kernel_specifiers(
+    return expand_kernel_specifiers(
         bootloader_entry_format,
         kver=kver,
         token=token,
@@ -2068,13 +2065,29 @@ def install_uki(
         boot_count=boot_count,
     )
 
-    if context.config.bootloader.is_uki():
-        if context.config.shim_bootloader != ShimBootloader.none:
-            boot_binary = context.root / shim_second_stage_binary(context)
-        else:
-            boot_binary = context.root / efi_boot_binary(context)
-    else:
-        boot_binary = context.root / f"boot/EFI/Linux/{bootloader_entry}.efi"
+
+def finalize_uki_path(context: Context, name: str) -> Path:
+    if not context.config.bootloader.is_uki():
+        return Path(f"boot/EFI/Linux/{name}.efi")
+
+    if context.config.shim_bootloader != ShimBootloader.none:
+        return shim_second_stage_binary(context)
+
+    return efi_boot_binary(context)
+
+
+def install_uki(
+    context: Context,
+    kver: str,
+    kimg: Path,
+    token: str,
+    partitions: Sequence[Partition],
+    profiles: Sequence[Path],
+    cmdline: list[str],
+) -> None:
+    boot_binary = context.root / finalize_uki_path(
+        context, finalize_bootloader_entry_format(context, kver, token, partitions)
+    )
 
     # Make sure the parent directory where we'll be writing the UKI exists.
     with umask(~0o700):
@@ -2319,7 +2332,7 @@ def maybe_compress(
         return
 
     if not dst:
-        dst = src.parent / f"{src.name}{compression.extension()}"
+        dst = src.parent / f"{src.name}.{compression.extension()}"
 
     cmd = compressor_command(context, compression)
 
@@ -3248,7 +3261,10 @@ def save_esp_components(
     try:
         kver, kimg = next(gen_kernel_images(context))
     except StopIteration:
-        die("A kernel must be installed in the image to build a UKI")
+        if context.config.output_format == OutputFormat.uki:
+            die("A kernel must be installed in the image to build a UKI")
+
+        return None, None, None, []
 
     kimg = shutil.copy2(context.root / kimg, context.workspace)
 
@@ -3381,8 +3397,8 @@ def make_disk(
         defaults = context.workspace / "repart-definitions"
         if not defaults.exists():
             defaults.mkdir()
-            if arch := context.config.architecture.to_efi():
-                bootloader = context.root / f"efi/EFI/BOOT/BOOT{arch.upper()}.EFI"
+            if context.config.architecture.to_efi():
+                bootloader = context.root / efi_boot_binary(context)
             else:
                 bootloader = None
 
@@ -3557,9 +3573,25 @@ def make_oci(context: Context, root_layer: Path, dst: Path) -> None:
         (dst / "oci-layout").write_text(json.dumps({"imageLayoutVersion": "1.0.0"}))
 
 
-def make_esp(context: Context, uki: Path) -> list[Partition]:
-    if not (arch := context.config.architecture.to_efi()):
+def make_esp(
+    context: Context,
+    stub: Optional[Path],
+    kver: Optional[str],
+    kimg: Optional[Path],
+    microcode: list[Path],
+) -> list[Partition]:
+    if not context.config.architecture.to_efi():
         die(f"Architecture {context.config.architecture} does not support UEFI")
+
+    if stub and kver and kimg:
+        token = find_entry_token(context)
+        uki = context.root / finalize_uki_path(
+            context, finalize_bootloader_entry_format(context, kver, token)
+        )
+        with umask(~0o700):
+            uki.parent.mkdir(parents=True, exist_ok=True)
+
+        make_uki(context, stub, kver, kimg, microcode, uki)
 
     definitions = context.workspace / "esp-definitions"
     definitions.mkdir(exist_ok=True)
@@ -3574,8 +3606,9 @@ def make_esp(context: Context, uki: Path) -> list[Partition]:
     else:
         m = 260
 
+    size = dir_size(context.root / "boot") + dir_size(context.root / "efi")
     # Always reserve 10MB for filesystem metadata.
-    size = max(uki.stat().st_size, (m - 10) * 1024**2) + 10 * 1024**2
+    size = max(size, (m - 10) * 1024**2) + 10 * 1024**2
 
     # TODO: Remove the extra 4096 for the max size once
     # https://github.com/systemd/systemd/pull/29954 is in a stable release.
@@ -3585,7 +3618,8 @@ def make_esp(context: Context, uki: Path) -> list[Partition]:
             [Partition]
             Type=esp
             Format=vfat
-            CopyFiles={workdir(uki)}:/EFI/BOOT/BOOT{arch.upper()}.EFI
+            CopyFiles=/boot:/
+            CopyFiles=/efi:/
             SizeMinBytes={size}
             SizeMaxBytes={size + 4096}
             """
@@ -3595,8 +3629,8 @@ def make_esp(context: Context, uki: Path) -> list[Partition]:
     return make_image(
         context,
         msg="Generating ESP image",
+        root=context.root,
         definitions=[definitions],
-        options=["--ro-bind", uki, workdir(uki)],
     )
 
 
@@ -3950,9 +3984,7 @@ def build_image(context: Context) -> None:
         assert stub and kver and kimg
         make_uki(context, stub, kver, kimg, microcode, context.staging / context.config.output_with_format)
     elif context.config.output_format == OutputFormat.esp:
-        assert stub and kver and kimg
-        make_uki(context, stub, kver, kimg, microcode, context.staging / context.config.output_split_uki)
-        make_esp(context, context.staging / context.config.output_split_uki)
+        make_esp(context, stub, kver, kimg, microcode)
     elif context.config.output_format == OutputFormat.addon:
         assert stub
         make_addon(context, stub, context.staging / context.config.output_with_format)

@@ -196,15 +196,15 @@ class OutputFormat(StrEnum):
 
     def extension(self) -> str:
         return {
-            OutputFormat.confext:      ".raw",
-            OutputFormat.cpio:         ".cpio",
-            OutputFormat.disk:         ".raw",
-            OutputFormat.esp:          ".raw",
-            OutputFormat.portable:     ".raw",
-            OutputFormat.sysext:       ".raw",
-            OutputFormat.tar:          ".tar",
-            OutputFormat.uki:          ".efi",
-            OutputFormat.addon:        ".efi",
+            OutputFormat.confext:      "raw",
+            OutputFormat.cpio:         "cpio",
+            OutputFormat.disk:         "raw",
+            OutputFormat.esp:          "raw",
+            OutputFormat.portable:     "raw",
+            OutputFormat.sysext:       "raw",
+            OutputFormat.tar:          "tar",
+            OutputFormat.uki:          "efi",
+            OutputFormat.addon:        "efi",
         }.get(self, "")  # fmt: skip
 
     def use_outer_compression(self) -> bool:
@@ -246,7 +246,7 @@ class Compression(StrEnum):
         return self != Compression.none
 
     def extension(self) -> str:
-        return {Compression.zstd: ".zst"}.get(self, f".{self}")
+        return {Compression.zstd: "zst"}.get(self, str(self))
 
     def oci_media_type_suffix(self) -> str:
         suffix = {
@@ -1806,6 +1806,7 @@ class Config:
     output_format: OutputFormat
     manifest_format: list[ManifestFormat]
     output: str
+    output_extension: str
     compress_output: Compression
     compress_level: int
     output_dir: Optional[Path]
@@ -2023,14 +2024,19 @@ class Config:
 
     @property
     def output_with_format(self) -> str:
-        return self.output + self.output_format.extension()
+        ext = self.output_extension
+
+        if not ext:
+            return self.output
+
+        return f"{self.output}.{ext}"
 
     @property
     def output_with_compression(self) -> str:
         output = self.output_with_format
 
         if self.compress_output and self.output_format.use_outer_compression():
-            output += self.compress_output.extension()
+            output += f".{self.compress_output.extension()}"
 
         return output
 
@@ -2079,7 +2085,7 @@ class Config:
         output = f"{self.output}.tar"
 
         if self.compress_output:
-            output += self.compress_output.extension()
+            output += f".{self.compress_output.extension()}"
 
         return output
 
@@ -2460,6 +2466,17 @@ SETTINGS: list[ConfigSetting[Any]] = [
         default_factory=config_default_output,
         default_factory_depends=("image_id", "image_version"),
         help="Output name",
+    ),
+    ConfigSetting(
+        dest="output_extension",
+        metavar="EXTENSION",
+        section="Output",
+        parse=config_make_filename_parser(
+            "OutputExtension= or --output-extension= requires a valid extension with no path components."
+        ),
+        help="Output extension",
+        default_factory=lambda ns: ns.output_format.extension(),
+        default_factory_depends=("output_format",),
     ),
     ConfigSetting(
         dest="compress_output",
