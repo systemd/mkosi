@@ -3905,15 +3905,15 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
         + textwrap.dedent("""\
               mkosi [options…] {b}summary{e}
                 mkosi [options…] {b}cat-config{e}
-                mkosi [options…] {b}build{e}         [command line…]
-                mkosi [options…] {b}shell{e}         [command line…]
-                mkosi [options…] {b}boot{e}          [nspawn settings…]
-                mkosi [options…] {b}vm{e}            [vmm parameters…]
-                mkosi [options…] {b}ssh{e}           [command line…]
-                mkosi [options…] {b}journalctl{e}    [command line…]
-                mkosi [options…] {b}coredumpctl{e}   [command line…]
-                mkosi [options…] {b}sysupdate{e}     [command line…]
-                mkosi [options…] {b}sandbox{e}       [command line…]
+                mkosi [options…] {b}build{e}         [-- command line…]
+                mkosi [options…] {b}shell{e}         [-- command line…]
+                mkosi [options…] {b}boot{e}          [-- nspawn settings…]
+                mkosi [options…] {b}vm{e}            [-- vmm parameters…]
+                mkosi [options…] {b}ssh{e}           [-- command line…]
+                mkosi [options…] {b}journalctl{e}    [-- command line…]
+                mkosi [options…] {b}coredumpctl{e}   [-- command line…]
+                mkosi [options…] {b}sysupdate{e}     [-- command line…]
+                mkosi [options…] {b}sandbox{e}       [-- command line…]
                 mkosi [options…] {b}clean{e}
                 mkosi [options…] {b}serve{e}
                 mkosi [options…] {b}burn{e}          [device]
@@ -4049,8 +4049,9 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "cmdline",
-        nargs=argparse.REMAINDER,
+        nargs="*",
         help=argparse.SUPPRESS,
+        default=[],
     )
     parser.add_argument(
         "-h",
