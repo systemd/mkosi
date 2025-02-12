@@ -12,23 +12,23 @@ mkosi — Build Bespoke OS Images
 
 `mkosi [options…] cat-config`
 
-`mkosi [options…] build [command line…]`
+`mkosi [options…] build [-- command line…]`
 
-`mkosi [options…] shell [command line…]`
+`mkosi [options…] shell [-- command line…]`
 
-`mkosi [options…] boot [nspawn settings…]`
+`mkosi [options…] boot [-- nspawn settings…]`
 
-`mkosi [options…] vm [vmm parameters…]`
+`mkosi [options…] vm [-- vmm parameters…]`
 
-`mkosi [options…] ssh [command line…]`
+`mkosi [options…] ssh [-- command line…]`
 
-`mkosi [options…] journalctl [command line…]`
+`mkosi [options…] journalctl [-- command line…]`
 
-`mkosi [options…] coredumpctl [command line…]`
+`mkosi [options…] coredumpctl [-- command line…]`
 
-`mkosi [options…] sysupdate [command line…]`
+`mkosi [options…] sysupdate [-- sysupdate settings…]`
 
-`mkosi [options…] sandbox [command line …]`
+`mkosi [options…] sandbox [-- command line…]`
 
 `mkosi [options…] clean`
 
@@ -70,23 +70,23 @@ The following command line verbs are known:
 `build`
 :   Build the image-based on the settings passed on the command line and in the
     configuration files. This command is the default if no verb is specified.
-    Any command line arguments specified after the verb will be passed directly
-    to the build script, if one is defined.
+    Arguments may be passed to the build scripts, if some are defined. To pass options to the build
+    scripts, separate them from regular mkosi options with `--`.
 
 `shell`
 :   This builds the image if it is not built yet, and then invokes
     **systemd-nspawn** to run an interactive shell in the image. This doesn't
     require booting the system, it's like a better chroot. An optional command
     line may be specified after the `shell` verb, to be invoked in place of the
-    shell in the container. Use `-f` in order to rebuild the image
-    unconditionally before acquiring the shell, see below. This command must be
-    executed as `root`.
+    shell in the container. To pass extra options to nspawn, separate them
+    from regular options with `--`.
 
 `boot`
 :   Similar to `shell`, but instead of spawning a shell, it boots systemd in the
-    image using **systemd-nspawn**. An optional command line may be specified after
-    the `boot` verb, which can contain extra nspawn options as well as arguments
-    which are passed as the *kernel command line* to the init system in the image.
+    image using **systemd-nspawn**. Extra arguments may be specified after
+    the `boot` verb, which are passed as the *kernel command line* to the
+    init system in the image. To pass extra options to nspawn, separate them
+    from regular options with `--`.
 
 `vm`
 :   Similar to `boot`, but uses the configured virtual machine monitor (by
@@ -94,7 +94,8 @@ The following command line verbs are known:
     virtualization, virtual machine virtualization is used. How extra
     command line arguments are interpreted depends on the configured
     virtual machine monitor. See `VirtualMachineMonitor=` for more
-    information.
+    information. To pass extra options to the configured virtual machine
+    monitor, separate them from regular options with `--`.
 
 `ssh`
 :   When the image is built with the `Ssh=yes` option, this command
@@ -105,7 +106,8 @@ The following command line verbs are known:
     setting is used to connect to the virtual machine. Use `mkosi genkey`
     to automatically generate a key and certificate that will be picked up
     by **mkosi**. Any arguments passed after the `ssh` verb are passed as
-    arguments to the **ssh** invocation. To connect to a container, use
+    arguments to the **ssh** invocation.  To pass extra options, separate
+    them from regular options with `--`.To connect to a container, use
     `machinectl login` or `machinectl shell`.
 
     The `Machine=` option can be used to give the machine a custom
@@ -115,27 +117,31 @@ The following command line verbs are known:
 
 `journalctl`
 :   Uses **journalctl** to inspect the journal inside the image.
-    Any arguments specified after the **journalctl** verb are appended to the
-    **journalctl** invocation.
+    All arguments specified after the `journalctl` verb and separated by
+    `--` from the regular options are appended to the **journalctl**
+    invocation.
 
 `coredumpctl`
 :   Uses **coredumpctl** to look for coredumps inside the image.
-    Any arguments specified after the **coredumpctl** verb are appended to the
-    **coredumpctl** invocation.
+    All arguments specified after the `coredumpctl` verb and separated by
+    `--` from the regular options are appended to the **coredumpctl**
+    invocation.
 
 `sysupdate`
 :   Invokes **systemd-sysupdate** with the `--transfer-source=` option set
     to the output directory and the `--definitions=` option set to the
-    directory configured with `SysupdateDirectory=`. Any arguments
-    specified after the `sysupdate` verb are passed directly to
-    **systemd-sysupdate** invocation.
+    directory configured with `SysupdateDirectory=`. All arguments
+    specified after the `sysupdate` verb and separated from the regular
+    options with `--` are passed directly to **systemd-sysupdate**.
 
 `sandbox`
 :   Run arbitrary commands inside of the same sandbox used to execute
     other verbs such as `boot`, `shell`, `vm` and more. This means
     `/usr` will be replaced by `/usr` from the tools tree if one is used
     while everything else will remain in place. If no command is provided,
-    `$SHELL` will be executed or **bash** if `$SHELL` is not set.
+    `$SHELL` will be executed or **bash** if `$SHELL` is not set. To pass
+    extra options to the given command, separate them from regular options
+    with `--`.
 
 `clean`
 :   Remove build artifacts generated on a previous build. If combined
