@@ -105,8 +105,10 @@ def modinfo(context: Context, kver: str, modules: Iterable[str]) -> str:
     else:
         sandbox = chroot_cmd(root=context.root)
 
+    cmdline += [*modules]
+
     return run(
-        ["modinfo", "--set-version", kver, "--null", *modules],
+        cmdline,
         stdout=subprocess.PIPE,
         sandbox=sandbox,
     ).stdout.strip()
