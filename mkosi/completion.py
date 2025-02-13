@@ -63,7 +63,6 @@ class CompletionItem:
     short: Optional[str]
     long: Optional[str]
     help: Optional[str]
-    nargs: Union[str, int]
     choices: list[str]
     compgen: CompGen
 
@@ -76,7 +75,6 @@ def collect_completion_arguments() -> list[CompletionItem]:
             short=next((s for s in action.option_strings if not s.startswith("--")), None),
             long=next((s for s in action.option_strings if s.startswith("--")), None),
             help=action.help,
-            nargs=action.nargs or 0,
             choices=[str(c) for c in action.choices] if action.choices is not None else [],
             compgen=CompGen.from_action(action),
         )
@@ -93,7 +91,6 @@ def collect_completion_arguments() -> list[CompletionItem]:
             short=setting.short,
             long=setting.long,
             help=setting.help,
-            nargs=setting.nargs or 1,
             choices=[str(c) for c in setting.choices] if setting.choices is not None else [],
             compgen=CompGen.default,
         )
@@ -121,12 +118,6 @@ def finalize_completion_bash(options: list[CompletionItem], resources: Path) -> 
     template = completion.read_text()
     with io.StringIO() as c:
         c.write(to_bash_array("_mkosi_options", options_by_key.keys()))
-        c.write("\n\n")
-
-        nargs = to_bash_hasharray(
-            "_mkosi_nargs", {optname: v.nargs for optname, v in options_by_key.items()}
-        )
-        c.write(nargs)
         c.write("\n\n")
 
         choices = to_bash_hasharray(
@@ -174,8 +165,7 @@ def finalize_completion_fish(options: list[CompletionItem], resources: Path) -> 
                 c.write(f"-s {option.short.lstrip('-')} ")
             if option.long:
                 c.write(f"-l {option.long.lstrip('-')} ")
-            if isinstance(option.nargs, int) and option.nargs > 0:
-                c.write("-r ")
+            c.write("-r ")
             if option.choices:
                 c.write('-a "')
                 c.write(" ".join(option.choices))
