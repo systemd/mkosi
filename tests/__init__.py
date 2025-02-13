@@ -122,7 +122,7 @@ class Image:
             "boot",
             [
                 "--runtime-build-sources=no",
-                "--ephemeral",
+                "--ephemeral=yes",
                 "--register=no",
                 *options,
             ],
@@ -145,7 +145,7 @@ class Image:
                 # TODO: Drop once both Hyper-V bugs are fixed in Github Actions.
                 "--qemu-args=-cpu max,pcid=off",
                 "--ram=2G",
-                "--ephemeral",
+                "--ephemeral=yes",
                 "--register=no",
                 *options,
             ],

@@ -1733,7 +1733,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   Space-delimited list of additional arguments to pass when invoking
     **qemu**.
 
-`Ephemeral=`, `--ephemeral`
+`Ephemeral=`, `--ephemeral=`
 :   When used with the `shell`, `boot`, or `vm` verbs, this option runs the specified verb on a temporary
     snapshot of the output image that is removed immediately when the container terminates. Taking the
     temporary snapshot is more efficient on file systems that support reflinks natively (**btrfs** or **xfs**)

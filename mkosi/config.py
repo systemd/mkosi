@@ -1517,7 +1517,6 @@ class ConfigSetting(Generic[T]):
     long: str = ""
     choices: Optional[list[str]] = None
     metavar: Optional[str] = None
-    nargs: Optional[str] = None
     const: Optional[Any] = None
     help: Optional[str] = None
 
@@ -2405,7 +2404,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ConfigSetting(
         dest="repository_key_check",
         metavar="BOOL",
-        nargs="?",
         section="Distribution",
         default=True,
         parse=config_parse_boolean,
@@ -2415,7 +2413,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ConfigSetting(
         dest="repository_key_fetch",
         metavar="BOOL",
-        nargs="?",
         section="Distribution",
         default_factory_depends=("distribution", "tools_tree", "tools_tree_distribution"),
         default_factory=config_default_repository_key_fetch,
@@ -2481,7 +2478,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ConfigSetting(
         dest="compress_output",
         metavar="ALG",
-        nargs="?",
         section="Output",
         parse=config_parse_compression,
         default_factory=config_default_compression,
@@ -2538,7 +2534,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ),
     ConfigSetting(
         dest="split_artifacts",
-        nargs="?",
         section="Output",
         parse=config_parse_artifact_output_list,
         default=ArtifactOutput.compat_no(),
@@ -2565,7 +2560,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ConfigSetting(
         dest="overlay",
         metavar="BOOL",
-        nargs="?",
         section="Output",
         parse=config_parse_boolean,
         help="Only output the additions on top of the given base trees",
@@ -2638,7 +2632,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ConfigSetting(
         dest="with_recommends",
         metavar="BOOL",
-        nargs="?",
         section="Content",
         parse=config_parse_boolean,
         help="Install recommended packages",
@@ -2646,7 +2639,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ConfigSetting(
         dest="with_docs",
         metavar="BOOL",
-        nargs="?",
         section="Content",
         parse=config_parse_boolean,
         default=True,
@@ -2779,7 +2771,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ConfigSetting(
         dest="bootable",
         metavar="FEATURE",
-        nargs="?",
         section="Content",
         parse=config_parse_feature,
         match=config_match_feature,
@@ -2852,7 +2843,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ConfigSetting(
         dest="microcode_host",
         metavar="BOOL",
-        nargs="?",
         section="Content",
         parse=config_parse_boolean,
         default=False,
@@ -2911,7 +2901,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ConfigSetting(
         dest="kernel_modules_initrd",
         metavar="BOOL",
-        nargs="?",
         section="Content",
         parse=config_parse_boolean,
         default=True,
@@ -3016,8 +3005,8 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ConfigSetting(
         dest="autologin",
         short="-a",
+        const=True,
         metavar="BOOL",
-        nargs="?",
         section="Content",
         parse=config_parse_boolean,
         help="Enable root autologin",
@@ -3025,7 +3014,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ConfigSetting(
         dest="make_initrd",
         metavar="BOOL",
-        nargs="?",
         section="Content",
         parse=config_parse_boolean,
         help="Make sure the image can be used as an initramfs",
@@ -3033,7 +3021,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ConfigSetting(
         dest="ssh",
         metavar="BOOL",
-        nargs="?",
         section="Content",
         parse=config_parse_boolean,
         help="Set up SSH access from the host to the final image via 'mkosi ssh'",
@@ -3050,7 +3037,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ConfigSetting(
         dest="secure_boot",
         metavar="BOOL",
-        nargs="?",
         section="Validation",
         parse=config_parse_boolean,
         help="Sign the resulting kernel/initrd image for UEFI SecureBoot",
@@ -3207,7 +3193,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ConfigSetting(
         dest="checksum",
         metavar="BOOL",
-        nargs="?",
         section="Validation",
         parse=config_parse_boolean,
         help="Write SHA256SUMS file",
@@ -3215,7 +3200,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ConfigSetting(
         dest="sign",
         metavar="BOOL",
-        nargs="?",
         section="Validation",
         parse=config_parse_boolean,
         help="Write and sign SHA256SUMS file",
@@ -3240,8 +3224,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
         parse=config_make_path_parser(constants=("default",)),
         paths=("mkosi.tools",),
         help="Look up programs to execute inside the given tree",
-        nargs="?",
-        const="default",
         scope=SettingScope.universal,
     ),
     ConfigSetting(
@@ -3339,7 +3321,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ConfigSetting(
         dest="incremental",
         short="-i",
-        nargs="?",
+        const=Incremental.yes,
         section="Build",
         parse=config_make_enum_parser_with_boolean(Incremental, yes=Incremental.yes, no=Incremental.no),
         default=Incremental.no,
@@ -3425,7 +3407,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ConfigSetting(
         dest="use_subvolumes",
         metavar="FEATURE",
-        nargs="?",
         section="Build",
         parse=config_parse_feature,
         help="Use btrfs subvolumes for faster directory operations where possible",
@@ -3465,7 +3446,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ),
     ConfigSetting(
         dest="build_sources_ephemeral",
-        nargs="?",
         section="Build",
         parse=config_make_enum_parser_with_boolean(
             BuildSourcesEphemeral, yes=BuildSourcesEphemeral.yes, no=BuildSourcesEphemeral.no
@@ -3496,9 +3476,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ConfigSetting(
         dest="with_tests",
         short="-T",
-        long="--without-tests",
-        nargs="?",
-        const="no",
+        const=False,
         section="Build",
         parse=config_parse_boolean,
         default=True,
@@ -3508,7 +3486,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ConfigSetting(
         dest="with_network",
         metavar="BOOL",
-        nargs="?",
         section="Build",
         parse=config_parse_boolean,
         help="Run build and postinst scripts with network access (instead of private network)",
@@ -3578,7 +3555,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
             "If specified, the container/VM is run with a temporary snapshot of the output "
             "image that is removed immediately when the container/VM terminates"
         ),
-        nargs="?",
     ),
     ConfigSetting(
         dest="credentials",
@@ -3700,7 +3676,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ConfigSetting(
         dest="console",
         metavar="MODE",
-        nargs="?",
         section="Runtime",
         parse=config_make_enum_parser(ConsoleMode),
         help="Configure the virtual machine console mode to use",
@@ -3732,7 +3707,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
         dest="kvm",
         name="KVM",
         metavar="FEATURE",
-        nargs="?",
         section="Runtime",
         parse=config_parse_feature,
         help="Configure whether to use KVM or not",
@@ -3743,7 +3717,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
         dest="vsock",
         name="VSock",
         metavar="FEATURE",
-        nargs="?",
         section="Runtime",
         parse=config_parse_feature,
         help="Configure whether to use vsock or not",
@@ -3766,7 +3739,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
         dest="tpm",
         name="TPM",
         metavar="FEATURE",
-        nargs="?",
         section="Runtime",
         parse=config_parse_feature,
         help="Configure whether to use a virtual tpm or not",
@@ -3777,7 +3749,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
         dest="cdrom",
         name="CDROM",
         metavar="BOOLEAN",
-        nargs="?",
         section="Runtime",
         parse=config_parse_boolean,
         help="Attach the image as a CD-ROM to the virtual machine",
@@ -3787,7 +3758,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ConfigSetting(
         dest="removable",
         metavar="BOOLEAN",
-        nargs="?",
         section="Runtime",
         parse=config_parse_boolean,
         help="Attach the image as a removable drive to the virtual machine",
@@ -4060,6 +4030,7 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
     parser.add_argument(
         "verb",
         type=Verb,
+        nargs="?",
         choices=list(Verb),
         default=Verb.build,
         help=argparse.SUPPRESS,
@@ -4084,16 +4055,25 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
             group = parser.add_argument_group(f"{s.section} configuration options")
             last_section = s.section
 
+        if s.short and s.const is not None:
+            group.add_argument(  # type: ignore
+                s.short,
+                metavar="",
+                dest=s.dest,
+                const=s.const,
+                help="",
+                action="store_const",
+                default=argparse.SUPPRESS,
+            )
+
         for long in [s.long, *s.compat_longs]:
-            opts = [s.short, long] if s.short and long == s.long else [long]
+            opts = [s.short, long] if s.short and long == s.long and s.const is None else [long]
 
             group.add_argument(  # type: ignore
                 *opts,
                 dest=s.dest,
                 choices=s.choices,
                 metavar=s.metavar,
-                nargs=s.nargs,  # type: ignore
-                const=s.const,
                 help=s.help if long == s.long else argparse.SUPPRESS,
                 action=ConfigAction,
             )
@@ -4136,9 +4116,6 @@ class ConfigAction(argparse.Action):
         option_string: Optional[str] = None,
     ) -> None:
         assert option_string is not None
-
-        if values is None and self.nargs == "?":
-            values = self.const or "yes"
 
         s = SETTINGS_LOOKUP_BY_DEST[self.dest]
 
@@ -4547,25 +4524,6 @@ def parse_config(
     only_sections: Sequence[str] = (),
 ) -> tuple[Args, tuple[Config, ...]]:
     argv = list(argv)
-
-    # Make sure the verb command gets explicitly passed. Insert a -- before the positional verb argument
-    # otherwise it might be considered as an argument of a parameter with nargs='?'. For example mkosi -i
-    # summary would be treated as -i=summary.
-    for verb in Verb:
-        try:
-            v_i = argv.index(verb.value)
-        except ValueError:
-            continue
-
-        # Hack to make sure mkosi -C build works.
-        if argv[v_i - 1] in ("-C", "--directory"):
-            continue
-
-        if v_i > 0 and argv[v_i - 1] != "--":
-            argv.insert(v_i, "--")
-        break
-    else:
-        argv += ["--", "build"]
 
     context = ParseContext(resources)
 
