@@ -1625,7 +1625,7 @@ def run_ssh(args: Args, config: Config) -> None:
         cmd,
         stdin=sys.stdin,
         stdout=sys.stdout,
-        env=os.environ | config.environment,
+        env=os.environ | config.environment | {"SHELL": "/bin/bash"},
         log=False,
         sandbox=config.sandbox(
             network=True,
