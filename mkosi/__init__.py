@@ -2604,6 +2604,12 @@ def check_inputs(config: Config) -> None:
     Make sure all the inputs exist that aren't checked during config parsing because they might
     be created by an earlier build.
     """
+    if config.overlay and not config.base_trees:
+        die("--overlay=yes can only be used with --base-tree=")
+
+    if config.incremental and not config.cache_dir:
+        die("A cache directory must be configured in order to use --incremental=yes")
+
     for base in config.base_trees:
         if not base.exists():
             die(f"Base tree {base} not found")

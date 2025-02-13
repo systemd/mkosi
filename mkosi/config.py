@@ -4768,12 +4768,6 @@ def load_config(config: argparse.Namespace) -> Config:
 
     config.environment = load_environment(config)
 
-    if config.overlay and not config.base_trees:
-        die("--overlay can only be used with --base-tree")
-
-    if config.incremental and not config.cache_dir:
-        die("A cache directory must be configured in order to use --incremental")
-
     return Config.from_namespace(config)
 
 
