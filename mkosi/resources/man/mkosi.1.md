@@ -1634,11 +1634,11 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   Configures whether KVM acceleration should be used when booting a virtual machine. Takes a
     boolean value or `auto`. Defaults to `auto`.
 
-`Vsock=`, `--vsock=`
+`VSock=`, `--vsock=`
 :   Configures whether to provision a vsock when booting a virtual machine. Takes
     a boolean value or `auto`. Defaults to `auto`.
 
-`VsockConnectionId=`, `vsock-cid=`
+`VSockCID=`, `vsock-cid=`
 :   Configures the vsock connection ID to use when booting a virtual machine.
     Takes a number in the interval `[3, 0xFFFFFFFF)` or `hash` or `auto`.
     Defaults to `auto`. When set to `hash`, the connection ID will be derived
