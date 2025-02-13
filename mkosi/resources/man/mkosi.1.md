@@ -613,7 +613,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     identifier is also passed via the `$IMAGE_ID` to any build scripts
     invoked. The image ID is automatically added to `/usr/lib/os-release`.
 
-`SplitArtifacts=`, `--split-artifacts`
+`SplitArtifacts=`, `--split-artifacts=`
 :   The artifact types to split out of the final image. A comma-delimited
     list consisting of `uki`, `kernel`, `initrd`, `prcs`, `partitions`,
     `roothash` and `tar`. When building a bootable image `kernel` and `initrd`
@@ -653,7 +653,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   Override the default sector size that **systemd-repart** uses when building a disk
     image.
 
-`Overlay=`, `--overlay`
+`Overlay=`, `--overlay=`
 :   When used together with `BaseTrees=`, the output will consist only out of
     changes to the specified base trees. Each base tree is attached as a lower
     layer in an overlayfs structure, and the output becomes the upper layer,
@@ -756,7 +756,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     for package managers that support the concept, which are currently
     **apt**, **dnf** and **zypper**.
 
-`WithDocs=`, `--with-docs`
+`WithDocs=`, `--with-docs=`
 :   Include documentation in the image. Enabled by default. When disabled,
     if the underlying distribution package manager supports it
     documentation is not included in the image. The `$WITH_DOCS`
@@ -847,7 +847,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     File modification times of all files will be clamped to this value.
     The variable is also propagated to **systemd-repart** and
     scripts executed by **mkosi**. If not set explicitly, `SOURCE_DATE_EPOCH` from
-    `--environment` and from the host environment are tried in that order.
+    `--environment=` and from the host environment are tried in that order.
     This is useful to make builds reproducible. See
     [SOURCE_DATE_EPOCH](https://reproducible-builds.org/specs/source-date-epoch/)
     for more information.
@@ -877,7 +877,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     the finalize scripts for this image. See the **Scripts** section for more
     information.
 
-`PostOutputScripts=`, `--postoutput-script`
+`PostOutputScripts=`, `--postoutput-script=`
 :   Takes a comma-separated list of paths to executables that are used as
     the post output scripts for this image. See the **Scripts** section for more
     information.
@@ -1001,7 +1001,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     See the documentation for the `UKIProfile` section for information
     on which settings can be configured in UKI profile config files.
 
-`Initrds=`, `--initrd`
+`Initrds=`, `--initrd=`
 :   Use user-provided initrd(s). Takes a comma-separated list of paths to initrd
     files. This option may be used multiple times in which case the initrd lists
     are combined. If no initrds are specified and a bootable image is requested,
@@ -1103,15 +1103,15 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     the appropriate systemd credential so that it applies even if only `/usr` is shipped in the image. To create
     an unlocked account without any password use `hashed:` without a hash.
 
-`Autologin=`, `--autologin`
+`Autologin=`, `--autologin=`, `-a`
 :   Enable autologin for the `root` user on `/dev/pts/0` (nspawn),
     `/dev/tty1` and `/dev/hvc0`.
 
-`MakeInitrd=`, `--make-initrd`
+`MakeInitrd=`, `--make-initrd=`
 :   Add `/etc/initrd-release` and `/init` to the image so that it can be
     used as an initramfs.
 
-`Ssh=`, `--ssh`
+`Ssh=`, `--ssh=`
 :   If specified, an **sshd** socket unit and matching service are installed
     in the final image that expose SSH over VSock. When building with this
     option and running the image using `mkosi vm`, the `mkosi ssh`
@@ -1148,7 +1148,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 ### [Validation] Section
 
-`SecureBoot=`, `--secure-boot`
+`SecureBoot=`, `--secure-boot=`
 :   Sign **systemd-boot** (if it is not signed yet) and any generated
     unified kernel images for UEFI SecureBoot.
 
@@ -1173,7 +1173,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   Path to the X.509 file containing the certificate for the signed
     UEFI kernel image, if `SecureBoot=` is used.
 
-`SecureBootSignTool=`, `--secure-boot-sign-tool`
+`SecureBootSignTool=`, `--secure-boot-sign-tool=`
 :   Tool to use to sign secure boot PE binaries. Takes one of `systemd-sbsign`, `sbsign` or `auto`.
     Defaults to `auto`. If set to `auto`, either **systemd-sbsign** or **sbsign** are used if
     available, with **systemd-sbsign** being preferred.
@@ -1206,7 +1206,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   Path to the X.509 file containing the certificate for signing the verity signature, if a verity signature
     partition is added with **systemd-repart**.
 
-`SignExpectedPcr=`, `--sign-expected-pcr`
+`SignExpectedPcr=`, `--sign-expected-pcr=`
 :   Measure the components of the unified kernel image (UKI) using
     **systemd-measure** and embed the PCR signature into the unified kernel
     image. This option takes a boolean value or the special value `auto`,
@@ -1230,21 +1230,21 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   The source of the corresponding certificate, to support OpenSSL providers,
     e.g. `--secure-boot-certificate-source=provider:pkcs11`. Note that engines are not supported.
 
-`Passphrase=`, `--passphrase`
+`Passphrase=`, `--passphrase=`
 :   Specify the path to a file containing the passphrase to use for LUKS
     encryption. It should contain the passphrase literally, and not end in
     a newline character (i.e. in the same format as **cryptsetup** and
     `/etc/crypttab` expect the passphrase files). The file must have an
     access mode of 0600 or less.
 
-`Checksum=`, `--checksum`
+`Checksum=`, `--checksum=`
 :   Generate a `<output>.SHA256SUMS` file of all generated artifacts
     after the build is complete.
 
-`Sign=`, `--sign`
+`Sign=`, `--sign=`
 :   Sign the generated `SHA256SUMS` using **gpg** after completion.
 
-`OpenPGPTool=`, `--openpgp-tool`
+`OpenPGPTool=`, `--openpgp-tool=`
 :   OpenPGP implementation to use for signing. `gpg` is the default.
     Selecting a value different than the default will use the given Stateless
     OpenPGP (SOP) tool for signing the `SHA256SUMS` file.
@@ -1352,10 +1352,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   Set the mirror to use for the default tools tree. By default, the
     default mirror for the tools tree distribution is used.
 
-`ToolsTreeRepositories=`, `--tools-tree-repository`
+`ToolsTreeRepositories=`, `--tools-tree-repository=`
 :   Same as `Repositories=` but for the default tools tree.
 
-`ToolsTreeSandboxTrees=`, `--tools-tree-sandbox-tree`
+`ToolsTreeSandboxTrees=`, `--tools-tree-sandbox-tree=`
 :   Same as `SandboxTrees=` but for the default tools tree.
 
 `ToolsTreePackages=`, `--tools-tree-package=`
@@ -1441,7 +1441,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     found in the local directory it is automatically used for this
     purpose.
 
-`PackageCacheDirectory=`, `--package-cache-dir`
+`PackageCacheDirectory=`, `--package-cache-dir=`
 :   Takes a path to a directory to use as the package cache directory for the distribution package manager
     used. If unset, but a `mkosi.pkgcache/` directory is found in the local directory it is automatically
     used for this purpose, otherwise a suitable directory in the user's home directory or system is used.
@@ -1540,7 +1540,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     first read from `mkosi.env` if it exists, then from the given list of
     files and then from the `Environment=` settings.
 
-`WithTests=`, `--without-tests`, `-T`
+`WithTests=`, `--with-tests=`, `-T`
 :   If set to false (or when the command-line option is used), the
     `$WITH_TESTS` environment variable is set to `0` when the
     `mkosi.build` scripts are invoked. This is supposed to be used by the
@@ -1638,7 +1638,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   Configures whether to provision a vsock when booting a virtual machine. Takes
     a boolean value or `auto`. Defaults to `auto`.
 
-`VSockCID=`, `vsock-cid=`
+`VSockCID=`, `--vsock-cid=`
 :   Configures the vsock connection ID to use when booting a virtual machine.
     Takes a number in the interval `[3, 0xFFFFFFFF)` or `hash` or `auto`.
     Defaults to `auto`. When set to `hash`, the connection ID will be derived
@@ -1819,7 +1819,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `UnitProperties=`, `--unit-property=`
 :   Configure systemd unit properties to add to the systemd scopes
     allocated when using `mkosi boot` or `mkosi vm`. These are passed
-    directly to the `--property` options of **systemd-nspawn** and
+    directly to the `--property=` options of **systemd-nspawn** and
     **systemd-run** respectively.
 
 `SshKey=`, `--ssh-key=`
@@ -2182,7 +2182,7 @@ e.g. `subscription-manager`).
 # Execution Flow
 
 Execution flow for `mkosi build`. Default values/calls are shown in parentheses.
-When building with `--incremental` **mkosi** creates a cache of the distribution
+When building with `--incremental=yes` **mkosi** creates a cache of the distribution
 installation if not already existing and replaces the distribution installation
 in consecutive runs with data from the cached one.
 
@@ -2217,14 +2217,14 @@ Then, for each image, we execute the following steps:
 1. Install build packages in overlay if any build scripts are configured
 1. Run prepare scripts on overlay with the `build` argument if any build
     scripts are configured (`mkosi.prepare`)
-1. Cache the image if configured (`--incremental`)
+1. Cache the image if configured (`--incremental=yes`)
 1. Run build scripts on image + overlay if any build scripts are configured (`mkosi.build`)
 1. Finalize the build if the output format `none` is configured
 1. Copy the build scripts outputs into the image
 1. Copy the extra trees into the image (`mkosi.extra`)
 1. Run post-install scripts (`mkosi.postinst`)
 1. Write config files required for `Ssh=`, `Autologin=` and `MakeInitrd=`
-1. Install systemd-boot and configure secure boot if configured (`--secure-boot`)
+1. Install systemd-boot and configure secure boot if configured (`--secure-boot=yes`)
 1. Run **systemd-sysusers**
 1. Run **systemd-tmpfiles**
 1. Run `systemctl preset-all`
@@ -2685,7 +2685,7 @@ re-building of images. Specifically:
    (RPM, deb, …) after they are downloaded, but before they are
    unpacked.
 
-2. If the incremental build mode is enabled with `--incremental`, cached
+2. If the incremental build mode is enabled with `--incremental=yes`, cached
    copies of the final image and build overlay are made immediately
    before the build sources are copied in (for the build overlay) or the
    artifacts generated by `mkosi.build` are copied in (in case of the
@@ -2829,7 +2829,7 @@ repository.
 Create and run a raw *GPT* image with *ext4*, as `image.raw`:
 
 ```console
-# mkosi -p systemd --incremental boot
+# mkosi -p systemd -i boot
 ```
 
 Create and run a bootable *GPT* image, as `foobar.raw`:
@@ -2849,7 +2849,7 @@ Create and run a *Fedora Linux* image in a plain directory:
 Create a compressed image `image.raw.xz` with SSH installed and add a checksum file:
 
 ```console
-$ mkosi --distribution fedora --format disk --checksum --compress-output --package=openssh-clients
+$ mkosi --distribution fedora --format disk --checksum=yes --compress-output=yes --package=openssh-clients
 ```
 
 Inside the source directory of an **automake**-based project, configure
@@ -2883,7 +2883,7 @@ make -j `nproc`
 make install
 EOF
 $ chmod +x mkosi.build
-# mkosi --incremental boot
+# mkosi -i boot
 # systemd-nspawn -bi image.raw
 ```
 
@@ -2892,10 +2892,7 @@ $ chmod +x mkosi.build
 The easiest way to boot a virtual machine is to build an image with the
 required components and let **mkosi** call **qemu** with all the right options:
 ```console
-$ mkosi -d fedora \
-    --autologin \
-    -p systemd-udev,systemd-boot,kernel-core \
-    build
+$ mkosi -d fedora -p systemd-udev,systemd-boot,kernel-core build
 $ mkosi -d fedora vm
 ...
 fedora login: root (automatic login)
@@ -2926,7 +2923,7 @@ and any previous `-append` specifications.
 
 The UKI is also copied into the output directory and may be booted directly:
 ```console
-$ mkosi vm -kernel mkosi.output/fedora~38/image.efi
+$ mkosi vm -- -kernel mkosi.output/fedora~38/image.efi
 ```
 
 When booting using an external kernel, we don't need the kernel *in* the image,
@@ -2935,7 +2932,7 @@ but we would still want the kernel modules to be installed.
 It is also possible to do a *direct kernel boot* into a boot loader,
 taking advantage of the fact that **systemd-boot**(7) is a valid UEFI binary:
 ```console
-$ mkosi vm -kernel /usr/lib/systemd/boot/efi/systemd-bootx64.efi
+$ mkosi vm -- -kernel /usr/lib/systemd/boot/efi/systemd-bootx64.efi
 ```
 In this scenario, the kernel is loaded from the ESP in the image by **systemd-boot**.
 
