@@ -4579,7 +4579,18 @@ def parse_config(
     # First, we parse the command line arguments into a separate namespace.
     argparser = create_argument_parser()
     argparser.parse_args(argv, context.cli)
-    args = load_args(context.cli)
+
+    args = Args.from_namespace(context.cli)
+
+    if args.debug:
+        ARG_DEBUG.set(args.debug)
+    if args.debug_shell:
+        ARG_DEBUG_SHELL.set(args.debug_shell)
+    if args.debug_sandbox:
+        ARG_DEBUG_SANDBOX.set(args.debug_sandbox)
+
+    if args.cmdline and not args.verb.supports_cmdline():
+        die(f"Arguments after verb are not supported for {args.verb}.")
 
     # If --debug was passed, apply it as soon as possible.
     if ARG_DEBUG.get():
@@ -4738,20 +4749,6 @@ def finalize_term() -> str:
         term = "vt220" if sys.stderr.isatty() else "dumb"
 
     return term if sys.stderr.isatty() else "dumb"
-
-
-def load_args(args: argparse.Namespace) -> Args:
-    if args.cmdline and not args.verb.supports_cmdline():
-        die(f"Arguments after verb are not supported for {args.verb}.")
-
-    if args.debug:
-        ARG_DEBUG.set(args.debug)
-    if args.debug_shell:
-        ARG_DEBUG_SHELL.set(args.debug_shell)
-    if args.debug_sandbox:
-        ARG_DEBUG_SANDBOX.set(args.debug_sandbox)
-
-    return Args.from_namespace(args)
 
 
 def load_config(config: argparse.Namespace) -> Config:
