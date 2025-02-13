@@ -1449,7 +1449,7 @@ def run_qemu(args: Args, config: Config) -> None:
                 initrd = config.output_dir_or_cwd() / f"initrd-{uuid.uuid4().hex}"
                 join_initrds(config, config.initrds, initrd)
                 stack.callback(lambda: initrd.unlink())
-                cmdline += ["-initrd", fname]
+                cmdline += ["-initrd", initrd]
 
         if config.output_format in (OutputFormat.disk, OutputFormat.esp):
             direct = fname.stat().st_size % resource.getpagesize() == 0
