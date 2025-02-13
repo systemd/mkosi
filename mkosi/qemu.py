@@ -35,6 +35,7 @@ from mkosi.config import (
     Firmware,
     Network,
     OutputFormat,
+    Vmm,
     VsockCID,
     finalize_term,
     format_bytes,
@@ -851,6 +852,7 @@ def finalize_state(config: Config, cid: int) -> Iterator[None]:
 
 def finalize_kernel_command_line_extra(config: Config) -> list[str]:
     columns, lines = shutil.get_terminal_size()
+    tty = config.architecture.default_vmm_tty(config.vmm)
     term = finalize_term()
 
     cmdline = [
@@ -859,9 +861,9 @@ def finalize_kernel_command_line_extra(config: Config) -> list[str]:
         "systemd.wants=network.target",
         # Make sure we don't load vmw_vmci which messes with virtio vsock.
         "module_blacklist=vmw_vmci",
-        f"systemd.tty.term.hvc0={term}",
-        f"systemd.tty.columns.hvc0={columns}",
-        f"systemd.tty.rows.hvc0={lines}",
+        f"systemd.tty.term.{tty}={term}",
+        f"systemd.tty.columns.{tty}={columns}",
+        f"systemd.tty.rows.{tty}={lines}",
     ]
 
     if not any(s.startswith("ip=") for s in config.kernel_command_line_extra):
@@ -883,14 +885,8 @@ def finalize_kernel_command_line_extra(config: Config) -> list[str]:
         # CD-ROMs are read-only so tell systemd to boot in volatile mode.
         cmdline += ["systemd.volatile=yes"]
 
-    if config.console != ConsoleMode.gui:
-        cmdline += [
-            f"systemd.tty.term.console={term}",
-            f"systemd.tty.columns.console={columns}",
-            f"systemd.tty.rows.console={lines}",
-            "console=hvc0",
-            f"TERM={term}",
-        ]
+    if config.console != ConsoleMode.gui and config.vmm == Vmm.qemu:
+        cmdline += [f"console={tty}"]
     elif config.architecture.is_arm_variant():
         cmdline += ["console=tty0"]
 

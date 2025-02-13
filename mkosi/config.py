@@ -551,6 +551,29 @@ class Architecture(StrEnum):
             Architecture.s390x: "virtio",
         }.get(self, "virtio-net-pci")  # fmt: skip
 
+    def default_vmm_tty(self, vmm: Vmm) -> str:
+        if vmm == Vmm.qemu:
+            return "hvc0"
+
+        # return default console device for systemd-vmspawn; see src/vmspawn/vmspawn-util.h
+        if self in (
+            Architecture.arm,
+            Architecture.arm64,
+        ):
+            return "ttyAMA0"
+
+        if self == Architecture.s390x:
+            return "ttysclp0"
+
+        if self in (
+            Architecture.ppc,
+            Architecture.ppc64,
+            Architecture.ppc64_le,
+        ):
+            return "hvc0"
+
+        return "ttyS0"
+
     def is_native(self) -> bool:
         return self == self.native()
 
