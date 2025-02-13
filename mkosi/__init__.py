@@ -421,7 +421,7 @@ def configure_extension_release(context: Context) -> None:
         if f"{prefix}_SCOPE" not in extrelease:
             f.write(
                 f"{prefix}_SCOPE="
-                f"{context.config.environment.get(f'{prefix}_SCOPE', 'initrd system portable')}\n"
+                f"{context.config.finalize_environment().get(f'{prefix}_SCOPE', 'initrd system portable')}\n"
             )
 
         if "ARCHITECTURE" not in extrelease:
@@ -579,7 +579,7 @@ def run_configure_scripts(config: Config) -> Config:
             with complete_step(f"Running configure script {script}…"):
                 result = run(
                     ["/work/configure"],
-                    env=env | config.environment,
+                    env=env | config.finalize_environment(),
                     sandbox=config.sandbox(
                         options=[
                             "--dir", "/work/src",
@@ -652,7 +652,7 @@ def run_sync_scripts(config: Config) -> None:
             with complete_step(f"Running sync script {script}…"):
                 run(
                     ["/work/sync", "final"],
-                    env=env | config.environment,
+                    env=env | config.finalize_environment(),
                     stdin=sys.stdin,
                     sandbox=config.sandbox(
                         network=True,
@@ -671,7 +671,9 @@ def script_maybe_chroot_sandbox(
     network: bool,
 ) -> Iterator[list[PathString]]:
     options = ["--dir", "/work/src", "--chdir", "/work/src", *options]
-    suppress_chown = parse_boolean(context.config.environment.get("MKOSI_CHROOT_SUPPRESS_CHOWN", "0"))
+    suppress_chown = parse_boolean(
+        context.config.finalize_environment().get("MKOSI_CHROOT_SUPPRESS_CHOWN", "0")
+    )
 
     helpers = {
         "mkosi-chroot": [
@@ -743,7 +745,7 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
     if context.config.profiles:
         env["PROFILES"] = " ".join(context.config.profiles)
 
-    env |= context.config.environment
+    env |= context.config.finalize_environment()
 
     with (
         mount_build_overlay(context) if build else contextlib.nullcontext(),
@@ -819,7 +821,7 @@ def run_build_scripts(context: Context) -> None:
             CHROOT_BUILDDIR="/work/build",
         )
 
-    env |= context.config.environment
+    env |= context.config.finalize_environment()
 
     with (
         mount_build_overlay(context, volatile=True),
@@ -889,7 +891,7 @@ def run_postinst_scripts(context: Context) -> None:
     if context.config.build_dir is not None:
         env |= dict(BUILDDIR="/work/build")
 
-    env |= context.config.environment
+    env |= context.config.finalize_environment()
 
     with (
         finalize_source_mounts(
@@ -958,7 +960,7 @@ def run_finalize_scripts(context: Context) -> None:
     if context.config.build_dir is not None:
         env |= dict(BUILDDIR="/work/build")
 
-    env |= context.config.environment
+    env |= context.config.finalize_environment()
 
     with (
         finalize_source_mounts(
@@ -1026,7 +1028,7 @@ def run_postoutput_scripts(context: Context) -> None:
             with complete_step(f"Running post-output script {script}…"):
                 run(
                     ["/work/postoutput"],
-                    env=env | context.config.environment,
+                    env=env | context.config.finalize_environment(),
                     sandbox=context.sandbox(
                         # postoutput scripts should run as (fake) root so that file ownership is
                         # always recorded as if owned by root.
@@ -1637,7 +1639,7 @@ def run_ukify(
             else subprocess.DEVNULL
         ),
         stdout=stdout,
-        env=context.config.environment,
+        env=context.config.finalize_environment(),
         sandbox=context.sandbox(
             options=[*opt, *options],
             devices=context.config.secure_boot_key_source.type != KeySourceType.file,
@@ -2474,7 +2476,7 @@ def calculate_signature_gpg(context: Context) -> None:
         workdir(context.staging / context.config.output_checksum),
     ]
 
-    home = Path(context.config.environment.get("GNUPGHOME", INVOKING_USER.home() / ".gnupg"))
+    home = Path(context.config.finalize_environment().get("GNUPGHOME", INVOKING_USER.home() / ".gnupg"))
     if not home.exists():
         die(f"GPG home {home} not found")
 
@@ -2507,7 +2509,7 @@ def calculate_signature_sop(context: Context) -> None:
     ):
         run(
             [context.config.openpgp_tool, "sign", "/signing-key.pgp"],
-            env=context.config.environment,
+            env=context.config.finalize_environment(),
             stdin=i,
             stdout=o,
             sandbox=context.sandbox(
@@ -4184,7 +4186,7 @@ def run_shell(args: Args, config: Config) -> None:
                     workdir(fname),
                 ],
                 stdin=sys.stdin,
-                env=config.environment,
+                env=config.finalize_environment(),
                 sandbox=config.sandbox(
                     network=True,
                     devices=True,
@@ -4294,7 +4296,7 @@ def run_shell(args: Args, config: Config) -> None:
             cmdline,
             stdin=sys.stdin,
             stdout=sys.stdout,
-            env=os.environ | config.environment,
+            env=os.environ | config.finalize_environment(),
             log=False,
             sandbox=config.sandbox(
                 devices=True,
@@ -4335,7 +4337,7 @@ def run_systemd_tool(tool: str, args: Args, config: Config) -> None:
         [tool_path, "--root" if output.is_dir() else "--image", output, *args.cmdline],
         stdin=sys.stdin,
         stdout=sys.stdout,
-        env=os.environ | config.environment,
+        env=os.environ | config.finalize_environment(),
         log=False,
         sandbox=config.sandbox(
             network=True,
@@ -4574,7 +4576,7 @@ def run_clean_scripts(config: Config) -> None:
             with complete_step(f"Running clean script {script}…"):
                 run(
                     ["/work/clean"],
-                    env=env | config.environment,
+                    env=env | config.finalize_environment(),
                     sandbox=config.sandbox(
                         tools=False,
                         options=[

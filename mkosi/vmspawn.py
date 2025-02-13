@@ -114,7 +114,7 @@ def run_vmspawn(args: Args, config: Config) -> None:
             cmdline,
             stdin=sys.stdin,
             stdout=sys.stdout,
-            env=env | config.environment,
+            env=env | config.finalize_environment(),
             log=False,
             sandbox=config.sandbox(
                 network=True,

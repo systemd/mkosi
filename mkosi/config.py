@@ -1975,6 +1975,49 @@ class Config:
 
     image: Optional[str]
 
+    def finalize_environment(self) -> dict[str, str]:
+        env = {
+            "SYSTEMD_TMPFILES_FORCE_SUBVOL": "0",
+            "SYSTEMD_ASK_PASSWORD_KEYRING_TIMEOUT_SEC": "infinity",
+            "SYSTEMD_ASK_PASSWORD_KEYRING_TYPE": "session",
+            "TERM": finalize_term(),
+        }
+
+        if self.image is not None:
+            env["SUBIMAGE"] = self.image
+        if self.image_id is not None:
+            env["IMAGE_ID"] = self.image_id
+        if self.image_version is not None:
+            env["IMAGE_VERSION"] = self.image_version
+        if self.source_date_epoch is not None:
+            env["SOURCE_DATE_EPOCH"] = str(self.source_date_epoch)
+        if self.proxy_url is not None:
+            for e in ("http_proxy", "https_proxy"):
+                env[e] = self.proxy_url
+                env[e.upper()] = self.proxy_url
+        if self.proxy_exclude:
+            env["no_proxy"] = ",".join(self.proxy_exclude)
+            env["NO_PROXY"] = ",".join(self.proxy_exclude)
+        if self.proxy_peer_certificate:
+            env["GIT_PROXY_SSL_CAINFO"] = "/proxy.cacert"
+        if self.proxy_client_certificate:
+            env["GIT_PROXY_SSL_CERT"] = "/proxy.clientcert"
+        if self.proxy_client_key:
+            env["GIT_PROXY_SSL_KEY"] = "/proxy.clientkey"
+        if dnf := os.getenv("MKOSI_DNF"):
+            env["MKOSI_DNF"] = dnf
+        if gnupghome := os.getenv("GNUPGHOME"):
+            env["GNUPGHOME"] = gnupghome
+
+        env |= dict(
+            parse_environment(line)
+            for f in self.environment_files
+            for line in f.read_text().strip().splitlines()
+        )
+        env |= self.environment
+
+        return env
+
     def name(self) -> str:
         return self.image or self.image_id or "default"
 
@@ -4697,50 +4740,6 @@ def finalize_term() -> str:
     return term if sys.stderr.isatty() else "dumb"
 
 
-def load_environment(args: argparse.Namespace) -> dict[str, str]:
-    env = {
-        "SYSTEMD_TMPFILES_FORCE_SUBVOL": "0",
-        "SYSTEMD_ASK_PASSWORD_KEYRING_TIMEOUT_SEC": "infinity",
-        "SYSTEMD_ASK_PASSWORD_KEYRING_TYPE": "session",
-        "TERM": finalize_term(),
-    }
-
-    if args.image is not None:
-        env["SUBIMAGE"] = args.image
-    if args.image_id is not None:
-        env["IMAGE_ID"] = args.image_id
-    if args.image_version is not None:
-        env["IMAGE_VERSION"] = args.image_version
-    if args.source_date_epoch is not None:
-        env["SOURCE_DATE_EPOCH"] = str(args.source_date_epoch)
-    if args.proxy_url is not None:
-        for e in ("http_proxy", "https_proxy"):
-            env[e] = args.proxy_url
-            env[e.upper()] = args.proxy_url
-    if args.proxy_exclude:
-        env["no_proxy"] = ",".join(args.proxy_exclude)
-        env["NO_PROXY"] = ",".join(args.proxy_exclude)
-    if args.proxy_peer_certificate:
-        env["GIT_PROXY_SSL_CAINFO"] = "/proxy.cacert"
-    if args.proxy_client_certificate:
-        env["GIT_PROXY_SSL_CERT"] = "/proxy.clientcert"
-    if args.proxy_client_key:
-        env["GIT_PROXY_SSL_KEY"] = "/proxy.clientkey"
-    if dnf := os.getenv("MKOSI_DNF"):
-        env["MKOSI_DNF"] = dnf
-    if gnupghome := os.getenv("GNUPGHOME"):
-        env["GNUPGHOME"] = gnupghome
-
-    env |= dict(
-        parse_environment(line)
-        for f in args.environment_files
-        for line in f.read_text().strip().splitlines()
-    )
-    env |= args.environment
-
-    return env
-
-
 def load_args(args: argparse.Namespace) -> Args:
     if args.cmdline and not args.verb.supports_cmdline():
         die(f"Arguments after verb are not supported for {args.verb}.")
@@ -4764,8 +4763,6 @@ def load_config(config: argparse.Namespace) -> Config:
         and config.build_dir.name != f"{config.distribution}~{config.release}~{config.architecture}"
     ):
         config.build_dir /= f"{config.distribution}~{config.release}~{config.architecture}"
-
-    config.environment = load_environment(config)
 
     return Config.from_namespace(config)
 

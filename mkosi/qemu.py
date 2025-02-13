@@ -696,7 +696,7 @@ def generate_scratch_fs(config: Config) -> Iterator[Path]:
     with tempfile.NamedTemporaryFile(dir="/var/tmp", prefix="mkosi-scratch-") as scratch:
         scratch.truncate(1024**4)
         fs = config.distribution.filesystem()
-        extra = config.environment.get(f"SYSTEMD_REPART_MKFS_OPTIONS_{fs.upper()}", "")
+        extra = config.finalize_environment().get(f"SYSTEMD_REPART_MKFS_OPTIONS_{fs.upper()}", "")
         run(
             [f"mkfs.{fs}", "-L", "scratch", "-q", *extra.split(), workdir(Path(scratch.name))],
             sandbox=config.sandbox(options=["--bind", scratch.name, workdir(Path(scratch.name))]),
@@ -1001,7 +1001,7 @@ def machine1_is_available(config: Config) -> bool:
     services = json.loads(
         run(
             ["busctl", "list", "--json=pretty"],
-            env=os.environ | config.environment,
+            env=os.environ | config.finalize_environment(),
             sandbox=config.sandbox(relaxed=True),
             stdout=subprocess.PIPE,
         ).stdout.strip()
@@ -1060,7 +1060,7 @@ def register_machine(config: Config, pid: int, fname: Path, cid: Optional[int]) 
                     }
                 ),
             ],
-            env=os.environ | config.environment,
+            env=os.environ | config.finalize_environment(),
             sandbox=config.sandbox(relaxed=True),
             stdin=sys.stdin,
             # Prevent varlinkctl's empty '{}' response from showing up in the terminal.
@@ -1089,7 +1089,7 @@ def register_machine(config: Config, pid: int, fname: Path, cid: Optional[int]) 
                 str(pid),
                 fname if fname.is_dir() else "",
             ],  # fmt: skip
-            env=os.environ | config.environment,
+            env=os.environ | config.finalize_environment(),
             sandbox=config.sandbox(relaxed=True),
             stdin=sys.stdin,
             stdout=sys.stdout,
@@ -1562,7 +1562,7 @@ def run_qemu(args: Args, config: Config) -> None:
             stdout=stdout,
             stderr=stderr,
             pass_fds=qemu_device_fds.values(),
-            env=os.environ | config.environment,
+            env=os.environ | config.finalize_environment(),
             sandbox=config.sandbox(
                 network=True,
                 devices=True,
@@ -1625,7 +1625,7 @@ def run_ssh(args: Args, config: Config) -> None:
         cmd,
         stdin=sys.stdin,
         stdout=sys.stdout,
-        env=os.environ | config.environment | {"SHELL": "/bin/bash"},
+        env=os.environ | config.finalize_environment() | {"SHELL": "/bin/bash"},
         log=False,
         sandbox=config.sandbox(
             network=True,

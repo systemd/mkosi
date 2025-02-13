@@ -41,11 +41,11 @@ class PackageManager:
             "SYSTEMD_IN_CHROOT": "1",
         }
 
-        if "SYSTEMD_HWDB_UPDATE_BYPASS" not in context.config.environment:
+        if "SYSTEMD_HWDB_UPDATE_BYPASS" not in context.config.finalize_environment():
             env["SYSTEMD_HWDB_UPDATE_BYPASS"] = "1"
 
         if (
-            "KERNEL_INSTALL_BYPASS" not in context.config.environment
+            "KERNEL_INSTALL_BYPASS" not in context.config.finalize_environment()
             and context.config.bootable != ConfigFeature.disabled
         ):
             env["KERNEL_INSTALL_BYPASS"] = "1"
