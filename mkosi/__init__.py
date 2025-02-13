@@ -69,6 +69,7 @@ from mkosi.config import (
     Verity,
     Vmm,
     cat_config,
+    expand_delayed_specifiers,
     format_bytes,
     have_history,
     parse_boolean,
@@ -839,7 +840,7 @@ def run_build_scripts(context: Context) -> None:
                     "--bind", context.artifacts, "/work/artifacts",
                     "--bind", context.package_dir, "/work/packages",
                     *(
-                        ["--bind", os.fspath(context.config.build_dir), "/work/build"]
+                        ["--bind", os.fspath(context.config.build_subdir), "/work/build"]
                         if context.config.build_dir
                         else []
                     ),
@@ -909,7 +910,7 @@ def run_postinst_scripts(context: Context) -> None:
                     "--bind", context.artifacts, "/work/artifacts",
                     "--bind", context.package_dir, "/work/packages",
                     *(
-                        ["--ro-bind", os.fspath(context.config.build_dir), "/work/build"]
+                        ["--ro-bind", os.fspath(context.config.build_subdir), "/work/build"]
                         if context.config.build_dir
                         else []
                     ),
@@ -978,7 +979,7 @@ def run_finalize_scripts(context: Context) -> None:
                     "--bind", context.artifacts, "/work/artifacts",
                     "--bind", context.package_dir, "/work/packages",
                     *(
-                        ["--ro-bind", os.fspath(context.config.build_dir), "/work/build"]
+                        ["--ro-bind", os.fspath(context.config.build_subdir), "/work/build"]
                         if context.config.build_dir
                         else []
                     ),
@@ -1298,6 +1299,7 @@ def finalize_default_initrd(
         *(["--output-directory", os.fspath(output_dir)] if output_dir else []),
         *(["--workspace-directory", os.fspath(config.workspace_dir)] if config.workspace_dir else []),
         *(["--cache-directory", os.fspath(config.cache_dir)] if config.cache_dir else []),
+        "--cache-key", config.cache_key or '-',
         *(["--package-cache-directory", os.fspath(config.package_cache_dir)] if config.package_cache_dir else []),  # noqa: E501
         *(["--local-mirror", str(config.local_mirror)] if config.local_mirror else []),
         "--incremental", str(config.incremental),
@@ -1332,11 +1334,21 @@ def finalize_default_initrd(
         "--include=mkosi-initrd",
     ]  # fmt: skip
 
-    _, [config] = parse_config(cmdline + ["build"], resources=resources)
+    _, [initrd] = parse_config(cmdline + ["build"], resources=resources)
 
-    run_configure_scripts(config)
+    run_configure_scripts(initrd)
 
-    return dataclasses.replace(config, image="default-initrd")
+    initrd = dataclasses.replace(initrd, image="default-initrd")
+
+    if initrd.incremental and initrd.expand_key_specifiers(initrd.cache_key) == config.expand_key_specifiers(
+        config.cache_key
+    ):
+        die(
+            f"Image '{config.image}' and its default initrd image have the same cache key '{config.expand_key_specifiers(config.cache_key)}'",  # noqa: E501
+            hint="Add the &I specifier to the cache key to avoid this issue",
+        )
+
+    return initrd
 
 
 def build_default_initrd(context: Context) -> Path:
@@ -2026,15 +2038,7 @@ def expand_kernel_specifiers(text: str, kver: str, token: str, roothash: str, bo
         "c": boot_count,
     }
 
-    def replacer(match: re.Match[str]) -> str:
-        m = match.group("specifier")
-        if specifier := specifiers.get(m):
-            return specifier
-
-        logging.warning(f"Unknown specifier '&{m}' found in {text}, ignoring")
-        return ""
-
-    return re.sub(r"&(?P<specifier>[&a-zA-Z])", replacer, text)
+    return expand_delayed_specifiers(specifiers, text)
 
 
 def finalize_bootloader_entry_format(
@@ -2563,38 +2567,22 @@ def print_output_size(path: Path) -> None:
 
 
 def cache_tree_paths(config: Config) -> tuple[Path, Path, Path]:
-    if config.image == "tools":
-        key = "tools"
-    else:
-        fragments = [config.distribution, config.release, config.architecture, config.image]
-        key = "~".join(str(s) for s in fragments)
-
     assert config.cache_dir
     return (
-        config.cache_dir / f"{key}.cache",
-        config.cache_dir / f"{key}.build.cache",
-        config.cache_dir / f"{key}.manifest",
+        config.cache_dir / f"{config.expand_key_specifiers(config.cache_key)}.cache",
+        config.cache_dir / f"{config.expand_key_specifiers(config.cache_key)}.build.cache",
+        config.cache_dir / f"{config.expand_key_specifiers(config.cache_key)}.manifest",
     )
 
 
 def keyring_cache(config: Config) -> Path:
-    if config.image == "tools":
-        key = "tools"
-    else:
-        key = f"{'~'.join(str(s) for s in (config.distribution, config.release, config.architecture))}"
-
     assert config.cache_dir
-    return config.cache_dir / f"{key}.keyring.cache"
+    return config.cache_dir / f"{config.expand_key_specifiers(config.cache_key)}.keyring.cache"
 
 
 def metadata_cache(config: Config) -> Path:
-    if config.image == "tools":
-        key = "tools"
-    else:
-        key = f"{'~'.join(str(s) for s in (config.distribution, config.release, config.architecture))}"
-
     assert config.cache_dir
-    return config.cache_dir / f"{key}.metadata.cache"
+    return config.cache_dir / f"{config.expand_key_specifiers(config.cache_key)}.metadata.cache"
 
 
 def check_inputs(config: Config) -> None:
@@ -4219,8 +4207,8 @@ def run_shell(args: Args, config: Config) -> None:
                 cmdline += ["--bind", f"{src}:{dst}:norbind,{uidmap}"]
 
             if config.build_dir:
-                uidmap = "rootidmap" if config.build_dir.stat().st_uid != 0 else "noidmap"
-                cmdline += ["--bind", f"{config.build_dir}:/work/build:norbind,{uidmap}"]
+                uidmap = "rootidmap" if config.build_subdir.stat().st_uid != 0 else "noidmap"
+                cmdline += ["--bind", f"{config.build_subdir}:/work/build:norbind,{uidmap}"]
 
         for tree in config.runtime_trees:
             target = Path("/root/src") / (tree.target or "")
@@ -4501,6 +4489,7 @@ def finalize_default_tools(config: Config, *, resources: Path) -> Config:
         *(["--output-directory", os.fspath(config.output_dir)] if config.output_dir else []),
         *(["--workspace-directory", os.fspath(config.workspace_dir)] if config.workspace_dir else []),
         *(["--cache-directory", os.fspath(config.cache_dir)] if config.cache_dir else []),
+        "--cache-key=tools",
         *(["--package-cache-directory", os.fspath(config.package_cache_dir)] if config.package_cache_dir else []),  # noqa: E501
         "--incremental", str(config.incremental),
         *([f"--package={package}" for package in config.tools_tree_packages]),
@@ -4716,11 +4705,11 @@ def run_clean(args: Args, config: Config) -> None:
     if (
         remove_build_cache
         and config.build_dir
-        and config.build_dir.exists()
-        and any(config.build_dir.iterdir())
+        and config.build_subdir.exists()
+        and any(config.build_subdir.iterdir())
     ):
         with complete_step(f"Clearing out build directory of {config.image} image…"):
-            rmtree(*config.build_dir.iterdir(), sandbox=sandbox)
+            rmtree(*config.build_subdir.iterdir(), sandbox=sandbox)
 
     if remove_image_cache and config.cache_dir:
         if config.image in ("main", "tools"):
@@ -4757,11 +4746,13 @@ def ensure_directories_exist(config: Config) -> None:
         p.mkdir(parents=True, exist_ok=True)
 
     if config.build_dir:
-        st = config.build_dir.stat()
+        config.build_subdir.mkdir(exist_ok=True)
+
+        st = config.build_subdir.stat()
 
         # Discard setuid/setgid bits if set as these are inherited and can leak into the image.
         if stat.S_IMODE(st.st_mode) & (stat.S_ISGID | stat.S_ISUID):
-            config.build_dir.chmod(stat.S_IMODE(st.st_mode) & ~(stat.S_ISGID | stat.S_ISUID))
+            config.build_subdir.chmod(stat.S_IMODE(st.st_mode) & ~(stat.S_ISGID | stat.S_ISUID))
 
 
 def sync_repository_metadata(
@@ -5102,6 +5093,14 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
             die(f"Must be root to build {last.image} image configured with RepartOffline=no")
 
         check_workspace_directory(last)
+
+        if last.incremental:
+            for a, b in itertools.combinations(images, 2):
+                if a.expand_key_specifiers(a.cache_key) == b.expand_key_specifiers(b.cache_key):
+                    die(
+                        f"Image {a.image} and {b.image} have the same cache key '{a.expand_key_specifiers(a.cache_key)}'",  # noqa: E501
+                        hint="Add the &I specifier to the cache key to avoid this issue",
+                    )
 
         if last.incremental == Incremental.strict:
             if args.force > 1:

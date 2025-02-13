@@ -80,7 +80,7 @@ def run_vmspawn(args: Args, config: Config) -> None:
                 cmdline += ["--bind", f"{src}:{dst}"]
 
             if config.build_dir:
-                cmdline += ["--bind", f"{config.build_dir}:/work/build"]
+                cmdline += ["--bind", f"{config.build_subdir}:/work/build"]
 
         for tree in config.runtime_trees:
             target = Path("/root/src") / (tree.target or "")

@@ -592,6 +592,18 @@ class ArtifactOutput(StrEnum):
         ]
 
 
+def expand_delayed_specifiers(specifiers: dict[str, str], text: str) -> str:
+    def replacer(match: re.Match[str]) -> str:
+        m = match.group("specifier")
+        if (specifier := specifiers.get(m)) is not None:
+            return specifier
+
+        logging.warning(f"Unknown specifier '&{m}' found in {text}, ignoring")
+        return ""
+
+    return re.sub(r"&(?P<specifier>[&a-zA-Z])", replacer, text)
+
+
 def try_parse_boolean(s: str) -> Optional[bool]:
     "Parse 1/true/yes/y/t/on as true and 0/false/no/n/f/off/None as false"
 
@@ -1925,8 +1937,10 @@ class Config:
     sandbox_trees: list[ConfigTree]
     workspace_dir: Optional[Path]
     cache_dir: Optional[Path]
+    cache_key: str
     package_cache_dir: Optional[Path]
     build_dir: Optional[Path]
+    build_key: str
     use_subvolumes: ConfigFeature
     repart_offline: bool
     history: bool
@@ -2150,6 +2164,16 @@ class Config:
             self.output_tar,
         ]
 
+    @property
+    def build_subdir(self) -> Path:
+        assert self.build_dir
+        subdir = self.expand_key_specifiers(self.build_key)
+
+        if subdir == "-":
+            return self.build_dir
+
+        return self.build_dir / subdir
+
     def cache_manifest(self) -> dict[str, Any]:
         return {
             "distribution": self.distribution,
@@ -2171,8 +2195,26 @@ class Config:
             ),
         }
 
+    def expand_key_specifiers(self, key: str) -> str:
+        specifiers = {
+            "&": "&",
+            "d": str(self.distribution),
+            "r": self.release,
+            "a": str(self.architecture),
+            "i": self.image_id or "",
+            "v": self.image_version or "",
+            "I": self.image,
+        }
+
+        return expand_delayed_specifiers(specifiers, key)
+
     def to_dict(self) -> dict[str, Any]:
-        return dataclasses.asdict(self, dict_factory=dict_with_capitalised_keys_factory)
+        d = dataclasses.asdict(self, dict_factory=dict_with_capitalised_keys_factory)
+
+        if self.build_dir:
+            d["BuildSubdirectory"] = self.build_subdir
+
+        return d
 
     def to_json(self, *, indent: Optional[int] = 4, sort_keys: bool = True) -> str:
         """Dump Config as JSON string."""
@@ -2196,6 +2238,8 @@ class Config:
             if (s := SETTINGS_LOOKUP_BY_NAME.get(k)) is not None:
                 return s.dest
             return "_".join(part.lower() for part in FALLBACK_NAME_TO_DEST_SPLITTER.split(k))
+
+        j.pop("BuildSubdirectory", None)
 
         for k, v in j.items():
             k = key_transformer(k)
@@ -3426,6 +3470,15 @@ SETTINGS: list[ConfigSetting[Any]] = [
         scope=SettingScope.universal,
     ),
     ConfigSetting(
+        dest="cache_key",
+        metavar="KEY",
+        section="Build",
+        parse=config_parse_string,
+        help="Cache key to use within cache directory",
+        default="&d~&r~&a~&I",
+        scope=SettingScope.inherit,
+    ),
+    ConfigSetting(
         dest="package_cache_dir",
         long="--package-cache-directory",
         compat_longs=("--package-cache-dir",),
@@ -3448,6 +3501,15 @@ SETTINGS: list[ConfigSetting[Any]] = [
         paths=("mkosi.builddir",),
         help="Path to use as persistent build directory",
         scope=SettingScope.universal,
+    ),
+    ConfigSetting(
+        dest="build_key",
+        metavar="KEY",
+        section="Build",
+        parse=config_parse_string,
+        help="Build key to use within build directory",
+        default="&d~&r~&a",
+        scope=SettingScope.inherit,
     ),
     ConfigSetting(
         dest="use_subvolumes",
@@ -4647,7 +4709,7 @@ def parse_config(
         setattr(config, s.dest, context.finalize_value(s))
 
     if prev:
-        return args, (load_config(config),)
+        return args, (Config.from_namespace(config),)
 
     images = []
 
@@ -4729,9 +4791,9 @@ def parse_config(
     if dependencies is not None:
         setattr(config, "dependencies", dependencies)
 
-    main = load_config(config)
+    main = Config.from_namespace(config)
 
-    subimages = [load_config(ns) for ns in images]
+    subimages = [Config.from_namespace(ns) for ns in images]
     subimages = resolve_deps(subimages, main.dependencies)
 
     return args, tuple(subimages + [main])
@@ -4743,19 +4805,6 @@ def finalize_term() -> str:
         term = "vt220" if sys.stderr.isatty() else "dumb"
 
     return term if sys.stderr.isatty() else "dumb"
-
-
-def load_config(config: argparse.Namespace) -> Config:
-    # Make sure we don't modify the input namespace.
-    config = copy.deepcopy(config)
-
-    if (
-        config.build_dir
-        and config.build_dir.name != f"{config.distribution}~{config.release}~{config.architecture}"
-    ):
-        config.build_dir /= f"{config.distribution}~{config.release}~{config.architecture}"
-
-    return Config.from_namespace(config)
 
 
 def yes_no(b: bool) -> str:
@@ -4990,8 +5039,10 @@ def summary(config: Config) -> str:
                       Sandbox Trees: {line_join_list(config.sandbox_trees)}
                 Workspace Directory: {config.workspace_dir_or_default()}
                     Cache Directory: {none_to_none(config.cache_dir)}
+                          Cache Key: {config.cache_key}
             Package Cache Directory: {none_to_default(config.package_cache_dir)}
                     Build Directory: {none_to_none(config.build_dir)}
+                          Build Key: {config.build_key}
                      Use Subvolumes: {config.use_subvolumes}
                      Repart Offline: {yes_no(config.repart_offline)}
                        Save History: {yes_no(config.history)}

@@ -1401,7 +1401,7 @@ def run_qemu(args: Args, config: Config) -> None:
                 add_virtiofs_mount(sock, dst, cmdline, credentials, tag=src.name)
 
             if config.build_dir:
-                sock = stack.enter_context(start_virtiofsd(config, config.build_dir))
+                sock = stack.enter_context(start_virtiofsd(config, config.build_subdir))
                 add_virtiofs_mount(sock, "/work/build", cmdline, credentials, tag="build")
 
         for tree in config.runtime_trees:

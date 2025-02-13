@@ -1440,6 +1440,28 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     found in the local directory it is automatically used for this
     purpose.
 
+`CacheKey=`, `--cache-key=`
+:   Specifies the subdirectory within the cache directory where to store
+    the cached image. This may include both the regular specifiers (see
+    **Specifiers**) and special delayed specifiers, that are expanded
+    after config parsing has finished, instead of during config parsing,
+    which are described below. The default format for this parameter is
+    `&d~&r~&a~&I`.
+
+    The following specifiers may be used:
+
+    | Specifier | Value                                              |
+    |-----------|----------------------------------------------------|
+    | `&&`      | `&` character                                      |
+    | `&d`      | `Distribution=`                                    |
+    | `&r`      | `Release=`                                         |
+    | `&a`      | `Architecture=`                                    |
+    | `&i`      | `ImageId=`                                         |
+    | `&v`      | `ImageVersion=`                                    |
+    | `&I`      | Subimage name within mkosi.images/ or `main`       |
+
+    Note that all images within a build must have a unique cache key.
+
 `PackageCacheDirectory=`, `--package-cache-dir=`
 :   Takes a path to a directory to use as the package cache directory for the distribution package manager
     used. If unset, but a `mkosi.pkgcache/` directory is found in the local directory it is automatically
@@ -1457,6 +1479,18 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     this option is not specified, but a directory `mkosi.builddir/` exists
     in the local directory it is automatically used for this purpose (also
     see the **Files** section below).
+
+`BuildKey=`, `--build-key=`
+:   Specifies the subdirectory within the build directory where to store
+    incremental build artifacts. This may include both the regular
+    specifiers (see **Specifiers**) and special delayed specifiers, that
+    are expanded after config parsing has finished, instead of during
+    config parsing, which are the same delayed specifiers that are
+    supported by `CacheKey=`. The default format for this parameter is
+    `&d~&r~&a`.
+
+    To disable usage of a build subdirectory completely, assign a
+    literal `-` to this setting.
 
 `UseSubvolumes=`, `--use-subvolumes=`
 :   Takes a boolean or `auto`. Enables or disables use of btrfs subvolumes for
@@ -2786,6 +2820,8 @@ down to subimages but can be overridden:
 - `ImageId=`
 - `ImageVersion=`
 - `SectorSize=`
+- `CacheKey=`
+- `BuildKey=`
 
 Images can refer to outputs of images they depend on. Specifically,
 for the following options, **mkosi** will only check whether the inputs
