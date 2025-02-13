@@ -11,7 +11,7 @@ _mkosi_compgen_dirs() {
 
 _mkosi_completion() {
     local -a _mkosi_options
-    local -A _mkosi_nargs _mkosi_choices _mkosi_compgen _mkosi_verbs
+    local -A _mkosi_choices _mkosi_compgen _mkosi_verbs
     local -i curword_idx verb_seen
 
 ##VARIABLEDEFINITIONS##
@@ -27,7 +27,6 @@ _mkosi_completion() {
     elif [[ "$completing_word_preceding" =~ ^- ]]  # the previous word was an option
     then
         current_option="${completing_word_preceding}"
-        current_option_nargs="${_mkosi_nargs[${current_option}]}"
         current_option_choices="${_mkosi_choices[${current_option}]}"
         current_option_compgen="${_mkosi_compgen[${current_option}]}"
 
@@ -43,11 +42,8 @@ _mkosi_completion() {
                   < <(compgen -W "${current_option_choices}" -- "${completing_word}")
 
         # if this (maybe) takes arguments, we'll just fall back to files
-        if [[ "${current_option_nargs}" == "?" ]] || ((current_option_nargs > 0))
-        then
-            readarray -t COMPREPLY -O "${#COMPREPLY[@]}" \
-                      < <(_mkosi_compgen_files "${completing_word}")
-            return
+        readarray -t COMPREPLY -O "${#COMPREPLY[@]}" \
+                    < <(_mkosi_compgen_files "${completing_word}")
         fi
     fi
 

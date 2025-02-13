@@ -10,6 +10,13 @@
   or `mkosi shell`) should now be delimited from regular options using
   `--`. Options passed after the verb without using the `--` delimiter
   are now interpreted as regular mkosi options.
+- Boolean options specified on the command line now always expect a
+  boolean argument. For example, `--repository-key-check` needs to
+  become `--repository-key-check=yes`. The reason for this change is to
+  remove ambiguity when parsing e.g. `--repository-key-check build`
+  where `build` would be interpreted as the argument for
+  `--repository-key-check` whereas now it'll be properly interpreted as
+  the verb.
 - Teach `--verity` a new `hash` value, which skips the verity signature
   partition for extension / portable images. To align the possible values,
   `yes` is renamed to `signed`.
