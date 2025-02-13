@@ -4774,15 +4774,6 @@ def load_config(config: argparse.Namespace) -> Config:
     if config.incremental and not config.cache_dir:
         die("A cache directory must be configured in order to use --incremental")
 
-    # For unprivileged builds we need the userxattr OverlayFS mount option, which is only available
-    # in Linux v5.11 and later.
-    if (
-        (config.build_scripts or config.base_trees)
-        and GenericVersion(platform.release()) < GenericVersion("5.11")
-        and os.geteuid() != 0
-    ):
-        die("This unprivileged build configuration requires at least Linux v5.11")
-
     return Config.from_namespace(config)
 
 
