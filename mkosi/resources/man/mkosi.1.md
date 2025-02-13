@@ -1336,7 +1336,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     | `xfsprogs`              | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `xz`                    | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
     | `zstd`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `zypper`                | ✓      |        | ✓      | ✓    | ✓      |      | ✓         |
+    | `zypper`                | ✓      |        | ✓      | ✓    | ✓      | ✓    | ✓        |
 
 `ToolsTreeDistribution=`, `--tools-tree-distribution=`
 :   Set the distribution to use for the default tools tree. Defaults to the host distribution except for
