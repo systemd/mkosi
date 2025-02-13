@@ -3195,6 +3195,8 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="BOOL",
         section="Validation",
         parse=config_parse_boolean,
+        default_factory=lambda ns: True if ns.sign else False,
+        default_factory_depends=("sign",),
         help="Write SHA256SUMS file",
     ),
     ConfigSetting(
@@ -4762,9 +4764,6 @@ def load_config(config: argparse.Namespace) -> Config:
         and config.build_dir.name != f"{config.distribution}~{config.release}~{config.architecture}"
     ):
         config.build_dir /= f"{config.distribution}~{config.release}~{config.architecture}"
-
-    if config.sign:
-        config.checksum = True
 
     config.environment = load_environment(config)
 
