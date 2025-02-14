@@ -738,7 +738,6 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     directory it is also used for this purpose.
 
 `VolatilePackageDirectories=`, `--volatile-package-directory=`
-
 :   Like `PackageDirectories=`, but any changes to the packages in these
     directories will not invalidate the cached images if `Incremental=`
     is enabled.
