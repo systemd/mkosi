@@ -4723,7 +4723,11 @@ def run_clean(args: Args, config: Config) -> None:
             rmtree(*config.build_dir.iterdir(), sandbox=sandbox)
 
     if remove_image_cache and config.cache_dir:
-        extra = [keyring_cache(config), metadata_cache(config)] if config.image == "main" else []
+        if config.image in ("main", "tools"):
+            extra = [keyring_cache(config), metadata_cache(config)]
+        else:
+            extra = []
+
         remove_cache_entries(config, extra=extra)
 
     if remove_package_cache and any(config.package_cache_dir_or_default().glob("*")):
