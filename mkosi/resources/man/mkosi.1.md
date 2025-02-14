@@ -1729,13 +1729,25 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `Linux=`, `--linux=`
 :   Set the kernel image to use for **qemu** direct kernel boot. If not
     specified, **mkosi** will use the kernel provided via the command line
-    (`-kernel` option) or latest the kernel that was installed into
+    (`-kernel` option) or the latest kernel that was installed into
     the image (or fail if no kernel was installed into the image).
 
     Note that when the `cpio` output format is used, direct kernel boot is
     used regardless of the configured firmware. Depending on the
     configured firmware, **qemu** might boot the kernel itself or using the
     configured firmware.
+
+    This setting may include both the regular specifiers (see
+    **Specifiers**) and special delayed specifiers, that are expanded
+    after config parsing has finished, instead of during config parsing,
+    which are described below.
+
+    The following specifiers may be used:
+
+    | Specifier | Value                                              |
+    |-----------|----------------------------------------------------|
+    | `&&`      | `&` character                                      |
+    | `&b`      | The final build directory (including subdirectory) |
 
 `Drives=`, `--drive=`
 :   Add a drive. Takes a colon-delimited string of format

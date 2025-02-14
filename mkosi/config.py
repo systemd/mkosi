@@ -1986,7 +1986,7 @@ class Config:
     removable: bool
     firmware: Firmware
     firmware_variables: Optional[Path]
-    linux: Optional[Path]
+    linux: Optional[str]
     drives: list[Drive]
     qemu_args: list[str]
 
@@ -2207,6 +2207,16 @@ class Config:
         }
 
         return expand_delayed_specifiers(specifiers, key)
+
+    def expand_linux_specifiers(self) -> Path:
+        assert self.linux
+
+        specifiers = {
+            "&": "&",
+            "b": os.fspath(self.build_subdir) if self.build_dir else "",
+        }
+
+        return parse_path(expand_delayed_specifiers(specifiers, self.linux))
 
     def to_dict(self) -> dict[str, Any]:
         d = dataclasses.asdict(self, dict_factory=dict_with_capitalised_keys_factory)
@@ -3894,7 +3904,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         dest="linux",
         metavar="PATH",
         section="Runtime",
-        parse=config_make_path_parser(),
+        parse=config_parse_string,
         help="Specify the kernel to use for direct kernel boot",
         compat_longs=("--qemu-kernel",),
         compat_names=("QemuKernel",),

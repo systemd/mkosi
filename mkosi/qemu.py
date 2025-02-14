@@ -1156,7 +1156,7 @@ def run_qemu(args: Args, config: Config) -> None:
         die(f"Console mode {config.console} requested but systemd-pty-forward not found")
 
     if config.linux:
-        kernel = config.linux
+        kernel = config.expand_linux_specifiers()
     elif "-kernel" in args.cmdline:
         kernel = Path(args.cmdline[args.cmdline.index("-kernel") + 1])
     else:
