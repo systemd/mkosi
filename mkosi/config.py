@@ -592,6 +592,18 @@ class ArtifactOutput(StrEnum):
         ]
 
 
+def expand_delayed_specifiers(specifiers: dict[str, str], text: str) -> str:
+    def replacer(match: re.Match[str]) -> str:
+        m = match.group("specifier")
+        if (specifier := specifiers.get(m)) is not None:
+            return specifier
+
+        logging.warning(f"Unknown specifier '&{m}' found in {text}, ignoring")
+        return ""
+
+    return re.sub(r"&(?P<specifier>[&a-zA-Z])", replacer, text)
+
+
 def try_parse_boolean(s: str) -> Optional[bool]:
     "Parse 1/true/yes/y/t/on as true and 0/false/no/n/f/off/None as false"
 
@@ -897,7 +909,10 @@ def config_default_compression(namespace: argparse.Namespace) -> Compression:
 
 
 def config_default_output(namespace: argparse.Namespace) -> str:
-    output = namespace.image or namespace.image_id or "image"
+    if namespace.image != "main":
+        output = cast(str, namespace.image)
+    else:
+        output = namespace.image_id or "image"
 
     if namespace.image_version:
         output += f"_{namespace.image_version}"
@@ -1922,8 +1937,10 @@ class Config:
     sandbox_trees: list[ConfigTree]
     workspace_dir: Optional[Path]
     cache_dir: Optional[Path]
+    cache_key: str
     package_cache_dir: Optional[Path]
     build_dir: Optional[Path]
+    build_key: str
     use_subvolumes: ConfigFeature
     repart_offline: bool
     history: bool
@@ -1969,17 +1986,57 @@ class Config:
     removable: bool
     firmware: Firmware
     firmware_variables: Optional[Path]
-    linux: Optional[Path]
+    linux: Optional[str]
     drives: list[Drive]
     qemu_args: list[str]
 
-    image: Optional[str]
+    image: str
 
-    def name(self) -> str:
-        return self.image or self.image_id or "default"
+    def finalize_environment(self) -> dict[str, str]:
+        env = {
+            "SYSTEMD_TMPFILES_FORCE_SUBVOL": "0",
+            "SYSTEMD_ASK_PASSWORD_KEYRING_TIMEOUT_SEC": "infinity",
+            "SYSTEMD_ASK_PASSWORD_KEYRING_TYPE": "session",
+            "TERM": finalize_term(),
+        }
+
+        if self.image != "main":
+            env["SUBIMAGE"] = self.image
+        if self.image_id is not None:
+            env["IMAGE_ID"] = self.image_id
+        if self.image_version is not None:
+            env["IMAGE_VERSION"] = self.image_version
+        if self.source_date_epoch is not None:
+            env["SOURCE_DATE_EPOCH"] = str(self.source_date_epoch)
+        if self.proxy_url is not None:
+            for e in ("http_proxy", "https_proxy"):
+                env[e] = self.proxy_url
+                env[e.upper()] = self.proxy_url
+        if self.proxy_exclude:
+            env["no_proxy"] = ",".join(self.proxy_exclude)
+            env["NO_PROXY"] = ",".join(self.proxy_exclude)
+        if self.proxy_peer_certificate:
+            env["GIT_PROXY_SSL_CAINFO"] = "/proxy.cacert"
+        if self.proxy_client_certificate:
+            env["GIT_PROXY_SSL_CERT"] = "/proxy.clientcert"
+        if self.proxy_client_key:
+            env["GIT_PROXY_SSL_KEY"] = "/proxy.clientkey"
+        if dnf := os.getenv("MKOSI_DNF"):
+            env["MKOSI_DNF"] = dnf
+        if gnupghome := os.getenv("GNUPGHOME"):
+            env["GNUPGHOME"] = gnupghome
+
+        env |= dict(
+            parse_environment(line)
+            for f in self.environment_files
+            for line in f.read_text().strip().splitlines()
+        )
+        env |= self.environment
+
+        return env
 
     def machine_or_name(self) -> str:
-        return self.machine or self.name()
+        return self.machine or self.image
 
     def output_dir_or_cwd(self) -> Path:
         return self.output_dir or Path.cwd()
@@ -2107,6 +2164,16 @@ class Config:
             self.output_tar,
         ]
 
+    @property
+    def build_subdir(self) -> Path:
+        assert self.build_dir
+        subdir = self.expand_key_specifiers(self.build_key)
+
+        if subdir == "-":
+            return self.build_dir
+
+        return self.build_dir / subdir
+
     def cache_manifest(self) -> dict[str, Any]:
         return {
             "distribution": self.distribution,
@@ -2128,8 +2195,36 @@ class Config:
             ),
         }
 
+    def expand_key_specifiers(self, key: str) -> str:
+        specifiers = {
+            "&": "&",
+            "d": str(self.distribution),
+            "r": self.release,
+            "a": str(self.architecture),
+            "i": self.image_id or "",
+            "v": self.image_version or "",
+            "I": self.image,
+        }
+
+        return expand_delayed_specifiers(specifiers, key)
+
+    def expand_linux_specifiers(self) -> Path:
+        assert self.linux
+
+        specifiers = {
+            "&": "&",
+            "b": os.fspath(self.build_subdir) if self.build_dir else "",
+        }
+
+        return parse_path(expand_delayed_specifiers(specifiers, self.linux))
+
     def to_dict(self) -> dict[str, Any]:
-        return dataclasses.asdict(self, dict_factory=dict_with_capitalised_keys_factory)
+        d = dataclasses.asdict(self, dict_factory=dict_with_capitalised_keys_factory)
+
+        if self.build_dir:
+            d["BuildSubdirectory"] = self.build_subdir
+
+        return d
 
     def to_json(self, *, indent: Optional[int] = 4, sort_keys: bool = True) -> str:
         """Dump Config as JSON string."""
@@ -2153,6 +2248,8 @@ class Config:
             if (s := SETTINGS_LOOKUP_BY_NAME.get(k)) is not None:
                 return s.dest
             return "_".join(part.lower() for part in FALLBACK_NAME_TO_DEST_SPLITTER.split(k))
+
+        j.pop("BuildSubdirectory", None)
 
         for k, v in j.items():
             k = key_transformer(k)
@@ -3195,6 +3292,8 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="BOOL",
         section="Validation",
         parse=config_parse_boolean,
+        default_factory=lambda ns: True if ns.sign else False,
+        default_factory_depends=("sign",),
         help="Write SHA256SUMS file",
     ),
     ConfigSetting(
@@ -3381,6 +3480,15 @@ SETTINGS: list[ConfigSetting[Any]] = [
         scope=SettingScope.universal,
     ),
     ConfigSetting(
+        dest="cache_key",
+        metavar="KEY",
+        section="Build",
+        parse=config_parse_string,
+        help="Cache key to use within cache directory",
+        default="&d~&r~&a~&I",
+        scope=SettingScope.inherit,
+    ),
+    ConfigSetting(
         dest="package_cache_dir",
         long="--package-cache-directory",
         compat_longs=("--package-cache-dir",),
@@ -3403,6 +3511,15 @@ SETTINGS: list[ConfigSetting[Any]] = [
         paths=("mkosi.builddir",),
         help="Path to use as persistent build directory",
         scope=SettingScope.universal,
+    ),
+    ConfigSetting(
+        dest="build_key",
+        metavar="KEY",
+        section="Build",
+        parse=config_parse_string,
+        help="Build key to use within build directory",
+        default="&d~&r~&a",
+        scope=SettingScope.inherit,
     ),
     ConfigSetting(
         dest="use_subvolumes",
@@ -3787,7 +3904,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         dest="linux",
         metavar="PATH",
         section="Runtime",
-        parse=config_make_path_parser(),
+        parse=config_parse_string,
         help="Specify the kernel to use for direct kernel boot",
         compat_longs=("--qemu-kernel",),
         compat_names=("QemuKernel",),
@@ -3869,7 +3986,7 @@ SPECIFIERS = (
     ),
     Specifier(
         char="I",
-        callback=lambda ns, config: ns.image or "",
+        callback=lambda ns, config: ns.image,
     ),
 )
 
@@ -4173,7 +4290,7 @@ class ParseContext:
 
                     # Some specifier methods might want to access the image name or directory mkosi was
                     # invoked in so let's make sure those are available.
-                    setattr(specifierns, "image", getattr(self.config, "image", None))
+                    setattr(specifierns, "image", getattr(self.config, "image"))
                     setattr(specifierns, "directory", self.cli.directory)
 
                     for d in specifier.depends:
@@ -4294,7 +4411,7 @@ class ParseContext:
 
             # Some default factory methods want to access the image name or directory mkosi was invoked in so
             # let's make sure those are available.
-            setattr(factoryns, "image", getattr(self.config, "image", None))
+            setattr(factoryns, "image", getattr(self.config, "image"))
             setattr(factoryns, "directory", self.cli.directory)
 
             default = setting.default_factory(factoryns)
@@ -4404,10 +4521,7 @@ class ParseContext:
                             delattr(self.config, s.dest)
 
             for s in SETTINGS:
-                if (
-                    s.scope == SettingScope.universal
-                    and (image := getattr(self.config, "image", None)) is not None
-                ):
+                if s.scope == SettingScope.universal and (image := getattr(self.config, "image")) != "main":
                     continue
 
                 if self.only_sections and s.section not in self.only_sections:
@@ -4470,10 +4584,7 @@ class ParseContext:
 
                 if not (s := SETTINGS_LOOKUP_BY_NAME.get(name)):
                     die(f"{path.absolute()}: Unknown setting {name}")
-                if (
-                    s.scope == SettingScope.universal
-                    and (image := getattr(self.config, "image", None)) is not None
-                ):
+                if s.scope == SettingScope.universal and (image := getattr(self.config, "image")) != "main":
                     die(f"{path.absolute()}: Setting {name} cannot be configured in subimage {image}")
 
                 if section != s.section:
@@ -4532,12 +4643,23 @@ def parse_config(
 
     # The "image" field does not directly map to a setting but is required to determine some default values
     # for settings, so let's set it on the config namespace immediately so it's available.
-    setattr(context.config, "image", None)
+    setattr(context.config, "image", "main")
 
     # First, we parse the command line arguments into a separate namespace.
     argparser = create_argument_parser()
     argparser.parse_args(argv, context.cli)
-    args = load_args(context.cli)
+
+    args = Args.from_namespace(context.cli)
+
+    if args.debug:
+        ARG_DEBUG.set(args.debug)
+    if args.debug_shell:
+        ARG_DEBUG_SHELL.set(args.debug_shell)
+    if args.debug_sandbox:
+        ARG_DEBUG_SANDBOX.set(args.debug_sandbox)
+
+    if args.cmdline and not args.verb.supports_cmdline():
+        die(f"Arguments after verb are not supported for {args.verb}.")
 
     # If --debug was passed, apply it as soon as possible.
     if ARG_DEBUG.get():
@@ -4600,7 +4722,7 @@ def parse_config(
         setattr(config, s.dest, context.finalize_value(s))
 
     if prev:
-        return args, (load_config(config),)
+        return args, (Config.from_namespace(config),)
 
     images = []
 
@@ -4682,9 +4804,9 @@ def parse_config(
     if dependencies is not None:
         setattr(config, "dependencies", dependencies)
 
-    main = load_config(config)
+    main = Config.from_namespace(config)
 
-    subimages = [load_config(ns) for ns in images]
+    subimages = [Config.from_namespace(ns) for ns in images]
     subimages = resolve_deps(subimages, main.dependencies)
 
     return args, tuple(subimages + [main])
@@ -4696,97 +4818,6 @@ def finalize_term() -> str:
         term = "vt220" if sys.stderr.isatty() else "dumb"
 
     return term if sys.stderr.isatty() else "dumb"
-
-
-def load_environment(args: argparse.Namespace) -> dict[str, str]:
-    env = {
-        "SYSTEMD_TMPFILES_FORCE_SUBVOL": "0",
-        "SYSTEMD_ASK_PASSWORD_KEYRING_TIMEOUT_SEC": "infinity",
-        "SYSTEMD_ASK_PASSWORD_KEYRING_TYPE": "session",
-        "TERM": finalize_term(),
-    }
-
-    if args.image is not None:
-        env["SUBIMAGE"] = args.image
-    if args.image_id is not None:
-        env["IMAGE_ID"] = args.image_id
-    if args.image_version is not None:
-        env["IMAGE_VERSION"] = args.image_version
-    if args.source_date_epoch is not None:
-        env["SOURCE_DATE_EPOCH"] = str(args.source_date_epoch)
-    if args.proxy_url is not None:
-        for e in ("http_proxy", "https_proxy"):
-            env[e] = args.proxy_url
-            env[e.upper()] = args.proxy_url
-    if args.proxy_exclude:
-        env["no_proxy"] = ",".join(args.proxy_exclude)
-        env["NO_PROXY"] = ",".join(args.proxy_exclude)
-    if args.proxy_peer_certificate:
-        env["GIT_PROXY_SSL_CAINFO"] = "/proxy.cacert"
-    if args.proxy_client_certificate:
-        env["GIT_PROXY_SSL_CERT"] = "/proxy.clientcert"
-    if args.proxy_client_key:
-        env["GIT_PROXY_SSL_KEY"] = "/proxy.clientkey"
-    if dnf := os.getenv("MKOSI_DNF"):
-        env["MKOSI_DNF"] = dnf
-    if gnupghome := os.getenv("GNUPGHOME"):
-        env["GNUPGHOME"] = gnupghome
-
-    env |= dict(
-        parse_environment(line)
-        for f in args.environment_files
-        for line in f.read_text().strip().splitlines()
-    )
-    env |= args.environment
-
-    return env
-
-
-def load_args(args: argparse.Namespace) -> Args:
-    if args.cmdline and not args.verb.supports_cmdline():
-        die(f"Arguments after verb are not supported for {args.verb}.")
-
-    if args.debug:
-        ARG_DEBUG.set(args.debug)
-    if args.debug_shell:
-        ARG_DEBUG_SHELL.set(args.debug_shell)
-    if args.debug_sandbox:
-        ARG_DEBUG_SANDBOX.set(args.debug_sandbox)
-
-    return Args.from_namespace(args)
-
-
-def load_config(config: argparse.Namespace) -> Config:
-    # Make sure we don't modify the input namespace.
-    config = copy.deepcopy(config)
-
-    if (
-        config.build_dir
-        and config.build_dir.name != f"{config.distribution}~{config.release}~{config.architecture}"
-    ):
-        config.build_dir /= f"{config.distribution}~{config.release}~{config.architecture}"
-
-    if config.sign:
-        config.checksum = True
-
-    config.environment = load_environment(config)
-
-    if config.overlay and not config.base_trees:
-        die("--overlay can only be used with --base-tree")
-
-    if config.incremental and not config.cache_dir:
-        die("A cache directory must be configured in order to use --incremental")
-
-    # For unprivileged builds we need the userxattr OverlayFS mount option, which is only available
-    # in Linux v5.11 and later.
-    if (
-        (config.build_scripts or config.base_trees)
-        and GenericVersion(platform.release()) < GenericVersion("5.11")
-        and os.geteuid() != 0
-    ):
-        die("This unprivileged build configuration requires at least Linux v5.11")
-
-    return Config.from_namespace(config)
 
 
 def yes_no(b: bool) -> str:
@@ -4846,7 +4877,7 @@ def cat_config(images: Sequence[Config]) -> str:
         if n > 0:
             print(file=c)
 
-        print(bold(f"### IMAGE: {config.image or 'default'}"), file=c)
+        print(bold(f"### IMAGE: {config.image}"), file=c)
 
         for path in config.files:
             # Display the paths as relative to ., if underneath.
@@ -4863,10 +4894,10 @@ def summary(config: Config) -> str:
     env = [f"{k}={v}" for k, v in config.environment.items()]
 
     summary = f"""\
-{bold(f"IMAGE: {config.image or 'default'}")}
+{bold(f"IMAGE: {config.image}")}
 """
 
-    if not config.image:
+    if config.image == "main":
         summary += f"""\
 
     {bold("CONFIG")}:
@@ -5000,7 +5031,7 @@ def summary(config: Config) -> str:
                             GPG Key: ({"default" if config.key is None else config.key})
 """
 
-    if not config.image:
+    if config.image == "main":
         summary += f"""\
 
     {bold("BUILD CONFIGURATION")}:
@@ -5021,8 +5052,10 @@ def summary(config: Config) -> str:
                       Sandbox Trees: {line_join_list(config.sandbox_trees)}
                 Workspace Directory: {config.workspace_dir_or_default()}
                     Cache Directory: {none_to_none(config.cache_dir)}
+                          Cache Key: {config.cache_key}
             Package Cache Directory: {none_to_default(config.package_cache_dir)}
                     Build Directory: {none_to_none(config.build_dir)}
+                          Build Key: {config.build_key}
                      Use Subvolumes: {config.use_subvolumes}
                      Repart Offline: {yes_no(config.repart_offline)}
                        Save History: {yes_no(config.history)}

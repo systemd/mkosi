@@ -148,7 +148,10 @@ class Apt(PackageManager):
             "DEBCONF_INTERACTIVE_SEEN": "true",
         }
 
-        if "INITRD" not in context.config.environment and context.config.bootable != ConfigFeature.disabled:
+        if (
+            "INITRD" not in context.config.finalize_environment()
+            and context.config.bootable != ConfigFeature.disabled
+        ):
             env["INITRD"] = "No"
 
         return super().finalize_environment(context) | env

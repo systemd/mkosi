@@ -39,7 +39,7 @@ def run_vmspawn(args: Args, config: Config) -> None:
     if config.firmware_variables and config.firmware_variables != Path("microsoft"):
         die("mkosi vmspawn does not support FirmwareVariables=")
 
-    kernel = config.linux
+    kernel = config.expand_linux_specifiers() if config.linux else None
     firmware = finalize_firmware(config, kernel)
 
     if not kernel and firmware == Firmware.linux:
@@ -80,7 +80,7 @@ def run_vmspawn(args: Args, config: Config) -> None:
                 cmdline += ["--bind", f"{src}:{dst}"]
 
             if config.build_dir:
-                cmdline += ["--bind", f"{config.build_dir}:/work/build"]
+                cmdline += ["--bind", f"{config.build_subdir}:/work/build"]
 
         for tree in config.runtime_trees:
             target = Path("/root/src") / (tree.target or "")
@@ -114,7 +114,7 @@ def run_vmspawn(args: Args, config: Config) -> None:
             cmdline,
             stdin=sys.stdin,
             stdout=sys.stdout,
-            env=env | config.environment,
+            env=env | config.finalize_environment(),
             log=False,
             sandbox=config.sandbox(
                 network=True,

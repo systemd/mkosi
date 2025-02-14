@@ -81,7 +81,7 @@ def finalize_source_mounts(
                             hint="Configure BuildDirectory= or create mkosi.builddir.",
                         )
 
-                    upperdir = config.build_dir / f"mkosi.buildovl.{src.name}"
+                    upperdir = config.build_subdir / f"mkosi.buildovl.{src.name}"
                     upperdir.mkdir(mode=src.stat().st_mode, exist_ok=True)
                 else:
                     upperdir = Path(

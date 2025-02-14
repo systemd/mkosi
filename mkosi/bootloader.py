@@ -440,7 +440,7 @@ def run_systemd_sign_tool(
         return run(
             cmdline,
             stdout=stdout,
-            env={**config.environment, **env},
+            env={**config.finalize_environment(), **env},
             sandbox=config.sandbox(options=options, devices=devices),
         )
 
@@ -475,7 +475,7 @@ def run_systemd_sign_tool(
         cmd,
         stdin=(sys.stdin if key_source.type != KeySourceType.file else subprocess.DEVNULL),
         stdout=stdout,
-        env={**config.environment, **env},
+        env={**config.finalize_environment(), **env},
         sandbox=config.sandbox(
             options=opt,
             devices=(
@@ -546,7 +546,7 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
                 if context.config.secure_boot_key_source.type != KeySourceType.file
                 else subprocess.DEVNULL
             ),
-            env=context.config.environment,
+            env=context.config.finalize_environment(),
             sandbox=context.sandbox(
                 options=options,
                 devices=context.config.secure_boot_key_source.type != KeySourceType.file,

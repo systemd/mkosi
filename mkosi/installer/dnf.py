@@ -17,7 +17,7 @@ class Dnf(PackageManager):
     @classmethod
     def executable(cls, config: Config) -> str:
         # Allow the user to override autodetection with an environment variable
-        dnf = config.environment.get("MKOSI_DNF")
+        dnf = config.finalize_environment().get("MKOSI_DNF")
         return Path(dnf or config.find_binary("dnf5") or "dnf").name
 
     @classmethod

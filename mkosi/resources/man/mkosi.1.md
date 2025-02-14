@@ -738,7 +738,6 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     directory it is also used for this purpose.
 
 `VolatilePackageDirectories=`, `--volatile-package-directory=`
-
 :   Like `PackageDirectories=`, but any changes to the packages in these
     directories will not invalidate the cached images if `Incremental=`
     is enabled.
@@ -1441,6 +1440,28 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     found in the local directory it is automatically used for this
     purpose.
 
+`CacheKey=`, `--cache-key=`
+:   Specifies the subdirectory within the cache directory where to store
+    the cached image. This may include both the regular specifiers (see
+    **Specifiers**) and special delayed specifiers, that are expanded
+    after config parsing has finished, instead of during config parsing,
+    which are described below. The default format for this parameter is
+    `&d~&r~&a~&I`.
+
+    The following specifiers may be used:
+
+    | Specifier | Value                                              |
+    |-----------|----------------------------------------------------|
+    | `&&`      | `&` character                                      |
+    | `&d`      | `Distribution=`                                    |
+    | `&r`      | `Release=`                                         |
+    | `&a`      | `Architecture=`                                    |
+    | `&i`      | `ImageId=`                                         |
+    | `&v`      | `ImageVersion=`                                    |
+    | `&I`      | Subimage name within mkosi.images/ or `main`       |
+
+    Note that all images within a build must have a unique cache key.
+
 `PackageCacheDirectory=`, `--package-cache-dir=`
 :   Takes a path to a directory to use as the package cache directory for the distribution package manager
     used. If unset, but a `mkosi.pkgcache/` directory is found in the local directory it is automatically
@@ -1458,6 +1479,18 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     this option is not specified, but a directory `mkosi.builddir/` exists
     in the local directory it is automatically used for this purpose (also
     see the **Files** section below).
+
+`BuildKey=`, `--build-key=`
+:   Specifies the subdirectory within the build directory where to store
+    incremental build artifacts. This may include both the regular
+    specifiers (see **Specifiers**) and special delayed specifiers, that
+    are expanded after config parsing has finished, instead of during
+    config parsing, which are the same delayed specifiers that are
+    supported by `CacheKey=`. The default format for this parameter is
+    `&d~&r~&a`.
+
+    To disable usage of a build subdirectory completely, assign a
+    literal `-` to this setting.
 
 `UseSubvolumes=`, `--use-subvolumes=`
 :   Takes a boolean or `auto`. Enables or disables use of btrfs subvolumes for
@@ -1696,13 +1729,25 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `Linux=`, `--linux=`
 :   Set the kernel image to use for **qemu** direct kernel boot. If not
     specified, **mkosi** will use the kernel provided via the command line
-    (`-kernel` option) or latest the kernel that was installed into
+    (`-kernel` option) or the latest kernel that was installed into
     the image (or fail if no kernel was installed into the image).
 
     Note that when the `cpio` output format is used, direct kernel boot is
     used regardless of the configured firmware. Depending on the
     configured firmware, **qemu** might boot the kernel itself or using the
     configured firmware.
+
+    This setting may include both the regular specifiers (see
+    **Specifiers**) and special delayed specifiers, that are expanded
+    after config parsing has finished, instead of during config parsing,
+    which are described below.
+
+    The following specifiers may be used:
+
+    | Specifier | Value                                              |
+    |-----------|----------------------------------------------------|
+    | `&&`      | `&` character                                      |
+    | `&b`      | The final build directory (including subdirectory) |
 
 `Drives=`, `--drive=`
 :   Add a drive. Takes a colon-delimited string of format
@@ -2787,6 +2832,8 @@ down to subimages but can be overridden:
 - `ImageId=`
 - `ImageVersion=`
 - `SectorSize=`
+- `CacheKey=`
+- `BuildKey=`
 
 Images can refer to outputs of images they depend on. Specifically,
 for the following options, **mkosi** will only check whether the inputs
