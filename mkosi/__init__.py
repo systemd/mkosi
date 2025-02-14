@@ -1353,7 +1353,7 @@ def build_default_initrd(context: Context) -> Path:
 
     if config.incremental == Incremental.strict and not have_cache(config):
         die(
-            f"Strict incremental mode is enabled and cache for image {config.name()} is out-of-date",
+            f"Strict incremental mode is enabled and cache for image {config.image} is out-of-date",
             hint="Build once with -i yes to update the image cache",
         )
 
@@ -2566,11 +2566,7 @@ def cache_tree_paths(config: Config) -> tuple[Path, Path, Path]:
     if config.image == "tools":
         key = "tools"
     else:
-        fragments = [config.distribution, config.release, config.architecture]
-
-        if config.image:
-            fragments += [config.image]
-
+        fragments = [config.distribution, config.release, config.architecture, config.image]
         key = "~".join(str(s) for s in fragments)
 
     assert config.cache_dir
@@ -3211,7 +3207,7 @@ def have_cache(config: Config) -> bool:
         prev = json.loads(manifest.read_text())
         new = json.dumps(config.cache_manifest(), cls=JsonEncoder, indent=4, sort_keys=True)
         if prev != json.loads(new):
-            logging.info(f"Cache manifest mismatch for {config.name()} image, not reusing cached images")
+            logging.info(f"Cache manifest mismatch for {config.image} image, not reusing cached images")
             if ARG_DEBUG.get():
                 run(
                     ["diff", "--unified", workdir(manifest), "-"],
@@ -4663,7 +4659,7 @@ def remove_cache_entries(config: Config, *, extra: Sequence[Path] = ()) -> None:
     sandbox = functools.partial(config.sandbox, tools=False)
 
     if any(p.exists() for p in itertools.chain(cache_tree_paths(config), extra)):
-        with complete_step(f"Removing cache entries of {config.name()} image…"):
+        with complete_step(f"Removing cache entries of {config.image} image…"):
             rmtree(
                 *(p for p in itertools.chain(cache_tree_paths(config), extra) if p.exists()),
                 sandbox=sandbox,
@@ -4708,7 +4704,7 @@ def run_clean(args: Args, config: Config) -> None:
 
         if outputs:
             with (
-                complete_step(f"Removing output files of {config.name()} image…"),
+                complete_step(f"Removing output files of {config.image} image…"),
                 flock_or_die(config.output_dir_or_cwd() / config.output)
                 if (config.output_dir_or_cwd() / config.output).exists()
                 else contextlib.nullcontext(),
@@ -4723,18 +4719,18 @@ def run_clean(args: Args, config: Config) -> None:
         and config.build_dir.exists()
         and any(config.build_dir.iterdir())
     ):
-        with complete_step(f"Clearing out build directory of {config.name()} image…"):
+        with complete_step(f"Clearing out build directory of {config.image} image…"):
             rmtree(*config.build_dir.iterdir(), sandbox=sandbox)
 
     if remove_image_cache and config.cache_dir:
-        extra = [keyring_cache(config), metadata_cache(config)] if not config.image else []
+        extra = [keyring_cache(config), metadata_cache(config)] if config.image == "main" else []
         remove_cache_entries(config, extra=extra)
 
     if remove_package_cache and any(config.package_cache_dir_or_default().glob("*")):
         subdir = config.distribution.package_manager(config).subdir(config)
 
         with (
-            complete_step(f"Clearing out package cache of {config.name()} image…"),
+            complete_step(f"Clearing out package cache of {config.image} image…"),
             lock_repository_metadata(config),
         ):
             rmtree(
@@ -4899,7 +4895,7 @@ def run_build(
             mount_rbind(d, d, attrs)
 
     with (
-        complete_step(f"Building {config.name()} image"),
+        complete_step(f"Building {config.image} image"),
         setup_workspace(args, config) as workspace,
     ):
         build_image(
@@ -5023,7 +5019,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         and not args.force
     ):
         die(
-            f"Default tools tree requested for image '{last.name()}' but it is out-of-date or has not been "
+            f"Default tools tree requested for image '{last.image}' but it is out-of-date or has not been "
             "built yet",
             hint="Make sure to (re)build the image first with 'mkosi build' or use '--force'",
         )
@@ -5094,12 +5090,12 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
     if args.verb.needs_build():
         if args.verb != Verb.build and not args.force and not output.exists():
             die(
-                f"Image '{last.name()}' has not been built yet",
+                f"Image '{last.image}' has not been built yet",
                 hint="Make sure to build the image first with 'mkosi build' or use '--force'",
             )
 
         if not last.repart_offline and os.getuid() != 0:
-            die(f"Must be root to build {last.name()} image configured with RepartOffline=no")
+            die(f"Must be root to build {last.image} image configured with RepartOffline=no")
 
         check_workspace_directory(last)
 
@@ -5115,7 +5111,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
                     continue
 
                 die(
-                    f"Strict incremental mode is enabled and cache for image {config.name()} is out-of-date",
+                    f"Strict incremental mode is enabled and cache for image {config.image} is out-of-date",
                     hint="Build once with '-i yes' to update the image cache",
                 )
 

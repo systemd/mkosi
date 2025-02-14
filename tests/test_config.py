@@ -1185,7 +1185,7 @@ def test_specifiers(tmp_path: Path) -> None:
             "Distribution": "ubuntu",
             "Release": "lunar",
             "Architecture": "arm64",
-            "Image": "",
+            "Image": "main",
             "ImageId": "my-image-id",
             "ImageVersion": "1.2.3",
             "OutputDirectory": os.fspath(Path.cwd() / "abcde"),

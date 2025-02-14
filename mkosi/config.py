@@ -897,7 +897,10 @@ def config_default_compression(namespace: argparse.Namespace) -> Compression:
 
 
 def config_default_output(namespace: argparse.Namespace) -> str:
-    output = namespace.image or namespace.image_id or "image"
+    if namespace.image != "main":
+        output = cast(str, namespace.image)
+    else:
+        output = namespace.image_id or "image"
 
     if namespace.image_version:
         output += f"_{namespace.image_version}"
@@ -1973,7 +1976,7 @@ class Config:
     drives: list[Drive]
     qemu_args: list[str]
 
-    image: Optional[str]
+    image: str
 
     def finalize_environment(self) -> dict[str, str]:
         env = {
@@ -1983,7 +1986,7 @@ class Config:
             "TERM": finalize_term(),
         }
 
-        if self.image is not None:
+        if self.image != "main":
             env["SUBIMAGE"] = self.image
         if self.image_id is not None:
             env["IMAGE_ID"] = self.image_id
@@ -2018,11 +2021,8 @@ class Config:
 
         return env
 
-    def name(self) -> str:
-        return self.image or self.image_id or "default"
-
     def machine_or_name(self) -> str:
-        return self.machine or self.name()
+        return self.machine or self.image
 
     def output_dir_or_cwd(self) -> Path:
         return self.output_dir or Path.cwd()
@@ -3914,7 +3914,7 @@ SPECIFIERS = (
     ),
     Specifier(
         char="I",
-        callback=lambda ns, config: ns.image or "",
+        callback=lambda ns, config: ns.image,
     ),
 )
 
@@ -4215,7 +4215,7 @@ class ParseContext:
 
                     # Some specifier methods might want to access the image name or directory mkosi was
                     # invoked in so let's make sure those are available.
-                    setattr(specifierns, "image", getattr(self.config, "image", None))
+                    setattr(specifierns, "image", getattr(self.config, "image"))
                     setattr(specifierns, "directory", self.cli.directory)
 
                     for d in specifier.depends:
@@ -4336,7 +4336,7 @@ class ParseContext:
 
             # Some default factory methods want to access the image name or directory mkosi was invoked in so
             # let's make sure those are available.
-            setattr(factoryns, "image", getattr(self.config, "image", None))
+            setattr(factoryns, "image", getattr(self.config, "image"))
             setattr(factoryns, "directory", self.cli.directory)
 
             default = setting.default_factory(factoryns)
@@ -4446,10 +4446,7 @@ class ParseContext:
                             delattr(self.config, s.dest)
 
             for s in SETTINGS:
-                if (
-                    s.scope == SettingScope.universal
-                    and (image := getattr(self.config, "image", None)) is not None
-                ):
+                if s.scope == SettingScope.universal and (image := getattr(self.config, "image")) != "main":
                     continue
 
                 if self.only_sections and s.section not in self.only_sections:
@@ -4512,10 +4509,7 @@ class ParseContext:
 
                 if not (s := SETTINGS_LOOKUP_BY_NAME.get(name)):
                     die(f"{path.absolute()}: Unknown setting {name}")
-                if (
-                    s.scope == SettingScope.universal
-                    and (image := getattr(self.config, "image", None)) is not None
-                ):
+                if s.scope == SettingScope.universal and (image := getattr(self.config, "image")) != "main":
                     die(f"{path.absolute()}: Setting {name} cannot be configured in subimage {image}")
 
                 if section != s.section:
@@ -4574,7 +4568,7 @@ def parse_config(
 
     # The "image" field does not directly map to a setting but is required to determine some default values
     # for settings, so let's set it on the config namespace immediately so it's available.
-    setattr(context.config, "image", None)
+    setattr(context.config, "image", "main")
 
     # First, we parse the command line arguments into a separate namespace.
     argparser = create_argument_parser()
@@ -4821,7 +4815,7 @@ def cat_config(images: Sequence[Config]) -> str:
         if n > 0:
             print(file=c)
 
-        print(bold(f"### IMAGE: {config.image or 'default'}"), file=c)
+        print(bold(f"### IMAGE: {config.image}"), file=c)
 
         for path in config.files:
             # Display the paths as relative to ., if underneath.
@@ -4838,10 +4832,10 @@ def summary(config: Config) -> str:
     env = [f"{k}={v}" for k, v in config.environment.items()]
 
     summary = f"""\
-{bold(f"IMAGE: {config.image or 'default'}")}
+{bold(f"IMAGE: {config.image}")}
 """
 
-    if not config.image:
+    if config.image == "main":
         summary += f"""\
 
     {bold("CONFIG")}:
@@ -4975,7 +4969,7 @@ def summary(config: Config) -> str:
                             GPG Key: ({"default" if config.key is None else config.key})
 """
 
-    if not config.image:
+    if config.image == "main":
         summary += f"""\
 
     {bold("BUILD CONFIGURATION")}:
