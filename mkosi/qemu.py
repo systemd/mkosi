@@ -704,12 +704,16 @@ def generate_scratch_fs(config: Config) -> Iterator[Path]:
         yield Path(scratch.name)
 
 
-def finalize_firmware(config: Config, kernel: Optional[Path]) -> Firmware:
+def finalize_firmware(
+    config: Config,
+    kernel: Optional[Path],
+    kerneltype: Optional[KernelType] = None,
+) -> Firmware:
     if config.firmware != Firmware.auto:
         return config.firmware
 
     if kernel:
-        if KernelType.identify(config, kernel) != KernelType.unknown:
+        if (kerneltype or KernelType.identify(config, kernel)) != KernelType.unknown:
             return Firmware.uefi_secure_boot
 
         return Firmware.linux
@@ -1140,9 +1144,10 @@ def run_qemu(args: Args, config: Config) -> None:
     }
 
     qemu = find_qemu_binary(config)
+    qemuver = qemu_version(config, qemu)
 
-    have_kvm = (qemu_version(config, qemu) < QEMU_KVM_DEVICE_VERSION and QemuDeviceNode.kvm.available()) or (
-        qemu_version(config, qemu) >= QEMU_KVM_DEVICE_VERSION and QemuDeviceNode.kvm in qemu_device_fds
+    have_kvm = (qemuver < QEMU_KVM_DEVICE_VERSION and QemuDeviceNode.kvm.available()) or (
+        qemuver >= QEMU_KVM_DEVICE_VERSION and QemuDeviceNode.kvm in qemu_device_fds
     )
     if config.kvm == ConfigFeature.enabled and not have_kvm:
         die("KVM acceleration requested but cannot access /dev/kvm")
@@ -1172,7 +1177,8 @@ def run_qemu(args: Args, config: Config) -> None:
     if kernel and not kernel.exists():
         die(f"Kernel not found at {kernel}")
 
-    firmware = finalize_firmware(config, kernel)
+    kerneltype = KernelType.identify(config, kernel) if kernel else None
+    firmware = finalize_firmware(config, kernel, kerneltype)
 
     if not kernel and (
         firmware == Firmware.linux
@@ -1242,7 +1248,7 @@ def run_qemu(args: Args, config: Config) -> None:
 
     if config.kvm != ConfigFeature.disabled and have_kvm and config.architecture.can_kvm():
         accel = "kvm"
-        if qemu_version(config, qemu) >= QEMU_KVM_DEVICE_VERSION:
+        if qemuver >= QEMU_KVM_DEVICE_VERSION:
             cmdline += ["--add-fd", f"fd={qemu_device_fds[QemuDeviceNode.kvm]},set=1,opaque=/dev/kvm"]
             accel += ",device=/dev/fdset/1"
         cmdline += ["-cpu", "host"]
@@ -1438,11 +1444,7 @@ def run_qemu(args: Args, config: Config) -> None:
 
         if config.output_format == OutputFormat.cpio:
             cmdline += ["-initrd", fname]
-        elif (
-            kernel
-            and KernelType.identify(config, kernel) != KernelType.uki
-            and "-initrd" not in args.cmdline
-        ):
+        elif kernel and kerneltype != KernelType.uki and "-initrd" not in args.cmdline:
             if (config.output_dir_or_cwd() / config.output_split_initrd).exists():
                 cmdline += ["-initrd", config.output_dir_or_cwd() / config.output_split_initrd]
             elif config.initrds:
@@ -1507,10 +1509,7 @@ def run_qemu(args: Args, config: Config) -> None:
 
         kcl += finalize_kernel_command_line_extra(config)
 
-        if kernel and (
-            KernelType.identify(config, kernel) != KernelType.uki
-            or not config.architecture.supports_smbios(firmware)
-        ):
+        if kernel and (kerneltype != KernelType.uki or not config.architecture.supports_smbios(firmware)):
             cmdline += ["-append", " ".join(config.kernel_command_line + kcl)]
         elif config.architecture.supports_smbios(firmware):
             cmdline += [
