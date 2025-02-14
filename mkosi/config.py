@@ -4076,6 +4076,9 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
                 metavar=s.metavar,
                 help=s.help if long == s.long else argparse.SUPPRESS,
                 action=ConfigAction,
+                # TODO: Remove once https://github.com/openSUSE/obs-build/pull/1059 is deployed in OBS.
+                nargs="?" if s.dest == "checksum" else None,
+                const="yes" if s.dest == "checksum" else None,
             )
 
     return parser
