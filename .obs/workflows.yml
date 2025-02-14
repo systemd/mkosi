@@ -1,0 +1,10 @@
+rebuild:
+  steps:
+    - trigger_services:
+        project: system:systemd
+        package: mkosi
+  filters:
+    event: push
+    branches:
+      only:
+        - main
