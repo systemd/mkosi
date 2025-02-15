@@ -2090,10 +2090,12 @@ def install_uki(
     partitions: Sequence[Partition],
     profiles: Sequence[Path],
     cmdline: list[str],
-) -> None:
+) -> dict[str, Any]:
     boot_binary = context.root / finalize_uki_path(
         context, finalize_bootloader_entry_format(context, kver, token, partitions)
     )
+
+    pcrs: dict[str, Any] = {}
 
     # Make sure the parent directory where we'll be writing the UKI exists.
     with umask(~0o700):
@@ -2108,7 +2110,7 @@ def install_uki(
             if context.config.bootable == ConfigFeature.enabled:
                 die(f"Couldn't find a signed UKI binary installed at /usr/lib/modules/{kver} in the image")
 
-            return
+            return pcrs
     else:
         microcodes = finalize_microcode(context)
 
@@ -2116,7 +2118,7 @@ def install_uki(
         if context.config.kernel_modules_initrd:
             initrds += [build_kernel_modules_initrd(context, kver)]
 
-        build_uki(
+        pcrs = build_uki(
             context,
             systemd_stub_binary(context),
             kver,
@@ -2148,6 +2150,8 @@ def install_uki(
             )
 
             f.write("fi\n")
+
+    return pcrs
 
 
 def systemd_addon_stub_binary(context: Context) -> Path:
@@ -2230,15 +2234,22 @@ def install_kernel(context: Context, partitions: Sequence[Partition]) -> None:
     token = find_entry_token(context)
     cmdline = finalize_cmdline(context, partitions, finalize_roothash(partitions))
     profiles = build_uki_profiles(context, cmdline) if want_uki(context) else []
+    # The first processed UKI is the one that will be used as split artifact, so take pcrs from
+    # it and ignore the rest
+    # TODO: we should probably support signing pcrs for all built UKIs
+    pcrs: dict[str, Any] = {}
 
     for kver, kimg in gen_kernel_images(context):
         if want_uki(context):
-            install_uki(context, kver, kimg, token, partitions, profiles, cmdline)
+            pcrs = pcrs or install_uki(context, kver, kimg, token, partitions, profiles, cmdline)
         if not want_uki(context) or want_grub_bios(context, partitions):
             install_type1(context, kver, kimg, token, partitions, cmdline)
 
         if context.config.bootloader.is_uki():
             break
+
+    if ArtifactOutput.pcrs in context.config.split_artifacts and pcrs:
+        (context.staging / context.config.output_split_pcrs).write_text(json.dumps(pcrs))
 
 
 def make_uki(
