@@ -45,7 +45,7 @@ from mkosi.config import (
 from mkosi.log import ARG_DEBUG, die
 from mkosi.partition import finalize_root, find_partitions
 from mkosi.run import AsyncioThread, find_binary, fork_and_wait, run, spawn, workdir
-from mkosi.tree import copy_tree, rmtree
+from mkosi.tree import copy_tree, make_nocow, rmtree
 from mkosi.user import INVOKING_USER, become_root_in_subuid_range, become_root_in_subuid_range_cmd
 from mkosi.util import (
     PathString,
@@ -503,15 +503,6 @@ def vsock_notify_handler() -> Iterator[tuple[str, dict[str, str]]]:
                     logging.debug(f"- {k}={v}")
 
 
-def make_nocow(config: Config, path: Path) -> None:
-    run(
-        ["chattr", "+C", workdir(path)],
-        check=False,
-        stderr=subprocess.DEVNULL if not ARG_DEBUG.get() else None,
-        sandbox=config.sandbox(options=["--bind", path, workdir(path)]),
-    )
-
-
 @contextlib.contextmanager
 def start_journal_remote(config: Config, sockfd: int) -> Iterator[None]:
     assert config.forward_journal
@@ -530,7 +521,7 @@ def start_journal_remote(config: Config, sockfd: int) -> Iterator[None]:
         # at the same time.
         d.mkdir(exist_ok=True, parents=True)
         # Make sure COW is disabled so systemd-journal-remote doesn't complain on btrfs filesystems.
-        make_nocow(config, d)
+        make_nocow(d, sandbox=config.sandbox)
         INVOKING_USER.chown(d)
 
     with tempfile.NamedTemporaryFile(mode="w", prefix="mkosi-journal-remote-config-") as f:
@@ -619,17 +610,6 @@ def copy_ephemeral(config: Config, src: Path) -> Iterator[Path]:
     try:
 
         def copy() -> None:
-            if config.output_format in (OutputFormat.disk, OutputFormat.esp):
-                attr = run(
-                    ["lsattr", "-l", workdir(src)],
-                    sandbox=config.sandbox(options=["--ro-bind", src, workdir(src)]),
-                    stdout=subprocess.PIPE,
-                ).stdout
-
-                if "No_COW" in attr:
-                    tmp.touch()
-                    make_nocow(config, tmp)
-
             copy_tree(
                 src,
                 tmp,
@@ -815,7 +795,7 @@ def finalize_drive(config: Config, drive: Drive) -> Iterator[Path]:
         dir=drive.directory or "/var/tmp",
         prefix=f"mkosi-drive-{drive.id}",
     ) as file:
-        make_nocow(config, Path(file.name))
+        make_nocow(Path(file.name), sandbox=config.sandbox)
         file.truncate(round_up(drive.size, resource.getpagesize()))
         yield Path(file.name)
 
