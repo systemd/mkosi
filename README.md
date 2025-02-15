@@ -79,6 +79,12 @@ when not installed as a zipapp.
 Please note, that the python module exists solely for the usage of the
 mkosi binary and is not to be considered a public API.
 
+## Installing packages from upstream repositories
+
+mkosi packages for Debian, Ubuntu, Fedora and SUSE are built from latest main
+and published as repositories for the respective distributions on OBS.
+[Follow these instructions to enable the appropriate repository](https://software.opensuse.org//download.html?project=system%3Asystemd&package=mkosi).
+
 ## kernel-install plugins
 
 mkosi can also be used as a kernel-install plugin to build initrds and addons.
