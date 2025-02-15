@@ -6,17 +6,15 @@ import sys
 import tempfile
 from pathlib import Path
 
-from mkosi.config import Args, ArtifactOutput, Config
+from mkosi.config import Args, ArtifactOutput, Config, OutputFormat
 from mkosi.log import die
-from mkosi.run import run
+from mkosi.run import run, workdir
+from mkosi.tree import copy_tree
 from mkosi.user import become_root_cmd
-from mkosi.util import PathString
+from mkosi.util import PathString, flatten
 
 
 def run_sysupdate(args: Args, config: Config) -> None:
-    if ArtifactOutput.partitions not in config.split_artifacts:
-        die("SplitArtifacts=partitions must be set to be able to use mkosi sysupdate")
-
     if not config.sysupdate_dir:
         die(
             "No sysupdate definitions directory specified",
@@ -27,7 +25,7 @@ def run_sysupdate(args: Args, config: Config) -> None:
     if not (sysupdate := config.find_binary("systemd-sysupdate", "/usr/lib/systemd/systemd-sysupdate")):
         die("Could not find systemd-sysupdate")
 
-    with tempfile.TemporaryDirectory() as tmp:
+    with tempfile.TemporaryDirectory(prefix="mkosi-tmp", dir=config.output_dir_or_cwd()) as tmp:
         if config.tools() != Path("/"):
             # We explicitly run this without a sandbox, because / has to be the original root mountpoint for
             # bootctl --print-root-device to work properly.
@@ -38,10 +36,48 @@ def run_sysupdate(args: Args, config: Config) -> None:
             # when using a tools tree as in that case the block device detection logic doesn't work properly.
             (Path(tmp) / "volatile-root").symlink_to(blockdev)
 
+        if (
+            config.output_format == OutputFormat.disk
+            and ArtifactOutput.partitions not in config.split_artifacts
+        ):
+            copy_tree(
+                config.output_dir_or_cwd() / config.output_with_format,
+                Path(tmp),
+                sandbox=config.sandbox,
+            )
+
+            if (config.output_dir_or_cwd() / config.output_split_uki).exists():
+                copy_tree(
+                    config.output_dir_or_cwd() / config.output_split_uki,
+                    Path(tmp),
+                    sandbox=config.sandbox,
+                )
+
+            # If we didn't generate split partitions as part of the image build, let's do it now.
+            run(
+                [
+                    "systemd-repart",
+                    "--split=yes",
+                    *([f"--definitions={workdir(d)}" for d in config.repart_dirs]),
+                    workdir(Path(tmp) / config.output_with_format),
+                ],
+                sandbox=config.sandbox(
+                    options=[
+                        "--ro-bind", config.output_dir_or_cwd(), workdir(config.output_dir_or_cwd()),
+                        "--bind", tmp, workdir(Path(tmp)),
+                        *flatten(["--ro-bind", os.fspath(d), workdir(d)] for d in config.repart_dirs),
+                    ],
+                ),
+            )  # fmt: skip
+
+            source = Path(tmp)
+        else:
+            source = config.output_dir_or_cwd()
+
         cmd: list[PathString] = [
             sysupdate,
             "--definitions", config.sysupdate_dir,
-            "--transfer-source", config.output_dir_or_cwd(),
+            "--transfer-source", source,
             *args.cmdline,
         ]  # fmt: skip
 
