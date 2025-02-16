@@ -13,7 +13,7 @@ from pathlib import Path
 from mkosi.config import ConfigFeature
 from mkosi.log import ARG_DEBUG, die
 from mkosi.run import SandboxProtocol, nosandbox, run, workdir
-from mkosi.sandbox import BTRFS_SUPER_MAGIC, OVERLAYFS_SUPER_MAGIC, statfs
+from mkosi.sandbox import BTRFS_SUPER_MAGIC, FS_NOCOW_FL, OVERLAYFS_SUPER_MAGIC, chattr, lsattr, statfs
 from mkosi.util import PathString, flatten
 from mkosi.versioncomp import GenericVersion
 
@@ -79,13 +79,12 @@ def preserve_target_directories_stat(src: Path, dst: Path) -> Iterator[None]:
             shutil.copystat(tmp / d, dst / d)
 
 
-def make_nocow(path: Path, *, sandbox: SandboxProtocol = nosandbox) -> None:
-    run(
-        ["chattr", "+C", workdir(path)],
-        check=False,
-        stderr=subprocess.DEVNULL if not ARG_DEBUG.get() else None,
-        sandbox=sandbox(options=["--bind", path, workdir(path)]),
-    )
+def maybe_make_nocow(path: Path) -> None:
+    try:
+        chattr(os.fspath(path), lsattr(os.fspath(path)))
+    except OSError as e:
+        if e.errno not in (errno.ENOTTY, errno.EOPNOTSUPP, errno.EINVAL):
+            raise
 
 
 def copy_tree(
@@ -117,16 +116,15 @@ def copy_tree(
 
     def copy() -> None:
         if src.is_file():
-            attr = run(
-                ["lsattr", "-l", workdir(src)],
-                sandbox=sandbox(options=["--ro-bind", src, workdir(src)]),
-                stdout=subprocess.PIPE,
-            ).stdout
+            try:
+                attr = lsattr(os.fspath(src))
+            except OSError:
+                attr = 0
 
-            if "No_COW" in attr:
+            if attr & FS_NOCOW_FL:
                 fdst = dst / src.name if dst.is_dir() else dst
                 fdst.touch()
-                make_nocow(fdst, sandbox=sandbox)
+                maybe_make_nocow(fdst)
 
         cmdline: list[PathString] = [
             "cp",

@@ -34,6 +34,8 @@ ENOENT = 2
 ENOSYS = 38
 F_DUPFD = 0
 F_GETFD = 1
+FS_IOC_GETFLAGS = 0x80086601
+FS_NOCOW_FL = 0x00800000
 LINUX_CAPABILITY_U32S_3 = 2
 LINUX_CAPABILITY_VERSION_3 = 0x20080522
 MNT_DETACH = 2
@@ -242,6 +244,39 @@ def seccomp_suppress_chown() -> None:
             libseccomp.seccomp_load(seccomp)
     finally:
         libseccomp.seccomp_release(seccomp)
+
+
+def lsattr(path: str) -> int:
+    attr = ctypes.c_int()
+    r = 0
+
+    fd = os.open(path, os.O_CLOEXEC | os.O_RDONLY)
+
+    libc.ioctl.argtypes = (ctypes.c_int, ctypes.c_long, ctypes.c_void_p)
+    if libc.ioctl(fd, FS_IOC_GETFLAGS, ctypes.byref(attr)) < 0:
+        r = ctypes.get_errno()
+
+    os.close(fd)
+
+    if r != 0:
+        raise OSError(r, os.strerror(r), path)
+
+    return attr.value
+
+
+def chattr(path: str, attr: int) -> None:
+    cattr = ctypes.c_int(attr)
+    fd = os.open(path, os.O_CLOEXEC | os.O_RDONLY)
+    r = 0
+
+    libc.ioctl.argtypes = (ctypes.c_int, ctypes.c_long, ctypes.c_void_p)
+    if libc.ioctl(fd, FS_IOC_GETFLAGS, ctypes.byref(cattr)) < 0:
+        r = ctypes.get_errno()
+
+    os.close(fd)
+
+    if r != 0:
+        raise OSError(r, os.strerror(r), path)
 
 
 def join_new_session_keyring() -> None:
