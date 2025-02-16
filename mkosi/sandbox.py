@@ -35,6 +35,7 @@ ENOSYS = 38
 F_DUPFD = 0
 F_GETFD = 1
 FS_IOC_GETFLAGS = 0x80086601
+FS_IOC_SETFLAGS = 0x40086602
 FS_NOCOW_FL = 0x00800000
 LINUX_CAPABILITY_U32S_3 = 2
 LINUX_CAPABILITY_VERSION_3 = 0x20080522
@@ -270,7 +271,7 @@ def chattr(path: str, attr: int) -> None:
     r = 0
 
     libc.ioctl.argtypes = (ctypes.c_int, ctypes.c_long, ctypes.c_void_p)
-    if libc.ioctl(fd, FS_IOC_GETFLAGS, ctypes.byref(cattr)) < 0:
+    if libc.ioctl(fd, FS_IOC_SETFLAGS, ctypes.byref(cattr)) < 0:
         r = ctypes.get_errno()
 
     os.close(fd)

@@ -81,7 +81,7 @@ def preserve_target_directories_stat(src: Path, dst: Path) -> Iterator[None]:
 
 def maybe_make_nocow(path: Path) -> None:
     try:
-        chattr(os.fspath(path), lsattr(os.fspath(path)))
+        chattr(os.fspath(path), lsattr(os.fspath(path)) | FS_NOCOW_FL)
     except OSError as e:
         if e.errno not in (errno.ENOTTY, errno.EOPNOTSUPP, errno.EINVAL):
             raise
