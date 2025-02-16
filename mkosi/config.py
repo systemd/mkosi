@@ -1207,6 +1207,7 @@ def config_make_path_parser(
     expanduser: bool = True,
     expandvars: bool = True,
     secret: bool = False,
+    absolute: bool = False,
     constants: Sequence[str] = (),
 ) -> ConfigParseCallback[Path]:
     def config_parse_path(value: Optional[str], old: Optional[Path]) -> Optional[Path]:
@@ -1220,6 +1221,7 @@ def config_make_path_parser(
             expanduser=expanduser,
             expandvars=expandvars,
             secret=secret,
+            absolute=absolute,
             constants=constants,
         )
 
@@ -1872,6 +1874,7 @@ class Config:
     initrd_volatile_packages: list[str]
     microcode_host: bool
     devicetree: Optional[Path]
+    splash: Optional[Path]
     kernel_command_line: list[str]
     kernel_modules_include: list[str]
     kernel_modules_exclude: list[str]
@@ -2966,6 +2969,12 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Content",
         parse=config_parse_string,
         help="Devicetree to be used by the booting kernel",
+    ),
+    ConfigSetting(
+        dest="splash",
+        section="Content",
+        parse=config_make_path_parser(required=False, absolute=True),
+        help="Splash screen image to be used by the booting kernel",
     ),
     ConfigSetting(
         dest="kernel_command_line",
@@ -4972,6 +4981,7 @@ def summary(config: Config) -> str:
                     Initrd Packages: {line_join_list(config.initrd_packages)}
            Initrd Volatile Packages: {line_join_list(config.initrd_volatile_packages)}
                          Devicetree: {none_to_none(config.devicetree)}
+                             Splash: {none_to_none(config.splash)}
                 Kernel Command Line: {line_join_list(config.kernel_command_line)}
              Kernel Modules Include: {line_join_list(config.kernel_modules_include)}
              Kernel Modules Exclude: {line_join_list(config.kernel_modules_exclude)}

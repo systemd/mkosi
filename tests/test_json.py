@@ -350,6 +350,7 @@ def test_config() -> None:
                 }
             ],
             "SourceDateEpoch": 12345,
+            "Splash": "/splash",
             "SplitArtifacts": [
                 "uki",
                 "kernel"
@@ -570,6 +571,7 @@ def test_config() -> None:
         sign=False,
         skeleton_trees=[ConfigTree(Path("/foo/bar"), Path("/")), ConfigTree(Path("/bar/baz"), Path("/qux"))],
         source_date_epoch=12345,
+        splash=Path("/splash"),
         split_artifacts=[ArtifactOutput.uki, ArtifactOutput.kernel],
         ssh_certificate=Path("/path/to/cert"),
         ssh_key=None,

@@ -1024,6 +1024,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     specified file relative to common paths where Linux distributions install
     Devicetree files. It should typically have the format `<vendor>/<board>.dtb`.
 
+`Splash=`, `--splash=`
+:   When set, the boot splash for any unified kernel image built by **mkosi** will
+    be picked up from the given path inside the image.
+
 `MicrocodeHost=`, `--microcode-host=`
 :   When set to true only include microcode for the host's CPU in the image.
 

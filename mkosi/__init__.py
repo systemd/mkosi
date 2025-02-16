@@ -1710,6 +1710,11 @@ def build_uki(
         arguments += ["--devicetree", workdir(dtb)]
         options += ["--ro-bind", dtb, workdir(dtb)]
 
+    if context.config.splash:
+        splash = context.root / os.fspath(context.config.splash).lstrip("/")
+        arguments += ["--splash", workdir(splash)]
+        options += ["--ro-bind", splash, workdir(splash)]
+
     if context.config.secure_boot:
         assert context.config.secure_boot_key
         assert context.config.secure_boot_certificate
