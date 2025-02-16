@@ -615,7 +615,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `SplitArtifacts=`, `--split-artifacts=`
 :   The artifact types to split out of the final image. A comma-delimited
-    list consisting of `uki`, `kernel`, `initrd`, `prcs`, `partitions`,
+    list consisting of `uki`, `kernel`, `initrd`, `os-release`, `prcs`, `partitions`,
     `roothash` and `tar`. When building a bootable image `kernel` and `initrd`
     correspond to their artifact found in the image (or in the UKI),
     while `uki` copies out the entire UKI. If `pcrs` is specified, a JSON

@@ -345,8 +345,6 @@ def check_root_populated(context: Context) -> None:
 
 def configure_os_release(context: Context) -> None:
     """Write IMAGE_ID and IMAGE_VERSION to /usr/lib/os-release in the image."""
-    if not (context.config.image_id or context.config.image_version or context.config.hostname):
-        return
 
     if context.config.overlay or context.config.output_format.is_extension_image():
         return
@@ -357,34 +355,38 @@ def configure_os_release(context: Context) -> None:
         if not osrelease.is_file() or osrelease.is_symlink():
             continue
 
-        # at this point we know we will either change or add to the file
-        newosrelease = osrelease.with_suffix(".new")
+        if context.config.image_id or context.config.image_version or context.config.hostname:
+            # at this point we know we will either change or add to the file
+            newosrelease = osrelease.with_suffix(".new")
 
-        image_id_written = image_version_written = default_hostname_written = False
-        with osrelease.open("r") as old, newosrelease.open("w") as new:
-            # fix existing values
-            for line in old.readlines():
-                if context.config.image_id and line.startswith("IMAGE_ID="):
+            image_id_written = image_version_written = default_hostname_written = False
+            with osrelease.open("r") as old, newosrelease.open("w") as new:
+                # fix existing values
+                for line in old.readlines():
+                    if context.config.image_id and line.startswith("IMAGE_ID="):
+                        new.write(f'IMAGE_ID="{context.config.image_id}"\n')
+                        image_id_written = True
+                    elif context.config.image_version and line.startswith("IMAGE_VERSION="):
+                        new.write(f'IMAGE_VERSION="{context.config.image_version}"\n')
+                        image_version_written = True
+                    elif context.config.hostname and line.startswith("DEFAULT_HOSTNAME="):
+                        new.write(f'DEFAULT_HOSTNAME="{context.config.hostname}"\n')
+                        default_hostname_written = True
+                    else:
+                        new.write(line)
+
+                # append if they were missing
+                if context.config.image_id and not image_id_written:
                     new.write(f'IMAGE_ID="{context.config.image_id}"\n')
-                    image_id_written = True
-                elif context.config.image_version and line.startswith("IMAGE_VERSION="):
+                if context.config.image_version and not image_version_written:
                     new.write(f'IMAGE_VERSION="{context.config.image_version}"\n')
-                    image_version_written = True
-                elif context.config.hostname and line.startswith("DEFAULT_HOSTNAME="):
+                if context.config.hostname and not default_hostname_written:
                     new.write(f'DEFAULT_HOSTNAME="{context.config.hostname}"\n')
-                    default_hostname_written = True
-                else:
-                    new.write(line)
 
-            # append if they were missing
-            if context.config.image_id and not image_id_written:
-                new.write(f'IMAGE_ID="{context.config.image_id}"\n')
-            if context.config.image_version and not image_version_written:
-                new.write(f'IMAGE_VERSION="{context.config.image_version}"\n')
-            if context.config.hostname and not default_hostname_written:
-                new.write(f'DEFAULT_HOSTNAME="{context.config.hostname}"\n')
+            newosrelease.rename(osrelease)
 
-        newosrelease.rename(osrelease)
+        if ArtifactOutput.os_release in context.config.split_artifacts:
+            shutil.copy(osrelease, context.staging / context.config.output_split_os_release)
 
 
 def configure_extension_release(context: Context) -> None:
