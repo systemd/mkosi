@@ -98,6 +98,52 @@ class KernelInstallContext:
         )
 
 
+def create_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="mkosi-initrd",
+        description="Build initrds or unified kernel images for the current system using mkosi",
+        allow_abbrev=False,
+        usage="mkosi-initrd [options...]",
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        metavar="NAME",
+        help="Output name",
+        default="initrd",
+    )
+    parser.add_argument(
+        "--kernel-image",
+        metavar="KERNEL_IMAGE",
+        help="Kernel image",
+        type=Path,
+    )
+    parser.add_argument(
+        "-t",
+        "--format",
+        choices=[str(OutputFormat.cpio), str(OutputFormat.uki), str(OutputFormat.directory)],
+        help="Output format (CPIO archive, UKI or local directory)",
+        default="cpio",
+    )
+    parser.add_argument(
+        "-g",
+        "--generic",
+        help="Build a generic initrd without host-specific kernel modules",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
+        "--profile",
+        choices=InitrdProfile.values(),
+        help="Which profiles to enable for the initrd",
+        action="append",
+        default=[],
+    )
+
+    initrd_common_args(parser)
+    return parser
+
+
 def process_crypttab(staging_dir: str) -> list[str]:
     cmdline = []
 
@@ -210,50 +256,7 @@ def include_system_config(name: str) -> list[str]:
 def main() -> None:
     log_setup()
 
-    parser = argparse.ArgumentParser(
-        prog="mkosi-initrd",
-        description="Build initrds or unified kernel images for the current system using mkosi",
-        allow_abbrev=False,
-        usage="mkosi-initrd [options...]",
-    )
-    parser.add_argument(
-        "-o",
-        "--output",
-        metavar="NAME",
-        help="Output name",
-        default="initrd",
-    )
-    parser.add_argument(
-        "--kernel-image",
-        metavar="KERNEL_IMAGE",
-        help="Kernel image",
-        type=Path,
-    )
-    parser.add_argument(
-        "-t",
-        "--format",
-        choices=[str(OutputFormat.cpio), str(OutputFormat.uki), str(OutputFormat.directory)],
-        help="Output format (CPIO archive, UKI or local directory)",
-        default="cpio",
-    )
-    parser.add_argument(
-        "-g",
-        "--generic",
-        help="Build a generic initrd without host-specific kernel modules",
-        action="store_true",
-        default=False,
-    )
-    parser.add_argument(
-        "--profile",
-        choices=InitrdProfile.values(),
-        help="Which profiles to enable for the initrd",
-        action="append",
-        default=[],
-    )
-
-    initrd_common_args(parser)
-
-    args = parser.parse_args()
+    args = create_parser().parse_args()
 
     if args.show_documentation:
         with resource_path(mkosi.resources) as r:
