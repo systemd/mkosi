@@ -79,6 +79,15 @@ def preserve_target_directories_stat(src: Path, dst: Path) -> Iterator[None]:
             shutil.copystat(tmp / d, dst / d)
 
 
+def make_nocow(path: Path, *, sandbox: SandboxProtocol = nosandbox) -> None:
+    run(
+        ["chattr", "+C", workdir(path)],
+        check=False,
+        stderr=subprocess.DEVNULL if not ARG_DEBUG.get() else None,
+        sandbox=sandbox(options=["--bind", path, workdir(path)]),
+    )
+
+
 def copy_tree(
     src: Path,
     dst: Path,
@@ -107,6 +116,18 @@ def copy_tree(
             attrs += ",xattr"
 
     def copy() -> None:
+        if src.is_file():
+            attr = run(
+                ["lsattr", "-l", workdir(src)],
+                sandbox=sandbox(options=["--ro-bind", src, workdir(src)]),
+                stdout=subprocess.PIPE,
+            ).stdout
+
+            if "No_COW" in attr:
+                fdst = dst / src.name if dst.is_dir() else dst
+                fdst.touch()
+                make_nocow(fdst, sandbox=sandbox)
+
         cmdline: list[PathString] = [
             "cp",
             "--recursive",

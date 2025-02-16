@@ -3770,7 +3770,9 @@ def setup_workspace(args: Args, config: Config) -> Iterator[Path]:
         workspace = Path(tempfile.mkdtemp(dir=config.workspace_dir_or_default(), prefix="mkosi-workspace-"))
         # Discard setuid/setgid bits as these are inherited and can leak into the image.
         workspace.chmod(stat.S_IMODE(workspace.stat().st_mode) & ~(stat.S_ISGID | stat.S_ISUID))
-        stack.callback(lambda: rmtree(workspace, sandbox=config.sandbox))
+        # Explicitly pass the "root" subdirectory first because on btrfs it's likely a subvolume and this
+        # allows us to delete it with btrfs subvolume delete instead of a costly rm -rf.
+        stack.callback(lambda: rmtree(workspace / "root", workspace, sandbox=config.sandbox))
         (workspace / "tmp").mkdir(mode=0o1777)
 
         with scopedenv({"TMPDIR": os.fspath(workspace / "tmp")}):
@@ -4015,9 +4017,6 @@ def build_image(context: Context) -> None:
 
     run_postoutput_scripts(context)
     finalize_staging(context)
-
-    if not context.args.debug_workspace:
-        rmtree(context.root, sandbox=context.sandbox)
 
     print_output_size(context.config.output_dir_or_cwd() / context.config.output_with_compression)
 
