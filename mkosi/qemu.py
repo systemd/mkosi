@@ -45,7 +45,7 @@ from mkosi.config import (
 from mkosi.log import ARG_DEBUG, die
 from mkosi.partition import finalize_root, find_partitions
 from mkosi.run import AsyncioThread, find_binary, fork_and_wait, run, spawn, workdir
-from mkosi.tree import copy_tree, make_nocow, rmtree
+from mkosi.tree import copy_tree, maybe_make_nocow, rmtree
 from mkosi.user import INVOKING_USER, become_root_in_subuid_range, become_root_in_subuid_range_cmd
 from mkosi.util import (
     PathString,
@@ -521,7 +521,7 @@ def start_journal_remote(config: Config, sockfd: int) -> Iterator[None]:
         # at the same time.
         d.mkdir(exist_ok=True, parents=True)
         # Make sure COW is disabled so systemd-journal-remote doesn't complain on btrfs filesystems.
-        make_nocow(d, sandbox=config.sandbox)
+        maybe_make_nocow(d)
         INVOKING_USER.chown(d)
 
     with tempfile.NamedTemporaryFile(mode="w", prefix="mkosi-journal-remote-config-") as f:
@@ -799,7 +799,7 @@ def finalize_drive(config: Config, drive: Drive) -> Iterator[Path]:
         dir=drive.directory or "/var/tmp",
         prefix=f"mkosi-drive-{drive.id}",
     ) as file:
-        make_nocow(Path(file.name), sandbox=config.sandbox)
+        maybe_make_nocow(Path(file.name))
         file.truncate(round_up(drive.size, resource.getpagesize()))
         yield Path(file.name)
 
