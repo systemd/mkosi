@@ -251,7 +251,7 @@ def main() -> None:
             "--extra-tree", f"/usr/lib/modules/{args.kernel_version}:/usr/lib/modules/{args.kernel_version}",
             "--extra-tree=/usr/lib/firmware:/usr/lib/firmware",
             "--remove-files=/usr/lib/firmware/*-ucode",
-            "--kernel-modules-exclude=.*",
+            "--kernel-modules-exclude-glob=*",
             "--build-sources", "",
             "--include=mkosi-initrd",
         ]  # fmt: skip

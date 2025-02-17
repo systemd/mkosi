@@ -54,7 +54,7 @@ def main() -> None:
             "--extra-tree",
             f"/usr/lib/modules/{args.kernel_version}:/usr/lib/modules/{args.kernel_version}",
             "--extra-tree=/usr/lib/firmware:/usr/lib/firmware",
-            "--kernel-modules-exclude=.*",
+            "--kernel-modules-exclude-glob=*",
         ]  # fmt: skip
 
         if args.debug:
