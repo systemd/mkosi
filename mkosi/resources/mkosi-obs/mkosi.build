@@ -58,6 +58,23 @@ while read -r SIG; do
     fi
 
     rm -f "$(basename "${infile}").sattrs" "$SIG" "$infile"
+
+    # If there is a DDI with an ESP, add the UKI to it
+    if [ -f "${DEST%efi}raw" ] || [ -f "${DEST%efi}raw.zst" ]; then
+        if [ -f "${DEST%efi}raw.zst" ]; then
+            unzstd "${DEST%efi}raw.zst"
+        fi
+        offset="$(systemd-repart --json=short "${DEST%efi}raw" | jq -r '.[] | select(.type == "esp") | .offset')"
+        if [ "$offset" = "null" ]; then
+            rm -f "${DEST%efi}raw"
+            continue
+        fi
+        mcopy -o -i "${DEST%efi}raw@@${offset}" "$DEST" "::EFI/Linux/$(basename "$DEST")"
+        if [ -f "${DEST%efi}raw.zst" ]; then
+            zstd --force "${DEST%efi}raw"
+            rm -f "${DEST%efi}raw"
+        fi
+    fi
 done < <(find hashes/ukis hashes/kernels -type f \( -name '*efi.sig' -o -name 'vmlinu*.sig' \) -printf '%P\n')
 rm -rf nss-db "$OUTPUTDIR"/*.sig hashes/ukis
 
