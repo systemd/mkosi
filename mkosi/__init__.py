@@ -2764,10 +2764,11 @@ def check_tools(config: Config, verb: Verb) -> None:
         if (
             want_efi(config) or config.output_format in (OutputFormat.uki, OutputFormat.esp)
         ) and config.unified_kernel_image_profiles:
+            # TODO: bump version to 258 once it is released
             check_ukify(
                 config,
                 version=(
-                    "258~devel"
+                    "257.999"
                     if any(not profile.sign_expected_pcr for profile in config.unified_kernel_image_profiles)
                     else "257"
                 ),
