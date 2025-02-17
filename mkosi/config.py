@@ -2406,6 +2406,12 @@ def parse_ini(path: Path, only_sections: Collection[str] = ()) -> Iterator[tuple
         yield section, "", ""
 
 
+def parse_kernel_module_filter_regexp(p: str) -> str:
+    if p in ("default", "host"):
+        return p
+    return f"re:{p}"
+
+
 UKI_PROFILE_SETTINGS: list[ConfigSetting[Any]] = [
     ConfigSetting(
         dest="profile",
@@ -3024,8 +3030,30 @@ SETTINGS: list[ConfigSetting[Any]] = [
         dest="kernel_modules_include",
         metavar="REGEX",
         section="Content",
-        parse=config_make_list_parser(delimiter=","),
+        parse=config_make_list_parser(
+            delimiter=",",
+            parse=parse_kernel_module_filter_regexp,
+        ),
         help="Include the specified kernel modules in the image",
+    ),
+    ConfigSetting(
+        dest="kernel_modules_exclude",
+        metavar="REGEX",
+        section="Content",
+        parse=config_make_list_parser(
+            delimiter=",",
+            parse=parse_kernel_module_filter_regexp,
+        ),
+        help="Exclude the specified kernel modules from the image",
+    ),
+    ConfigSetting(
+        dest="kernel_modules_include",
+        name="KernelModules",
+        long="--kernel-modules",
+        metavar="GLOB",
+        section="Content",
+        parse=config_make_list_parser(delimiter=","),
+        help="Include/exclude the specified kernel modules in the image",
     ),
     ConfigSetting(
         dest="kernel_modules_include_host",
@@ -3033,13 +3061,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Content",
         parse=config_parse_boolean,
         help="Include the currently loaded modules on the host in the image",
-    ),
-    ConfigSetting(
-        dest="kernel_modules_exclude",
-        metavar="REGEX",
-        section="Content",
-        parse=config_make_list_parser(delimiter=","),
-        help="Exclude the specified kernel modules from the image",
     ),
     ConfigSetting(
         dest="kernel_modules_initrd",
@@ -3053,8 +3074,30 @@ SETTINGS: list[ConfigSetting[Any]] = [
         dest="kernel_modules_initrd_include",
         metavar="REGEX",
         section="Content",
-        parse=config_make_list_parser(delimiter=","),
+        parse=config_make_list_parser(
+            delimiter=",",
+            parse=parse_kernel_module_filter_regexp,
+        ),
         help="When building a kernel modules initrd, include the specified kernel modules",
+    ),
+    ConfigSetting(
+        dest="kernel_modules_initrd_exclude",
+        metavar="REGEX",
+        section="Content",
+        parse=config_make_list_parser(
+            delimiter=",",
+            parse=parse_kernel_module_filter_regexp,
+        ),
+        help="When building a kernel modules initrd, exclude the specified kernel modules",
+    ),
+    ConfigSetting(
+        dest="kernel_modules_initrd_include",
+        name="KernelInitrdModules",
+        long="--kernel-initrd-modules",
+        metavar="GLOB",
+        section="Content",
+        parse=config_make_list_parser(delimiter=","),
+        help="Include/exclude modules in the initrd",
     ),
     ConfigSetting(
         dest="kernel_modules_initrd_include_host",
@@ -3063,13 +3106,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
         parse=config_parse_boolean,
         help="When building a kernel modules initrd, include the currently loaded modules "
         "on the host in the image",
-    ),
-    ConfigSetting(
-        dest="kernel_modules_initrd_exclude",
-        metavar="REGEX",
-        section="Content",
-        parse=config_make_list_parser(delimiter=","),
-        help="When building a kernel modules initrd, exclude the specified kernel modules",
     ),
     ConfigSetting(
         dest="firmware_include",
@@ -4003,6 +4039,11 @@ SETTINGS: list[ConfigSetting[Any]] = [
 ]
 SETTINGS_LOOKUP_BY_NAME = {name: s for s in SETTINGS for name in [s.name, *s.compat_names]}
 SETTINGS_LOOKUP_BY_DEST = {s.dest: s for s in SETTINGS}
+SETTINGS_LOOKUP_BY_OPTION = {
+    name: s
+    for s in SETTINGS
+    for name in [s.long, *s.compat_longs, s.short] if name
+}  # fmt: skip
 SETTINGS_LOOKUP_BY_SPECIFIER = {s.specifier: s for s in SETTINGS if s.specifier}
 
 MATCHES = (
@@ -4304,7 +4345,9 @@ class ConfigAction(argparse.Action):
     ) -> None:
         assert option_string is not None
 
-        s = SETTINGS_LOOKUP_BY_DEST[self.dest]
+        # For options that have the same dest, try to figure out the right
+        # option by matching the option name
+        s = SETTINGS_LOOKUP_BY_OPTION[self.option_strings[0]]
 
         if values is None or isinstance(values, str):
             values = [values]
@@ -5048,14 +5091,14 @@ def summary(config: Config) -> str:
                          Devicetree: {none_to_none(config.devicetree)}
                              Splash: {none_to_none(config.splash)}
                 Kernel Command Line: {line_join_list(config.kernel_command_line)}
-             Kernel Modules Include: {line_join_list(config.kernel_modules_include)}
+                     Kernel Modules: {line_join_list(config.kernel_modules_include)}
              Kernel Modules Exclude: {line_join_list(config.kernel_modules_exclude)}
         Kernel Modules Include Host: {yes_no(config.kernel_modules_include_host)}
                    Firmware Include: {line_join_list(config.firmware_include)}
                    Firmware Exclude: {line_join_list(config.firmware_exclude)}
 
               Kernel Modules Initrd: {yes_no(config.kernel_modules_initrd)}
-      Kernel Modules Initrd Include: {line_join_list(config.kernel_modules_initrd_include)}
+              Kernel Initrd Modules: {line_join_list(config.kernel_modules_initrd_include)}
       Kernel Modules Initrd Exclude: {line_join_list(config.kernel_modules_initrd_exclude)}
  Kernel Modules Initrd Include Host: {yes_no(config.kernel_modules_initrd_include_host)}
 
