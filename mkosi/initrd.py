@@ -197,6 +197,7 @@ def initrd_finalize(staging_dir: str, output: str, output_dir: str) -> None:
 
 def initrd_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
+        "-k",
         "--kernel-version",
         metavar="KERNEL_VERSION",
         help="Kernel version string",
