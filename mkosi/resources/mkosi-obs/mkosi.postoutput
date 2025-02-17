@@ -46,10 +46,17 @@ for f in "${KERNELS[@]}"; do
     pesign --force -n sql:"$nss_db" -i "${OUTPUTDIR}/${f}" -E "hashes/kernels/$f"
 done
 
+repart_dir="$(jq -r '.RepartDirectories[-1]' "$MKOSI_CONFIG")"
 for f in "${ROOTHASHES[@]}"; do
     test -f "${OUTPUTDIR}/${f}" || continue
     mkdir -p hashes/roothashes
     cp "${OUTPUTDIR}/$f" hashes/roothashes/
+    # If we have a DDI to operate on, we need the repart definitions, so save the configs across to the next stage
+    if [ "$repart_dir" != "null" ]; then
+        pushd "$repart_dir" 2>/dev/null
+        tar cf "$OUTPUTDIR/${f%roothash}repart.tar" ./*
+        popd 2>/dev/null
+    fi
 done
 
 # Pack everything into a CPIO archive and place it where OBS expects it

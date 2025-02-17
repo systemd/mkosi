@@ -129,4 +129,46 @@ if [ -d hashes/ukis ]; then
     echo "Staging the following files for signing:"
     cpio -t <"$OUTPUTDIR/hashes.cpio.rsasign"
 fi
+
+# Fifth step: finalize any DDI by attaching the verity roothash signatures
+while read -r SIG; do
+    test -f "/usr/src/packages/SOURCES/$(basename "${SIG%roothash.sig}repart.tar")" || continue
+
+    PATH=/usr/lib/systemd/:$PATH systemd-keyutil --help | grep -q 'pkcs7' || break
+    PATH=/usr/lib/systemd/:$PATH systemd-keyutil --certificate /usr/src/packages/SOURCES/_projectcert.crt --output "${SIG%sig}p7s" --signature "$SIG" pkcs7
+
+    mkdir -p mkosi.repart
+    tar xf "/usr/src/packages/SOURCES/$(basename "${SIG%roothash.sig}repart.tar")" -C mkosi.repart
+    rm -f "$OUTPUTDIR/$(basename "${SIG%roothash.sig}repart.tar")"
+    if [ -f "$OUTPUTDIR/$(basename "${SIG%roothash.sig}raw.zst")" ]; then
+        recompress=1
+        unzstd "$OUTPUTDIR/$(basename "${SIG%roothash.sig}raw.zst")"
+    fi
+
+    ARGS=(
+        --join-signature "$(cat "${SIG%.sig}"):${SIG%sig}p7s" \
+        --certificate /usr/src/packages/SOURCES/_projectcert.crt \
+        --definitions mkosi.repart \
+        --dry-run=no \
+        "$OUTPUTDIR/$(basename "${SIG%roothash.sig}raw")"
+    )
+
+    # sd-repart might be configured to create labels based on os-release fields. Due to the
+    # mkosi sandbox we cannot use --image, so we need to provide the os-release file manually
+    # via --root
+    if [ -f "/usr/src/packages/SOURCES/$(basename "${SIG%roothash.sig}osrelease")" ]; then
+        mkdir -p mkosi.repart/usr/lib
+        cp "/usr/src/packages/SOURCES/$(basename "${SIG%roothash.sig}osrelease")" mkosi.repart/usr/lib/os-release
+        ARGS+=(--root="$PWD"/mkosi.repart)
+    fi
+    systemd-repart "${ARGS[@]}"
+    rm -rf mkosi.repart
+
+    if ((recompress)); then
+        zstd --force "$OUTPUTDIR/$(basename "${SIG%roothash.sig}raw")"
+        rm -f "$OUTPUTDIR/$(basename "${SIG%roothash.sig}raw")"
+    fi
+done < <(find hashes/roothashes -type f -name '*.sig')
+rm -rf hashes/roothashes
+
 rm -rf hashes "$nss_db"
