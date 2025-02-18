@@ -1849,7 +1849,7 @@ def systemd_stub_version(context: Context, stub: Path) -> Optional[GenericVersio
 
     if not (
         version := re.match(
-            r"#### LoaderInfo: systemd-stub (?P<version>[.~^a-zA-Z0-9-+]+) ####", sdmagic_text
+            r"#### LoaderInfo: systemd-stub (?P<version>[.~^a-zA-Z0-9-+_]+) ####", sdmagic_text
         )
     ):
         die(f"Unable to determine systemd-stub version, found {sdmagic_text!r}")
