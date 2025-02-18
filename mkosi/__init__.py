@@ -2036,13 +2036,12 @@ def install_type1(
             f.write("fi\n")
 
 
-def expand_kernel_specifiers(text: str, kver: str, token: str, roothash: str, boot_count: str) -> str:
+def expand_kernel_specifiers(text: str, kver: str, token: str, roothash: str) -> str:
     specifiers = {
         "&": "&",
         "e": token,
         "k": kver,
         "h": roothash,
-        "c": boot_count,
     }
 
     return expand_delayed_specifiers(specifiers, text)
@@ -2063,19 +2062,11 @@ def finalize_bootloader_entry_format(
         if not context.config.unified_kernel_image_format:
             bootloader_entry_format += "-&h"
 
-    boot_count = ""
-    if (context.root / "etc/kernel/tries").exists():
-        boot_count = (context.root / "etc/kernel/tries").read_text().strip()
-
-        if not context.config.unified_kernel_image_format:
-            bootloader_entry_format += "+&c"
-
     return expand_kernel_specifiers(
         bootloader_entry_format,
         kver=kver,
         token=token,
         roothash=roothash_value,
-        boot_count=boot_count,
     )
 
 

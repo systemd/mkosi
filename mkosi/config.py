@@ -2921,8 +2921,8 @@ SETTINGS: list[ConfigSetting[Any]] = [
             "requires a filename with no path components."
         ),
         # The default value is set in `__init__.py` in `install_uki`.
-        # `None` is used to determine if the roothash and boot count format
-        # should be appended to the filename if they are found.
+        # `None` is used to determine if the roothash should be appended
+        # to the filename if they are found.
         # default=
         help="Specify the format used for the UKI filename",
     ),

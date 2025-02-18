@@ -987,7 +987,6 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     | `&e`      | Entry Token                                        |
     | `&k`      | Kernel version                                     |
     | `&h`      | `roothash=` or `usrhash=` value of kernel argument |
-    | `&c`      | Number of tries used for boot attempt counting     |
 
 `UnifiedKernelImageProfiles=`, `--uki-profile=`
 :   Build additional UKI profiles. Takes a comma-separated list of paths
