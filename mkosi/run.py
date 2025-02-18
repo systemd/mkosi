@@ -227,6 +227,7 @@ def spawn(
 
         try:
             yield proc
+            proc.wait()
         except KeyboardInterrupt:
             proc.send_signal(signal.SIGINT)
             raise
