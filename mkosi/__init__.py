@@ -4949,7 +4949,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
             resources=resources,
         )
 
-        for p in deps.packages:
+        for p in sorted(deps.packages):
             print(p)
 
         return
