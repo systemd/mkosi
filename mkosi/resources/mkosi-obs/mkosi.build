@@ -40,6 +40,7 @@ rm -f "$OUTPUTDIR/hashes.cpio.rsasign*" "$OUTPUTDIR"/*.sha*
 # First step: if there are UKI signatures, attach them
 while read -r SIG; do
     infile="${SIG%.sig}"
+    test -f "/usr/src/packages/SOURCES/$infile" || continue
     sattrs="hashes/ukis/${SIG%.sig}"
     test -s "$sattrs"
 
