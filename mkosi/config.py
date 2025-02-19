@@ -5195,7 +5195,7 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
 
     def enum_list_transformer(enumlist: list[str], fieldtype: type[list[E]]) -> list[E]:
         enumtype = fieldtype.__args__[0]  # type: ignore
-        return [enumtype[e] for e in enumlist]
+        return [enumtype(e) for e in enumlist]
 
     def config_drive_transformer(drives: list[dict[str, Any]], fieldtype: type[Drive]) -> list[Drive]:
         # TODO: exchange for TypeGuard and list comprehension once on 3.10
