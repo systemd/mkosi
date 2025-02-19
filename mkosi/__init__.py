@@ -4489,6 +4489,7 @@ def finalize_default_tools(config: Config, *, resources: Path) -> Config:
         "--directory", "",
         "--distribution", str(config.tools_tree_distribution),
         *(["--release", config.tools_tree_release] if config.tools_tree_release else []),
+        *([f"--profile={profile}" for profile in config.tools_tree_profiles]),
         *(["--mirror", config.tools_tree_mirror] if config.tools_tree_mirror else []),
         *([f"--repositories={repository}" for repository in config.tools_tree_repositories]),
         *([f"--sandbox-tree={tree}" for tree in config.tools_tree_sandbox_trees]),
@@ -4945,11 +4946,11 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
 
     if args.verb == Verb.dependencies:
         _, [deps] = parse_config(
-            ["--directory", "", "--repositories", "", "--include=mkosi-tools", "build"],
+            ["--directory", "", "--repositories", "", *args.cmdline, "--include=mkosi-tools", "build"],
             resources=resources,
         )
 
-        for p in deps.packages:
+        for p in sorted(deps.packages):
             print(p)
 
         return

@@ -30,6 +30,8 @@ mkosi — Build Bespoke OS Images
 
 `mkosi [options…] sandbox [-- command line…]`
 
+`mkosi [options…] dependencies [-- options…]`
+
 `mkosi [options…] clean`
 
 `mkosi [options…] serve`
@@ -43,8 +45,6 @@ mkosi — Build Bespoke OS Images
 `mkosi [options…] documentation [manual]`
 
 `mkosi [options…] completion [shell]`
-
-`mkosi [options…] dependencies`
 
 `mkosi [options…] help`
 
@@ -202,6 +202,14 @@ The following command line verbs are known:
     ```sh
     mkosi dependencies | xargs -d '\n' dnf install
     ```
+
+    By default, only the dependencies required to build images with
+    mkosi are shown. Extra tools tree profiles can be enabled to also
+    output the packages belonging to those profiles. For example,
+    running `mkosi dependencies -- --profile runtime` will also output
+    the packages in the runtime profile on top of the regular packages.
+    See the documentation for `ToolsTreeProfiles=` for a list of
+    available profiles.
 
 `help`
 :   This verb is equivalent to the `--help` switch documented below: it
@@ -1349,6 +1357,18 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   Set the distribution release to use for the default tools tree. By
     default, the hardcoded default release in **mkosi** for the distribution
     is used.
+
+`ToolsTreeProfiles=`, `--tools-tree-profile=`
+:   Set the profiles to enable for the default tools tree. Takes a
+    comma-delimited list consisting of `misc`, `package-manager` and
+    `runtime`. By default, all profiles are enabled.
+
+    The `misc` profile contains various useful tools that are handy to
+    have available in scripts. The package manager profile contains
+    package managers and related tools other than those native to the
+    tools tree distribution. The `runtime` profile contains the tools
+    required to boot images in a systemd-nspawn container or in a
+    virtual machine.
 
 `ToolsTreeMirror=`, `--tools-tree-mirror=`
 :   Set the mirror to use for the default tools tree. By default, the
