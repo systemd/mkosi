@@ -96,6 +96,7 @@ class Verb(StrEnum):
             Verb.documentation,
             Verb.sysupdate,
             Verb.sandbox,
+            Verb.dependencies,
         )
 
     def needs_build(self) -> bool:
@@ -591,6 +592,12 @@ class ArtifactOutput(StrEnum):
             ArtifactOutput.initrd,
             ArtifactOutput.partitions,
         ]
+
+
+class ToolsTreeProfile(StrEnum):
+    misc = enum.auto()
+    package_manager = enum.auto()
+    runtime = enum.auto()
 
 
 def expand_delayed_specifiers(specifiers: dict[str, str], text: str) -> str:
@@ -1928,6 +1935,7 @@ class Config:
     tools_tree: Optional[Path]
     tools_tree_distribution: Optional[Distribution]
     tools_tree_release: Optional[str]
+    tools_tree_profiles: list[ToolsTreeProfile]
     tools_tree_mirror: Optional[str]
     tools_tree_repositories: list[str]
     tools_tree_sandbox_trees: list[ConfigTree]
@@ -3361,6 +3369,16 @@ SETTINGS: list[ConfigSetting[Any]] = [
         help="Set the release to use for the default tools tree",
     ),
     ConfigSetting(
+        dest="tools_tree_profiles",
+        long="--tools-tree-profile",
+        metavar="PROFILE",
+        section="Build",
+        parse=config_make_list_parser(delimiter=",", parse=make_enum_parser(ToolsTreeProfile)),
+        choices=ToolsTreeProfile.values(),
+        default=list(ToolsTreeProfile),
+        help="Which profiles to enable for the default tools tree",
+    ),
+    ConfigSetting(
         dest="tools_tree_mirror",
         metavar="MIRROR",
         section="Build",
@@ -4033,6 +4051,7 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
                 mkosi [options…] {b}coredumpctl{e}   [-- command line…]
                 mkosi [options…] {b}sysupdate{e}     [-- command line…]
                 mkosi [options…] {b}sandbox{e}       [-- command line…]
+                mkosi [options…] {b}dependencies{e}  [-- options…]
                 mkosi [options…] {b}clean{e}
                 mkosi [options…] {b}serve{e}
                 mkosi [options…] {b}burn{e}          [device]
@@ -4040,7 +4059,6 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
                 mkosi [options…] {b}genkey{e}
                 mkosi [options…] {b}documentation{e} [manual]
                 mkosi [options…] {b}completion{e}    [shell]
-                mkosi [options…] {b}dependencies{e}
                 mkosi [options…] {b}help{e}
                 mkosi -h | --help
                 mkosi --version
@@ -5056,6 +5074,7 @@ def summary(config: Config) -> str:
                          Tools Tree: {config.tools_tree}
             Tools Tree Distribution: {none_to_none(config.tools_tree_distribution)}
                  Tools Tree Release: {none_to_none(config.tools_tree_release)}
+                Tools Tree Profiles: {line_join_list(config.tools_tree_profiles)}
                   Tools Tree Mirror: {none_to_default(config.tools_tree_mirror)}
             Tools Tree Repositories: {line_join_list(config.tools_tree_repositories)}
            Tools Tree Sandbox Trees: {line_join_list(config.tools_tree_sandbox_trees)}
@@ -5290,6 +5309,7 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         Vmm: enum_transformer,
         list[UKIProfile]: uki_profile_transformer,
         list[ArtifactOutput]: enum_list_transformer,
+        list[ToolsTreeProfile]: enum_list_transformer,
         CertificateSource: certificate_source_transformer,
         ConsoleMode: enum_transformer,
         Verity: enum_transformer,

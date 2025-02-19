@@ -34,6 +34,7 @@ from mkosi.config import (
     OutputFormat,
     SecureBootSignTool,
     ShimBootloader,
+    ToolsTreeProfile,
     UKIProfile,
     Verb,
     Verity,
@@ -376,6 +377,9 @@ def test_config() -> None:
             "ToolsTreePrepareScripts": [
                 "/prepare"
             ],
+            "ToolsTreeProfiles": [
+                "misc"
+            ],
             "ToolsTreeRelease": null,
             "ToolsTreeRepositories": [
                 "abc"
@@ -586,6 +590,7 @@ def test_config() -> None:
         tools_tree_package_directories=[Path("/abc")],
         tools_tree_packages=[],
         tools_tree_prepare_scripts=[Path("/prepare")],
+        tools_tree_profiles=[ToolsTreeProfile.misc],
         tools_tree_release=None,
         tools_tree_repositories=["abc"],
         tools_tree_sandbox_trees=[ConfigTree(Path("/a/b/c"), Path("/"))],
