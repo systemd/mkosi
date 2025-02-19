@@ -4640,7 +4640,8 @@ class ParseContext:
 
 def have_history(args: Args) -> bool:
     return (
-        args.verb.needs_build()
+        args.directory is not None
+        and args.verb.needs_build()
         and args.verb != Verb.build
         and not args.force
         and Path(".mkosi-private/history/latest.json").exists()
