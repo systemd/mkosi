@@ -4354,6 +4354,7 @@ class ParseContext:
                 _, [config] = parse_config(
                     ["--directory", "", "--include", os.fspath(path)],
                     only_sections=self.only_sections,
+                    resources=self.resources,
                 )
                 make_executable(
                     *config.configure_scripts,
