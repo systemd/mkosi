@@ -10,11 +10,11 @@
 set -e
 
 declare -a UKIS
-UKIS=( "$(find "$OUTPUTDIR" -type f -name "*.efi" -printf '%P\n')" )
+mapfile -t UKIS < <(find "$OUTPUTDIR" -type f -name "*.efi" -printf '%P\n')
 declare -a KERNELS
-KERNELS=( "$(find "$OUTPUTDIR" -type f -name "vmlinu*" -printf '%P\n')" )
+mapfile -t KERNELS < <(find "$OUTPUTDIR" -type f -name "vmlinu*" -printf '%P\n')
 declare -a ROOTHASHES
-ROOTHASHES=( "$(find "$OUTPUTDIR" -type f -name "*.roothash" -printf '%P\n')" )
+mapfile -t ROOTHASHES < <(find "$OUTPUTDIR" -type f -name "*.roothash" -printf '%P\n')
 
 if ((${#UKIS[@]} == 0)) && ((${#KERNELS[@]} == 0)) && ((${#ROOTHASHES[@]} == 0)); then
     echo "No unsigned files found, exiting"
