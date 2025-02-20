@@ -58,7 +58,7 @@ class PackageManager:
                 "hostonly_l": "no",
             }
 
-        return context.config.environment | env
+        return context.config.finalize_environment() | env
 
     @classmethod
     def env_cmd(cls, context: Context) -> list[PathString]:
