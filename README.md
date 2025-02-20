@@ -4,8 +4,9 @@ A fancy wrapper around `dnf --installroot`, `apt`, `pacman`
 and `zypper` that generates customized disk images with a number of
 bells and whistles.
 
-For a longer description and available features and options, see the
-[man page](mkosi/resources/man/mkosi.1.md).
+For a longer description and available features and options, see the [man
+page](mkosi/resources/man/mkosi.1.md) or run `mkosi documentation`. When
+getting started see the `EXAMPLES` section.
 
 <a href="https://repology.org/project/mkosi/versions">
     <img align="right" src="https://repology.org/badge/vertical-allrepos/mkosi.svg?exclude_sources=site&exclude_unsupported=1" alt="Packaging status">
