@@ -1132,7 +1132,7 @@ def install_sandbox_trees(config: Config, dst: Path) -> None:
     if Path("/etc/passwd").exists():
         shutil.copy("/etc/passwd", dst / "etc/passwd")
     if Path("/etc/group").exists():
-        shutil.copy("/etc/passwd", dst / "etc/group")
+        shutil.copy("/etc/group", dst / "etc/group")
 
     if not (dst / "etc/mtab").is_symlink():
         (dst / "etc/mtab").symlink_to("../proc/self/mounts")
