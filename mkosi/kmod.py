@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
+import fnmatch
 import itertools
 import logging
 import os
@@ -17,10 +18,25 @@ from mkosi.util import chdir, parents_below
 
 def loaded_modules() -> list[str]:
     # Loaded modules are listed with underscores but the filenames might use dashes instead.
-    return [
-        rf"/{line.split()[0].replace('_', '[_-]')}\.ko"
-        for line in Path("/proc/modules").read_text().splitlines()
-    ]
+    return [normalize_module_name(line.split()[0])
+            for line in Path("/proc/modules").read_text().splitlines()]
+
+
+def globs_match_module(name, globs):
+    # Strip '.ko' suffix and an optional compression suffix
+    name = re.sub(r'\.ko(\.[a-z0-9]+)?$', '', name)
+    # Check whether basename matches any of the globs
+    for glob in globs:
+        # match the full path
+        if glob.startswith('/') and fnmatch.fnmatch(f'/{name}', glob):
+            return True
+        # matched a subset of the path, at path element boundary
+        elif '/' in glob and fnmatch.fnmatch(f'/{name}', f'*/{glob}'):
+            return True
+        elif fnmatch.fnmatch(name.split('/')[-1], glob):
+            # matched the basename
+            return True
+    return False
 
 
 def filter_kernel_modules(
@@ -36,18 +52,33 @@ def filter_kernel_modules(
 
     keep = set()
     if include:
-        regex = re.compile("|".join(include))
+        patterns = [p[3:] for p in include if p.startswith('re:')]
+        regex = re.compile("|".join(patterns))
+
+        globs = [normalize_module_glob(p) for p in include if not p.startswith('re:')]
+
         for m in modules:
             rel = os.fspath(Path(*m.parts[5:]))
-            if regex.search(rel):
+
+            if (
+                (patterns and regex.search(rel))
+                or globs_match_module(normalize_module_name(rel), globs)
+            ):
                 keep.add(rel)
 
     if exclude:
+        patterns = [p[3:] for p in exclude if p.startswith('re:')]
+        regex = re.compile("|".join(patterns))
+
+        globs = [normalize_module_glob(p) for p in exclude if not p.startswith('re:')]
+
         remove = set()
-        regex = re.compile("|".join(exclude))
         for m in modules:
             rel = os.fspath(Path(*m.parts[5:]))
-            if rel not in keep and regex.search(rel):
+            if rel not in keep and (
+                regex.search(rel)
+                or globs_match_module(normalize_module_name(rel), globs)
+            ):
                 remove.add(m)
 
         modules -= remove
@@ -90,6 +121,19 @@ def filter_firmware(
 
 def normalize_module_name(name: str) -> str:
     return name.replace("_", "-")
+
+
+def normalize_module_glob(name: str) -> str:
+    # We want to replace '_' by '-', except when used in […]
+    ans = ''
+    while name:
+        i = (name + '[').index('[')
+        ans += name[:i].replace("_", "-")
+        name = name[i:]
+        i = (name + ']').index(']')
+        ans += name[:i + 1]
+        name = name[i + 1:]
+    return ans
 
 
 def module_path_to_name(path: Path) -> str:
