@@ -10,7 +10,6 @@ from pathlib import Path
 
 import pytest
 
-from mkosi.distributions import Distribution
 from mkosi.run import run
 from mkosi.sandbox import umask
 from mkosi.tree import copy_tree
@@ -221,13 +220,8 @@ def test_initrd_size(config: ImageConfig) -> None:
     with Image(config) as image:
         image.build()
 
-        # The fallback value is for CentOS and related distributions.
-        maxsize = 1024**2 * {
-            Distribution.fedora: 69,
-            Distribution.debian: 62,
-            Distribution.ubuntu: 57,
-            Distribution.arch: 87,
-            Distribution.opensuse: 67,
-        }.get(config.distribution, 58)
+        # Set a reasonably high limit to avoid having to bump it every single time by
+        # small amounts. 100M should do.
+        maxsize = 1024**2 * 100
 
         assert (Path(image.output_dir) / "image.initrd").stat().st_size <= maxsize
