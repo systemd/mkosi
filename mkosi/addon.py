@@ -61,6 +61,8 @@ def main() -> None:
             cmdline += ["--debug"]
         if args.debug_shell:
             cmdline += ["--debug-shell"]
+        if args.debug_sandbox:
+            cmdline += ["--debug-sandbox"]
 
         if os.getuid() == 0:
             cmdline += [

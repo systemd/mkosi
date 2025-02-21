@@ -13,11 +13,11 @@ using mkosi
 
 # DESCRIPTION
 
-`mkosi-addon` is a wrapper on top of `mkosi` to simplify the generation of PE
-addons containing customizations for unified kernel images specific to the
+**mkosi-addon** is a wrapper on top of **mkosi** to simplify the generation of
+PE addons containing customizations for unified kernel images specific to the
 running or local system. Will include entries in `/etc/crypttab` marked with
-`x-initrd.attach`, and `/etc/kernel/cmdline`. Kernel modules and firmwares for the
-running hardware can be included if a local configuration with the option
+`x-initrd.attach`, and `/etc/kernel/cmdline`. Kernel modules and firmwares for
+the running hardware can be included if a local configuration with the option
 `KernelModulesIncludeHost=` is provided.
 
 # OPTIONS
@@ -39,6 +39,9 @@ running hardware can be included if a local configuration with the option
 
 `--debug-shell=`
 :   Spawn debug shell in sandbox if a sandboxed command fails.
+
+`--debug-sandbox`
+:   Run **mkosi-sandbox** with **strace**.
 
 `--version`
 :   Show package version.
