@@ -4894,7 +4894,7 @@ def run_build(
                 continue
 
             attrs = MOUNT_ATTR_RDONLY
-            if d not in ("/usr", "/opt"):
+            if d in ("/boot", "/efi"):
                 attrs |= MOUNT_ATTR_NOSUID | MOUNT_ATTR_NODEV | MOUNT_ATTR_NOEXEC
 
             mount_rbind(d, d, attrs)
