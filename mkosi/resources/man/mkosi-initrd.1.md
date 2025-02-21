@@ -13,7 +13,7 @@ using mkosi
 
 # DESCRIPTION
 
-`mkosi-initrd` is wrapper on top of `mkosi` to simplify the generation of
+**mkosi-initrd** is wrapper on top of **mkosi** to simplify the generation of
 initrds and Unified Kernel Images for the current running system.
 
 # OPTIONS
@@ -45,6 +45,9 @@ initrds and Unified Kernel Images for the current running system.
 
 `--debug-shell=`
 :   Spawn debug shell in sandbox if a sandboxed command fails.
+
+`--debug-sandbox`
+:   Run **mkosi-sandbox** with **strace**.
 
 `--version`
 :   Show package version.

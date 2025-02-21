@@ -166,6 +166,12 @@ def initrd_common_args(parser: argparse.ArgumentParser) -> None:
         default=False,
     )
     parser.add_argument(
+        "--debug-sandbox",
+        help="Run mkosi-sandbox with strace",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
         "-D",
         "--show-documentation",
         help="Show the man page",
@@ -268,6 +274,8 @@ def main() -> None:
             cmdline += ["--debug"]
         if args.debug_shell:
             cmdline += ["--debug-shell"]
+        if args.debug_sandbox:
+            cmdline += ["--debug-sandbox"]
 
         if os.getuid() == 0:
             cmdline += [
