@@ -575,6 +575,7 @@ class ArtifactOutput(StrEnum):
     pcrs = enum.auto()
     roothash = enum.auto()
     os_release = enum.auto()
+    appstream_metainfo = enum.auto()
 
     @staticmethod
     def compat_no() -> list["ArtifactOutput"]:
@@ -1986,6 +1987,13 @@ class Config:
     machine: Optional[str]
     forward_journal: Optional[Path]
 
+    appstream_id: Optional[str]
+    appstream_name: Optional[str]
+    appstream_summary: Optional[str]
+    appstream_description: Optional[str]
+    appstream_url: Optional[str]
+    appstream_icon: Optional[str]
+
     vmm: Vmm
     console: ConsoleMode
     cpus: int
@@ -2133,6 +2141,10 @@ class Config:
         return f"{self.output}.osrelease"
 
     @property
+    def output_split_appstream_metainfo(self) -> str:
+        return f"{self.output}.metainfo.xml"
+
+    @property
     def output_nspawn_settings(self) -> str:
         return f"{self.output}.nspawn"
 
@@ -2173,6 +2185,7 @@ class Config:
             self.output_split_pcrs,
             self.output_split_roothash,
             self.output_split_os_release,
+            self.output_split_appstream_metainfo,
             self.output_nspawn_settings,
             self.output_checksum,
             self.output_signature,
@@ -3977,6 +3990,43 @@ SETTINGS: list[ConfigSetting[Any]] = [
         default=ConfigFeature.auto,
         help="Run systemd-storagetm as part of the serve verb",
     ),
+    ConfigSetting(
+        dest="appstream_id",
+        section="Content",
+        parse=config_parse_string,
+        help="'id' field for Appstream metainfo file",
+    ),
+    ConfigSetting(
+        dest="appstream_name",
+        section="Content",
+        parse=config_parse_string,
+        help="'name' field for Appstream metainfo file",
+    ),
+    ConfigSetting(
+        dest="appstream_summary",
+        section="Content",
+        parse=config_parse_string,
+        help="'summary' field for Appstream metainfo file",
+    ),
+    ConfigSetting(
+        dest="appstream_description",
+        section="Content",
+        parse=config_parse_string,
+        help="'description' field for Appstream metainfo file",
+    ),
+    ConfigSetting(
+        dest="appstream_url",
+        section="Content",
+        parse=config_parse_string,
+        help="'url' homepage field for Appstream metainfo file",
+    ),
+    ConfigSetting(
+        dest="appstream_icon",
+        section="Content",
+        parse=config_parse_string,
+        default="https://brand.systemd.io/assets/svg/systemd-logomark.svg",
+        help="'icon' URL field for Appstream metainfo file",
+    ),
 ]
 SETTINGS_LOOKUP_BY_NAME = {name: s for s in SETTINGS for name in [s.name, *s.compat_names]}
 SETTINGS_LOOKUP_BY_DEST = {s.dest: s for s in SETTINGS}
@@ -5033,6 +5083,12 @@ def summary(config: Config) -> str:
                         Make Initrd: {yes_no(config.make_initrd)}
                                 SSH: {yes_no(config.ssh)}
                     SELinux Relabel: {config.selinux_relabel}
+              Appstream Metainfo ID: {none_to_none(config.appstream_id)}
+            Appstream Metainfo Name: {none_to_none(config.appstream_name)}
+         Appstream Metainfo Summary: {none_to_none(config.appstream_summary)}
+     Appstream Metainfo Description: {none_to_none(config.appstream_description)}
+             Appstream Metainfo URL: {none_to_none(config.appstream_url)}
+                     Appstream Icon: {none_to_none(config.appstream_icon)}
 """
 
     if config.output_format.is_extension_or_portable_image() or config.output_format in (

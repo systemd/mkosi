@@ -98,6 +98,12 @@ def test_config() -> None:
     dump = textwrap.dedent(
         """\
         {
+            "AppstreamDescription": null,
+            "AppstreamIcon": null,
+            "AppstreamId": null,
+            "AppstreamName": null,
+            "AppstreamSummary": null,
+            "AppstreamUrl": null,
             "Architecture": "ia64",
             "Autologin": false,
             "BaseTrees": [
@@ -437,6 +443,12 @@ def test_config() -> None:
     )
 
     args = Config(
+        appstream_id=None,
+        appstream_name=None,
+        appstream_summary=None,
+        appstream_description=None,
+        appstream_url=None,
+        appstream_icon=None,
         architecture=Architecture.ia64,
         autologin=False,
         base_trees=[Path("/hello/world")],
