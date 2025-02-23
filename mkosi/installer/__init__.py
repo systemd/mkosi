@@ -106,6 +106,7 @@ class PackageManager:
             *(apivfs_options() if apivfs else []),
             "--become-root",
             "--suppress-chown",
+            "--suppress-sync",
             # Make sure /etc/machine-id is not overwritten by any package manager post install scripts.
             "--ro-bind-try", Path(root) / "etc/machine-id", "/buildroot/etc/machine-id",
             # Nudge gpg to create its sockets in /run by making sure /run/user/0 exists.
