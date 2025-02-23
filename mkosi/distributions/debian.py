@@ -135,15 +135,19 @@ class Installer(DistributionInstaller):
         # execute any dpkg commands, so all it does is download the essential debs and tell us their full in
         # the apt cache without actually installing them.
         with tempfile.NamedTemporaryFile(mode="r") as f:
+            args = [
+                "-oDebug::pkgDPkgPm=1",
+                f"-oDPkg::Pre-Install-Pkgs::=cat >{workdir(Path(f.name))}",
+                "?essential",
+                "base-files",
+            ]
+            # Disables fsync/etc to speed up installing packages
+            if "libeatmydata1" in context.config.packages or "eatmydata" in context.config.packages:
+                args.append("libeatmydata1")
             Apt.invoke(
                 context,
                 "install",
-                [
-                    "-oDebug::pkgDPkgPm=1",
-                    f"-oDPkg::Pre-Install-Pkgs::=cat >{workdir(Path(f.name))}",
-                    "?essential",
-                    "base-files",
-                ],
+                args,
                 options=["--bind", f.name, workdir(Path(f.name))],
             )
 

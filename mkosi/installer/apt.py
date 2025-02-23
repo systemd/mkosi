@@ -154,6 +154,9 @@ class Apt(PackageManager):
         ):
             env["INITRD"] = "No"
 
+        if "libeatmydata1" in context.config.packages or "eatmydata" in context.config.packages:
+            env["LD_PRELOAD"] = "libeatmydata.so"
+
         return super().finalize_environment(context) | env
 
     @classmethod
