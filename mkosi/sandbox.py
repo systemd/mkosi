@@ -210,7 +210,7 @@ def have_effective_cap(capability: int) -> bool:
     return False
 
 
-def seccomp_suppress_chown() -> None:
+def seccomp_suppress(*, chown: bool = False, sync: bool = False) -> None:
     """
     There's still a few files and directories left in distributions in /usr and /etc that are
     not owned by root. This causes package managers to fail to install the corresponding packages
@@ -218,6 +218,9 @@ def seccomp_suppress_chown() -> None:
     owned by their own uid. To still allow non-root users to build images, if requested we install
     a seccomp filter that makes calls to chown() and friends a noop.
     """
+    if not chown and not sync:
+        return
+
     libseccomp = ctypes.CDLL("libseccomp.so.2")
     if libseccomp is None:
         raise FileNotFoundError("libseccomp.so.2")
@@ -237,8 +240,30 @@ def seccomp_suppress_chown() -> None:
 
     seccomp = libseccomp.seccomp_init(SCMP_ACT_ALLOW)
 
+    suppress = []
+    if chown:
+        suppress += [
+            b"chown",
+            b"chown32",
+            b"fchown",
+            b"fchown32",
+            b"fchownat",
+            b"lchown",
+            b"lchown32",
+        ]
+    if sync:
+        suppress += [
+            b"fdatasync",
+            b"fsync",
+            b"msync",
+            b"sync",
+            b"sync_file_range",
+            b"sync_file_range2",
+            b"syncfs",
+        ]
+
     try:
-        for syscall in (b"chown", b"chown32", b"fchown", b"fchown32", b"fchownat", b"lchown", b"lchown32"):
+        for syscall in suppress:
             id = libseccomp.seccomp_syscall_resolve_name(syscall)
             libseccomp.seccomp_rule_add_exact(seccomp, SCMP_ACT_ERRNO, id, 0)
 
@@ -826,6 +851,7 @@ mkosi-sandbox [OPTIONS...] COMMAND [ARGUMENTS...]
      --same-dir                   Change the working directory in the sandbox to $PWD
      --become-root                Map the current user/group to root:root in the sandbox
      --suppress-chown             Make chown() syscalls in the sandbox a noop
+     --suppress-sync              Make sync() syscalls in the sandbox a noop
      --unshare-net                Unshare the network namespace if possible
      --unshare-ipc                Unshare the IPC namespace if possible
      --suspend                    Stop process before execve()
@@ -854,7 +880,7 @@ def main() -> None:
     upperdir = ""
     workdir = ""
     chdir = None
-    become_root = suppress_chown = unshare_net = unshare_ipc = suspend = pack_fds = False
+    become_root = suppress_chown = suppress_sync = unshare_net = unshare_ipc = suspend = pack_fds = False
 
     ttyname = os.ttyname(2) if os.isatty(2) else ""
 
@@ -909,6 +935,8 @@ def main() -> None:
             become_root = True
         elif arg == "--suppress-chown":
             suppress_chown = True
+        elif arg == "--suppress-sync":
+            suppress_sync = True
         elif arg == "--unshare-net":
             unshare_net = True
         elif arg == "--unshare-ipc":
@@ -955,10 +983,12 @@ def main() -> None:
 
     userns = acquire_privileges(become_root=become_root)
 
-    # If we're root in a user namespace with a single user, we're still not going to be able to
-    # chown() stuff, so check for that and apply the seccomp filter as well in that case.
-    if suppress_chown and (userns or userns_has_single_user()):
-        seccomp_suppress_chown()
+    seccomp_suppress(
+        # If we're root in a user namespace with a single user, we're still not going to be able to
+        # chown() stuff, so check for that and apply the seccomp filter as well in that case.
+        chown=suppress_chown and (userns or userns_has_single_user()),
+        sync=suppress_sync,
+    )
 
     try:
         unshare(namespaces)

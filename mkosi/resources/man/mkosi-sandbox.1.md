@@ -106,6 +106,12 @@ host system.
     sandbox which might try to `chown()` files to different users or groups which would fail
     unless `mkosi-sandbox` is invoked by a privileged user.
 
+`--suppress-sync`
+:   Specifying this option causes all calls to `sync()` or similar system calls to become a
+    noop in the sandbox. This is primarily useful when invoking package managers in the
+    sandbox which might try to `sync()` files when extracting packages which is unnecessary when building
+    images and slows down execution time significantly.
+
 `--unshare-net`
 :   Specifying this option makes `mkosi-sandbox` unshare a network namespace if possible.
 
