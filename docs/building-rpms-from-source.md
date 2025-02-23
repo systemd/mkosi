@@ -144,8 +144,8 @@ in place from the upstream sources. Because `--build-in-place`
 configures `_builddir` to the current working directory, we change
 directory to the upstream sources before invoking `rpmbuild`. Again,
 `_sourcedir` has to point to the RPM spec sources. We also have to
-override `_rpmdir` to point to the mkosi output directory (stored in
-`$OUTPUTDIR`). The build script `mkosi.build.chroot` then looks as
+override `_rpmdir` to point to the mkosi package directory (stored in
+`$PACKAGEDIR`). The build script `mkosi.build.chroot` then looks as
 follows:
 
 ```shell
@@ -160,7 +160,7 @@ env --chdir=mkosi \
     $([ "$WITH_TESTS" = "0" ] && echo --nocheck) \
     --define "_topdir /var/tmp" \
     --define "_sourcedir $PWD/mkosi/rpm" \
-    --define "_rpmdir $OUTPUTDIR" \
+    --define "_rpmdir $PACKAGEDIR" \
     ${BUILDDIR:+--define} \
     ${BUILDDIR:+"_vpath_builddir $BUILDDIR"} \
     --define "_build_name_fmt %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm" \
@@ -187,12 +187,16 @@ the build. Note that the build root policy macros we use here are
 CentOS/Fedora specific.
 
 After the build script finishes, the produced rpms will be located in
-`$OUTPUTDIR`. We can now install them from the `mkosi.postinst`
-post-installation script:
+`$PACKAGEDIR`. Any packages put in this directory by the build script
+are added to a local package repository and become available for
+installation in a post-installation script or using the
+`VolatilePackages=` setting:
 
 ```shell
 #!/bin/sh
 set -e
 
-rpm --install "$OUTPUTDIR"/*mkosi*.rpm
+mkosi-install mkosi
+
+cp "$PACKAGEDIR"/*mkosi*.rpm "$OUTPUTDIR"
 ```
