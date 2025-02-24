@@ -135,9 +135,6 @@ def test_config() -> None:
             ],
             "CompressLevel": 3,
             "CompressOutput": "bz2",
-            "ConfigureScripts": [
-                "/configure"
-            ],
             "Console": "gui",
             "Credentials": {
                 "credkey": "credval"
@@ -458,7 +455,6 @@ def test_config() -> None:
         clean_scripts=[Path("/clean")],
         compress_level=3,
         compress_output=Compression.bz2,
-        configure_scripts=[Path("/configure")],
         console=ConsoleMode.gui,
         cpus=2,
         credentials={"credkey": "credval"},

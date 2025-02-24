@@ -71,10 +71,8 @@ from mkosi.config import (
     cat_config,
     expand_delayed_specifiers,
     format_bytes,
-    have_history,
     parse_boolean,
     parse_config,
-    resolve_deps,
     summary,
     systemd_tool_version,
     want_selinux_relabel,
@@ -553,51 +551,6 @@ def finalize_config_json(config: Config) -> Iterator[Path]:
         f.write(config.to_json())
         f.flush()
         yield Path(f.name)
-
-
-def run_configure_scripts(config: Config) -> Config:
-    if not config.configure_scripts:
-        return config
-
-    for script in config.configure_scripts:
-        if not os.access(script, os.X_OK):
-            die(f"{script} is not executable")
-
-    env = dict(
-        DISTRIBUTION=str(config.distribution),
-        RELEASE=config.release,
-        ARCHITECTURE=str(config.architecture),
-        QEMU_ARCHITECTURE=config.architecture.to_qemu(),
-        DISTRIBUTION_ARCHITECTURE=config.distribution.architecture(config.architecture),
-        SRCDIR="/work/src",
-        MKOSI_UID=str(os.getuid()),
-        MKOSI_GID=str(os.getgid()),
-    )
-
-    if config.profiles:
-        env["PROFILES"] = " ".join(config.profiles)
-
-    with finalize_source_mounts(config, ephemeral=False) as sources:
-        for script in config.configure_scripts:
-            with complete_step(f"Running configure script {script}…"):
-                result = run(
-                    ["/work/configure"],
-                    env=env | config.finalize_environment(),
-                    sandbox=config.sandbox(
-                        options=[
-                            "--dir", "/work/src",
-                            "--chdir", "/work/src",
-                            "--ro-bind", script, "/work/configure",
-                            *sources,
-                        ],
-                    ),
-                    input=config.to_json(indent=None),
-                    stdout=subprocess.PIPE,
-                )  # fmt: skip
-
-                config = Config.from_json(result.stdout)
-
-    return config
 
 
 def run_sync_scripts(config: Config) -> None:
@@ -1337,8 +1290,6 @@ def finalize_default_initrd(
     ]  # fmt: skip
 
     _, [initrd] = parse_config(cmdline + ["build"], resources=resources)
-
-    run_configure_scripts(initrd)
 
     initrd = dataclasses.replace(initrd, image="default-initrd")
 
@@ -5143,15 +5094,6 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
     for i, config in enumerate(images):
         if args.verb != Verb.build:
             check_tools(config, args.verb)
-
-        images[i] = config = run_configure_scripts(config)
-
-    # The images array has been modified so we need to reevaluate last again.
-    # Also ensure that all other images are reordered in case their dependencies were modified.
-    last = images[-1]
-
-    if not have_history(args):
-        images = resolve_deps(images[:-1], last.dependencies) + [last]
 
     if not (last.output_dir_or_cwd() / last.output).exists() or last.output_format == OutputFormat.none:
         for config in images:

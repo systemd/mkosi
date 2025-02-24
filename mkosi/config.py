@@ -1861,7 +1861,6 @@ class Config:
     clean_package_metadata: ConfigFeature
     source_date_epoch: Optional[int]
 
-    configure_scripts: list[Path]
     sync_scripts: list[Path]
     prepare_scripts: list[Path]
     build_scripts: list[Path]
@@ -2449,15 +2448,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Config",
         parse=config_parse_minimum_version,
         help="Specify the minimum required mkosi version",
-    ),
-    ConfigSetting(
-        dest="configure_scripts",
-        long="--configure-script",
-        metavar="PATH",
-        section="Config",
-        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
-        paths=("mkosi.configure",),
-        help="Configure script to run before doing anything",
     ),
     ConfigSetting(
         dest="pass_environment",
@@ -4375,7 +4365,6 @@ class ParseContext:
                     resources=self.resources,
                 )
                 make_executable(
-                    *config.configure_scripts,
                     *config.clean_scripts,
                     *config.sync_scripts,
                     *config.prepare_scripts,
@@ -4939,7 +4928,6 @@ def summary(config: Config) -> str:
                            Profiles: {line_join_list(config.profiles)}
                        Dependencies: {line_join_list(config.dependencies)}
                     Minimum Version: {none_to_none(config.minimum_version)}
-                  Configure Scripts: {line_join_list(config.configure_scripts)}
                    Pass Environment: {line_join_list(config.pass_environment)}
 
     {bold("DISTRIBUTION")}:

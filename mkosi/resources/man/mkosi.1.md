@@ -2109,11 +2109,6 @@ config file is read:
 :   The minimum **mkosi** version required to build this configuration. If
     specified multiple times, the highest specified version is used.
 
-`ConfigureScripts=`, `--configure-script=`
-:   Takes a comma-separated list of paths to executables that are used as
-    the configure scripts for this image. See the **Scripts** section for
-    more information.
-
 `PassEnvironment=`, `--pass-environment=`
 :   Takes a list of environment variable names separated by spaces. When
     building multiple images, pass the listed environment variables to
@@ -2318,17 +2313,6 @@ image. For each script, the configured build sources (`BuildSources=`)
 are mounted into the current working directory before running the script
 in the current working directory. `$SRCDIR` is set to point to the
 current working directory. The following scripts are supported:
-
-* If **`mkosi.configure`** (`ConfigureScripts=`) exists, it is executed
-  before building the image. This script may be used to dynamically
-  modify the configuration. It receives the configuration serialized as
-  JSON on stdin and should output the modified configuration serialized
-  as JSON on stdout. Note that this script only runs when building or
-  booting the image (`build`, `vm`, `boot` and `shell` verbs). If a
-  default tools tree is configured, it will be built before running the
-  configure scripts and the configure scripts will run with the tools
-  tree available. This also means that the modifications made by
-  configure scripts will not be visible in the `summary` output.
 
 * If **`mkosi.sync`** (`SyncScripts=`) exists, it is executed before the
   image is built. This script may be used to update various sources that

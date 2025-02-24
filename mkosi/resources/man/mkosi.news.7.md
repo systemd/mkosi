@@ -17,6 +17,9 @@
   where `build` would be interpreted as the argument for
   `--repository-key-check` whereas now it'll be properly interpreted as
   the verb.
+- Support for configure scripts (`ConfigureScripts=`) was removed. Instead,
+  `mkosi sandbox` can be used to generate configuration based on the
+  configured tools tree.
 - Teach `--verity` a new `hash` value, which skips the verity signature
   partition for extension / portable images. To align the possible values,
   `yes` is renamed to `signed`.
