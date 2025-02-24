@@ -1341,7 +1341,7 @@ def parse_profile(value: str) -> str:
 
 
 def parse_drive(value: str) -> Drive:
-    parts = value.split(":", maxsplit=3)
+    parts = value.split(":", maxsplit=4)
     if not parts or not parts[0]:
         die(f"No ID specified for drive '{value}'")
 
