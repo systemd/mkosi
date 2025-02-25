@@ -102,7 +102,6 @@ if ((${#DDIS[@]} > 0)); then
     cert-to-efi-sig-list -g "$guid" /usr/src/packages/SOURCES/_projectcert.crt db.esl
     cp db.esl KEK.esl
     cp db.esl PK.esl
-    env
     for i in *.esl; do
         sign-efi-sig-list -o -g "$guid" -t "${SOURCE_DATE_EPOCH:-$(date +%s)}" "${i%.esl}" "$i" "${i%.esl}.auth"
     done
