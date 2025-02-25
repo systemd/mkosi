@@ -33,6 +33,7 @@ mkdir nss-db
 nss_db="$PWD/nss-db"
 certutil -N -d sql:"$nss_db" --empty-password
 certutil -A -d sql:"$nss_db" -n cert -t CT,CT,CT -i /usr/src/packages/SOURCES/_projectcert.crt
+openssl x509 -inform PEM -in /usr/src/packages/SOURCES/_projectcert.crt -outform DER -out _projectcert.cer
 
 cp -r /usr/src/packages/SOURCES/"$IMAGE_ID"* "$OUTPUTDIR"
 rm -f "$OUTPUTDIR/hashes.cpio.rsasign*" "$OUTPUTDIR"/*.sha*
@@ -61,23 +62,76 @@ while read -r SIG; do
     rm -f "$(basename "${infile}").sattrs" "$SIG" "$infile"
 
     # If there is a DDI with an ESP, add the UKI to it
-    if [ -f "${DEST%efi}raw" ] || [ -f "${DEST%efi}raw.zst" ]; then
-        if [ -f "${DEST%efi}raw.zst" ]; then
-            unzstd "${DEST%efi}raw.zst"
+    if [ -f "${DEST%efi}raw" ] || [ -f "${DEST%efi}raw.zst" ] || [ -f "${DEST%efi}img" ] || [ -f "${DEST%efi}img.zst" ]; then
+        if [ -f "${DEST%efi}raw.zst" ] || [ -f "${DEST%efi}img.zst" ]; then
+            unzstd "${DEST%efi}"raw*.zst
+            rm -f "${DEST%efi}"raw*.zst
+            recompress=1
         fi
-        offset="$(systemd-repart --json=short "${DEST%efi}raw" | jq -r '.[] | select(.type == "esp") | .offset')"
-        if [ "$offset" = "null" ]; then
-            rm -f "${DEST%efi}raw"
+
+        offset="$(systemd-repart --json=short "${DEST%efi}"raw* | jq -r '.[] | select(.type == "esp") | .offset')"
+        if [ -z "$offset" ] || [ "$offset" = "null" ]; then
+            if ((recompress)); then
+                zstd --force "${DEST%efi}"raw*
+                rm -f "${DEST%efi}raw" "${DEST%efi}raw.img"
+            fi
             continue
         fi
-        mcopy -o -i "${DEST%efi}raw@@${offset}" "$DEST" "::EFI/Linux/$(basename "$DEST")"
-        if [ -f "${DEST%efi}raw.zst" ]; then
-            zstd --force "${DEST%efi}raw"
-            rm -f "${DEST%efi}raw"
+        mmd -D s -i "${DEST%efi}"raw*@@"${offset}" ::EFI ::EFI/Linux || true
+        mcopy -o -i "${DEST%efi}"raw*@@"${offset}" "$DEST" "::EFI/Linux/$(basename "$DEST")"
+
+        if ((recompress)); then
+            zstd --force "${DEST%efi}"raw*
+            rm -f "${DEST%efi}raw" "${DEST%efi}raw.img"
         fi
     fi
 done < <(find hashes/ukis hashes/kernels -type f \( -name '*efi.sig' -o -name 'vmlinu*.sig' \) -printf '%P\n')
-rm -rf nss-db "$OUTPUTDIR"/*.sig hashes/ukis
+rm -rf "$OUTPUTDIR"/*.sig hashes/ukis
+
+# If there are signed bootloaders, install them in the ESP
+while read -r BOOTLOADER; do
+    unsigned="$(basename "${BOOTLOADER%.sig}")"
+    signed="$(basename "${BOOTLOADER%.sig}".signed)"
+    ddi="${OUTPUTDIR}/${BOOTLOADER%%/*}"
+    # remove leading directory from BOOTLOADER
+    dest="${BOOTLOADER#*/}"
+    dest="${dest%.sig}"
+
+    if [ -f "${ddi}.zst" ]; then
+        unzstd "${ddi}.zst"
+    fi
+
+    offset="$(systemd-repart --json=short "$ddi" | jq -r '.[] | select(.type == "esp") | .offset')"
+    if [ -z "$offset" ] || [ "$offset" = "null" ]; then
+        if [ -f "$ddi.zst" ]; then
+            rm -f "$ddi"
+        fi
+        continue
+    fi
+
+    rm -f "$unsigned"
+    mcopy -i "${ddi}@@${offset}" "::$dest" "$unsigned"
+
+    # ensure the EFI hash matches before and after attaching the signature
+    old_hash=$(pesign -n sql:"$nss_db" -h -P -i "$unsigned" | cut -d' ' -f1)
+
+    pesign -n sql:"$nss_db" --force -c cert -i "$unsigned" -o "$signed" -d sha256 -I "hashes/bootloaders/${BOOTLOADER%.sig}" -R "hashes/bootloaders/${BOOTLOADER}"
+
+    new_hash=$(pesign -n sql:"$nss_db" -h -i "$signed" | cut -d' ' -f1)
+    if [ "$old_hash" != "$new_hash" ]; then
+        echo "Pesign hash mismatch error: $old_hash $new_hash"
+        exit 1
+    fi
+
+    mcopy -o -i "${ddi}@@${offset}" "$signed" "::$dest"
+
+    if [ -f "${ddi}.zst" ]; then
+        zstd --force "$ddi"
+        rm -f "$ddi"
+    fi
+done < <(find "hashes/bootloaders/$(basename "$ddi")/" -type f -iname '*.efi.sig' -printf '%P\n')
+rm -rf hashes/bootloaders
+rm -rf nss-db
 
 # Second step: if there are PCR policy signatures, rebuild the JSON
 # blobs with the attached signatures
@@ -140,9 +194,10 @@ while read -r SIG; do
     mkdir -p mkosi.repart
     tar xf "/usr/src/packages/SOURCES/$(basename "${SIG%roothash.sig}repart.tar")" -C mkosi.repart
     rm -f "$OUTPUTDIR/$(basename "${SIG%roothash.sig}repart.tar")"
-    if [ -f "$OUTPUTDIR/$(basename "${SIG%roothash.sig}raw.zst")" ]; then
+    if [ -f "$OUTPUTDIR/$(basename "${SIG%roothash.sig}raw.zst")" ] || [ -f "$OUTPUTDIR/$(basename "${SIG%roothash.sig}img.zst")" ]; then
         recompress=1
-        unzstd "$OUTPUTDIR/$(basename "${SIG%roothash.sig}raw.zst")"
+        unzstd "$OUTPUTDIR/$(basename "${SIG%roothash.sig}")"raw*.zst
+        rm -f "$OUTPUTDIR/$(basename "${SIG%roothash.sig}")"raw*.zst
     fi
 
     ARGS=(
@@ -150,7 +205,7 @@ while read -r SIG; do
         --certificate /usr/src/packages/SOURCES/_projectcert.crt \
         --definitions mkosi.repart \
         --dry-run=no \
-        "$OUTPUTDIR/$(basename "${SIG%roothash.sig}raw")"
+        "$OUTPUTDIR/$(basename "${SIG%roothash.sig}")"raw*
     )
 
     # sd-repart might be configured to create labels based on os-release fields. Due to the
@@ -165,10 +220,55 @@ while read -r SIG; do
     rm -rf mkosi.repart
 
     if ((recompress)); then
-        zstd --force "$OUTPUTDIR/$(basename "${SIG%roothash.sig}raw")"
-        rm -f "$OUTPUTDIR/$(basename "${SIG%roothash.sig}raw")"
+        zstd --force "$OUTPUTDIR/$(basename "${SIG%roothash.sig}")"raw*
+        rm -f "$OUTPUTDIR/$(basename "${SIG%roothash.sig}raw")" "$OUTPUTDIR/$(basename "${SIG%roothash.sig}raw.img")"
     fi
 done < <(find hashes/roothashes -type f -name '*.sig')
 rm -rf hashes/roothashes
+
+# Sixth step: prepare EFI authvars for self-enrollment
+# as implemented by https://github.com/openSUSE/pesign-obs-integration/blob/master/pesign-repackage.spec.in#L162
+while read -r SIG; do
+    test -x /usr/lib/rpm/pesign/kernel-sign-file || break
+    f="${SIG%.sig}"
+    /usr/lib/rpm/pesign/kernel-sign-file -N -P -d -C _projectcert.cer -i pkcs7 -s "$SIG" sha256 _projectcert.cer "$f"
+    fbase="${f##*/}"
+    fbase="${fbase%.auth}"
+    fbase="${fbase%%-*}"
+    perl -0777 -npe 's/\A(?:[\040-\176]\0)+.{18}\0\0.{14}\0\0//s' < "$f" > "$f.orig"
+    sign-efi-sig-list -t "${SOURCE_DATE_EPOCH:-$(date +%s)}" -i "$f.p7sd" "$fbase" "$f.orig" "$f.tmp"
+    mv "$f.tmp" "$f"
+    rm -f "$f.p7s" "$f.p7sd" "$f.orig"
+done < <(find hashes/authvars -type f -name '*.auth.sig')
+declare -a AUTHVARS
+mapfile -t AUTHVARS < <(find hashes/authvars -type f -name "*.auth")
+if (( ${#AUTHVARS[@]} > 0 )); then
+    for ddi in "$OUTPUTDIR"/*.raw*; do
+        test -f "$ddi" || continue
+        if [[ $ddi == *.zst ]]; then
+            unzstd "${ddi}"
+            recompress=1
+        fi
+        offset="$(systemd-repart --json=short "${ddi%.zst}" | jq -r '.[] | select(.type == "esp") | .offset')"
+        if [ -z "$offset" ] || [ "$offset" = "null" ]; then
+            if [[ $ddi == *.zst ]]; then
+                rm -f "${ddi%.zst}"
+            fi
+            continue
+        fi
+
+        mmd -D s -i "${ddi%.zst}@@${offset}" ::loader ::loader/keys ::loader/keys/auto || true
+        for authvar in "${AUTHVARS[@]}"; do
+            test -f "$authvar" || continue
+            mcopy -o -i "${ddi%.zst}@@${offset}" "$authvar" "::loader/keys/auto/$(basename "$authvar")"
+        done
+
+        if ((recompress)); then
+            zstd --force "${ddi%.zst}"
+            rm -f "${ddi%.zst}"
+        fi
+    done
+fi
+rm -rf hashes/authvars
 
 rm -rf hashes "$nss_db"
