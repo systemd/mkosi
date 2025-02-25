@@ -15,8 +15,10 @@ declare -a KERNELS
 mapfile -t KERNELS < <(find "$OUTPUTDIR" -type f -name "vmlinu*" -printf '%P\n')
 declare -a ROOTHASHES
 mapfile -t ROOTHASHES < <(find "$OUTPUTDIR" -type f -name "*.roothash" -printf '%P\n')
+declare -a DDIS
+mapfile -t DDIS < <(find "$OUTPUTDIR" -type f -name "*.raw*")
 
-if ((${#UKIS[@]} == 0)) && ((${#KERNELS[@]} == 0)) && ((${#ROOTHASHES[@]} == 0)); then
+if ((${#UKIS[@]} == 0)) && ((${#KERNELS[@]} == 0)) && ((${#ROOTHASHES[@]} == 0)) && ((${#DDIS[@]} == 0)); then
     echo "No unsigned files found, exiting"
     exit 0
 fi
@@ -57,6 +59,38 @@ for f in "${ROOTHASHES[@]}"; do
         tar cf "$OUTPUTDIR/${f%roothash}repart.tar" ./*
         popd 2>/dev/null
     fi
+done
+
+# Handle bootloaders separately from UKIs
+for ddi in "${DDIS[@]}"; do
+    test -f "$ddi" || continue
+    if [[ $ddi == *.zst ]]; then
+        unzstd "${ddi}"
+    fi
+    offset="$(systemd-repart --json=short "${ddi%.zst}" | jq -r '.[] | select(.type == "esp") | .offset')"
+    if [ "$offset" = "null" ]; then
+        if [[ $ddi == *.zst ]]; then
+            rm -f "${ddi%.zst}"
+        fi
+        continue
+    fi
+
+    rm -rf EFI
+    mcopy -s -i "${ddi%.zst}@@${offset}" ::EFI EFI || true
+    find EFI
+
+    # UKIs are handled separately
+    rm -rf EFI/Linux
+
+    while read -r BOOTLOADER; do
+        mkdir -p "hashes/bootloaders/$(basename "${ddi%.zst}")/$(dirname "$BOOTLOADER")"
+        pesign --force -n sql:"$nss_db" -i "$BOOTLOADER" -E "hashes/bootloaders/$(basename "${ddi%.zst}")/$BOOTLOADER"
+    done < <(find EFI -type f -iname '*.efi')
+
+    if [[ $ddi == *.zst ]]; then
+        rm -f "${ddi%.zst}"
+    fi
+    rm -rf EFI
 done
 
 # Pack everything into a CPIO archive and place it where OBS expects it

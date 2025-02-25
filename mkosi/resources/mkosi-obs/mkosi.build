@@ -85,7 +85,52 @@ while read -r SIG; do
         fi
     fi
 done < <(find hashes/ukis hashes/kernels -type f \( -name '*efi.sig' -o -name 'vmlinu*.sig' \) -printf '%P\n')
-rm -rf nss-db "$OUTPUTDIR"/*.sig hashes/ukis
+rm -rf "$OUTPUTDIR"/*.sig hashes/ukis
+
+# If there are signed bootloaders, install them in the ESP
+while read -r BOOTLOADER; do
+    unsigned="$(basename "${BOOTLOADER%.sig}")"
+    signed="$(basename "${BOOTLOADER%.sig}".signed)"
+    ddi="${OUTPUTDIR}/${BOOTLOADER%%/*}"
+    # remove leading directory from BOOTLOADER
+    dest="${BOOTLOADER#*/}"
+    dest="${dest%.sig}"
+
+    if [ -f "${ddi}.zst" ]; then
+        unzstd "${ddi}.zst"
+    fi
+
+    offset="$(systemd-repart --json=short "$ddi" | jq -r '.[] | select(.type == "esp") | .offset')"
+    if [ -z "$offset" ] || [ "$offset" = "null" ]; then
+        if [ -f "$ddi.zst" ]; then
+            rm -f "$ddi"
+        fi
+        continue
+    fi
+
+    rm -f "$unsigned"
+    mcopy -i "${ddi}@@${offset}" "::$dest" "$unsigned"
+
+    # ensure the EFI hash matches before and after attaching the signature
+    old_hash=$(pesign -n sql:"$nss_db" -h -P -i "$unsigned" | cut -d' ' -f1)
+
+    pesign -n sql:"$nss_db" --force -c cert -i "$unsigned" -o "$signed" -d sha256 -I "hashes/bootloaders/${BOOTLOADER%.sig}" -R "hashes/bootloaders/${BOOTLOADER}"
+
+    new_hash=$(pesign -n sql:"$nss_db" -h -i "$signed" | cut -d' ' -f1)
+    if [ "$old_hash" != "$new_hash" ]; then
+        echo "Pesign hash mismatch error: $old_hash $new_hash"
+        exit 1
+    fi
+
+    mcopy -o -i "${ddi}@@${offset}" "$signed" "::$dest"
+
+    if [ -f "${ddi}.zst" ]; then
+        zstd --force "$ddi"
+        rm -f "$ddi"
+    fi
+done < <(find "hashes/bootloaders/$(basename "$ddi")/" -type f -iname '*.efi.sig' -printf '%P\n')
+rm -rf hashes/bootloaders
+rm -rf nss-db
 
 # Second step: if there are PCR policy signatures, rebuild the JSON
 # blobs with the attached signatures
