@@ -62,6 +62,20 @@ class Dnf(PackageManager):
                 if cls.executable(context.config) == "dnf5" and filelists:
                     f.write("[main]\noptional_metadata_types=filelists\n")
 
+        # The CentOS Hyperscale ships a COW plugin for dnf that's disabled by default. Let's enable it so we
+        # can take advantage of faster rpm package installations.
+        reflink = context.sandbox_tree / "etc/dnf/plugins/reflink.conf"
+        if not reflink.exists():
+            reflink.parent.mkdir(parents=True, exist_ok=True)
+            reflink.write_text(
+                textwrap.dedent(
+                    """\
+                    [main]
+                    enabled=1
+                    """
+                )
+            )
+
         # The versionlock plugin will fail if enabled without a configuration file so lets' write a noop
         # configuration file to make it happy which can be overridden by users.
         versionlock = context.sandbox_tree / "etc/dnf/plugins/versionlock.conf"
@@ -140,7 +154,7 @@ class Dnf(PackageManager):
             "--disable-plugin=*" if dnf == "dnf5" else "--disableplugin=*",
         ]  # fmt: skip
 
-        for plugin in ("builddep", "versionlock"):
+        for plugin in ("builddep", "versionlock", "reflink"):
             cmdline += ["--enable-plugin", plugin] if dnf == "dnf5" else ["--enableplugin", plugin]
 
         if ARG_DEBUG.get():
