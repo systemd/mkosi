@@ -70,6 +70,7 @@ while read -r SIG; do
             rm -f "${DEST%efi}raw"
             continue
         fi
+        mmd -D s -i "${DEST%efi}"raw*@@"${offset}" ::EFI ::EFI/Linux || true
         mcopy -o -i "${DEST%efi}raw@@${offset}" "$DEST" "::EFI/Linux/$(basename "$DEST")"
         if [ -f "${DEST%efi}raw.zst" ]; then
             zstd --force "${DEST%efi}raw"
