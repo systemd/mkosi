@@ -624,8 +624,8 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `SplitArtifacts=`, `--split-artifacts=`
 :   The artifact types to split out of the final image. A comma-delimited
     list consisting of `uki`, `kernel`, `initrd`, `os-release`, `prcs`, `partitions`,
-    `roothash` and `tar`. When building a bootable image `kernel` and `initrd`
-    correspond to their artifact found in the image (or in the UKI),
+    `appstream-metainfo`, `roothash` and `tar`. When building a bootable image `kernel`
+    and `initrd` correspond to their artifact found in the image (or in the UKI),
     while `uki` copies out the entire UKI. If `pcrs` is specified, a JSON
     file containing the pre-calculated TPM2 digests is written out, according
     to the [UKI specification](https://uapi-group.org/specifications/specs/unified_kernel_image/#json-format-for-pcrsig),
@@ -1155,6 +1155,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
    written to `/etc/machine-id`. If not specified explicitly and the file
    `mkosi.machine-id` exists in the local directory, the UUID to use is
    read from it. Otherwise, `uninitialized` will be written to `/etc/machine-id`.
+
+`AppstreamId=`, `--appstream-id=`, `AppstreamName=`, `--appstream-name=`, `AppstreamSummary=`, `--appstream-summary=`, `AppstreamDescription=`, `--appstream-description=`, `AppstreamUrl=`, `--appstream-url=`, `AppstreamIcon=`, `--appstream-icon=`
+:  Specifies content for the [appstream metainfo](https://www.freedesktop.org/software/appstream/docs/sect-Metadata-OS.html)
+   file. If not provided, the content will be derived from the os-release file.
 
 ### [Validation] Section
 

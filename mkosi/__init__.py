@@ -26,6 +26,7 @@ from collections.abc import Iterator, Mapping, Sequence
 from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Any, Optional, Union, cast
+from urllib.parse import urlparse
 
 from mkosi.archive import can_extract_tar, extract_tar, make_cpio, make_tar
 from mkosi.bootloader import (
@@ -343,11 +344,13 @@ def check_root_populated(context: Context) -> None:
         )
 
 
-def configure_os_release(context: Context) -> None:
-    """Write IMAGE_ID and IMAGE_VERSION to /usr/lib/os-release in the image."""
+def configure_os_release_and_appstream(context: Context) -> None:
+    """Write os-release and appstream metainfo in the image."""
 
     if context.config.overlay or context.config.output_format.is_extension_image():
         return
+
+    osrelease_content = {}
 
     for candidate in ["usr/lib/os-release", "usr/lib/initrd-release", "etc/os-release"]:
         osrelease = context.root / candidate
@@ -385,8 +388,68 @@ def configure_os_release(context: Context) -> None:
 
             newosrelease.rename(osrelease)
 
+        osrelease_content = read_env_file(osrelease)
+
         if ArtifactOutput.os_release in context.config.split_artifacts:
             shutil.copy(osrelease, context.staging / context.config.output_split_os_release)
+
+    # https://www.freedesktop.org/software/appstream/docs/sect-Metadata-OS.html
+    osid = context.config.appstream_id or osrelease_content.get("ID", "linux")
+    name = context.config.appstream_name or osrelease_content.get("NAME") or context.config.image_id or osid
+    if context.config.appstream_description:
+        description = context.config.appstream_description
+    else:
+        description = f"{osrelease_content.get('PRETTY_NAME', 'Image')} built with mkosi"
+    icon = context.config.appstream_icon
+    home_url = context.config.appstream_url or osrelease_content.get("HOME_URL")
+    if home_url:
+        url = urlparse(home_url)
+        if not url.netloc:
+            home_url = None
+    if context.config.appstream_id:
+        id = context.config.appstream_id
+    elif home_url:
+        url = urlparse(home_url)
+        netloc = url.netloc.split(".")
+        netloc.reverse()
+        if "www" in netloc:
+            netloc.remove("www")
+        id = ".".join(netloc)
+        id += f".{osid}"
+    else:
+        id = osid
+    timestamp = (
+        datetime.datetime.fromtimestamp(context.config.source_date_epoch, tz=datetime.timezone.utc)
+        if context.config.source_date_epoch is not None
+        else datetime.datetime.now(tz=datetime.timezone.utc)
+    ).isoformat()
+
+    metainfo = '<?xml version="1.0" encoding="UTF-8"?>\n'
+    metainfo += '<component type="operating-system">\n'
+    metainfo += f"  <id>{id}</id>\n"
+    metainfo += f"  <name>{name}</name>\n"
+    metainfo += f"  <summary>{osid} image built with mkosi</summary>\n"
+    metainfo += f"  <description><p>{description}</p></description>\n"
+    if home_url:
+        metainfo += f'  <url type="homepage">{home_url}</url>\n'
+    if icon:
+        metainfo += f'  <icon type="remote">{icon}</icon>\n'
+    metainfo += "  <metadata_license>FSFAP</metadata_license>\n"
+    metainfo += "  <releases>\n"
+    metainfo += (
+        f'     <release version="{context.config.image_version}" date="{timestamp}" type="development">\n'
+    )
+    metainfo += "       <description></description>\n"
+    metainfo += "     </release>\n"
+    metainfo += "  </releases>\n"
+    metainfo += '  <bundle type="systemd" class="sysupdate"></bundle>\n'
+    metainfo += "</component>\n"
+
+    metainto_out = context.root / f"usr/share/metainfo/{id}.metainfo.xml"
+    metainto_out.parent.mkdir(parents=True, exist_ok=True)
+    metainto_out.write_text(metainfo)
+    if ArtifactOutput.appstream_metainfo in context.config.split_artifacts:
+        (context.staging / context.config.output_split_appstream_metainfo).write_text(metainfo)
 
 
 def configure_extension_release(context: Context) -> None:
@@ -3921,7 +3984,7 @@ def build_image(context: Context) -> None:
         fixup_vmlinuz_location(context)
 
         configure_autologin(context)
-        configure_os_release(context)
+        configure_os_release_and_appstream(context)
         configure_extension_release(context)
         configure_initrd(context)
         configure_ssh(context)
