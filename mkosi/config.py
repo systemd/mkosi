@@ -1257,7 +1257,7 @@ def config_make_filename_parser(hint: str) -> ConfigParseCallback[str]:
     return config_parse_filename
 
 
-def match_path_exists(value: str) -> bool:
+def match_path_exists(image: str, value: str) -> bool:
     if not value:
         return False
 
@@ -1277,7 +1277,7 @@ def config_parse_root_password(
     return (value, hashed)
 
 
-def match_systemd_version(value: str) -> bool:
+def match_systemd_version(image: str, value: str) -> bool:
     if not value:
         return False
 
@@ -1285,8 +1285,12 @@ def match_systemd_version(value: str) -> bool:
     return config_match_version(value, version)
 
 
-def match_host_architecture(value: str) -> bool:
+def match_host_architecture(image: str, value: str) -> bool:
     return Architecture(value) == Architecture.native()
+
+
+def match_image(image: str, value: str) -> bool:
+    return value == image
 
 
 def parse_bytes(value: str) -> int:
@@ -1559,7 +1563,7 @@ class ConfigSetting(Generic[T]):
 @dataclasses.dataclass(frozen=True)
 class Match:
     name: str
-    match: Callable[[str], bool]
+    match: Callable[[str, str], bool]
 
 
 @dataclasses.dataclass(frozen=True)
@@ -3995,6 +3999,10 @@ MATCHES = (
         name="HostArchitecture",
         match=match_host_architecture,
     ),
+    Match(
+        name="Image",
+        match=match_image,
+    ),
 )
 
 MATCH_LOOKUP = {m.name: m for m in MATCHES}
@@ -4507,7 +4515,7 @@ class ParseContext:
                     result = s.match(v, value)
 
             elif m := MATCH_LOOKUP.get(k):
-                result = m.match(v)
+                result = m.match(getattr(self.config, "image"), v)
             else:
                 die(f"{k} cannot be used in [{section}]")
 

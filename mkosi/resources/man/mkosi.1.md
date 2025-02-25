@@ -2047,6 +2047,14 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     `Environment=`. If no value is provided, check if the given key is in
     the environment regardless of which value it has.
 
+`Image=`
+:   Match against the current (sub)image name. The name of a subimage is
+    its name in `mkosi.images/` (without any `.conf` suffix). The name
+    of the top level image is `main`. The main use case is to allow
+    having a shared config that can be included by both the top level
+    image and subimages by gating the universal settings behind a
+    `Image=main` match.
+
 This table shows which matchers support globs, rich comparisons and the default
 value that is matched against if no value has been configured at the time the
 config file is read:
@@ -2068,6 +2076,7 @@ config file is read:
 | `ToolsTreeDistribution=` | no    | no               | match the fallback tools tree distribution (see `ToolsTreeDistribution=` in `[Build]`) |
 | `ToolsTreeRelease=`      | no    | no               | match default tools tree release                                                       |
 | `Environment=`           | no    | no               | n/a                                                                                    |
+| `Image=`                 | no    | no               | n/a                                                                                    |
 
 ### [Include]
 
