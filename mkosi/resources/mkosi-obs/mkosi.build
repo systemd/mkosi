@@ -61,20 +61,27 @@ while read -r SIG; do
     rm -f "$(basename "${infile}").sattrs" "$SIG" "$infile"
 
     # If there is a DDI with an ESP, add the UKI to it
-    if [ -f "${DEST%efi}raw" ] || [ -f "${DEST%efi}raw.zst" ]; then
-        if [ -f "${DEST%efi}raw.zst" ]; then
-            unzstd "${DEST%efi}raw.zst"
+    if [ -f "${DEST%efi}raw" ] || [ -f "${DEST%efi}raw.zst" ] || [ -f "${DEST%efi}img" ] || [ -f "${DEST%efi}img.zst" ]; then
+        if [ -f "${DEST%efi}raw.zst" ] || [ -f "${DEST%efi}img.zst" ]; then
+            unzstd "${DEST%efi}"raw*.zst
+            rm -f "${DEST%efi}"raw*.zst
+            recompress=1
         fi
-        offset="$(systemd-repart --json=short "${DEST%efi}raw" | jq -r '.[] | select(.type == "esp") | .offset')"
+
+        offset="$(systemd-repart --json=short "${DEST%efi}"raw* | jq -r '.[] | select(.type == "esp") | .offset')"
         if [ -z "$offset" ] || [ "$offset" = "null" ]; then
-            rm -f "${DEST%efi}raw"
+            if ((recompress)); then
+                zstd --force "${DEST%efi}"raw*
+                rm -f "${DEST%efi}raw" "${DEST%efi}raw.img"
+            fi
             continue
         fi
         mmd -D s -i "${DEST%efi}"raw*@@"${offset}" ::EFI ::EFI/Linux || true
-        mcopy -o -i "${DEST%efi}raw@@${offset}" "$DEST" "::EFI/Linux/$(basename "$DEST")"
-        if [ -f "${DEST%efi}raw.zst" ]; then
-            zstd --force "${DEST%efi}raw"
-            rm -f "${DEST%efi}raw"
+        mcopy -o -i "${DEST%efi}"raw*@@"${offset}" "$DEST" "::EFI/Linux/$(basename "$DEST")"
+
+        if ((recompress)); then
+            zstd --force "${DEST%efi}"raw*
+            rm -f "${DEST%efi}raw" "${DEST%efi}raw.img"
         fi
     fi
 done < <(find hashes/ukis hashes/kernels -type f \( -name '*efi.sig' -o -name 'vmlinu*.sig' \) -printf '%P\n')
@@ -141,9 +148,10 @@ while read -r SIG; do
     mkdir -p mkosi.repart
     tar xf "/usr/src/packages/SOURCES/$(basename "${SIG%roothash.sig}repart.tar")" -C mkosi.repart
     rm -f "$OUTPUTDIR/$(basename "${SIG%roothash.sig}repart.tar")"
-    if [ -f "$OUTPUTDIR/$(basename "${SIG%roothash.sig}raw.zst")" ]; then
+    if [ -f "$OUTPUTDIR/$(basename "${SIG%roothash.sig}raw.zst")" ] || [ -f "$OUTPUTDIR/$(basename "${SIG%roothash.sig}img.zst")" ]; then
         recompress=1
-        unzstd "$OUTPUTDIR/$(basename "${SIG%roothash.sig}raw.zst")"
+        unzstd "$OUTPUTDIR/$(basename "${SIG%roothash.sig}")"raw*.zst
+        rm -f "$OUTPUTDIR/$(basename "${SIG%roothash.sig}")"raw*.zst
     fi
 
     ARGS=(
@@ -151,7 +159,7 @@ while read -r SIG; do
         --certificate /usr/src/packages/SOURCES/_projectcert.crt \
         --definitions mkosi.repart \
         --dry-run=no \
-        "$OUTPUTDIR/$(basename "${SIG%roothash.sig}raw")"
+        "$OUTPUTDIR/$(basename "${SIG%roothash.sig}")"raw*
     )
 
     # sd-repart might be configured to create labels based on os-release fields. Due to the
@@ -166,8 +174,8 @@ while read -r SIG; do
     rm -rf mkosi.repart
 
     if ((recompress)); then
-        zstd --force "$OUTPUTDIR/$(basename "${SIG%roothash.sig}raw")"
-        rm -f "$OUTPUTDIR/$(basename "${SIG%roothash.sig}raw")"
+        zstd --force "$OUTPUTDIR/$(basename "${SIG%roothash.sig}")"raw*
+        rm -f "$OUTPUTDIR/$(basename "${SIG%roothash.sig}raw")" "$OUTPUTDIR/$(basename "${SIG%roothash.sig}raw.img")"
     fi
 done < <(find hashes/roothashes -type f -name '*.sig')
 rm -rf hashes/roothashes
