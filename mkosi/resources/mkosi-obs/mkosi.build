@@ -67,6 +67,8 @@ while read -r SIG; do
             unzstd "${DEST%efi}"raw*.zst
             rm -f "${DEST%efi}"raw*.zst
             recompress=1
+        else
+            recompress=0
         fi
 
         offset="$(systemd-repart --json=short "${DEST%efi}"raw* | jq -r '.[] | select(.type == "esp") | .offset')"
@@ -198,6 +200,8 @@ while read -r SIG; do
         recompress=1
         unzstd "$OUTPUTDIR/$(basename "${SIG%roothash.sig}")"raw*.zst
         rm -f "$OUTPUTDIR/$(basename "${SIG%roothash.sig}")"raw*.zst
+    else
+        recompress=0
     fi
 
     ARGS=(
@@ -245,10 +249,14 @@ mapfile -t AUTHVARS < <(find hashes/authvars -type f -name "*.auth")
 if (( ${#AUTHVARS[@]} > 0 )); then
     for ddi in "$OUTPUTDIR"/*.raw*; do
         test -f "$ddi" || continue
+
         if [[ $ddi == *.zst ]]; then
             unzstd "${ddi}"
             recompress=1
+        else
+            recompress=0
         fi
+
         offset="$(systemd-repart --json=short "${ddi%.zst}" | jq -r '.[] | select(.type == "esp") | .offset')"
         if [ -z "$offset" ] || [ "$offset" = "null" ]; then
             if [[ $ddi == *.zst ]]; then
