@@ -35,7 +35,7 @@ certutil -N -d sql:"$nss_db" --empty-password
 certutil -A -d sql:"$nss_db" -n cert -t CT,CT,CT -i /usr/src/packages/SOURCES/_projectcert.crt
 openssl x509 -inform PEM -in /usr/src/packages/SOURCES/_projectcert.crt -outform DER -out _projectcert.cer
 
-cp -r /usr/src/packages/SOURCES/"$IMAGE_ID"* "$OUTPUTDIR"
+cp -r /usr/src/packages/SOURCES/"$IMAGE_ID"* /usr/src/packages/SOURCES/*raw* /usr/src/packages/SOURCES/*efi* "$OUTPUTDIR" || true
 rm -f "$OUTPUTDIR/hashes.cpio.rsasign*" "$OUTPUTDIR"/*.sha*
 
 # First step: if there are UKI signatures, attach them
