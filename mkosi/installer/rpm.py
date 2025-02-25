@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 import dataclasses
-import subprocess
 import textwrap
 from pathlib import Path
 from typing import Literal, Optional, overload
@@ -9,7 +8,6 @@ from typing import Literal, Optional, overload
 from mkosi.context import Context
 from mkosi.distributions import Distribution
 from mkosi.log import die
-from mkosi.run import run
 from mkosi.util import PathString
 
 
@@ -93,18 +91,6 @@ def setup_rpm(
 
     if dbbackend:
         (confdir / "macros.db_backend").write_text(f"%_db_backend {dbbackend}")
-
-    plugindir = Path(
-        run(
-            ["rpm", "--eval", "%{__plugindir}"],
-            sandbox=context.sandbox(),
-            stdout=subprocess.PIPE,
-        ).stdout.strip()
-    )
-    if (plugindir := context.config.tools() / plugindir.relative_to("/")).exists():
-        with (confdir / "macros.disable-plugins").open("w") as f:
-            for plugin in plugindir.iterdir():
-                f.write(f"%__transaction_{plugin.stem} %{{nil}}\n")
 
     if context.config.distribution == Distribution.opensuse or (
         context.config.distribution.is_centos_variant() and context.config.release == "9"
