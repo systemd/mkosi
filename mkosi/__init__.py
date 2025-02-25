@@ -215,12 +215,12 @@ def mount_base_trees(context: Context) -> Iterator[None]:
 def remove_files(context: Context) -> None:
     """Remove files based on user-specified patterns"""
 
-    if context.config.remove_files or (context.root / "work").exists():
+    if context.config.remove_files:
         with complete_step("Removing files…"):
             remove = flatten(
                 context.root.glob(pattern.lstrip("/")) for pattern in context.config.remove_files
             )
-            rmtree(*remove, context.root / "work", sandbox=context.sandbox)
+            rmtree(*remove, sandbox=context.sandbox)
 
     if context.config.output_format.is_extension_image():
         with complete_step("Removing empty directories…"):
@@ -3950,6 +3950,8 @@ def build_image(context: Context) -> None:
     clean_package_manager_metadata(context)
     remove_files(context)
     run_finalize_scripts(context)
+
+    rmtree(context.root / "work")
 
     normalize_mtime(context.root, context.config.source_date_epoch)
     partitions = make_disk(context, skip=("esp", "xbootldr"), tabs=True, msg="Generating disk image")
