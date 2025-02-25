@@ -33,6 +33,7 @@ mkdir nss-db
 nss_db="$PWD/nss-db"
 certutil -N -d sql:"$nss_db" --empty-password
 certutil -A -d sql:"$nss_db" -n cert -t CT,CT,CT -i /usr/src/packages/SOURCES/_projectcert.crt
+openssl x509 -inform PEM -in /usr/src/packages/SOURCES/_projectcert.crt -outform DER -out _projectcert.cer
 
 cp -r /usr/src/packages/SOURCES/"$IMAGE_ID"* "$OUTPUTDIR"
 rm -f "$OUTPUTDIR/hashes.cpio.rsasign*" "$OUTPUTDIR"/*.sha*
@@ -224,5 +225,50 @@ while read -r SIG; do
     fi
 done < <(find hashes/roothashes -type f -name '*.sig')
 rm -rf hashes/roothashes
+
+# Sixth step: prepare EFI authvars for self-enrollment
+# as implemented by https://github.com/openSUSE/pesign-obs-integration/blob/master/pesign-repackage.spec.in#L162
+while read -r SIG; do
+    test -x /usr/lib/rpm/pesign/kernel-sign-file || break
+    f="${SIG%.sig}"
+    /usr/lib/rpm/pesign/kernel-sign-file -N -P -d -C _projectcert.cer -i pkcs7 -s "$SIG" sha256 _projectcert.cer "$f"
+    fbase="${f##*/}"
+    fbase="${fbase%.auth}"
+    fbase="${fbase%%-*}"
+    perl -0777 -npe 's/\A(?:[\040-\176]\0)+.{18}\0\0.{14}\0\0//s' < "$f" > "$f.orig"
+    sign-efi-sig-list -t "${SOURCE_DATE_EPOCH:-$(date +%s)}" -i "$f.p7sd" "$fbase" "$f.orig" "$f.tmp"
+    mv "$f.tmp" "$f"
+    rm -f "$f.p7s" "$f.p7sd" "$f.orig"
+done < <(find hashes/authvars -type f -name '*.auth.sig')
+declare -a AUTHVARS
+mapfile -t AUTHVARS < <(find hashes/authvars -type f -name "*.auth")
+if (( ${#AUTHVARS[@]} > 0 )); then
+    for ddi in "$OUTPUTDIR"/*.raw*; do
+        test -f "$ddi" || continue
+        if [[ $ddi == *.zst ]]; then
+            unzstd "${ddi}"
+            recompress=1
+        fi
+        offset="$(systemd-repart --json=short "${ddi%.zst}" | jq -r '.[] | select(.type == "esp") | .offset')"
+        if [ -z "$offset" ] || [ "$offset" = "null" ]; then
+            if [[ $ddi == *.zst ]]; then
+                rm -f "${ddi%.zst}"
+            fi
+            continue
+        fi
+
+        mmd -D s -i "${ddi%.zst}@@${offset}" ::loader ::loader/keys ::loader/keys/auto || true
+        for authvar in "${AUTHVARS[@]}"; do
+            test -f "$authvar" || continue
+            mcopy -o -i "${ddi%.zst}@@${offset}" "$authvar" "::loader/keys/auto/$(basename "$authvar")"
+        done
+
+        if ((recompress)); then
+            zstd --force "${ddi%.zst}"
+            rm -f "${ddi%.zst}"
+        fi
+    done
+fi
+rm -rf hashes/authvars
 
 rm -rf hashes "$nss_db"

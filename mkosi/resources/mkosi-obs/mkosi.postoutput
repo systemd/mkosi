@@ -93,6 +93,22 @@ for ddi in "${DDIS[@]}"; do
     rm -rf EFI
 done
 
+# If there is at least one DDI then there might be an ESP, so prepare the authvars for self-enrollment
+if ((${#DDIS[@]} > 0)); then
+    mkdir -p hashes/authvars
+    pushd hashes/authvars 2>/dev/null
+    # Same as the GUID used by bootctl
+    guid=a5c059a1-94e4-4aa7-87b5-ab155c2bf072
+    cert-to-efi-sig-list -g "$guid" /usr/src/packages/SOURCES/_projectcert.crt db.esl
+    cp db.esl KEK.esl
+    cp db.esl PK.esl
+    env
+    for i in *.esl; do
+        sign-efi-sig-list -o -g "$guid" -t "${SOURCE_DATE_EPOCH:-$(date +%s)}" "${i%.esl}" "$i" "${i%.esl}.auth"
+    done
+    popd 2>/dev/null
+fi
+
 # Pack everything into a CPIO archive and place it where OBS expects it
 pushd hashes
 find . -type f | cpio -H newc -o >"$OUTPUTDIR/hashes.cpio.rsasign"
