@@ -673,7 +673,6 @@ def install_systemd_boot(context: Context) -> None:
         "--all-architectures",
         "--no-variables",
     ]
-    options: list[PathString] = ["--bind", context.root, "/buildroot"]
 
     bootctlver = systemd_tool_version("bootctl", sandbox=context.sandbox)
 
@@ -686,7 +685,7 @@ def install_systemd_boot(context: Context) -> None:
         run_systemd_sign_tool(
             context.config,
             cmdline=cmd,
-            options=options,
+            options=context.rootoptions(),
             certificate=context.config.secure_boot_certificate if want_bootctl_auto_enroll else None,
             certificate_source=context.config.secure_boot_certificate_source,
             key=context.config.secure_boot_key if want_bootctl_auto_enroll else None,
@@ -756,7 +755,7 @@ def install_systemd_boot(context: Context) -> None:
                         "--cert", workdir(context.config.secure_boot_certificate),
                         "--output", workdir(keys / f"{db}.auth"),
                     ]  # fmt: skip
-                    options = [
+                    options: list[PathString] = [
                         "--ro-bind",
                         context.config.secure_boot_certificate,
                         workdir(context.config.secure_boot_certificate),

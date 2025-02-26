@@ -116,7 +116,7 @@ class Installer(DistributionInstaller):
                     ],
                     sandbox=context.sandbox(
                         options=[
-                            "--bind", context.root, "/buildroot",
+                            *context.rootoptions(),
                             *finalize_certificate_mounts(context.config),
                         ],
                     ),

@@ -138,7 +138,7 @@ class PackageManager:
         return context.sandbox(
             network=True,
             options=[
-                "--bind", context.root, "/buildroot",
+                *context.rootoptions(),
                 *cls.mounts(context),
                 *cls.options(root=context.root, apivfs=apivfs),
                 *options,
