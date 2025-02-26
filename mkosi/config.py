@@ -4717,8 +4717,11 @@ def parse_config(
 
     if have_history(args):
         try:
-            prev = Config.from_json(Path(".mkosi-private/history/latest.json").read_text())
-        except ValueError:
+            *subimages, prev = [
+                Config.from_json(j)
+                for j in json.loads(Path(".mkosi-private/history/latest.json").read_text())["Images"]
+            ]
+        except (KeyError, ValueError):
             die(
                 "Unable to parse history from .mkosi-private/history/latest.json",
                 hint="Build with -f to generate a new history file from scratch",
@@ -4744,6 +4747,7 @@ def parse_config(
         context.only_sections = ("Include", "Runtime", "Host")
     else:
         context.only_sections = tuple(only_sections)
+        subimages = []
         prev = None
 
     context.parse_new_includes()
@@ -4765,7 +4769,7 @@ def parse_config(
         setattr(config, s.dest, context.finalize_value(s))
 
     if prev:
-        return args, (Config.from_namespace(config),)
+        return args, (*subimages, Config.from_namespace(config))
 
     images = []
 

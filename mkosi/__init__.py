@@ -5224,7 +5224,14 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
 
         if last.history:
             Path(".mkosi-private/history").mkdir(parents=True, exist_ok=True)
-            Path(".mkosi-private/history/latest.json").write_text(last.to_json())
+            Path(".mkosi-private/history/latest.json").write_text(
+                json.dumps(
+                    {"Images": [config.to_dict() for config in images]},
+                    cls=JsonEncoder,
+                    indent=4,
+                    sort_keys=True,
+                )
+            )
 
     if args.verb == Verb.build:
         return
