@@ -4681,7 +4681,7 @@ def run_clean(args: Args, config: Config) -> None:
         remove_image_cache = args.force > 0
         remove_package_cache = args.force > 1
     else:
-        remove_outputs = config.output_format != OutputFormat.none and args.force > 0
+        remove_outputs = args.force > 0 or (config.is_incremental() and not have_cache(config))
         remove_build_cache = args.force > 1 or args.wipe_build_dir
         remove_image_cache = args.force > 1 or not have_cache(config)
         remove_package_cache = args.force > 2
