@@ -1415,9 +1415,18 @@ def run_qemu(args: Args, config: Config) -> None:
 
         if want_scratch(config):
             scratch = stack.enter_context(generate_scratch_fs(config))
-            cache = "cache.writeback=on,cache.direct=on,cache.no-flush=yes,aio=io_uring"
+            blockdev = [
+                "driver=raw",
+                "node-name=scratch",
+                "discard=unmap",
+                "file.driver=file",
+                f"file.filename={scratch}",
+                "file.aio=io_uring",
+                "cache.direct=on",
+                "cache.no-flush=on",
+            ]
             cmdline += [
-                "-drive", f"if=none,id=scratch,file={scratch},format=raw,discard=on,{cache}",
+                "-blockdev", ",".join(blockdev),
                 "-device", "virtio-blk-pci,drive=scratch",
             ]  # fmt: skip
             kcl += [f"systemd.mount-extra=LABEL=scratch:/var/tmp:{config.distribution.filesystem()}"]
@@ -1434,9 +1443,16 @@ def run_qemu(args: Args, config: Config) -> None:
                 cmdline += ["-initrd", initrd]
 
         if config.output_format in (OutputFormat.disk, OutputFormat.esp):
-            direct = fname.stat().st_size % resource.getpagesize() == 0
-            ephemeral = config.ephemeral
-            cache = f"cache.writeback=on,cache.direct={yes_no(direct)},cache.no-flush={yes_no(ephemeral)},aio=io_uring"  # noqa: E501
+            blockdev = [
+                "driver=raw",
+                "node-name=mkosi",
+                "discard=unmap",
+                "file.driver=file",
+                f"file.filename={fname}",
+                "file.aio=io_uring",
+                f"cache.direct={yes_no(fname.stat().st_size % resource.getpagesize() == 0)}",
+                f"cache.no-flush={yes_no(config.ephemeral)}",
+            ]
 
             device_type = "virtio-blk-pci"
             if config.cdrom:
@@ -1445,7 +1461,7 @@ def run_qemu(args: Args, config: Config) -> None:
                 device_type = "scsi-hd,removable=on"
 
             cmdline += [
-                "-drive", f"if=none,id=mkosi,file={fname},format=raw,discard=on,{cache}",
+                "-blockdev", ",".join(blockdev),
                 "-device", f"{device_type},drive=mkosi,bootindex=1",
             ]  # fmt: skip
 
@@ -1503,11 +1519,20 @@ def run_qemu(args: Args, config: Config) -> None:
             file = stack.enter_context(finalize_drive(config, drives[0]))
 
             for drive in drives:
-                arg = f"if=none,id={drive.id},file={file},format=raw,file.locking=off,cache.writeback=on,cache.direct=on,cache.no-flush=yes,aio=io_uring"  # noqa: E501
+                arg = [
+                    "driver=raw",
+                    f"node-name={drive.id}",
+                    "file.driver=file",
+                    f"file.filename={file}",
+                    "file.aio=io_uring",
+                    "file.locking=off",
+                    "cache.direct=on",
+                    "cache.no-flush=yes",
+                ]
                 if drive.options:
-                    arg += f",{drive.options}"
+                    arg += [drive.options]
 
-                cmdline += ["-drive", arg]
+                cmdline += ["-blockdev", ",".join(arg)]
 
         cmdline += config.qemu_args
         cmdline += args.cmdline
