@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 from mkosi.config import Args, Config
-from mkosi.util import PathString
+from mkosi.util import PathString, flatten
 
 
 class Context:
@@ -31,6 +31,9 @@ class Context:
         self.keyring_dir = keyring_dir
         self.metadata_dir = metadata_dir
         self.package_dir = package_dir or (self.workspace / "packages")
+        self.lowerdirs: list[PathString] = []
+        self.upperdir: Optional[PathString] = None
+        self.workdir: Optional[PathString] = None
 
         self.package_dir.mkdir(exist_ok=True)
         self.staging.mkdir()
@@ -44,7 +47,20 @@ class Context:
         return self.workspace / "root"
 
     def rootoptions(self, dst: PathString = "/buildroot", *, readonly: bool = False) -> list[str]:
-        return ["--ro-bind" if readonly else "--bind", os.fspath(self.root), os.fspath(dst)]
+        if self.lowerdirs or self.upperdir:
+            return [
+                "--overlay-lowerdir", os.fspath(self.root),
+                *flatten(["--overlay-lowerdir", os.fspath(lowerdir)] for lowerdir in self.lowerdirs),
+                *(
+                    ["--overlay-lowerdir" if readonly else "--overlay-upperdir", os.fspath(self.upperdir)]
+                    if self.upperdir
+                    else []
+                ),
+                *(["--overlay-workdir", os.fspath(self.workdir)] if self.workdir and not readonly else []),
+                "--overlay", os.fspath(dst),
+            ]  # fmt: skip
+        else:
+            return ["--ro-bind" if readonly else "--bind", os.fspath(self.root), os.fspath(dst)]
 
     @property
     def staging(self) -> Path:

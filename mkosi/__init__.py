@@ -298,7 +298,7 @@ def install_build_packages(context: Context) -> None:
 
     with (
         complete_step(f"Installing build packages for {context.config.distribution.pretty_name()}"),
-        mount_build_overlay(context),
+        setup_build_overlay(context),
     ):
         context.config.distribution.install_packages(context, context.config.build_packages)
 
@@ -474,24 +474,40 @@ def configure_autologin(context: Context) -> None:
 
 
 @contextlib.contextmanager
-def mount_build_overlay(context: Context, volatile: bool = False) -> Iterator[Path]:
+def setup_build_overlay(context: Context, volatile: bool = False) -> Iterator[None]:
     d = context.workspace / "build-overlay"
     if not d.is_symlink():
         with umask(~0o755):
             d.mkdir(exist_ok=True)
 
+    # We don't support multiple levels of root overlay.
+    assert not context.lowerdirs
+    assert not context.upperdir
+    assert not context.workdir
+
     with contextlib.ExitStack() as stack:
-        lower = [context.root]
-
         if volatile:
-            lower += [d]
-            upper = None
+            context.lowerdirs = [d]
+            context.upperdir = Path(
+                stack.enter_context(tempfile.TemporaryDirectory(prefix="volatile-overlay"))
+            )
+            os.chmod(context.upperdir, d.stat().st_mode)
         else:
-            upper = d
+            context.upperdir = d
 
-        stack.enter_context(mount_overlay(lower, context.root, upperdir=upper))
+        context.workdir = stack.enter_context(
+            tempfile.TemporaryDirectory(
+                dir=Path(context.upperdir).parent,
+                prefix=f"{Path(context.upperdir).name}-workdir",
+            )
+        )
 
-        yield context.root
+        try:
+            yield
+        finally:
+            context.lowerdirs = []
+            context.upperdir = None
+            context.workdir = None
 
 
 @contextlib.contextmanager
@@ -751,7 +767,7 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
     env |= context.config.finalize_environment()
 
     with (
-        mount_build_overlay(context) if build else contextlib.nullcontext(),
+        setup_build_overlay(context) if build else contextlib.nullcontext(),
         finalize_source_mounts(
             context.config,
             ephemeral=bool(context.config.build_sources_ephemeral),
@@ -827,7 +843,7 @@ def run_build_scripts(context: Context) -> None:
     env |= context.config.finalize_environment()
 
     with (
-        mount_build_overlay(context, volatile=True),
+        setup_build_overlay(context, volatile=True),
         finalize_source_mounts(context.config, ephemeral=context.config.build_sources_ephemeral) as sources,
         finalize_config_json(context.config) as json,
     ):
