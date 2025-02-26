@@ -104,13 +104,6 @@ class Apt(PackageManager):
         (context.sandbox_tree / "etc/apt/preferences.d").mkdir(exist_ok=True, parents=True)
         (context.sandbox_tree / "etc/apt/sources.list.d").mkdir(exist_ok=True, parents=True)
 
-        with umask(~0o755):
-            # TODO: Drop once apt 2.5.4 is widely available.
-            (context.root / "var/lib/dpkg").mkdir(parents=True, exist_ok=True)
-            (context.root / "var/lib/dpkg/status").touch()
-
-            (context.root / "var/lib/dpkg/available").touch()
-
         # We have a special apt.conf outside of the sandbox tree that only configures "Dir::Etc" that we pass
         # to APT_CONFIG to tell apt it should read config files from /etc/apt in case this is overridden by
         # distributions.  This is required because apt parses CLI configuration options after parsing its
@@ -222,6 +215,13 @@ class Apt(PackageManager):
         options: Sequence[PathString] = (),
         stdout: _FILE = None,
     ) -> CompletedProcess:
+        with umask(~0o755):
+            # TODO: Drop once apt 2.5.4 is widely available.
+            (context.root / "var/lib/dpkg").mkdir(parents=True, exist_ok=True)
+            (context.root / "var/lib/dpkg/status").touch(exist_ok=True)
+
+            (context.root / "var/lib/dpkg/available").touch(exist_ok=True)
+
         return run(
             cls.cmd(context) + [operation, *arguments],
             sandbox=cls.sandbox(context, apivfs=apivfs, options=options),
