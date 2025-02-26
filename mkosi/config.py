@@ -1676,6 +1676,7 @@ class Args:
     doc_format: DocFormat
     json: bool
     wipe_build_dir: bool
+    run_build_scripts: bool
 
     @classmethod
     def default(cls) -> "Args":
@@ -2050,6 +2051,9 @@ class Config:
         env |= self.environment
 
         return env
+
+    def is_incremental(self) -> bool:
+        return bool(self.incremental) and not self.base_trees and not self.overlay
 
     def machine_or_name(self) -> str:
         return self.machine or self.image
@@ -4169,6 +4173,13 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
         action="store_true",
         default=False,
     )
+    parser.add_argument(
+        "-R",
+        "--run-build-scripts",
+        help="Run build scripts even if the image is not rebuilt",
+        action="store_true",
+        default=False,
+    )
     # These can be removed once mkosi v15 is available in LTS distros and compatibility with <= v14
     # is no longer needed in build infrastructure (e.g.: OBS).
     parser.add_argument(
@@ -4717,8 +4728,11 @@ def parse_config(
 
     if have_history(args):
         try:
-            prev = Config.from_json(Path(".mkosi-private/history/latest.json").read_text())
-        except ValueError:
+            *subimages, prev = [
+                Config.from_json(j)
+                for j in json.loads(Path(".mkosi-private/history/latest.json").read_text())["Images"]
+            ]
+        except (KeyError, ValueError):
             die(
                 "Unable to parse history from .mkosi-private/history/latest.json",
                 hint="Build with -f to generate a new history file from scratch",
@@ -4744,6 +4758,7 @@ def parse_config(
         context.only_sections = ("Include", "Runtime", "Host")
     else:
         context.only_sections = tuple(only_sections)
+        subimages = []
         prev = None
 
     context.parse_new_includes()
@@ -4765,7 +4780,7 @@ def parse_config(
         setattr(config, s.dest, context.finalize_value(s))
 
     if prev:
-        return args, (Config.from_namespace(config),)
+        return args, (*subimages, Config.from_namespace(config))
 
     images = []
 

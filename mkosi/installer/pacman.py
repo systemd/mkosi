@@ -79,9 +79,6 @@ class Pacman(PackageManager):
             # will be no signatures
             sig_level = "Never"
 
-        with umask(~0o755):
-            (context.root / "var/lib/pacman/local").mkdir(parents=True, exist_ok=True)
-
         (context.sandbox_tree / "etc/mkosi-local.conf").touch()
 
         config = context.sandbox_tree / "etc/pacman.conf"
@@ -173,6 +170,9 @@ class Pacman(PackageManager):
         apivfs: bool = False,
         stdout: _FILE = None,
     ) -> CompletedProcess:
+        with umask(~0o755):
+            (context.root / "var/lib/pacman/local").mkdir(parents=True, exist_ok=True)
+
         return run(
             cls.cmd(context) + [operation, *arguments],
             sandbox=cls.sandbox(context, apivfs=apivfs),

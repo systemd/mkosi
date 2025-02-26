@@ -1342,9 +1342,9 @@ def finalize_default_initrd(
 
     initrd = dataclasses.replace(initrd, image="default-initrd")
 
-    if initrd.incremental and initrd.expand_key_specifiers(initrd.cache_key) == config.expand_key_specifiers(
-        config.cache_key
-    ):
+    if initrd.is_incremental() and initrd.expand_key_specifiers(
+        initrd.cache_key
+    ) == config.expand_key_specifiers(config.cache_key):
         die(
             f"Image '{config.image}' and its default initrd image have the same cache key '{config.expand_key_specifiers(config.cache_key)}'",  # noqa: E501
             hint="Add the &I specifier to the cache key to avoid this issue",
@@ -1365,7 +1365,7 @@ def build_default_initrd(context: Context) -> Path:
 
     assert config.output_dir
 
-    if config.incremental == Incremental.strict and not have_cache(config):
+    if config.is_incremental() and config.incremental == Incremental.strict and not have_cache(config):
         die(
             f"Strict incremental mode is enabled and cache for image {config.image} is out-of-date",
             hint="Build once with -i yes to update the image cache",
@@ -2602,7 +2602,7 @@ def check_inputs(config: Config) -> None:
     if config.overlay and not config.base_trees:
         die("--overlay=yes can only be used with --base-tree=")
 
-    if config.incremental and not config.cache_dir:
+    if config.is_incremental() and not config.cache_dir:
         die("A cache directory must be configured in order to use --incremental=yes")
 
     for base in config.base_trees:
@@ -3149,7 +3149,7 @@ def need_build_overlay(config: Config) -> bool:
 
 
 def save_cache(context: Context) -> None:
-    if not context.config.incremental or context.config.base_trees or context.config.overlay:
+    if not context.config.is_incremental():
         return
 
     final, build, manifest = cache_tree_paths(context.config)
@@ -3183,7 +3183,7 @@ def save_cache(context: Context) -> None:
 
 
 def have_cache(config: Config) -> bool:
-    if not config.incremental or config.base_trees or config.overlay:
+    if not config.is_incremental():
         return False
 
     final, build, manifest = cache_tree_paths(config)
@@ -3226,7 +3226,7 @@ def have_cache(config: Config) -> bool:
 
 
 def reuse_cache(context: Context) -> bool:
-    if not context.config.incremental or context.config.base_trees or context.config.overlay:
+    if not context.config.is_incremental():
         return False
 
     final, build, _ = cache_tree_paths(context.config)
@@ -3905,9 +3905,10 @@ def build_image(context: Context) -> None:
         check_root_populated(context)
         run_build_scripts(context)
 
-        if context.config.output_format == OutputFormat.none:
-            finalize_staging(context)
-            rmtree(context.root, sandbox=context.sandbox)
+        if context.config.output_format == OutputFormat.none or (
+            context.args.run_build_scripts
+            and (context.config.output_dir_or_cwd() / context.config.output).exists()
+        ):
             return
 
         if wantrepo:
@@ -4678,17 +4679,17 @@ def run_clean(args: Args, config: Config) -> None:
     sandbox = functools.partial(config.sandbox, tools=False)
 
     if args.verb == Verb.clean:
-        remove_output_dir = config.output_format != OutputFormat.none
+        remove_outputs = True
         remove_build_cache = args.force > 0 or args.wipe_build_dir
         remove_image_cache = args.force > 0
         remove_package_cache = args.force > 1
     else:
-        remove_output_dir = config.output_format != OutputFormat.none and args.force > 0
+        remove_outputs = args.force > 0 or (config.is_incremental() and not have_cache(config))
         remove_build_cache = args.force > 1 or args.wipe_build_dir
         remove_image_cache = args.force > 1 or not have_cache(config)
         remove_package_cache = args.force > 2
 
-    if remove_output_dir:
+    if remove_outputs:
         outputs = {
             config.output_dir_or_cwd() / output
             for output in config.outputs
@@ -4780,7 +4781,7 @@ def sync_repository_metadata(
     # If we have a metadata cache and any cached image and using cached metadata is not explicitly disabled,
     # reuse the metadata cache.
     if (
-        last.incremental
+        last.is_incremental()
         and keyring_cache(last).exists()
         and metadata_cache(last).exists()
         and last.cacheonly != Cacheonly.never
@@ -4840,7 +4841,7 @@ def sync_repository_metadata(
 
     # If we're in incremental mode and caching metadata is not explicitly disabled, cache the keyring and the
     # synced repository metadata so we can reuse them later.
-    if last.incremental and last.cacheonly != Cacheonly.never:
+    if last.is_incremental() and last.cacheonly != Cacheonly.never:
         rmtree(keyring_cache(last), metadata_cache(last), sandbox=last.sandbox)
 
         for p in (keyring_cache(last), metadata_cache(last)):
@@ -5020,9 +5021,9 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         tools
         and (
             not (tools.output_dir_or_cwd() / tools.output).exists()
-            or (tools.incremental and not have_cache(tools))
+            or (tools.is_incremental() and not have_cache(tools))
         )
-        and (args.verb != Verb.build or last.output_format == OutputFormat.none)
+        and args.verb != Verb.build
         and not args.force
     ):
         die(
@@ -5034,7 +5035,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
     # If we're doing an incremental build and the cache is not out of date, don't clean up the
     # tools tree so that we can reuse the previous one.
     if tools and (
-        not tools.incremental or ((args.verb == Verb.build or args.force > 0) and not have_cache(tools))
+        not tools.is_incremental() or ((args.verb == Verb.build or args.force > 0) and not have_cache(tools))
     ):
         if tools.incremental == Incremental.strict:
             die(
@@ -5090,6 +5091,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         and output.exists()
         and not output.is_symlink()
         and last.output_format != OutputFormat.none
+        and not args.run_build_scripts
     ):
         logging.info(f"Output path {output} exists already. (Use --force to rebuild.)")
         return
@@ -5106,7 +5108,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
 
         check_workspace_directory(last)
 
-        if last.incremental:
+        if last.is_incremental():
             for a, b in itertools.combinations(images, 2):
                 if a.expand_key_specifiers(a.cache_key) == b.expand_key_specifiers(b.cache_key):
                     die(
@@ -5114,7 +5116,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
                         hint="Add the &I specifier to the cache key to avoid this issue",
                     )
 
-        if last.incremental == Incremental.strict:
+        if last.is_incremental() and last.incremental == Incremental.strict:
             if args.force > 1:
                 die(
                     "Cannot remove incremental caches when building with Incremental=strict",
@@ -5155,7 +5157,11 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
     if not have_history(args):
         images = resolve_deps(images[:-1], last.dependencies) + [last]
 
-    if not (last.output_dir_or_cwd() / last.output).exists() or last.output_format == OutputFormat.none:
+    if (
+        args.run_build_scripts
+        or last.output_format == OutputFormat.none
+        or not (last.output_dir_or_cwd() / last.output).exists()
+    ):
         for config in images:
             if any(
                 source.type != KeySourceType.file
@@ -5168,9 +5174,15 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
                 join_new_session_keyring()
                 break
 
-        with complete_step("Validating certificates and keys"):
-            for config in images:
-                validate_certificates_and_keys(config)
+        validate = [
+            c
+            for c in images
+            if c.output_format != OutputFormat.none and not (c.output_dir_or_cwd() / c.output).exists()
+        ]
+        if validate:
+            with complete_step("Validating certificates and keys"):
+                for config in validate:
+                    validate_certificates_and_keys(config)
 
         ensure_directories_exist(last)
 
@@ -5188,27 +5200,34 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
                 prefix="mkosi-packages-",
             ) as package_dir,
         ):
-            sync_repository_metadata(
-                args,
-                images,
-                resources=resources,
-                keyring_dir=Path(keyring_dir),
-                metadata_dir=Path(metadata_dir),
-            )
-
             for config in images:
                 run_sync_scripts(config)
 
+            synced = False
+
             for config in images:
-                # If the output format is "none" and there are no build scripts, there's nothing to
-                # do so exit early.
-                if config.output_format == OutputFormat.none and not config.build_scripts:
+                # If the output format is "none" or we're rebuilding and there are no build scripts, there's
+                # nothing to do so exit early.
+                if (
+                    config.output_format == OutputFormat.none
+                    or (args.run_build_scripts and (config.output_dir_or_cwd() / config.output).exists())
+                ) and not config.build_scripts:
                     continue
 
                 check_tools(config, Verb.build)
-
                 check_inputs(config)
                 ensure_directories_exist(config)
+
+                if not synced:
+                    sync_repository_metadata(
+                        args,
+                        images,
+                        resources=resources,
+                        keyring_dir=Path(keyring_dir),
+                        metadata_dir=Path(metadata_dir),
+                    )
+                    synced = True
+
                 fork_and_wait(
                     run_build,
                     args,
@@ -5219,12 +5238,22 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
                     package_dir=Path(package_dir),
                 )
 
+            if not synced:
+                logging.info("All images have already been built and do not have any build scripts")
+
         if args.auto_bump:
             bump_image_version()
 
         if last.history:
             Path(".mkosi-private/history").mkdir(parents=True, exist_ok=True)
-            Path(".mkosi-private/history/latest.json").write_text(last.to_json())
+            Path(".mkosi-private/history/latest.json").write_text(
+                json.dumps(
+                    {"Images": [config.to_dict() for config in images]},
+                    cls=JsonEncoder,
+                    indent=4,
+                    sort_keys=True,
+                )
+            )
 
     if args.verb == Verb.build:
         return
