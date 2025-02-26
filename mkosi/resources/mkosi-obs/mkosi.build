@@ -35,7 +35,7 @@ certutil -N -d sql:"$nss_db" --empty-password
 certutil -A -d sql:"$nss_db" -n cert -t CT,CT,CT -i /usr/src/packages/SOURCES/_projectcert.crt
 openssl x509 -inform PEM -in /usr/src/packages/SOURCES/_projectcert.crt -outform DER -out _projectcert.cer
 
-cp -r /usr/src/packages/SOURCES/"$IMAGE_ID"* "$OUTPUTDIR"
+cp -r /usr/src/packages/SOURCES/"$IMAGE_ID"* /usr/src/packages/SOURCES/*raw* /usr/src/packages/SOURCES/*efi* "$OUTPUTDIR" || true
 rm -f "$OUTPUTDIR/hashes.cpio.rsasign*" "$OUTPUTDIR"/*.sha*
 
 # First step: if there are UKI signatures, attach them
@@ -67,6 +67,8 @@ while read -r SIG; do
             unzstd "${DEST%efi}"raw*.zst
             rm -f "${DEST%efi}"raw*.zst
             recompress=1
+        else
+            recompress=0
         fi
 
         offset="$(systemd-repart --json=short "${DEST%efi}"raw* | jq -r '.[] | select(.type == "esp") | .offset')"
@@ -88,7 +90,7 @@ while read -r SIG; do
 done < <(find hashes/ukis hashes/kernels -type f \( -name '*efi.sig' -o -name 'vmlinu*.sig' \) -printf '%P\n')
 rm -rf "$OUTPUTDIR"/*.sig hashes/ukis
 
-# If there are signed bootloaders, install them in the ESP
+# Second step: if there are signed bootloaders, install them in the ESP
 while read -r BOOTLOADER; do
     unsigned="$(basename "${BOOTLOADER%.sig}")"
     signed="$(basename "${BOOTLOADER%.sig}".signed)"
@@ -133,7 +135,7 @@ done < <(find "hashes/bootloaders/$(basename "$ddi")/" -type f -iname '*.efi.sig
 rm -rf hashes/bootloaders
 rm -rf nss-db
 
-# Second step: if there are PCR policy signatures, rebuild the JSON
+# Third step: if there are PCR policy signatures, rebuild the JSON
 # blobs with the attached signatures
 while read -r SIG; do
     uki="$OUTPUTDIR/$(basename "$(dirname "${SIG%.sig}")")"
@@ -163,7 +165,7 @@ rm -rf hashes/pcrs
 mkdir -p "$nss_db"
 certutil -N -d sql:"$nss_db" --empty-password
 
-# Third step: now that the JSON blob is rebuilt, merge it in the UKI
+# Fourth step: now that the JSON blob is rebuilt, merge it in the UKI
 while read -r PCRS; do
     uki="${PCRS%.pcrs.sig}.efi"
     ukify --json=short --pcrsig "@$PCRS" --join-pcrsig "$uki" --output "$uki.attached" build
@@ -172,17 +174,6 @@ while read -r PCRS; do
     pesign --force -n sql:"$nss_db" -i "$uki" -E "hashes/ukis/$(basename "$uki")"
 done < <(find "$OUTPUTDIR" -type f -name '*.pcrs.sig')
 rm -f "$OUTPUTDIR"/*.pcrs*
-
-# Fourth step: take hash of the UKIs after the signed JSON blobs have been merged
-# and prepare for the next iteration
-if [ -d hashes/ukis ]; then
-    pushd hashes
-    find . -type f | cpio -H newc -o >"$OUTPUTDIR/hashes.cpio.rsasign"
-    popd
-    cp /usr/src/packages/SOURCES/mkosi.conf "$OUTPUTDIR"
-    echo "Staging the following files for signing:"
-    cpio -t <"$OUTPUTDIR/hashes.cpio.rsasign"
-fi
 
 # Fifth step: finalize any DDI by attaching the verity roothash signatures
 while read -r SIG; do
@@ -198,6 +189,8 @@ while read -r SIG; do
         recompress=1
         unzstd "$OUTPUTDIR/$(basename "${SIG%roothash.sig}")"raw*.zst
         rm -f "$OUTPUTDIR/$(basename "${SIG%roothash.sig}")"raw*.zst
+    else
+        recompress=0
     fi
 
     ARGS=(
@@ -245,10 +238,14 @@ mapfile -t AUTHVARS < <(find hashes/authvars -type f -name "*.auth")
 if (( ${#AUTHVARS[@]} > 0 )); then
     for ddi in "$OUTPUTDIR"/*.raw*; do
         test -f "$ddi" || continue
+
         if [[ $ddi == *.zst ]]; then
             unzstd "${ddi}"
             recompress=1
+        else
+            recompress=0
         fi
+
         offset="$(systemd-repart --json=short "${ddi%.zst}" | jq -r '.[] | select(.type == "esp") | .offset')"
         if [ -z "$offset" ] || [ "$offset" = "null" ]; then
             if [[ $ddi == *.zst ]]; then
@@ -270,5 +267,16 @@ if (( ${#AUTHVARS[@]} > 0 )); then
     done
 fi
 rm -rf hashes/authvars
+
+# Final step: if there are any hashes staged, prepare for the next stage
+rmdir --ignore-fail-on-non-empty hashes
+if [ -d hashes ]; then
+    pushd hashes
+    find . -type f | cpio -H newc -o >"$OUTPUTDIR/hashes.cpio.rsasign"
+    popd
+    cp /usr/src/packages/SOURCES/mkosi.conf "$OUTPUTDIR"
+    echo "Staging the following files for signing:"
+    cpio -t <"$OUTPUTDIR/hashes.cpio.rsasign"
+fi
 
 rm -rf hashes "$nss_db"

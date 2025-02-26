@@ -29,6 +29,14 @@ rm -rf "$nss_db"
 mkdir -p "$nss_db" hashes
 certutil -N -d sql:"$nss_db" --empty-password
 
+# When a single build has multiple images, postoutput is called for each image,
+# so make sure the hashes.cpio from the previous stages gets its content preserved
+if [ -f /usr/src/packages/OTHER/hashes.cpio.rsasign ]; then
+    pushd hashes
+    cpio -idm </usr/src/packages/OTHER/hashes.cpio.rsasign
+    popd
+fi
+
 for f in "${UKIS[@]}"; do
     test -f "${OUTPUTDIR}/${f}" || continue
     if [ -f "${OUTPUTDIR}/${f%.efi}.pcrs" ]; then
@@ -102,7 +110,6 @@ if ((${#DDIS[@]} > 0)); then
     cert-to-efi-sig-list -g "$guid" /usr/src/packages/SOURCES/_projectcert.crt db.esl
     cp db.esl KEK.esl
     cp db.esl PK.esl
-    env
     for i in *.esl; do
         sign-efi-sig-list -o -g "$guid" -t "${SOURCE_DATE_EPOCH:-$(date +%s)}" "${i%.esl}" "$i" "${i%.esl}.auth"
     done
