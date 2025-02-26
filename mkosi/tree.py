@@ -184,7 +184,7 @@ def rmtree(*paths: Path, sandbox: SandboxProtocol = nosandbox) -> None:
 
     paths = tuple(p.absolute() for p in paths)
 
-    if subvolumes := sorted({p for p in paths if p.exists() and is_subvolume(p)}):
+    if subvolumes := sorted({p for p in paths if not p.is_symlink() and p.exists() and is_subvolume(p)}):
         # Silence and ignore failures since when not running as root, this will fail with a permission error
         # unless the btrfs filesystem is mounted with user_subvol_rm_allowed.
         run(
