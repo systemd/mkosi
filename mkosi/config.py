@@ -1676,6 +1676,7 @@ class Args:
     doc_format: DocFormat
     json: bool
     wipe_build_dir: bool
+    run_build_scripts: bool
 
     @classmethod
     def default(cls) -> "Args":
@@ -4169,6 +4170,13 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
         "-w",
         "--wipe-build-dir",
         help="Remove the build directory before building the image",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
+        "-R",
+        "--run-build-scripts",
+        help="Run build scripts even if the image is not rebuilt",
         action="store_true",
         default=False,
     )

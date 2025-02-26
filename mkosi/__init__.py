@@ -1342,9 +1342,9 @@ def finalize_default_initrd(
 
     initrd = dataclasses.replace(initrd, image="default-initrd")
 
-    if initrd.is_incremental() and initrd.expand_key_specifiers(initrd.cache_key) == config.expand_key_specifiers(
-        config.cache_key
-    ):
+    if initrd.is_incremental() and initrd.expand_key_specifiers(
+        initrd.cache_key
+    ) == config.expand_key_specifiers(config.cache_key):
         die(
             f"Image '{config.image}' and its default initrd image have the same cache key '{config.expand_key_specifiers(config.cache_key)}'",  # noqa: E501
             hint="Add the &I specifier to the cache key to avoid this issue",
@@ -3905,7 +3905,10 @@ def build_image(context: Context) -> None:
         check_root_populated(context)
         run_build_scripts(context)
 
-        if context.config.output_format == OutputFormat.none:
+        if context.config.output_format == OutputFormat.none or (
+            context.args.run_build_scripts
+            and (context.config.output_dir_or_cwd() / context.config.output).exists()
+        ):
             return
 
         if wantrepo:
@@ -4676,7 +4679,7 @@ def run_clean(args: Args, config: Config) -> None:
     sandbox = functools.partial(config.sandbox, tools=False)
 
     if args.verb == Verb.clean:
-        remove_outputs = config.output_format != OutputFormat.none
+        remove_outputs = True
         remove_build_cache = args.force > 0 or args.wipe_build_dir
         remove_image_cache = args.force > 0
         remove_package_cache = args.force > 1
@@ -5020,7 +5023,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
             not (tools.output_dir_or_cwd() / tools.output).exists()
             or (tools.is_incremental() and not have_cache(tools))
         )
-        and (args.verb != Verb.build or last.output_format == OutputFormat.none)
+        and args.verb != Verb.build
         and not args.force
     ):
         die(
@@ -5088,6 +5091,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         and output.exists()
         and not output.is_symlink()
         and last.output_format != OutputFormat.none
+        and not args.run_build_scripts
     ):
         logging.info(f"Output path {output} exists already. (Use --force to rebuild.)")
         return
@@ -5153,7 +5157,11 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
     if not have_history(args):
         images = resolve_deps(images[:-1], last.dependencies) + [last]
 
-    if not (last.output_dir_or_cwd() / last.output).exists() or last.output_format == OutputFormat.none:
+    if (
+        args.run_build_scripts
+        or last.output_format == OutputFormat.none
+        or not (last.output_dir_or_cwd() / last.output).exists()
+    ):
         for config in images:
             if any(
                 source.type != KeySourceType.file
@@ -5166,9 +5174,15 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
                 join_new_session_keyring()
                 break
 
-        with complete_step("Validating certificates and keys"):
-            for config in images:
-                validate_certificates_and_keys(config)
+        validate = [
+            c
+            for c in images
+            if c.output_format != OutputFormat.none and not (c.output_dir_or_cwd() / c.output).exists()
+        ]
+        if validate:
+            with complete_step("Validating certificates and keys"):
+                for config in validate:
+                    validate_certificates_and_keys(config)
 
         ensure_directories_exist(last)
 
@@ -5186,27 +5200,34 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
                 prefix="mkosi-packages-",
             ) as package_dir,
         ):
-            sync_repository_metadata(
-                args,
-                images,
-                resources=resources,
-                keyring_dir=Path(keyring_dir),
-                metadata_dir=Path(metadata_dir),
-            )
-
             for config in images:
                 run_sync_scripts(config)
 
+            synced = False
+
             for config in images:
-                # If the output format is "none" and there are no build scripts, there's nothing to
-                # do so exit early.
-                if config.output_format == OutputFormat.none and not config.build_scripts:
+                # If the output format is "none" or we're rebuilding and there are no build scripts, there's
+                # nothing to do so exit early.
+                if (
+                    config.output_format == OutputFormat.none
+                    or (args.run_build_scripts and (config.output_dir_or_cwd() / config.output).exists())
+                ) and not config.build_scripts:
                     continue
 
                 check_tools(config, Verb.build)
-
                 check_inputs(config)
                 ensure_directories_exist(config)
+
+                if not synced:
+                    sync_repository_metadata(
+                        args,
+                        images,
+                        resources=resources,
+                        keyring_dir=Path(keyring_dir),
+                        metadata_dir=Path(metadata_dir),
+                    )
+                    synced = True
+
                 fork_and_wait(
                     run_build,
                     args,
@@ -5216,6 +5237,9 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
                     metadata_dir=Path(metadata_dir),
                     package_dir=Path(package_dir),
                 )
+
+            if not synced:
+                logging.info("All images have already been built and do not have any build scripts")
 
         if args.auto_bump:
             bump_image_version()

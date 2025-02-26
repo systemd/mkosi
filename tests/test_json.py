@@ -66,6 +66,7 @@ def test_args(path: Optional[Path]) -> None:
             "GenkeyValidDays": "100",
             "Json": false,
             "Pager": true,
+            "RunBuildScripts": true,
             "Verb": "build",
             "WipeBuildDir": true
         }}
@@ -86,6 +87,7 @@ def test_args(path: Optional[Path]) -> None:
         genkey_valid_days="100",
         json=False,
         pager=True,
+        run_build_scripts=True,
         verb=Verb.build,
         wipe_build_dir=True,
     )
