@@ -3906,7 +3906,6 @@ def build_image(context: Context) -> None:
         run_build_scripts(context)
 
         if context.config.output_format == OutputFormat.none:
-            finalize_staging(context)
             rmtree(context.root, sandbox=context.sandbox)
             return
 
