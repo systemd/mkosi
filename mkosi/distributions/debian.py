@@ -297,7 +297,7 @@ def fixup_os_release(context: Context) -> None:
                     f"/{candidate}.dpkg",
                     f"/{candidate}",
                 ],
-                sandbox=context.sandbox(options=["--bind", context.root, "/buildroot"]),
+                sandbox=context.sandbox(options=context.rootoptions()),
             )
 
         newosrelease.rename(osrelease)

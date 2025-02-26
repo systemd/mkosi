@@ -700,7 +700,7 @@ def script_maybe_chroot_sandbox(
                 network=network,
                 options=[
                     *options,
-                    "--bind", context.root, "/buildroot",
+                    *context.rootoptions(),
                     *context.config.distribution.package_manager(context.config).mounts(context),
                 ],
                 scripts=hd,
@@ -711,7 +711,7 @@ def script_maybe_chroot_sandbox(
                 options += ["--suppress-chown"]
 
             with chroot_cmd(
-                root=context.root,
+                root=context.rootoptions,
                 network=network,
                 options=options,
             ) as sandbox:
@@ -1887,7 +1887,7 @@ def find_entry_token(context: Context) -> str:
     output = json.loads(
         run(
             ["kernel-install", "--root=/buildroot", "--json=pretty", "inspect"],
-            sandbox=context.sandbox(options=["--ro-bind", context.root, "/buildroot"]),
+            sandbox=context.sandbox(options=context.rootoptions(readonly=True)),
             stdout=subprocess.PIPE,
             env={"BOOT_ROOT": "/boot"},
         ).stdout
@@ -2972,7 +2972,7 @@ def run_depmod(context: Context, *, cache: bool = False) -> None:
                 continue
 
         with complete_step(f"Running depmod for {kver}"):
-            run(["depmod", "--all", kver], sandbox=chroot_cmd(root=context.root))
+            run(["depmod", "--all", kver], sandbox=chroot_cmd(root=context.rootoptions))
 
 
 def run_sysusers(context: Context) -> None:
@@ -2986,7 +2986,7 @@ def run_sysusers(context: Context) -> None:
     with complete_step("Generating system users"):
         run(
             ["systemd-sysusers", "--root=/buildroot"],
-            sandbox=context.sandbox(options=["--bind", context.root, "/buildroot"]),
+            sandbox=context.sandbox(options=context.rootoptions()),
         )
 
 
@@ -3018,7 +3018,7 @@ def run_tmpfiles(context: Context) -> None:
             success_exit_status=(0, 65, 73),
             sandbox=context.sandbox(
                 options=[
-                    "--bind", context.root, "/buildroot",
+                    *context.rootoptions(),
                     # systemd uses acl.h to parse ACLs in tmpfiles snippets which uses the host's
                     # passwd so we have to symlink the image's passwd to make ACL parsing work.
                     *finalize_passwd_symlinks("/buildroot"),
@@ -3042,11 +3042,11 @@ def run_preset(context: Context) -> None:
     with complete_step("Applying presets…"):
         run(
             ["systemctl", "--root=/buildroot", "preset-all"],
-            sandbox=context.sandbox(options=["--bind", context.root, "/buildroot"]),
+            sandbox=context.sandbox(options=context.rootoptions()),
         )
         run(
             ["systemctl", "--root=/buildroot", "--global", "preset-all"],
-            sandbox=context.sandbox(options=["--bind", context.root, "/buildroot"]),
+            sandbox=context.sandbox(options=context.rootoptions()),
         )
 
 
@@ -3061,7 +3061,7 @@ def run_hwdb(context: Context) -> None:
     with complete_step("Generating hardware database"):
         run(
             ["systemd-hwdb", "--root=/buildroot", "--usr", "--strict", "update"],
-            sandbox=context.sandbox(options=["--bind", context.root, "/buildroot"]),
+            sandbox=context.sandbox(options=context.rootoptions()),
         )
 
     # Remove any existing hwdb in /etc in favor of the one we just put in /usr.
@@ -3114,7 +3114,7 @@ def run_firstboot(context: Context) -> None:
     with complete_step("Applying first boot settings"):
         run(
             ["systemd-firstboot", "--root=/buildroot", "--force", *options],
-            sandbox=context.sandbox(options=["--bind", context.root, "/buildroot"]),
+            sandbox=context.sandbox(options=context.rootoptions()),
         )
 
         # Initrds generally don't ship with only /usr so there's not much point in putting the
@@ -3139,7 +3139,7 @@ def run_selinux_relabel(context: Context) -> None:
     with complete_step(f"Relabeling files using {policy} policy"):
         run(
             [setfiles, "-mFr", "/buildroot", "-T0", "-c", binpolicy, fc, "/buildroot"],
-            sandbox=context.sandbox(options=["--bind", context.root, "/buildroot"]),
+            sandbox=context.sandbox(options=context.rootoptions()),
             check=context.config.selinux_relabel == ConfigFeature.enabled,
         )
 
@@ -3290,7 +3290,6 @@ def make_image(
     split: bool = False,
     tabs: bool = False,
     verity: Verity = Verity.disabled,
-    root: Optional[Path] = None,
     definitions: Sequence[Path] = [],
     options: Sequence[PathString] = (),
 ) -> list[Partition]:
@@ -3301,6 +3300,7 @@ def make_image(
         "--dry-run=no",
         "--json=pretty",
         "--no-pager",
+        "--root=/buildroot",
         f"--offline={yes_no(context.config.repart_offline)}",
         "--seed", str(context.config.seed),
         workdir(context.staging / context.config.output_with_format),
@@ -3311,11 +3311,9 @@ def make_image(
         # that go into the disk image are owned by root.
         "--become-root",
         "--bind", context.staging, workdir(context.staging),
+        *context.rootoptions(),
     ]  # fmt: skip
 
-    if root:
-        cmdline += ["--root=/buildroot"]
-        opts += ["--bind", root, "/buildroot"]
     if not context.config.architecture.is_native():
         cmdline += ["--architecture", str(context.config.architecture)]
     if not (context.staging / context.config.output_with_format).exists():
@@ -3469,7 +3467,6 @@ def make_disk(
         split=split,
         tabs=tabs,
         verity=context.config.verity,
-        root=context.root,
         definitions=definitions,
     )
 
@@ -3631,7 +3628,6 @@ def make_esp(
     return make_image(
         context,
         msg="Generating ESP image",
-        root=context.root,
         definitions=[definitions],
     )
 
@@ -3665,7 +3661,7 @@ def make_extension_or_portable_image(context: Context, output: Path) -> None:
         # that go into the disk image are owned by root.
         "--become-root",
         "--bind", output.parent, workdir(output.parent),
-        "--ro-bind", context.root, "/buildroot",
+        *context.rootoptions(readonly=True),
         "--ro-bind", r, workdir(r),
     ]  # fmt: skip
 

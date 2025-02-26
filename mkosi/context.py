@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
+import os
 from collections.abc import Sequence
 from contextlib import AbstractContextManager
 from pathlib import Path
@@ -41,6 +42,9 @@ class Context:
     @property
     def root(self) -> Path:
         return self.workspace / "root"
+
+    def rootoptions(self, dst: PathString = "/buildroot", *, readonly: bool = False) -> list[str]:
+        return ["--ro-bind" if readonly else "--bind", os.fspath(self.root), os.fspath(dst)]
 
     @property
     def staging(self) -> Path:

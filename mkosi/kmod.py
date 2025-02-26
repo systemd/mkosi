@@ -101,9 +101,9 @@ def modinfo(context: Context, kver: str, modules: Iterable[str]) -> str:
 
     if context.config.output_format.is_extension_image() and not context.config.overlay:
         cmdline += ["--basedir", "/buildroot"]
-        sandbox = context.sandbox(options=["--ro-bind", context.root, "/buildroot"])
+        sandbox = context.sandbox(options=context.rootoptions(readonly=True))
     else:
-        sandbox = chroot_cmd(root=context.root)
+        sandbox = chroot_cmd(root=context.rootoptions)
 
     cmdline += [*modules]
 

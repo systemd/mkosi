@@ -637,14 +637,14 @@ def chroot_options() -> list[PathString]:
 @contextlib.contextmanager
 def chroot_cmd(
     *,
-    root: Path,
+    root: Callable[[PathString], list[str]],
     network: bool = False,
     options: Sequence[PathString] = (),
 ) -> Iterator[list[PathString]]:
     with vartmpdir() as dir, resource_path(sys.modules[__package__ or __name__]) as module:
         cmdline: list[PathString] = [
             sys.executable, "-SI", module / "sandbox.py",
-            "--bind", root, "/",
+            *root("/"),
             # We mounted a subdirectory of TMPDIR to /var/tmp so we unset TMPDIR so that /tmp or /var/tmp are
             # used instead.
             "--unsetenv", "TMPDIR",
