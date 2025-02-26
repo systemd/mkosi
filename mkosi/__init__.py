@@ -1342,7 +1342,7 @@ def finalize_default_initrd(
 
     initrd = dataclasses.replace(initrd, image="default-initrd")
 
-    if initrd.incremental and initrd.expand_key_specifiers(initrd.cache_key) == config.expand_key_specifiers(
+    if initrd.is_incremental() and initrd.expand_key_specifiers(initrd.cache_key) == config.expand_key_specifiers(
         config.cache_key
     ):
         die(
@@ -1365,7 +1365,7 @@ def build_default_initrd(context: Context) -> Path:
 
     assert config.output_dir
 
-    if config.incremental == Incremental.strict and not have_cache(config):
+    if config.is_incremental() and config.incremental == Incremental.strict and not have_cache(config):
         die(
             f"Strict incremental mode is enabled and cache for image {config.image} is out-of-date",
             hint="Build once with -i yes to update the image cache",
@@ -2602,7 +2602,7 @@ def check_inputs(config: Config) -> None:
     if config.overlay and not config.base_trees:
         die("--overlay=yes can only be used with --base-tree=")
 
-    if config.incremental and not config.cache_dir:
+    if config.is_incremental() and not config.cache_dir:
         die("A cache directory must be configured in order to use --incremental=yes")
 
     for base in config.base_trees:
@@ -3149,7 +3149,7 @@ def need_build_overlay(config: Config) -> bool:
 
 
 def save_cache(context: Context) -> None:
-    if not context.config.incremental or context.config.base_trees or context.config.overlay:
+    if not context.config.is_incremental():
         return
 
     final, build, manifest = cache_tree_paths(context.config)
@@ -3183,7 +3183,7 @@ def save_cache(context: Context) -> None:
 
 
 def have_cache(config: Config) -> bool:
-    if not config.incremental or config.base_trees or config.overlay:
+    if not config.is_incremental():
         return False
 
     final, build, manifest = cache_tree_paths(config)
@@ -3226,7 +3226,7 @@ def have_cache(config: Config) -> bool:
 
 
 def reuse_cache(context: Context) -> bool:
-    if not context.config.incremental or context.config.base_trees or context.config.overlay:
+    if not context.config.is_incremental():
         return False
 
     final, build, _ = cache_tree_paths(context.config)
@@ -4778,7 +4778,7 @@ def sync_repository_metadata(
     # If we have a metadata cache and any cached image and using cached metadata is not explicitly disabled,
     # reuse the metadata cache.
     if (
-        last.incremental
+        last.is_incremental()
         and keyring_cache(last).exists()
         and metadata_cache(last).exists()
         and last.cacheonly != Cacheonly.never
@@ -4838,7 +4838,7 @@ def sync_repository_metadata(
 
     # If we're in incremental mode and caching metadata is not explicitly disabled, cache the keyring and the
     # synced repository metadata so we can reuse them later.
-    if last.incremental and last.cacheonly != Cacheonly.never:
+    if last.is_incremental() and last.cacheonly != Cacheonly.never:
         rmtree(keyring_cache(last), metadata_cache(last), sandbox=last.sandbox)
 
         for p in (keyring_cache(last), metadata_cache(last)):
@@ -5018,7 +5018,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         tools
         and (
             not (tools.output_dir_or_cwd() / tools.output).exists()
-            or (tools.incremental and not have_cache(tools))
+            or (tools.is_incremental() and not have_cache(tools))
         )
         and (args.verb != Verb.build or last.output_format == OutputFormat.none)
         and not args.force
@@ -5032,7 +5032,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
     # If we're doing an incremental build and the cache is not out of date, don't clean up the
     # tools tree so that we can reuse the previous one.
     if tools and (
-        not tools.incremental or ((args.verb == Verb.build or args.force > 0) and not have_cache(tools))
+        not tools.is_incremental() or ((args.verb == Verb.build or args.force > 0) and not have_cache(tools))
     ):
         if tools.incremental == Incremental.strict:
             die(
@@ -5104,7 +5104,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
 
         check_workspace_directory(last)
 
-        if last.incremental:
+        if last.is_incremental():
             for a, b in itertools.combinations(images, 2):
                 if a.expand_key_specifiers(a.cache_key) == b.expand_key_specifiers(b.cache_key):
                     die(
@@ -5112,7 +5112,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
                         hint="Add the &I specifier to the cache key to avoid this issue",
                     )
 
-        if last.incremental == Incremental.strict:
+        if last.is_incremental() and last.incremental == Incremental.strict:
             if args.force > 1:
                 die(
                     "Cannot remove incremental caches when building with Incremental=strict",

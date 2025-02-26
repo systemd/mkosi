@@ -2051,6 +2051,9 @@ class Config:
 
         return env
 
+    def is_incremental(self) -> bool:
+        return bool(self.incremental) and not self.base_trees and not self.overlay
+
     def machine_or_name(self) -> str:
         return self.machine or self.image
 
