@@ -4676,17 +4676,17 @@ def run_clean(args: Args, config: Config) -> None:
     sandbox = functools.partial(config.sandbox, tools=False)
 
     if args.verb == Verb.clean:
-        remove_output_dir = config.output_format != OutputFormat.none
+        remove_outputs = config.output_format != OutputFormat.none
         remove_build_cache = args.force > 0 or args.wipe_build_dir
         remove_image_cache = args.force > 0
         remove_package_cache = args.force > 1
     else:
-        remove_output_dir = config.output_format != OutputFormat.none and args.force > 0
+        remove_outputs = config.output_format != OutputFormat.none and args.force > 0
         remove_build_cache = args.force > 1 or args.wipe_build_dir
         remove_image_cache = args.force > 1 or not have_cache(config)
         remove_package_cache = args.force > 2
 
-    if remove_output_dir:
+    if remove_outputs:
         outputs = {
             config.output_dir_or_cwd() / output
             for output in config.outputs
