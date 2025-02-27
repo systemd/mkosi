@@ -2041,7 +2041,7 @@ class Config:
         if dnf := os.getenv("MKOSI_DNF"):
             env["MKOSI_DNF"] = dnf
         if gnupghome := os.getenv("GNUPGHOME"):
-            env["GNUPGHOME"] = gnupghome
+            env["GNUPGHOME"] = os.fspath(Path(gnupghome).absolute())
 
         env |= dict(
             parse_environment(line)
