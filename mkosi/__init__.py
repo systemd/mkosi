@@ -1321,6 +1321,7 @@ def finalize_default_initrd(
         *(["--package-cache-directory", os.fspath(config.package_cache_dir)] if config.package_cache_dir else []),  # noqa: E501
         *(["--local-mirror", str(config.local_mirror)] if config.local_mirror else []),
         "--incremental", str(config.incremental),
+        *(f"--profile={profile}" for profile in config.initrd_profiles),
         *(f"--package={package}" for package in config.initrd_packages),
         *(f"--volatile-package={package}" for package in config.initrd_volatile_packages),
         *(f"--package-directory={d}" for d in config.package_directories),

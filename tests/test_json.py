@@ -27,6 +27,7 @@ from mkosi.config import (
     Drive,
     Firmware,
     Incremental,
+    InitrdProfile,
     KeySource,
     KeySourceType,
     ManifestFormat,
@@ -194,6 +195,9 @@ def test_config() -> None:
             "Incremental": "no",
             "InitrdPackages": [
                 "clevis"
+            ],
+            "InitrdProfiles": [
+                "storage"
             ],
             "InitrdVolatilePackages": [
                 "abc"
@@ -486,6 +490,7 @@ def test_config() -> None:
         image="main",
         incremental=Incremental.no,
         initrd_packages=["clevis"],
+        initrd_profiles=[InitrdProfile.storage],
         initrd_volatile_packages=["abc"],
         initrds=[Path("/efi/initrd1"), Path("/efi/initrd2")],
         kernel_command_line_extra=["look", "im", "on", "the", "kernel", "command", "line"],

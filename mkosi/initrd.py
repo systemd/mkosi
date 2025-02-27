@@ -259,6 +259,7 @@ def main() -> None:
             "--remove-files=/usr/lib/firmware/*-ucode",
             "--kernel-modules-exclude=.*",
             "--build-sources", "",
+            "--profile=storage",
             "--include=mkosi-initrd",
         ]  # fmt: skip
 
