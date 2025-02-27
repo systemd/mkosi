@@ -24,6 +24,12 @@
   verity signature partition for disk, extension and portable images (but
   still allocates space for it). This is useful to implement offline
   signing of the verity roothash.
+- A new way to specify modules included in the initrd has been added.
+  The new default is that modules need to be specified to be included.
+  Previous separate Include and Exclude options that take regexps are now
+  deprecated and are replaced by a single option that takes a list of
+  positive and negative globs. The new options are KernelModules=
+  and KernelInitrdModules=.
 
 ## v25
 
