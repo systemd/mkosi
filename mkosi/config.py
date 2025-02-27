@@ -600,6 +600,10 @@ class ToolsTreeProfile(StrEnum):
     runtime = enum.auto()
 
 
+class InitrdProfile(StrEnum):
+    storage = enum.auto()
+
+
 def expand_delayed_specifiers(specifiers: dict[str, str], text: str) -> str:
     def replacer(match: re.Match[str]) -> str:
         m = match.group("specifier")
@@ -1883,6 +1887,7 @@ class Config:
     unified_kernel_image_format: str
     unified_kernel_image_profiles: list[UKIProfile]
     initrds: list[Path]
+    initrd_profiles: list[InitrdProfile]
     initrd_packages: list[str]
     initrd_volatile_packages: list[str]
     microcode_host: bool
@@ -2969,6 +2974,16 @@ SETTINGS: list[ConfigSetting[Any]] = [
         parse=config_parse_boolean,
         default=False,
         help="Only include the host CPU's microcode",
+    ),
+    ConfigSetting(
+        dest="initrd_profiles",
+        long="--initrd-profile",
+        metavar="PROFILE",
+        section="Content",
+        parse=config_make_list_parser(delimiter=",", parse=make_enum_parser(InitrdProfile)),
+        choices=InitrdProfile.values(),
+        default=list(InitrdProfile),
+        help="Which profiles to enable for the default initrd",
     ),
     ConfigSetting(
         dest="initrd_packages",
@@ -5027,6 +5042,7 @@ def summary(config: Config) -> str:
         Unified Kernel Image Format: {config.unified_kernel_image_format}
       Unified Kernel Image Profiles: {line_join_list(config.unified_kernel_image_profiles)}
                             Initrds: {line_join_list(config.initrds)}
+                    Initrd Profiles: {line_join_list(config.initrd_profiles)}
                     Initrd Packages: {line_join_list(config.initrd_packages)}
            Initrd Volatile Packages: {line_join_list(config.initrd_volatile_packages)}
                          Devicetree: {none_to_none(config.devicetree)}
@@ -5333,6 +5349,7 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         list[UKIProfile]: uki_profile_transformer,
         list[ArtifactOutput]: enum_list_transformer,
         list[ToolsTreeProfile]: enum_list_transformer,
+        list[InitrdProfile]: enum_list_transformer,
         CertificateSource: certificate_source_transformer,
         ConsoleMode: enum_transformer,
         Verity: enum_transformer,

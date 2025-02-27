@@ -1016,6 +1016,14 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     VARIABLES**), if none are found there **mkosi** will automatically build a
     default initrd.
 
+`InitrdProfiles=`, `--initrd-profile=`
+:   Set the profiles to enable for the default initrd. Takes a
+    comma-delimited list of profiles. By default, all profiles are
+    enabled.
+
+    The `storage` profile enables support for advanced storage
+    mechanisms, which currently is limited to LVM.
+
 `InitrdPackages=`, `--initrd-package=`
 :   Extra packages to install into the default initrd. Takes a comma
     separated list of package specifications. This option may be used
