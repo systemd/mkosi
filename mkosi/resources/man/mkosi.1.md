@@ -1066,12 +1066,24 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     `58c7d0b2-d224-4834-a16f-e036322e88f7` is the partition UUID of the
     root partition.
 
-`KernelModulesInclude=`, `--kernel-modules-include=`
-:   Takes a list of regex patterns that specify kernel modules to include in the image. Patterns should be
-    relative to `/usr/lib/modules/<kver>/<subdir>` paths. **mkosi** checks for a match anywhere in the module path
-    (e.g. `i915` will match against `drivers/gpu/drm/i915.ko`). All modules that match any of the specified
-    patterns are included in the image. All module and firmware dependencies of the matched modules are included
-    in the image as well.
+`KernelModules=`, `--kernel-modules=`
+:   Takes a list of glob patterns that specify which kernel modules to include in the image.
+    Each argument may be prefixed with a dash (`-`), to *exclude* matching modules.
+    The arguments are evaluated in order,
+    the last positive or negative matching pattern determines the result.
+    The modules that were last matched by a positive pattern are included in the image,
+    as well as their module and firmware dependencies.
+
+    The module paths are taken relative to the `/usr/lib/modules/<kver>/<subdir>/kernel/` directory,
+    and the `.ko` suffix and compression suffix are ignored during matching.
+    The patterns may include just the basename (e.g. `loop`),
+    which must match the basename of the module,
+    the relative path (e.g. `block/loop`),
+    which must match the final components of the module path up to the basename,
+    or an absolute path (e.g. `/drivers/block/loop`),
+    which must match the full path to the module.
+    When suffixed with `/`, the pattern will match all modules underneath that directory.
+    The patterns may include shell-style globs (`*`, `?`, `[…-…]`).
 
     If the special value `default` is used, the default kernel modules
     defined in the **mkosi-initrd** configuration are included as well.
@@ -1079,25 +1091,14 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     If the special value `host` is used, the currently loaded modules on
     the host system are included as well.
 
-    This setting takes priority over `KernelModulesExclude=` and only makes
-    sense when used in combination with it because all kernel modules are included in the image by default.
-
-`KernelModulesExclude=`, `--kernel-modules-exclude=`
-:   Takes a list of regex patterns that specify modules to exclude from the image. Behaves the same as
-    `KernelModulesInclude=` except that all modules that match any of the specified patterns are excluded from
-    the image.
-
 `KernelModulesInitrd=`, `--kernel-modules-initrd=`
 :   Boolean value, enabled (true) by default. If enabled, when building a bootable image, **mkosi** will generate
     an extra initrd for each unified kernel image it assembles. This initrd contains only modules for
     the specific kernel version, and will be appended to the prebuilt initrd. This allows generating kernel
     independent initrds which are augmented with the necessary modules when the UKI is assembled.
 
-`KernelModulesInitrdInclude=`, `--kernel-modules-initrd-include=`
-:   Like `KernelModulesInclude=`, but applies to the kernel modules included in the kernel modules initrd.
-
-`KernelModulesInitrdExclude=`, `--kernel-modules-initrd-exclude=`
-:   Like `KernelModulesExclude=`, but applies to the kernel modules included in the kernel modules initrd.
+`KernelInitrdModules=`, `--kernel-modules-initrd-include=`
+:   Like `KernelModules=`, but specifies the kernel modules to include in the initrd.
 
 `FirmwareInclude=`, `--firmware-include=`
 :   Takes a list of regex patterns that specify firmware files to include in the image. Patterns should be
