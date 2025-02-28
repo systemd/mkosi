@@ -235,6 +235,10 @@ class Apt(PackageManager):
 
     @classmethod
     def createrepo(cls, context: Context) -> None:
+        names = [d.name for glob in PACKAGE_GLOBS for d in context.repository.glob(glob) if "deb" in glob]
+        if not names:
+            return
+
         if not (conf := context.repository / "conf/distributions").exists():
             conf.parent.mkdir(exist_ok=True)
             conf.write_text(
@@ -256,7 +260,7 @@ class Apt(PackageManager):
                 "--ignore=extension",
                 "includedeb",
                 "mkosi",
-                *(d.name for glob in PACKAGE_GLOBS for d in context.repository.glob(glob) if "deb" in glob),
+                *names,
             ],
             sandbox=context.sandbox(
                 options=[
