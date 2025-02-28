@@ -1021,8 +1021,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     comma-delimited list of profiles. By default, all profiles are
     disabled.
 
-    The `storage` profile enables support for advanced storage
-    mechanisms, which currently is limited to LVM.
+    The `lvm` profile enables support for LVM.
 
 `InitrdPackages=`, `--initrd-package=`
 :   Extra packages to install into the default initrd. Takes a comma
