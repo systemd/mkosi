@@ -40,6 +40,13 @@ initrds and Unified Kernel Images for the current running system.
     allow the local system to boot on different hardware, although it's tied to
     the kernel version of the running system or set with `--kernel-version=`.
 
+`--profile=`
+:   Set the profiles to enable for the initrd. By default, all profiles are
+    disabled.
+
+    The `storage` profile enables support for advanced storage mechanisms, which
+    currently is limited to LVM.
+
 `--debug`
 :   Enable additional debugging output.
 

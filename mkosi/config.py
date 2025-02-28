@@ -2982,7 +2982,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Content",
         parse=config_make_list_parser(delimiter=",", parse=make_enum_parser(InitrdProfile)),
         choices=InitrdProfile.values(),
-        default=list(InitrdProfile),
+        default=[],
         help="Which profiles to enable for the default initrd",
     ),
     ConfigSetting(
