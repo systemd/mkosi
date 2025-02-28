@@ -34,10 +34,10 @@ the running hardware can be included if a local configuration with the option
 :   Path to a directory where to place all generated artifacts. Defaults to the
     current working directory.
 
-`--debug=`
+`--debug`
 :   Enable additional debugging output.
 
-`--debug-shell=`
+`--debug-shell`
 :   Spawn debug shell in sandbox if a sandboxed command fails.
 
 `--debug-sandbox`

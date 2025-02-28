@@ -40,10 +40,10 @@ initrds and Unified Kernel Images for the current running system.
     allow the local system to boot on different hardware, although it's tied to
     the kernel version of the running system or set with `--kernel-version=`.
 
-`--debug=`
+`--debug`
 :   Enable additional debugging output.
 
-`--debug-shell=`
+`--debug-shell`
 :   Spawn debug shell in sandbox if a sandboxed command fails.
 
 `--debug-sandbox`
