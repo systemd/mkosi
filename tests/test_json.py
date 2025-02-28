@@ -197,7 +197,7 @@ def test_config() -> None:
                 "clevis"
             ],
             "InitrdProfiles": [
-                "storage"
+                "lvm"
             ],
             "InitrdVolatilePackages": [
                 "abc"
@@ -490,7 +490,7 @@ def test_config() -> None:
         image="main",
         incremental=Incremental.no,
         initrd_packages=["clevis"],
-        initrd_profiles=[InitrdProfile.storage],
+        initrd_profiles=[InitrdProfile.lvm],
         initrd_volatile_packages=["abc"],
         initrds=[Path("/efi/initrd1"), Path("/efi/initrd2")],
         kernel_command_line_extra=["look", "im", "on", "the", "kernel", "command", "line"],
