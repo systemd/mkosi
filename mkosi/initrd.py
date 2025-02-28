@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Optional, cast
 
 import mkosi.resources
-from mkosi.config import DocFormat, OutputFormat
+from mkosi.config import DocFormat, InitrdProfile, OutputFormat
 from mkosi.documentation import show_docs
 from mkosi.log import log_notice, log_setup
 from mkosi.run import find_binary, run, uncaught_exception_handler
@@ -233,6 +233,13 @@ def main() -> None:
         action="store_true",
         default=False,
     )
+    parser.add_argument(
+        "--profile",
+        choices=InitrdProfile.values(),
+        help="Which profiles to enable for the initrd",
+        action="append",
+        default=[],
+    )
 
     initrd_common_args(parser)
 
@@ -259,12 +266,14 @@ def main() -> None:
             "--remove-files=/usr/lib/firmware/*-ucode",
             "--kernel-modules-exclude=.*",
             "--build-sources", "",
-            "--profile=storage",
             "--include=mkosi-initrd",
         ]  # fmt: skip
 
         if not args.generic:
             cmdline += ["--kernel-modules-include=host"]
+
+        for p in args.profile:
+            cmdline += ["--profile", p]
 
         if args.kernel_image:
             cmdline += [
