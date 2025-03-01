@@ -30,6 +30,10 @@
   deprecated and are replaced by a single option that takes a list of
   positive and negative globs. The new options are KernelModules=
   and KernelInitrdModules=.
+- A new way to specify firmware files included in the initrd has been added.
+  Previous separate Include and Exclude options that take regexps are now
+  deprecated and are replaced by a single option that takes a list of
+  positive and negative globs. The new option is FirmwareFiles=.
 
 ## v25
 
