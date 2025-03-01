@@ -191,7 +191,7 @@ def test_config() -> None:
             "FirmwareExclude": [
                 "brcm/"
             ],
-            "FirmwareInclude": [
+            "FirmwareFiles": [
                 "ath3k-1"
             ],
             "FirmwareVariables": "/foo/bar",

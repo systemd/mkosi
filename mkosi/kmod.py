@@ -23,10 +23,8 @@ def loaded_modules() -> list[str]:
     ]
 
 
-def globs_match_module(name, globs) -> bool:
-    # Strip '.ko' suffix and an optional compression suffix
-    name = re.sub(r"\.ko(\.(gz|xz|zst))?$", "", name)
-    # Check whether the suffixless-path matches any of the globs
+def globs_match_filename(name, globs, *, match_default: bool = False) -> bool:
+    # Check whether the path matches any of the globs
 
     for glob in reversed(globs):
         # Patterns are evaluated in order and last matching one wins.
@@ -47,7 +45,21 @@ def globs_match_module(name, globs) -> bool:
             or fnmatch.fnmatch(name.split("/")[-1], glob)
         ):
             return not negative
-    return False
+    return match_default
+
+
+def globs_match_module(name, globs) -> bool:
+    # Strip '.ko' suffix and an optional compression suffix
+    name = re.sub(r"\.ko(\.(gz|xz|zst))?$", "", name)
+    # Check whether the suffixless-path matches any of the globs
+    return globs_match_filename(name, globs)
+
+
+def globs_match_firmware(name, globs, *, match_default: bool = False) -> bool:
+    # Strip any known compression suffixes
+    name = re.sub(r"\.(gz|xz|zst)$", "", name)
+    # Check whether the suffixless-path matches any of the globs
+    return globs_match_filename(name, globs, match_default=match_default)
 
 
 def filter_kernel_modules(
@@ -97,7 +109,7 @@ def filter_kernel_modules(
 
         keep -= remove
 
-    logging.debug(f'Including {len(keep)}/{n_modules} kernel modules.')
+    logging.debug(f"Including {len(keep)}/{n_modules} kernel modules.")
 
     return sorted(keep)
 
@@ -109,15 +121,22 @@ def filter_firmware(
     include: Iterable[str],
     exclude: Iterable[str],
 ) -> set[Path]:
-    if not include and not exclude:
-        return firmware
+    logging.debug(f"Firmware include: {' '.join(include)}")
+    logging.debug(f"Firmware exclude: {' '.join(exclude)}")
 
-    if exclude:
+    # globs can be also used to exclude firmware, so we we need to apply them
+    # to the inherited list of firmware files too.
+    globs = [p for p in include if not p.startswith("re:")]
+
+    if exclude or globs:
+        assert all(p.startswith("re:") for p in exclude)
         remove = set()
-        regex = re.compile("|".join(exclude))
+        patterns = [p[3:] for p in exclude]
+        regex = re.compile("|".join(patterns))
+
         for f in firmware:
             rel = os.fspath(Path(*f.parts[3:]))
-            if regex.search(rel):
+            if (patterns and regex.search(rel)) or globs_match_firmware(rel, globs, match_default=True):
                 remove.add(f)
 
         firmware -= remove
@@ -126,11 +145,16 @@ def filter_firmware(
         firmwared = Path("usr/lib/firmware")
         with chdir(root):
             all_firmware = set(firmwared.rglob("*"))
+
+        patterns = [p[3:] for p in include if p.startswith("re:")]
         regex = re.compile("|".join(include))
+
         for f in all_firmware:
             rel = os.fspath(Path(*f.parts[3:]))
-            if regex.search(rel):
+            if (patterns and regex.search(rel)) or globs_match_firmware(rel, globs):
                 firmware.add(f)
+
+    logging.debug(f"Including {len(firmware)} firmware files")
 
     return firmware
 
@@ -339,7 +363,7 @@ def process_kernel_modules(
     firmware_include: Iterable[str],
     firmware_exclude: Iterable[str],
 ) -> None:
-    if not (modules_include or modules_exclude or firmware_exclude):
+    if not (modules_include or modules_exclude or firmware_include or firmware_exclude):
         return
 
     modulesd = Path("usr/lib/modules") / kver

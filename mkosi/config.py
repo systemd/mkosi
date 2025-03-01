@@ -3131,15 +3131,30 @@ SETTINGS: list[ConfigSetting[Any]] = [
         dest="firmware_include",
         metavar="REGEX",
         section="Content",
-        parse=config_make_list_parser(delimiter=","),
+        parse=config_make_list_parser(
+            delimiter=",",
+            parse=parse_kernel_module_filter_regexp,
+        ),
         help="Include the specified firmware in the image",
     ),
     ConfigSetting(
         dest="firmware_exclude",
         metavar="REGEX",
         section="Content",
-        parse=config_make_list_parser(delimiter=","),
+        parse=config_make_list_parser(
+            delimiter=",",
+            parse=parse_kernel_module_filter_regexp,
+        ),
         help="Exclude the specified firmware from the image",
+    ),
+    ConfigSetting(
+        dest="firmware_include",
+        name="FirmwareFiles",
+        long="--firmware-files",
+        metavar="GLOB",
+        section="Content",
+        parse=config_make_list_parser(delimiter=","),
+        help="Include/exclude the specified firmware in the image",
     ),
     ConfigSetting(
         dest="locale",
@@ -5116,8 +5131,8 @@ def summary(config: Config) -> str:
                      Kernel Modules: {line_join_list(config.kernel_modules_include)}
              Kernel Modules Exclude: {line_join_list(config.kernel_modules_exclude)}
         Kernel Modules Include Host: {yes_no(config.kernel_modules_include_host)}
-                   Firmware Include: {line_join_list(config.firmware_include)}
-                   Firmware Exclude: {line_join_list(config.firmware_exclude)}
+                     Firmware Files: {line_join_list(config.firmware_include)}
+             Firmware Files Exclude: {line_join_list(config.firmware_exclude)}
 
               Kernel Modules Initrd: {yes_no(config.kernel_modules_initrd)}
               Kernel Initrd Modules: {line_join_list(config.kernel_modules_initrd_include)}
