@@ -1100,16 +1100,18 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `KernelInitrdModules=`, `--kernel-modules-initrd-include=`
 :   Like `KernelModules=`, but specifies the kernel modules to include in the initrd.
 
-`FirmwareInclude=`, `--firmware-include=`
-:   Takes a list of regex patterns that specify firmware files to include in the image. Patterns should be
-    relative to `/usr/lib/firmware/<subdir>` paths. **mkosi** checks for a match anywhere in the firmware path
-    (e.g. `bcm8483` will match against `cxgb4/bcm8483.bin`). All firmware files that match any of the specified
-    patterns are included in the image.
+`FirmwareFiles=`, `--firmware-files=`
+:   Takes a list of glob patterns that specify which firmware files to include in the image.
+    The patterns are interpreted in the same way as in the `KernelModules=` settings,
+    except that the paths are relative to `/usr/lib/firmware/<subdir>`.
+    The compression suffix is ignored and must not be included in the pattern.
 
-`FirmwareExclude=`, `--firmware-exclude=`
-:   Takes a list of regex patterns that specify firmware files to exclude from the image. Behaves the same as
-    `FirmwareInclude=` except that all firmware that match any of the specified patterns is excluded from the
-    image. Firmware specified with this option is excluded even if an included kernel module depends on it.
+    Firmware files that listed by modules that are included in the image are
+    automatically included.
+
+    Example: `FirmwareFiles=cxgb4/bcm8483.bin` or `FirmwareFiles=bcm8483.*` would both cause
+    `/usr/lib/firmware/cxgb4/bcm8483.bin.xz` to be included,
+    even if not listed by a module.
 
 `Locale=`, `--locale=`, `LocaleMessages=`, `--locale-messages=`, `Keymap=`, `--keymap=`, `Timezone=`, `--timezone=`, `Hostname=`, `--hostname=`, `RootShell=`, `--root-shell=`
 :   The settings `Locale=`, `--locale=`, `LocaleMessages=`, `--locale-messages=`,
