@@ -358,8 +358,8 @@ def install_grub(context: Context) -> None:
             if context.config.secure_boot:
                 # sign_efi_binary() mounts input as read only, so
                 # creating temporary rw copy
-                with tempfile.NamedTemporaryFile(prefix="efi-boot-binary") as input:
-                    input = Path(input.name)
+                with tempfile.NamedTemporaryFile(prefix="efi-boot-binary") as temp_file:
+                    input = Path(temp_file.name)
                     shutil.copy2(output, input)
                     sign_efi_binary(context, input, output)
 
