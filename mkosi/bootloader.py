@@ -503,10 +503,14 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
     ):
         assert sbsign
 
+        options = ["--bind", output.parent, workdir(output.parent)]
+        if input != output:
+            options += ["--ro-bind", input, workdir(input)]
+
         run_systemd_sign_tool(
             context.config,
             cmdline=[sbsign, "sign", "--output", workdir(output), workdir(input)],
-            options=["--ro-bind", input, workdir(input), "--bind", output.parent, workdir(output.parent)],
+            options=options,
             certificate=context.config.secure_boot_certificate,
             certificate_source=context.config.secure_boot_certificate_source,
             key=context.config.secure_boot_key,
@@ -527,9 +531,11 @@ def sign_efi_binary(context: Context, input: Path, output: Path) -> Path:
         ]  # fmt: skip
         options = [
             "--ro-bind", context.config.secure_boot_certificate, workdir(context.config.secure_boot_certificate),  # noqa: E501
-            "--ro-bind", input, workdir(input),
             "--bind", output.parent, workdir(output.parent),
         ]  # fmt: skip
+        if input != output:
+            options += ["--ro-bind", input, workdir(input)]
+
         if context.config.secure_boot_key_source.type == KeySourceType.engine:
             cmd += ["--engine", context.config.secure_boot_key_source.source]
             options += ["--bind", "/run", "/run"]
