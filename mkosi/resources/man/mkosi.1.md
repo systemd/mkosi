@@ -326,9 +326,9 @@ grouped by section below.
 Configuration is parsed in the following order:
 
 * The command line arguments are parsed.
-* `mkosi.local.conf` or `mkosi.local` is parsed if it exists. This file or
-  directory should be in `.gitignore` (or equivalent) and is intended for local
-  configuration.
+* `mkosi.local.conf` and `mkosi.local/` are parsed if they exists (in that order).
+  This file or directory should be in `.gitignore` (or equivalent)
+  and is intended for local configuration.
 * Any default paths (depending on the option) are configured if the
   corresponding path exists.
 * `mkosi.conf` is parsed if it exists in the directory configured with
@@ -346,7 +346,7 @@ Note that settings configured via the command line always override
 settings configured via configuration files. If the same setting is
 configured more than once via configuration files, later assignments
 override earlier assignments except for settings that take a collection
-of values. Also, settings read from `mkosi.local` or `mkosi.local.conf` will
+of values. Also, settings read from `mkosi.local.conf` or `mkosi.local/` will
 override settings from configuration files that are parsed later, but not
 settings specified on the CLI.
 

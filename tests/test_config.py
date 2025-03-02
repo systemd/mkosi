@@ -460,6 +460,8 @@ def test_local_config(tmp_path: Path) -> None:
 
         [Content]
         WithTests=yes
+        Environment=FOO=override
+        Environment=BAZ=normal
         """
     )
 
@@ -475,6 +477,8 @@ def test_local_config(tmp_path: Path) -> None:
 
         [Content]
         WithTests=no
+        Environment=FOO=normal
+        Environment=BAR=normal
         """
     )
 
@@ -490,6 +494,20 @@ def test_local_config(tmp_path: Path) -> None:
 
     assert config.distribution == Distribution.fedora
     assert not config.with_tests
+
+    (d / "mkosi.local/mkosi.conf.d").mkdir(parents=True)
+    (d / "mkosi.local/mkosi.conf.d/10-test.conf").write_text(
+        """\
+        [Content]
+        Environment=BAR=override
+        Environment=BAZ=override
+        """
+    )
+
+    with chdir(d):
+        _, [config] = parse_config()
+
+    assert config.environment == {"FOO": "override", "BAR": "override", "BAZ": "override"}
 
 
 def test_parse_load_verb(tmp_path: Path) -> None:
