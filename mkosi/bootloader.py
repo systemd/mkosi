@@ -356,7 +356,12 @@ def install_grub(context: Context) -> None:
                 sbat=sbat,
             )
             if context.config.secure_boot:
-                sign_efi_binary(context, output, output)
+                # sign_efi_binary() mounts input as read only, so
+                # creating temporary rw copy
+                with tempfile.NamedTemporaryFile(prefix="efi-boot-binary") as input:
+                    input = Path(input.name)
+                    shutil.copy2(output, input)
+                    sign_efi_binary(context, input, output)
 
     dst = context.root / "efi" / context.config.distribution.grub_prefix() / "fonts"
     with umask(~0o700):
