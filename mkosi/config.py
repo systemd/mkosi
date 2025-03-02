@@ -4561,11 +4561,10 @@ class ParseContext:
 
     def parse_config_one(self, path: Path, parse_profiles: bool = False, parse_local: bool = False) -> bool:
         s: Optional[ConfigSetting[object]]  # Hint to mypy that we might assign None
-        extras = path.is_dir()
-
         assert path.is_absolute()
 
-        if path.is_dir():
+        extras = path.is_dir()
+        if extras:
             path /= "mkosi.conf"
 
         if not self.match_config(path):
@@ -4573,10 +4572,10 @@ class ParseContext:
 
         if extras:
             if parse_local:
-                if (
-                    ((localpath := path.parent / "mkosi.local") / "mkosi.conf").exists()
-                    or (localpath := path.parent / "mkosi.local.conf").exists()
-                ):  # fmt: skip
+                for localpath in (
+                    *([p] if (p := path.parent / "mkosi.local").is_dir() else []),
+                    *([p] if (p := path.parent / "mkosi.local.conf").is_file() else []),
+                ):
                     with chdir(localpath if localpath.is_dir() else Path.cwd()):
                         self.parse_config_one(localpath if localpath.is_file() else Path.cwd())
 
