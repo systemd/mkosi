@@ -36,23 +36,18 @@ class PackageManager:
     @classmethod
     def finalize_environment(cls, context: Context) -> dict[str, str]:
         env = {
-            **context.config.finalize_environment(),
-            # Make sure rpm doesn't pick up ~/.rpmmacros and ~/.rpmrc.
-            "HOME": "/",
+            "HOME": "/",  # Make sure rpm doesn't pick up ~/.rpmmacros and ~/.rpmrc.
             # systemd's chroot detection doesn't work when unprivileged so tell it explicitly.
             "SYSTEMD_IN_CHROOT": "1",
         }
 
-        for e in (
-            "SYSTEMD_HWDB_UPDATE_BYPASS",
-            "SYSTEMD_TMPFILES_BYPASS",
-            "SYSTEMD_SYSUSERS_BYPASS",
-            "SYSTEMD_PRESET_BYPASS",
-        ):
-            if e not in env:
-                env[e] = "1"
+        if "SYSTEMD_HWDB_UPDATE_BYPASS" not in context.config.finalize_environment():
+            env["SYSTEMD_HWDB_UPDATE_BYPASS"] = "1"
 
-        if "KERNEL_INSTALL_BYPASS" not in env and context.config.bootable != ConfigFeature.disabled:
+        if (
+            "KERNEL_INSTALL_BYPASS" not in context.config.finalize_environment()
+            and context.config.bootable != ConfigFeature.disabled
+        ):
             env["KERNEL_INSTALL_BYPASS"] = "1"
         else:
             env |= {
@@ -63,7 +58,7 @@ class PackageManager:
                 "hostonly_l": "no",
             }
 
-        return env
+        return context.config.finalize_environment() | env
 
     @classmethod
     def env_cmd(cls, context: Context) -> list[PathString]:
