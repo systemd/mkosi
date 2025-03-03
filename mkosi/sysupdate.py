@@ -49,6 +49,8 @@ def run_sysupdate(args: Args, config: Config) -> None:
             run(
                 [
                     "systemd-repart",
+                    "--no-pager",
+                    "--pretty=no",
                     "--split=yes",
                     *([f"--definitions={workdir(d)}" for d in config.repart_dirs]),
                     workdir(config.output_dir_or_cwd() / config.output_with_format),
