@@ -1789,7 +1789,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     gigabytes respectively. `directory` optionally specifies the directory
     in which to create the file backing the drive. `options` optionally
     specifies extra comma-delimited properties which are passed verbatim
-    to **qemu**'s `-drive` option. `file-id` specifies the ID of the file
+    to **qemu**'s `-blockdev` option. `file-id` specifies the ID of the file
     backing the drive. Drives with the same file ID will share the
     backing file. The directory and size of the file will be determined
     from the first drive with a given file ID.
