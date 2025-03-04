@@ -327,8 +327,8 @@ Configuration is parsed in the following order:
 
 * The command line arguments are parsed.
 * `mkosi.local.conf` and `mkosi.local/` are parsed if they exists (in that order).
-  This file or directory should be in `.gitignore` (or equivalent)
-  and is intended for local configuration.
+  This file and directory should be in `.gitignore` (or equivalent)
+  and are intended for local configuration.
 * Any default paths (depending on the option) are configured if the
   corresponding path exists.
 * `mkosi.conf` is parsed if it exists in the directory configured with
