@@ -124,6 +124,16 @@ def process_crypttab(staging_dir: str) -> list[str]:
     return cmdline
 
 
+def add_raid_config() -> list[str]:
+    cmdline = []
+
+    for f in ("/etc/mdadm.conf", "/etc/mdadm.conf.d", "/etc/mdadm/mdadm.conf", "/etc/mdadm/mdadm.conf.d"):
+        if Path(f).exists():
+            cmdline += ["--extra-tree", f"{f}:{f}"]
+
+    return cmdline
+
+
 def initrd_finalize(staging_dir: str, output: str, output_dir: str) -> None:
     if output_dir:
         with umask(~0o700) if os.getuid() == 0 else cast(umask, contextlib.nullcontext()):
@@ -274,6 +284,8 @@ def main() -> None:
 
         for p in args.profile:
             cmdline += ["--profile", p]
+            if p == "raid":
+                cmdline += add_raid_config()
 
         if args.kernel_image:
             cmdline += [
