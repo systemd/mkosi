@@ -68,7 +68,7 @@ def find_rpm_gpgkey(
 
     if required:
         die(
-            f"{key} GPG key not found in /usr/share/distribution-gpg-keys",
+            f"{key} GPG key not found in /usr/share/distribution-gpg-keys or /etc/pki/rpm-gpg",
             hint="Make sure the distribution-gpg-keys package is installed",
         )
 
