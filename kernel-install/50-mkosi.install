@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 import logging
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -91,7 +92,7 @@ def main() -> None:
 
     logging.info(f"Building {output}")
 
-    run(cmdline, stdin=sys.stdin, stdout=sys.stdout)
+    run(cmdline, stdin=sys.stdin, stdout=sys.stdout, env=os.environ)
 
     if format == OutputFormat.cpio:
         build_microcode_initrd(context.staging_area / "microcode")

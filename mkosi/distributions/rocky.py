@@ -10,13 +10,14 @@ class Installer(centos.Installer):
     def pretty_name(cls) -> str:
         return "Rocky Linux"
 
-    @staticmethod
-    def gpgurls(context: Context) -> tuple[str, ...]:
+    @classmethod
+    def gpgurls(cls, context: Context) -> tuple[str, ...]:
+        major = cls.major_release(context.config)
         return (
             find_rpm_gpgkey(
                 context,
-                f"RPM-GPG-KEY-Rocky-{context.config.release}",
-                f"https://download.rockylinux.org/pub/rocky/RPM-GPG-KEY-Rocky-{context.config.release}",
+                f"RPM-GPG-KEY-Rocky-{major}",
+                f"https://download.rockylinux.org/pub/rocky/RPM-GPG-KEY-Rocky-{major}",
             ),
         )
 

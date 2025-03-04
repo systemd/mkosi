@@ -12,14 +12,12 @@ class Installer(centos.Installer):
     def pretty_name(cls) -> str:
         return "RHEL UBI"
 
-    @staticmethod
-    def gpgurls(context: Context) -> tuple[str, ...]:
-        major = int(float(context.config.release))
-
+    @classmethod
+    def gpgurls(cls, context: Context) -> tuple[str, ...]:
         return (
             find_rpm_gpgkey(
                 context,
-                f"RPM-GPG-KEY-redhat{major}-release",
+                f"RPM-GPG-KEY-redhat{cls.major_release(context.config)}-release",
                 "https://access.redhat.com/security/data/fd431d51.txt",
             ),
         )
