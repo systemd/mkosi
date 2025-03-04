@@ -602,6 +602,7 @@ class ToolsTreeProfile(StrEnum):
 
 class InitrdProfile(StrEnum):
     lvm = enum.auto()
+    raid = enum.auto()
 
 
 def expand_delayed_specifiers(specifiers: dict[str, str], text: str) -> str:
