@@ -345,7 +345,7 @@ def main() -> None:
             cmdline,
             stdin=sys.stdin,
             stdout=sys.stdout,
-            env={"MKOSI_DNF": dnf.resolve().name} if (dnf := find_binary("dnf")) else {},
+            env=os.environ | ({"MKOSI_DNF": dnf.resolve().name} if (dnf := find_binary("dnf")) else {}),
         )
 
         initrd_finalize(staging_dir, args.output, args.output_dir)

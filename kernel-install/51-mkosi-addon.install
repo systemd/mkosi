@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -44,7 +45,7 @@ def main() -> None:
 
     logging.info("Building mkosi-local.addon.efi")
 
-    run(cmdline, stdin=sys.stdin, stdout=sys.stdout)
+    run(cmdline, stdin=sys.stdin, stdout=sys.stdout, env=os.environ)
 
 
 if __name__ == "__main__":
