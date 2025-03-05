@@ -146,6 +146,20 @@ class PackageManager:
         )  # fmt: skip
 
     @classmethod
+    def install(
+        cls,
+        context: Context,
+        packages: Sequence[str],
+        *,
+        apivfs: bool = True,
+    ) -> None:
+        pass
+
+    @classmethod
+    def remove(cls, context: Context, packages: Sequence[str]) -> None:
+        pass
+
+    @classmethod
     def sync(cls, context: Context, force: bool) -> None:
         pass
 

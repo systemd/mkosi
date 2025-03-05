@@ -229,6 +229,20 @@ class Dnf(PackageManager):
                         p.unlink()
 
     @classmethod
+    def install(
+        cls,
+        context: Context,
+        packages: Sequence[str],
+        *,
+        apivfs: bool = True,
+    ) -> None:
+        cls.invoke(context, "install", packages, apivfs=apivfs)
+
+    @classmethod
+    def remove(cls, context: Context, packages: Sequence[str]) -> None:
+        cls.invoke(context, "remove", packages, apivfs=True)
+
+    @classmethod
     def sync(cls, context: Context, force: bool, arguments: Sequence[str] = ()) -> None:
         cls.invoke(
             context,

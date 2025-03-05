@@ -239,7 +239,9 @@ def install_distribution(context: Context) -> None:
             return
 
         with complete_step(f"Installing extra packages for {context.config.distribution.pretty_name()}"):
-            context.config.distribution.install_packages(context, context.config.packages)
+            context.config.distribution.package_manager(context.config).install(
+                context, context.config.packages
+            )
     else:
         if context.config.overlay or context.config.output_format.is_extension_image():
             if context.config.packages:
@@ -278,7 +280,9 @@ def install_distribution(context: Context) -> None:
                 (context.root / "boot/loader/entries.srel").write_text("type1\n")
 
             if context.config.packages:
-                context.config.distribution.install_packages(context, context.config.packages)
+                context.config.distribution.package_manager(context.config).install(
+                    context, context.config.packages
+                )
 
     for f in (
         "var/lib/systemd/random-seed",
@@ -300,7 +304,9 @@ def install_build_packages(context: Context) -> None:
         complete_step(f"Installing build packages for {context.config.distribution.pretty_name()}"),
         setup_build_overlay(context),
     ):
-        context.config.distribution.install_packages(context, context.config.build_packages)
+        context.config.distribution.package_manager(context.config).install(
+            context, context.config.build_packages
+        )
 
 
 def install_volatile_packages(context: Context) -> None:
@@ -308,7 +314,9 @@ def install_volatile_packages(context: Context) -> None:
         return
 
     with complete_step(f"Installing volatile packages for {context.config.distribution.pretty_name()}"):
-        context.config.distribution.install_packages(context, context.config.volatile_packages)
+        context.config.distribution.package_manager(context.config).install(
+            context, context.config.volatile_packages
+        )
 
 
 def remove_packages(context: Context) -> None:
@@ -319,7 +327,9 @@ def remove_packages(context: Context) -> None:
 
     with complete_step(f"Removing {len(context.config.remove_packages)} packages…"):
         try:
-            context.config.distribution.remove_packages(context, context.config.remove_packages)
+            context.config.distribution.package_manager(context.config).remove(
+                context, context.config.remove_packages
+            )
         except NotImplementedError:
             die(f"Removing packages is not supported for {context.config.distribution}")
 
