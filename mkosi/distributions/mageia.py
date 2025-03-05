@@ -5,6 +5,7 @@ from collections.abc import Iterable
 from mkosi.config import Architecture
 from mkosi.context import Context
 from mkosi.distributions import fedora, join_mirror
+from mkosi.installer.dnf import Dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey
 from mkosi.log import die
 
@@ -24,7 +25,7 @@ class Installer(fedora.Installer):
 
     @classmethod
     def install(cls, context: Context) -> None:
-        cls.install_packages(context, ["filesystem"], apivfs=False)
+        Dnf.install(context, ["filesystem"], apivfs=False)
 
     @classmethod
     def repositories(cls, context: Context) -> Iterable[RpmRepository]:

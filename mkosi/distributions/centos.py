@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable
 
 from mkosi.config import Architecture, Config
 from mkosi.context import Context
@@ -78,15 +78,7 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def install(cls, context: Context) -> None:
-        cls.install_packages(context, ["basesystem"], apivfs=False)
-
-    @classmethod
-    def install_packages(cls, context: Context, packages: Sequence[str], apivfs: bool = True) -> None:
-        Dnf.invoke(context, "install", packages, apivfs=apivfs)
-
-    @classmethod
-    def remove_packages(cls, context: Context, packages: Sequence[str]) -> None:
-        Dnf.invoke(context, "remove", packages, apivfs=True)
+        Dnf.install(context, ["basesystem"], apivfs=False)
 
     @classmethod
     def architecture(cls, arch: Architecture) -> str:

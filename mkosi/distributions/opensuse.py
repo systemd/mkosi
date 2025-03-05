@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 import tempfile
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable
 from pathlib import Path
 from xml.etree import ElementTree
 
@@ -58,30 +58,7 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def install(cls, context: Context) -> None:
-        cls.install_packages(context, ["filesystem"], apivfs=False)
-
-    @classmethod
-    def install_packages(cls, context: Context, packages: Sequence[str], apivfs: bool = True) -> None:
-        if context.config.find_binary("zypper"):
-            Zypper.invoke(
-                context,
-                "install",
-                [
-                    "--download", "in-advance",
-                    "--recommends" if context.config.with_recommends else "--no-recommends",
-                    *packages,
-                ],
-                apivfs=apivfs,
-            )  # fmt: skip
-        else:
-            Dnf.invoke(context, "install", packages, apivfs=apivfs)
-
-    @classmethod
-    def remove_packages(cls, context: Context, packages: Sequence[str]) -> None:
-        if context.config.find_binary("zypper"):
-            Zypper.invoke(context, "remove", ["--clean-deps", *packages], apivfs=True)
-        else:
-            Dnf.invoke(context, "remove", packages, apivfs=True)
+        cls.package_manager(context.config).install(context, ["filesystem"], apivfs=False)
 
     @classmethod
     def repositories(cls, context: Context) -> Iterable[RpmRepository]:
