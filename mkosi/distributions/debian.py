@@ -143,6 +143,13 @@ class Installer(DistributionInstaller):
                     f"-oDPkg::Pre-Install-Pkgs::=cat >{workdir(Path(f.name))}",
                     "?essential",
                     "base-files",
+                    # Debian policy is to start daemons by default. The policy-rc.d script can be used choose
+                    # which ones to start. Let's install the necessary packages to deny all daemon startups.
+                    # Instead, systemd presets should be used to decide which daemons are enabled and which
+                    # are not. See https://people.debian.org/~hmh/invokerc.d-policyrc.d-specification.txt for
+                    # more information.
+                    "policy-rcd-declarative",
+                    "policy-rcd-declarative-deny-all",
                 ],
                 options=["--bind", f.name, workdir(Path(f.name))],
             )
@@ -193,21 +200,8 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def install_packages(cls, context: Context, packages: Sequence[str], apivfs: bool = True) -> None:
-        # Debian policy is to start daemons by default. The policy-rc.d script can be used choose which ones
-        # to start. Let's install one that denies all daemon startups.
-        # See https://people.debian.org/~hmh/invokerc.d-policyrc.d-specification.txt for more information.
-        # Note: despite writing in /usr/sbin, this file is not shipped by the OS and instead should be
-        # managed by the admin.
-        policyrcd = context.root / "usr/sbin/policy-rc.d"
-        with umask(~0o755):
-            policyrcd.parent.mkdir(parents=True, exist_ok=True)
-        with umask(~0o644):
-            policyrcd.write_text("#!/bin/sh\nexit 101\n")
-
         Apt.invoke(context, "install", packages, apivfs=apivfs)
         install_apt_sources(context, cls.repositories(context, local=False))
-
-        policyrcd.unlink()
 
         # systemd-gpt-auto-generator is disabled by default in Ubuntu:
         # https://git.launchpad.net/ubuntu/+source/systemd/tree/debian/systemd.links?h=ubuntu/noble-proposed.
