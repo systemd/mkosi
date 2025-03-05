@@ -133,6 +133,26 @@ class Zypper(PackageManager):
         )
 
     @classmethod
+    def install(
+        cls,
+        context: Context,
+        packages: Sequence[str],
+        *,
+        apivfs: bool = True,
+    ) -> None:
+        arguments = [
+            "--download", "in-advance",
+            "--recommends" if context.config.with_recommends else "--no-recommends",
+            *packages,
+        ]  # fmt: skip
+
+        cls.invoke(context, "install", arguments, apivfs=apivfs)
+
+    @classmethod
+    def remove(cls, context: Context, packages: Sequence[str]) -> None:
+        cls.invoke(context, "remove", ["--clean-deps", *packages], apivfs=True)
+
+    @classmethod
     def sync(cls, context: Context, force: bool, arguments: Sequence[str] = ()) -> None:
         cls.invoke(context, "refresh", [*(["--force"] if force else []), *arguments])
 

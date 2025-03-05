@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
+import itertools
 import tempfile
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable
 from pathlib import Path
 
 from mkosi.archive import extract_tar
@@ -143,6 +144,13 @@ class Installer(DistributionInstaller):
                     f"-oDPkg::Pre-Install-Pkgs::=cat >{workdir(Path(f.name))}",
                     "?essential",
                     "base-files",
+                    # Debian policy is to start daemons by default. The policy-rc.d script can be used choose
+                    # which ones to start. Let's install the necessary packages to deny all daemon startups.
+                    # Instead, systemd presets should be used to decide which daemons are enabled and which
+                    # are not. See https://people.debian.org/~hmh/invokerc.d-policyrc.d-specification.txt for
+                    # more information.
+                    "policy-rcd-declarative",
+                    "policy-rcd-declarative-deny-all",
                 ],
                 options=["--bind", f.name, workdir(Path(f.name))],
             )
@@ -185,38 +193,12 @@ class Installer(DistributionInstaller):
         # Finally, run apt to properly install packages in the chroot without having to worry that maintainer
         # scripts won't find basic tools that they depend on.
 
-        cls.install_packages(
-            context, [Path(deb).name.partition("_")[0].removesuffix(".deb") for deb in essential]
-        )
+        Apt.install(context, [Path(deb).name.partition("_")[0].removesuffix(".deb") for deb in essential])
 
         fixup_os_release(context)
 
-    @classmethod
-    def install_packages(cls, context: Context, packages: Sequence[str], apivfs: bool = True) -> None:
-        # Debian policy is to start daemons by default. The policy-rc.d script can be used choose which ones
-        # to start. Let's install one that denies all daemon startups.
-        # See https://people.debian.org/~hmh/invokerc.d-policyrc.d-specification.txt for more information.
-        # Note: despite writing in /usr/sbin, this file is not shipped by the OS and instead should be
-        # managed by the admin.
-        policyrcd = context.root / "usr/sbin/policy-rc.d"
-        with umask(~0o755):
-            policyrcd.parent.mkdir(parents=True, exist_ok=True)
-        with umask(~0o644):
-            policyrcd.write_text("#!/bin/sh\nexit 101\n")
-
-        Apt.invoke(context, "install", packages, apivfs=apivfs)
-        install_apt_sources(context, cls.repositories(context, local=False))
-
-        policyrcd.unlink()
-
-        # systemd-gpt-auto-generator is disabled by default in Ubuntu:
-        # https://git.launchpad.net/ubuntu/+source/systemd/tree/debian/systemd.links?h=ubuntu/noble-proposed.
-        # Let's make sure it is enabled by default in our images.
-        (context.root / "etc/systemd/system-generators/systemd-gpt-auto-generator").unlink(missing_ok=True)
-
-    @classmethod
-    def remove_packages(cls, context: Context, packages: Sequence[str]) -> None:
-        Apt.invoke(context, "purge", packages, apivfs=True)
+        if "apt" in itertools.chain(context.config.packages, context.config.volatile_packages):
+            install_apt_sources(context, cls.repositories(context, local=False))
 
     @classmethod
     def architecture(cls, arch: Architecture) -> str:

@@ -230,6 +230,25 @@ class Apt(PackageManager):
         )
 
     @classmethod
+    def install(
+        cls,
+        context: Context,
+        packages: Sequence[str],
+        *,
+        apivfs: bool = True,
+    ) -> None:
+        cls.invoke(context, "install", packages, apivfs=apivfs)
+
+        # systemd-gpt-auto-generator is disabled by default in Ubuntu:
+        # https://git.launchpad.net/ubuntu/+source/systemd/tree/debian/systemd.links?h=ubuntu/noble-proposed.
+        # Let's make sure it is enabled by default in our images.
+        (context.root / "etc/systemd/system-generators/systemd-gpt-auto-generator").unlink(missing_ok=True)
+
+    @classmethod
+    def remove(cls, context: Context, packages: Sequence[str]) -> None:
+        cls.invoke(context, "purge", packages, apivfs=True)
+
+    @classmethod
     def sync(cls, context: Context, force: bool) -> None:
         cls.invoke(context, "update")
 
@@ -280,6 +299,17 @@ class Apt(PackageManager):
                 Suites: mkosi
                 Components: main
                 Trusted: yes
+                """
+            )
+        )
+
+        (context.sandbox_tree / "etc/apt/preferences.d").mkdir(parents=True, exist_ok=True)
+        (context.sandbox_tree / "etc/apt/preferences.d/mkosi-local.pref").write_text(
+            textwrap.dedent(
+                """\
+                Package: *
+                Pin: origin mkosi
+                Pin-Priority: 1100
                 """
             )
         )
