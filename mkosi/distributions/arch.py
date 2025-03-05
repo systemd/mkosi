@@ -12,7 +12,6 @@ from mkosi.distributions import DistributionInstaller, PackageType
 from mkosi.installer import PackageManager
 from mkosi.installer.pacman import Pacman, PacmanRepository
 from mkosi.log import complete_step, die
-from mkosi.util import sort_packages
 
 
 class Installer(DistributionInstaller):
@@ -70,7 +69,7 @@ class Installer(DistributionInstaller):
         Pacman.invoke(
             context,
             "--sync",
-            ["--needed", "--assume-installed", "initramfs", *sort_packages(packages)],
+            ["--needed", "--assume-installed", "initramfs", *packages],
             apivfs=apivfs,
         )
 

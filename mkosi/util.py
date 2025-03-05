@@ -99,13 +99,6 @@ def format_rlimit(rlimit: int) -> str:
     return f"{soft}:{hard}"
 
 
-def sort_packages(packages: Iterable[str]) -> list[str]:
-    """Sorts packages: normal first, paths second, conditional third"""
-
-    m = {"(": 2, "/": 1}
-    return sorted(packages, key=lambda name: (m.get(name[0], 0), name))
-
-
 def flatten(lists: Iterable[Iterable[T]]) -> list[T]:
     """Flatten a sequence of sequences into a single list."""
     return list(itertools.chain.from_iterable(lists))
