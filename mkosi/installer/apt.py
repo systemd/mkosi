@@ -284,6 +284,17 @@ class Apt(PackageManager):
             )
         )
 
+        (context.sandbox_tree / "etc/apt/preferences.d").mkdir(parents=True, exist_ok=True)
+        (context.sandbox_tree / "etc/apt/preferences.d/mkosi-local.pref").write_text(
+            textwrap.dedent(
+                """\
+                Package: *
+                Pin: origin mkosi
+                Pin-Priority: 1100
+                """
+            )
+        )
+
         cls.invoke(
             context,
             "update",
