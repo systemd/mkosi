@@ -61,6 +61,8 @@ from mkosi.versioncomp import GenericVersion
 
 QEMU_KVM_DEVICE_VERSION = GenericVersion("9.0")
 VHOST_VSOCK_SET_GUEST_CID = 0x4008AF60
+# Maximum permissible virtio-fs tag length (UTF-8 encoded, not NUL-terminated)
+VIRTIOFS_MAX_TAG_LEN = 36
 
 
 class QemuDeviceNode(StrEnum):
@@ -395,9 +397,7 @@ def start_virtiofsd(
             # Make sure virtiofsd can access the socket in this directory.
             os.chown(context, st.st_uid, st.st_gid)
 
-        # Make sure we can use the socket name as a unique identifier for the fs as well but make sure it's
-        # not too long as virtiofs tag names are limited to 36 bytes.
-        path = Path(context) / f"sock-{uuid.uuid4().hex}"[:35]
+        path = Path(context) / f"sock-{uuid.uuid4().hex}"
         sock.bind(os.fspath(path))
         sock.listen()
 
@@ -1365,8 +1365,12 @@ def run_qemu(args: Args, config: Config) -> None:
         credentials = finalize_credentials(config)
 
         def add_virtiofs_mount(
-            sock: Path, dst: PathString, cmdline: list[PathString], credentials: dict[str, str], *, tag: str
+            sock: Path, dst: PathString, cmdline: list[PathString], credentials: dict[str, str]
         ) -> None:
+            tag = os.fspath(dst)
+            if len(tag.encode()) > VIRTIOFS_MAX_TAG_LEN:
+                die(f"virtio-fs tag {tag} derived from destination is too long")
+
             cmdline += [
                 "-chardev", f"socket,id={sock.name},path={sock}",
                 "-device", f"vhost-user-fs-pci,queue-size=1024,chardev={sock.name},tag={tag}",
@@ -1384,31 +1388,19 @@ def run_qemu(args: Args, config: Config) -> None:
             for t in config.build_sources:
                 src, dst = t.with_prefix("/work/src")
                 sock = stack.enter_context(start_virtiofsd(config, src))
-                add_virtiofs_mount(sock, dst, cmdline, credentials, tag=src.name)
+                add_virtiofs_mount(sock, dst, cmdline, credentials)
 
             if config.build_dir:
                 sock = stack.enter_context(start_virtiofsd(config, config.build_subdir))
-                add_virtiofs_mount(sock, "/work/build", cmdline, credentials, tag="build")
+                add_virtiofs_mount(sock, "/work/build", cmdline, credentials)
 
         for tree in config.runtime_trees:
             sock = stack.enter_context(start_virtiofsd(config, tree.source))
-            add_virtiofs_mount(
-                sock,
-                Path("/root/src") / (tree.target or ""),
-                cmdline,
-                credentials,
-                tag=tree.target.name if tree.target else tree.source.name,
-            )
+            add_virtiofs_mount(sock, Path("/root/src") / (tree.target or ""), cmdline, credentials)
 
         if config.runtime_home and (p := current_home_dir()):
             sock = stack.enter_context(start_virtiofsd(config, p))
-            add_virtiofs_mount(
-                sock,
-                Path("/root"),
-                cmdline,
-                credentials,
-                tag="user-home",
-            )
+            add_virtiofs_mount(sock, Path("/root"), cmdline, credentials)
 
         if want_scratch(config) or config.output_format in (OutputFormat.disk, OutputFormat.esp):
             cmdline += ["-device", "virtio-scsi-pci,id=mkosi"]
