@@ -1365,11 +1365,11 @@ def run_qemu(args: Args, config: Config) -> None:
         credentials = finalize_credentials(config)
 
         def add_virtiofs_mount(
-            sock: Path, dst: PathString, cmdline: list[PathString], credentials: dict[str, str], *, tag: str
+            sock: Path, dst: PathString, cmdline: list[PathString], credentials: dict[str, str]
         ) -> None:
             cmdline += [
                 "-chardev", f"socket,id={sock.name},path={sock}",
-                "-device", f"vhost-user-fs-pci,queue-size=1024,chardev={sock.name},tag={tag}",
+                "-device", f"vhost-user-fs-pci,queue-size=1024,chardev={sock.name},tag={dst}",
             ]  # fmt: skip
 
             if "fstab.extra" not in credentials:
@@ -1378,37 +1378,25 @@ def run_qemu(args: Args, config: Config) -> None:
             if credentials["fstab.extra"] and not credentials["fstab.extra"][-1] == "\n":
                 credentials["fstab.extra"] += "\n"
 
-            credentials["fstab.extra"] += f"{tag} {dst} virtiofs x-initrd.mount\n"
+            credentials["fstab.extra"] += f"{dst} {dst} virtiofs x-initrd.mount\n"
 
         if config.runtime_build_sources:
             for t in config.build_sources:
                 src, dst = t.with_prefix("/work/src")
                 sock = stack.enter_context(start_virtiofsd(config, src))
-                add_virtiofs_mount(sock, dst, cmdline, credentials, tag=src.name)
+                add_virtiofs_mount(sock, dst, cmdline, credentials)
 
             if config.build_dir:
                 sock = stack.enter_context(start_virtiofsd(config, config.build_subdir))
-                add_virtiofs_mount(sock, "/work/build", cmdline, credentials, tag="build")
+                add_virtiofs_mount(sock, "/work/build", cmdline, credentials)
 
         for tree in config.runtime_trees:
             sock = stack.enter_context(start_virtiofsd(config, tree.source))
-            add_virtiofs_mount(
-                sock,
-                Path("/root/src") / (tree.target or ""),
-                cmdline,
-                credentials,
-                tag=tree.target.name if tree.target else tree.source.name,
-            )
+            add_virtiofs_mount(sock, Path("/root/src") / (tree.target or ""), cmdline, credentials)
 
         if config.runtime_home and (p := current_home_dir()):
             sock = stack.enter_context(start_virtiofsd(config, p))
-            add_virtiofs_mount(
-                sock,
-                Path("/root"),
-                cmdline,
-                credentials,
-                tag="user-home",
-            )
+            add_virtiofs_mount(sock, Path("/root"), cmdline, credentials)
 
         if want_scratch(config) or config.output_format in (OutputFormat.disk, OutputFormat.esp):
             cmdline += ["-device", "virtio-scsi-pci,id=mkosi"]
