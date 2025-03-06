@@ -1697,7 +1697,7 @@ class Args:
     doc_format: DocFormat
     json: bool
     wipe_build_dir: bool
-    run_build_scripts: bool
+    rerun_build_scripts: bool
 
     @classmethod
     def default(cls) -> "Args":
@@ -4207,7 +4207,7 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "-R",
-        "--run-build-scripts",
+        "--rerun-build-scripts",
         help="Run build scripts even if the image is not rebuilt",
         action="store_true",
         default=False,
@@ -4710,7 +4710,7 @@ def have_history(args: Args) -> bool:
     return (
         args.directory is not None
         and args.verb.needs_build()
-        and args.verb != Verb.build
+        and (args.verb != Verb.build or args.rerun_build_scripts)
         and not args.force
         and Path(".mkosi-private/history/latest.json").exists()
     )
@@ -4745,6 +4745,9 @@ def parse_config(
 
     if args.cmdline and not args.verb.supports_cmdline():
         die(f"Arguments after verb are not supported for {args.verb}.")
+
+    if args.rerun_build_scripts and args.force:
+        die("--force cannot be used together with --rerun-build-scripts")
 
     # If --debug was passed, apply it as soon as possible.
     if ARG_DEBUG.get():

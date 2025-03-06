@@ -293,6 +293,12 @@ Those settings cannot be configured in the configuration files.
 `--wipe-build-dir`, `-w`
 :   Wipe the build directory if one is configured before building the image.
 
+`--rerun-build-scripts`, `-R`
+:   Rerun build scripts. Requires the `Incremental=` option to be
+    enabled and the image to have been built once already. If `History=`
+    is enabled, the config from the previous build will be reused and no
+    new history will be written.
+
 ## Supported output formats
 
 The following output formats are supported:
