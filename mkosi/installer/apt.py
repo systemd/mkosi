@@ -237,7 +237,20 @@ class Apt(PackageManager):
         *,
         apivfs: bool = True,
     ) -> None:
+        # Debian policy is to start daemons by default. The policy-rc.d script can be used choose which ones
+        # to start. Let's install one that denies all daemon startups.
+        # See https://people.debian.org/~hmh/invokerc.d-policyrc.d-specification.txt for more information.
+        # Note: despite writing in /usr/sbin, this file is not shipped by the OS and instead should be
+        # managed by the admin.
+        policyrcd = context.root / "usr/sbin/policy-rc.d"
+        with umask(~0o755):
+            policyrcd.parent.mkdir(parents=True, exist_ok=True)
+        with umask(~0o644):
+            policyrcd.write_text("#!/bin/sh\nexit 101\n")
+
         cls.invoke(context, "install", packages, apivfs=apivfs)
+
+        policyrcd.unlink()
 
         # systemd-gpt-auto-generator is disabled by default in Ubuntu:
         # https://git.launchpad.net/ubuntu/+source/systemd/tree/debian/systemd.links?h=ubuntu/noble-proposed.
