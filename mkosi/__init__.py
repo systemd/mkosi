@@ -332,7 +332,7 @@ def install_volatile_packages(context: Context) -> None:
 
     with complete_step(f"Installing volatile packages for {context.config.distribution.pretty_name()}"):
         context.config.distribution.package_manager(context.config).install(
-            context, context.config.volatile_packages
+            context, context.config.volatile_packages, allow_downgrade=True
         )
 
 

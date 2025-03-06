@@ -136,12 +136,17 @@ class Zypper(PackageManager):
         packages: Sequence[str],
         *,
         apivfs: bool = True,
+        allow_downgrade: bool = False,
     ) -> None:
         arguments = [
             "--download", "in-advance",
             "--recommends" if context.config.with_recommends else "--no-recommends",
-            *packages,
         ]  # fmt: skip
+
+        if allow_downgrade:
+            arguments += ["--allow-downgrade"]
+
+        arguments += [*packages]
 
         cls.invoke(context, "install", arguments, apivfs=apivfs)
 
