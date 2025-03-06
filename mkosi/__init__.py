@@ -5166,17 +5166,16 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
             if args.force > 1 or not have_cache(initrd):
                 remove_cache_entries(initrd)
 
-    for i, config in enumerate(images):
-        if args.verb != Verb.build:
-            check_tools(config, args.verb)
-
-        images[i] = config = run_configure_scripts(config)
-
-    # The images array has been modified so we need to reevaluate last again.
-    # Also ensure that all other images are reordered in case their dependencies were modified.
-    last = images[-1]
-
     if not have_history(args):
+        for i, config in enumerate(images):
+            if args.verb != Verb.build:
+                check_tools(config, args.verb)
+
+            images[i] = config = run_configure_scripts(config)
+
+        # The images array has been modified so we need to reevaluate last again.
+        # Also ensure that all other images are reordered in case their dependencies were modified.
+        last = images[-1]
         images = resolve_deps(images[:-1], last.dependencies) + [last]
 
     if (
