@@ -144,13 +144,6 @@ class Installer(DistributionInstaller):
                     f"-oDPkg::Pre-Install-Pkgs::=cat >{workdir(Path(f.name))}",
                     "?essential",
                     "base-files",
-                    # Debian policy is to start daemons by default. The policy-rc.d script can be used choose
-                    # which ones to start. Let's install the necessary packages to deny all daemon startups.
-                    # Instead, systemd presets should be used to decide which daemons are enabled and which
-                    # are not. See https://people.debian.org/~hmh/invokerc.d-policyrc.d-specification.txt for
-                    # more information.
-                    "policy-rcd-declarative",
-                    "policy-rcd-declarative-deny-all",
                 ],
                 options=["--bind", f.name, workdir(Path(f.name))],
             )
