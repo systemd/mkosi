@@ -1060,12 +1060,23 @@ def config_make_enum_matcher(type: type[SE]) -> ConfigMatchCallback[SE]:
     return config_match_enum
 
 
+def package_sort_key(package: str) -> tuple[int, str]:
+    """Sorts packages: normal first, paths second, conditional third"""
+
+    if package.startswith("("):
+        return 2, package
+    elif package.startswith("/"):
+        return 1, package
+    return 0, package
+
+
 def config_make_list_parser(
     *,
     delimiter: Optional[str] = None,
     parse: Callable[[str], T] = str,  # type: ignore # see mypy#3737
     unescape: bool = False,
     reset: bool = True,
+    key: Optional[Callable[[T], Any]] = None,
 ) -> ConfigParseCallback[list[T]]:
     def config_parse_list(value: Optional[str], old: Optional[list[T]]) -> Optional[list[T]]:
         new = old.copy() if old else []
@@ -1090,7 +1101,12 @@ def config_make_list_parser(
             if reset and len(values) == 1 and values[0] == "":
                 return None
 
-        return new + [parse(v) for v in values if v]
+        new += [parse(v) for v in values if v]
+
+        if key:
+            new.sort(key=key)
+
+        return new
 
     return config_parse_list
 
@@ -2719,7 +2735,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--package",
         metavar="PACKAGE",
         section="Content",
-        parse=config_make_list_parser(delimiter=","),
+        parse=config_make_list_parser(delimiter=",", key=package_sort_key),
         help="Add an additional package to the OS image",
     ),
     ConfigSetting(
@@ -2727,7 +2743,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--build-package",
         metavar="PACKAGE",
         section="Content",
-        parse=config_make_list_parser(delimiter=","),
+        parse=config_make_list_parser(delimiter=",", key=package_sort_key),
         help="Additional packages needed for build scripts",
     ),
     ConfigSetting(
@@ -2735,7 +2751,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--volatile-package",
         metavar="PACKAGE",
         section="Content",
-        parse=config_make_list_parser(delimiter=","),
+        parse=config_make_list_parser(delimiter=",", key=package_sort_key),
         help="Packages to install after executing build scripts",
     ),
     ConfigSetting(

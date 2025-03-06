@@ -33,7 +33,7 @@ class Installer(fedora.Installer):
 
     @classmethod
     def install(cls, context: Context) -> None:
-        cls.install_packages(context, ["filesystem", "azurelinux-release"], apivfs=False)
+        Dnf.install(context, ["filesystem", "azurelinux-release"], apivfs=False)
 
     @classmethod
     def repositories(cls, context: Context) -> Iterable[RpmRepository]:

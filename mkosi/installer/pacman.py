@@ -181,6 +181,21 @@ class Pacman(PackageManager):
         )
 
     @classmethod
+    def install(
+        cls,
+        context: Context,
+        packages: Sequence[str],
+        *,
+        apivfs: bool = True,
+    ) -> None:
+        arguments = ["--needed", "--assume-installed", "initramfs", *packages]
+        cls.invoke(context, "--sync", arguments, apivfs=apivfs)
+
+    @classmethod
+    def remove(cls, context: Context, packages: Sequence[str]) -> None:
+        cls.invoke(context, "--remove", ["--nosave", "--recursive", *packages], apivfs=True)
+
+    @classmethod
     def keyring(cls, context: Context) -> None:
         def sandbox() -> AbstractContextManager[list[PathString]]:
             return cls.sandbox(

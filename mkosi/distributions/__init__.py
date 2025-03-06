@@ -3,7 +3,6 @@
 import enum
 import importlib
 import urllib.parse
-from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, cast
 
@@ -41,14 +40,6 @@ class DistributionInstaller:
 
     @classmethod
     def install(cls, context: "Context") -> None:
-        raise NotImplementedError
-
-    @classmethod
-    def install_packages(cls, context: "Context", packages: Sequence[str]) -> None:
-        raise NotImplementedError
-
-    @classmethod
-    def remove_packages(cls, context: "Context", packages: Sequence[str]) -> None:
         raise NotImplementedError
 
     @classmethod
@@ -135,12 +126,6 @@ class Distribution(StrEnum):
 
     def install(self, context: "Context") -> None:
         return self.installer().install(context)
-
-    def install_packages(self, context: "Context", packages: Sequence[str]) -> None:
-        return self.installer().install_packages(context, packages)
-
-    def remove_packages(self, context: "Context", packages: Sequence[str]) -> None:
-        return self.installer().remove_packages(context, packages)
 
     def filesystem(self) -> str:
         return self.installer().filesystem()

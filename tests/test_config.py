@@ -100,8 +100,8 @@ def test_parse_config(tmp_path: Path) -> None:
         Architecture=arm64
         Repositories=epel,epel-next
 
-        [Content]
-        Packages=abc
+        [Config]
+        Profiles=abc
 
         [Build]
         Environment=MY_KEY=MY_VALUE
@@ -120,7 +120,7 @@ def test_parse_config(tmp_path: Path) -> None:
 
     assert config.distribution == Distribution.ubuntu
     assert config.architecture == Architecture.arm64
-    assert config.packages == ["abc"]
+    assert config.profiles == ["abc"]
     assert config.output_format == OutputFormat.cpio
     assert config.image_id == "base"
 
@@ -163,8 +163,8 @@ def test_parse_config(tmp_path: Path) -> None:
         [Distribution]
         Distribution=debian
 
-        [Content]
-        Packages=qed
+        [Config]
+        Profiles=qed
                  def
 
         [Output]
@@ -175,13 +175,13 @@ def test_parse_config(tmp_path: Path) -> None:
     )
 
     with chdir(d):
-        _, [config] = parse_config(["--package", "last"])
+        _, [config] = parse_config(["--profile", "last"])
 
     # Setting a value explicitly in a dropin should override the default from mkosi.conf.
     assert config.distribution == Distribution.debian
     # Lists should be merged by appending the new values to the existing values. Any values from the CLI
     # should be appended to the values from the configuration files.
-    assert config.packages == ["abc", "qed", "def", "last"]
+    assert config.profiles == ["abc", "qed", "def", "last"]
     assert config.output_format == OutputFormat.cpio
     assert config.image_id == "00-dropin"
     assert config.image_version == "0"
@@ -329,7 +329,7 @@ def test_parse_includes_once(tmp_path: Path) -> None:
 
     with chdir(d):
         _, [config] = parse_config(["--include", "abc.conf", "--include", "abc.conf"])
-        assert config.build_packages == ["def", "abc"]
+        assert config.build_packages == ["abc", "def"]
 
     (d / "mkosi.images").mkdir()
 
