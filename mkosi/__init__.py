@@ -3928,10 +3928,7 @@ def build_image(context: Context) -> None:
         check_root_populated(context)
         run_build_scripts(context)
 
-        if context.config.output_format == OutputFormat.none or (
-            context.args.run_build_scripts
-            and (context.config.output_dir_or_cwd() / context.config.output).exists()
-        ):
+        if context.config.output_format == OutputFormat.none or context.args.rerun_build_scripts:
             return
 
         if wantrepo:
@@ -5106,6 +5103,13 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
             Verb.sandbox: run_sandbox,
         }[args.verb](args, last)
 
+    if last.output_format == OutputFormat.none:
+        if args.verb != Verb.build:
+            die(f"Cannot run '{args.verb}' verb on image with output format 'none'")
+
+        if args.rerun_build_scripts:
+            die("Cannot use --run-build-scripts on image with output format 'none'")
+
     output = last.output_dir_or_cwd() / last.output_with_compression
 
     if (
@@ -5114,50 +5118,61 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         and output.exists()
         and not output.is_symlink()
         and last.output_format != OutputFormat.none
-        and not args.run_build_scripts
+        and not args.rerun_build_scripts
     ):
         logging.info(f"Output path {output} exists already. (Use --force to rebuild.)")
         return
 
-    if args.verb.needs_build():
-        if args.verb != Verb.build and not args.force and not output.exists():
-            die(
-                f"Image '{last.image}' has not been built yet",
-                hint="Make sure to build the image first with 'mkosi build' or use '--force'",
-            )
+    if args.rerun_build_scripts and not output.exists():
+        die(
+            f"Image '{last.image}' must be built once before --rerun-build-scripts can be used",
+            hint="Build the image once with 'mkosi build'",
+        )
 
-        if not last.repart_offline and os.getuid() != 0:
-            die(f"Must be root to build {last.image} image configured with RepartOffline=no")
+    if args.verb != Verb.build and not args.force and not output.exists():
+        die(
+            f"Image '{last.image}' has not been built yet",
+            hint="Make sure to build the image first with 'mkosi build' or use '--force'",
+        )
 
-        check_workspace_directory(last)
+    if not last.repart_offline and os.getuid() != 0:
+        die(f"Must be root to build {last.image} image configured with RepartOffline=no")
 
-        if last.is_incremental():
-            for a, b in itertools.combinations(images, 2):
-                if a.expand_key_specifiers(a.cache_key) == b.expand_key_specifiers(b.cache_key):
-                    die(
-                        f"Image {a.image} and {b.image} have the same cache key '{a.expand_key_specifiers(a.cache_key)}'",  # noqa: E501
-                        hint="Add the &I specifier to the cache key to avoid this issue",
-                    )
+    check_workspace_directory(last)
 
-        if last.is_incremental() and last.incremental == Incremental.strict:
-            if args.force > 1:
+    if args.rerun_build_scripts and not last.is_incremental():
+        die("Incremental= must be enabled to be able to use --rerun-build-scripts")
+
+    if last.is_incremental():
+        for a, b in itertools.combinations(images, 2):
+            if a.expand_key_specifiers(a.cache_key) == b.expand_key_specifiers(b.cache_key):
                 die(
-                    "Cannot remove incremental caches when building with Incremental=strict",
-                    hint="Build once with '-i yes' to update the image cache",
+                    f"Image {a.image} and {b.image} have the same cache key '{a.expand_key_specifiers(a.cache_key)}'",  # noqa: E501
+                    hint="Add the &I specifier to the cache key to avoid this issue",
                 )
 
-            for config in images:
-                if have_cache(config):
-                    continue
+    if last.is_incremental() and (last.incremental == Incremental.strict or args.rerun_build_scripts):
+        if args.force > 1:
+            die(
+                "Cannot remove incremental caches when building with Incremental=strict",
+                hint="Build once with '-i yes' to update the image cache",
+            )
 
+        if any((c := config).is_incremental() and not have_cache(config) for config in images):
+            if args.rerun_build_scripts:
                 die(
-                    f"Strict incremental mode is enabled and cache for image {config.image} is out-of-date",
+                    f"Cannot use --rerun-build-scripts as the cache for image {c.image} is out-of-date",
+                    hint="Rebuild the image to update the image cache",
+                )
+            else:
+                die(
+                    f"Strict incremental mode is enabled and cache for image {c.image} is out-of-date",
                     hint="Build once with '-i yes' to update the image cache",
                 )
 
     # First, process all directory removals because otherwise if different images share directories
     # a later image build could end up deleting the output generated by an earlier image build.
-    if args.verb.needs_build() and (needs_build(args, last) or args.wipe_build_dir):
+    if needs_build(args, last) or args.wipe_build_dir:
         for config in images:
             run_clean(args, config)
 
@@ -5167,21 +5182,20 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
             if args.force > 1 or not have_cache(initrd):
                 remove_cache_entries(initrd)
 
-    for i, config in enumerate(images):
-        if args.verb != Verb.build:
-            check_tools(config, args.verb)
-
-        images[i] = config = run_configure_scripts(config)
-
-    # The images array has been modified so we need to reevaluate last again.
-    # Also ensure that all other images are reordered in case their dependencies were modified.
-    last = images[-1]
-
     if not have_history(args):
+        for i, config in enumerate(images):
+            if args.verb != Verb.build:
+                check_tools(config, args.verb)
+
+            images[i] = config = run_configure_scripts(config)
+
+        # The images array has been modified so we need to reevaluate last again.
+        # Also ensure that all other images are reordered in case their dependencies were modified.
+        last = images[-1]
         images = resolve_deps(images[:-1], last.dependencies) + [last]
 
     if (
-        args.run_build_scripts
+        args.rerun_build_scripts
         or last.output_format == OutputFormat.none
         or not (last.output_dir_or_cwd() / last.output).exists()
     ):
@@ -5233,7 +5247,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
                 # nothing to do so exit early.
                 if (
                     config.output_format == OutputFormat.none
-                    or (args.run_build_scripts and (config.output_dir_or_cwd() / config.output).exists())
+                    or (args.rerun_build_scripts and (config.output_dir_or_cwd() / config.output).exists())
                 ) and not config.build_scripts:
                     continue
 
@@ -5267,7 +5281,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         if args.auto_bump:
             bump_image_version()
 
-        if last.history:
+        if last.history and not args.rerun_build_scripts:
             Path(".mkosi-private/history").mkdir(parents=True, exist_ok=True)
             Path(".mkosi-private/history/latest.json").write_text(
                 json.dumps(

@@ -293,6 +293,12 @@ Those settings cannot be configured in the configuration files.
 `--wipe-build-dir`, `-w`
 :   Wipe the build directory if one is configured before building the image.
 
+`--rerun-build-scripts`, `-R`
+:   Rerun build scripts. Requires the `Incremental=` option to be
+    enabled and the image to have been built once already. If `History=`
+    is enabled, the config from the previous build will be reused and no
+    new history will be written.
+
 ## Supported output formats
 
 The following output formats are supported:
@@ -1552,11 +1558,14 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     up in the generated XFS filesystem.
 
 `History=`, `--history=`
-:   Takes a boolean. If enabled, **mkosi** will write information about the
-    latest build to the `.mkosi-private` subdirectory in the directory
-    from which it was invoked. This information is then used to restore
-    the config of the latest build when running any verb that needs a
-    build without specifying `--force`.
+:   Takes a boolean. If enabled, **mkosi** will write information about
+    the latest build to the `.mkosi-private` subdirectory in the
+    directory from which it was invoked. This information is then used
+    to restore the config of the latest build when running any verb that
+    needs a build without specifying `--force`.
+
+    Note that configure scripts will not be executed if we reuse the
+    history from a previous build.
 
     To give an example of why this is useful, if you run
     `mkosi -O my-custom-output-dir -f` followed by `mkosi vm`, **mkosi**
