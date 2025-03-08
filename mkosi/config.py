@@ -156,6 +156,7 @@ class Drive:
     directory: Optional[Path]
     options: Optional[str]
     file_id: str
+    persist: bool
 
 
 # We use negative numbers for specifying special constants
@@ -1366,27 +1367,29 @@ def parse_profile(value: str) -> str:
 
 
 def parse_drive(value: str) -> Drive:
-    parts = value.split(":", maxsplit=4)
-    if not parts or not parts[0]:
+    parts = value.split(":")
+
+    if len(parts) > 6:
+        die(f"Too many components in drive '{value}")
+
+    if len(parts) < 1:
         die(f"No ID specified for drive '{value}'")
 
     if len(parts) < 2:
         die(f"Missing size in drive '{value}")
 
-    if len(parts) > 5:
-        die(f"Too many components in drive '{value}")
-
     id = parts[0]
     if not is_valid_filename(id):
         die(f"Unsupported path character in drive id '{id}'")
 
-    size = parse_bytes(parts[1])
-
-    directory = parse_path(parts[2]) if len(parts) > 2 and parts[2] else None
-    options = parts[3] if len(parts) > 3 and parts[3] else None
-    file_id = parts[4] if len(parts) > 4 and parts[4] else id
-
-    return Drive(id=id, size=size, directory=directory, options=options, file_id=file_id)
+    return Drive(
+        id=id,
+        size=parse_bytes(parts[1]),
+        directory=parse_path(p) if len(parts) > 2 and (p := parts[2]) else None,
+        options=p if len(parts) > 3 and (p := parts[3]) else None,
+        file_id=p if len(parts) > 4 and (p := parts[4]) else id,
+        persist=parse_boolean(p) if len(parts) > 5 and (p := parts[5]) else False,
+    )
 
 
 def config_parse_sector_size(value: Optional[str], old: Optional[int]) -> Optional[int]:
@@ -5288,6 +5291,7 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
                     directory=Path(d["Directory"]) if d.get("Directory") else None,
                     options=d.get("Options"),
                     file_id=d.get("FileId", d["Id"]),
+                    persist=d.get("Persist", False),
                 )
             )
 

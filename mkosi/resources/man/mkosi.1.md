@@ -1791,18 +1791,23 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `Drives=`, `--drive=`
 :   Add a drive. Takes a colon-delimited string of format
-    `<id>:<size>[:<directory>[:<options>[:<file-id>]]]`. `id` specifies
+    `<id>:<size>[:<directory>[:<options>[:<file-id>[:<persist>]]]]`. `id` specifies
     the ID assigned to the drive. This can be used as the `drive=`
     property in various **qemu** devices. `size` specifies the size of the
     drive. This takes a size in bytes. Additionally, the suffixes `K`, `M`
     and `G` can be used to specify a size in kilobytes, megabytes and
     gigabytes respectively. `directory` optionally specifies the directory
-    in which to create the file backing the drive. `options` optionally
-    specifies extra comma-delimited properties which are passed verbatim
+    in which to create the file backing the drive. If unset, the file will be created under `/var/tmp`.
+    `options` optionally specifies extra comma-delimited properties which are passed verbatim
     to **qemu**'s `-blockdev` option. `file-id` specifies the ID of the file
-    backing the drive. Drives with the same file ID will share the
-    backing file. The directory and size of the file will be determined
-    from the first drive with a given file ID.
+    backing the drive. If unset, this defaults to the drive ID.
+    Drives with the same file ID will share the backing file.
+    The directory and size of the file will be determined from the first drive with a given file ID.
+    `persist` takes a boolean value and determines whether the drive will be persisted across **qemu** invocations.
+    Enabling persistence also prevents suffixing the filename with a random string.
+    The file backing the drive will always be available under `/<directory>/mkosi-drive-<file-id>`
+    You can skip values by setting them to the empty string, specifying e.g. `myfs:1G::::yes`
+    will create a persistent drive under `/var/tmp/mkosi-drive-myfs`.
 
     **Example usage:**
 

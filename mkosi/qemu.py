@@ -24,7 +24,7 @@ import textwrap
 import uuid
 from collections.abc import Iterator, Sequence
 from pathlib import Path
-from typing import Optional
+from typing import IO, Optional
 
 from mkosi.config import (
     Args,
@@ -795,10 +795,18 @@ def apply_runtime_size(config: Config, image: Path) -> None:
 
 @contextlib.contextmanager
 def finalize_drive(config: Config, drive: Drive) -> Iterator[Path]:
-    with tempfile.NamedTemporaryFile(
-        dir=drive.directory or "/var/tmp",
-        prefix=f"mkosi-drive-{drive.id}",
-    ) as file:
+    with contextlib.ExitStack() as stack:
+        file: IO[bytes]
+        if drive.persist:
+            path = Path(drive.directory or "/var/tmp") / f"mkosi-drive-{drive.id}"
+            file = path.open("a+b")
+        else:
+            file = stack.enter_context(
+                tempfile.NamedTemporaryFile(
+                    dir=drive.directory or "/var/tmp",
+                    prefix=f"mkosi-drive-{drive.id}",
+                )
+            )
         maybe_make_nocow(Path(file.name))
         file.truncate(round_up(drive.size, resource.getpagesize()))
         yield Path(file.name)
