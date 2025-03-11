@@ -114,6 +114,7 @@ from mkosi.run import (
     workdir,
 )
 from mkosi.sandbox import (
+    CAP_SYS_ADMIN,
     CLONE_NEWNS,
     MOUNT_ATTR_NODEV,
     MOUNT_ATTR_NOEXEC,
@@ -123,6 +124,7 @@ from mkosi.sandbox import (
     MS_SLAVE,
     __version__,
     acquire_privileges,
+    have_effective_cap,
     join_new_session_keyring,
     mount,
     mount_rbind,
@@ -4888,12 +4890,11 @@ def run_build(
     metadata_dir: Path,
     package_dir: Optional[Path] = None,
 ) -> None:
-    if os.getuid() != 0:
+    if not have_effective_cap(CAP_SYS_ADMIN):
         acquire_privileges()
-
-    unshare(CLONE_NEWNS)
-
-    if os.getuid() == 0:
+        unshare(CLONE_NEWNS)
+    else:
+        unshare(CLONE_NEWNS)
         mount("", "/", "", MS_SLAVE | MS_REC, "")
 
     # For extra safety when running as root, remount a bunch of directories read-only unless the output

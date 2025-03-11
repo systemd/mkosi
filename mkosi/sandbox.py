@@ -452,7 +452,7 @@ def become_user(uid: int, gid: int) -> None:
 
 
 def acquire_privileges(*, become_root: bool = False) -> bool:
-    if os.getuid() == 0 or (not become_root and have_effective_cap(CAP_SYS_ADMIN)):
+    if have_effective_cap(CAP_SYS_ADMIN) and (os.getuid() == 0 or not become_root):
         return False
 
     if become_root:
