@@ -10,7 +10,7 @@ from typing import Optional, Union
 
 from mkosi.config import BuildSourcesEphemeral, Config
 from mkosi.log import die
-from mkosi.sandbox import OverlayOperation
+from mkosi.sandbox import OVERLAYFS_SUPER_MAGIC, OverlayOperation, statfs
 from mkosi.util import PathString, flatten
 
 
@@ -30,6 +30,20 @@ def delete_whiteout_files(path: Path) -> None:
             entry.unlink()
 
 
+def finalize_volatile_tmpdir() -> Path:
+    if tempfile.tempdir and statfs(tempfile.tempdir) != OVERLAYFS_SUPER_MAGIC:
+        return Path(tempfile.tempdir)
+
+    for path in ("/var/tmp", "/tmp", "/dev/shm"):
+        if Path(path).exists() and statfs(path) != OVERLAYFS_SUPER_MAGIC:
+            return Path(path)
+
+    die(
+        "Cannot find temporary directory for volatile overlayfs upperdir",
+        hint="Either /var/tmp, /tmp or /dev/shm must exist and not be located on overlayfs",
+    )
+
+
 @contextlib.contextmanager
 def mount_overlay(
     lowerdirs: Sequence[Path],
@@ -39,7 +53,14 @@ def mount_overlay(
 ) -> Iterator[Path]:
     with contextlib.ExitStack() as stack:
         if upperdir is None:
-            upperdir = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="volatile-overlay")))
+            upperdir = Path(
+                stack.enter_context(
+                    tempfile.TemporaryDirectory(
+                        prefix="volatile-overlay.",
+                        dir=finalize_volatile_tmpdir(),
+                    )
+                )
+            )
             st = lowerdirs[-1].stat()
             os.chmod(upperdir, st.st_mode)
 
@@ -85,7 +106,12 @@ def finalize_source_mounts(
                     upperdir.mkdir(mode=src.stat().st_mode, exist_ok=True)
                 else:
                     upperdir = Path(
-                        stack.enter_context(tempfile.TemporaryDirectory(prefix="volatile-overlay."))
+                        stack.enter_context(
+                            tempfile.TemporaryDirectory(
+                                prefix="volatile-overlay.",
+                                dir=finalize_volatile_tmpdir(),
+                            )
+                        )
                     )
                     os.chmod(upperdir, src.stat().st_mode)
 
