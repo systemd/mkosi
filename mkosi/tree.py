@@ -87,6 +87,10 @@ def maybe_make_nocow(path: Path) -> None:
             raise
 
 
+def tree_has_selinux_xattr(path: Path) -> bool:
+    return any("security.selinux" in os.listxattr(p) for p in (path, *path.rglob("*")))
+
+
 def copy_tree(
     src: Path,
     dst: Path,
@@ -109,9 +113,7 @@ def copy_tree(
         attrs += ",timestamps,ownership"
 
         # Trying to copy selinux xattrs to overlayfs fails with "Operation not supported" in containers.
-        if statfs(os.fspath(dst.parent)) != OVERLAYFS_SUPER_MAGIC or "security.selinux" not in os.listxattr(
-            src
-        ):
+        if statfs(os.fspath(dst.parent)) != OVERLAYFS_SUPER_MAGIC or not tree_has_selinux_xattr(src):
             attrs += ",xattr"
 
     def copy() -> None:

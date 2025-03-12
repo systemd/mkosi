@@ -87,7 +87,12 @@ from mkosi.installer import clean_package_manager_metadata
 from mkosi.kmod import gen_required_kernel_modules, loaded_modules, process_kernel_modules
 from mkosi.log import ARG_DEBUG, complete_step, die, log_notice, log_step
 from mkosi.manifest import Manifest
-from mkosi.mounts import finalize_certificate_mounts, finalize_source_mounts, mount_overlay
+from mkosi.mounts import (
+    finalize_certificate_mounts,
+    finalize_source_mounts,
+    finalize_volatile_tmpdir,
+    mount_overlay,
+)
 from mkosi.pager import page
 from mkosi.partition import Partition, finalize_root, finalize_roothash
 from mkosi.qemu import (
@@ -114,6 +119,7 @@ from mkosi.run import (
     workdir,
 )
 from mkosi.sandbox import (
+    CAP_SYS_ADMIN,
     CLONE_NEWNS,
     MOUNT_ATTR_NODEV,
     MOUNT_ATTR_NOEXEC,
@@ -123,6 +129,7 @@ from mkosi.sandbox import (
     MS_SLAVE,
     __version__,
     acquire_privileges,
+    have_effective_cap,
     join_new_session_keyring,
     mount,
     mount_rbind,
@@ -499,7 +506,12 @@ def setup_build_overlay(context: Context, volatile: bool = False) -> Iterator[No
         if volatile:
             context.lowerdirs = [d]
             context.upperdir = Path(
-                stack.enter_context(tempfile.TemporaryDirectory(prefix="volatile-overlay"))
+                stack.enter_context(
+                    tempfile.TemporaryDirectory(
+                        prefix="volatile-overlay.",
+                        dir=finalize_volatile_tmpdir(),
+                    )
+                )
             )
             os.chmod(context.upperdir, d.stat().st_mode)
         else:
@@ -4888,12 +4900,11 @@ def run_build(
     metadata_dir: Path,
     package_dir: Optional[Path] = None,
 ) -> None:
-    if os.getuid() != 0:
+    if not have_effective_cap(CAP_SYS_ADMIN):
         acquire_privileges()
-
-    unshare(CLONE_NEWNS)
-
-    if os.getuid() == 0:
+        unshare(CLONE_NEWNS)
+    else:
+        unshare(CLONE_NEWNS)
         mount("", "/", "", MS_SLAVE | MS_REC, "")
 
     # For extra safety when running as root, remount a bunch of directories read-only unless the output
