@@ -71,14 +71,14 @@ def main() -> None:
             ]
 
         cmdline += include_system_config("mkosi-addon")
-        cmdline += process_crypttab(staging_dir)
+        cmdline += process_crypttab(Path(staging_dir))
 
         if Path("/etc/kernel/cmdline").exists():
             cmdline += ["--kernel-command-line", Path("/etc/kernel/cmdline").read_text()]
 
         run(cmdline, stdin=sys.stdin, stdout=sys.stdout)
 
-        initrd_finalize(staging_dir, args.output, args.output_dir)
+        initrd_finalize(Path(staging_dir), args.output, args.output_dir)
 
 
 if __name__ == "__main__":
