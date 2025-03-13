@@ -98,6 +98,52 @@ class KernelInstallContext:
         )
 
 
+def create_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="mkosi-initrd",
+        description="Build initrds or unified kernel images for the current system using mkosi",
+        allow_abbrev=False,
+        usage="mkosi-initrd [options...]",
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        metavar="NAME",
+        help="Output name",
+        default="initrd",
+    )
+    parser.add_argument(
+        "--kernel-image",
+        metavar="KERNEL_IMAGE",
+        help="Kernel image",
+        type=Path,
+    )
+    parser.add_argument(
+        "-t",
+        "--format",
+        choices=[str(OutputFormat.cpio), str(OutputFormat.uki), str(OutputFormat.directory)],
+        help="Output format (CPIO archive, UKI or local directory)",
+        default="cpio",
+    )
+    parser.add_argument(
+        "-g",
+        "--generic",
+        help="Build a generic initrd without host-specific kernel modules",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
+        "--profile",
+        choices=InitrdProfile.values(),
+        help="Which profiles to enable for the initrd",
+        action="append",
+        default=[],
+    )
+
+    initrd_common_args(parser)
+    return parser
+
+
 def process_crypttab(staging_dir: str) -> list[str]:
     cmdline = []
 
@@ -151,6 +197,7 @@ def initrd_finalize(staging_dir: str, output: str, output_dir: str) -> None:
 
 def initrd_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
+        "-k",
         "--kernel-version",
         metavar="KERNEL_VERSION",
         help="Kernel version string",
@@ -210,50 +257,7 @@ def include_system_config(name: str) -> list[str]:
 def main() -> None:
     log_setup()
 
-    parser = argparse.ArgumentParser(
-        prog="mkosi-initrd",
-        description="Build initrds or unified kernel images for the current system using mkosi",
-        allow_abbrev=False,
-        usage="mkosi-initrd [options...]",
-    )
-    parser.add_argument(
-        "-o",
-        "--output",
-        metavar="NAME",
-        help="Output name",
-        default="initrd",
-    )
-    parser.add_argument(
-        "--kernel-image",
-        metavar="KERNEL_IMAGE",
-        help="Kernel image",
-        type=Path,
-    )
-    parser.add_argument(
-        "-t",
-        "--format",
-        choices=[str(OutputFormat.cpio), str(OutputFormat.uki), str(OutputFormat.directory)],
-        help="Output format (CPIO archive, UKI or local directory)",
-        default="cpio",
-    )
-    parser.add_argument(
-        "-g",
-        "--generic",
-        help="Build a generic initrd without host-specific kernel modules",
-        action="store_true",
-        default=False,
-    )
-    parser.add_argument(
-        "--profile",
-        choices=InitrdProfile.values(),
-        help="Which profiles to enable for the initrd",
-        action="append",
-        default=[],
-    )
-
-    initrd_common_args(parser)
-
-    args = parser.parse_args()
+    args = create_parser().parse_args()
 
     if args.show_documentation:
         with resource_path(mkosi.resources) as r:
@@ -267,15 +271,15 @@ def main() -> None:
         cmdline: list[PathString] = [
             "mkosi",
             "--force",
-            "--directory", "",
-            "--format", args.format,
-            "--output", args.output,
-            "--output-directory", staging_dir,
-            "--extra-tree", f"/usr/lib/modules/{args.kernel_version}:/usr/lib/modules/{args.kernel_version}",
+            "--directory=",
+            f"--format={args.format}",
+            f"--output={args.output}",
+            f"--output-directory={staging_dir}",
+            f"--extra-tree=/usr/lib/modules/{args.kernel_version}:/usr/lib/modules/{args.kernel_version}",
             "--extra-tree=/usr/lib/firmware:/usr/lib/firmware",
             "--remove-files=/usr/lib/firmware/*-ucode",
             "--kernel-modules-exclude=.*",
-            "--build-sources", "",
+            "--build-sources=",
             "--include=mkosi-initrd",
         ]  # fmt: skip
 
@@ -289,8 +293,8 @@ def main() -> None:
 
         if args.kernel_image:
             cmdline += [
-                "--extra-tree", f"{args.kernel_image}:/usr/lib/modules/{args.kernel_version}/vmlinuz",
-            ]  # fmt: skip
+                f"--extra-tree={args.kernel_image}:/usr/lib/modules/{args.kernel_version}/vmlinuz",
+            ]
 
         if args.debug:
             cmdline += ["--debug"]
@@ -343,7 +347,7 @@ def main() -> None:
                     dirs_exist_ok=True,
                 )
 
-        cmdline += ["--sandbox-tree", sandbox_tree]
+        cmdline += [f"--sandbox-tree={sandbox_tree}"]
 
         cmdline += process_crypttab(staging_dir)
 

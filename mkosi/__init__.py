@@ -1320,58 +1320,58 @@ def finalize_default_initrd(
     # Default values are assigned via the parser so we go via the argument parser to construct
     # the config for the initrd.
     cmdline = [
-        "--directory", "",
-        "--distribution", str(config.distribution),
-        "--release", config.release,
-        "--architecture", str(config.architecture),
-        *(["--mirror", config.mirror] if config.mirror else []),
-        "--repository-key-check", str(config.repository_key_check),
-        "--repository-key-fetch", str(config.repository_key_fetch),
+        "--directory=",
+        f"--distribution={config.distribution}",
+        f"--release={config.release}",
+        f"--architecture={config.architecture}",
+        *([f"--mirror={config.mirror}"] if config.mirror else []),
+        f"--repository-key-check={config.repository_key_check}",
+        f"--repository-key-fetch={config.repository_key_fetch}",
         *([f"--repositories={repository}" for repository in config.repositories]),
         *([f"--sandbox-tree={tree}" for tree in config.sandbox_trees]),
         # Note that when compress_output == Compression.none == 0 we don't pass --compress-output
         # which means the default compression will get picked. This is exactly what we want so that
         # initrds are always compressed.
-        *(["--compress-output", str(config.compress_output)] if config.compress_output else []),
-        "--compress-level", str(config.compress_level),
-        "--with-network", str(config.with_network),
-        "--cache-only", str(config.cacheonly),
-        *(["--output-directory", os.fspath(output_dir)] if output_dir else []),
-        *(["--workspace-directory", os.fspath(config.workspace_dir)] if config.workspace_dir else []),
-        *(["--cache-directory", os.fspath(config.cache_dir)] if config.cache_dir else []),
-        "--cache-key", config.cache_key or '-',
-        *(["--package-cache-directory", os.fspath(config.package_cache_dir)] if config.package_cache_dir else []),  # noqa: E501
-        *(["--local-mirror", str(config.local_mirror)] if config.local_mirror else []),
-        "--incremental", str(config.incremental),
+        *([f"--compress-output={c}"] if (c := config.compress_output) else []),
+        f"--compress-level={config.compress_level}",
+        f"--with-network={config.with_network}",
+        f"--cache-only={config.cacheonly}",
+        *([f"--output-directory={os.fspath(output_dir)}"] if output_dir else []),
+        *([f"--workspace-directory={os.fspath(config.workspace_dir)}"] if config.workspace_dir else []),
+        *([f"--cache-directory={os.fspath(config.cache_dir)}"] if config.cache_dir else []),
+        f"--cache-key={config.cache_key or '-'}",
+        *([f"--package-cache-directory={os.fspath(p)}"] if (p := config.package_cache_dir) else []),
+        *([f"--local-mirror={config.local_mirror}"] if config.local_mirror else []),
+        f"--incremental={config.incremental}",
         *(f"--profile={profile}" for profile in config.initrd_profiles),
         *(f"--package={package}" for package in config.initrd_packages),
         *(f"--volatile-package={package}" for package in config.initrd_volatile_packages),
         *(f"--package-directory={d}" for d in config.package_directories),
         *(f"--volatile-package-directory={d}" for d in config.volatile_package_directories),
-        "--output", "initrd",
-        *(["--image-id", config.image_id] if config.image_id else []),
-        *(["--image-version", config.image_version] if config.image_version else []),
+        "--output=initrd",
+        *([f"--image-id={config.image_id}"] if config.image_id else []),
+        *([f"--image-version={config.image_version}"] if config.image_version else []),
         *(
-            ["--source-date-epoch", str(config.source_date_epoch)]
+            [f"--source-date-epoch={config.source_date_epoch}"]
             if config.source_date_epoch is not None else
             []
         ),
-        *(["--locale", config.locale] if config.locale else []),
-        *(["--locale-messages", config.locale_messages] if config.locale_messages else []),
-        *(["--keymap", config.keymap] if config.keymap else []),
-        *(["--timezone", config.timezone] if config.timezone else []),
-        *(["--hostname", config.hostname] if config.hostname else []),
-        *(["--root-password", rootpwopt] if rootpwopt else []),
+        *([f"--locale={config.locale}"] if config.locale else []),
+        *([f"--locale-messages={config.locale_messages}"] if config.locale_messages else []),
+        *([f"--keymap={config.keymap}"] if config.keymap else []),
+        *([f"--timezone={config.timezone}"] if config.timezone else []),
+        *([f"--hostname={config.hostname}"] if config.hostname else []),
+        *([f"--root-password={rootpwopt}"] if rootpwopt else []),
         *([f"--environment={k}='{v}'" for k, v in config.environment.items()]),
-        *(["--tools-tree", os.fspath(config.tools_tree)] if config.tools_tree and tools else []),
-        "--tools-tree-certificates", str(config.tools_tree_certificates),
+        *([f"--tools-tree={os.fspath(config.tools_tree)}"] if config.tools_tree and tools else []),
+        f"--tools-tree-certificates={config.tools_tree_certificates}",
         *([f"--extra-search-path={os.fspath(p)}" for p in config.extra_search_paths]),
-        *(["--proxy-url", config.proxy_url] if config.proxy_url else []),
+        *([f"--proxy-url={config.proxy_url}"] if config.proxy_url else []),
         *([f"--proxy-exclude={host}" for host in config.proxy_exclude]),
-        *(["--proxy-peer-certificate", os.fspath(p)] if (p := config.proxy_peer_certificate) else []),
-        *(["--proxy-client-certificate", os.fspath(p)] if (p := config.proxy_client_certificate) else []),
-        *(["--proxy-client-key", os.fspath(p)] if (p := config.proxy_client_key) else []),
-        "--selinux-relabel", str(relabel),
+        *([f"--proxy-peer-certificate={os.fspath(p)}"] if (p := config.proxy_peer_certificate) else []),
+        *([f"--proxy-client-certificate={os.fspath(p)}"] if (p := config.proxy_client_certificate) else []),
+        *([f"--proxy-client-key={os.fspath(p)}"] if (p := config.proxy_client_key) else []),
+        f"--selinux-relabel={relabel}",
         "--include=mkosi-initrd",
     ]  # fmt: skip
 
@@ -4287,9 +4287,9 @@ def run_shell(args: Args, config: Config) -> None:
                     os.chown(addr, stat.st_uid, stat.st_gid)
                 stack.enter_context(start_journal_remote(config, sock.fileno()))
                 cmdline += [
-                    "--bind", f"{addr}:/run/host/journal/socket",
+                    f"--bind={addr}:/run/host/journal/socket",
                     "--set-credential=journal.forward_to_socket:/run/host/journal/socket",
-                ]  # fmt: skip
+                ]
 
         for p in config.unit_properties:
             cmdline += ["--property", p]
@@ -4521,35 +4521,35 @@ def finalize_default_tools(config: Config, *, resources: Path) -> Config:
         )
 
     cmdline = [
-        "--directory", "",
-        "--distribution", str(config.tools_tree_distribution),
-        *(["--release", config.tools_tree_release] if config.tools_tree_release else []),
+        "--directory=",
+        f"--distribution={config.tools_tree_distribution}",
+        *([f"--release={config.tools_tree_release}"] if config.tools_tree_release else []),
         *([f"--profile={profile}" for profile in config.tools_tree_profiles]),
-        *(["--mirror", config.tools_tree_mirror] if config.tools_tree_mirror else []),
+        *([f"--mirror={config.tools_tree_mirror}"] if config.tools_tree_mirror else []),
         *([f"--repositories={repository}" for repository in config.tools_tree_repositories]),
         *([f"--sandbox-tree={tree}" for tree in config.tools_tree_sandbox_trees]),
-        "--repository-key-check", str(config.repository_key_check),
-        "--repository-key-fetch", str(config.repository_key_fetch),
-        "--cache-only", str(config.cacheonly),
-        *(["--output-directory", os.fspath(config.output_dir)] if config.output_dir else []),
-        *(["--workspace-directory", os.fspath(config.workspace_dir)] if config.workspace_dir else []),
-        *(["--cache-directory", os.fspath(config.cache_dir)] if config.cache_dir else []),
+        f"--repository-key-check={config.repository_key_check}",
+        f"--repository-key-fetch={config.repository_key_fetch}",
+        f"--cache-only={config.cacheonly}",
+        *([f"--output-directory={os.fspath(p)}"] if (p := config.output_dir) else []),
+        *([f"--workspace-directory={os.fspath(p)}"] if (p := config.workspace_dir) else []),
+        *([f"--cache-directory={os.fspath(p)}"] if (p := config.cache_dir) else []),
         "--cache-key=tools",
-        *(["--package-cache-directory", os.fspath(config.package_cache_dir)] if config.package_cache_dir else []),  # noqa: E501
-        "--incremental", str(config.incremental),
+        *([f"--package-cache-directory={os.fspath(p)}"] if (p := config.package_cache_dir) else []),
+        f"--incremental={config.incremental}",
         *([f"--package={package}" for package in config.tools_tree_packages]),
         *([f"--package-directory={os.fspath(directory)}" for directory in config.tools_tree_package_directories]),  # noqa: E501
         *([f"--build-sources={tree}" for tree in config.build_sources]),
-        "--build-sources-ephemeral", str(config.build_sources_ephemeral),
+        f"--build-sources-ephemeral={config.build_sources_ephemeral}",
         *([f"--prepare-script={os.fspath(script)}" for script in config.tools_tree_prepare_scripts]),
         "--output=tools",
-        *(["--source-date-epoch", str(config.source_date_epoch)] if config.source_date_epoch is not None else []),  # noqa: E501
+        *([f"--source-date-epoch={e}"] if (e := config.source_date_epoch) is not None else []),
         *([f"--environment={k}='{v}'" for k, v in config.environment.items()]),
-        *(["--proxy-url", config.proxy_url] if config.proxy_url else []),
+        *([f"--proxy-url={config.proxy_url}"] if config.proxy_url else []),
         *([f"--proxy-exclude={host}" for host in config.proxy_exclude]),
-        *(["--proxy-peer-certificate", os.fspath(p)] if (p := config.proxy_peer_certificate) else []),
-        *(["--proxy-client-certificate", os.fspath(p)] if (p := config.proxy_client_certificate) else []),
-        *(["--proxy-client-key", os.fspath(p)] if (p := config.proxy_client_key) else []),
+        *([f"--proxy-peer-certificate={os.fspath(p)}"] if (p := config.proxy_peer_certificate) else []),
+        *([f"--proxy-client-certificate={os.fspath(p)}"] if (p := config.proxy_client_certificate) else []),
+        *([f"--proxy-client-key={os.fspath(p)}"] if (p := config.proxy_client_key) else []),
     ]  # fmt: skip
 
     _, [tools] = parse_config(
@@ -4980,7 +4980,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
 
     if args.verb == Verb.dependencies:
         _, [deps] = parse_config(
-            ["--directory", "", "--repositories", "", *args.cmdline, "--include=mkosi-tools", "build"],
+            ["--directory=", "--repositories=", *args.cmdline, "--include=mkosi-tools", "build"],
             resources=resources,
         )
 
