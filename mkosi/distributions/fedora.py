@@ -107,7 +107,7 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def default_release(cls) -> str:
-        return "41"
+        return "rawhide"
 
     @classmethod
     def grub_prefix(cls) -> str:
