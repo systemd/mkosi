@@ -6,7 +6,7 @@ import logging
 import os
 import re
 import subprocess
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Reversible
 from pathlib import Path
 
 from mkosi.context import Context
@@ -23,7 +23,12 @@ def loaded_modules() -> list[str]:
     ]
 
 
-def globs_match_filename(name, globs, *, match_default: bool = False) -> bool:
+def globs_match_filename(
+    name: str,
+    globs: Reversible[str],
+    *,
+    match_default: bool = False,
+) -> bool:
     # Check whether the path matches any of the globs
 
     for glob in reversed(globs):
@@ -48,14 +53,22 @@ def globs_match_filename(name, globs, *, match_default: bool = False) -> bool:
     return match_default
 
 
-def globs_match_module(name, globs) -> bool:
+def globs_match_module(
+    name: str,
+    globs: Reversible[str],
+) -> bool:
     # Strip '.ko' suffix and an optional compression suffix
     name = re.sub(r"\.ko(\.(gz|xz|zst))?$", "", name)
     # Check whether the suffixless-path matches any of the globs
     return globs_match_filename(name, globs)
 
 
-def globs_match_firmware(name, globs, *, match_default: bool = False) -> bool:
+def globs_match_firmware(
+    name: str,
+    globs: Reversible[str],
+    *,
+    match_default: bool = False,
+) -> bool:
     # Strip any known compression suffixes
     name = re.sub(r"\.(gz|xz|zst)$", "", name)
     # Check whether the suffixless-path matches any of the globs

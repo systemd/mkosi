@@ -3,7 +3,7 @@
 from mkosi import kmod
 
 
-def test_globs_match_module():
+def test_globs_match_module() -> None:
     assert kmod.globs_match_module("drivers/ata/ahci.ko.xz", ["ahci"])
     assert not kmod.globs_match_module("drivers/ata/ahci.ko.xz.2", ["ahci"])
     assert not kmod.globs_match_module("drivers/ata/ahci.ko.xz", ["ata"])
@@ -41,7 +41,7 @@ def test_globs_match_module():
     assert not kmod.globs_match_module("drivers/ata/ahci.ko.xz", ["-*"])
 
 
-def test_normalize_module_glob():
+def test_normalize_module_glob() -> None:
     assert kmod.normalize_module_glob("raid[0-9]") == "raid[0-9]"
     assert kmod.normalize_module_glob("raid[0_9]") == "raid[0_9]"
     assert kmod.normalize_module_glob("raid[0_9]a_z") == "raid[0_9]a-z"
