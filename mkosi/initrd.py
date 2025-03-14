@@ -15,7 +15,7 @@ from typing import Optional, cast
 import mkosi.resources
 from mkosi.config import DocFormat, InitrdProfile, OutputFormat
 from mkosi.documentation import show_docs
-from mkosi.log import log_notice, log_setup
+from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, log_notice, log_setup
 from mkosi.run import find_binary, run, uncaught_exception_handler
 from mkosi.sandbox import __version__, umask
 from mkosi.tree import copy_tree
@@ -279,7 +279,6 @@ def main() -> None:
             f"--extra-tree=/usr/lib/modules/{args.kernel_version}:/usr/lib/modules/{args.kernel_version}",
             "--extra-tree=/usr/lib/firmware:/usr/lib/firmware",
             "--remove-files=/usr/lib/firmware/*-ucode",
-            "--kernel-modules-exclude=.*",
             "--build-sources=",
             "--include=mkosi-initrd",
         ]  # fmt: skip
@@ -298,8 +297,10 @@ def main() -> None:
             ]
 
         if args.debug:
+            ARG_DEBUG.set(args.debug)
             cmdline += ["--debug"]
         if args.debug_shell:
+            ARG_DEBUG_SHELL.set(args.debug_shell)
             cmdline += ["--debug-shell"]
         if args.debug_sandbox:
             cmdline += ["--debug-sandbox"]
