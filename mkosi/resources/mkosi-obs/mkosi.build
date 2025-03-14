@@ -4,7 +4,7 @@
 # Second stage of build:
 # - signed hashes are in cpio archive in SOURCES/ together with artifacts from previous build
 # - if there are PCR policies to attach, do so and then prepare the hashes of the UKIs themselves
-# - if not, attach the signatures to the UKI(s) with pesign
+# - if not, attach the signatures to the UKI(s) with systemd-sbsign
 # - remove shasums of previous artifacts, given we are re-creating them after this step
 # - place artifacts from previous builds and signed UKI in output directory
 
@@ -25,16 +25,6 @@ popd
 
 OUTPUTDIR=/work/src/usr/src/packages/OTHER
 
-# OBS signs a hash without certificate information so it cannot simply be
-# attached to the PE binaries, certificate metadata has to be provided separately
-# so we need to create a certutil db and import the certificate manually
-rm -rf nss-db
-mkdir nss-db
-nss_db="$PWD/nss-db"
-certutil -N -d sql:"$nss_db" --empty-password
-certutil -A -d sql:"$nss_db" -n cert -t CT,CT,CT -i /usr/src/packages/SOURCES/_projectcert.crt
-openssl x509 -inform PEM -in /usr/src/packages/SOURCES/_projectcert.crt -outform DER -out _projectcert.cer
-
 cp -r /usr/src/packages/SOURCES/"$IMAGE_ID"* /usr/src/packages/SOURCES/*raw* /usr/src/packages/SOURCES/*efi* "$OUTPUTDIR" || true
 rm -f "$OUTPUTDIR/hashes.cpio.rsasign*" "$OUTPUTDIR"/*.sha*
 
@@ -48,16 +38,13 @@ while read -r SIG; do
     DEST="$OUTPUTDIR/${SIG#*/}"
     DEST="${DEST%%.sig}"
 
-    # ensure the EFI hash matches before and after attaching the signature
-    old_hash=$(pesign -n sql:"$nss_db" -h -P -i "/usr/src/packages/SOURCES/$infile" | cut -d' ' -f1)
-
-    pesign -n sql:"$nss_db" --force -c cert -i "/usr/src/packages/SOURCES/$infile" -o "$DEST" -d sha256 -I "$sattrs" -R "hashes/ukis/$SIG"
-
-    new_hash=$(pesign -n sql:"$nss_db" -h -i "$DEST" | cut -d' ' -f1)
-    if [ "$old_hash" != "$new_hash" ]; then
-        echo "Pesign hash mismatch error: $old_hash $new_hash"
-        exit 1
-    fi
+    systemd-sbsign \
+        sign \
+        --certificate /usr/src/packages/SOURCES/_projectcert.crt \
+        --output "$DEST" \
+        --signed-data "$sattrs" \
+        --signed-data-signature "hashes/ukis/$SIG" \
+        "/usr/src/packages/SOURCES/$infile"
 
     rm -f "$(basename "${infile}").sattrs" "$SIG" "$infile"
 
@@ -114,16 +101,13 @@ while read -r BOOTLOADER; do
     rm -f "$unsigned"
     mcopy -i "${ddi}@@${offset}" "::$dest" "$unsigned"
 
-    # ensure the EFI hash matches before and after attaching the signature
-    old_hash=$(pesign -n sql:"$nss_db" -h -P -i "$unsigned" | cut -d' ' -f1)
-
-    pesign -n sql:"$nss_db" --force -c cert -i "$unsigned" -o "$signed" -d sha256 -I "hashes/bootloaders/${BOOTLOADER%.sig}" -R "hashes/bootloaders/${BOOTLOADER}"
-
-    new_hash=$(pesign -n sql:"$nss_db" -h -i "$signed" | cut -d' ' -f1)
-    if [ "$old_hash" != "$new_hash" ]; then
-        echo "Pesign hash mismatch error: $old_hash $new_hash"
-        exit 1
-    fi
+    systemd-sbsign \
+        sign \
+        --certificate /usr/src/packages/SOURCES/_projectcert.crt \
+        --output "$signed" \
+        --signed-data "hashes/bootloaders/${BOOTLOADER%.sig}" \
+        --signed-data-signature "hashes/bootloaders/${BOOTLOADER}" \
+        "$unsigned"
 
     mcopy -o -i "${ddi}@@${offset}" "$signed" "::$dest"
 
@@ -133,7 +117,6 @@ while read -r BOOTLOADER; do
     fi
 done < <(find "hashes/bootloaders/$(basename "$ddi")/" -type f -iname '*.efi.sig' -printf '%P\n')
 rm -rf hashes/bootloaders
-rm -rf nss-db
 
 # Third step: if there are PCR policy signatures, rebuild the JSON
 # blobs with the attached signatures
@@ -162,16 +145,18 @@ while read -r SIG; do
 done < <(find hashes/pcrs -type f -name '*.sig')
 rm -rf hashes/pcrs
 
-mkdir -p "$nss_db"
-certutil -N -d sql:"$nss_db" --empty-password
-
 # Fourth step: now that the JSON blob is rebuilt, merge it in the UKI
 while read -r PCRS; do
     uki="${PCRS%.pcrs.sig}.efi"
     ukify --json=short --pcrsig "@$PCRS" --join-pcrsig "$uki" --output "$uki.attached" build
     mv "$uki.attached" "$uki"
     mkdir -p hashes/ukis
-    pesign --force -n sql:"$nss_db" -i "$uki" -E "hashes/ukis/$(basename "$uki")"
+    systemd-sbsign \
+        sign \
+        --certificate /usr/src/packages/SOURCES/_projectcert.crt \
+        --output "hashes/ukis/$(basename "$uki")" \
+        --prepare-offline-signing \
+        "$uki"
 done < <(find "$OUTPUTDIR" -type f -name '*.pcrs.sig')
 rm -f "$OUTPUTDIR"/*.pcrs*
 
@@ -220,18 +205,16 @@ done < <(find hashes/roothashes -type f -name '*.sig')
 rm -rf hashes/roothashes
 
 # Sixth step: prepare EFI authvars for self-enrollment
-# as implemented by https://github.com/openSUSE/pesign-obs-integration/blob/master/pesign-repackage.spec.in#L162
 while read -r SIG; do
-    test -x /usr/lib/rpm/pesign/kernel-sign-file || break
-    f="${SIG%.sig}"
-    /usr/lib/rpm/pesign/kernel-sign-file -N -P -d -C _projectcert.cer -i pkcs7 -s "$SIG" sha256 _projectcert.cer "$f"
-    fbase="${f##*/}"
-    fbase="${fbase%.auth}"
-    fbase="${fbase%%-*}"
-    perl -0777 -npe 's/\A(?:[\040-\176]\0)+.{18}\0\0.{14}\0\0//s' < "$f" > "$f.orig"
-    sign-efi-sig-list -t "${SOURCE_DATE_EPOCH:-$(date +%s)}" -i "$f.p7sd" "$fbase" "$f.orig" "$f.tmp"
-    mv "$f.tmp" "$f"
-    rm -f "$f.p7s" "$f.p7sd" "$f.orig"
+    db="$(basename "$SIG")"
+    db="${db%.auth.sig}"
+    systemd-sbsign \
+        sign-secure-boot-database \
+        --certificate /usr/src/packages/SOURCES/_projectcert.crt \
+        --signed-data "${SIG%.sig}" \
+        --signed-data-signature "$SIG" \
+        --secure-boot-database "$db" \
+        --output "${SIG%.sig}"
 done < <(find hashes/authvars -type f -name '*.auth.sig')
 declare -a AUTHVARS
 mapfile -t AUTHVARS < <(find hashes/authvars -type f -name "*.auth")
@@ -279,4 +262,4 @@ if [ -d hashes ]; then
     cpio -t <"$OUTPUTDIR/hashes.cpio.rsasign"
 fi
 
-rm -rf hashes "$nss_db"
+rm -rf hashes
