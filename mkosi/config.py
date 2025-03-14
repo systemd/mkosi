@@ -159,6 +159,10 @@ class ConfigTree:
         return f"{self.source}:{self.target}" if self.target else f"{self.source}"
 
 
+class DriveFlag(StrEnum):
+    persist = enum.auto()
+
+
 @dataclasses.dataclass(frozen=True)
 class Drive:
     id: str
@@ -166,7 +170,7 @@ class Drive:
     directory: Optional[Path]
     options: Optional[str]
     file_id: str
-    persist: bool
+    flags: list[DriveFlag]
 
 
 # We use negative numbers for specifying special constants
@@ -1407,13 +1411,16 @@ def parse_drive(value: str) -> Drive:
     if not is_valid_filename(id):
         die(f"Unsupported path character in drive id '{id}'")
 
+    flag_parser = make_enum_parser(DriveFlag)
+    flag_list = p.split(",") if len(parts) > 5 and (p := parts[5]) else []
+
     return Drive(
         id=id,
         size=parse_bytes(parts[1]),
         directory=parse_path(p) if len(parts) > 2 and (p := parts[2]) else None,
         options=p if len(parts) > 3 and (p := parts[3]) else None,
         file_id=p if len(parts) > 4 and (p := parts[4]) else id,
-        persist=parse_boolean(p) if len(parts) > 5 and (p := parts[5]) else False,
+        flags=[flag_parser(f) for f in flag_list],
     )
 
 
@@ -5549,7 +5556,7 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
                     directory=Path(d["Directory"]) if d.get("Directory") else None,
                     options=d.get("Options"),
                     file_id=d.get("FileId", d["Id"]),
-                    persist=d.get("Persist", False),
+                    flags=[DriveFlag(f) for f in d.get("Flags", [])],
                 )
             )
 

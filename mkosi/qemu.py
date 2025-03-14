@@ -32,6 +32,7 @@ from mkosi.config import (
     ConfigFeature,
     ConsoleMode,
     Drive,
+    DriveFlag,
     Firmware,
     Network,
     OutputFormat,
@@ -797,7 +798,7 @@ def apply_runtime_size(config: Config, image: Path) -> None:
 def finalize_drive(drive: Drive) -> Iterator[Path]:
     with contextlib.ExitStack() as stack:
         file: IO[bytes]
-        if drive.persist:
+        if DriveFlag.persist in drive.flags:
             path = Path(drive.directory or "/var/tmp") / f"mkosi-drive-{drive.id}"
             file = path.open("a+b")
         else:
