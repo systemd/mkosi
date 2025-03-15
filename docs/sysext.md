@@ -21,7 +21,7 @@ in one go.
 Start by creating a temporary directory with a base configuration file
 `mkosi.conf` with some shared settings:
 
-```conf
+```ini
 [Output]
 OutputDirectory=mkosi.output
 CacheDirectory=mkosi.cache
@@ -33,7 +33,7 @@ directory.
 Now let's continue with the base image definition by writing the
 following to `mkosi.images/base/mkosi.conf`:
 
-```conf
+```ini
 [Output]
 Format=directory
 
@@ -49,7 +49,7 @@ so that we can build our extension without needing root privileges.
 Now that we have our base image, we can define a sysext that builds on
 top of it by writing the following to `mkosi.images/btrfs/mkosi.conf`:
 
-```conf
+```ini
 [Config]
 Dependencies=base
 
@@ -81,7 +81,7 @@ What we can do now is package up the base image as the main image, but
 in another format, for example an initrd, we can do that by adding the
 following to `mkosi.conf`:
 
-```conf
+```ini
 [Output]
 Format=cpio
 Output=initrd

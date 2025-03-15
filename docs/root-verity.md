@@ -3,7 +3,7 @@
 First of all, to build a disk image with a verity protected root
 partition, put the following in mkosi.repart:
 
-```conf
+```ini
 # mkosi.repart/00-esp.conf
 [Partition]
 Type=esp
@@ -49,7 +49,7 @@ it runs after the root partition has been mounted, so let's create an
 initrd with `mkosi.images` where we customize systemd-repart to behave
 like this:
 
-```conf
+```ini
 # mkosi.images/initrd/mkosi.conf
 [Include]
 Include=mkosi-initrd
@@ -63,7 +63,7 @@ ConditionDirectoryNotEmpty=|/sysroot/usr/lib/repart.d
 To use the initrd in the top level image, add the following to
 mkosi.conf:
 
-```conf
+```ini
 [Content]
 Initrds=%O/initrd
 ```
@@ -73,7 +73,7 @@ create an A/B update setup and an encrypted `/var`. This includes the
 definitions from mkosi.repart in a reduced form solely for matching the
 existing partitions:
 
-```conf
+```ini
 # mkosi.extra/usr/lib/repart.d/00-esp.conf
 [Partition]
 Type=esp
@@ -143,7 +143,7 @@ will differ depending on how the image is updated but we list some
 example definitions here. These are all missing a `[Source]` section
 whose contents will depend on how updates are deployed:
 
-```conf
+```ini
 # /usr/lib/sysupdate.d/10-root-verity-sig.conf
 [Transfer]
 ProtectVersion=%A

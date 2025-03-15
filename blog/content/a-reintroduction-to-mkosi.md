@@ -112,7 +112,7 @@ written down.
 For example, the command we used above can be written down in a
 configuration file `mkosi.conf`:
 
-```conf
+```ini
 [Distribution]
 Distribution=arch
 
@@ -132,7 +132,7 @@ also be conditionalized using the `[Match]` section. For example, to
 only install a specific package on Arch Linux, you can write the
 following to `mkosi.conf.d/10-arch.conf`:
 
-```conf
+```ini
 [Match]
 Distribution=arch
 
@@ -311,7 +311,7 @@ extension in one go.
 We start by creating a temporary directory with a base configuration
 file `mkosi.conf` with some shared settings:
 
-```conf
+```ini
 [Output]
 OutputDirectory=mkosi.output
 CacheDirectory=mkosi.cache
@@ -320,7 +320,7 @@ CacheDirectory=mkosi.cache
 Now let's continue with the base image definition by writing the
 following to `mkosi.images/base/mkosi.conf`:
 
-```conf
+```ini
 [Output]
 Format=directory
 
@@ -336,7 +336,7 @@ so that we can build our extension without needing root privileges.
 Now that we have our base image, we can define a sysext that builds on
 top of it by writing the following to `mkosi.images/btrfs/mkosi.conf`:
 
-```conf
+```ini
 [Config]
 Dependencies=base
 
