@@ -28,7 +28,7 @@ related files. These can be mounted into the current working directory
 when running mkosi scripts by using the `BuildSources=` setting. For
 example, in `mkosi.local.conf`, we could have the following settings:
 
-```conf
+```ini
 [Build]
 BuildSources=../mkosi:mkosi
              ../fedora/mkosi:mkosi/rpm
@@ -48,7 +48,7 @@ from outside of the image that the RPM is being built in, so we have to
 make sure they're available inside the image by adding the following to
 `mkosi.conf`:
 
-```conf
+```ini
 [Content]
 Packages=rpm-build
 # If you don't want rpm-build in the final image.
