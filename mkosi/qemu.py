@@ -794,7 +794,7 @@ def apply_runtime_size(config: Config, image: Path) -> None:
 
 
 @contextlib.contextmanager
-def finalize_drive(config: Config, drive: Drive) -> Iterator[Path]:
+def finalize_drive(drive: Drive) -> Iterator[Path]:
     with contextlib.ExitStack() as stack:
         file: IO[bytes]
         if drive.persist:
@@ -1516,7 +1516,7 @@ def run_qemu(args: Args, config: Config) -> None:
             ]
 
         for _, drives in groupby(config.drives, key=lambda d: d.file_id):
-            file = stack.enter_context(finalize_drive(config, drives[0]))
+            file = stack.enter_context(finalize_drive(drives[0]))
 
             for drive in drives:
                 arg = [
