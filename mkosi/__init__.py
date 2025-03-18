@@ -560,11 +560,6 @@ def finalize_scripts(config: Config, scripts: Mapping[str, Sequence[PathString]]
         yield Path(d)
 
 
-def mkosi_as_caller() -> tuple[str, ...]:
-    # Kept for backwards compatibility.
-    return ("env",)
-
-
 def finalize_host_scripts(
     context: Context,
     helpers: Mapping[str, Sequence[PathString]] = {},
@@ -721,7 +716,6 @@ def script_maybe_chroot_sandbox(
             *(["--ro-bind-try", "/etc/resolv.conf", "/etc/resolv.conf"] if network else []),
             *(["--suppress-chown"] if suppress_chown else []),
         ],
-        "mkosi-as-caller": mkosi_as_caller(),
         **context.config.distribution.package_manager(context.config).scripts(context),
     }  # fmt: skip
 
