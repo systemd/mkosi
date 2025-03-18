@@ -4450,7 +4450,6 @@ def generate_key_cert_pair(args: Args) -> None:
 
     keylength = 2048
     expiration_date = datetime.date.today() + datetime.timedelta(int(args.genkey_valid_days))
-    cn = expand_specifier(args.genkey_common_name)
 
     for f in ("mkosi.key", "mkosi.crt"):
         if Path(f).exists() and not args.force:
@@ -4459,7 +4458,7 @@ def generate_key_cert_pair(args: Args) -> None:
                 hint="To generate new keys, first remove mkosi.key and mkosi.crt",
             )
 
-    log_step(f"Generating keys rsa:{keylength} for CN {cn!r}.")
+    log_step(f"Generating keys rsa:{keylength} for CN {args.genkey_common_name!r}.")
     logging.info(
         textwrap.dedent(
             f"""
@@ -4479,7 +4478,7 @@ def generate_key_cert_pair(args: Args) -> None:
             "-keyout", "mkosi.key",
             "-out", "mkosi.crt",
             "-days", str(args.genkey_valid_days),
-            "-subj", f"/CN={cn}/",
+            "-subj", f"/CN={args.genkey_common_name}/",
             "-nodes"
         ],
         env=dict(OPENSSL_CONF="/dev/null"),
@@ -4509,10 +4508,6 @@ def bump_image_version() -> None:
 
     logging.info(f"Bumping version: '{version}' → '{new_version}'")
     version_file.write_text(f"{new_version}\n")
-
-
-def expand_specifier(s: str) -> str:
-    return s.replace("%u", INVOKING_USER.name())
 
 
 def finalize_default_tools(config: Config, *, resources: Path) -> Config:
