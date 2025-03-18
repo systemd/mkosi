@@ -81,7 +81,7 @@ def filter_kernel_modules(
     *,
     include: Iterable[str],
     exclude: Iterable[str],
-) -> list[Path]:
+) -> list[str]:
     logging.debug(f"Kernel modules include: {' '.join(include)}")
     logging.debug(f"Kernel modules exclude: {' '.join(exclude)}")
 
@@ -107,7 +107,7 @@ def filter_kernel_modules(
             rel = os.fspath(Path(*m.parts[5:]))
 
             if (patterns and regex.search(rel)) or globs_match_module(normalize_module_name(rel), globs):
-                keep.add(m)
+                keep.add(rel)
 
     if exclude:
         assert all(p.startswith("re:") for p in exclude)
@@ -115,16 +115,19 @@ def filter_kernel_modules(
         regex = re.compile("|".join(patterns))
 
         remove = set()
-        for m in keep:
+        for m in modules:
             rel = os.fspath(Path(*m.parts[5:]))
-            if regex.search(rel):
+            if rel not in keep and regex.search(rel):
                 remove.add(m)
 
-        keep -= remove
+        modules -= remove
+    else:
+        # If no exclude patterns are specified, only keep the specified kernel modules.
+        modules = {modulesd / m for m in keep}
 
-    logging.debug(f"Including {len(keep)}/{n_modules} kernel modules.")
+    logging.debug(f"Including {len(modules)}/{n_modules} kernel modules.")
 
-    return sorted(keep)
+    return sorted(module_path_to_name(m) for m in modules)
 
 
 def filter_firmware(
@@ -320,15 +323,22 @@ def gen_required_kernel_modules(
     # installed we have to take the slow path to make sure we don't copy firmware into the initrd that is not
     # depended on by any kernel modules.
     if modules_include or modules_exclude or (context.root / firmwared).glob("*"):
-        modules = filter_kernel_modules(context.root, kver, include=modules_include, exclude=modules_exclude)
-        names = [module_path_to_name(m) for m in modules]
-        mods, firmware = resolve_module_dependencies(context, kver, names)
+        modules, firmware = resolve_module_dependencies(
+            context,
+            kver,
+            modules=filter_kernel_modules(
+                context.root,
+                kver,
+                include=modules_include,
+                exclude=modules_exclude,
+            ),
+        )
     else:
         logging.debug(
             "No modules excluded and no firmware installed, using kernel modules generation fast path"
         )
         with chdir(context.root):
-            mods = set(modulesd.rglob("*.ko*"))
+            modules = set(modulesd.rglob("*.ko*"))
         firmware = set()
 
     # Include or exclude firmware explicitly configured
@@ -347,17 +357,17 @@ def gen_required_kernel_modules(
         itertools.chain(
             {
                 p.relative_to(context.root)
-                for f in mods | firmware
+                for f in modules | firmware
                 for p in parents_below(context.root / f, context.root / "usr/lib")
             },
-            mods,
+            modules,
             firmware,
             (p.relative_to(context.root) for p in (context.root / modulesd).glob("modules*")),
         )
     )
 
     if (modulesd / "vdso").exists():
-        if not mods:
+        if not modules:
             yield from (
                 p.relative_to(context.root)
                 for p in parents_below(context.root / modulesd / "vdso", context.root / "usr/lib")
