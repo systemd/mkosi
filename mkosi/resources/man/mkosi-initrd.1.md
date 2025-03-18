@@ -35,7 +35,7 @@ initrds and Unified Kernel Images for the current running system.
 :   Path to a directory where to place all generated artifacts. Defaults to the
     current working directory.
 
-`--generic=`, `-g`
+`--generic`, `-g`
 :   Build a generic initrd without host-specific kernel modules, which should
     allow the local system to boot on different hardware, although it's tied to
     the kernel version of the running system or set with `--kernel-version=`.
