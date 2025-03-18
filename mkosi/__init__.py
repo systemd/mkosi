@@ -560,13 +560,6 @@ def finalize_scripts(config: Config, scripts: Mapping[str, Sequence[PathString]]
         yield Path(d)
 
 
-GIT_ENV = {
-    "GIT_CONFIG_COUNT": "1",
-    "GIT_CONFIG_KEY_0": "safe.directory",
-    "GIT_CONFIG_VALUE_0": "*",
-}
-
-
 def mkosi_as_caller() -> tuple[str, ...]:
     # Kept for backwards compatibility.
     return ("env",)
@@ -780,7 +773,6 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
         WITH_DOCS=one_zero(context.config.with_docs),
         WITH_NETWORK=one_zero(context.config.with_network),
         WITH_TESTS=one_zero(context.config.with_tests),
-        **GIT_ENV,
     )
 
     if context.config.profiles:
@@ -850,7 +842,6 @@ def run_build_scripts(context: Context) -> None:
         WITH_DOCS=one_zero(context.config.with_docs),
         WITH_NETWORK=one_zero(context.config.with_network),
         WITH_TESTS=one_zero(context.config.with_tests),
-        **GIT_ENV,
     )
 
     if context.config.profiles:
@@ -923,7 +914,6 @@ def run_postinst_scripts(context: Context) -> None:
         MKOSI_GID=str(os.getgid()),
         MKOSI_CONFIG="/work/config.json",
         WITH_NETWORK=one_zero(context.config.with_network),
-        **GIT_ENV,
     )
 
     if context.config.profiles:
@@ -992,7 +982,6 @@ def run_finalize_scripts(context: Context) -> None:
         MKOSI_GID=str(os.getgid()),
         MKOSI_CONFIG="/work/config.json",
         WITH_NETWORK=one_zero(context.config.with_network),
-        **GIT_ENV,
     )
 
     if context.config.profiles:
