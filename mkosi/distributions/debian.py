@@ -9,7 +9,6 @@ from mkosi.archive import extract_tar
 from mkosi.config import Architecture, Config
 from mkosi.context import Context
 from mkosi.distributions import DistributionInstaller, PackageType
-from mkosi.installer import PackageManager
 from mkosi.installer.apt import Apt, AptRepository
 from mkosi.log import die
 from mkosi.run import run, workdir
@@ -34,7 +33,7 @@ class Installer(DistributionInstaller):
         return "testing"
 
     @classmethod
-    def package_manager(cls, config: Config) -> type[PackageManager]:
+    def package_manager(cls, config: Config) -> type[Apt]:
         return Apt
 
     @classmethod

@@ -9,7 +9,6 @@ from mkosi.config import Architecture, Config
 from mkosi.context import Context
 from mkosi.curl import curl
 from mkosi.distributions import DistributionInstaller, PackageType
-from mkosi.installer import PackageManager
 from mkosi.installer.pacman import Pacman, PacmanRepository
 from mkosi.log import complete_step, die
 
@@ -32,7 +31,7 @@ class Installer(DistributionInstaller):
         return "rolling"
 
     @classmethod
-    def package_manager(cls, config: "Config") -> type[PackageManager]:
+    def package_manager(cls, config: "Config") -> type[Pacman]:
         return Pacman
 
     @classmethod

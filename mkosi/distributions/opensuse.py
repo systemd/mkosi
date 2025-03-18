@@ -3,13 +3,13 @@
 import tempfile
 from collections.abc import Iterable
 from pathlib import Path
+from typing import Union
 from xml.etree import ElementTree
 
 from mkosi.config import Architecture, Config
 from mkosi.context import Context
 from mkosi.curl import curl
 from mkosi.distributions import DistributionInstaller, PackageType, join_mirror
-from mkosi.installer import PackageManager
 from mkosi.installer.dnf import Dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey, setup_rpm
 from mkosi.installer.zypper import Zypper
@@ -40,7 +40,7 @@ class Installer(DistributionInstaller):
         return "grub2"
 
     @classmethod
-    def package_manager(cls, config: Config) -> type[PackageManager]:
+    def package_manager(cls, config: Config) -> Union[type[Dnf], type[Zypper]]:
         if config.find_binary("zypper"):
             return Zypper
         else:
@@ -49,12 +49,7 @@ class Installer(DistributionInstaller):
     @classmethod
     def setup(cls, context: Context) -> None:
         setup_rpm(context, dbbackend="ndb")
-
-        zypper = context.config.find_binary("zypper")
-        if zypper:
-            Zypper.setup(context, list(cls.repositories(context)))
-        else:
-            Dnf.setup(context, list(cls.repositories(context)))
+        cls.package_manager(context.config).setup(context, list(cls.repositories(context)))
 
     @classmethod
     def install(cls, context: Context) -> None:
@@ -66,7 +61,7 @@ class Installer(DistributionInstaller):
             yield RpmRepository(id="local-mirror", url=f"baseurl={context.config.local_mirror}", gpgurls=())
             return
 
-        zypper = context.config.find_binary("zypper")
+        zypper = cls.package_manager(context.config) is Zypper
         mirror = context.config.mirror or "https://download.opensuse.org"
 
         if context.config.release == "tumbleweed" or context.config.release.isdigit():
