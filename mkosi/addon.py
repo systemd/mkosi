@@ -10,7 +10,7 @@ import mkosi.resources
 from mkosi.config import DocFormat
 from mkosi.documentation import show_docs
 from mkosi.initrd import include_system_config, initrd_common_args, initrd_finalize, process_crypttab
-from mkosi.log import log_setup
+from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, log_setup
 from mkosi.run import run, uncaught_exception_handler
 from mkosi.util import PathString, resource_path
 
@@ -54,12 +54,13 @@ def main() -> None:
             "--extra-tree",
             f"/usr/lib/modules/{args.kernel_version}:/usr/lib/modules/{args.kernel_version}",
             "--extra-tree=/usr/lib/firmware:/usr/lib/firmware",
-            "--kernel-modules-exclude=.*",
         ]  # fmt: skip
 
         if args.debug:
+            ARG_DEBUG.set(args.debug)
             cmdline += ["--debug"]
         if args.debug_shell:
+            ARG_DEBUG_SHELL.set(args.debug_shell)
             cmdline += ["--debug-shell"]
         if args.debug_sandbox:
             cmdline += ["--debug-sandbox"]

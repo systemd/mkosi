@@ -191,7 +191,7 @@ def test_config() -> None:
             "FirmwareExclude": [
                 "brcm/"
             ],
-            "FirmwareInclude": [
+            "FirmwareFiles": [
                 "ath3k-1"
             ],
             "FirmwareVariables": "/foo/bar",
@@ -227,16 +227,16 @@ def test_config() -> None:
                 "command",
                 "line"
             ],
+            "KernelInitrdModules": [],
+            "KernelModules": [
+                "loop"
+            ],
             "KernelModulesExclude": [
                 "nvidia"
-            ],
-            "KernelModulesInclude": [
-                "loop"
             ],
             "KernelModulesIncludeHost": true,
             "KernelModulesInitrd": true,
             "KernelModulesInitrdExclude": [],
-            "KernelModulesInitrdInclude": [],
             "KernelModulesInitrdIncludeHost": true,
             "Key": null,
             "Keymap": "wow, so much keymap",

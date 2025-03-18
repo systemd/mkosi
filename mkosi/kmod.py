@@ -1,11 +1,12 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
+import fnmatch
 import itertools
 import logging
 import os
 import re
 import subprocess
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Reversible
 from pathlib import Path
 
 from mkosi.context import Context
@@ -18,9 +19,60 @@ from mkosi.util import chdir, parents_below
 def loaded_modules() -> list[str]:
     # Loaded modules are listed with underscores but the filenames might use dashes instead.
     return [
-        rf"/{line.split()[0].replace('_', '[_-]')}\.ko"
-        for line in Path("/proc/modules").read_text().splitlines()
+        normalize_module_name(line.split()[0]) for line in Path("/proc/modules").read_text().splitlines()
     ]
+
+
+def globs_match_filename(
+    name: str,
+    globs: Reversible[str],
+    *,
+    match_default: bool = False,
+) -> bool:
+    # Check whether the path matches any of the globs
+
+    for glob in reversed(globs):
+        # Patterns are evaluated in order and last matching one wins.
+        # Patterns may be prefixed with '-' to exclude modules.
+        if negative := glob.startswith("-"):
+            glob = glob[1:]
+        # As a special case, if a directory is specified, all items
+        # below that directory are matched.
+        if glob.endswith("/"):
+            glob += "*"
+
+        if (
+            # match the full path
+            (glob.startswith("/") and fnmatch.fnmatch(f"/{name}", glob))
+            # match a subset of the path, at path element boundary
+            or ("/" in glob and fnmatch.fnmatch(f"/{name}", f"*/{glob}"))
+            # match the basename
+            or fnmatch.fnmatch(name.split("/")[-1], glob)
+        ):
+            return not negative
+    return match_default
+
+
+def globs_match_module(
+    name: str,
+    globs: Reversible[str],
+) -> bool:
+    # Strip '.ko' suffix and an optional compression suffix
+    name = re.sub(r"\.ko(\.(gz|xz|zst))?$", "", name)
+    # Check whether the suffixless-path matches any of the globs
+    return globs_match_filename(name, globs)
+
+
+def globs_match_firmware(
+    name: str,
+    globs: Reversible[str],
+    *,
+    match_default: bool = False,
+) -> bool:
+    # Strip any known compression suffixes
+    name = re.sub(r"\.(gz|xz|zst)$", "", name)
+    # Check whether the suffixless-path matches any of the globs
+    return globs_match_filename(name, globs, match_default=match_default)
 
 
 def filter_kernel_modules(
@@ -30,29 +82,49 @@ def filter_kernel_modules(
     include: Iterable[str],
     exclude: Iterable[str],
 ) -> list[Path]:
+    logging.debug(f"Kernel modules include: {' '.join(include)}")
+    logging.debug(f"Kernel modules exclude: {' '.join(exclude)}")
+
     modulesd = Path("usr/lib/modules") / kver
     with chdir(root):
-        modules = set(modulesd.rglob("*.ko*"))
+        # The glob may match additional paths.
+        # Narrow this down to *.ko, *.ko.gz, *.ko.xz, *.ko.zst.
+        modules = {
+            m for m in modulesd.rglob("*.ko*") if m.name.endswith((".ko", ".ko.gz", ".ko.xz", ".ko.zst"))
+        }
+
+    n_modules = len(modules)
 
     keep = set()
+
     if include:
-        regex = re.compile("|".join(include))
+        patterns = [p[3:] for p in include if p.startswith("re:")]
+        regex = re.compile("|".join(patterns))
+
+        globs = [normalize_module_glob(p) for p in include if not p.startswith("re:")]
+
         for m in modules:
             rel = os.fspath(Path(*m.parts[5:]))
-            if regex.search(rel):
-                keep.add(rel)
+
+            if (patterns and regex.search(rel)) or globs_match_module(normalize_module_name(rel), globs):
+                keep.add(m)
 
     if exclude:
+        assert all(p.startswith("re:") for p in exclude)
+        patterns = [p[3:] for p in exclude]
+        regex = re.compile("|".join(patterns))
+
         remove = set()
-        regex = re.compile("|".join(exclude))
-        for m in modules:
+        for m in keep:
             rel = os.fspath(Path(*m.parts[5:]))
-            if rel not in keep and regex.search(rel):
+            if regex.search(rel):
                 remove.add(m)
 
-        modules -= remove
+        keep -= remove
 
-    return sorted(modules)
+    logging.debug(f"Including {len(keep)}/{n_modules} kernel modules.")
+
+    return sorted(keep)
 
 
 def filter_firmware(
@@ -62,15 +134,22 @@ def filter_firmware(
     include: Iterable[str],
     exclude: Iterable[str],
 ) -> set[Path]:
-    if not include and not exclude:
-        return firmware
+    logging.debug(f"Firmware include: {' '.join(include)}")
+    logging.debug(f"Firmware exclude: {' '.join(exclude)}")
 
-    if exclude:
+    # globs can be also used to exclude firmware, so we we need to apply them
+    # to the inherited list of firmware files too.
+    globs = [p for p in include if not p.startswith("re:")]
+
+    if exclude or globs:
+        assert all(p.startswith("re:") for p in exclude)
         remove = set()
-        regex = re.compile("|".join(exclude))
+        patterns = [p[3:] for p in exclude]
+        regex = re.compile("|".join(patterns))
+
         for f in firmware:
             rel = os.fspath(Path(*f.parts[3:]))
-            if regex.search(rel):
+            if (patterns and regex.search(rel)) or globs_match_firmware(rel, globs, match_default=True):
                 remove.add(f)
 
         firmware -= remove
@@ -79,17 +158,36 @@ def filter_firmware(
         firmwared = Path("usr/lib/firmware")
         with chdir(root):
             all_firmware = set(firmwared.rglob("*"))
+
+        patterns = [p[3:] for p in include if p.startswith("re:")]
         regex = re.compile("|".join(include))
+
         for f in all_firmware:
             rel = os.fspath(Path(*f.parts[3:]))
-            if regex.search(rel):
+            if (patterns and regex.search(rel)) or globs_match_firmware(rel, globs):
                 firmware.add(f)
+
+    logging.debug(f"Including {len(firmware)} firmware files")
 
     return firmware
 
 
 def normalize_module_name(name: str) -> str:
+    # Replace '_' by '-'
     return name.replace("_", "-")
+
+
+def normalize_module_glob(name: str) -> str:
+    # We want to replace '_' by '-', except when used in […]
+    ans = ""
+    while name:
+        i = (name + "[").index("[")
+        ans += name[:i].replace("_", "-")
+        name = name[i:]
+        i = (name + "]").index("]")
+        ans += name[: i + 1]
+        name = name[i + 1 :]
+    return ans
 
 
 def module_path_to_name(path: Path) -> str:
@@ -221,7 +319,7 @@ def gen_required_kernel_modules(
     # There is firmware in /usr/lib/firmware that is not depended on by any modules so if any firmware was
     # installed we have to take the slow path to make sure we don't copy firmware into the initrd that is not
     # depended on by any kernel modules.
-    if modules_exclude or (context.root / firmwared).glob("*"):
+    if modules_include or modules_exclude or (context.root / firmwared).glob("*"):
         modules = filter_kernel_modules(context.root, kver, include=modules_include, exclude=modules_exclude)
         names = [module_path_to_name(m) for m in modules]
         mods, firmware = resolve_module_dependencies(context, kver, names)
@@ -278,7 +376,7 @@ def process_kernel_modules(
     firmware_include: Iterable[str],
     firmware_exclude: Iterable[str],
 ) -> None:
-    if not modules_exclude and not firmware_exclude:
+    if not (modules_include or modules_exclude or firmware_include or firmware_exclude):
         return
 
     modulesd = Path("usr/lib/modules") / kver
