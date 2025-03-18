@@ -107,7 +107,7 @@ def filter_kernel_modules(
             rel = os.fspath(Path(*m.parts[5:]))
 
             if (patterns and regex.search(rel)) or globs_match_module(normalize_module_name(rel), globs):
-                keep.add(m)
+                keep.add(rel)
 
     if exclude:
         assert all(p.startswith("re:") for p in exclude)
@@ -115,16 +115,19 @@ def filter_kernel_modules(
         regex = re.compile("|".join(patterns))
 
         remove = set()
-        for m in keep:
+        for m in modules:
             rel = os.fspath(Path(*m.parts[5:]))
-            if regex.search(rel):
+            if rel not in keep and regex.search(rel):
                 remove.add(m)
 
-        keep -= remove
+        modules -= remove
+    else:
+        # If no exclude patterns are specified, only keep the specified kernel modules.
+        modules = {modulesd / m for m in keep}
 
-    logging.debug(f"Including {len(keep)}/{n_modules} kernel modules.")
+    logging.debug(f"Including {len(modules)}/{n_modules} kernel modules.")
 
-    return sorted(keep)
+    return sorted(modules)
 
 
 def filter_firmware(
