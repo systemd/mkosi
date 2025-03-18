@@ -14,7 +14,6 @@ from mkosi.distributions import (
     PackageType,
     join_mirror,
 )
-from mkosi.installer import PackageManager
 from mkosi.installer.dnf import Dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey, setup_rpm
 from mkosi.log import die
@@ -114,7 +113,7 @@ class Installer(DistributionInstaller):
         return "grub2"
 
     @classmethod
-    def package_manager(cls, config: Config) -> type[PackageManager]:
+    def package_manager(cls, config: Config) -> type[Dnf]:
         return Dnf
 
     @classmethod

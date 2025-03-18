@@ -560,18 +560,6 @@ def finalize_scripts(config: Config, scripts: Mapping[str, Sequence[PathString]]
         yield Path(d)
 
 
-GIT_ENV = {
-    "GIT_CONFIG_COUNT": "1",
-    "GIT_CONFIG_KEY_0": "safe.directory",
-    "GIT_CONFIG_VALUE_0": "*",
-}
-
-
-def mkosi_as_caller() -> tuple[str, ...]:
-    # Kept for backwards compatibility.
-    return ("env",)
-
-
 def finalize_host_scripts(
     context: Context,
     helpers: Mapping[str, Sequence[PathString]] = {},
@@ -728,7 +716,6 @@ def script_maybe_chroot_sandbox(
             *(["--ro-bind-try", "/etc/resolv.conf", "/etc/resolv.conf"] if network else []),
             *(["--suppress-chown"] if suppress_chown else []),
         ],
-        "mkosi-as-caller": mkosi_as_caller(),
         **context.config.distribution.package_manager(context.config).scripts(context),
     }  # fmt: skip
 
@@ -780,7 +767,6 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
         WITH_DOCS=one_zero(context.config.with_docs),
         WITH_NETWORK=one_zero(context.config.with_network),
         WITH_TESTS=one_zero(context.config.with_tests),
-        **GIT_ENV,
     )
 
     if context.config.profiles:
@@ -850,7 +836,6 @@ def run_build_scripts(context: Context) -> None:
         WITH_DOCS=one_zero(context.config.with_docs),
         WITH_NETWORK=one_zero(context.config.with_network),
         WITH_TESTS=one_zero(context.config.with_tests),
-        **GIT_ENV,
     )
 
     if context.config.profiles:
@@ -923,7 +908,6 @@ def run_postinst_scripts(context: Context) -> None:
         MKOSI_GID=str(os.getgid()),
         MKOSI_CONFIG="/work/config.json",
         WITH_NETWORK=one_zero(context.config.with_network),
-        **GIT_ENV,
     )
 
     if context.config.profiles:
@@ -992,7 +976,6 @@ def run_finalize_scripts(context: Context) -> None:
         MKOSI_GID=str(os.getgid()),
         MKOSI_CONFIG="/work/config.json",
         WITH_NETWORK=one_zero(context.config.with_network),
-        **GIT_ENV,
     )
 
     if context.config.profiles:
@@ -4450,7 +4433,6 @@ def generate_key_cert_pair(args: Args) -> None:
 
     keylength = 2048
     expiration_date = datetime.date.today() + datetime.timedelta(int(args.genkey_valid_days))
-    cn = expand_specifier(args.genkey_common_name)
 
     for f in ("mkosi.key", "mkosi.crt"):
         if Path(f).exists() and not args.force:
@@ -4459,7 +4441,7 @@ def generate_key_cert_pair(args: Args) -> None:
                 hint="To generate new keys, first remove mkosi.key and mkosi.crt",
             )
 
-    log_step(f"Generating keys rsa:{keylength} for CN {cn!r}.")
+    log_step(f"Generating keys rsa:{keylength} for CN {args.genkey_common_name!r}.")
     logging.info(
         textwrap.dedent(
             f"""
@@ -4479,7 +4461,7 @@ def generate_key_cert_pair(args: Args) -> None:
             "-keyout", "mkosi.key",
             "-out", "mkosi.crt",
             "-days", str(args.genkey_valid_days),
-            "-subj", f"/CN={cn}/",
+            "-subj", f"/CN={args.genkey_common_name}/",
             "-nodes"
         ],
         env=dict(OPENSSL_CONF="/dev/null"),
@@ -4509,10 +4491,6 @@ def bump_image_version() -> None:
 
     logging.info(f"Bumping version: '{version}' → '{new_version}'")
     version_file.write_text(f"{new_version}\n")
-
-
-def expand_specifier(s: str) -> str:
-    return s.replace("%u", INVOKING_USER.name())
 
 
 def finalize_default_tools(config: Config, *, resources: Path) -> Config:

@@ -4235,7 +4235,7 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
         "--genkey-common-name",
         metavar="CN",
         help="Template for the CN when generating keys",
-        default="mkosi of %u",
+        default=f"mkosi of {INVOKING_USER.name()}",
     )
     parser.add_argument(
         "-B",
