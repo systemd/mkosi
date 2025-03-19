@@ -157,7 +157,7 @@ def filter_firmware(
 
         for f in firmware:
             rel = os.fspath(Path(*f.parts[3:]))
-            if (patterns and regex.search(rel)) or globs_match_firmware(rel, globs, match_default=True):
+            if (patterns and regex.search(rel)) or not globs_match_firmware(rel, globs, match_default=True):
                 remove.add(f)
 
         firmware -= remove
