@@ -5129,14 +5129,34 @@ def summary(config: Config) -> str:
                              Splash: {none_to_none(config.splash)}
                 Kernel Command Line: {line_join_list(config.kernel_command_line)}
                      Kernel Modules: {line_join_list(config.kernel_modules_include)}
+"""
+
+    if config.kernel_modules_exclude:
+        summary += f"""\
              Kernel Modules Exclude: {line_join_list(config.kernel_modules_exclude)}
+"""
+
+    summary += f"""\
         Kernel Modules Include Host: {yes_no(config.kernel_modules_include_host)}
                      Firmware Files: {line_join_list(config.firmware_include)}
-             Firmware Files Exclude: {line_join_list(config.firmware_exclude)}
+"""
 
+    if config.firmware_exclude:
+        summary += f"""\
+             Firmware Files Exclude: {line_join_list(config.firmware_exclude)}
+"""
+
+    summary += f"""\
               Kernel Modules Initrd: {yes_no(config.kernel_modules_initrd)}
               Kernel Initrd Modules: {line_join_list(config.kernel_modules_initrd_include)}
+"""
+
+    if config.kernel_modules_initrd_exclude:
+        summary += f"""\
       Kernel Modules Initrd Exclude: {line_join_list(config.kernel_modules_initrd_exclude)}
+"""
+
+    summary += f"""\
  Kernel Modules Initrd Include Host: {yes_no(config.kernel_modules_initrd_include_host)}
 
                              Locale: {none_to_default(config.locale)}
