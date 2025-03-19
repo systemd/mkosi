@@ -168,7 +168,7 @@ def filter_firmware(
             all_firmware = set(firmwared.rglob("*"))
 
         patterns = [p[3:] for p in include if p.startswith("re:")]
-        regex = re.compile("|".join(include))
+        regex = re.compile("|".join(patterns))
 
         for f in all_firmware:
             rel = os.fspath(Path(*f.parts[3:]))
