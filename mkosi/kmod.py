@@ -83,8 +83,10 @@ def filter_kernel_modules(
     include: Iterable[str],
     exclude: Iterable[str],
 ) -> list[str]:
-    logging.debug(f"Kernel modules include: {' '.join(include)}")
-    logging.debug(f"Kernel modules exclude: {' '.join(exclude)}")
+    if include:
+        logging.debug(f"Kernel modules include: {' '.join(include)}")
+    if exclude:
+        logging.debug(f"Kernel modules exclude: {' '.join(exclude)}")
 
     modulesd = Path("usr/lib/modules") / kver
     with chdir(root):
@@ -138,8 +140,10 @@ def filter_firmware(
     include: Iterable[str],
     exclude: Iterable[str],
 ) -> set[Path]:
-    logging.debug(f"Firmware include: {' '.join(include)}")
-    logging.debug(f"Firmware exclude: {' '.join(exclude)}")
+    if include:
+        logging.debug(f"Firmware include: {' '.join(include)}")
+    if exclude:
+        logging.debug(f"Firmware exclude: {' '.join(exclude)}")
 
     # globs can be also used to exclude firmware, so we we need to apply them
     # to the inherited list of firmware files too.
