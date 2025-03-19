@@ -50,6 +50,7 @@ def globs_match_filename(
             or fnmatch.fnmatch(name.split("/")[-1], glob)
         ):
             return not negative
+
     return match_default
 
 
@@ -82,8 +83,10 @@ def filter_kernel_modules(
     include: Iterable[str],
     exclude: Iterable[str],
 ) -> list[str]:
-    logging.debug(f"Kernel modules include: {' '.join(include)}")
-    logging.debug(f"Kernel modules exclude: {' '.join(exclude)}")
+    if include:
+        logging.debug(f"Kernel modules include: {' '.join(include)}")
+    if exclude:
+        logging.debug(f"Kernel modules exclude: {' '.join(exclude)}")
 
     modulesd = Path("usr/lib/modules") / kver
     with chdir(root):
@@ -137,8 +140,10 @@ def filter_firmware(
     include: Iterable[str],
     exclude: Iterable[str],
 ) -> set[Path]:
-    logging.debug(f"Firmware include: {' '.join(include)}")
-    logging.debug(f"Firmware exclude: {' '.join(exclude)}")
+    if include:
+        logging.debug(f"Firmware include: {' '.join(include)}")
+    if exclude:
+        logging.debug(f"Firmware exclude: {' '.join(exclude)}")
 
     # globs can be also used to exclude firmware, so we we need to apply them
     # to the inherited list of firmware files too.
@@ -152,7 +157,7 @@ def filter_firmware(
 
         for f in firmware:
             rel = os.fspath(Path(*f.parts[3:]))
-            if (patterns and regex.search(rel)) or globs_match_firmware(rel, globs, match_default=True):
+            if (patterns and regex.search(rel)) or not globs_match_firmware(rel, globs, match_default=True):
                 remove.add(f)
 
         firmware -= remove
@@ -163,7 +168,7 @@ def filter_firmware(
             all_firmware = set(firmwared.rglob("*"))
 
         patterns = [p[3:] for p in include if p.startswith("re:")]
-        regex = re.compile("|".join(include))
+        regex = re.compile("|".join(patterns))
 
         for f in all_firmware:
             rel = os.fspath(Path(*f.parts[3:]))
