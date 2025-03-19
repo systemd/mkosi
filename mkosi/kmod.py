@@ -50,6 +50,7 @@ def globs_match_filename(
             or fnmatch.fnmatch(name.split("/")[-1], glob)
         ):
             return not negative
+
     return match_default
 
 
