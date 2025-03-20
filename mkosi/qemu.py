@@ -813,6 +813,20 @@ def finalize_drive(drive: Drive) -> Iterator[Path]:
 
 
 @contextlib.contextmanager
+def finalize_initrd(config: Config) -> Iterator[Optional[Path]]:
+    with contextlib.ExitStack() as stack:
+        if (config.output_dir_or_cwd() / config.output_split_initrd).exists():
+            yield config.output_dir_or_cwd() / config.output_split_initrd
+        elif config.initrds:
+            initrd = config.output_dir_or_cwd() / f"initrd-{uuid.uuid4().hex}"
+            join_initrds(config, config.initrds, initrd)
+            stack.callback(lambda: initrd.unlink())
+            yield initrd
+        else:
+            yield None
+
+
+@contextlib.contextmanager
 def finalize_state(config: Config, cid: int) -> Iterator[None]:
     (INVOKING_USER.runtime_dir() / "machine").mkdir(parents=True, exist_ok=True)
 
@@ -1100,8 +1114,9 @@ def run_qemu(args: Args, config: Config) -> None:
 
     if (
         config.output_format in (OutputFormat.cpio, OutputFormat.uki, OutputFormat.esp)
-        and config.firmware not in (Firmware.auto, Firmware.linux)
+        and not config.firmware.is_linux()
         and not config.firmware.is_uefi()
+        and config.firmware != Firmware.auto
     ):
         die(f"{config.output_format} images cannot be booted with the '{config.firmware}' firmware")
 
@@ -1169,7 +1184,7 @@ def run_qemu(args: Args, config: Config) -> None:
     firmware = finalize_firmware(config, kernel, kerneltype)
 
     if not kernel and (
-        firmware == Firmware.linux
+        firmware.is_linux()
         or config.output_format in (OutputFormat.cpio, OutputFormat.directory, OutputFormat.uki)
     ):
         if firmware.is_uefi():
@@ -1433,14 +1448,14 @@ def run_qemu(args: Args, config: Config) -> None:
 
         if config.output_format == OutputFormat.cpio:
             cmdline += ["-initrd", fname]
-        elif kernel and kerneltype != KernelType.uki and "-initrd" not in args.cmdline:
-            if (config.output_dir_or_cwd() / config.output_split_initrd).exists():
-                cmdline += ["-initrd", config.output_dir_or_cwd() / config.output_split_initrd]
-            elif config.initrds:
-                initrd = config.output_dir_or_cwd() / f"initrd-{uuid.uuid4().hex}"
-                join_initrds(config, config.initrds, initrd)
-                stack.callback(lambda: initrd.unlink())
-                cmdline += ["-initrd", initrd]
+        elif (
+            kernel
+            and kerneltype != KernelType.uki
+            and "-initrd" not in args.cmdline
+            and firmware != Firmware.linux_noinitrd
+            and (initrd := stack.enter_context(finalize_initrd(config)))
+        ):
+            cmdline += ["-initrd", initrd]
 
         if config.output_format in (OutputFormat.disk, OutputFormat.esp):
             blockdev = [
