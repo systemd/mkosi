@@ -124,7 +124,7 @@ def filter_kernel_modules(
                 remove.add(m)
 
         modules -= remove
-    else:
+    elif include:
         # If no exclude patterns are specified, only keep the specified kernel modules.
         modules = {modulesd / m for m in keep}
 
