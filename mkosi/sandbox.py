@@ -13,8 +13,6 @@ import os
 import sys
 import warnings  # noqa: F401 (loaded lazily by os.execvp() which happens too late)
 
-__version__ = "26~devel"
-
 # The following constants are taken from the Linux kernel headers.
 AT_EMPTY_PATH = 0x1000
 AT_FDCWD = -100
@@ -897,8 +895,19 @@ def main() -> None:
             print(HELP, file=sys.stderr)
             sys.exit(0)
         elif arg == "--version":
-            print(__version__, file=sys.stderr)
-            sys.exit(0)
+            try:
+                # This is a cyclic import, but this code is not run at import time.
+                from mkosi._version import __version__
+
+                print(__version__, file=sys.stderr)
+                sys.exit(0)
+            except ImportError:
+                try:
+                    print(os.environ["MKOSI_VERSION"], file=sys.stderr)
+                    sys.exit(0)
+                except KeyError:
+                    print("Cannot determine version", file=sys.stderr)
+                    sys.exit(1)
         if arg == "--tmpfs":
             fsops.append(TmpfsOperation(argv.pop()))
         elif arg == "--dev":

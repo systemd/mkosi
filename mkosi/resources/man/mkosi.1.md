@@ -2578,6 +2578,8 @@ Scripts executed by **mkosi** receive the following environment variables:
   current image. This file can be parsed inside scripts to gain access to all
   settings for the current image.
 
+* `$MKOSI_VERSION` is the version string of mkosi.
+
 * `$IMAGE_ID` contains the identifier from the `ImageId=` or `--image-id=` setting.
 
 * `$IMAGE_VERSION` contains the version from the `ImageVersion=` or `--image-version=` setting.
@@ -2608,6 +2610,7 @@ Consult this table for which script receives which environment variables:
 | `MKOSI_CONFIG`              |             | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
 | `MKOSI_GID`                 | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
 | `MKOSI_UID`                 | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
+| `MKOSI_VERSION`             | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
 | `OUTPUTDIR`                 |             |        |           |         | ✓          | ✓          | ✓            | ✓       |
 | `PACKAGEDIR`                |             |        | ✓         | ✓       | ✓          | ✓          |              |         |
 | `PROFILES`                  | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          |              | ✓       |

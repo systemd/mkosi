@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools", "setuptools-scm"]
+requires = ["setuptools>=64", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,7 +7,7 @@ name = "mkosi"
 authors = [
     {name = "mkosi contributors", email = "systemd-devel@lists.freedesktop.org"},
 ]
-version = "25.3"
+dynamic = ["version"]
 description = "Build Bespoke OS Images"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -49,6 +49,9 @@ packages = [
     "repart/**/*",
     "tmpfiles.d/*",
 ]
+
+[tool.setuptools_scm]
+version_scheme = "no-guess-dev"
 
 [tool.isort]
 profile = "black"
