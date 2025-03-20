@@ -19,6 +19,7 @@ from mkosi.qemu import (
     copy_ephemeral,
     finalize_credentials,
     finalize_firmware,
+    finalize_initrd,
     finalize_kernel_command_line_extra,
     finalize_register,
 )
@@ -42,7 +43,7 @@ def run_vmspawn(args: Args, config: Config) -> None:
     kernel = config.expand_linux_specifiers() if config.linux else None
     firmware = finalize_firmware(config, kernel)
 
-    if not kernel and firmware == Firmware.linux:
+    if not kernel and firmware.is_linux():
         kernel = config.output_dir_or_cwd() / config.output_split_kernel
         if not kernel.exists():
             die(
@@ -91,6 +92,11 @@ def run_vmspawn(args: Args, config: Config) -> None:
 
         if kernel:
             cmdline += ["--linux", kernel]
+
+            if firmware != Firmware.linux_noinitrd and (
+                initrd := stack.enter_context(finalize_initrd(config))
+            ):
+                cmdline += ["--initrd", initrd]
 
         if config.output_format == OutputFormat.directory:
             cmdline += ["--directory", fname]
