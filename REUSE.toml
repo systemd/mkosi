@@ -37,6 +37,7 @@ path = [
     "**.yaml",
     "**.yml",
     "**.zsh",
+    "mkosi/resources/staticversion",
 ]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "Mkosi Contributors"
