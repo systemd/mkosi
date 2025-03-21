@@ -160,6 +160,8 @@ def prepare_grub_config(context: Context) -> Optional[Path]:
         # file.
         if context.config.distribution == Distribution.opensuse:
             earlyconfig = context.root / "efi/EFI/BOOT/grub.cfg"
+        elif context.config.distribution == Distribution.alma:
+            earlyconfig = context.root / "efi/EFI/almalinux/grub.cfg"
         else:
             earlyconfig = context.root / "efi/EFI" / context.config.distribution.name / "grub.cfg"
 
