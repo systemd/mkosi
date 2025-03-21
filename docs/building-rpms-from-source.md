@@ -200,3 +200,6 @@ mkosi-install mkosi
 
 cp "$PACKAGEDIR"/*mkosi*.rpm "$OUTPUTDIR"
 ```
+
+To run just the build script to build the rpms without actually building
+an image, you can use the `none` output format (`mkosi -t none`).
