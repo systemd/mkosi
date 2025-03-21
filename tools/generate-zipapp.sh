@@ -10,6 +10,11 @@ mkdir -p builddir
 
 cp -r mkosi "${BUILDDIR}/"
 
+# HACK: importlib metadata doesn't seem to be there in a zipapp even if
+# properly installed via pip, so let's patch it in there manually.
+mkosiversion="$(python3 -m mkosi --version)"
+printf '__version__ = "%s"\n' "${mkosiversion#mkosi }" >"${BUILDDIR}/mkosi/resources/staticversion"
+
 python3 -m zipapp \
         -p "/usr/bin/env python3" \
         -o builddir/mkosi \
