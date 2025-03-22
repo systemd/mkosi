@@ -645,16 +645,12 @@ def run_sync_scripts(config: Config) -> None:
     if config.profiles:
         env["PROFILES"] = " ".join(config.profiles)
 
-    # We make sure to mount everything in to make ssh work since syncing might involve git which
-    # could invoke ssh.
-    if agent := os.getenv("SSH_AUTH_SOCK"):
-        env["SSH_AUTH_SOCK"] = agent
-
     with (
         finalize_source_mounts(config, ephemeral=False) as sources,
         finalize_config_json(config) as json,
         tempfile.TemporaryDirectory(
-            dir=config.workspace_dir_or_default(), prefix="mkosi-metadata-"
+            dir=config.workspace_dir_or_default(),
+            prefix="mkosi-metadata-",
         ) as sandbox_tree,
     ):
         install_sandbox_trees(config, Path(sandbox_tree))
@@ -664,24 +660,21 @@ def run_sync_scripts(config: Config) -> None:
                 *finalize_certificate_mounts(config),
                 "--ro-bind", script, "/work/sync",
                 "--ro-bind", json, "/work/config.json",
+                # We need to make sure SSH keys and such can be accessed when git is used so bind in /home to
+                # make sure that works.
+                "--ro-bind", "/home", "/home",
+                # e.g. the ssh-agent socket and such will be in /run and might be used by git so make sure
+                # those are available as well.
+                "--ro-bind", "/run", "/run",
                 "--dir", "/work/src",
                 "--chdir", "/work/src",
                 *sources,
             ]  # fmt: skip
 
-            if (p := INVOKING_USER.home()).exists() and p != Path("/"):
-                # We use a writable mount here to keep git worktrees working which encode absolute
-                # paths to the parent git repository and might need to modify the git config in the
-                # parent git repository when submodules are in use as well.
-                options += ["--bind", p, p]
-                env["HOME"] = os.fspath(p)
-            if (p := Path(f"/run/user/{os.getuid()}")).exists():
-                options += ["--ro-bind", p, p]
-
             with complete_step(f"Running sync script {script}…"):
                 run(
                     ["/work/sync", "final"],
-                    env=env | config.finalize_environment(),
+                    env=os.environ | env | config.finalize_environment(),
                     stdin=sys.stdin,
                     sandbox=config.sandbox(
                         network=True,
