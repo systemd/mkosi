@@ -66,7 +66,7 @@ class INVOKING_USER:
         else:
             d = Path("/run")
 
-        return d / "mkosi"
+        return d
 
     @classmethod
     def chown(cls, path: Path) -> None:

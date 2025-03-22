@@ -828,10 +828,11 @@ def finalize_initrd(config: Config) -> Iterator[Optional[Path]]:
 
 @contextlib.contextmanager
 def finalize_state(config: Config, cid: int) -> Iterator[None]:
-    (INVOKING_USER.runtime_dir() / "machine").mkdir(parents=True, exist_ok=True)
+    statedir = INVOKING_USER.runtime_dir() / "mkosi/machine"
+    statedir.mkdir(parents=True, exist_ok=True)
 
-    with flock(INVOKING_USER.runtime_dir() / "machine"):
-        if (p := INVOKING_USER.runtime_dir() / "machine" / f"{config.machine_or_name()}.json").exists():
+    with flock(statedir):
+        if (p := statedir / f"{config.machine_or_name()}.json").exists():
             die(
                 f"Another virtual machine named {config.machine_or_name()} is already running",
                 hint="Use --machine to specify a different virtual machine name",
@@ -851,7 +852,7 @@ def finalize_state(config: Config, cid: int) -> Iterator[None]:
     try:
         yield
     finally:
-        with flock(INVOKING_USER.runtime_dir() / "machine"):
+        with flock(statedir):
             p.unlink(missing_ok=True)
 
 
@@ -1611,8 +1612,9 @@ def run_qemu(args: Args, config: Config) -> None:
 
 
 def run_ssh(args: Args, config: Config) -> None:
-    with flock(INVOKING_USER.runtime_dir() / "machine"):
-        if not (p := INVOKING_USER.runtime_dir() / "machine" / f"{config.machine_or_name()}.json").exists():
+    statedir = INVOKING_USER.runtime_dir() / "mkosi/machine"
+    with flock(statedir):
+        if not (p := statedir / f"{config.machine_or_name()}.json").exists():
             die(
                 f"{p} not found, cannot SSH into virtual machine {config.machine_or_name()}",
                 hint="Is the machine running and was it built with Ssh=yes and Vsock=yes?",
