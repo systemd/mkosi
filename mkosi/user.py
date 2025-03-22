@@ -28,19 +28,6 @@ class INVOKING_USER:
             return user
 
     @classmethod
-    def home(cls) -> Path:
-        if os.getuid() == 0 and Path.cwd().is_relative_to("/home") and len(Path.cwd().parents) > 2:
-            return list(Path.cwd().parents)[-3]
-
-        try:
-            return Path(pwd.getpwuid(os.getuid()).pw_dir or "/")
-        except KeyError:
-            if not (home := os.getenv("HOME")):
-                die(f"Could not find home directory for UID {os.getuid()}")
-
-            return Path(home)
-
-    @classmethod
     def is_regular_user(cls, uid: int) -> bool:
         return uid >= 1000
 
@@ -48,8 +35,8 @@ class INVOKING_USER:
     def cache_dir(cls) -> Path:
         if (env := os.getenv("XDG_CACHE_HOME")) or (env := os.getenv("CACHE_DIRECTORY")):
             cache = Path(env)
-        elif cls.is_regular_user(os.getuid()) and cls.home() != Path("/"):
-            cache = cls.home() / ".cache"
+        elif cls.is_regular_user(os.getuid()) and Path.home() != Path("/"):
+            cache = Path.home() / ".cache"
         elif os.getuid() == 0 and Path.cwd().is_relative_to("/root") and "XDG_SESSION_ID" in os.environ:
             cache = Path("/root/.cache")
         else:

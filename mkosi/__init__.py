@@ -139,7 +139,7 @@ from mkosi.sandbox import (
 )
 from mkosi.sysupdate import run_sysupdate
 from mkosi.tree import copy_tree, make_tree, move_tree, rmtree
-from mkosi.user import INVOKING_USER, become_root_cmd
+from mkosi.user import become_root_cmd
 from mkosi.util import (
     PathString,
     current_home_dir,
@@ -2506,7 +2506,7 @@ def calculate_signature_gpg(context: Context) -> None:
         workdir(context.staging / context.config.output_checksum),
     ]
 
-    home = Path(context.config.finalize_environment().get("GNUPGHOME", INVOKING_USER.home() / ".gnupg"))
+    home = Path(context.config.finalize_environment().get("GNUPGHOME", Path.home() / ".gnupg"))
     if not home.exists():
         die(f"GPG home {home} not found")
 
