@@ -2096,10 +2096,10 @@ class Config:
 
         if (
             (cache := INVOKING_USER.cache_dir())
-            and cache != Path("/var/cache/mkosi")
+            and cache != Path("/var/cache")
             and os.access(cache, os.W_OK)
         ):
-            return cache
+            return cache / "mkosi"
 
         return Path("/var/tmp")
 
@@ -2107,7 +2107,7 @@ class Config:
         key = f"{self.distribution}~{self.release}~{self.architecture}"
         if self.mirror:
             key += f"-{self.mirror.replace('/', '-')}"
-        return self.package_cache_dir or (INVOKING_USER.cache_dir() / key)
+        return self.package_cache_dir or (INVOKING_USER.cache_dir() / "mkosi" / key)
 
     def tools(self) -> Path:
         return self.tools_tree or Path("/")

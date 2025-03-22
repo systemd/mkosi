@@ -42,7 +42,7 @@ class INVOKING_USER:
         else:
             cache = Path("/var/cache")
 
-        return cache / "mkosi"
+        return cache
 
     @classmethod
     def runtime_dir(cls) -> Path:

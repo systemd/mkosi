@@ -34,7 +34,7 @@ class Image:
         self.config = config
 
     def __enter__(self) -> "Image":
-        if (cache := INVOKING_USER.cache_dir()) and os.access(cache, os.W_OK):
+        if (cache := INVOKING_USER.cache_dir() / "mkosi") and os.access(cache, os.W_OK):
             tmpdir = cache
         else:
             tmpdir = Path("/var/tmp")
