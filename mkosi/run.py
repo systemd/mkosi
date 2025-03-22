@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any, Callable, NoReturn, Optional, Protocol
 
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SANDBOX, ARG_DEBUG_SHELL, die
 from mkosi.sandbox import acquire_privileges, joinpath, umask
-from mkosi.util import _FILE, PathString, current_home_dir, flatten, one_zero, resource_path, unique
+from mkosi.util import _FILE, PathString, flatten, one_zero, resource_path, unique
 
 # These types are only generic during type checking and not at runtime, leading
 # to a TypeError during compilation.
@@ -500,7 +500,6 @@ def sandbox_cmd(
         if relaxed:
             for p in Path("/").iterdir():
                 if p not in (
-                    Path("/home"),
                     Path("/proc"),
                     Path("/usr"),
                     Path("/nix"),
@@ -523,9 +522,6 @@ def sandbox_cmd(
                     and (factory := Path("/usr/share/factory")).exists()
                 ):
                     cmdline += ["--bind", factory, factory]
-
-            if home := current_home_dir():
-                cmdline += ["--bind", home, home]
         else:
             cmdline += [
                 "--dir", "/var/tmp",
