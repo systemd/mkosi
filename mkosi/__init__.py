@@ -4280,14 +4280,12 @@ def run_shell(args: Args, config: Config) -> None:
 
     # Underscores are not allowed in machine names so replace them with hyphens.
     name = config.machine_or_name().replace("_", "-")
-    cmdline += ["--machine", name]
-
-    for k, v in finalize_credentials(config).items():
-        cmdline += [f"--set-credential={k}:{v}"]
-
-    cmdline += ["--register", yes_no(finalize_register(config))]
+    cmdline += ["--machine", name, "--register", yes_no(finalize_register(config))]
 
     with contextlib.ExitStack() as stack:
+        for f in finalize_credentials(config, stack).iterdir():
+            cmdline += [f"--load-credential={f.name}:{f}"]
+
         # Make sure the latest nspawn settings are always used.
         if config.nspawn_settings:
             if not (config.output_dir_or_cwd() / f"{name}.nspawn").exists():

@@ -910,13 +910,21 @@ def finalize_kernel_command_line_extra(config: Config) -> list[str]:
     return cmdline
 
 
-def finalize_credentials(config: Config) -> dict[str, str]:
-    creds = {
-        "firstboot.locale": "C.UTF-8",
-        **config.credentials,
-    }
+def finalize_credentials(config: Config, stack: contextlib.ExitStack) -> Path:
+    d = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="mkosi-credentials-")))
 
-    if "firstboot.timezone" not in creds:
+    (d / "firstboot.locale").write_text("C.UTF-8")
+
+    for k, v in config.credentials.items():
+        with (d / k).open("w") as f:
+            if isinstance(v, str):
+                f.write(v)
+            elif os.access(v, os.X_OK):
+                run([v], stdout=f, env=os.environ)
+            else:
+                f.write(v.read_text())
+
+    if not (d / "firstboot.timezone").exists():
         if config.find_binary("timedatectl"):
             tz = run(
                 ["timedatectl", "show", "-p", "Timezone", "--value"],
@@ -928,9 +936,9 @@ def finalize_credentials(config: Config) -> dict[str, str]:
         else:
             tz = "UTC"
 
-        creds["firstboot.timezone"] = tz
+        (d / "firstboot.timezone").write_text(tz)
 
-    if "ssh.authorized_keys.root" not in creds:
+    if not (d / "ssh.authorized_keys.root").exists():
         if config.ssh_certificate:
             pubkey = run(
                 ["openssl", "x509", "-in", workdir(config.ssh_certificate), "-pubkey", "-noout"],
@@ -940,22 +948,24 @@ def finalize_credentials(config: Config) -> dict[str, str]:
                     options=["--ro-bind", config.ssh_certificate, workdir(config.ssh_certificate)],
                 ),
             ).stdout.strip()
-            sshpubkey = run(
-                ["ssh-keygen", "-f", "/dev/stdin", "-i", "-m", "PKCS8"],
-                input=pubkey,
-                stdout=subprocess.PIPE,
-                # ssh-keygen insists on being able to resolve the current user which doesn't always work
-                # (think sssd or similar) so let's switch to root which is always resolvable.
-                sandbox=config.sandbox(options=["--become-root", "--ro-bind", "/etc/passwd", "/etc/passwd"]),
-            ).stdout.strip()
-            creds["ssh.authorized_keys.root"] = sshpubkey
+            with (d / "ssh.authorized_keys.root").open("w") as f:
+                run(
+                    ["ssh-keygen", "-f", "/dev/stdin", "-i", "-m", "PKCS8"],
+                    input=pubkey,
+                    stdout=f,
+                    # ssh-keygen insists on being able to resolve the current user which doesn't always work
+                    # (think sssd or similar) so let's switch to root which is always resolvable.
+                    sandbox=config.sandbox(
+                        options=["--become-root", "--ro-bind", "/etc/passwd", "/etc/passwd"]
+                    ),
+                )
         elif config.ssh in (Ssh.always, Ssh.runtime):
             die(
                 "Ssh= is enabled but no SSH certificate was found",
                 hint="Run 'mkosi genkey' to automatically create one",
             )
 
-    return creds
+    return d
 
 
 def scope_cmd(
@@ -1390,10 +1400,13 @@ def run_qemu(args: Args, config: Config) -> None:
                 ]  # fmt: skip
                 kcl += ["root=root", "rootfstype=virtiofs"]
 
-        credentials = finalize_credentials(config)
+        credentials = finalize_credentials(config, stack)
 
         def add_virtiofs_mount(
-            sock: Path, dst: PathString, cmdline: list[PathString], credentials: dict[str, str]
+            sock: Path,
+            dst: PathString,
+            cmdline: list[PathString],
+            credentials: Path,
         ) -> None:
             tag = os.fspath(dst)
             if len(tag.encode()) > VIRTIOFS_MAX_TAG_LEN:
@@ -1404,13 +1417,16 @@ def run_qemu(args: Args, config: Config) -> None:
                 "-device", f"vhost-user-fs-pci,queue-size=1024,chardev={sock.name},tag={tag}",
             ]  # fmt: skip
 
-            if "fstab.extra" not in credentials:
-                credentials["fstab.extra"] = ""
+            if not (credentials / "fstab.extra").exists():
+                fstab = ""
+            else:
+                fstab = (credentials / "fstab.extra").read_text()
 
-            if credentials["fstab.extra"] and not credentials["fstab.extra"][-1] == "\n":
-                credentials["fstab.extra"] += "\n"
+            if fstab and not fstab[-1] == "\n":
+                fstab += "\n"
 
-            credentials["fstab.extra"] += f"{tag} {dst} virtiofs x-initrd.mount\n"
+            fstab += f"{tag} {dst} virtiofs x-initrd.mount\n"
+            (credentials / "fstab.extra").write_text(fstab)
 
         if config.runtime_build_sources:
             for t in config.build_sources:
@@ -1425,10 +1441,6 @@ def run_qemu(args: Args, config: Config) -> None:
         for tree in config.runtime_trees:
             sock = stack.enter_context(start_virtiofsd(config, tree.source))
             add_virtiofs_mount(sock, Path("/root/src") / (tree.target or ""), cmdline, credentials)
-
-        if config.runtime_home and (p := current_home_dir()):
-            sock = stack.enter_context(start_virtiofsd(config, p))
-            add_virtiofs_mount(sock, Path("/root"), cmdline, credentials)
 
         if want_scratch(config) or config.output_format in (OutputFormat.disk, OutputFormat.esp):
             cmdline += ["-device", "virtio-scsi-pci,id=mkosi"]
@@ -1503,25 +1515,29 @@ def run_qemu(args: Args, config: Config) -> None:
 
         if QemuDeviceNode.vhost_vsock in qemu_device_fds:
             addr, notify = stack.enter_context(vsock_notify_handler())
-            credentials["vmm.notify_socket"] = addr
+            (credentials / "vmm.notify_socket").write_text(addr)
 
         if config.forward_journal:
-            credentials["journal.forward_to_socket"] = stack.enter_context(
-                start_journal_remote_vsock(config)
+            (credentials / "journal.forward_to_socket").write_text(
+                stack.enter_context(start_journal_remote_vsock(config))
             )
 
-        for k, v in credentials.items():
-            payload = base64.b64encode(v.encode()).decode()
+        smbiosdir = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="mkosi-smbios-")))
+
+        for p in credentials.iterdir():
+            payload = base64.b64encode(p.read_bytes())
+
             if config.architecture.supports_smbios(firmware):
-                cmdline += ["-smbios", f"type=11,value=io.systemd.credential.binary:{k}={payload}"]
+                with (smbiosdir / p.name).open("wb") as f:
+                    f.write(f"io.systemd.credential.binary:{p.name}=".encode())
+                    f.write(payload)
+
+                cmdline += ["-smbios", f"type=11,path={smbiosdir / p.name}"]
             # qemu's fw_cfg device only supports keys up to 55 characters long.
-            elif config.architecture.supports_fw_cfg() and len(k) <= 55 - len("opt/io.systemd.credentials/"):
-                f = stack.enter_context(tempfile.NamedTemporaryFile(prefix="mkosi-fw-cfg-", mode="w"))
-                f.write(v)
-                f.flush()
-                cmdline += ["-fw_cfg", f"name=opt/io.systemd.credentials/{k},file={f.name}"]
+            elif config.architecture.supports_fw_cfg() and len(f"opt/io.systemd.credentials/{p.name}") <= 55:
+                cmdline += ["-fw_cfg", f"name=opt/io.systemd.credentials/{p.name},file={p}"]
             elif kernel:
-                kcl += [f"systemd.set_credential_binary={k}:{payload}"]
+                kcl += [f"systemd.set_credential_binary={p.name}:{payload.decode()}"]
 
         kcl += finalize_kernel_command_line_extra(config)
 
