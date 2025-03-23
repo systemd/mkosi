@@ -15,19 +15,6 @@ SUBRANGE = 65536
 
 class INVOKING_USER:
     @classmethod
-    def name(cls) -> str:
-        try:
-            return pwd.getpwuid(os.getuid()).pw_name
-        except KeyError:
-            if os.getuid() == 0:
-                return "root"
-
-            if not (user := os.getenv("USER")):
-                die(f"Could not find user name for UID {os.getuid()}")
-
-            return user
-
-    @classmethod
     def is_regular_user(cls, uid: int) -> bool:
         return uid >= 1000
 

@@ -7,6 +7,7 @@ import dataclasses
 import enum
 import fnmatch
 import functools
+import getpass
 import graphlib
 import inspect
 import io
@@ -4239,7 +4240,7 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
         "--genkey-common-name",
         metavar="CN",
         help="Template for the CN when generating keys",
-        default=f"mkosi of {INVOKING_USER.name()}",
+        default=f"mkosi of {getpass.getuser()}",
     )
     parser.add_argument(
         "-B",
