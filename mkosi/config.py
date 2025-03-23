@@ -1208,12 +1208,15 @@ def config_match_version(match: str, value: str) -> bool:
 def config_make_dict_parser(
     *,
     delimiter: Optional[str] = None,
-    parse: Callable[[str], tuple[str, str]],
+    parse: Callable[[str], tuple[str, PathString]],
     unescape: bool = False,
     allow_paths: bool = False,
     reset: bool = True,
-) -> ConfigParseCallback[dict[str, str]]:
-    def config_parse_dict(value: Optional[str], old: Optional[dict[str, str]]) -> Optional[dict[str, str]]:
+) -> ConfigParseCallback[dict[str, PathString]]:
+    def config_parse_dict(
+        value: Optional[str],
+        old: Optional[dict[str, PathString]],
+    ) -> Optional[dict[str, PathString]]:
         new = old.copy() if old else {}
 
         if value is None:
@@ -1225,17 +1228,11 @@ def config_make_dict_parser(
                     if p.is_dir():
                         continue
 
-                    if os.access(p, os.X_OK):
-                        new[p.name] = run([p], stdout=subprocess.PIPE, env=os.environ).stdout
-                    else:
-                        new[p.name] = p.read_text()
+                    new[p.name] = p.absolute()
             elif (p := Path(value)).exists():
-                if os.access(p, os.X_OK):
-                    new[p.name] = run([p], stdout=subprocess.PIPE, env=os.environ).stdout
-                else:
-                    new[p.name] = p.read_text()
+                new[p.name] = p.absolute()
             else:
-                die(f"{p} does not exist")
+                die(f"{p.absolute()} does not exist")
 
             return new
 
@@ -2094,7 +2091,7 @@ class Config:
 
     nspawn_settings: Optional[Path]
     ephemeral: bool
-    credentials: dict[str, str]
+    credentials: dict[str, PathString]
     kernel_command_line_extra: list[str]
     register: ConfigFeature
     storage_target_mode: ConfigFeature

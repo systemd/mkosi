@@ -68,9 +68,10 @@ def run_vmspawn(args: Args, config: Config) -> None:
     elif config.runtime_network == Network.interface:
         cmdline += ["--network-tap"]
 
-    cmdline += [f"--set-credential={k}:{v}" for k, v in finalize_credentials(config).items()]
-
     with contextlib.ExitStack() as stack:
+        for f in finalize_credentials(config, stack).iterdir():
+            cmdline += [f"--load-credential={f.name}:{f}"]
+
         fname = stack.enter_context(copy_ephemeral(config, config.output_dir_or_cwd() / config.output))
 
         apply_runtime_size(config, fname)
