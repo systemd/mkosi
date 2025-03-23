@@ -4341,8 +4341,10 @@ def run_shell(args: Args, config: Config) -> None:
                     range = 65536
 
                 cmdline += [f"--private-users={owner}:{range}"]
+            else:
+                cmdline += ["--private-users=identity"]
         else:
-            cmdline += ["--image", fname]
+            cmdline += ["--image", fname, "--private-users=identity"]
 
         if config.runtime_build_sources:
             for t in config.build_sources:
