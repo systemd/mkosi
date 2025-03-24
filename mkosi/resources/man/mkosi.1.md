@@ -1377,14 +1377,16 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `ToolsTreeProfiles=`, `--tools-tree-profile=`
 :   Set the profiles to enable for the default tools tree. Takes a
-    comma-delimited list consisting of `misc`, `package-manager` and
-    `runtime`. By default, all profiles are enabled.
+    comma-delimited list consisting of `devel`, `misc`,
+    `package-manager` and `runtime`. By default, all profiles except
+    `devel` are enabled.
 
-    The `misc` profile contains various useful tools that are handy to
-    have available in scripts. The package manager profile contains
-    package managers and related tools other than those native to the
-    tools tree distribution. The `runtime` profile contains the tools
-    required to boot images in a systemd-nspawn container or in a
+    The `devel` profile contains tools required to build (C/C++)
+    projects. The `misc` profile contains various useful tools that are
+    handy to have available in scripts. The package manager profile
+    contains package managers and related tools other than those native
+    to the tools tree distribution. The `runtime` profile contains the
+    tools required to boot images in a systemd-nspawn container or in a
     virtual machine.
 
 `ToolsTreeMirror=`, `--tools-tree-mirror=`
