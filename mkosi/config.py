@@ -601,9 +601,14 @@ class ArtifactOutput(StrEnum):
 
 
 class ToolsTreeProfile(StrEnum):
+    devel = enum.auto()
     misc = enum.auto()
     package_manager = enum.auto()
     runtime = enum.auto()
+
+    @classmethod
+    def default(cls) -> tuple["ToolsTreeProfile", ...]:
+        return (cls.misc, cls.package_manager, cls.runtime)
 
 
 class InitrdProfile(StrEnum):
@@ -3474,7 +3479,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Build",
         parse=config_make_list_parser(delimiter=",", parse=make_enum_parser(ToolsTreeProfile)),
         choices=ToolsTreeProfile.values(),
-        default=list(ToolsTreeProfile),
+        default=ToolsTreeProfile.default(),
         help="Which profiles to enable for the default tools tree",
     ),
     ConfigSetting(
