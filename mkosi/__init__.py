@@ -2593,6 +2593,13 @@ def print_output_size(path: Path) -> None:
 
 
 def cache_tree_paths(config: Config) -> tuple[Path, Path, Path]:
+    if config.image == "tools":
+        return (
+            config.output_dir_or_cwd() / "mkosi.tools",
+            config.output_dir_or_cwd() / "mkosi.tools.build.cache",
+            config.output_dir_or_cwd() / "mkosi.tools.manifest",
+        )
+
     assert config.cache_dir
     return (
         config.cache_dir / f"{config.expand_key_specifiers(config.cache_key)}.cache",
@@ -3200,7 +3207,8 @@ def save_cache(context: Context) -> None:
 
 
 def have_cache(config: Config) -> bool:
-    if not config.is_incremental():
+    # The default tools tree is always cached regardless of the incremental mode.
+    if not config.is_incremental() and config.image != "tools":
         return False
 
     final, build, manifest = cache_tree_paths(config)
@@ -4506,16 +4514,13 @@ def finalize_default_tools(config: Config, *, resources: Path) -> Config:
         f"--cache-only={config.cacheonly}",
         *([f"--output-directory={os.fspath(p)}"] if (p := config.output_dir) else []),
         *([f"--workspace-directory={os.fspath(p)}"] if (p := config.workspace_dir) else []),
-        *([f"--cache-directory={os.fspath(p)}"] if (p := config.cache_dir) else []),
-        "--cache-key=tools",
         *([f"--package-cache-directory={os.fspath(p)}"] if (p := config.package_cache_dir) else []),
-        f"--incremental={config.incremental}",
+        "--incremental=no",
         *([f"--package={package}" for package in config.tools_tree_packages]),
         *([f"--package-directory={os.fspath(directory)}" for directory in config.tools_tree_package_directories]),  # noqa: E501
         *([f"--build-sources={tree}" for tree in config.build_sources]),
         f"--build-sources-ephemeral={config.build_sources_ephemeral}",
         *([f"--prepare-script={os.fspath(script)}" for script in config.tools_tree_prepare_scripts]),
-        "--output=tools",
         *([f"--source-date-epoch={e}"] if (e := config.source_date_epoch) is not None else []),
         *([f"--environment={k}='{v}'" for k, v in config.environment.items()]),
         *([f"--proxy-url={config.proxy_url}"] if config.proxy_url else []),
@@ -5038,10 +5043,8 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
 
     # If we're doing an incremental build and the cache is not out of date, don't clean up the
     # tools tree so that we can reuse the previous one.
-    if tools and (
-        not tools.is_incremental() or ((args.verb == Verb.build or args.force > 0) and not have_cache(tools))
-    ):
-        if tools.incremental == Incremental.strict:
+    if tools and ((args.verb == Verb.build or args.force > 0) and not have_cache(tools)):
+        if last.incremental == Incremental.strict:
             die(
                 "Tools tree does not exist or is out-of-date but the strict incremental mode is enabled",
                 hint="Build once with '-i yes' to update the tools tree",
@@ -5077,6 +5080,10 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
                 resources=resources,
                 keyring_dir=Path(keyring_dir),
                 metadata_dir=Path(metadata_dir),
+            )
+            _, _, manifest = cache_tree_paths(tools)
+            manifest.write_text(
+                json.dumps(tools.cache_manifest(), cls=JsonEncoder, indent=4, sort_keys=True)
             )
 
     if not args.verb.needs_build():
