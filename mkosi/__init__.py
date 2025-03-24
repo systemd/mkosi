@@ -139,7 +139,7 @@ from mkosi.sandbox import (
 )
 from mkosi.sysupdate import run_sysupdate
 from mkosi.tree import copy_tree, make_tree, move_tree, rmtree
-from mkosi.user import INVOKING_USER, become_root_cmd
+from mkosi.user import become_root_cmd
 from mkosi.util import (
     PathString,
     current_home_dir,
@@ -645,16 +645,12 @@ def run_sync_scripts(config: Config) -> None:
     if config.profiles:
         env["PROFILES"] = " ".join(config.profiles)
 
-    # We make sure to mount everything in to make ssh work since syncing might involve git which
-    # could invoke ssh.
-    if agent := os.getenv("SSH_AUTH_SOCK"):
-        env["SSH_AUTH_SOCK"] = agent
-
     with (
         finalize_source_mounts(config, ephemeral=False) as sources,
         finalize_config_json(config) as json,
         tempfile.TemporaryDirectory(
-            dir=config.workspace_dir_or_default(), prefix="mkosi-metadata-"
+            dir=config.workspace_dir_or_default(),
+            prefix="mkosi-metadata-",
         ) as sandbox_tree,
     ):
         install_sandbox_trees(config, Path(sandbox_tree))
@@ -664,24 +660,21 @@ def run_sync_scripts(config: Config) -> None:
                 *finalize_certificate_mounts(config),
                 "--ro-bind", script, "/work/sync",
                 "--ro-bind", json, "/work/config.json",
+                # We need to make sure SSH keys and such can be accessed when git is used so bind in /home to
+                # make sure that works.
+                "--ro-bind", "/home", "/home",
+                # e.g. the ssh-agent socket and such will be in /run and might be used by git so make sure
+                # those are available as well.
+                "--ro-bind", "/run", "/run",
                 "--dir", "/work/src",
                 "--chdir", "/work/src",
                 *sources,
             ]  # fmt: skip
 
-            if (p := INVOKING_USER.home()).exists() and p != Path("/"):
-                # We use a writable mount here to keep git worktrees working which encode absolute
-                # paths to the parent git repository and might need to modify the git config in the
-                # parent git repository when submodules are in use as well.
-                options += ["--bind", p, p]
-                env["HOME"] = os.fspath(p)
-            if (p := Path(f"/run/user/{os.getuid()}")).exists():
-                options += ["--ro-bind", p, p]
-
             with complete_step(f"Running sync script {script}…"):
                 run(
                     ["/work/sync", "final"],
-                    env=env | config.finalize_environment(),
+                    env=os.environ | env | config.finalize_environment(),
                     stdin=sys.stdin,
                     sandbox=config.sandbox(
                         network=True,
@@ -2513,7 +2506,7 @@ def calculate_signature_gpg(context: Context) -> None:
         workdir(context.staging / context.config.output_checksum),
     ]
 
-    home = Path(context.config.finalize_environment().get("GNUPGHOME", INVOKING_USER.home() / ".gnupg"))
+    home = Path(context.config.finalize_environment().get("GNUPGHOME", Path.home() / ".gnupg"))
     if not home.exists():
         die(f"GPG home {home} not found")
 
@@ -2600,6 +2593,13 @@ def print_output_size(path: Path) -> None:
 
 
 def cache_tree_paths(config: Config) -> tuple[Path, Path, Path]:
+    if config.image == "tools":
+        return (
+            config.output_dir_or_cwd() / "mkosi.tools",
+            config.output_dir_or_cwd() / "mkosi.tools.build.cache",
+            config.output_dir_or_cwd() / "mkosi.tools.manifest",
+        )
+
     assert config.cache_dir
     return (
         config.cache_dir / f"{config.expand_key_specifiers(config.cache_key)}.cache",
@@ -3207,7 +3207,8 @@ def save_cache(context: Context) -> None:
 
 
 def have_cache(config: Config) -> bool:
-    if not config.is_incremental():
+    # The default tools tree is always cached regardless of the incremental mode.
+    if not config.is_incremental() and config.image != "tools":
         return False
 
     final, build, manifest = cache_tree_paths(config)
@@ -4513,16 +4514,13 @@ def finalize_default_tools(config: Config, *, resources: Path) -> Config:
         f"--cache-only={config.cacheonly}",
         *([f"--output-directory={os.fspath(p)}"] if (p := config.output_dir) else []),
         *([f"--workspace-directory={os.fspath(p)}"] if (p := config.workspace_dir) else []),
-        *([f"--cache-directory={os.fspath(p)}"] if (p := config.cache_dir) else []),
-        "--cache-key=tools",
         *([f"--package-cache-directory={os.fspath(p)}"] if (p := config.package_cache_dir) else []),
-        f"--incremental={config.incremental}",
+        "--incremental=no",
         *([f"--package={package}" for package in config.tools_tree_packages]),
         *([f"--package-directory={os.fspath(directory)}" for directory in config.tools_tree_package_directories]),  # noqa: E501
         *([f"--build-sources={tree}" for tree in config.build_sources]),
         f"--build-sources-ephemeral={config.build_sources_ephemeral}",
         *([f"--prepare-script={os.fspath(script)}" for script in config.tools_tree_prepare_scripts]),
-        "--output=tools",
         *([f"--source-date-epoch={e}"] if (e := config.source_date_epoch) is not None else []),
         *([f"--environment={k}='{v}'" for k, v in config.environment.items()]),
         *([f"--proxy-url={config.proxy_url}"] if config.proxy_url else []),
@@ -5045,10 +5043,8 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
 
     # If we're doing an incremental build and the cache is not out of date, don't clean up the
     # tools tree so that we can reuse the previous one.
-    if tools and (
-        not tools.is_incremental() or ((args.verb == Verb.build or args.force > 0) and not have_cache(tools))
-    ):
-        if tools.incremental == Incremental.strict:
+    if tools and ((args.verb == Verb.build or args.force > 0) and not have_cache(tools)):
+        if last.incremental == Incremental.strict:
             die(
                 "Tools tree does not exist or is out-of-date but the strict incremental mode is enabled",
                 hint="Build once with '-i yes' to update the tools tree",
@@ -5084,6 +5080,10 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
                 resources=resources,
                 keyring_dir=Path(keyring_dir),
                 metadata_dir=Path(metadata_dir),
+            )
+            _, _, manifest = cache_tree_paths(tools)
+            manifest.write_text(
+                json.dumps(tools.cache_manifest(), cls=JsonEncoder, indent=4, sort_keys=True)
             )
 
     if not args.verb.needs_build():
