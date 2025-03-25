@@ -4512,7 +4512,6 @@ def finalize_default_tools(config: Config, *, resources: Path) -> Config:
         f"--repository-key-check={config.repository_key_check}",
         f"--repository-key-fetch={config.repository_key_fetch}",
         f"--cache-only={config.cacheonly}",
-        *([f"--output-directory={os.fspath(p)}"] if (p := config.output_dir) else []),
         *([f"--workspace-directory={os.fspath(p)}"] if (p := config.workspace_dir) else []),
         *([f"--package-cache-directory={os.fspath(p)}"] if (p := config.package_cache_dir) else []),
         "--incremental=no",
