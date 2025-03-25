@@ -406,6 +406,9 @@ def test_config() -> None:
                     "Target": "/"
                 }
             ],
+            "ToolsTreeSyncScripts": [
+                "/sync"
+            ],
             "UnifiedKernelImageFormat": "myuki",
             "UnifiedKernelImageProfiles": [
                 {
@@ -615,6 +618,7 @@ def test_config() -> None:
         tools_tree_release=None,
         tools_tree_repositories=["abc"],
         tools_tree_sandbox_trees=[ConfigTree(Path("/a/b/c"), Path("/"))],
+        tools_tree_sync_scripts=[Path("/sync")],
         tools_tree=None,
         tpm=ConfigFeature.auto,
         unified_kernel_image_format="myuki",
