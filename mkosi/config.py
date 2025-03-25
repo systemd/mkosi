@@ -2251,7 +2251,16 @@ class Config:
             "release": self.release,
             "mirror": self.mirror,
             "architecture": self.architecture,
-            "package_manager": self.distribution.package_manager(self).executable(self),
+            # Caching the package manager used does not matter for the default tools tree because we don't
+            # cache the package manager metadata for the tools tree either. In fact, it can cause issues as
+            # the cache manifest for the tools tree will sometimes be different depending on whether we're
+            # running inside or outside of the mkosi sandbox. To avoid these issues, don't cache the package
+            # manager used in the tools tree cache manifest.
+            **(
+                {"package_manager": self.distribution.package_manager(self).executable(self)}
+                if self.image != "tools"
+                else {}
+            ),
             "packages": sorted(self.packages),
             "build_packages": sorted(self.build_packages),
             "package_directories": [
