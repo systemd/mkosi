@@ -8,6 +8,8 @@ mkosi — Build Bespoke OS Images
 
 # SYNOPSIS
 
+`mkosi [options…] init`
+
 `mkosi [options…] summary`
 
 `mkosi [options…] cat-config`
@@ -56,6 +58,13 @@ mkosi — Build Bespoke OS Images
 ## Command Line Verbs
 
 The following command line verbs are known:
+
+`init`
+:   Initialize **mkosi**. This is a one time operation that sets up various
+    config files required for an optimal experience. Currently this only
+    initialized a `tmpfiles.d` dropin for the mkosi package cache
+    directory to make sure old, unused files are cleaned up
+    automatically.
 
 `summary`
 :   Show a human-readable summary of all options used for building the images.

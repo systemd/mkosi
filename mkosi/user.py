@@ -24,8 +24,6 @@ class INVOKING_USER:
             cache = Path(env)
         elif cls.is_regular_user(os.getuid()) and Path.home() != Path("/"):
             cache = Path.home() / ".cache"
-        elif os.getuid() == 0 and Path.cwd().is_relative_to("/root") and "XDG_SESSION_ID" in os.environ:
-            cache = Path("/root/.cache")
         else:
             cache = Path("/var/cache")
 
@@ -41,6 +39,14 @@ class INVOKING_USER:
             d = Path("/run")
 
         return d
+
+    @classmethod
+    def tmpfiles_dir(cls) -> Path:
+        config = Path(os.getenv("XDG_CONFIG_HOME", Path.home() / ".config"))
+        if config in (Path("/"), Path("/root")):
+            return Path("/etc/tmpfiles.d")
+
+        return config / "user-tmpfiles.d"
 
     @classmethod
     def chown(cls, path: Path) -> None:
