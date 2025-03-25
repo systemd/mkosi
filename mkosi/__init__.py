@@ -4516,6 +4516,7 @@ def finalize_default_tools(config: Config, *, resources: Path) -> Config:
         *([f"--package-directory={os.fspath(directory)}" for directory in config.tools_tree_package_directories]),  # noqa: E501
         *([f"--build-sources={tree}" for tree in config.build_sources]),
         f"--build-sources-ephemeral={config.build_sources_ephemeral}",
+        *([f"--sync-script={os.fspath(script)}" for script in config.tools_tree_sync_scripts]),
         *([f"--prepare-script={os.fspath(script)}" for script in config.tools_tree_prepare_scripts]),
         *([f"--source-date-epoch={e}"] if (e := config.source_date_epoch) is not None else []),
         *([f"--environment={k}='{v}'" for k, v in config.environment.items()]),
@@ -5042,6 +5043,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
 
         run_clean(args, tools)
 
+        run_sync_scripts(tools)
         check_tools(tools, Verb.build)
         ensure_directories_exist(tools)
 

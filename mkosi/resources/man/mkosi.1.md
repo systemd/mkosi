@@ -1417,6 +1417,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `ToolsTreePackageDirectories=`, `--tools-tree-package-directory=`
 :   Same as `PackageDirectories=`, but for the default tools tree.
 
+`SyncScripts=`, `--sync-script=`
+:   Same as `SyncScripts=`, but for the default tools tree.
+
 `ToolsTreePrepareScripts=`, `--tools-tree-prepare-script=`
 :   Same as `PrepareScripts=`, but for the default tools tree.
 

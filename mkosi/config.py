@@ -1988,6 +1988,7 @@ class Config:
     tools_tree_sandbox_trees: list[ConfigTree]
     tools_tree_packages: list[str]
     tools_tree_package_directories: list[Path]
+    tools_tree_sync_scripts: list[Path]
     tools_tree_prepare_scripts: list[Path]
     tools_tree_certificates: bool
     extra_search_paths: list[Path]
@@ -3535,6 +3536,16 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Build",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         help="Specify a directory containing extra tools tree packages",
+    ),
+    ConfigSetting(
+        dest="tools_tree_sync_scripts",
+        long="--tools-tree-sync-script",
+        metavar="PATH",
+        section="Build",
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        paths=("mkosi.tools.sync",),
+        recursive_paths=("mkosi.tools.sync.d/*",),
+        help="Sync script to run before building the tools tree",
     ),
     ConfigSetting(
         dest="tools_tree_prepare_scripts",
@@ -5240,6 +5251,7 @@ def summary(config: Config) -> str:
            Tools Tree Sandbox Trees: {line_join_list(config.tools_tree_sandbox_trees)}
                 Tools Tree Packages: {line_join_list(config.tools_tree_packages)}
      Tools Tree Package Directories: {line_join_list(config.tools_tree_package_directories)}
+            Tools Tree Sync Scripts: {line_join_list(config.tools_tree_sync_scripts)}
          Tools Tree Prepare Scripts: {line_join_list(config.tools_tree_prepare_scripts)}
             Tools Tree Certificates: {yes_no(config.tools_tree_certificates)}
 
