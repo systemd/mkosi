@@ -45,6 +45,7 @@ initrds and Unified Kernel Images for the current running system.
     disabled.
 
     The `lvm` profile enables support for LVM.
+    The `pkcs11` profile enables support for PKCS#11.
     The `raid` profile enables support for RAID arrays.
 
 `--debug`
