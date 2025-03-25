@@ -41,6 +41,14 @@ class INVOKING_USER:
         return d
 
     @classmethod
+    def tmpfiles_dir(cls) -> Path:
+        config = Path(os.getenv("XDG_CONFIG_HOME", Path.home() / ".config"))
+        if config in (Path("/"), Path("/root")):
+            return Path("/etc/tmpfiles.d")
+
+        return config / "user-tmpfiles.d"
+
+    @classmethod
     def chown(cls, path: Path) -> None:
         # If we created a file/directory in a parent directory owned by a regular user, make sure the path
         # and any parent directories are owned by the invoking user as well.

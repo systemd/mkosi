@@ -139,7 +139,7 @@ from mkosi.sandbox import (
 )
 from mkosi.sysupdate import run_sysupdate
 from mkosi.tree import copy_tree, make_tree, move_tree, rmtree
-from mkosi.user import become_root_cmd
+from mkosi.user import INVOKING_USER, become_root_cmd
 from mkosi.util import (
     PathString,
     current_home_dir,
@@ -4930,6 +4930,11 @@ def run_build(
 
 def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
     images = list(images)
+
+    if args.verb == Verb.init:
+        copy_tree(resources / "tmpfiles.d", INVOKING_USER.tmpfiles_dir(), preserve=False)
+        log_notice(f"Copied mkosi tmpfiles dropins to {INVOKING_USER.tmpfiles_dir()}")
+        return
 
     if args.verb == Verb.completion:
         return print_completion(args, resources=resources)

@@ -81,6 +81,7 @@ class Verb(StrEnum):
     completion = enum.auto()
     sysupdate = enum.auto()
     sandbox = enum.auto()
+    init = enum.auto()
 
     def supports_cmdline(self) -> bool:
         return self in (
@@ -119,6 +120,7 @@ class Verb(StrEnum):
             Verb.documentation,
             Verb.dependencies,
             Verb.completion,
+            Verb.init,
         )
 
 
@@ -4153,7 +4155,8 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
         # the synopsis below is supposed to be indented by two spaces
         usage="\n  "
         + textwrap.dedent("""\
-              mkosi [options…] {b}summary{e}
+              mkosi [options…] {b}init{e}
+                mkosi [options…] {b}summary{e}
                 mkosi [options…] {b}cat-config{e}
                 mkosi [options…] {b}build{e}         [-- command line…]
                 mkosi [options…] {b}shell{e}         [-- command line…]
