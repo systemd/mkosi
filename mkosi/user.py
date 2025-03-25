@@ -24,8 +24,6 @@ class INVOKING_USER:
             cache = Path(env)
         elif cls.is_regular_user(os.getuid()) and Path.home() != Path("/"):
             cache = Path.home() / ".cache"
-        elif os.getuid() == 0 and Path.cwd().is_relative_to("/root") and "XDG_SESSION_ID" in os.environ:
-            cache = Path("/root/.cache")
         else:
             cache = Path("/var/cache")
 
