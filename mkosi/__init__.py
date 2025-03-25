@@ -72,6 +72,7 @@ from mkosi.config import (
     expand_delayed_specifiers,
     format_bytes,
     have_history,
+    in_sandbox,
     parse_boolean,
     parse_config,
     resolve_deps,
@@ -4041,10 +4042,6 @@ def build_image(context: Context) -> None:
     print_output_size(context.config.output_dir_or_cwd() / context.config.output_with_compression)
 
 
-def in_sandbox() -> bool:
-    return parse_boolean(os.getenv("MKOSI_IN_SANDBOX", "0"))
-
-
 def run_sandbox(args: Args, config: Config) -> None:
     if in_sandbox():
         die(
@@ -4993,20 +4990,13 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
 
     last = images[-1]
 
-    if not in_sandbox() and last.tools_tree and last.tools_tree == Path("default"):
+    if last.tools_tree and last.tools_tree == Path("default"):
         tools = finalize_default_tools(last, resources=resources)
+
+        for i, config in enumerate(images):
+            images[i] = dataclasses.replace(config, tools_tree=tools.output_dir_or_cwd() / tools.output)
     else:
         tools = None
-
-    for i, config in enumerate(images):
-        if in_sandbox():
-            tools_tree = None
-        elif tools and config.tools_tree == Path("default"):
-            tools_tree = tools.output_dir_or_cwd() / tools.output
-        else:
-            tools_tree = config.tools_tree
-
-        images[i] = dataclasses.replace(config, tools_tree=tools_tree)
 
     # The images array has been modified so we need to reevaluate last again.
     last = images[-1]
@@ -5025,33 +5015,28 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
 
         return
 
-    if (
-        tools
-        and (
-            not (tools.output_dir_or_cwd() / tools.output).exists()
-            or (tools.is_incremental() and not have_cache(tools))
-        )
-        and args.verb != Verb.build
-        and not args.force
-    ):
-        die(
-            f"Default tools tree requested for image '{last.image}' but it is out-of-date or has not been "
-            "built yet",
-            hint="Make sure to (re)build the image first with 'mkosi build' or use '--force'",
-        )
-
-    # If we're doing an incremental build and the cache is not out of date, don't clean up the
-    # tools tree so that we can reuse the previous one.
-    if tools and ((args.verb == Verb.build or args.force > 0) and not have_cache(tools)):
-        if last.incremental == Incremental.strict:
+    # For the default tools tree have_cache() encompasses the "has the tools tree been built at all" check.
+    if tools and not have_cache(tools):
+        if args.verb != Verb.build and args.force == 0:
             die(
-                "Tools tree does not exist or is out-of-date but the strict incremental mode is enabled",
-                hint="Build once with '-i yes' to update the tools tree",
+                f"Default tools tree requested for image '{last.image}' but it is out-of-date or has not "
+                "been built yet",
+                hint="Make sure to (re)build the tools tree first with 'mkosi build' or use '--force'",
+            )
+        elif in_sandbox():
+            die(
+                "Cannot rebuild out-of-date default tools tree from inside mkosi sandbox",
+                hint="Exit mkosi sandbox and re-enter the sandbox again with mkosi -f sandbox to "
+                "rebuild the default tools tree",
+            )
+        elif last.incremental == Incremental.strict:
+            die(
+                "Default tools tree is out-of-date but the strict incremental mode is enabled",
+                hint="Build once without --incremental=strict to rebuild the default tools tree",
             )
 
         run_clean(args, tools)
 
-    if tools and not (tools.output_dir_or_cwd() / tools.output).exists():
         check_tools(tools, Verb.build)
         ensure_directories_exist(tools)
 

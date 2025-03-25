@@ -650,6 +650,10 @@ def parse_boolean(s: str) -> bool:
     return value
 
 
+def in_sandbox() -> bool:
+    return parse_boolean(os.getenv("MKOSI_IN_SANDBOX", "0"))
+
+
 def parse_path(
     value: str,
     *,
@@ -2116,6 +2120,9 @@ class Config:
         return self.package_cache_dir or (INVOKING_USER.cache_dir() / "mkosi" / key)
 
     def tools(self) -> Path:
+        if in_sandbox():
+            return Path("/")
+
         return self.tools_tree or Path("/")
 
     @classmethod
