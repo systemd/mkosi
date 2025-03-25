@@ -24,6 +24,7 @@
 mkosi.local
 mkosi.local.conf
 mkosi.tools
+mkosi.tools.manifest
 /mkosi.key
 /mkosi.crt
 __pycache__
