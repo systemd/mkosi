@@ -2956,7 +2956,7 @@ def configure_clock(context: Context) -> None:
 
 
 def run_depmod(context: Context, *, cache: bool = False) -> None:
-    if context.config.overlay:
+    if context.config.overlay or context.config.image == "tools":
         return
 
     if not cache:
@@ -3001,7 +3001,11 @@ def run_depmod(context: Context, *, cache: bool = False) -> None:
 
 
 def run_sysusers(context: Context) -> None:
-    if context.config.overlay or context.config.output_format.is_extension_image():
+    if (
+        context.config.overlay
+        or context.config.output_format.is_extension_image()
+        or context.config.image == "tools"
+    ):
         return
 
     if not context.config.find_binary("systemd-sysusers"):
@@ -3016,7 +3020,11 @@ def run_sysusers(context: Context) -> None:
 
 
 def run_tmpfiles(context: Context) -> None:
-    if context.config.overlay or context.config.output_format.is_extension_image():
+    if (
+        context.config.overlay
+        or context.config.output_format.is_extension_image()
+        or context.config.image == "tools"
+    ):
         return
 
     if not context.config.find_binary("systemd-tmpfiles"):
@@ -3057,7 +3065,11 @@ def run_tmpfiles(context: Context) -> None:
 
 
 def run_preset(context: Context) -> None:
-    if context.config.overlay or context.config.output_format.is_extension_image():
+    if (
+        context.config.overlay
+        or context.config.output_format.is_extension_image()
+        or context.config.image == "tools"
+    ):
         return
 
     if not context.config.find_binary("systemctl"):
@@ -3076,7 +3088,11 @@ def run_preset(context: Context) -> None:
 
 
 def run_hwdb(context: Context) -> None:
-    if context.config.overlay or context.config.output_format.is_extension_image():
+    if (
+        context.config.overlay
+        or context.config.output_format.is_extension_image()
+        or context.config.image == "tools"
+    ):
         return
 
     if not context.config.find_binary("systemd-hwdb"):
