@@ -1472,9 +1472,9 @@ def run_qemu(args: Args, config: Config) -> None:
 
             device_type = "virtio-blk-pci"
             if config.cdrom:
-                device_type = "scsi-cd"
+                device_type = "scsi-cd,device_id=mkosi"
             elif config.removable:
-                device_type = "scsi-hd,removable=on"
+                device_type = "scsi-hd,device_id=mkosi,removable=on"
 
             cmdline += [
                 "-blockdev", ",".join(blockdev),
