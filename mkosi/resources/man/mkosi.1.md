@@ -242,8 +242,7 @@ Those settings cannot be configured in the configuration files.
     operation this option has a slightly different effect: by default
     the verb will only remove build artifacts from a previous run, when
     specified once the incremental cache files and the tools tree are deleted
-    too, and when
-    specified twice the package cache is also removed.
+    too, and when specified twice the package cache is also removed.
 
 `--directory=`, `-C`
 :   Takes a path to a directory. **mkosi** switches to this directory before
