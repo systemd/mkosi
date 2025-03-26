@@ -5024,7 +5024,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
     last = images[-1]
 
     if args.verb == Verb.clean:
-        if tools:
+        if tools and args.force > 0:
             run_clean(args, tools)
 
         for config in images:
