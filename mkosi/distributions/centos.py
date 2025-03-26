@@ -342,7 +342,10 @@ class Installer(DistributionInstaller):
         sigs = (
             (
                 "hyperscale",
-                (f"packages-{c}" for c in ("main", "experimental", "facebook", "hotfixes", "spin", "intel")),
+                (
+                    f"packages-{c}"
+                    for c in ("main", "experimental", "facebook", "hotfixes", "spin", "intel", "kernel")
+                ),
                 ("RPM-GPG-KEY-CentOS-SIG-HyperScale",),
             ),
         )
