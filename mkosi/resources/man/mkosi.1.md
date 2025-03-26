@@ -2865,7 +2865,6 @@ and cannot be configured in subimages:
 - `OutputMode=`
 - `PackageCacheDirectory=`
 - `PackageDirectories=`
-- `Profiles=`
 - `ProxyClientCertificate=`
 - `ProxyClientKey=`
 - `ProxyExclude=`
@@ -2903,6 +2902,7 @@ the subimage will take priority over values configured on the CLI or
 in the main image config. Currently the following settings are passed
 down to subimages but can be overridden:
 
+- `Profiles=`
 - `ImageId=`
 - `ImageVersion=`
 - `SectorSize=`
