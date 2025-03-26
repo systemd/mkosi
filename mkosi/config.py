@@ -2503,7 +2503,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         help="Build the specified profiles",
         parse=config_make_list_parser(delimiter=",", parse=parse_profile),
         match=config_make_list_matcher(parse=parse_profile),
-        scope=SettingScope.universal,
+        scope=SettingScope.inherit,
         compat_names=("Profile",),
     ),
     ConfigSetting(
