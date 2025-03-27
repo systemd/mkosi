@@ -154,8 +154,8 @@ The following command line verbs are known:
 
 `clean`
 :   Remove build artifacts generated on a previous build. If combined
-    with `-f`, also removes incremental build cache images. If `-f` is
-    specified twice, also removes any package cache.
+    with `-f`, also removes incremental build cache images and the tools tree.
+    If `-f` is specified twice, also removes any package cache.
 
 `serve`
 :   This builds the image if it is not built yet, and then serves the
@@ -241,8 +241,8 @@ Those settings cannot be configured in the configuration files.
     removed too, before the re-build is initiated. For the `clean`
     operation this option has a slightly different effect: by default
     the verb will only remove build artifacts from a previous run, when
-    specified once the incremental cache files are deleted too, and when
-    specified twice the package cache is also removed.
+    specified once the incremental cache files and the tools tree are deleted
+    too, and when specified twice the package cache is also removed.
 
 `--directory=`, `-C`
 :   Takes a path to a directory. **mkosi** switches to this directory before
@@ -1304,6 +1304,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     but the `mkosi.tools/` directory is found in the local directory it is
     automatically used for this purpose with the root directory as target.
 
+:   The tools tree directory is kept between repeated image builds unless
+    cleaned by calling `mkosi clean -f`.
+
     Note that binaries found in any of the paths configured with
     `ExtraSearchPaths=` will be executed with `/usr/` from the tools
     tree instead of from the host. If the host distribution or release
@@ -1417,7 +1420,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `ToolsTreePackageDirectories=`, `--tools-tree-package-directory=`
 :   Same as `PackageDirectories=`, but for the default tools tree.
 
-`SyncScripts=`, `--sync-script=`
+`ToolsTreeSyncScripts=`, `--tools-tree-sync-script=`
 :   Same as `SyncScripts=`, but for the default tools tree.
 
 `ToolsTreePrepareScripts=`, `--tools-tree-prepare-script=`
