@@ -1732,8 +1732,13 @@ class Args:
         return args
 
     @classmethod
+    @functools.lru_cache(maxsize=1)
+    def fields(cls) -> set[str]:
+        return {f.name for f in dataclasses.fields(cls)}
+
+    @classmethod
     def from_namespace(cls, ns: argparse.Namespace) -> "Args":
-        return cls(**{k: v for k, v in vars(ns).items() if k in inspect.signature(cls).parameters})
+        return cls(**{k: v for k, v in vars(ns).items() if k in cls.fields()})
 
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self, dict_factory=dict_with_capitalised_keys_factory)
@@ -1763,7 +1768,7 @@ class Args:
         for k, v in j.items():
             k = key_transformer(k)
 
-            if k not in inspect.signature(cls).parameters and (not isinstance(v, (dict, list, set)) or v):
+            if k not in cls.fields() and (not isinstance(v, (dict, list, set)) or v):
                 die(
                     f"Serialized JSON has unknown field {k} with value {v}",
                     hint="Re-running mkosi once with -f should solve the issue by re-generating the JSON",
@@ -1772,9 +1777,7 @@ class Args:
         value_transformer = json_type_transformer(cls)
         j = {(tk := key_transformer(k)): value_transformer(tk, v) for k, v in j.items()}
 
-        return dataclasses.replace(
-            cls.default(), **{k: v for k, v in j.items() if k in inspect.signature(cls).parameters}
-        )
+        return dataclasses.replace(cls.default(), **{k: v for k, v in j.items() if k in cls.fields()})
 
 
 PACKAGE_GLOBS = (
@@ -1842,9 +1845,8 @@ def make_simple_config_parser(
         for setting in settings:
             finalize_value(config, setting)
 
-        return valtype(
-            **{k: v for k, v in vars(config).items() if k in inspect.signature(valtype).parameters}
-        )
+        parameters = inspect.signature(valtype).parameters
+        return valtype(**{k: v for k, v in vars(config).items() if k in parameters})
 
     return parse_simple_config
 
@@ -2141,8 +2143,13 @@ class Config:
         return config
 
     @classmethod
+    @functools.lru_cache(maxsize=1)
+    def fields(cls) -> set[str]:
+        return {f.name for f in dataclasses.fields(cls)}
+
+    @classmethod
     def from_namespace(cls, ns: argparse.Namespace) -> "Config":
-        return cls(**{k: v for k, v in vars(ns).items() if k in inspect.signature(cls).parameters})
+        return cls(**{k: v for k, v in vars(ns).items() if k in cls.fields()})
 
     @property
     def output_with_format(self) -> str:
@@ -2334,7 +2341,7 @@ class Config:
         for k, v in j.items():
             k = key_transformer(k)
 
-            if k not in inspect.signature(cls).parameters and (not isinstance(v, (dict, list, set)) or v):
+            if k not in cls.fields() and (not isinstance(v, (dict, list, set)) or v):
                 die(
                     f"Serialized JSON has unknown field {k} with value {v}",
                     hint="Re-running mkosi once with -f should solve the issue by re-generating the JSON",
@@ -2343,9 +2350,7 @@ class Config:
         value_transformer = json_type_transformer(cls)
         j = {(tk := key_transformer(k)): value_transformer(tk, v) for k, v in j.items()}
 
-        return dataclasses.replace(
-            cls.default(), **{k: v for k, v in j.items() if k in inspect.signature(cls).parameters}
-        )
+        return dataclasses.replace(cls.default(), **{k: v for k, v in j.items() if k in cls.fields()})
 
     def find_binary(self, *names: PathString, tools: bool = True) -> Optional[Path]:
         return find_binary(*names, root=self.tools() if tools else Path("/"), extra=self.extra_search_paths)
