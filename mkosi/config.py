@@ -9,7 +9,6 @@ import fnmatch
 import functools
 import getpass
 import graphlib
-import inspect
 import io
 import json
 import logging
@@ -29,7 +28,7 @@ import uuid
 from collections.abc import Collection, Iterable, Iterator, Sequence
 from contextlib import AbstractContextManager
 from pathlib import Path
-from typing import Any, Callable, Generic, Optional, TypeVar, Union, cast
+from typing import Any, Callable, ClassVar, Generic, Optional, Protocol, TypeVar, Union, cast
 
 from mkosi.distributions import Distribution, detect_distribution
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SANDBOX, ARG_DEBUG_SHELL, die
@@ -49,7 +48,15 @@ from mkosi.util import (
 )
 from mkosi.versioncomp import GenericVersion
 
+
+# taken from
+# https://github.com/python/typeshed/blob/c67f9da3732f4374bc208f896a18c60435863e1b/stdlib/_typeshed/__init__.pyi#L352
+class DataclassInstance(Protocol):
+    __dataclass_fields__: ClassVar[dict[str, dataclasses.Field[Any]]]
+
+
 T = TypeVar("T")
+D = TypeVar("D", bound=DataclassInstance)
 SE = TypeVar("SE", bound=StrEnum)
 
 ConfigParseCallback = Callable[[Optional[str], Optional[T]], Optional[T]]
@@ -1797,8 +1804,8 @@ class UKIProfile:
 
 def make_simple_config_parser(
     settings: Sequence[ConfigSetting[object]],
-    valtype: type[T],
-) -> Callable[[str], T]:
+    valtype: type[D],
+) -> Callable[[str], D]:
     lookup_by_name = {s.name: s for s in settings}
     lookup_by_dest = {s.dest: s for s in settings}
 
@@ -1818,7 +1825,7 @@ def make_simple_config_parser(
 
         setattr(config, setting.dest, default)
 
-    def parse_simple_config(value: str) -> T:
+    def parse_simple_config(value: str) -> D:
         path = parse_path(value)
         config = argparse.Namespace()
 
@@ -1845,7 +1852,7 @@ def make_simple_config_parser(
         for setting in settings:
             finalize_value(config, setting)
 
-        parameters = inspect.signature(valtype).parameters
+        parameters = {f.name for f in dataclasses.fields(valtype)}
         return valtype(**{k: v for k, v in vars(config).items() if k in parameters})
 
     return parse_simple_config
