@@ -65,8 +65,11 @@ class Pacman(PackageManager):
         if (context.root / "var/lib/pacman/local").exists():
             # pacman reuses the same directory for the sync databases and the local database containing the
             # list of installed packages. The former should go in the cache directory, the latter should go
-            # in the image, so we bind mount the local directory from the image to make sure that happens.
-            mounts += ["--bind", context.root / "var/lib/pacman/local", "/var/lib/pacman/local"]
+            # in the image, so we bind mount the local directory from the image to make sure that happens. We
+            # make sure to bind mount directly from the mounted /buildroot directly instead of from the host
+            # root directory since /buildroot might be an overlay mount and we want to make sure any writes
+            # are done to the upperdir of the overlay mount.
+            mounts += ["--bind", "+/buildroot/var/lib/pacman/local", "/var/lib/pacman/local"]
 
         return mounts
 

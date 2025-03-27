@@ -42,7 +42,9 @@ host system.
 `--bind SRC DST`
 :   The source path `SRC` is recursively bind mounted to `DST` in the sandbox. The
     mountpoint is created in the sandbox if it does not yet exist. Any missing parent
-    directories in the sandbox are created as well.
+    directories in the sandbox are created as well. The source path may optionally be
+    prefixed with a `+` character. If so, the source path is interpreted relative to the
+    sandbox root directory instead of the host root directory.
 
 `--bind-try SRC DST`
 :   Like `--bind`, but doesn't fail if the source path doesn't exist.

@@ -566,8 +566,9 @@ def pack_file_descriptors() -> int:
 
 
 class FSOperation:
-    def __init__(self, dst: str) -> None:
+    def __init__(self, dst: str, *, relative: bool = False) -> None:
         self.dst = dst
+        self.relative = relative
 
     def execute(self, oldroot: str, newroot: str) -> None:
         raise NotImplementedError()
@@ -592,6 +593,7 @@ class FSOperation:
                 m != n
                 and m.readonly == n.readonly
                 and m.required == n.required
+                and m.relative == n.relative
                 and is_relative_to(m.src, n.src)
                 and is_relative_to(m.dst, n.dst)
                 and os.path.relpath(m.src, n.src) == os.path.relpath(m.dst, n.dst)
@@ -600,16 +602,17 @@ class FSOperation:
         ]
 
         # Make sure bind mounts override other operations on the same destination by appending them
-        # to the rest and depending on python's stable sort behavior.
-        return sorted([*rest, *optimized], key=lambda fsop: splitpath(fsop.dst))
+        # to the rest and depending on python's stable sort behavior. Additionally, relative operations
+        # always go last.
+        return sorted([*rest, *optimized], key=lambda fsop: (fsop.relative, splitpath(fsop.dst)))
 
 
 class BindOperation(FSOperation):
-    def __init__(self, src: str, dst: str, *, readonly: bool, required: bool) -> None:
+    def __init__(self, src: str, dst: str, *, readonly: bool, required: bool, relative: bool) -> None:
         self.src = src
         self.readonly = readonly
         self.required = required
-        super().__init__(dst)
+        super().__init__(dst, relative=relative)
 
     def __hash__(self) -> int:
         return hash((splitpath(self.src), splitpath(self.dst), self.readonly, self.required))
@@ -618,7 +621,7 @@ class BindOperation(FSOperation):
         return isinstance(other, BindOperation) and self.__hash__() == other.__hash__()
 
     def execute(self, oldroot: str, newroot: str) -> None:
-        src = chase(oldroot, self.src)
+        src = chase(newroot if self.relative else oldroot, self.src)
 
         if not os.path.exists(src) and not self.required:
             return
@@ -907,7 +910,16 @@ def main() -> None:
         elif arg in ("--bind", "--ro-bind", "--bind-try", "--ro-bind-try"):
             readonly = arg.startswith("--ro")
             required = not arg.endswith("-try")
-            fsops.append(BindOperation(argv.pop(), argv.pop(), readonly=readonly, required=required))
+            src = argv.pop()
+            fsops.append(
+                BindOperation(
+                    src.removeprefix("+"),
+                    argv.pop(),
+                    readonly=readonly,
+                    required=required,
+                    relative=src.startswith("+"),
+                )
+            )
         elif arg == "--symlink":
             fsops.append(SymlinkOperation(argv.pop(), argv.pop()))
         elif arg == "--write":
