@@ -2491,7 +2491,7 @@ Scripts executed by **mkosi** receive the following environment variables:
 * `$PROFILES` contains the profiles from the `Profiles=` setting as a
   comma-delimited string.
 
-* `$CACHED=` is set to `1` if a cached image is available, `0` otherwise.
+* `$CACHED` is set to `1` if a cached image is available, `0` otherwise.
 
 * `$CHROOT_SCRIPT` contains the path to the running script relative to
   the image root directory. The primary usecase for this variable is in
@@ -2584,33 +2584,33 @@ Consult this table for which script receives which environment variables:
 | Variable                    | `configure` | `sync` | `prepare` | `build` | `postinst` | `finalize` | `postoutput` | `clean` |
 |-----------------------------|:-----------:|:------:|:---------:|:-------:|:----------:|:----------:|:------------:|:-------:|
 | `ARCHITECTURE`              | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
-| `QEMU_ARCHITECTURE`         | ✓           |        |           |         |            |            |              |         |
+| `ARTIFACTDIR`               |             |        | ✓         | ✓       | ✓          | ✓          |              |         |
+| `BUILDDIR`                  |             |        |           | ✓       | ✓          | ✓          |              |         |
+| `BUILDROOT`                 |             |        | ✓         | ✓       | ✓          | ✓          |              |         |
+| `CACHED`                    |             | ✓      |           |         |            |            |              |         |
+| `CHROOT_BUILDDIR`           |             |        |           | ✓       |            |            |              |         |
+| `CHROOT_DESTDIR`            |             |        |           | ✓       |            |            |              |         |
+| `CHROOT_OUTPUTDIR`          |             |        |           |         | ✓          | ✓          |              |         |
+| `CHROOT_SCRIPT`             |             |        | ✓         | ✓       | ✓          | ✓          |              |         |
+| `CHROOT_SRCDIR`             |             |        | ✓         | ✓       | ✓          | ✓          |              |         |
+| `DESTDIR`                   |             |        |           | ✓       |            |            |              |         |
 | `DISTRIBUTION`              | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
 | `DISTRIBUTION_ARCHITECTURE` | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
-| `RELEASE`                   | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
-| `PROFILES`                  | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          |              | ✓       |
-| `CACHED`                    |             | ✓      |           |         |            |            |              |         |
-| `CHROOT_SCRIPT`             |             |        | ✓         | ✓       | ✓          | ✓          |              |         |
-| `SRCDIR`                    | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
-| `CHROOT_SRCDIR`             |             |        | ✓         | ✓       | ✓          | ✓          |              |         |
-| `BUILDDIR`                  |             |        |           | ✓       | ✓          | ✓          |              |         |
-| `CHROOT_BUILDDIR`           |             |        |           | ✓       |            |            |              |         |
-| `DESTDIR`                   |             |        |           | ✓       |            |            |              |         |
-| `CHROOT_DESTDIR`            |             |        |           | ✓       |            |            |              |         |
-| `OUTPUTDIR`                 |             |        |           |         | ✓          | ✓          | ✓            | ✓       |
-| `CHROOT_OUTPUTDIR`          |             |        |           |         | ✓          | ✓          |              |         |
-| `BUILDROOT`                 |             |        | ✓         | ✓       | ✓          | ✓          |              |         |
-| `PACKAGEDIR`                |             |        | ✓         | ✓       | ✓          | ✓          |              |         |
-| `ARTIFACTDIR`               |             |        | ✓         | ✓       | ✓          | ✓          |              |         |
-| `WITH_DOCS`                 |             |        | ✓         | ✓       |            |            |              |         |
-| `WITH_TESTS`                |             |        | ✓         | ✓       |            |            |              |         |
-| `WITH_NETWORK`              |             |        | ✓         | ✓       | ✓          | ✓          |              |         |
-| `SOURCE_DATE_EPOCH`         |             |        | ✓         | ✓       | ✓          | ✓          |              | ✓       |
-| `MKOSI_UID`                 | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
-| `MKOSI_GID`                 | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
-| `MKOSI_CONFIG`              |             | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
 | `IMAGE_ID`                  | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
 | `IMAGE_VERSION`             | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
+| `MKOSI_CONFIG`              |             | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
+| `MKOSI_GID`                 | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
+| `MKOSI_UID`                 | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
+| `OUTPUTDIR`                 |             |        |           |         | ✓          | ✓          | ✓            | ✓       |
+| `PACKAGEDIR`                |             |        | ✓         | ✓       | ✓          | ✓          |              |         |
+| `PROFILES`                  | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          |              | ✓       |
+| `QEMU_ARCHITECTURE`         | ✓           |        |           |         |            |            |              |         |
+| `RELEASE`                   | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
+| `SOURCE_DATE_EPOCH`         |             |        | ✓         | ✓       | ✓          | ✓          |              | ✓       |
+| `SRCDIR`                    | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
+| `WITH_DOCS`                 |             |        | ✓         | ✓       |            |            |              |         |
+| `WITH_NETWORK`              |             |        | ✓         | ✓       | ✓          | ✓          |              |         |
+| `WITH_TESTS`                |             |        | ✓         | ✓       |            |            |              |         |
 
 Additionally, when a script is executed, a few scripts are made
 available via `$PATH` to simplify common usecases.
