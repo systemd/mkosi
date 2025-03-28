@@ -5004,16 +5004,6 @@ def parse_config(
             elif hasattr(context.cli, s.dest):
                 delattr(context.cli, s.dest)
 
-        setattr(
-            context.cli,
-            "environment",
-            {
-                name: getattr(config, "environment")[name]
-                for name in getattr(config, "pass_environment", {})
-                if name in getattr(config, "environment", {})
-            },
-        )
-
         for p in sorted(Path("mkosi.images").iterdir()):
             p = p.absolute()
 
@@ -5035,6 +5025,16 @@ def parse_config(
             for s in SETTINGS:
                 if s.scope == SettingScope.inherit and hasattr(config, s.dest):
                     setattr(context.config, s.dest, copy.deepcopy(getattr(config, s.dest)))
+
+            setattr(
+                context.config,
+                "environment",
+                {
+                    name: getattr(config, "environment")[name]
+                    for name in getattr(config, "pass_environment", {})
+                    if name in getattr(config, "environment", {})
+                },
+            )
 
             # Allow subimage configuration to include everything again.
             context.includes = set()
