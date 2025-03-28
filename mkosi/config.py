@@ -3490,7 +3490,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
         parse=config_make_enum_parser(Distribution),
         match=config_make_enum_matcher(Distribution),
         choices=Distribution.choices(),
-        default_factory_depends=("distribution",),
         default_factory=config_default_tools_tree_distribution,
         help="Set the distribution to use for the default tools tree",
     ),
