@@ -110,7 +110,7 @@ def log_process_failure(sandbox: Sequence[str], cmdline: Sequence[str], returnco
             f'"{shlex.join([*sandbox, *cmdline] if ARG_DEBUG.get() else cmdline)}"'
             f" was killed by {signal.Signals(-returncode).name} signal."
         )
-    elif returncode == 127:
+    elif returncode == 127 and cmdline[0] != "mkosi":
         # Anything invoked beneath /work is a script that we mount into place (so we know it exists). If one
         # of these scripts fails with exit code 127, it's either because the script interpreter was not
         # installed or because one of the commands in the script failed with exit code 127.
