@@ -4851,7 +4851,6 @@ def finalize_default_tools(config: argparse.Namespace, *, resources: Path) -> Co
         f"--cache-only={main.cacheonly}",
         *([f"--workspace-directory={os.fspath(p)}"] if (p := main.workspace_dir) else []),
         *([f"--package-cache-directory={os.fspath(p)}"] if (p := main.package_cache_dir) else []),
-        "--incremental=no",
         *([f"--package={package}" for package in main.tools_tree_packages]),
         *([f"--package-directory={os.fspath(directory)}" for directory in main.tools_tree_package_directories]),  # noqa: E501
         *([f"--build-sources={tree}" for tree in main.build_sources]),
