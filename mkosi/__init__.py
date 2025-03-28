@@ -3943,7 +3943,10 @@ def build_image(context: Context) -> None:
         check_root_populated(context)
         run_build_scripts(context)
 
-        if context.config.output_format == OutputFormat.none or context.args.rerun_build_scripts:
+        if context.config.output_format == OutputFormat.none or (
+            context.args.rerun_build_scripts
+            and (context.config.output_dir_or_cwd() / context.config.output).exists()
+        ):
             return
 
         if wantrepo:
@@ -4668,7 +4671,7 @@ def validate_certificates_and_keys(config: Config) -> None:
 
 def needs_build(args: Args, config: Config, force: int = 1) -> bool:
     return (
-        args.force >= force
+        (args.force >= force and not args.rerun_build_scripts)
         or not (config.output_dir_or_cwd() / config.output_with_compression).exists()
         # When the output is a directory, its name is the same as the symlink we create that points to the
         # actual output when not building a directory. So if the full output path exists, we have to check
@@ -5121,7 +5124,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         logging.info(f"Output path {output} exists already. (Use --force to rebuild.)")
         return
 
-    if args.rerun_build_scripts and not output.exists():
+    if args.rerun_build_scripts and not args.force and not output.exists():
         die(
             f"Image '{last.image}' must be built once before --rerun-build-scripts can be used",
             hint="Build the image once with 'mkosi build'",
@@ -5149,7 +5152,9 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
                     hint="Add the &I specifier to the cache key to avoid this issue",
                 )
 
-    if last.is_incremental() and (last.incremental == Incremental.strict or args.rerun_build_scripts):
+    if last.is_incremental() and (
+        last.incremental == Incremental.strict or (args.rerun_build_scripts and not args.force)
+    ):
         if args.force > 1:
             die(
                 "Cannot remove incremental caches when building with Incremental=strict",
@@ -5197,6 +5202,10 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         or last.output_format == OutputFormat.none
         or not (last.output_dir_or_cwd() / last.output).exists()
     ):
+        history = (
+            last.output_format == OutputFormat.none or not (last.output_dir_or_cwd() / last.output).exists()
+        )
+
         for config in images:
             if any(
                 source.type != KeySourceType.file
@@ -5279,7 +5288,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         if args.auto_bump:
             bump_image_version()
 
-        if last.history and not args.rerun_build_scripts:
+        if last.history and history:
             Path(".mkosi-private/history").mkdir(parents=True, exist_ok=True)
             Path(".mkosi-private/history/latest.json").write_text(
                 json.dumps(

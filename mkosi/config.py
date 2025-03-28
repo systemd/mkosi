@@ -4824,8 +4824,7 @@ def have_history(args: Args) -> bool:
     return (
         args.directory is not None
         and args.verb.needs_build()
-        and (args.verb != Verb.build or args.rerun_build_scripts)
-        and not args.force
+        and ((args.verb != Verb.build and not args.force) or args.rerun_build_scripts)
         and Path(".mkosi-private/history/latest.json").exists()
     )
 
@@ -4859,9 +4858,6 @@ def parse_config(
 
     if args.cmdline and not args.verb.supports_cmdline():
         die(f"Arguments after verb are not supported for {args.verb}.")
-
-    if args.rerun_build_scripts and args.force:
-        die("--force cannot be used together with --rerun-build-scripts")
 
     # If --debug was passed, apply it as soon as possible.
     if ARG_DEBUG.get():
