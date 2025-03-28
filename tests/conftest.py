@@ -44,7 +44,7 @@ def config(request: Any) -> ImageConfig:
         release = cast(
             str,
             request.config.getoption("--release")
-            or parse_config(["-d", str(distribution)], resources=resources)[1][0].release,
+            or parse_config(["-d", str(distribution)], resources=resources)[2][0].release,
         )
     return ImageConfig(
         distribution=distribution,

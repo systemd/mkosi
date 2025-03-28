@@ -1734,7 +1734,7 @@ class Args:
         """
         with tempfile.TemporaryDirectory() as tempdir:
             with chdir(tempdir):
-                args, _ = parse_config([])
+                args, _, _ = parse_config([])
 
         return args
 
@@ -2145,7 +2145,7 @@ class Config:
         This prevents Config being generated with defaults values implicitly.
         """
         with chdir("/proc"):
-            _, [config] = parse_config([])
+            _, _, [config] = parse_config([])
 
         return config
 
@@ -4534,7 +4534,7 @@ class ParseContext:
             self.includes.add((st.st_dev, st.st_ino))
 
             if any(p == Path(c) for c in BUILTIN_CONFIGS):
-                _, [config] = parse_config(
+                _, _, [config] = parse_config(
                     ["--directory", "", "--include", os.fspath(path)],
                     only_sections=self.only_sections,
                     resources=self.resources,
@@ -4829,12 +4829,60 @@ def have_history(args: Args) -> bool:
     )
 
 
+def finalize_default_tools(config: argparse.Namespace, *, resources: Path) -> Config:
+    main = Config.from_namespace(config)
+
+    if not main.tools_tree_distribution:
+        die(
+            f"{main.distribution} does not have a default tools tree distribution",
+            hint="use ToolsTreeDistribution= to set one explicitly",
+        )
+
+    cmdline = [
+        "--directory=",
+        f"--distribution={main.tools_tree_distribution}",
+        *([f"--release={main.tools_tree_release}"] if main.tools_tree_release else []),
+        *([f"--profile={profile}" for profile in main.tools_tree_profiles]),
+        *([f"--mirror={main.tools_tree_mirror}"] if main.tools_tree_mirror else []),
+        *([f"--repositories={repository}" for repository in main.tools_tree_repositories]),
+        *([f"--sandbox-tree={tree}" for tree in main.tools_tree_sandbox_trees]),
+        f"--repository-key-check={main.repository_key_check}",
+        f"--repository-key-fetch={main.repository_key_fetch}",
+        f"--cache-only={main.cacheonly}",
+        *([f"--workspace-directory={os.fspath(p)}"] if (p := main.workspace_dir) else []),
+        *([f"--package-cache-directory={os.fspath(p)}"] if (p := main.package_cache_dir) else []),
+        "--incremental=no",
+        *([f"--package={package}" for package in main.tools_tree_packages]),
+        *([f"--package-directory={os.fspath(directory)}" for directory in main.tools_tree_package_directories]),  # noqa: E501
+        *([f"--build-sources={tree}" for tree in main.build_sources]),
+        f"--build-sources-ephemeral={main.build_sources_ephemeral}",
+        *([f"--sync-script={os.fspath(script)}" for script in main.tools_tree_sync_scripts]),
+        *([f"--prepare-script={os.fspath(script)}" for script in main.tools_tree_prepare_scripts]),
+        *([f"--source-date-epoch={e}"] if (e := main.source_date_epoch) is not None else []),
+        *([f"--environment={k}='{v}'" for k, v in main.environment.items()]),
+        *([f"--proxy-url={main.proxy_url}"] if main.proxy_url else []),
+        *([f"--proxy-exclude={host}" for host in main.proxy_exclude]),
+        *([f"--proxy-peer-certificate={os.fspath(p)}"] if (p := main.proxy_peer_certificate) else []),
+        *([f"--proxy-client-certificate={os.fspath(p)}"] if (p := main.proxy_client_certificate) else []),
+        *([f"--proxy-client-key={os.fspath(p)}"] if (p := main.proxy_client_key) else []),
+    ]  # fmt: skip
+
+    _, _, [tools] = parse_config(
+        cmdline + ["--include=mkosi-tools", "build"],
+        resources=resources,
+    )
+
+    tools = dataclasses.replace(tools, image="tools")
+
+    return tools
+
+
 def parse_config(
     argv: Sequence[str] = (),
     *,
     resources: Path = Path("/"),
     only_sections: Sequence[str] = (),
-) -> tuple[Args, tuple[Config, ...]]:
+) -> tuple[Args, Optional[Config], tuple[Config, ...]]:
     argv = list(argv)
 
     context = ParseContext(resources)
@@ -4868,7 +4916,7 @@ def parse_config(
         PagerHelpAction.__call__(None, argparser, context.cli)  # type: ignore
 
     if not args.verb.needs_config():
-        return args, ()
+        return args, None, ()
 
     if have_history(args):
         try:
@@ -4923,8 +4971,16 @@ def parse_config(
     for s in SETTINGS:
         setattr(config, s.dest, context.finalize_value(s))
 
+    if getattr(config, "tools_tree", None) == Path("default"):
+        tools = finalize_default_tools(config, resources=resources)
+    else:
+        tools = None
+
     if prev:
-        return args, (*subimages, Config.from_namespace(config))
+        return args, tools, (*subimages, Config.from_namespace(config))
+
+    if tools:
+        setattr(config, "tools_tree", tools.output_dir_or_cwd() / tools.output)
 
     images = []
 
@@ -5011,7 +5067,7 @@ def parse_config(
     subimages = [Config.from_namespace(ns) for ns in images]
     subimages = resolve_deps(subimages, main.dependencies)
 
-    return args, tuple(subimages + [main])
+    return args, tools, tuple(subimages + [main])
 
 
 def finalize_term() -> str:

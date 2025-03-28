@@ -1359,7 +1359,7 @@ def finalize_default_initrd(
         "--include=mkosi-initrd",
     ]  # fmt: skip
 
-    _, [initrd] = parse_config(cmdline + ["build"], resources=resources)
+    _, _, [initrd] = parse_config(cmdline + ["build"], resources=resources)
 
     run_configure_scripts(initrd)
 
@@ -4517,52 +4517,6 @@ def bump_image_version() -> None:
     version_file.write_text(f"{new_version}\n")
 
 
-def finalize_default_tools(config: Config, *, resources: Path) -> Config:
-    if not config.tools_tree_distribution:
-        die(
-            f"{config.distribution} does not have a default tools tree distribution",
-            hint="use ToolsTreeDistribution= to set one explicitly",
-        )
-
-    cmdline = [
-        "--directory=",
-        f"--distribution={config.tools_tree_distribution}",
-        *([f"--release={config.tools_tree_release}"] if config.tools_tree_release else []),
-        *([f"--profile={profile}" for profile in config.tools_tree_profiles]),
-        *([f"--mirror={config.tools_tree_mirror}"] if config.tools_tree_mirror else []),
-        *([f"--repositories={repository}" for repository in config.tools_tree_repositories]),
-        *([f"--sandbox-tree={tree}" for tree in config.tools_tree_sandbox_trees]),
-        f"--repository-key-check={config.repository_key_check}",
-        f"--repository-key-fetch={config.repository_key_fetch}",
-        f"--cache-only={config.cacheonly}",
-        *([f"--workspace-directory={os.fspath(p)}"] if (p := config.workspace_dir) else []),
-        *([f"--package-cache-directory={os.fspath(p)}"] if (p := config.package_cache_dir) else []),
-        "--incremental=no",
-        *([f"--package={package}" for package in config.tools_tree_packages]),
-        *([f"--package-directory={os.fspath(directory)}" for directory in config.tools_tree_package_directories]),  # noqa: E501
-        *([f"--build-sources={tree}" for tree in config.build_sources]),
-        f"--build-sources-ephemeral={config.build_sources_ephemeral}",
-        *([f"--sync-script={os.fspath(script)}" for script in config.tools_tree_sync_scripts]),
-        *([f"--prepare-script={os.fspath(script)}" for script in config.tools_tree_prepare_scripts]),
-        *([f"--source-date-epoch={e}"] if (e := config.source_date_epoch) is not None else []),
-        *([f"--environment={k}='{v}'" for k, v in config.environment.items()]),
-        *([f"--proxy-url={config.proxy_url}"] if config.proxy_url else []),
-        *([f"--proxy-exclude={host}" for host in config.proxy_exclude]),
-        *([f"--proxy-peer-certificate={os.fspath(p)}"] if (p := config.proxy_peer_certificate) else []),
-        *([f"--proxy-client-certificate={os.fspath(p)}"] if (p := config.proxy_client_certificate) else []),
-        *([f"--proxy-client-key={os.fspath(p)}"] if (p := config.proxy_client_key) else []),
-    ]  # fmt: skip
-
-    _, [tools] = parse_config(
-        cmdline + ["--include=mkosi-tools", "build"],
-        resources=resources,
-    )
-
-    tools = dataclasses.replace(tools, image="tools")
-
-    return tools
-
-
 def check_workspace_directory(config: Config) -> None:
     wd = config.workspace_dir_or_default()
 
@@ -4952,7 +4906,7 @@ def run_build(
         )
 
 
-def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
+def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, resources: Path) -> None:
     images = list(images)
 
     if args.verb == Verb.init:
@@ -4986,7 +4940,7 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         return bump_image_version()
 
     if args.verb == Verb.dependencies:
-        _, [deps] = parse_config(
+        _, _, [deps] = parse_config(
             ["--directory=", "--repositories=", *args.cmdline, "--include=mkosi-tools", "build"],
             resources=resources,
         )
@@ -5020,16 +4974,6 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
         text = cat_config(images)
         page(text, args.pager)
         return
-
-    last = images[-1]
-
-    if last.tools_tree and last.tools_tree == Path("default"):
-        tools = finalize_default_tools(last, resources=resources)
-
-        for i, config in enumerate(images):
-            images[i] = dataclasses.replace(config, tools_tree=tools.output_dir_or_cwd() / tools.output)
-    else:
-        tools = None
 
     # The images array has been modified so we need to reevaluate last again.
     last = images[-1]

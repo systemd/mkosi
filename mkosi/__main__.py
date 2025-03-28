@@ -35,13 +35,13 @@ def main() -> None:
     log_setup()
 
     with resource_path(mkosi.resources) as resources:
-        args, images = parse_config(sys.argv[1:], resources=resources)
+        args, tools, images = parse_config(sys.argv[1:], resources=resources)
 
         if args.debug:
             faulthandler.enable()
 
         try:
-            run_verb(args, images, resources=resources)
+            run_verb(args, tools, images, resources=resources)
         finally:
             if sys.stderr.isatty() and find_binary("tput"):
                 run(["tput", "cnorm"], check=False)
