@@ -24,7 +24,7 @@ import textwrap
 import uuid
 from collections.abc import Iterator, Sequence
 from pathlib import Path
-from typing import IO, Optional
+from typing import Optional
 
 from mkosi.config import (
     Args,
@@ -32,6 +32,7 @@ from mkosi.config import (
     ConfigFeature,
     ConsoleMode,
     Drive,
+    DriveFlag,
     Firmware,
     Network,
     OutputFormat,
@@ -794,22 +795,17 @@ def apply_runtime_size(config: Config, image: Path) -> None:
 
 
 @contextlib.contextmanager
-def finalize_drive(drive: Drive) -> Iterator[Path]:
+def finalize_drive(config: Config, drive: Drive) -> Iterator[Path]:
+    path = Path(drive.directory or "/var/tmp") / f"mkosi-drive-{config.machine_or_name()}-{drive.id}"
     with contextlib.ExitStack() as stack:
-        file: IO[bytes]
-        if drive.persist:
-            path = Path(drive.directory or "/var/tmp") / f"mkosi-drive-{drive.id}"
-            file = path.open("a+b")
-        else:
-            file = stack.enter_context(
-                tempfile.NamedTemporaryFile(
-                    dir=drive.directory or "/var/tmp",
-                    prefix=f"mkosi-drive-{drive.id}",
-                )
-            )
-        maybe_make_nocow(Path(file.name))
-        file.truncate(round_up(drive.size, resource.getpagesize()))
-        yield Path(file.name)
+        path.touch(exist_ok=DriveFlag.persist in drive.flags)
+        if DriveFlag.persist not in drive.flags:
+            stack.callback(lambda: path.unlink())
+
+        maybe_make_nocow(path)
+        with path.open("ab") as file:
+            file.truncate(round_up(drive.size, resource.getpagesize()))
+        yield path
 
 
 @contextlib.contextmanager
@@ -1532,7 +1528,7 @@ def run_qemu(args: Args, config: Config) -> None:
             ]
 
         for _, drives in groupby(config.drives, key=lambda d: d.file_id):
-            file = stack.enter_context(finalize_drive(drives[0]))
+            file = stack.enter_context(finalize_drive(config, drives[0]))
 
             for drive in drives:
                 arg = [
