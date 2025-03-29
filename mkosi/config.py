@@ -1941,7 +1941,7 @@ class Config:
     unified_kernel_image_format: str
     unified_kernel_image_profiles: list[UKIProfile]
     initrds: list[Path]
-    initrd_profiles: list[InitrdProfile]
+    initrd_profiles: list[str]
     initrd_packages: list[str]
     initrd_volatile_packages: list[str]
     microcode_host: bool
@@ -1999,7 +1999,7 @@ class Config:
     tools_tree: Optional[Path]
     tools_tree_distribution: Optional[Distribution]
     tools_tree_release: Optional[str]
-    tools_tree_profiles: list[ToolsTreeProfile]
+    tools_tree_profiles: list[str]
     tools_tree_mirror: Optional[str]
     tools_tree_repositories: list[str]
     tools_tree_sandbox_trees: list[ConfigTree]
@@ -3056,7 +3056,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--initrd-profile",
         metavar="PROFILE",
         section="Content",
-        parse=config_make_list_parser(delimiter=",", parse=make_enum_parser(InitrdProfile)),
+        parse=config_make_list_parser(delimiter=","),
         choices=InitrdProfile.values(),
         default=[],
         help="Which profiles to enable for the default initrd",
@@ -3516,9 +3516,9 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--tools-tree-profile",
         metavar="PROFILE",
         section="Build",
-        parse=config_make_list_parser(delimiter=",", parse=make_enum_parser(ToolsTreeProfile)),
+        parse=config_make_list_parser(delimiter=","),
         choices=ToolsTreeProfile.values(),
-        default=ToolsTreeProfile.default(),
+        default=[str(s) for s in ToolsTreeProfile.default()],
         help="Which profiles to enable for the default tools tree",
     ),
     ConfigSetting(
@@ -5557,8 +5557,6 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         Vmm: enum_transformer,
         list[UKIProfile]: uki_profile_transformer,
         list[ArtifactOutput]: enum_list_transformer,
-        list[ToolsTreeProfile]: enum_list_transformer,
-        list[InitrdProfile]: enum_list_transformer,
         CertificateSource: certificate_source_transformer,
         ConsoleMode: enum_transformer,
         Verity: enum_transformer,
