@@ -2698,6 +2698,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         parse=config_parse_compress_level,
         default=3,
         help="Set the compression level to use",
+        scope=SettingScope.inherit,
     ),
     ConfigSetting(
         dest="output_dir",

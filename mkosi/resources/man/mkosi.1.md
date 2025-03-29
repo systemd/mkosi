@@ -2915,6 +2915,7 @@ down to subimages but can be overridden:
 - `SectorSize=`
 - `CacheKey=`
 - `BuildKey=`
+- `CompressLevel=`
 
 Additionally, there are various settings that can only be configured in
 the main image but which are not passed down to subimages:
