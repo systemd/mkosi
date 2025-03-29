@@ -1048,6 +1048,14 @@ def config_default_proxy_url(namespace: argparse.Namespace) -> Optional[str]:
     return None
 
 
+def config_default_proxy_peer_certificate(namespace: argparse.Namespace) -> Optional[Path]:
+    for p in (Path("/etc/pki/tls/certs/ca-bundle.crt"), Path("/etc/ssl/certs/ca-certificates.crt")):
+        if p.exists():
+            return p
+
+    return None
+
+
 def make_enum_parser(type: type[SE]) -> Callable[[str], SE]:
     def parse_enum(value: str) -> SE:
         try:
@@ -1582,8 +1590,8 @@ class ConfigSetting(Generic[T]):
     default: Optional[T] = None
     default_factory: Optional[ConfigDefaultCallback[T]] = None
     default_factory_depends: tuple[str, ...] = tuple()
-    paths: tuple[str, ...] = ()
-    recursive_paths: tuple[str, ...] = ()
+    path_suffixes: tuple[str, ...] = ()
+    recursive_path_suffixes: tuple[str, ...] = ()
     path_read_text: bool = False
     path_secret: bool = False
     specifier: str = ""
@@ -2537,7 +2545,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="PATH",
         section="Config",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
-        paths=("mkosi.configure",),
+        path_suffixes=("configure",),
         help="Configure script to run before doing anything",
     ),
     ConfigSetting(
@@ -2697,7 +2705,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Output",
         specifier="O",
         parse=config_make_path_parser(required=False),
-        paths=("mkosi.output",),
+        path_suffixes=("output",),
         help="Output directory",
         scope=SettingScope.universal,
     ),
@@ -2715,7 +2723,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Output",
         specifier="v",
         help="Set version for image",
-        paths=("mkosi.version",),
+        path_suffixes=("version",),
         path_read_text=True,
         scope=SettingScope.inherit,
     ),
@@ -2742,7 +2750,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         name="RepartDirectories",
         section="Output",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
-        paths=("mkosi.repart",),
+        path_suffixes=("repart",),
         help="Directory containing systemd-repart partition definitions",
     ),
     ConfigSetting(
@@ -2765,7 +2773,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Output",
         parse=config_parse_uuid,
         default=uuid.uuid4(),
-        paths=("mkosi.seed",),
+        path_suffixes=("seed",),
         path_read_text=True,
         help="Set the seed for systemd-repart",
     ),
@@ -2775,8 +2783,8 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="PATH",
         section="Output",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
-        paths=("mkosi.clean",),
-        recursive_paths=("mkosi.clean.d/*",),
+        path_suffixes=("clean",),
+        recursive_path_suffixes=("clean.d/*",),
         help="Clean script to run after cleanup",
     ),
     # Content section
@@ -2811,7 +2819,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="PATH",
         section="Content",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
-        paths=("mkosi.packages",),
+        path_suffixes=("packages",),
         help="Specify a directory containing extra packages",
         scope=SettingScope.universal,
     ),
@@ -2853,7 +2861,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="PATH",
         section="Content",
         parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(required=True)),
-        paths=("mkosi.skeleton", "mkosi.skeleton.tar"),
+        path_suffixes=("skeleton", "skeleton.tar"),
         help="Use a skeleton tree to bootstrap the image before installing anything",
     ),
     ConfigSetting(
@@ -2862,7 +2870,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="PATH",
         section="Content",
         parse=config_make_list_parser(delimiter=",", parse=make_tree_parser()),
-        paths=("mkosi.extra", "mkosi.extra.tar"),
+        path_suffixes=("extra", "extra.tar"),
         help="Copy an extra tree on top of image",
     ),
     ConfigSetting(
@@ -2903,8 +2911,8 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="PATH",
         section="Content",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
-        paths=("mkosi.sync",),
-        recursive_paths=("mkosi.sync.d/*",),
+        path_suffixes=("sync",),
+        recursive_path_suffixes=("sync.d/*",),
         help="Sync script to run before starting the build",
     ),
     ConfigSetting(
@@ -2913,8 +2921,8 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="PATH",
         section="Content",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
-        paths=("mkosi.prepare", "mkosi.prepare.chroot"),
-        recursive_paths=("mkosi.prepare.d/*",),
+        path_suffixes=("prepare", "prepare.chroot"),
+        recursive_path_suffixes=("prepare.d/*",),
         help="Prepare script to run inside the image before it is cached",
         compat_names=("PrepareScript",),
     ),
@@ -2924,8 +2932,8 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="PATH",
         section="Content",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
-        paths=("mkosi.build", "mkosi.build.chroot"),
-        recursive_paths=("mkosi.build.d/*",),
+        path_suffixes=("build", "build.chroot"),
+        recursive_path_suffixes=("build.d/*",),
         help="Build script to run inside image",
         compat_names=("BuildScript",),
     ),
@@ -2936,8 +2944,8 @@ SETTINGS: list[ConfigSetting[Any]] = [
         name="PostInstallationScripts",
         section="Content",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
-        paths=("mkosi.postinst", "mkosi.postinst.chroot"),
-        recursive_paths=("mkosi.postinst.d/*",),
+        path_suffixes=("postinst", "postinst.chroot"),
+        recursive_path_suffixes=("postinst.d/*",),
         help="Postinstall script to run inside image",
         compat_names=("PostInstallationScript",),
     ),
@@ -2947,8 +2955,8 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="PATH",
         section="Content",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
-        paths=("mkosi.finalize", "mkosi.finalize.chroot"),
-        recursive_paths=("mkosi.finalize.d/*",),
+        path_suffixes=("finalize", "finalize.chroot"),
+        recursive_path_suffixes=("finalize.d/*",),
         help="Postinstall script to run outside image",
         compat_names=("FinalizeScript",),
     ),
@@ -2959,8 +2967,8 @@ SETTINGS: list[ConfigSetting[Any]] = [
         name="PostOutputScripts",
         section="Content",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
-        paths=("mkosi.postoutput",),
-        recursive_paths=("mkosi.postoutput.d/*",),
+        path_suffixes=("postoutput",),
+        recursive_path_suffixes=("postoutput.d/*",),
         help="Output postprocessing script to run outside image",
     ),
     ConfigSetting(
@@ -3024,7 +3032,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
             delimiter=",",
             parse=make_simple_config_parser(UKI_PROFILE_SETTINGS, UKIProfile),
         ),
-        recursive_paths=("mkosi.uki-profiles/*.conf",),
+        recursive_path_suffixes=("uki-profiles/*.conf",),
         help="Configuration files to generate UKI profiles",
     ),
     ConfigSetting(
@@ -3237,7 +3245,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="PASSWORD",
         section="Content",
         parse=config_parse_root_password,
-        paths=("mkosi.rootpw",),
+        path_suffixes=("rootpw",),
         path_read_text=True,
         path_secret=True,
         help="Set the password for root",
@@ -3254,7 +3262,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="MACHINE_ID",
         section="Content",
         parse=config_parse_uuid,
-        paths=("mkosi.machine-id",),
+        path_suffixes=("machine-id",),
         path_read_text=True,
         help="Set the machine ID to use",
     ),
@@ -3310,7 +3318,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="KEY",
         section="Validation",
         parse=config_parse_key,
-        paths=("mkosi.key",),
+        path_suffixes=("key",),
         help="UEFI SecureBoot private key",
         scope=SettingScope.universal,
     ),
@@ -3328,7 +3336,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="PATH",
         section="Validation",
         parse=config_parse_certificate,
-        paths=("mkosi.crt",),
+        path_suffixes=("crt",),
         help="UEFI SecureBoot certificate in X509 format",
         scope=SettingScope.universal,
     ),
@@ -3363,7 +3371,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="KEY",
         section="Validation",
         parse=config_parse_key,
-        paths=("mkosi.key",),
+        path_suffixes=("key",),
         help="Private key for signing verity signature",
         scope=SettingScope.universal,
     ),
@@ -3381,7 +3389,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="PATH",
         section="Validation",
         parse=config_parse_certificate,
-        paths=("mkosi.crt",),
+        path_suffixes=("crt",),
         help="Certificate for signing verity signature in X509 format",
         scope=SettingScope.universal,
     ),
@@ -3407,7 +3415,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="KEY",
         section="Validation",
         parse=config_parse_key,
-        paths=("mkosi.key",),
+        path_suffixes=("key",),
         help="Private key for signing expected PCR signature",
         scope=SettingScope.universal,
     ),
@@ -3425,7 +3433,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="PATH",
         section="Validation",
         parse=config_parse_certificate,
-        paths=("mkosi.crt",),
+        path_suffixes=("crt",),
         help="Certificate for signing expected PCR signature in X509 format",
         scope=SettingScope.universal,
     ),
@@ -3443,7 +3451,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="PATH",
         section="Validation",
         parse=config_make_path_parser(required=False, secret=True),
-        paths=("mkosi.passphrase",),
+        path_suffixes=("passphrase",),
         help="Path to a file containing the passphrase to use when LUKS encryption is selected",
     ),
     ConfigSetting(
@@ -3480,7 +3488,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="PATH",
         section="Build",
         parse=config_make_path_parser(constants=("default",)),
-        paths=("mkosi.tools",),
+        path_suffixes=("tools",),
         help="Look up programs to execute inside the given tree",
         scope=SettingScope.universal,
     ),
@@ -3563,8 +3571,8 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="PATH",
         section="Build",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
-        paths=("mkosi.tools.sync",),
-        recursive_paths=("mkosi.tools.sync.d/*",),
+        path_suffixes=("tools.sync",),
+        recursive_path_suffixes=("tools.sync.d/*",),
         help="Sync script to run before building the tools tree",
     ),
     ConfigSetting(
@@ -3573,8 +3581,8 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="PATH",
         section="Build",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
-        paths=("mkosi.tools.prepare", "mkosi.tools.prepare.chroot"),
-        recursive_paths=("mkosi.tools.prepare.d/*",),
+        path_suffixes=("tools.prepare", "tools.prepare.chroot"),
+        recursive_path_suffixes=("tools.prepare.d/*",),
         help="Prepare script to run inside the tools tree before it is cached",
     ),
     ConfigSetting(
@@ -3626,12 +3634,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Build",
         parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(required=True)),
         help="Use a sandbox tree to configure the various tools that mkosi executes",
-        paths=(
-            "mkosi.sandbox",
-            "mkosi.sandbox.tar",
-            "mkosi.pkgmngr",
-            "mkosi.pkgmngr.tar",
-        ),
+        path_suffixes=("sandbox", "sandbox.tar", "pkgmngr", "pkgmngr.tar"),
         scope=SettingScope.universal,
     ),
     ConfigSetting(
@@ -3653,7 +3656,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         name="CacheDirectory",
         section="Build",
         parse=config_make_path_parser(required=False),
-        paths=("mkosi.cache",),
+        path_suffixes=("cache",),
         help="Incremental cache directory",
         scope=SettingScope.universal,
     ),
@@ -3674,7 +3677,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         name="PackageCacheDirectory",
         section="Build",
         parse=config_make_path_parser(required=False),
-        paths=("mkosi.pkgcache",),
+        path_suffixes=("pkgcache",),
         help="Package cache directory",
         scope=SettingScope.universal,
     ),
@@ -3686,7 +3689,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         name="BuildDirectory",
         section="Build",
         parse=config_make_path_parser(required=False),
-        paths=("mkosi.builddir",),
+        path_suffixes=("builddir",),
         help="Path to use as persistent build directory",
         scope=SettingScope.universal,
     ),
@@ -3765,7 +3768,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="PATH",
         section="Build",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
-        paths=("mkosi.env",),
+        path_suffixes=("env",),
         help="Environment files to set when running scripts",
     ),
     ConfigSetting(
@@ -3807,10 +3810,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         dest="proxy_peer_certificate",
         section="Build",
         parse=config_make_path_parser(),
-        paths=(
-            "/etc/pki/tls/certs/ca-bundle.crt",
-            "/etc/ssl/certs/ca-certificates.crt",
-        ),
+        default_factory=config_default_proxy_peer_certificate,
         help="Set the proxy peer certificate",
         scope=SettingScope.universal,
     ),
@@ -3838,7 +3838,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="PATH",
         section="Runtime",
         parse=config_make_path_parser(),
-        paths=("mkosi.nspawn",),
+        path_suffixes=("nspawn",),
         help="Add in .nspawn settings file",
     ),
     ConfigSetting(
@@ -3858,7 +3858,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Runtime",
         parse=config_make_dict_parser(delimiter=" ", parse=parse_key_value, allow_paths=True, unescape=True),
         help="Pass a systemd credential to a systemd-nspawn container or a virtual machine",
-        paths=("mkosi.credentials",),
+        path_suffixes=("credentials",),
     ),
     ConfigSetting(
         dest="kernel_command_line_extra",
@@ -3924,7 +3924,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="PATH",
         section="Runtime",
         parse=config_make_path_parser(secret=True),
-        paths=("mkosi.key",),
+        path_suffixes=("key",),
         help="Private key for use with mkosi ssh in PEM format",
     ),
     ConfigSetting(
@@ -3932,7 +3932,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="PATH",
         section="Runtime",
         parse=config_make_path_parser(),
-        paths=("mkosi.crt",),
+        path_suffixes=("crt",),
         help="Certificate for use with mkosi ssh in X509 format",
     ),
     ConfigSetting(
@@ -3965,7 +3965,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         name="SysupdateDirectory",
         section="Runtime",
         parse=config_make_path_parser(),
-        paths=("mkosi.sysupdate",),
+        path_suffixes=("sysupdate",),
         help="Directory containing systemd-sysupdate transfer definitions",
     ),
     ConfigSetting(
@@ -4724,7 +4724,9 @@ class ParseContext:
                 if self.only_sections and s.section not in self.only_sections:
                     continue
 
-                for f in s.paths:
+                for f in s.path_suffixes:
+                    f = f"mkosi.{f}"
+
                     extra = parse_path(
                         f,
                         secret=s.path_secret,
@@ -4743,7 +4745,9 @@ class ParseContext:
                             ),
                         )
 
-                for f in s.recursive_paths:
+                for f in s.recursive_path_suffixes:
+                    f = f"mkosi.{f}"
+
                     recursive_extras = parse_paths_from_directory(
                         f,
                         secret=s.path_secret,
