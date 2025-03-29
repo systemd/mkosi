@@ -2916,6 +2916,24 @@ down to subimages but can be overridden:
 - `CacheKey=`
 - `BuildKey=`
 
+Additionally, there are various settings that can only be configured in
+the main image but which are not passed down to subimages:
+
+- `MinimumVersion=`
+- `PassEnvironment=`
+- `ToolsTreeDistribution=`
+- `ToolsTreeRelease=`
+- `ToolsTreeProfiles=`
+- `ToolsTreeMirror=`
+- `ToolsTreeRepositories=`
+- `ToolsTreeSandboxTrees=`
+- `ToolsTreePackages=`
+- `ToolsTreePackageDirectories=`
+- `ToolsTreeSyncScripts=`
+- `ToolsTreePrepareScripts=`
+- `History=`
+- Every setting in the `[Runtime]` section
+
 Images can refer to outputs of images they depend on. Specifically,
 for the following options, **mkosi** will only check whether the inputs
 exist just before building the image:

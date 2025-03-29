@@ -1578,6 +1578,8 @@ class SettingScope(StrEnum):
     universal = enum.auto()
     # Passed down to subimages, can be overridden
     inherit = enum.auto()
+    # Can only be configured in main image, not passed down anywhere.
+    main = enum.auto()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -2538,6 +2540,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Config",
         parse=config_parse_minimum_version,
         help="Specify the minimum required mkosi version",
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="configure_scripts",
@@ -2554,6 +2557,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Config",
         parse=config_make_list_parser(delimiter=" "),
         help="Environment variables to pass to subimages",
+        scope=SettingScope.main,
     ),
     # Distribution section
     ConfigSetting(
@@ -3500,6 +3504,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         choices=Distribution.choices(),
         default_factory=config_default_tools_tree_distribution,
         help="Set the distribution to use for the default tools tree",
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="tools_tree_release",
@@ -3510,6 +3515,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         default_factory_depends=("tools_tree_distribution",),
         default_factory=lambda ns: d.default_release() if (d := ns.tools_tree_distribution) else None,
         help="Set the release to use for the default tools tree",
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="tools_tree_profiles",
@@ -3520,6 +3526,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         choices=ToolsTreeProfile.values(),
         default=[str(s) for s in ToolsTreeProfile.default()],
         help="Which profiles to enable for the default tools tree",
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="tools_tree_mirror",
@@ -3530,6 +3537,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
             lambda ns: ns.mirror if ns.mirror and ns.distribution == ns.tools_tree_distribution else None
         ),
         help="Set the mirror to use for the default tools tree",
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="tools_tree_repositories",
@@ -3538,6 +3546,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Build",
         parse=config_make_list_parser(delimiter=","),
         help="Repositories to use for the default tools tree",
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="tools_tree_sandbox_trees",
@@ -3548,6 +3557,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Build",
         parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(required=True)),
         help="Sandbox trees for the default tools tree",
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="tools_tree_packages",
@@ -3556,6 +3566,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Build",
         parse=config_make_list_parser(delimiter=","),
         help="Add additional packages to the default tools tree",
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="tools_tree_package_directories",
@@ -3564,6 +3575,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Build",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         help="Specify a directory containing extra tools tree packages",
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="tools_tree_sync_scripts",
@@ -3574,6 +3586,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         path_suffixes=("tools.sync",),
         recursive_path_suffixes=("tools.sync.d/*",),
         help="Sync script to run before building the tools tree",
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="tools_tree_prepare_scripts",
@@ -3584,6 +3597,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         path_suffixes=("tools.prepare", "tools.prepare.chroot"),
         recursive_path_suffixes=("tools.prepare.d/*",),
         help="Prepare script to run inside the tools tree before it is cached",
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="tools_tree_certificates",
@@ -3724,6 +3738,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Build",
         parse=config_parse_boolean,
         help="Whether mkosi can store information about previous builds",
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="build_sources",
@@ -3830,7 +3845,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         help="Set the proxy client key",
         scope=SettingScope.universal,
     ),
-    # Host section
+    # Runtime section
     ConfigSetting(
         dest="nspawn_settings",
         name="NSpawnSettings",
@@ -3840,6 +3855,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         parse=config_make_path_parser(),
         path_suffixes=("nspawn",),
         help="Add in .nspawn settings file",
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="ephemeral",
@@ -3850,6 +3866,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
             "If specified, the container/VM is run with a temporary snapshot of the output "
             "image that is removed immediately when the container/VM terminates"
         ),
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="credentials",
@@ -3859,6 +3876,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         parse=config_make_dict_parser(delimiter=" ", parse=parse_key_value, allow_paths=True, unescape=True),
         help="Pass a systemd credential to a systemd-nspawn container or a virtual machine",
         path_suffixes=("credentials",),
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="kernel_command_line_extra",
@@ -3866,6 +3884,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Runtime",
         parse=config_make_list_parser(delimiter=" "),
         help="Append extra entries to the kernel command line when booting the image",
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="runtime_trees",
@@ -3874,6 +3893,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Runtime",
         parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(absolute=False)),
         help="Additional mounts to add when booting the image",
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="runtime_size",
@@ -3881,6 +3901,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Runtime",
         parse=config_parse_bytes,
         help="Grow disk images to the specified size before booting them",
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="runtime_scratch",
@@ -3888,6 +3909,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Runtime",
         parse=config_parse_feature,
         help="Mount extra scratch space to /var/tmp",
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="runtime_network",
@@ -3896,6 +3918,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         choices=Network.choices(),
         help="Set networking backend to use when booting the image",
         default=Network.user,
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="runtime_build_sources",
@@ -3903,6 +3926,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Runtime",
         parse=config_parse_boolean,
         help="Mount build sources and build directory in /work when booting the image",
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="runtime_home",
@@ -3910,6 +3934,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Runtime",
         parse=config_parse_boolean,
         help="Mount current home directory to /root when booting the image",
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="unit_properties",
@@ -3918,6 +3943,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Runtime",
         parse=config_make_list_parser(delimiter=" ", unescape=True),
         help="Set properties on the scopes spawned by systemd-nspawn or systemd-run",
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="ssh_key",
@@ -3926,6 +3952,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         parse=config_make_path_parser(secret=True),
         path_suffixes=("key",),
         help="Private key for use with mkosi ssh in PEM format",
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="ssh_certificate",
@@ -3934,6 +3961,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         parse=config_make_path_parser(),
         path_suffixes=("crt",),
         help="Certificate for use with mkosi ssh in X509 format",
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="vmm",
@@ -3943,12 +3971,14 @@ SETTINGS: list[ConfigSetting[Any]] = [
         parse=config_make_enum_parser(Vmm),
         default=Vmm.qemu,
         help="Set the virtual machine monitor to use for mkosi vm",
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="machine",
         metavar="NAME",
         section="Runtime",
         help="Set the machine name to use when booting the image",
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="forward_journal",
@@ -3956,6 +3986,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Runtime",
         parse=config_make_path_parser(required=False),
         help="Set the path used to store forwarded machine journals",
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="sysupdate_dir",
@@ -3967,6 +3998,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         parse=config_make_path_parser(),
         path_suffixes=("sysupdate",),
         help="Directory containing systemd-sysupdate transfer definitions",
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="console",
@@ -3975,6 +4007,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         parse=config_make_enum_parser(ConsoleMode),
         help="Configure the virtual machine console mode to use",
         default=ConsoleMode.native,
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="cpus",
@@ -3986,6 +4019,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         help="Configure number of CPUs in virtual machine",
         compat_longs=("--qemu-smp",),
         compat_names=("QemuSmp",),
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="ram",
@@ -3997,6 +4031,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         help="Configure guest's RAM size",
         compat_longs=("--qemu-mem",),
         compat_names=("QemuMem",),
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="kvm",
@@ -4007,6 +4042,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         help="Configure whether to use KVM or not",
         compat_longs=("--qemu-kvm",),
         compat_names=("QemuKvm",),
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="vsock",
@@ -4017,6 +4053,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         help="Configure whether to use vsock or not",
         compat_longs=("--qemu-vsock",),
         compat_names=("QemuVsock",),
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="vsock_cid",
@@ -4029,6 +4066,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         help="Specify the vsock connection ID to use",
         compat_longs=("--qemu-vsock-cid",),
         compat_names=("QemuVsockConnectionId",),
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="tpm",
@@ -4039,6 +4077,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         help="Configure whether to use a virtual tpm or not",
         compat_longs=("--qemu-swtpm",),
         compat_names=("QemuSwtpm",),
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="cdrom",
@@ -4049,6 +4088,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         help="Attach the image as a CD-ROM to the virtual machine",
         compat_longs=("--qemu-cdrom",),
         compat_names=("QemuCdrom",),
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="removable",
@@ -4058,6 +4098,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         help="Attach the image as a removable drive to the virtual machine",
         compat_longs=("--qemu-removable",),
         compat_names=("QemuRemovable",),
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="firmware",
@@ -4068,6 +4109,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         choices=Firmware.choices(),
         compat_longs=("--qemu-firmware",),
         compat_names=("QemuFirmware",),
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="firmware_variables",
@@ -4077,6 +4119,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         help="Set the path to the firmware variables file to use",
         compat_longs=("--qemu-firmware-variables",),
         compat_names=("QemuFirmwareVariables",),
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="linux",
@@ -4086,6 +4129,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         help="Specify the kernel to use for direct kernel boot",
         compat_longs=("--qemu-kernel",),
         compat_names=("QemuKernel",),
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="drives",
@@ -4096,6 +4140,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         help="Specify drive that mkosi should create and pass to the virtual machine",
         compat_longs=("--qemu-drive",),
         compat_names=("QemuDrives",),
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="qemu_args",
@@ -4105,6 +4150,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         # Suppress the command line option because it's already possible to pass qemu args as normal
         # arguments.
         help=argparse.SUPPRESS,
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="register",
@@ -4113,6 +4159,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         parse=config_parse_feature,
         default=ConfigFeature.auto,
         help="Register booted vm/container with systemd-machined",
+        scope=SettingScope.main,
     ),
     ConfigSetting(
         dest="storage_target_mode",
@@ -4121,6 +4168,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         parse=config_parse_feature,
         default=ConfigFeature.auto,
         help="Run systemd-storagetm as part of the serve verb",
+        scope=SettingScope.main,
     ),
 ]
 SETTINGS_LOOKUP_BY_NAME = {name: s for s in SETTINGS for name in [s.name, *s.compat_names]}
@@ -4656,7 +4704,10 @@ class ParseContext:
 
             if s := SETTINGS_LOOKUP_BY_NAME.get(k):
                 if not s.match:
-                    die(f"{k} cannot be used in [{section}]")
+                    die(f"{path.absolute()}: {k} cannot be used in [{section}]")
+
+                if s.scope == SettingScope.main and getattr(self.config, "image") != "main":
+                    die(f"{path.absolute()}: {k} cannot be matched on outside of the main image")
 
                 if k != s.name:
                     logging.warning(
@@ -4673,7 +4724,7 @@ class ParseContext:
             elif m := MATCH_LOOKUP.get(k):
                 result = m.match(getattr(self.config, "image"), v)
             else:
-                die(f"{k} cannot be used in [{section}]")
+                die(f"{path.absolute()}: {k} cannot be used in [{section}]")
 
             if negate:
                 result = not result
@@ -4718,7 +4769,9 @@ class ParseContext:
                             delattr(self.config, s.dest)
 
             for s in SETTINGS:
-                if s.scope == SettingScope.universal and (image := getattr(self.config, "image")) != "main":
+                image = getattr(self.config, "image")
+
+                if s.scope in (SettingScope.main, SettingScope.universal) and image != "main":
                     continue
 
                 if self.only_sections and s.section not in self.only_sections:
@@ -4785,7 +4838,10 @@ class ParseContext:
 
                 if not (s := SETTINGS_LOOKUP_BY_NAME.get(name)):
                     die(f"{path.absolute()}: Unknown setting {name}")
-                if s.scope == SettingScope.universal and (image := getattr(self.config, "image")) != "main":
+
+                image = getattr(self.config, "image")
+
+                if s.scope in (SettingScope.main, SettingScope.universal) and image != "main":
                     die(f"{path.absolute()}: Setting {name} cannot be configured in subimage {image}")
 
                 if section != s.section:
