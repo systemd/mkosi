@@ -4879,6 +4879,17 @@ class ParseContext:
 
         return True
 
+    def finalize(self) -> argparse.Namespace:
+        ns = copy.deepcopy(self.config)
+
+        # After we've finished parsing the configuration, we'll have values in both namespaces (context.cli,
+        # context.config). To be able to parse the values from a single namespace, we merge the final values
+        # of each setting into one namespace.
+        for s in SETTINGS:
+            setattr(ns, s.dest, copy.deepcopy(self.finalize_value(s)))
+
+        return ns
+
 
 def have_history(args: Args) -> bool:
     return (
@@ -5022,13 +5033,7 @@ def parse_config(
     if args.directory is not None:
         context.parse_config_one(Path.cwd(), parse_profiles=True, parse_local=True)
 
-    config = copy.deepcopy(context.config)
-
-    # After we've finished parsing the configuration, we'll have values in both namespaces (context.cli,
-    # context.config). To be able to parse the values from a single namespace, we merge the final values of
-    # each setting into one namespace.
-    for s in SETTINGS:
-        setattr(config, s.dest, context.finalize_value(s))
+    config = context.finalize()
 
     if getattr(config, "tools_tree", None) == Path("default"):
         tools = finalize_default_tools(config, resources=resources)
@@ -5109,11 +5114,7 @@ def parse_config(
                 ):
                     continue
 
-            # Consolidate all settings into one namespace again.
-            for s in SETTINGS:
-                setattr(context.config, s.dest, context.finalize_value(s))
-
-            images += [context.config]
+            images += [context.finalize()]
 
             if dependencies is not None:
                 dependencies += [name]
