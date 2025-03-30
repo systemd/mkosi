@@ -4582,11 +4582,14 @@ class ParseContext:
             self.includes.add((st.st_dev, st.st_ino))
 
             if any(p == Path(c) for c in BUILTIN_CONFIGS):
-                _, _, [config] = parse_config(
-                    ["--directory", "", "--include", os.fspath(path)],
-                    only_sections=self.only_sections,
-                    resources=self.resources,
-                )
+                context = ParseContext(self.resources)
+
+                setattr(context.config, "image", "main")
+                setattr(context.config, "directory", path)
+
+                context.parse_config_one(path)
+                config = Config.from_namespace(context.finalize())
+
                 make_executable(
                     *config.configure_scripts,
                     *config.clean_scripts,
