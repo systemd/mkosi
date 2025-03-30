@@ -4537,7 +4537,7 @@ class ParseContext:
                     # Some specifier methods might want to access the image name or directory mkosi was
                     # invoked in so let's make sure those are available.
                     setattr(specifierns, "image", getattr(self.config, "image"))
-                    setattr(specifierns, "directory", self.cli.directory)
+                    setattr(specifierns, "directory", getattr(self.config, "directory"))
 
                     for d in specifier.depends:
                         setting = SETTINGS_LOOKUP_BY_DEST[d]
@@ -4659,7 +4659,7 @@ class ParseContext:
             # Some default factory methods want to access the image name or directory mkosi was invoked in so
             # let's make sure those are available.
             setattr(factoryns, "image", getattr(self.config, "image"))
-            setattr(factoryns, "directory", self.cli.directory)
+            setattr(factoryns, "directory", getattr(self.config, "directory"))
 
             default = setting.default_factory(factoryns)
         elif setting.default is not None:
@@ -5023,10 +5023,11 @@ def parse_config(
         subimages = []
         prev = None
 
-    context.parse_new_includes()
-
     # One of the specifiers needs access to the directory, so make sure it is available.
     setattr(context.config, "directory", args.directory)
+
+    context.parse_new_includes()
+
     setattr(context.config, "files", [])
 
     # Parse the global configuration unless the user explicitly asked us not to.
