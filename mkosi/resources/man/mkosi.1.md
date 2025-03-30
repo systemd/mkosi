@@ -1165,9 +1165,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     disabled, files will not relabeled. If enabled, an SELinux policy has
     to be installed in the image and **setfiles** has to be available to
     relabel files. If any errors occur during **setfiles**, the build will
-    fail. If set to `auto`, files will be relabeled if an SELinux policy
-    is installed in the image and if **setfiles** is available. Any errors
-    occurred during **setfiles** will be ignored.
+    fail. If set to `auto`, files will be relabeled if mkosi is not
+    building a directory image, an SELinux policy is installed in the
+    image and if **setfiles** is available. Any errors occurred during
+    **setfiles** will be ignored.
 
     Note that when running unprivileged, **setfiles** will fail to set any
     labels that are not in the host's SELinux policy. To ensure **setfiles**

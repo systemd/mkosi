@@ -5646,9 +5646,14 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
 
 
 def want_selinux_relabel(
-    config: Config, root: Path, fatal: bool = True
+    config: Config,
+    root: Path,
+    fatal: bool = True,
 ) -> Optional[tuple[Path, str, Path, Path]]:
     if config.selinux_relabel == ConfigFeature.disabled:
+        return None
+
+    if config.selinux_relabel == ConfigFeature.auto and config.output_format == OutputFormat.directory:
         return None
 
     selinux = root / "etc/selinux/config"
