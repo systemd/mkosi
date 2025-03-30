@@ -1515,7 +1515,7 @@ class KeySource:
 
 def config_parse_key_source(value: Optional[str], old: Optional[KeySource]) -> Optional[KeySource]:
     if not value:
-        return old
+        return KeySource(type=KeySourceType.file)
 
     typ, _, source = value.partition(":")
     try:
@@ -1545,7 +1545,7 @@ def config_parse_certificate_source(
     old: Optional[CertificateSource],
 ) -> Optional[CertificateSource]:
     if not value:
-        return old
+        return CertificateSource(type=CertificateSourceType.file)
 
     typ, _, source = value.partition(":")
     try:
