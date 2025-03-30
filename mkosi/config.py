@@ -61,7 +61,7 @@ SE = TypeVar("SE", bound=StrEnum)
 
 ConfigParseCallback = Callable[[Optional[str], Optional[T]], Optional[T]]
 ConfigMatchCallback = Callable[[str, T], bool]
-ConfigDefaultCallback = Callable[[argparse.Namespace], T]
+ConfigDefaultCallback = Callable[[dict[str, Any]], T]
 
 BUILTIN_CONFIGS = ("mkosi-tools", "mkosi-initrd", "mkosi-vm", "mkosi-addon", "mkosi-obs")
 
@@ -931,8 +931,8 @@ def config_parse_mode(value: Optional[str], old: Optional[int]) -> Optional[int]
     return mode
 
 
-def config_default_compression(namespace: argparse.Namespace) -> Compression:
-    if namespace.output_format in (
+def config_default_compression(namespace: dict[str, Any]) -> Compression:
+    if namespace["output_format"] in (
         OutputFormat.tar,
         OutputFormat.cpio,
         OutputFormat.uki,
@@ -940,25 +940,25 @@ def config_default_compression(namespace: argparse.Namespace) -> Compression:
         OutputFormat.addon,
     ):
         return Compression.zstd
-    elif namespace.output_format == OutputFormat.oci:
+    elif namespace["output_format"] == OutputFormat.oci:
         return Compression.gz
     else:
         return Compression.none
 
 
-def config_default_output(namespace: argparse.Namespace) -> str:
-    if namespace.image != "main":
-        output = cast(str, namespace.image)
+def config_default_output(namespace: dict[str, Any]) -> str:
+    if namespace["image"] != "main":
+        output = cast(str, namespace["image"])
     else:
-        output = namespace.image_id or "image"
+        output = namespace["image_id"] or "image"
 
-    if namespace.image_version:
-        output += f"_{namespace.image_version}"
+    if namespace["image_version"]:
+        output += f"_{namespace['image_version']}"
 
     return output
 
 
-def config_default_distribution(namespace: argparse.Namespace) -> Distribution:
+def config_default_distribution(namespace: dict[str, Any]) -> Distribution:
     if d := os.getenv("MKOSI_HOST_DISTRIBUTION"):
         return Distribution(d)
 
@@ -974,7 +974,7 @@ def config_default_distribution(namespace: argparse.Namespace) -> Distribution:
     return detected
 
 
-def config_default_release(namespace: argparse.Namespace) -> str:
+def config_default_release(namespace: dict[str, Any]) -> str:
     hd: Optional[Distribution]
     hr: Optional[str]
 
@@ -984,13 +984,13 @@ def config_default_release(namespace: argparse.Namespace) -> str:
         hd, hr = detect_distribution()
 
     # If the configured distribution matches the host distribution, use the same release as the host.
-    if namespace.distribution == hd and hr is not None:
+    if namespace["distribution"] == hd and hr is not None:
         return hr
 
-    return cast(str, namespace.distribution.default_release())
+    return cast(str, namespace["distribution"].default_release())
 
 
-def config_default_tools_tree_distribution(namespace: argparse.Namespace) -> Distribution:
+def config_default_tools_tree_distribution(namespace: dict[str, Any]) -> Distribution:
     if d := os.getenv("MKOSI_HOST_DISTRIBUTION"):
         return Distribution(d).default_tools_tree_distribution()
 
@@ -1002,30 +1002,30 @@ def config_default_tools_tree_distribution(namespace: argparse.Namespace) -> Dis
     return detected.default_tools_tree_distribution()
 
 
-def config_default_repository_key_fetch(namespace: argparse.Namespace) -> bool:
+def config_default_repository_key_fetch(namespace: dict[str, Any]) -> bool:
     def needs_repository_key_fetch(distribution: Distribution) -> bool:
         return distribution == Distribution.arch or distribution.is_rpm_distribution()
 
     if detect_distribution()[0] != Distribution.ubuntu:
         return False
 
-    if namespace.tools_tree is None:
-        return needs_repository_key_fetch(namespace.distribution)
+    if namespace["tools_tree"] is None:
+        return needs_repository_key_fetch(namespace["distribution"])
 
-    if namespace.tools_tree != Path("default"):
+    if namespace["tools_tree"] != Path("default"):
         return (
-            detect_distribution(namespace.tools_tree)[0] == Distribution.ubuntu
-            and needs_repository_key_fetch(namespace.distribution)
+            detect_distribution(namespace["tools_tree"])[0] == Distribution.ubuntu
+            and needs_repository_key_fetch(namespace["distribution"])
         )  # fmt: skip
 
     return (
-        namespace.tools_tree_distribution == Distribution.ubuntu
-        and needs_repository_key_fetch(namespace.distribution)
-    ) or needs_repository_key_fetch(namespace.tools_tree_distribution)
+        namespace["tools_tree_distribution"] == Distribution.ubuntu
+        and needs_repository_key_fetch(namespace["distribution"])
+    ) or needs_repository_key_fetch(namespace["tools_tree_distribution"])
 
 
-def config_default_source_date_epoch(namespace: argparse.Namespace) -> Optional[int]:
-    for env in namespace.environment:
+def config_default_source_date_epoch(namespace: dict[str, Any]) -> Optional[int]:
+    for env in namespace["environment"]:
         if s := startswith(env, "SOURCE_DATE_EPOCH="):
             break
     else:
@@ -1033,10 +1033,10 @@ def config_default_source_date_epoch(namespace: argparse.Namespace) -> Optional[
     return config_parse_source_date_epoch(s, None)
 
 
-def config_default_proxy_url(namespace: argparse.Namespace) -> Optional[str]:
+def config_default_proxy_url(namespace: dict[str, Any]) -> Optional[str]:
     names = ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY")
 
-    for env in namespace.environment:
+    for env in namespace["environment"]:
         k, _, v = env.partition("=")
         if k in names:
             return cast(str, v)
@@ -1048,7 +1048,7 @@ def config_default_proxy_url(namespace: argparse.Namespace) -> Optional[str]:
     return None
 
 
-def config_default_proxy_peer_certificate(namespace: argparse.Namespace) -> Optional[Path]:
+def config_default_proxy_peer_certificate(namespace: dict[str, Any]) -> Optional[Path]:
     for p in (Path("/etc/pki/tls/certs/ca-bundle.crt"), Path("/etc/ssl/certs/ca-certificates.crt")):
         if p.exists():
             return p
@@ -1627,7 +1627,7 @@ class Match:
 @dataclasses.dataclass(frozen=True)
 class Specifier:
     char: str
-    callback: Callable[[argparse.Namespace, Path], str]
+    callback: Callable[[dict[str, Any], Path], str]
     depends: tuple[str, ...] = tuple()
 
 
@@ -1754,8 +1754,8 @@ class Args:
         return {f.name for f in dataclasses.fields(cls)}
 
     @classmethod
-    def from_namespace(cls, ns: argparse.Namespace) -> "Args":
-        return cls(**{k: v for k, v in vars(ns).items() if k in cls.fields()})
+    def from_namespace(cls, ns: dict[str, Any]) -> "Args":
+        return cls(**{k: v for k, v in ns.items() if k in cls.fields()})
 
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self, dict_factory=dict_with_capitalised_keys_factory)
@@ -1819,8 +1819,8 @@ def make_simple_config_parser(
     lookup_by_name = {s.name: s for s in settings}
     lookup_by_dest = {s.dest: s for s in settings}
 
-    def finalize_value(config: argparse.Namespace, setting: ConfigSetting[object]) -> None:
-        if hasattr(config, setting.dest):
+    def finalize_value(config: dict[str, Any], setting: ConfigSetting[object]) -> None:
+        if setting.dest in config:
             return
 
         if setting.default_factory:
@@ -1833,11 +1833,11 @@ def make_simple_config_parser(
         else:
             default = setting.parse(None, None)
 
-        setattr(config, setting.dest, default)
+        config[setting.dest] = default
 
     def parse_simple_config(value: str) -> D:
         path = parse_path(value)
-        config = argparse.Namespace()
+        config: dict[str, Any] = {}
 
         for section, name, value in parse_ini(path, only_sections=[s.section for s in settings]):
             if not name and not value:
@@ -1857,13 +1857,13 @@ def make_simple_config_parser(
                     f"{path.absolute()}: Setting {name} is deprecated, please use {s.name} instead."
                 )
 
-            setattr(config, s.dest, s.parse(value, getattr(config, s.dest, None)))
+            config[s.dest] = s.parse(value, config.get(s.dest))
 
         for setting in settings:
             finalize_value(config, setting)
 
         parameters = {f.name for f in dataclasses.fields(valtype)}
-        return valtype(**{k: v for k, v in vars(config).items() if k in parameters})
+        return valtype(**{k: v for k, v in config.items() if k in parameters})
 
     return parse_simple_config
 
@@ -2165,8 +2165,8 @@ class Config:
         return {f.name for f in dataclasses.fields(cls)}
 
     @classmethod
-    def from_namespace(cls, ns: argparse.Namespace) -> "Config":
-        return cls(**{k: v for k, v in vars(ns).items() if k in cls.fields()})
+    def from_dict(cls, ns: dict[str, Any]) -> "Config":
+        return cls(**{k: v for k, v in ns.items() if k in cls.fields()})
 
     @property
     def output_with_format(self) -> str:
@@ -2679,7 +2679,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
             "OutputExtension= or --output-extension= requires a valid extension with no path components."
         ),
         help="Output extension",
-        default_factory=lambda ns: ns.output_format.extension(),
+        default_factory=lambda ns: ns["output_format"].extension(),
         default_factory_depends=("output_format",),
     ),
     ConfigSetting(
@@ -3464,7 +3464,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="BOOL",
         section="Validation",
         parse=config_parse_boolean,
-        default_factory=lambda ns: True if ns.sign else False,
+        default_factory=lambda ns: True if ns["sign"] else False,
         default_factory_depends=("sign",),
         help="Write SHA256SUMS file",
     ),
@@ -3514,7 +3514,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         parse=config_parse_string,
         match=config_make_string_matcher(),
         default_factory_depends=("tools_tree_distribution",),
-        default_factory=lambda ns: d.default_release() if (d := ns.tools_tree_distribution) else None,
+        default_factory=lambda ns: d.default_release() if (d := ns["tools_tree_distribution"]) else None,
         help="Set the release to use for the default tools tree",
         scope=SettingScope.main,
     ),
@@ -3535,7 +3535,9 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Build",
         default_factory_depends=("distribution", "mirror", "tools_tree_distribution"),
         default_factory=(
-            lambda ns: ns.mirror if ns.mirror and ns.distribution == ns.tools_tree_distribution else None
+            lambda ns: ns["mirror"]
+            if ns["mirror"] and ns["distribution"] == ns["tools_tree_distribution"]
+            else None
         ),
         help="Set the mirror to use for the default tools tree",
         scope=SettingScope.main,
@@ -3754,7 +3756,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
             ),
         ),
         match=config_match_build_sources,
-        default_factory=lambda ns: [ConfigTree(ns.directory, None)] if ns.directory else [],
+        default_factory=lambda ns: [ConfigTree(ns["directory"], None)] if ns["directory"] else [],
         help="Path for sources to build",
         scope=SettingScope.universal,
     ),
@@ -3840,7 +3842,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ConfigSetting(
         dest="proxy_client_key",
         section="Build",
-        default_factory=lambda ns: ns.proxy_client_certificate,
+        default_factory=lambda ns: ns["proxy_client_certificate"],
         default_factory_depends=("proxy_client_certificate",),
         parse=config_make_path_parser(secret=True),
         help="Set the proxy client key",
@@ -4213,16 +4215,16 @@ SPECIFIERS = (
     ),
     Specifier(
         char="D",
-        callback=lambda ns, config: os.fspath(ns.directory.resolve()),
+        callback=lambda ns, config: os.fspath(ns["directory"].resolve()),
     ),
     Specifier(
         char="F",
-        callback=lambda ns, config: ns.distribution.filesystem(),
+        callback=lambda ns, config: ns["distribution"].filesystem(),
         depends=("distribution",),
     ),
     Specifier(
         char="I",
-        callback=lambda ns, config: ns.image,
+        callback=lambda ns, config: ns["image"],
     ),
 )
 
@@ -4503,11 +4505,9 @@ class ParseContext:
         # the settings specified in configuration files. This is required to implement both [Match]
         # support and the behavior where settings specified on the CLI always override settings
         # specified in configuration files.
-        self.cli = argparse.Namespace()
-        self.config = argparse.Namespace(
-            files=[],
-        )
-        self.defaults = argparse.Namespace()
+        self.cli: dict[str, Any] = {}
+        self.config: dict[str, Any] = {"files": []}
+        self.defaults: dict[str, Any] = {}
         # Compare inodes instead of paths so we can't get tricked by bind mounts and such.
         self.includes: set[tuple[int, int]] = set()
         self.only_sections: tuple[str, ...] = tuple()
@@ -4532,12 +4532,12 @@ class ParseContext:
 
                     result += str(v)
                 elif specifier := SPECIFIERS_LOOKUP_BY_CHAR.get(c):
-                    specifierns = argparse.Namespace()
-
                     # Some specifier methods might want to access the image name or directory mkosi was
                     # invoked in so let's make sure those are available.
-                    setattr(specifierns, "image", getattr(self.config, "image"))
-                    setattr(specifierns, "directory", getattr(self.config, "directory"))
+                    specifierns = {
+                        "image": self.config["image"],
+                        "directory": self.config["directory"],
+                    }
 
                     for d in specifier.depends:
                         setting = SETTINGS_LOOKUP_BY_DEST[d]
@@ -4549,7 +4549,7 @@ class ParseContext:
                             )
                             break
 
-                        setattr(specifierns, d, v)
+                        specifierns[d] = v
                     else:
                         result += specifier.callback(specifierns, path)
                 else:
@@ -4566,7 +4566,7 @@ class ParseContext:
 
     def parse_new_includes(self) -> None:
         # Parse any includes that were added after yielding.
-        for p in getattr(self.cli, "include", []) + getattr(self.config, "include", []):
+        for p in self.cli.get("include", []) + self.config.get("include", []):
             for c in BUILTIN_CONFIGS:
                 if p == Path(c):
                     path = self.resources / c
@@ -4584,11 +4584,11 @@ class ParseContext:
             if any(p == Path(c) for c in BUILTIN_CONFIGS):
                 context = ParseContext(self.resources)
 
-                setattr(context.config, "image", "main")
-                setattr(context.config, "directory", path)
+                context.config["image"] = "main"
+                context.config["directory"] = path
 
                 context.parse_config_one(path)
-                config = Config.from_namespace(context.finalize())
+                config = Config.from_dict(context.finalize())
 
                 make_executable(
                     *config.configure_scripts,
@@ -4608,12 +4608,12 @@ class ParseContext:
         # If a value was specified on the CLI, it always takes priority. If the setting is a collection of
         # values, we merge the value from the CLI with the value from the configuration, making sure that the
         # value from the CLI always takes priority.
-        if (v := cast(Optional[T], getattr(self.cli, setting.dest, None))) is not None:
-            cfg_value = getattr(self.config, setting.dest, None)
+        if (v := cast(Optional[T], self.cli.get(setting.dest))) is not None:
+            cfg_value = self.config.get(setting.dest)
             # We either have no corresponding value in the config files
             # or the values was assigned the empty string on the CLI
             # and should thus be treated as a reset and override of the value from the config file.
-            if cfg_value is None or getattr(self.cli, f"{setting.dest}_was_none", False):
+            if cfg_value is None or self.cli.get(f"{setting.dest}_was_none", False):
                 return v
 
             # The instance asserts are pushed down to help mypy/pylance narrow the types.
@@ -4636,33 +4636,32 @@ class ParseContext:
         # default value either if the setting is set to the empty string on the command line.
 
         if (
-            not hasattr(self.cli, setting.dest)
-            and hasattr(self.config, setting.dest)
-            and (v := cast(Optional[T], getattr(self.config, setting.dest))) is not None
+            setting.dest not in self.cli
+            and setting.dest in self.config
+            and (v := cast(Optional[T], self.config[setting.dest])) is not None
         ):
             return v
 
-        if (hasattr(self.cli, setting.dest) or hasattr(self.config, setting.dest)) and isinstance(
+        if (setting.dest in self.cli or setting.dest in self.config) and isinstance(
             setting.parse(None, None), (dict, list, set)
         ):
             default = setting.parse(None, None)
-        elif hasattr(self.defaults, setting.dest):
-            default = getattr(self.defaults, setting.dest)
+        elif setting.dest in self.defaults:
+            default = self.defaults[setting.dest]
         elif setting.default_factory:
+            # Some default factory methods want to access the image name or directory mkosi was invoked in so
+            # let's make sure those are available.
+            factoryns = {
+                "image": self.config["image"],
+                "directory": self.config["directory"],
+            }
+
             # To determine default values, we need the final values of various settings in a namespace
             # object, but we don't want to copy the final values into the config namespace object just yet so
             # we create a new namespace object instead.
-            factoryns = argparse.Namespace(
-                **{
-                    d: self.finalize_value(SETTINGS_LOOKUP_BY_DEST[d])
-                    for d in setting.default_factory_depends
-                }
-            )
-
-            # Some default factory methods want to access the image name or directory mkosi was invoked in so
-            # let's make sure those are available.
-            setattr(factoryns, "image", getattr(self.config, "image"))
-            setattr(factoryns, "directory", getattr(self.config, "directory"))
+            factoryns |= {
+                d: self.finalize_value(SETTINGS_LOOKUP_BY_DEST[d]) for d in setting.default_factory_depends
+            }
 
             default = setting.default_factory(factoryns)
         elif setting.default is not None:
@@ -4670,7 +4669,7 @@ class ParseContext:
         else:
             default = setting.parse(None, None)
 
-        setattr(self.defaults, setting.dest, default)
+        self.defaults[setting.dest] = default
 
         return default
 
@@ -4710,7 +4709,7 @@ class ParseContext:
                 if not s.match:
                     die(f"{path.absolute()}: {k} cannot be used in [{section}]")
 
-                if s.scope == SettingScope.main and getattr(self.config, "image") != "main":
+                if s.scope == SettingScope.main and self.config["image"] != "main":
                     die(f"{path.absolute()}: {k} cannot be matched on outside of the main image")
 
                 if k != s.name:
@@ -4726,7 +4725,7 @@ class ParseContext:
                     result = s.match(v, value)
 
             elif m := MATCH_LOOKUP.get(k):
-                result = m.match(getattr(self.config, "image"), v)
+                result = m.match(self.config["image"], v)
             else:
                 die(f"{path.absolute()}: {k} cannot be used in [{section}]")
 
@@ -4768,12 +4767,12 @@ class ParseContext:
                     # configuration but not the CLI itself so move the finalized
                     # values to the CLI namespace.
                     for s in SETTINGS:
-                        if hasattr(self.config, s.dest):
-                            setattr(self.cli, s.dest, self.finalize_value(s))
-                            delattr(self.config, s.dest)
+                        if s.dest in self.config:
+                            self.cli[s.dest] = self.finalize_value(s)
+                            del self.config[s.dest]
 
             for s in SETTINGS:
-                image = getattr(self.config, "image")
+                image = self.config["image"]
 
                 if s.scope in (SettingScope.main, SettingScope.universal) and image != "main":
                     continue
@@ -4793,13 +4792,9 @@ class ParseContext:
                         expandvars=False,
                     )
                     if extra.exists():
-                        setattr(
-                            self.config,
-                            s.dest,
-                            s.parse(
-                                file_run_or_read(extra).rstrip("\n") if s.path_read_text else f,
-                                getattr(self.config, s.dest, None),
-                            ),
+                        self.config[s.dest] = s.parse(
+                            file_run_or_read(extra).rstrip("\n") if s.path_read_text else f,
+                            self.config.get(s.dest),
                         )
 
                 for f in s.recursive_path_suffixes:
@@ -4815,15 +4810,11 @@ class ParseContext:
                     )
                     for e in recursive_extras:
                         if e.exists():
-                            setattr(
-                                self.config,
-                                s.dest,
-                                s.parse(os.fspath(e), getattr(self.config, s.dest, None)),
-                            )
+                            self.config[s.dest] = s.parse(os.fspath(e), self.config.get(s.dest))
 
         if path.exists():
             logging.debug(f"Loading configuration file {path}")
-            files = getattr(self.config, "files")
+            files = self.config["files"]
             files += [path]
 
             for section, k, v in parse_ini(
@@ -4843,7 +4834,7 @@ class ParseContext:
                 if not (s := SETTINGS_LOOKUP_BY_NAME.get(name)):
                     die(f"{path.absolute()}: Unknown setting {name}")
 
-                image = getattr(self.config, "image")
+                image = self.config["image"]
 
                 if s.scope in (SettingScope.main, SettingScope.universal) and image != "main":
                     die(f"{path.absolute()}: Setting {name} cannot be configured in subimage {image}")
@@ -4861,7 +4852,7 @@ class ParseContext:
 
                 v = self.expand_specifiers(v, path)
 
-                setattr(self.config, s.dest, s.parse(v, getattr(self.config, s.dest, None)))
+                self.config[s.dest] = s.parse(v, self.config.get(s.dest))
                 self.parse_new_includes()
 
         if extras and (path.parent / "mkosi.conf.d").exists():
@@ -4882,14 +4873,14 @@ class ParseContext:
 
         return True
 
-    def finalize(self) -> argparse.Namespace:
+    def finalize(self) -> dict[str, Any]:
         ns = copy.deepcopy(self.config)
 
         # After we've finished parsing the configuration, we'll have values in both namespaces (context.cli,
         # context.config). To be able to parse the values from a single namespace, we merge the final values
         # of each setting into one namespace.
         for s in SETTINGS:
-            setattr(ns, s.dest, copy.deepcopy(self.finalize_value(s)))
+            ns[s.dest] = copy.deepcopy(self.finalize_value(s))
 
         return ns
 
@@ -4903,8 +4894,8 @@ def have_history(args: Args) -> bool:
     )
 
 
-def finalize_default_tools(config: argparse.Namespace, *, resources: Path) -> Config:
-    main = Config.from_namespace(config)
+def finalize_default_tools(config: dict[str, Any], *, resources: Path) -> Config:
+    main = Config.from_dict(config)
 
     if not main.tools_tree_distribution:
         die(
@@ -4962,11 +4953,13 @@ def parse_config(
 
     # The "image" field does not directly map to a setting but is required to determine some default values
     # for settings, so let's set it on the config namespace immediately so it's available.
-    setattr(context.config, "image", "main")
+    context.config["image"] = "main"
 
     # First, we parse the command line arguments into a separate namespace.
     argparser = create_argument_parser()
-    argparser.parse_args(argv, context.cli)
+    ns = argparse.Namespace()
+    ns.__dict__ = context.cli
+    argparser.parse_args(argv, ns)
 
     args = Args.from_namespace(context.cli)
 
@@ -5011,14 +5004,14 @@ def parse_config(
             if s.section in ("Include", "Runtime"):
                 continue
 
-            if hasattr(context.cli, s.dest) and getattr(context.cli, s.dest) != getattr(prev, s.dest):
+            if s.dest in context.cli and context.cli[s.dest] != getattr(prev, s.dest):
                 logging.warning(
                     f"Ignoring {s.long} from the CLI. Run with -f to rebuild the image with this setting"
                 )
 
-            setattr(context.cli, s.dest, getattr(prev, s.dest))
-            if hasattr(context.config, s.dest):
-                delattr(context.config, s.dest)
+            context.cli[s.dest] = getattr(prev, s.dest)
+            if s.dest in context.config:
+                del context.config[s.dest]
 
         context.only_sections = ("Include", "Runtime", "Host")
     else:
@@ -5027,11 +5020,11 @@ def parse_config(
         prev = None
 
     # One of the specifiers needs access to the directory, so make sure it is available.
-    setattr(context.config, "directory", args.directory)
+    context.config["directory"] = args.directory
 
     context.parse_new_includes()
 
-    setattr(context.config, "files", [])
+    context.config["files"] = []
 
     # Parse the global configuration unless the user explicitly asked us not to.
     if args.directory is not None:
@@ -5039,16 +5032,16 @@ def parse_config(
 
     config = context.finalize()
 
-    if getattr(config, "tools_tree", None) == Path("default"):
+    if config.get("tools_tree") == Path("default"):
         tools = finalize_default_tools(config, resources=resources)
     else:
         tools = None
 
     if prev:
-        return args, tools, (*subimages, Config.from_namespace(config))
+        return args, tools, (*subimages, Config.from_dict(config))
 
     if tools:
-        setattr(config, "tools_tree", tools.output_dir_or_cwd() / tools.output)
+        config["tools_tree"] = tools.output_dir_or_cwd() / tools.output
 
     images = []
 
@@ -5059,7 +5052,7 @@ def parse_config(
     # we check here to see if dependencies were explicitly provided and if not we gather
     # the list of default dependencies while we parse the subimages.
     dependencies: Optional[list[str]] = (
-        None if hasattr(context.cli, "dependencies") or hasattr(context.config, "dependencies") else []
+        None if "dependencies" in context.cli or "dependencies" in context.config else []
     )
 
     if args.directory is not None and Path("mkosi.images").exists():
@@ -5070,9 +5063,9 @@ def parse_config(
         # that are not marked as "universal" are deleted from the CLI namespace.
         for s in SETTINGS:
             if s.scope == SettingScope.universal:
-                setattr(context.cli, s.dest, copy.deepcopy(getattr(config, s.dest)))
-            elif hasattr(context.cli, s.dest):
-                delattr(context.cli, s.dest)
+                context.cli[s.dest] = copy.deepcopy(config[s.dest])
+            elif s.dest in context.cli:
+                del context.cli[s.dest]
 
         for p in sorted(Path("mkosi.images").iterdir()):
             p = p.absolute()
@@ -5084,31 +5077,28 @@ def parse_config(
             if not name:
                 die(f"{p} is not a valid image name")
 
-            context.config = argparse.Namespace()
-            setattr(context.config, "image", name)
-            setattr(context.config, "directory", args.directory)
-            setattr(context.config, "files", [])
+            context.config = {
+                "image": name,
+                "directory": args.directory,
+                "files": [],
+            }
 
             # Settings that are marked as "inherit" are passed down to subimages but can
             # be overridden, so we copy these to the config namespace so that they'll be
             # overridden if the setting is explicitly configured by the subimage.
             for s in SETTINGS:
-                if s.scope == SettingScope.inherit and hasattr(config, s.dest):
-                    setattr(context.config, s.dest, copy.deepcopy(getattr(config, s.dest)))
+                if s.scope == SettingScope.inherit and s.dest in config:
+                    context.config[s.dest] = copy.deepcopy(config[s.dest])
 
-            setattr(
-                context.config,
-                "environment",
-                {
-                    name: getattr(config, "environment")[name]
-                    for name in getattr(config, "pass_environment", {})
-                    if name in getattr(config, "environment", {})
-                },
-            )
+            context.config["environment"] = {
+                name: config["environment"][name]
+                for name in config.get("pass_environment", {})
+                if name in config.get("environment", {})
+            }
 
             # Allow subimage configuration to include everything again.
             context.includes = set()
-            context.defaults = argparse.Namespace()
+            context.defaults = {}
 
             with chdir(p if p.is_dir() else Path.cwd()):
                 if not context.parse_config_one(
@@ -5124,11 +5114,11 @@ def parse_config(
                 dependencies += [name]
 
     if dependencies is not None:
-        setattr(config, "dependencies", dependencies)
+        config["dependencies"] = dependencies
 
-    main = Config.from_namespace(config)
+    main = Config.from_dict(config)
 
-    subimages = [Config.from_namespace(ns) for ns in images]
+    subimages = [Config.from_dict(ns) for ns in images]
     subimages = resolve_deps(subimages, main.dependencies)
 
     return args, tools, tuple(subimages + [main])
