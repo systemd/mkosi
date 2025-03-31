@@ -1572,14 +1572,18 @@ def config_parse_artifact_output_list(
 
 
 class SettingScope(StrEnum):
-    # Not passed down to subimages
+    # Not passed down to tools tree or subimages, can be configured everywhere.
     local = enum.auto()
-    # Passed down to subimages, cannot be overridden
+    # Passed down to subimages from main image, can be configured in main and tools tree images.
     universal = enum.auto()
-    # Passed down to subimages, can be overridden
+    # Passed down to subimages and the tools tree, can only be configured in main image.
+    multiversal = enum.auto()
+    # Passed down to subimages from main image, can be configured everywhere.
     inherit = enum.auto()
-    # Can only be configured in main image, not passed down anywhere.
+    # Not passed down anywhere, can only be configured in main image.
     main = enum.auto()
+    # Only passed down to tools tree, can only be configured in main image.
+    tools = enum.auto()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -1610,6 +1614,9 @@ class ConfigSetting(Generic[T]):
     # backward compatibility
     compat_names: tuple[str, ...] = ()
     compat_longs: tuple[str, ...] = ()
+
+    # Tools tree specific settings
+    tools: bool = False
 
     def __post_init__(self) -> None:
         if not self.name:
@@ -1999,16 +2006,6 @@ class Config:
     key: Optional[str]
 
     tools_tree: Optional[Path]
-    tools_tree_distribution: Optional[Distribution]
-    tools_tree_release: Optional[str]
-    tools_tree_profiles: list[str]
-    tools_tree_mirror: Optional[str]
-    tools_tree_repositories: list[str]
-    tools_tree_sandbox_trees: list[ConfigTree]
-    tools_tree_packages: list[str]
-    tools_tree_package_directories: list[Path]
-    tools_tree_sync_scripts: list[Path]
-    tools_tree_prepare_scripts: list[Path]
     tools_tree_certificates: bool
     extra_search_paths: list[Path]
     incremental: Incremental
@@ -2516,6 +2513,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
             parse=make_path_parser(constants=BUILTIN_CONFIGS),
         ),
         help="Include configuration from the specified file or directory",
+        tools=True,
     ),
     # Config section
     ConfigSetting(
@@ -2527,6 +2525,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         match=config_make_list_matcher(parse=parse_profile),
         scope=SettingScope.inherit,
         compat_names=("Profile",),
+        tools=True,
     ),
     ConfigSetting(
         dest="dependencies",
@@ -2571,6 +2570,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         choices=Distribution.choices(),
         help="Distribution to install",
         scope=SettingScope.universal,
+        tools=True,
     ),
     ConfigSetting(
         dest="release",
@@ -2583,6 +2583,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         default_factory_depends=("distribution",),
         help="Distribution release to install",
         scope=SettingScope.universal,
+        tools=True,
     ),
     ConfigSetting(
         dest="architecture",
@@ -2601,6 +2602,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Distribution",
         help="Distribution mirror to use",
         scope=SettingScope.universal,
+        tools=True,
     ),
     ConfigSetting(
         dest="local_mirror",
@@ -2615,7 +2617,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         default=True,
         parse=config_parse_boolean,
         help="Controls signature and key checks on repositories",
-        scope=SettingScope.universal,
+        scope=SettingScope.multiversal,
     ),
     ConfigSetting(
         dest="repository_key_fetch",
@@ -2625,7 +2627,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         default_factory=config_default_repository_key_fetch,
         parse=config_parse_boolean,
         help="Controls whether distribution GPG keys can be fetched remotely",
-        scope=SettingScope.universal,
+        scope=SettingScope.multiversal,
     ),
     ConfigSetting(
         dest="repositories",
@@ -2635,6 +2637,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         match=config_make_list_matcher(parse=str),
         help="Repositories to use",
         scope=SettingScope.universal,
+        tools=True,
     ),
     # Output section
     ConfigSetting(
@@ -2670,6 +2673,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         default_factory=config_default_output,
         default_factory_depends=("image_id", "image_version"),
         help="Output name",
+        tools=True,
     ),
     ConfigSetting(
         dest="output_extension",
@@ -2713,6 +2717,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         path_suffixes=("output",),
         help="Output directory",
         scope=SettingScope.universal,
+        tools=True,
     ),
     ConfigSetting(
         dest="output_mode",
@@ -2801,6 +2806,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Content",
         parse=config_make_list_parser(delimiter=",", key=package_sort_key),
         help="Add an additional package to the OS image",
+        tools=True,
     ),
     ConfigSetting(
         dest="build_packages",
@@ -2827,6 +2833,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         path_suffixes=("packages",),
         help="Specify a directory containing extra packages",
         scope=SettingScope.universal,
+        tools=True,
     ),
     ConfigSetting(
         dest="volatile_package_directories",
@@ -2908,7 +2915,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         default_factory=config_default_source_date_epoch,
         default_factory_depends=("environment",),
         help="Set the $SOURCE_DATE_EPOCH timestamp",
-        scope=SettingScope.universal,
+        scope=SettingScope.multiversal,
     ),
     ConfigSetting(
         dest="sync_scripts",
@@ -2919,6 +2926,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         path_suffixes=("sync",),
         recursive_path_suffixes=("sync.d/*",),
         help="Sync script to run before starting the build",
+        tools=True,
     ),
     ConfigSetting(
         dest="prepare_scripts",
@@ -2930,6 +2938,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         recursive_path_suffixes=("prepare.d/*",),
         help="Prepare script to run inside the image before it is cached",
         compat_names=("PrepareScript",),
+        tools=True,
     ),
     ConfigSetting(
         dest="build_scripts",
@@ -3505,7 +3514,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         choices=Distribution.choices(),
         default_factory=config_default_tools_tree_distribution,
         help="Set the distribution to use for the default tools tree",
-        scope=SettingScope.main,
+        scope=SettingScope.tools,
     ),
     ConfigSetting(
         dest="tools_tree_release",
@@ -3516,7 +3525,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         default_factory_depends=("tools_tree_distribution",),
         default_factory=lambda ns: d.default_release() if (d := ns["tools_tree_distribution"]) else None,
         help="Set the release to use for the default tools tree",
-        scope=SettingScope.main,
+        scope=SettingScope.tools,
     ),
     ConfigSetting(
         dest="tools_tree_profiles",
@@ -3527,7 +3536,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         choices=ToolsTreeProfile.values(),
         default=[str(s) for s in ToolsTreeProfile.default()],
         help="Which profiles to enable for the default tools tree",
-        scope=SettingScope.main,
+        scope=SettingScope.tools,
     ),
     ConfigSetting(
         dest="tools_tree_mirror",
@@ -3540,7 +3549,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
             else None
         ),
         help="Set the mirror to use for the default tools tree",
-        scope=SettingScope.main,
+        scope=SettingScope.tools,
     ),
     ConfigSetting(
         dest="tools_tree_repositories",
@@ -3560,7 +3569,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Build",
         parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(required=True)),
         help="Sandbox trees for the default tools tree",
-        scope=SettingScope.main,
+        scope=SettingScope.tools,
     ),
     ConfigSetting(
         dest="tools_tree_packages",
@@ -3569,7 +3578,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Build",
         parse=config_make_list_parser(delimiter=","),
         help="Add additional packages to the default tools tree",
-        scope=SettingScope.main,
+        scope=SettingScope.tools,
     ),
     ConfigSetting(
         dest="tools_tree_package_directories",
@@ -3578,7 +3587,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Build",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         help="Specify a directory containing extra tools tree packages",
-        scope=SettingScope.main,
+        scope=SettingScope.tools,
     ),
     ConfigSetting(
         dest="tools_tree_sync_scripts",
@@ -3589,7 +3598,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         path_suffixes=("tools.sync",),
         recursive_path_suffixes=("tools.sync.d/*",),
         help="Sync script to run before building the tools tree",
-        scope=SettingScope.main,
+        scope=SettingScope.tools,
     ),
     ConfigSetting(
         dest="tools_tree_prepare_scripts",
@@ -3600,7 +3609,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         path_suffixes=("tools.prepare", "tools.prepare.chroot"),
         recursive_path_suffixes=("tools.prepare.d/*",),
         help="Prepare script to run inside the tools tree before it is cached",
-        scope=SettingScope.main,
+        scope=SettingScope.tools,
     ),
     ConfigSetting(
         dest="tools_tree_certificates",
@@ -3640,7 +3649,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         default=Cacheonly.auto,
         help="Only use the package cache when installing packages",
         choices=Cacheonly.choices(),
-        scope=SettingScope.universal,
+        scope=SettingScope.multiversal,
     ),
     ConfigSetting(
         dest="sandbox_trees",
@@ -3653,6 +3662,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         help="Use a sandbox tree to configure the various tools that mkosi executes",
         path_suffixes=("sandbox", "sandbox.tar", "pkgmngr", "pkgmngr.tar"),
         scope=SettingScope.universal,
+        tools=True,
     ),
     ConfigSetting(
         dest="workspace_dir",
@@ -3663,7 +3673,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Build",
         parse=config_make_path_parser(required=False),
         help="Workspace directory",
-        scope=SettingScope.universal,
+        scope=SettingScope.multiversal,
     ),
     ConfigSetting(
         dest="cache_dir",
@@ -3696,7 +3706,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         parse=config_make_path_parser(required=False),
         path_suffixes=("pkgcache",),
         help="Package cache directory",
-        scope=SettingScope.universal,
+        scope=SettingScope.multiversal,
     ),
     ConfigSetting(
         dest="build_dir",
@@ -3758,7 +3768,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         match=config_match_build_sources,
         default_factory=lambda ns: [ConfigTree(ns["directory"], None)] if ns["directory"] else [],
         help="Path for sources to build",
-        scope=SettingScope.universal,
+        scope=SettingScope.multiversal,
     ),
     ConfigSetting(
         dest="build_sources_ephemeral",
@@ -3768,7 +3778,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         ),
         default=BuildSourcesEphemeral.no,
         help="Make build sources ephemeral when running scripts",
-        scope=SettingScope.universal,
+        scope=SettingScope.multiversal,
         choices=BuildSourcesEphemeral.values(),
     ),
     ConfigSetting(
@@ -3814,7 +3824,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         default_factory_depends=("environment",),
         metavar="URL",
         help="Set the proxy to use",
-        scope=SettingScope.universal,
+        scope=SettingScope.multiversal,
     ),
     ConfigSetting(
         dest="proxy_exclude",
@@ -3822,7 +3832,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="HOST",
         parse=config_make_list_parser(delimiter=","),
         help="Don't use the configured proxy for the specified host(s)",
-        scope=SettingScope.universal,
+        scope=SettingScope.multiversal,
     ),
     ConfigSetting(
         dest="proxy_peer_certificate",
@@ -3830,14 +3840,14 @@ SETTINGS: list[ConfigSetting[Any]] = [
         parse=config_make_path_parser(),
         default_factory=config_default_proxy_peer_certificate,
         help="Set the proxy peer certificate",
-        scope=SettingScope.universal,
+        scope=SettingScope.multiversal,
     ),
     ConfigSetting(
         dest="proxy_client_certificate",
         section="Build",
         parse=config_make_path_parser(secret=True),
         help="Set the proxy client certificate",
-        scope=SettingScope.universal,
+        scope=SettingScope.multiversal,
     ),
     ConfigSetting(
         dest="proxy_client_key",
@@ -3846,7 +3856,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         default_factory_depends=("proxy_client_certificate",),
         parse=config_make_path_parser(secret=True),
         help="Set the proxy client key",
-        scope=SettingScope.universal,
+        scope=SettingScope.multiversal,
     ),
     # Runtime section
     ConfigSetting(
@@ -4512,6 +4522,18 @@ class ParseContext:
         self.includes: set[tuple[int, int]] = set()
         self.only_sections: tuple[str, ...] = tuple()
 
+    def setting_prohibited(self, setting: ConfigSetting[T]) -> bool:
+        image = self.config["image"]
+
+        return (
+            (not setting.tools and image == "tools")
+            or (
+                setting.scope in (SettingScope.main, SettingScope.tools, SettingScope.multiversal)
+                and image != "main"
+            )
+            or (setting.scope == SettingScope.universal and image not in ("main", "tools"))
+        )
+
     def expand_specifiers(self, text: str, path: Path) -> str:
         percent = False
         result: list[str] = []
@@ -4774,7 +4796,7 @@ class ParseContext:
             for s in SETTINGS:
                 image = self.config["image"]
 
-                if s.scope in (SettingScope.main, SettingScope.universal) and image != "main":
+                if self.setting_prohibited(s):
                     continue
 
                 if self.only_sections and s.section not in self.only_sections:
@@ -4836,8 +4858,8 @@ class ParseContext:
 
                 image = self.config["image"]
 
-                if s.scope in (SettingScope.main, SettingScope.universal) and image != "main":
-                    die(f"{path.absolute()}: Setting {name} cannot be configured in subimage {image}")
+                if self.setting_prohibited(s):
+                    die(f"{path.absolute()}: Setting {name} cannot be configured in {image} image")
 
                 if section != s.section:
                     logging.warning(
@@ -4894,51 +4916,45 @@ def have_history(args: Args) -> bool:
     )
 
 
-def finalize_default_tools(config: dict[str, Any], *, resources: Path) -> Config:
-    main = Config.from_dict(config)
+def finalize_default_tools(main: ParseContext, finalized: dict[str, Any], *, resources: Path) -> Config:
+    context = ParseContext(resources)
 
-    if not main.tools_tree_distribution:
-        die(
-            f"{main.distribution} does not have a default tools tree distribution",
-            hint="use ToolsTreeDistribution= to set one explicitly",
-        )
+    for s in SETTINGS:
+        if s.scope == SettingScope.multiversal:
+            context.cli[s.dest] = copy.deepcopy(finalized[s.dest])
+        elif s.scope == SettingScope.tools:
+            # If the setting was specified on the CLI for the main config, we treat it as specified on the
+            # CLI for the tools tree as well. Idem for config and defaults.
+            dest = s.dest.removeprefix("tools_tree_")
 
-    cmdline = [
-        "--directory=",
-        f"--distribution={main.tools_tree_distribution}",
-        *([f"--release={main.tools_tree_release}"] if main.tools_tree_release else []),
-        *([f"--profile={profile}" for profile in main.tools_tree_profiles]),
-        *([f"--mirror={main.tools_tree_mirror}"] if main.tools_tree_mirror else []),
-        *([f"--repositories={repository}" for repository in main.tools_tree_repositories]),
-        *([f"--sandbox-tree={tree}" for tree in main.tools_tree_sandbox_trees]),
-        f"--repository-key-check={main.repository_key_check}",
-        f"--repository-key-fetch={main.repository_key_fetch}",
-        f"--cache-only={main.cacheonly}",
-        *([f"--workspace-directory={os.fspath(p)}"] if (p := main.workspace_dir) else []),
-        *([f"--package-cache-directory={os.fspath(p)}"] if (p := main.package_cache_dir) else []),
-        *([f"--package={package}" for package in main.tools_tree_packages]),
-        *([f"--package-directory={os.fspath(directory)}" for directory in main.tools_tree_package_directories]),  # noqa: E501
-        *([f"--build-sources={tree}" for tree in main.build_sources]),
-        f"--build-sources-ephemeral={main.build_sources_ephemeral}",
-        *([f"--sync-script={os.fspath(script)}" for script in main.tools_tree_sync_scripts]),
-        *([f"--prepare-script={os.fspath(script)}" for script in main.tools_tree_prepare_scripts]),
-        *([f"--source-date-epoch={e}"] if (e := main.source_date_epoch) is not None else []),
-        *([f"--environment={k}='{v}'" for k, v in main.environment.items()]),
-        *([f"--proxy-url={main.proxy_url}"] if main.proxy_url else []),
-        *([f"--proxy-exclude={host}" for host in main.proxy_exclude]),
-        *([f"--proxy-peer-certificate={os.fspath(p)}"] if (p := main.proxy_peer_certificate) else []),
-        *([f"--proxy-client-certificate={os.fspath(p)}"] if (p := main.proxy_client_certificate) else []),
-        *([f"--proxy-client-key={os.fspath(p)}"] if (p := main.proxy_client_key) else []),
-    ]  # fmt: skip
+            if s.dest in main.cli:
+                ns = context.cli
+                if f"{s.dest}_was_none" in main.cli:
+                    ns[f"{dest}_was_none"] = main.cli[f"{s.dest}_was_none"]
+            elif s.dest in main.config:
+                ns = context.config
+            else:
+                ns = context.defaults
 
-    _, _, [tools] = parse_config(
-        cmdline + ["--include=mkosi-tools", "build"],
-        resources=resources,
-    )
+            ns[dest] = copy.deepcopy(finalized[s.dest])
 
-    tools = dataclasses.replace(tools, image="tools")
+    context.cli["output_format"] = OutputFormat.directory
 
-    return tools
+    context.config = {
+        "image": "tools",
+        "directory": finalized["directory"],
+        "files": [],
+    }
+
+    context.config["environment"] = {
+        name: finalized["environment"][name]
+        for name in finalized.get("environment", {}).keys() & finalized.get("pass_environment", [])
+    }
+
+    with chdir(resources / "mkosi-tools"):
+        context.parse_config_one(resources / "mkosi-tools", parse_profiles=True)
+
+    return Config.from_dict(context.finalize())
 
 
 def parse_config(
@@ -4986,10 +5002,9 @@ def parse_config(
 
     if have_history(args):
         try:
-            *subimages, prev = [
-                Config.from_json(j)
-                for j in json.loads(Path(".mkosi-private/history/latest.json").read_text())["Images"]
-            ]
+            j = json.loads(Path(".mkosi-private/history/latest.json").read_text())
+            tools = Config.from_json(j["Tools"]) if j["Tools"] is not None else None
+            *subimages, prev = [Config.from_json(c) for c in j["Images"]]
         except (KeyError, ValueError):
             die(
                 "Unable to parse history from .mkosi-private/history/latest.json",
@@ -5009,13 +5024,15 @@ def parse_config(
                     f"Ignoring {s.long} from the CLI. Run with -f to rebuild the image with this setting"
                 )
 
-            context.cli[s.dest] = getattr(prev, s.dest)
-            if s.dest in context.config:
-                del context.config[s.dest]
+            if hasattr(prev, s.dest):
+                context.cli[s.dest] = getattr(prev, s.dest)
+                if s.dest in context.config:
+                    del context.config[s.dest]
 
         context.only_sections = ("Include", "Runtime", "Host")
     else:
         context.only_sections = tuple(only_sections)
+        tools = None
         subimages = []
         prev = None
 
@@ -5032,15 +5049,11 @@ def parse_config(
 
     config = context.finalize()
 
-    if config.get("tools_tree") == Path("default"):
-        tools = finalize_default_tools(config, resources=resources)
-    else:
-        tools = None
-
     if prev:
         return args, tools, (*subimages, Config.from_dict(config))
 
-    if tools:
+    if config.get("tools_tree") == Path("default"):
+        tools = finalize_default_tools(context, config, resources=resources)
         config["tools_tree"] = tools.output_dir_or_cwd() / tools.output
 
     images = []
@@ -5062,7 +5075,7 @@ def parse_config(
         # were specified on the CLI by copying them to the CLI namespace. Any settings
         # that are not marked as "universal" are deleted from the CLI namespace.
         for s in SETTINGS:
-            if s.scope == SettingScope.universal:
+            if s.scope in (SettingScope.universal, SettingScope.multiversal):
                 context.cli[s.dest] = copy.deepcopy(config[s.dest])
             elif s.dest in context.cli:
                 del context.cli[s.dest]
@@ -5209,7 +5222,7 @@ def summary(config: Config) -> str:
 {bold(f"IMAGE: {config.image}")}
 """
 
-    if config.image == "main":
+    if config.image in ("main", "tools"):
         summary += f"""\
 
     {bold("CONFIG")}:
@@ -5370,16 +5383,6 @@ def summary(config: Config) -> str:
 
     {bold("BUILD CONFIGURATION")}:
                          Tools Tree: {config.tools_tree}
-            Tools Tree Distribution: {none_to_none(config.tools_tree_distribution)}
-                 Tools Tree Release: {none_to_none(config.tools_tree_release)}
-                Tools Tree Profiles: {line_join_list(config.tools_tree_profiles)}
-                  Tools Tree Mirror: {none_to_default(config.tools_tree_mirror)}
-            Tools Tree Repositories: {line_join_list(config.tools_tree_repositories)}
-           Tools Tree Sandbox Trees: {line_join_list(config.tools_tree_sandbox_trees)}
-                Tools Tree Packages: {line_join_list(config.tools_tree_packages)}
-     Tools Tree Package Directories: {line_join_list(config.tools_tree_package_directories)}
-            Tools Tree Sync Scripts: {line_join_list(config.tools_tree_sync_scripts)}
-         Tools Tree Prepare Scripts: {line_join_list(config.tools_tree_prepare_scripts)}
             Tools Tree Certificates: {yes_no(config.tools_tree_certificates)}
 
                  Extra Search Paths: {line_join_list(config.extra_search_paths)}

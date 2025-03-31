@@ -4926,6 +4926,15 @@ def run_build(
         )
 
 
+def dump_history_json(tools: Optional[Config], images: Sequence[Config]) -> str:
+    return json.dumps(
+        {"Tools": tools.to_dict() if tools else None, "Images": [config.to_dict() for config in images]},
+        cls=JsonEncoder,
+        indent=4,
+        sort_keys=True,
+    )
+
+
 def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, resources: Path) -> None:
     images = list(images)
 
@@ -4978,14 +4987,10 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
 
     if args.verb == Verb.summary:
         if args.json:
-            text = json.dumps(
-                {"Images": [config.to_dict() for config in images]},
-                cls=JsonEncoder,
-                indent=4,
-                sort_keys=True,
-            )
+            text = dump_history_json(tools, images)
         else:
-            text = "\n".join(summary(config) for config in images)
+            text = f"{summary(tools)}\n" if tools else ""
+            text += "\n".join(summary(config) for config in images)
 
         page(text, args.pager)
         return
@@ -5262,14 +5267,7 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
 
         if last.history and history:
             Path(".mkosi-private/history").mkdir(parents=True, exist_ok=True)
-            Path(".mkosi-private/history/latest.json").write_text(
-                json.dumps(
-                    {"Images": [config.to_dict() for config in images]},
-                    cls=JsonEncoder,
-                    indent=4,
-                    sort_keys=True,
-                )
-            )
+            Path(".mkosi-private/history/latest.json").write_text(dump_history_json(tools, images))
 
     if args.verb == Verb.build:
         return
