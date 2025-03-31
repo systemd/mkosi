@@ -4951,6 +4951,10 @@ def finalize_default_tools(main: ParseContext, finalized: dict[str, Any], *, res
         for name in finalized.get("environment", {}).keys() & finalized.get("pass_environment", [])
     }
 
+    if (p := Path("mkosi.tools.conf").absolute()).exists():
+        with chdir(p if p.is_dir() else Path.cwd()):
+            context.parse_config_one(p, parse_profiles=p.is_dir(), parse_local=p.is_dir())
+
     with chdir(resources / "mkosi-tools"):
         context.parse_config_one(resources / "mkosi-tools", parse_profiles=True)
 

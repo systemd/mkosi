@@ -1316,7 +1316,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     any of the extra search paths.
 
     If set to `default`, **mkosi** will automatically add an extra tools tree
-    image and use it as the tools tree.
+    image and use it as the tools tree. This image can be further configured
+    using the settings below or with `mkosi.tools.conf` which can either be a
+    file or directory containing extra configuration for the default tools tree.
 
     The following table shows for which distributions default tools tree
     packages are defined and which packages are included in those default

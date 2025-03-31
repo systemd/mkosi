@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+import mkosi.resources
 from mkosi import expand_kernel_specifiers
 from mkosi.config import (
     Architecture,
@@ -24,7 +25,7 @@ from mkosi.config import (
     parse_ini,
 )
 from mkosi.distributions import Distribution, detect_distribution
-from mkosi.util import chdir
+from mkosi.util import chdir, resource_path
 
 
 def test_compression_enum_creation() -> None:
@@ -1413,3 +1414,53 @@ def test_cli_collection_reset(tmp_path: Path) -> None:
 
         _, _, [config] = parse_config(["--package", "foo", "--package", ""])
         assert config.packages == []
+
+
+def test_tools(tmp_path: Path) -> None:
+    d = tmp_path
+    argv = ["--tools-tree=default"]
+
+    with resource_path(mkosi.resources) as resources, chdir(d):
+        _, tools, _ = parse_config(argv, resources=resources)
+        assert tools
+        host = detect_distribution()[0]
+        assert host
+        assert tools.distribution == host.default_tools_tree_distribution()
+
+        (d / "mkosi.tools.conf").write_text(
+            f"""
+            [Distribution]
+            Distribution=debian
+
+            [Content]
+            PackageDirectories={d}
+            """
+        )
+
+        _, tools, _ = parse_config(argv, resources=resources)
+        assert tools
+        assert tools.distribution == Distribution.debian
+        assert tools.package_directories == [Path(d)]
+
+        _, tools, _ = parse_config(
+            argv + ["--tools-tree-distribution=arch", "--tools-tree-package-directory=/tmp"],
+            resources=resources,
+        )
+        assert tools
+        assert tools.distribution == Distribution.arch
+        assert tools.package_directories == [Path(d), Path("/tmp")]
+
+        _, tools, _ = parse_config(argv + ["--tools-tree-package-directory="], resources=resources)
+        assert tools
+        assert tools.package_directories == []
+
+        (d / "mkosi.conf").write_text(
+            """
+            [Build]
+            ToolsTreeDistribution=arch
+            """
+        )
+
+        _, tools, _ = parse_config(argv, resources=resources)
+        assert tools
+        assert tools.distribution == Distribution.debian
