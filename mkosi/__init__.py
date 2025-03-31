@@ -3386,6 +3386,25 @@ def make_image(
         cmdline += ["--definitions", workdir(d)]
         opts += ["--ro-bind", d, workdir(d)]
 
+    def can_orphan_file(distribution: Optional[Distribution], release: Optional[str]) -> bool:
+        if distribution is None:
+            return True
+
+        return not (
+            (distribution == Distribution.centos and release and GenericVersion(release) == 9)
+            or (distribution == Distribution.ubuntu and release == "jammy")
+        )
+
+    # Make sure the ext4 orphan_file feature is disabled if the target distribution official kernel does not
+    # support it.
+    env = {}
+    if (
+        not can_orphan_file(context.config.distribution, context.config.release)
+        and can_orphan_file(*detect_distribution(context.config.tools()))
+        and "SYSTEMD_REPART_MKFS_EXT4_OPTIONS" not in context.config.environment
+    ):
+        env["SYSTEMD_REPART_MKFS_EXT4_OPTIONS"] = "-O ^orphan_file"
+
     with complete_step(msg):
         output = json.loads(
             run_systemd_sign_tool(
@@ -3398,6 +3417,7 @@ def make_image(
                 certificate_source=context.config.verity_certificate_source,
                 key=context.config.verity_key if verity in (Verity.auto, Verity.signed) else None,
                 key_source=context.config.verity_key_source,
+                env=env,
                 stdout=subprocess.PIPE,
                 devices=not context.config.repart_offline,
             ).stdout
