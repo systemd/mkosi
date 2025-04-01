@@ -365,7 +365,11 @@ def main() -> None:
                 shutil.copytree(
                     Path("/etc") / p,
                     Path(sandbox_tree) / "etc" / p,
-                    ignore=shutil.ignore_patterns("gnupg"),
+                    # If we're running as root, use the keyring from the host, but make sure we don't try to
+                    # copy any gpg-agent sockets that might be in /etc/pacman.d/gnupg. If we're not running
+                    # as root, we might not have the necessary permissions to access the keyring so don't try
+                    # to copy the keyring in that case.
+                    ignore=shutil.ignore_patterns("S.*" if os.getuid() == 0 else "gnupg"),
                     dirs_exist_ok=True,
                 )
 
