@@ -2563,7 +2563,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
         choices=Distribution.choices(),
         help="Distribution to install",
         scope=SettingScope.universal,
-        tools=True,
     ),
     ConfigSetting(
         dest="release",
@@ -2576,7 +2575,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
         default_factory_depends=("distribution",),
         help="Distribution release to install",
         scope=SettingScope.universal,
-        tools=True,
     ),
     ConfigSetting(
         dest="architecture",
@@ -2595,7 +2593,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Distribution",
         help="Distribution mirror to use",
         scope=SettingScope.universal,
-        tools=True,
     ),
     ConfigSetting(
         dest="local_mirror",
