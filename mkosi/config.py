@@ -1006,22 +1006,15 @@ def config_default_repository_key_fetch(namespace: dict[str, Any]) -> bool:
     def needs_repository_key_fetch(distribution: Distribution) -> bool:
         return distribution == Distribution.arch or distribution.is_rpm_distribution()
 
-    if detect_distribution()[0] != Distribution.ubuntu:
-        return False
-
-    if namespace["tools_tree"] is None:
-        return needs_repository_key_fetch(namespace["distribution"])
-
     if namespace["tools_tree"] != Path("default"):
         return (
-            detect_distribution(namespace["tools_tree"])[0] == Distribution.ubuntu
+            detect_distribution(namespace["tools_tree"] or Path("/"))[0] == Distribution.ubuntu
             and needs_repository_key_fetch(namespace["distribution"])
         )  # fmt: skip
 
-    return (
-        namespace["tools_tree_distribution"] == Distribution.ubuntu
-        and needs_repository_key_fetch(namespace["distribution"])
-    ) or needs_repository_key_fetch(namespace["tools_tree_distribution"])
+    return namespace["tools_tree_distribution"] == Distribution.ubuntu and needs_repository_key_fetch(
+        namespace["distribution"]
+    )
 
 
 def config_default_source_date_epoch(namespace: dict[str, Any]) -> Optional[int]:
@@ -2570,7 +2563,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
         choices=Distribution.choices(),
         help="Distribution to install",
         scope=SettingScope.universal,
-        tools=True,
     ),
     ConfigSetting(
         dest="release",
@@ -2583,7 +2575,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
         default_factory_depends=("distribution",),
         help="Distribution release to install",
         scope=SettingScope.universal,
-        tools=True,
     ),
     ConfigSetting(
         dest="architecture",
@@ -2602,7 +2593,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Distribution",
         help="Distribution mirror to use",
         scope=SettingScope.universal,
-        tools=True,
     ),
     ConfigSetting(
         dest="local_mirror",
@@ -2627,7 +2617,8 @@ SETTINGS: list[ConfigSetting[Any]] = [
         default_factory=config_default_repository_key_fetch,
         parse=config_parse_boolean,
         help="Controls whether distribution GPG keys can be fetched remotely",
-        scope=SettingScope.multiversal,
+        scope=SettingScope.universal,
+        tools=True,
     ),
     ConfigSetting(
         dest="repositories",

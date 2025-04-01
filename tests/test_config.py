@@ -1429,9 +1429,6 @@ def test_tools(tmp_path: Path) -> None:
 
         (d / "mkosi.tools.conf").write_text(
             f"""
-            [Distribution]
-            Distribution=debian
-
             [Content]
             PackageDirectories={d}
             """
@@ -1439,7 +1436,6 @@ def test_tools(tmp_path: Path) -> None:
 
         _, tools, _ = parse_config(argv, resources=resources)
         assert tools
-        assert tools.distribution == Distribution.debian
         assert tools.package_directories == [Path(d)]
 
         _, tools, _ = parse_config(
@@ -1463,4 +1459,4 @@ def test_tools(tmp_path: Path) -> None:
 
         _, tools, _ = parse_config(argv, resources=resources)
         assert tools
-        assert tools.distribution == Distribution.debian
+        assert tools.distribution == Distribution.arch
