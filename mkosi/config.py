@@ -3789,6 +3789,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         parse=config_make_dict_parser(delimiter=" ", parse=parse_environment, unescape=True),
         match=config_match_key_value,
         help="Set an environment variable when running scripts",
+        tools=True,
     ),
     ConfigSetting(
         dest="environment_files",
@@ -3798,6 +3799,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         path_suffixes=("env",),
         help="Environment files to set when running scripts",
+        tools=True,
     ),
     ConfigSetting(
         dest="with_tests",
