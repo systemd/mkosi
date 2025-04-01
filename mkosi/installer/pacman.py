@@ -59,8 +59,10 @@ class Pacman(PackageManager):
             # pacman writes downloaded packages to the first writable cache directory. We don't want it to
             # write to our local repository directory so we expose it as a read-only directory to pacman.
             "--ro-bind", context.repository, "/var/cache/pacman/mkosi",
-            "--ro-bind", context.keyring_dir, "/etc/pacman.d/gnupg",
         ]  # fmt: skip
+
+        if any(context.keyring_dir.iterdir()):
+            mounts += ["--ro-bind", context.keyring_dir, "/etc/pacman.d/gnupg"]
 
         if (context.root / "var/lib/pacman/local").exists():
             # pacman reuses the same directory for the sync databases and the local database containing the

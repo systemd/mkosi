@@ -4609,7 +4609,9 @@ class ParseContext:
                 context.config["image"] = "main"
                 context.config["directory"] = path
 
-                context.parse_config_one(path)
+                with chdir(path):
+                    context.parse_config_one(path)
+
                 config = Config.from_dict(context.finalize())
 
                 make_executable(

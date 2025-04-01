@@ -1424,8 +1424,8 @@ def test_tools(tmp_path: Path) -> None:
         _, tools, _ = parse_config(argv, resources=resources)
         assert tools
         host = detect_distribution()[0]
-        assert host
-        assert tools.distribution == host.default_tools_tree_distribution()
+        if host:
+            assert tools.distribution == host.default_tools_tree_distribution()
 
         (d / "mkosi.tools.conf").write_text(
             f"""

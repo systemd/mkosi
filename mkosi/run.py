@@ -557,7 +557,15 @@ def sandbox_cmd(
 
         if not overlay and not relaxed:
             tmp = stack.enter_context(vartmpdir())
-            yield [*cmdline, "--bind", tmp, "/var/tmp", "--dir", "/tmp", "--dir", "/run", *options]
+            yield [
+                *cmdline,
+                "--bind", tmp, "/var/tmp",
+                "--dir", "/etc",
+                "--dir", "/var",
+                "--dir", "/tmp",
+                "--dir", "/run",
+                *options,
+            ]  # fmt: skip
             return
 
         for d in ("etc", "opt"):
