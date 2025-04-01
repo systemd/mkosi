@@ -1165,9 +1165,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     disabled, files will not relabeled. If enabled, an SELinux policy has
     to be installed in the image and **setfiles** has to be available to
     relabel files. If any errors occur during **setfiles**, the build will
-    fail. If set to `auto`, files will be relabeled if an SELinux policy
-    is installed in the image and if **setfiles** is available. Any errors
-    occurred during **setfiles** will be ignored.
+    fail. If set to `auto`, files will be relabeled if mkosi is not
+    building a directory image, an SELinux policy is installed in the
+    image and if **setfiles** is available. Any errors occurred during
+    **setfiles** will be ignored.
 
     Note that when running unprivileged, **setfiles** will fail to set any
     labels that are not in the host's SELinux policy. To ensure **setfiles**
@@ -1315,7 +1316,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     any of the extra search paths.
 
     If set to `default`, **mkosi** will automatically add an extra tools tree
-    image and use it as the tools tree.
+    image and use it as the tools tree. This image can be further configured
+    using the settings below or with `mkosi.tools.conf` which can either be a
+    file or directory containing extra configuration for the default tools tree.
 
     The following table shows for which distributions default tools tree
     packages are defined and which packages are included in those default
@@ -2852,17 +2855,33 @@ before the main image.
 
 When images are defined, **mkosi** will first read the main image
 configuration (configuration outside of the `mkosi.images/` directory),
-followed by the image specific configuration. Several "universal"
-settings apply to the main image and all its subimages and cannot be
-configured separately in subimages. The following settings are universal
-and cannot be configured in subimages:
+followed by the image specific configuration.
+
+Several "multiversal" settings apply to the default tools tree and to
+the main image and cannot be configured separately outside of the main
+image:
+
+- `RepositoryKeyCheck=`
+- `RepositoryKeyFetch=`
+- `SourceDateEpoch=`
+- `CacheOnly=`
+- `WorkspaceDirectory=`
+- `PackageCacheDirectory=`
+- `BuildSources=`
+- `BuildSourcesEphemeral=`
+- `ProxyClientCertificate=`
+- `ProxyClientKey=`
+- `ProxyExclude=`
+- `ProxyPeerCertificate=`
+- `ProxyUrl=`
+
+Several "universal" settings apply to the main image and all its
+subimages and cannot be configured separately in subimages. The
+following settings are universal and cannot be configured in subimages:
 
 - `Architecture=`
 - `BuildDirectory=`
-- `BuildSources=`
-- `BuildSourcesEphemeral=`
 - `CacheDirectory=`
-- `CacheOnly=`
 - `Distribution=`
 - `ExtraSearchPaths=`
 - `Incremental=`
@@ -2870,19 +2889,11 @@ and cannot be configured in subimages:
 - `Mirror=`
 - `OutputDirectory=`
 - `OutputMode=`
-- `PackageCacheDirectory=`
 - `PackageDirectories=`
-- `ProxyClientCertificate=`
-- `ProxyClientKey=`
-- `ProxyExclude=`
-- `ProxyPeerCertificate=`
-- `ProxyUrl=`
 - `Release=`
 - `RepartOffline=`
 - `Repositories=`
-- `RepositoryKeyCheck=`
 - `SandboxTrees=`
-- `SourceDateEpoch=`
 - `ToolsTree=`
 - `ToolsTreeCertificates=`
 - `UseSubvolumes=`
@@ -2901,7 +2912,6 @@ and cannot be configured in subimages:
 - `VolatilePackageDirectories=`
 - `WithNetwork=`
 - `WithTests`
-- `WorkspaceDirectory=`
 
 There are also settings which are passed down to subimages but can
 be overridden. For these settings, values configured explicitly in
@@ -2915,6 +2925,25 @@ down to subimages but can be overridden:
 - `SectorSize=`
 - `CacheKey=`
 - `BuildKey=`
+- `CompressLevel=`
+
+Additionally, there are various settings that can only be configured in
+the main image but which are not passed down to subimages:
+
+- `MinimumVersion=`
+- `PassEnvironment=`
+- `ToolsTreeDistribution=`
+- `ToolsTreeRelease=`
+- `ToolsTreeProfiles=`
+- `ToolsTreeMirror=`
+- `ToolsTreeRepositories=`
+- `ToolsTreeSandboxTrees=`
+- `ToolsTreePackages=`
+- `ToolsTreePackageDirectories=`
+- `ToolsTreeSyncScripts=`
+- `ToolsTreePrepareScripts=`
+- `History=`
+- Every setting in the `[Runtime]` section
 
 Images can refer to outputs of images they depend on. Specifically,
 for the following options, **mkosi** will only check whether the inputs

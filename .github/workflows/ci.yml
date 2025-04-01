@@ -203,6 +203,9 @@ jobs:
               chmod +x "mkosi.${script}"
           done
 
+      - name: Summary
+        run: sudo mkosi summary
+
       - name: Build tools tree
         run: sudo mkosi -f sandbox -- true
 

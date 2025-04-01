@@ -35,7 +35,6 @@ from mkosi.config import (
     OutputFormat,
     SecureBootSignTool,
     ShimBootloader,
-    ToolsTreeProfile,
     UKIProfile,
     Verb,
     Verity,
@@ -384,31 +383,6 @@ def test_config() -> None:
             "Timezone": null,
             "ToolsTree": null,
             "ToolsTreeCertificates": true,
-            "ToolsTreeDistribution": "fedora",
-            "ToolsTreeMirror": null,
-            "ToolsTreePackageDirectories": [
-                "/abc"
-            ],
-            "ToolsTreePackages": [],
-            "ToolsTreePrepareScripts": [
-                "/prepare"
-            ],
-            "ToolsTreeProfiles": [
-                "misc"
-            ],
-            "ToolsTreeRelease": null,
-            "ToolsTreeRepositories": [
-                "abc"
-            ],
-            "ToolsTreeSandboxTrees": [
-                {
-                    "Source": "/a/b/c",
-                    "Target": "/"
-                }
-            ],
-            "ToolsTreeSyncScripts": [
-                "/sync"
-            ],
             "UnifiedKernelImageFormat": "myuki",
             "UnifiedKernelImageProfiles": [
                 {
@@ -507,7 +481,7 @@ def test_config() -> None:
         image="main",
         incremental=Incremental.no,
         initrd_packages=["clevis"],
-        initrd_profiles=[InitrdProfile.lvm],
+        initrd_profiles=[str(InitrdProfile.lvm)],
         initrd_volatile_packages=["abc"],
         initrds=[Path("/efi/initrd1"), Path("/efi/initrd2")],
         kernel_command_line_extra=["look", "im", "on", "the", "kernel", "command", "line"],
@@ -609,16 +583,6 @@ def test_config() -> None:
         sysupdate_dir=Path("/sysupdate"),
         timezone=None,
         tools_tree_certificates=True,
-        tools_tree_distribution=Distribution.fedora,
-        tools_tree_mirror=None,
-        tools_tree_package_directories=[Path("/abc")],
-        tools_tree_packages=[],
-        tools_tree_prepare_scripts=[Path("/prepare")],
-        tools_tree_profiles=[ToolsTreeProfile.misc],
-        tools_tree_release=None,
-        tools_tree_repositories=["abc"],
-        tools_tree_sandbox_trees=[ConfigTree(Path("/a/b/c"), Path("/"))],
-        tools_tree_sync_scripts=[Path("/sync")],
         tools_tree=None,
         tpm=ConfigFeature.auto,
         unified_kernel_image_format="myuki",
