@@ -4944,7 +4944,7 @@ def finalize_default_tools(main: ParseContext, finalized: dict[str, Any], *, res
 
     context.cli["output_format"] = OutputFormat.directory
 
-    context.config = {
+    context.config |= {
         "image": "tools",
         "directory": finalized["directory"],
         "files": [],
