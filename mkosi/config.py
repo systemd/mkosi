@@ -4911,7 +4911,13 @@ def have_history(args: Args) -> bool:
     )
 
 
-def finalize_default_tools(main: ParseContext, finalized: dict[str, Any], *, resources: Path) -> Config:
+def finalize_default_tools(
+    main: ParseContext,
+    finalized: dict[str, Any],
+    *,
+    configdir: Path,
+    resources: Path,
+) -> Config:
     context = ParseContext(resources)
 
     for s in SETTINGS:
@@ -4946,7 +4952,7 @@ def finalize_default_tools(main: ParseContext, finalized: dict[str, Any], *, res
         for name in finalized.get("environment", {}).keys() & finalized.get("pass_environment", [])
     }
 
-    if (p := Path("mkosi.tools.conf").absolute()).exists():
+    if (p := configdir / "mkosi.tools.conf").exists():
         with chdir(p if p.is_dir() else Path.cwd()):
             context.parse_config_one(p, parse_profiles=p.is_dir(), parse_local=p.is_dir())
 
@@ -4999,16 +5005,6 @@ def parse_config(
     if not args.verb.needs_config():
         return args, None, ()
 
-    # Allow locating all mkosi configuration in a mkosi/ subdirectory instead of in the top-level directory
-    # of a git repository.
-    if (
-        args.directory is not None
-        and not (Path("mkosi.conf").exists() or Path("mkosi.tools.conf").exists())
-        and (Path("mkosi/mkosi.conf").is_file() or Path("mkosi/mkosi.tools.conf").exists())
-    ):
-        os.chdir(args.directory / "mkosi")
-        args = dataclasses.replace(args, directory=args.directory / "mkosi")
-
     if have_history(args):
         try:
             j = json.loads(Path(".mkosi-private/history/latest.json").read_text())
@@ -5052,9 +5048,21 @@ def parse_config(
 
     context.config["files"] = []
 
+    # Allow locating all mkosi configuration in a mkosi/ subdirectory instead of in the top-level directory
+    # of a git repository.
+    if (
+        args.directory is not None
+        and not (Path("mkosi.conf").exists() or Path("mkosi.tools.conf").exists())
+        and (Path("mkosi/mkosi.conf").is_file() or Path("mkosi/mkosi.tools.conf").exists())
+    ):
+        configdir = Path.cwd() / "mkosi"
+    else:
+        configdir = Path.cwd()
+
     # Parse the global configuration unless the user explicitly asked us not to.
     if args.directory is not None:
-        context.parse_config_one(Path.cwd(), parse_profiles=True, parse_local=True)
+        with chdir(configdir):
+            context.parse_config_one(configdir, parse_profiles=True, parse_local=True)
 
     config = context.finalize()
 
@@ -5062,7 +5070,7 @@ def parse_config(
         return args, tools, (*subimages, Config.from_dict(config))
 
     if config.get("tools_tree") == Path("default"):
-        tools = finalize_default_tools(context, config, resources=resources)
+        tools = finalize_default_tools(context, config, configdir=configdir, resources=resources)
         config["tools_tree"] = tools.output_dir_or_cwd() / tools.output
 
     images = []
@@ -5077,7 +5085,7 @@ def parse_config(
         None if "dependencies" in context.cli or "dependencies" in context.config else []
     )
 
-    if args.directory is not None and Path("mkosi.images").exists():
+    if args.directory is not None and (imagedir := configdir / "mkosi.images").exists():
         # For the subimages in mkosi.images/, we want settings that are marked as
         # "universal" to override whatever settings are specified in the subimage
         # configuration files. We achieve this by making it appear like these settings
@@ -5089,7 +5097,7 @@ def parse_config(
             elif s.dest in context.cli:
                 del context.cli[s.dest]
 
-        for p in sorted(Path("mkosi.images").iterdir()):
+        for p in sorted(imagedir.iterdir()):
             p = p.absolute()
 
             if not p.is_dir() and not p.suffix == ".conf":
