@@ -248,7 +248,14 @@ Those settings cannot be configured in the configuration files.
 :   Takes a path to a directory. **mkosi** switches to this directory before
     doing anything. Note that the various configuration files are searched
     for in this directory, hence using this option is an effective way to
-    build a project located in a specific directory.
+    build a project located in a specific directory. Defaults to the current
+    working directory. If the empty string is specified, all configuration in
+    the current working directory will be ignored.
+
+:   If the specified directory does not contain a `mkosi.conf` or
+    `mkosi.tools.conf` and a `mkosi/mkosi.conf` or `mkosi/mkosi.tools.conf`
+    exists, the `mkosi/` subdirectory of the specified directory will be
+    used instead.
 
 `--debug`
 :   Enable additional debugging output.
