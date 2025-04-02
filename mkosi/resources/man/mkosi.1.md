@@ -252,11 +252,6 @@ Those settings cannot be configured in the configuration files.
     working directory. If the empty string is specified, all configuration in
     the current working directory will be ignored.
 
-:   If the specified directory does not contain a `mkosi.conf` or
-    `mkosi.tools.conf` and a `mkosi/mkosi.conf` or `mkosi/mkosi.tools.conf`
-    exists, the `mkosi/` subdirectory of the specified directory will be
-    used instead.
-
 `--debug`
 :   Enable additional debugging output.
 
@@ -355,14 +350,17 @@ Configuration is parsed in the following order:
   corresponding path exists.
 * `mkosi.conf` is parsed if it exists in the directory configured with
   `--directory=` or the current working directory if `--directory=` is
-  not used.
-* `mkosi.conf.d/` is parsed in the same directory if it exists. Each
-  directory and each file with the `.conf` extension in `mkosi.conf.d/`
-  is parsed. Any directory in `mkosi.conf.d` is parsed as if it were
-  a regular top level directory.
+  not used. If the specified directory does not contain a `mkosi.conf` or
+  `mkosi.tools.conf` and a `mkosi/mkosi.conf` or `mkosi/mkosi.tools.conf`
+  exists, the configuration will be parsed from the `mkosi/`
+  subdirectory of the specified directory instead.
+* `mkosi.conf.d/` is parsed in the same directory as `mkosi.conf` if it
+  exists. Each directory and each file with the `.conf` extension in
+  `mkosi.conf.d/` is parsed. Any directory in `mkosi.conf.d` is parsed
+  as if it were a regular top level directory.
 * If any profiles are configured, their configuration is parsed from the
   `mkosi.profiles/` directory.
-* Subimages are parsed from the `mkosi.images` directory if it exists.
+* Subimages are parsed from the `mkosi.images/` directory if it exists.
 
 Note that settings configured via the command line always override
 settings configured via configuration files. If the same setting is
