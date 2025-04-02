@@ -1460,3 +1460,31 @@ def test_tools(tmp_path: Path) -> None:
         _, tools, _ = parse_config(argv, resources=resources)
         assert tools
         assert tools.distribution == Distribution.arch
+
+
+def test_subdir(tmp_path: Path) -> None:
+    d = tmp_path
+
+    with chdir(d):
+        (d / "mkosi").mkdir()
+        (d / "mkosi/mkosi.conf").write_text(
+            """
+            [Output]
+            Output=qed
+            """
+        )
+
+        _, _, [config] = parse_config()
+        assert config.output == "qed"
+
+        os.chdir(d)
+
+        (d / "mkosi.conf").write_text(
+            """
+            [Output]
+            Output=abc
+            """
+        )
+
+        _, _, [config] = parse_config()
+        assert config.output == "abc"

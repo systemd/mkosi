@@ -4999,6 +4999,16 @@ def parse_config(
     if not args.verb.needs_config():
         return args, None, ()
 
+    # Allow locating all mkosi configuration in a mkosi/ subdirectory instead of in the top-level directory
+    # of a git repository.
+    if (
+        args.directory is not None
+        and not (Path("mkosi.conf").exists() or Path("mkosi.tools.conf").exists())
+        and (Path("mkosi/mkosi.conf").is_file() or Path("mkosi/mkosi.tools.conf").exists())
+    ):
+        os.chdir(args.directory / "mkosi")
+        args = dataclasses.replace(args, directory=args.directory / "mkosi")
+
     if have_history(args):
         try:
             j = json.loads(Path(".mkosi-private/history/latest.json").read_text())
