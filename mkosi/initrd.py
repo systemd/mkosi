@@ -181,14 +181,18 @@ def process_crypttab(staging_dir: Path) -> list[str]:
     return cmdline
 
 
-def add_raid_config() -> list[str]:
-    cmdline = []
+def raid_config() -> list[str]:
+    return [
+        f"--extra-tree={f}:{f}"
+        for f in ("/etc/mdadm.conf", "/etc/mdadm.conf.d", "/etc/mdadm/mdadm.conf", "/etc/mdadm/mdadm.conf.d")
+        if Path(f).exists()
+    ]
 
-    for f in ("/etc/mdadm.conf", "/etc/mdadm.conf.d", "/etc/mdadm/mdadm.conf", "/etc/mdadm/mdadm.conf.d"):
-        if Path(f).exists():
-            cmdline += ["--extra-tree", f"{f}:{f}"]
 
-    return cmdline
+def vconsole_config() -> list[str]:
+    return [
+        f"--extra-tree={f}:{f}" for f in ("/etc/default/keyboard", "/etc/vconsole.conf") if Path(f).exists()
+    ]
 
 
 def initrd_finalize(staging_dir: Path, output: str, output_dir: Optional[Path]) -> None:
@@ -309,7 +313,7 @@ def main() -> None:
         for p in args.profile:
             cmdline += ["--profile", p]
             if p == "raid":
-                cmdline += add_raid_config()
+                cmdline += raid_config()
 
         if args.kernel_image:
             cmdline += [
@@ -380,8 +384,7 @@ def main() -> None:
         if Path("/etc/kernel/cmdline").exists():
             cmdline += ["--kernel-command-line", Path("/etc/kernel/cmdline").read_text()]
 
-        if Path("/etc/vconsole.conf").exists():
-            cmdline += ["--extra-tree=/etc/vconsole.conf:/etc/vconsole.conf"]
+        cmdline += vconsole_config()
 
         # Resolve dnf binary to determine which version the host uses by default
         # (to avoid preferring dnf5 if the host uses dnf4)
