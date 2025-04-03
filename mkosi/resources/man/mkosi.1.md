@@ -2587,7 +2587,7 @@ Scripts executed by **mkosi** receive the following environment variables:
 
 * `$IMAGE_VERSION` contains the version from the `ImageVersion=` or `--image-version=` setting.
 
-* `$DEBUG` is either `0` or `1` depending on whether debugging output is
+* `$MKOSI_DEBUG` is either `0` or `1` depending on whether debugging output is
   enabled.
 
 Consult this table for which script receives which environment variables:
@@ -2604,7 +2604,7 @@ Consult this table for which script receives which environment variables:
 | `CHROOT_OUTPUTDIR`          |             |        |           |         | ✓          | ✓          |              |         |
 | `CHROOT_SCRIPT`             |             |        | ✓         | ✓       | ✓          | ✓          |              |         |
 | `CHROOT_SRCDIR`             |             |        | ✓         | ✓       | ✓          | ✓          |              |         |
-| `DEBUG`                     | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
+| `MKOSI_DEBUG`               | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
 | `DESTDIR`                   |             |        |           | ✓       |            |            |              |         |
 | `DISTRIBUTION`              | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
 | `DISTRIBUTION_ARCHITECTURE` | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |

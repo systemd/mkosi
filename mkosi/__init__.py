@@ -599,7 +599,7 @@ def run_configure_scripts(config: Config) -> Config:
         SRCDIR="/work/src",
         MKOSI_UID=str(os.getuid()),
         MKOSI_GID=str(os.getgid()),
-        DEBUG=one_zero(ARG_DEBUG.get()),
+        MKOSI_DEBUG=one_zero(ARG_DEBUG.get()),
     )
 
     if config.profiles:
@@ -642,7 +642,7 @@ def run_sync_scripts(config: Config) -> None:
         MKOSI_GID=str(os.getgid()),
         MKOSI_CONFIG="/work/config.json",
         CACHED=one_zero(have_cache(config)),
-        DEBUG=one_zero(ARG_DEBUG.get()),
+        MKOSI_DEBUG=one_zero(ARG_DEBUG.get()),
     )
 
     if config.profiles:
@@ -763,7 +763,7 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
         WITH_DOCS=one_zero(context.config.with_docs),
         WITH_NETWORK=one_zero(context.config.with_network),
         WITH_TESTS=one_zero(context.config.with_tests),
-        DEBUG=one_zero(ARG_DEBUG.get()),
+        MKOSI_DEBUG=one_zero(ARG_DEBUG.get()),
     )
 
     if context.config.profiles:
@@ -833,7 +833,7 @@ def run_build_scripts(context: Context) -> None:
         WITH_DOCS=one_zero(context.config.with_docs),
         WITH_NETWORK=one_zero(context.config.with_network),
         WITH_TESTS=one_zero(context.config.with_tests),
-        DEBUG=one_zero(ARG_DEBUG.get()),
+        MKOSI_DEBUG=one_zero(ARG_DEBUG.get()),
     )
 
     if context.config.profiles:
@@ -906,7 +906,7 @@ def run_postinst_scripts(context: Context) -> None:
         MKOSI_GID=str(os.getgid()),
         MKOSI_CONFIG="/work/config.json",
         WITH_NETWORK=one_zero(context.config.with_network),
-        DEBUG=one_zero(ARG_DEBUG.get()),
+        MKOSI_DEBUG=one_zero(ARG_DEBUG.get()),
     )
 
     if context.config.profiles:
@@ -975,7 +975,7 @@ def run_finalize_scripts(context: Context) -> None:
         MKOSI_GID=str(os.getgid()),
         MKOSI_CONFIG="/work/config.json",
         WITH_NETWORK=one_zero(context.config.with_network),
-        DEBUG=one_zero(ARG_DEBUG.get()),
+        MKOSI_DEBUG=one_zero(ARG_DEBUG.get()),
     )
 
     if context.config.profiles:
@@ -1036,7 +1036,7 @@ def run_postoutput_scripts(context: Context) -> None:
         MKOSI_UID=str(os.getuid()),
         MKOSI_GID=str(os.getgid()),
         MKOSI_CONFIG="/work/config.json",
-        DEBUG=one_zero(ARG_DEBUG.get()),
+        MKOSI_DEBUG=one_zero(ARG_DEBUG.get()),
     )
 
     if context.config.profiles:
@@ -4568,7 +4568,7 @@ def run_clean_scripts(config: Config) -> None:
         MKOSI_UID=str(os.getuid()),
         MKOSI_GID=str(os.getgid()),
         MKOSI_CONFIG="/work/config.json",
-        DEBUG=one_zero(ARG_DEBUG.get()),
+        MKOSI_DEBUG=one_zero(ARG_DEBUG.get()),
     )
 
     if config.profiles:
