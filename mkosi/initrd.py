@@ -191,6 +191,12 @@ def add_raid_config() -> list[str]:
     return cmdline
 
 
+def vconsole_config() -> list[str]:
+    return [
+        f"--extra-tree={f}:{f}" for f in ("/etc/default/keyboard", "/etc/vconsole.conf") if Path(f).exists()
+    ]
+
+
 def initrd_finalize(staging_dir: Path, output: str, output_dir: Optional[Path]) -> None:
     if output_dir:
         with umask(~0o700) if os.getuid() == 0 else cast(umask, contextlib.nullcontext()):
@@ -380,8 +386,7 @@ def main() -> None:
         if Path("/etc/kernel/cmdline").exists():
             cmdline += ["--kernel-command-line", Path("/etc/kernel/cmdline").read_text()]
 
-        if Path("/etc/vconsole.conf").exists():
-            cmdline += ["--extra-tree=/etc/vconsole.conf:/etc/vconsole.conf"]
+        cmdline += vconsole_config()
 
         # Resolve dnf binary to determine which version the host uses by default
         # (to avoid preferring dnf5 if the host uses dnf4)
