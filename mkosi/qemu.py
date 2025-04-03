@@ -675,6 +675,7 @@ def want_scratch(config: Config) -> bool:
 @contextlib.contextmanager
 def generate_scratch_fs(config: Config) -> Iterator[Path]:
     with tempfile.NamedTemporaryFile(dir="/var/tmp", prefix="mkosi-scratch-") as scratch:
+        maybe_make_nocow(Path(scratch.name))
         scratch.truncate(1024**4)
         fs = config.distribution.filesystem()
         extra = config.finalize_environment().get(f"SYSTEMD_REPART_MKFS_OPTIONS_{fs.upper()}", "")
