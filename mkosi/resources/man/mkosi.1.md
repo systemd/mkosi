@@ -1837,9 +1837,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     `flags` takes a comma-separated list of drive flags which currently only supports `persist`.
     `persist` determines whether the drive will be persisted across **qemu** invocations.
     The files backing the drives will be created with the schema
-    `/<directory>/mkosi-drive-<file-id>`.
+    `/<directory>/mkosi-drive-<machine-or-image-name>-<file-id>`.
     You can skip values by setting them to the empty string, specifying e.g. `myfs:1G::::persist`
-    will create a persistent drive under `/var/tmp/mkosi-drive-myfs`.
+    will create a persistent drive under `/var/tmp/mkosi-drive-main-myfs`.
 
     **Example usage:**
 
