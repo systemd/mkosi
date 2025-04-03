@@ -181,14 +181,12 @@ def process_crypttab(staging_dir: Path) -> list[str]:
     return cmdline
 
 
-def add_raid_config() -> list[str]:
-    cmdline = []
-
-    for f in ("/etc/mdadm.conf", "/etc/mdadm.conf.d", "/etc/mdadm/mdadm.conf", "/etc/mdadm/mdadm.conf.d"):
-        if Path(f).exists():
-            cmdline += ["--extra-tree", f"{f}:{f}"]
-
-    return cmdline
+def raid_config() -> list[str]:
+    return [
+        f"--extra-tree={f}:{f}"
+        for f in ("/etc/mdadm.conf", "/etc/mdadm.conf.d", "/etc/mdadm/mdadm.conf", "/etc/mdadm/mdadm.conf.d")
+        if Path(f).exists()
+    ]
 
 
 def vconsole_config() -> list[str]:
@@ -315,7 +313,7 @@ def main() -> None:
         for p in args.profile:
             cmdline += ["--profile", p]
             if p == "raid":
-                cmdline += add_raid_config()
+                cmdline += raid_config()
 
         if args.kernel_image:
             cmdline += [
