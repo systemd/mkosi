@@ -3,7 +3,7 @@
 #
 # End of first stage of build:
 # - built UKI is in $OUTPUTDIR
-# - get PCR policy digests if any, or PE hash(es) with pesign
+# - get PCR policy digests if any, or PE hash(es) with systemd-sbsign
 # - pack them up in a cpio as OBS expects and store them in OTHER/
 # - create minimal recipe for second stage that will continue from here
 
@@ -23,12 +23,6 @@ if ((${#UKIS[@]} == 0)) && ((${#KERNELS[@]} == 0)) && ((${#ROOTHASHES[@]} == 0))
     exit 0
 fi
 
-nss_db="$PWD/nss-db"
-# certutil will fail if it's called twice
-rm -rf "$nss_db"
-mkdir -p "$nss_db" hashes
-certutil -N -d sql:"$nss_db" --empty-password
-
 # When a single build has multiple images, postoutput is called for each image,
 # so make sure the hashes.cpio from the previous stages gets its content preserved
 if [ -f /usr/src/packages/OTHER/hashes.cpio.rsasign ]; then
@@ -46,14 +40,24 @@ for f in "${UKIS[@]}"; do
         done < <(jq -r 'to_entries[] | .value[].pol' <"${OUTPUTDIR}/${f%.efi}.pcrs")
     else
         mkdir -p "$(dirname "hashes/ukis/$f")"
-        pesign --force -n sql:"$nss_db" -i "${OUTPUTDIR}/${f}" -E "hashes/ukis/$f"
+        systemd-sbsign \
+            sign \
+            --certificate /usr/src/packages/SOURCES/_projectcert.crt \
+            --output "hashes/ukis/$f" \
+            --prepare-offline-signing \
+            "${OUTPUTDIR}/${f}"
     fi
 done
 
 for f in "${KERNELS[@]}"; do
     test -f "${OUTPUTDIR}/${f}" || continue
     mkdir -p "$(dirname "hashes/kernels/$f")"
-    pesign --force -n sql:"$nss_db" -i "${OUTPUTDIR}/${f}" -E "hashes/kernels/$f"
+    systemd-sbsign \
+        sign \
+        --certificate /usr/src/packages/SOURCES/_projectcert.crt \
+        --output "hashes/kernels/$f" \
+        --prepare-offline-signing \
+        "${OUTPUTDIR}/${f}"
 done
 
 repart_dir="$(jq -r '.RepartDirectories[-1]' "$MKOSI_CONFIG")"
@@ -92,7 +96,12 @@ for ddi in "${DDIS[@]}"; do
 
     while read -r BOOTLOADER; do
         mkdir -p "hashes/bootloaders/$(basename "${ddi%.zst}")/$(dirname "$BOOTLOADER")"
-        pesign --force -n sql:"$nss_db" -i "$BOOTLOADER" -E "hashes/bootloaders/$(basename "${ddi%.zst}")/$BOOTLOADER"
+        systemd-sbsign \
+            sign \
+            --certificate /usr/src/packages/SOURCES/_projectcert.crt \
+            --output "hashes/bootloaders/$(basename "${ddi%.zst}")/$BOOTLOADER" \
+            --prepare-offline-signing \
+            "$BOOTLOADER"
     done < <(find EFI -type f -iname '*.efi')
 
     if [[ $ddi == *.zst ]]; then
@@ -105,14 +114,16 @@ done
 if ((${#DDIS[@]} > 0)); then
     mkdir -p hashes/authvars
     pushd hashes/authvars 2>/dev/null
-    # Same as the GUID used by bootctl
-    guid=a5c059a1-94e4-4aa7-87b5-ab155c2bf072
-    cert-to-efi-sig-list -g "$guid" /usr/src/packages/SOURCES/_projectcert.crt db.esl
-    cp db.esl KEK.esl
-    cp db.esl PK.esl
-    for i in *.esl; do
-        sign-efi-sig-list -o -g "$guid" -t "${SOURCE_DATE_EPOCH:-$(date +%s)}" "${i%.esl}" "$i" "${i%.esl}.auth"
+
+    for db in PK KEK db; do
+        systemd-sbsign \
+            sign-secure-boot-database \
+            --certificate /usr/src/packages/SOURCES/_projectcert.crt \
+            --secure-boot-database "$db" \
+            --output "$db.auth" \
+            --prepare-offline-signing
     done
+
     popd 2>/dev/null
 fi
 
@@ -120,7 +131,7 @@ fi
 pushd hashes
 find . -type f | cpio -H newc -o >"$OUTPUTDIR/hashes.cpio.rsasign"
 popd
-rm -rf hashes "$nss_db"
+rm -rf hashes
 
 echo "Staging the following files for signing:"
 cpio -t <"$OUTPUTDIR/hashes.cpio.rsasign"
