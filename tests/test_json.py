@@ -25,6 +25,7 @@ from mkosi.config import (
     ConsoleMode,
     DocFormat,
     Drive,
+    DriveFlag,
     Firmware,
     Incremental,
     InitrdProfile,
@@ -153,25 +154,27 @@ def test_config() -> None:
                 {
                     "Directory": "/foo/bar",
                     "FileId": "red",
+                    "Flags": [],
                     "Id": "abc",
                     "Options": "abc,qed",
-                    "Persist": false,
                     "Size": 200
                 },
                 {
                     "Directory": null,
                     "FileId": "wcd",
+                    "Flags": [],
                     "Id": "abc",
                     "Options": "",
-                    "Persist": false,
                     "Size": 200
                 },
                 {
                     "Directory": null,
                     "FileId": "bla",
+                    "Flags": [
+                        "persist"
+                    ],
                     "Id": "abc",
                     "Options": "",
-                    "Persist": true,
                     "Size": 200
                 }
             ],
@@ -458,9 +461,9 @@ def test_config() -> None:
         dependencies=["dep1"],
         distribution=Distribution.fedora,
         drives=[
-            Drive("abc", 200, Path("/foo/bar"), "abc,qed", "red", False),
-            Drive("abc", 200, None, "", "wcd", False),
-            Drive("abc", 200, None, "", "bla", True),
+            Drive("abc", 200, Path("/foo/bar"), "abc,qed", "red", []),
+            Drive("abc", 200, None, "", "wcd", []),
+            Drive("abc", 200, None, "", "bla", [DriveFlag.persist]),
         ],
         environment_files=[],
         environment={"foo": "foo", "BAR": "BAR", "Qux": "Qux"},

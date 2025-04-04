@@ -24,7 +24,7 @@ import textwrap
 import uuid
 from collections.abc import Iterator, Sequence
 from pathlib import Path
-from typing import IO, Optional
+from typing import Optional
 
 from mkosi.config import (
     Args,
@@ -32,6 +32,7 @@ from mkosi.config import (
     ConfigFeature,
     ConsoleMode,
     Drive,
+    DriveFlag,
     Firmware,
     Network,
     OutputFormat,
@@ -674,6 +675,7 @@ def want_scratch(config: Config) -> bool:
 @contextlib.contextmanager
 def generate_scratch_fs(config: Config) -> Iterator[Path]:
     with tempfile.NamedTemporaryFile(dir="/var/tmp", prefix="mkosi-scratch-") as scratch:
+        maybe_make_nocow(Path(scratch.name))
         scratch.truncate(1024**4)
         fs = config.distribution.filesystem()
         extra = config.finalize_environment().get(f"SYSTEMD_REPART_MKFS_OPTIONS_{fs.upper()}", "")
@@ -794,19 +796,14 @@ def apply_runtime_size(config: Config, image: Path) -> None:
 
 
 @contextlib.contextmanager
-def finalize_drive(drive: Drive) -> Iterator[Path]:
-    with contextlib.ExitStack() as stack:
-        file: IO[bytes]
-        if drive.persist:
-            path = Path(drive.directory or "/var/tmp") / f"mkosi-drive-{drive.id}"
-            file = path.open("a+b")
-        else:
-            file = stack.enter_context(
-                tempfile.NamedTemporaryFile(
-                    dir=drive.directory or "/var/tmp",
-                    prefix=f"mkosi-drive-{drive.id}",
-                )
-            )
+def finalize_drive(config: Config, drive: Drive) -> Iterator[Path]:
+    dir = Path(drive.directory or "/var/tmp")
+    filename = f"mkosi-drive-{config.machine_or_name()}-{drive.id}"
+    with (
+        (dir / filename).open("a+b")
+        if DriveFlag.persist in drive.flags
+        else tempfile.NamedTemporaryFile(dir=dir, prefix=f"{filename}-")
+    ) as file:
         maybe_make_nocow(Path(file.name))
         file.truncate(round_up(drive.size, resource.getpagesize()))
         yield Path(file.name)
@@ -1532,7 +1529,7 @@ def run_qemu(args: Args, config: Config) -> None:
             ]
 
         for _, drives in groupby(config.drives, key=lambda d: d.file_id):
-            file = stack.enter_context(finalize_drive(drives[0]))
+            file = stack.enter_context(finalize_drive(config, drives[0]))
 
             for drive in drives:
                 arg = [
