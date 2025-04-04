@@ -1428,12 +1428,6 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `ToolsTreePackageDirectories=`, `--tools-tree-package-directory=`
 :   Same as `PackageDirectories=`, but for the default tools tree.
 
-`ToolsTreeSyncScripts=`, `--tools-tree-sync-script=`
-:   Same as `SyncScripts=`, but for the default tools tree.
-
-`ToolsTreePrepareScripts=`, `--tools-tree-prepare-script=`
-:   Same as `PrepareScripts=`, but for the default tools tree.
-
 `ToolsTreeCertificates=`, `--tools-tree-certificates=`
 :   Specify whether to use certificates and keys from the tools tree.
     Enabled by default. If enabled, `/etc/pki`, `/etc/ssl`,
@@ -2946,8 +2940,6 @@ the main image but which are not passed down to subimages:
 - `ToolsTreeSandboxTrees=`
 - `ToolsTreePackages=`
 - `ToolsTreePackageDirectories=`
-- `ToolsTreeSyncScripts=`
-- `ToolsTreePrepareScripts=`
 - `History=`
 - Every setting in the `[Runtime]` section
 
