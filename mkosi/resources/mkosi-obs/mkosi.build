@@ -229,7 +229,7 @@ while read -r SIG; do
     fbase="${fbase%.auth}"
     fbase="${fbase%%-*}"
     perl -0777 -npe 's/\A(?:[\040-\176]\0)+.{18}\0\0.{14}\0\0//s' < "$f" > "$f.orig"
-    sign-efi-sig-list -t "${SOURCE_DATE_EPOCH:-$(date +%s)}" -i "$f.p7sd" "$fbase" "$f.orig" "$f.tmp"
+    sign-efi-sig-list -t "$(date -d "@${SOURCE_DATE_EPOCH:-0}" "+%Y-%m-%d %H:%M:%S")" -i "$f.p7sd" "$fbase" "$f.orig" "$f.tmp"
     mv "$f.tmp" "$f"
     rm -f "$f.p7s" "$f.p7sd" "$f.orig"
 done < <(find hashes/authvars -type f -name '*.auth.sig')

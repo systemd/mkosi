@@ -111,7 +111,7 @@ if ((${#DDIS[@]} > 0)); then
     cp db.esl KEK.esl
     cp db.esl PK.esl
     for i in *.esl; do
-        sign-efi-sig-list -o -g "$guid" -t "${SOURCE_DATE_EPOCH:-$(date +%s)}" "${i%.esl}" "$i" "${i%.esl}.auth"
+        sign-efi-sig-list -o -g "$guid" -t "$(date -d "@${SOURCE_DATE_EPOCH:-0}" "+%Y-%m-%d %H:%M:%S")" "${i%.esl}" "$i" "${i%.esl}.auth"
     done
     popd 2>/dev/null
 fi
