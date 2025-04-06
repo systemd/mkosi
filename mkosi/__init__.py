@@ -5085,29 +5085,36 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
         if args.verb != Verb.build:
             die(f"Cannot run '{args.verb}' verb on image with output format 'none'")
 
-        if args.rerun_build_scripts:
-            die("Cannot use --run-build-scripts on image with output format 'none'")
-
     output = last.output_dir_or_cwd() / last.output_with_compression
 
     if (
         args.verb == Verb.build
         and not args.force
+        and last.output_format != OutputFormat.none
         and output.exists()
         and not output.is_symlink()
-        and last.output_format != OutputFormat.none
         and not args.rerun_build_scripts
     ):
         logging.info(f"Output path {output} exists already. (Use --force to rebuild.)")
         return
 
-    if args.rerun_build_scripts and not args.force and not output.exists():
+    if (
+        args.rerun_build_scripts
+        and not args.force
+        and last.output_format != OutputFormat.none
+        and not output.exists()
+    ):
         die(
             f"Image '{last.image}' must be built once before --rerun-build-scripts can be used",
             hint="Build the image once with 'mkosi build'",
         )
 
-    if args.verb != Verb.build and not args.force and not output.exists():
+    if (
+        args.verb != Verb.build
+        and not args.force
+        and last.output_format != OutputFormat.none
+        and not output.exists()
+    ):
         die(
             f"Image '{last.image}' has not been built yet",
             hint="Make sure to build the image first with 'mkosi build' or use '--force'",
@@ -5179,8 +5186,8 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
         or last.output_format == OutputFormat.none
         or not (last.output_dir_or_cwd() / last.output).exists()
     ):
-        history = (
-            last.output_format == OutputFormat.none or not (last.output_dir_or_cwd() / last.output).exists()
+        history = (last.output_format == OutputFormat.none and not args.rerun_build_scripts) or (
+            last.output_format != OutputFormat.none and not (last.output_dir_or_cwd() / last.output).exists()
         )
 
         for config in images:
