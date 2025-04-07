@@ -3556,7 +3556,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Build",
         parse=config_make_list_parser(delimiter=","),
         help="Repositories to use for the default tools tree",
-        scope=SettingScope.main,
+        scope=SettingScope.tools,
     ),
     ConfigSetting(
         dest="tools_tree_sandbox_trees",
