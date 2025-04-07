@@ -365,6 +365,13 @@ class Vmm(StrEnum):
     vmspawn = enum.auto()
 
 
+class Ssh(StrEnum):
+    always = enum.auto()
+    auto = enum.auto()
+    runtime = enum.auto()
+    never = enum.auto()
+
+
 class Incremental(StrEnum):
     yes = enum.auto()
     no = enum.auto()
@@ -1979,7 +1986,7 @@ class Config:
 
     autologin: bool
     make_initrd: bool
-    ssh: bool
+    ssh: Ssh
     selinux_relabel: ConfigFeature
 
     secure_boot: bool
@@ -3296,9 +3303,10 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ),
     ConfigSetting(
         dest="ssh",
-        metavar="BOOL",
         section="Content",
-        parse=config_parse_boolean,
+        parse=config_make_enum_parser_with_boolean(Ssh, yes=Ssh.always, no=Ssh.never),
+        default=Ssh.auto,
+        choices=Ssh.choices(),
         help="Set up SSH access from the host to the final image via 'mkosi ssh'",
     ),
     ConfigSetting(
@@ -5344,7 +5352,7 @@ def summary(config: Config) -> str:
 
                           Autologin: {yes_no(config.autologin)}
                         Make Initrd: {yes_no(config.make_initrd)}
-                                SSH: {yes_no(config.ssh)}
+                                SSH: {config.ssh}
                     SELinux Relabel: {config.selinux_relabel}
 """
 
@@ -5593,6 +5601,7 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         Architecture: enum_transformer,
         BiosBootloader: enum_transformer,
         ShimBootloader: enum_transformer,
+        Ssh: enum_transformer,
         Bootloader: enum_transformer,
         Compression: enum_transformer,
         ConfigFeature: enum_transformer,

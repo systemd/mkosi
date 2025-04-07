@@ -65,6 +65,7 @@ from mkosi.config import (
     OutputFormat,
     SecureBootSignTool,
     ShimBootloader,
+    Ssh,
     Verb,
     Verity,
     Vmm,
@@ -2879,7 +2880,14 @@ def check_tools(config: Config, verb: Verb) -> None:
 
 
 def configure_ssh(context: Context) -> None:
-    if not context.config.ssh:
+    if context.config.ssh in (Ssh.never, Ssh.runtime):
+        return
+
+    if (
+        context.config.ssh == Ssh.auto
+        and (context.root / "usr/lib/systemd/system-generators/systemd-ssh-generator").exists()
+    ):
+        # systemd-ssh-generator is installed, so we don't need to configure SSH.
         return
 
     unitdir = context.root / "usr/lib/systemd/system"
