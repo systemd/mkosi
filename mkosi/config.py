@@ -365,6 +365,12 @@ class Vmm(StrEnum):
     vmspawn = enum.auto()
 
 
+class Ssh(StrEnum):
+    yes = enum.auto()
+    no = enum.auto()
+    runtime = enum.auto()
+
+
 class Incremental(StrEnum):
     yes = enum.auto()
     no = enum.auto()
@@ -1979,7 +1985,7 @@ class Config:
 
     autologin: bool
     make_initrd: bool
-    ssh: bool
+    ssh: Ssh
     selinux_relabel: ConfigFeature
 
     secure_boot: bool
@@ -3298,7 +3304,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         dest="ssh",
         metavar="BOOL",
         section="Content",
-        parse=config_parse_boolean,
+        parse=config_make_enum_parser_with_boolean(Ssh, yes=Ssh.yes, no=Ssh.no),
         help="Set up SSH access from the host to the final image via 'mkosi ssh'",
     ),
     ConfigSetting(
@@ -5344,7 +5350,7 @@ def summary(config: Config) -> str:
 
                           Autologin: {yes_no(config.autologin)}
                         Make Initrd: {yes_no(config.make_initrd)}
-                                SSH: {yes_no(config.ssh)}
+                                SSH: {config.ssh}
                     SELinux Relabel: {config.selinux_relabel}
 """
 

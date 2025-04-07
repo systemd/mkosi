@@ -36,6 +36,7 @@ from mkosi.config import (
     Firmware,
     Network,
     OutputFormat,
+    Ssh,
     VsockCID,
     finalize_term,
     format_bytes,
@@ -946,11 +947,6 @@ def finalize_credentials(config: Config) -> dict[str, str]:
                 sandbox=config.sandbox(options=["--become-root", "--ro-bind", "/etc/passwd", "/etc/passwd"]),
             ).stdout.strip()
             creds["ssh.authorized_keys.root"] = sshpubkey
-        elif config.ssh:
-            die(
-                "Ssh= is enabled but no SSH certificate was found",
-                hint="Run 'mkosi genkey' to automatically create one",
-            )
 
     return creds
 
@@ -1132,6 +1128,12 @@ def run_qemu(args: Args, config: Config) -> None:
         and not config.secure_boot_certificate
     ):
         die("SecureBootCertificate= must be configured to use FirmwareVariables=custom|microsoft-mok")
+
+    if config.ssh in (Ssh.yes, Ssh.runtime) and (not config.ssh_key or not config.ssh_certificate):
+        die(
+            "SSH key and certificate must be configured to use SSH=yes|runtime",
+            hint="Run 'mkosi genkey' to automatically create one",
+        )
 
     # After we unshare the user namespace to sandbox qemu, we might not have access to /dev/kvm or related
     # device nodes anymore as access to these might be gated behind the kvm group and we won't be part of the

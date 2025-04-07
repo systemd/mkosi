@@ -65,6 +65,7 @@ from mkosi.config import (
     OutputFormat,
     SecureBootSignTool,
     ShimBootloader,
+    Ssh,
     Verb,
     Verity,
     Vmm,
@@ -2879,7 +2880,7 @@ def check_tools(config: Config, verb: Verb) -> None:
 
 
 def configure_ssh(context: Context) -> None:
-    if not context.config.ssh:
+    if context.config.ssh in (Ssh.no, Ssh.runtime):
         return
 
     unitdir = context.root / "usr/lib/systemd/system"
