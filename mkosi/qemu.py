@@ -6,11 +6,13 @@ import dataclasses
 import enum
 import errno
 import fcntl
+import functools
 import hashlib
 import io
 import json
 import logging
 import os
+import queue
 import random
 import resource
 import shutil
@@ -449,59 +451,50 @@ def start_virtiofsd(
             proc.terminate()
 
 
+async def notify(messages: queue.SimpleQueue[tuple[str, str]], *, sock: socket.socket) -> None:
+    import asyncio
+
+    loop = asyncio.get_running_loop()
+    num_messages = 0
+    num_bytes = 0
+
+    try:
+        while True:
+            s, _ = await loop.sock_accept(sock)
+
+            num_messages += 1
+
+            with s:
+                data = []
+                try:
+                    while buf := await loop.sock_recv(s, 4096):
+                        data.append(buf)
+                except ConnectionResetError:
+                    logging.debug("notify listener connection reset by peer")
+
+            for msg in b"".join(data).decode().split("\n"):
+                if not msg:
+                    continue
+
+                num_bytes += len(msg)
+                k, _, v = msg.partition("=")
+                messages.put((k, v))
+    except asyncio.CancelledError:
+        logging.debug(f"Received {num_messages} notify messages totalling {format_bytes(num_bytes)} bytes")
+
+
 @contextlib.contextmanager
-def vsock_notify_handler() -> Iterator[tuple[str, dict[str, str]]]:
+def vsock_notify_handler() -> Iterator[tuple[str, AsyncioThread[tuple[str, str]]]]:
     """
-    This yields a vsock address and a dict that will be filled in with the notifications from the VM. The
-    dict should only be accessed after the context manager has been finalized.
+    This yields a vsock address and an object that will be filled in with the notifications from the VM.
     """
     with socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM) as vsock:
         vsock.bind((socket.VMADDR_CID_ANY, socket.VMADDR_PORT_ANY))
         vsock.listen()
         vsock.setblocking(False)
 
-        num_messages = 0
-        num_bytes = 0
-        messages = {}
-
-        async def notify() -> None:
-            nonlocal num_messages
-            nonlocal num_bytes
-
-            import asyncio
-
-            loop = asyncio.get_running_loop()
-
-            while True:
-                s, _ = await loop.sock_accept(vsock)
-
-                num_messages += 1
-
-                with s:
-                    data = []
-                    try:
-                        while buf := await loop.sock_recv(s, 4096):
-                            data.append(buf)
-                    except ConnectionResetError:
-                        logging.debug("vsock notify listener connection reset by peer")
-
-                for msg in b"".join(data).decode().split("\n"):
-                    if not msg:
-                        continue
-
-                    num_bytes += len(msg)
-                    k, _, v = msg.partition("=")
-                    messages[k] = v
-
-        with AsyncioThread(notify()):
-            try:
-                yield f"vsock-stream:{socket.VMADDR_CID_HOST}:{vsock.getsockname()[1]}", messages
-            finally:
-                logging.debug(
-                    f"Received {num_messages} notify messages totalling {format_bytes(num_bytes)} bytes"
-                )
-                for k, v in messages.items():
-                    logging.debug(f"- {k}={v}")
+        with AsyncioThread(functools.partial(notify, sock=vsock)) as thread:
+            yield f"vsock-stream:{socket.VMADDR_CID_HOST}:{vsock.getsockname()[1]}", thread
 
 
 @contextlib.contextmanager
@@ -1306,7 +1299,8 @@ def run_qemu(args: Args, config: Config) -> None:
     if firmware.is_uefi():
         assert ovmf
         cmdline += ["-drive", f"if=pflash,format={ovmf.format},readonly=on,file={ovmf.firmware}"]
-    notifications: dict[str, str] = {}
+
+    notify: Optional[AsyncioThread[tuple[str, str]]] = None
 
     with contextlib.ExitStack() as stack:
         if firmware.is_uefi():
@@ -1495,7 +1489,7 @@ def run_qemu(args: Args, config: Config) -> None:
                 cmdline += ["-device", "tpm-tis-device,tpmdev=tpm0"]
 
         if QemuDeviceNode.vhost_vsock in qemu_device_fds:
-            addr, notifications = stack.enter_context(vsock_notify_handler())
+            addr, notify = stack.enter_context(vsock_notify_handler())
             credentials["vmm.notify_socket"] = addr
 
         if config.forward_journal:
@@ -1604,7 +1598,7 @@ def run_qemu(args: Args, config: Config) -> None:
 
             proc.send_signal(signal.SIGCONT)
 
-        if status := int(notifications.get("EXIT_STATUS", 0)):
+        if notify and (status := int({k: v for k, v in notify.process()}.get("EXIT_STATUS", "0"))) != 0:
             raise subprocess.CalledProcessError(status, cmdline)
 
 

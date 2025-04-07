@@ -16,7 +16,7 @@ from collections.abc import Awaitable, Collection, Iterator, Mapping, Sequence
 from contextlib import AbstractContextManager
 from pathlib import Path
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Callable, NoReturn, Optional, Protocol
+from typing import TYPE_CHECKING, Any, Callable, Generic, NoReturn, Optional, Protocol, TypeVar
 
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SANDBOX, ARG_DEBUG_SHELL, die
 from mkosi.sandbox import acquire_privileges, joinpath, umask
@@ -31,6 +31,9 @@ if TYPE_CHECKING:
 else:
     CompletedProcess = subprocess.CompletedProcess
     Popen = subprocess.Popen
+
+
+T = TypeVar("T")
 
 
 def ensure_exc_info() -> tuple[type[BaseException], BaseException, TracebackType]:
@@ -310,7 +313,7 @@ def find_binary(
     return None
 
 
-class AsyncioThread(threading.Thread):
+class AsyncioThread(threading.Thread, Generic[T]):
     """
     The default threading.Thread() is not interruptible, so we make our own version by using the concurrency
     feature in python that is interruptible, namely asyncio.
@@ -319,12 +322,16 @@ class AsyncioThread(threading.Thread):
     exception was raised before.
     """
 
-    def __init__(self, target: Awaitable[Any], *args: Any, **kwargs: Any) -> None:
+    def __init__(
+        self, target: Callable[[queue.SimpleQueue[T]], Awaitable[Any]], *args: Any, **kwargs: Any
+    ) -> None:
         import asyncio
 
         self.target = target
         self.loop: queue.SimpleQueue[asyncio.AbstractEventLoop] = queue.SimpleQueue()
         self.exc: queue.SimpleQueue[BaseException] = queue.SimpleQueue()
+        self.queue: queue.SimpleQueue[T] = queue.SimpleQueue()
+        self.messages: list[T] = []
         super().__init__(*args, **kwargs)
 
     def run(self) -> None:
@@ -332,7 +339,7 @@ class AsyncioThread(threading.Thread):
 
         async def wrapper() -> None:
             self.loop.put(asyncio.get_running_loop())
-            await self.target
+            await self.target(self.queue)
 
         try:
             asyncio.run(wrapper())
@@ -340,6 +347,16 @@ class AsyncioThread(threading.Thread):
             pass
         except BaseException as e:
             self.exc.put(e)
+
+    def process(self) -> list[T]:
+        while not self.queue.empty():
+            self.messages += [self.queue.get()]
+
+        return self.messages
+
+    def wait_for(self, expected: T) -> None:
+        while (message := self.queue.get()) != expected:
+            self.messages += [message]
 
     def cancel(self) -> None:
         import asyncio.tasks
@@ -349,7 +366,7 @@ class AsyncioThread(threading.Thread):
         for task in asyncio.tasks.all_tasks(loop):
             loop.call_soon_threadsafe(task.cancel)
 
-    def __enter__(self) -> "AsyncioThread":
+    def __enter__(self) -> "AsyncioThread[T]":
         self.start()
         return self
 
@@ -361,6 +378,7 @@ class AsyncioThread(threading.Thread):
     ) -> None:
         self.cancel()
         self.join()
+        self.process()
 
         if type is None:
             try:
