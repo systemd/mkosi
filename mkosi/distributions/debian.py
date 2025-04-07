@@ -219,12 +219,11 @@ class Installer(DistributionInstaller):
 
 
 def install_apt_sources(context: Context, repos: Iterable[AptRepository]) -> None:
-    if not (context.root / "usr/bin/apt").exists():
-        return
-
     sources = context.root / f"etc/apt/sources.list.d/{context.config.release}.sources"
     if not sources.exists():
-        with sources.open("w") as f:
+        with umask(~0o755):
+            sources.parent.mkdir(parents=True, exist_ok=True)
+        with umask(~0o644), sources.open("w") as f:
             for repo in repos:
                 f.write(str(repo))
 
