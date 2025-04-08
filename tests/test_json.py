@@ -43,7 +43,6 @@ from mkosi.config import (
     VsockCID,
 )
 from mkosi.distributions import Distribution
-from mkosi.versioncomp import GenericVersion
 
 
 @pytest.mark.parametrize("path", [None, "/baz/qux"])
@@ -509,7 +508,7 @@ def test_config() -> None:
         manifest_format=[ManifestFormat.json, ManifestFormat.changelog],
         microcode_host=True,
         devicetree=Path("freescale/imx8mm-verdin-nonwifi-dev.dtb"),
-        minimum_version=GenericVersion("123"),
+        minimum_version="123",
         mirror=None,
         nspawn_settings=None,
         openpgp_tool="gpg",

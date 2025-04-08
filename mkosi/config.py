@@ -1463,12 +1463,23 @@ def config_parse_vsock_cid(value: Optional[str], old: Optional[int]) -> Optional
     return cid
 
 
-def config_parse_minimum_version(
-    value: Optional[str],
-    old: Optional[GenericVersion],
-) -> Optional[GenericVersion]:
+def config_parse_minimum_version(value: Optional[str], old: Optional[str]) -> Optional[str]:
     if not value:
         return old
+
+    if len(value) == 40 and all(c.isalnum() for c in value):
+        if not in_sandbox():
+            gitdir = Path(__file__).parent.parent
+            if not (gitdir / ".git").exists():
+                die("Cannot check mkosi git version, not running from a git repository")
+
+            result = run(["git", "-C", gitdir, "merge-base", "--is-ancestor", value, "HEAD"], check=False)
+            if result.returncode == 1:
+                die(f"mkosi commit {value} or newer is required by this configuration")
+            elif result.returncode != 0:
+                die(f"Failed to check if mkosi git checkout is newer than commit {value}")
+
+        return value
 
     new = GenericVersion(value)
 
@@ -1476,9 +1487,9 @@ def config_parse_minimum_version(
         die(f"mkosi {new} or newer is required by this configuration (found {__version__})")
 
     if not old:
-        return new
+        return value
 
-    return max(old, new)
+    return value if new > old else old
 
 
 def file_run_or_read(file: Path) -> str:
@@ -1887,7 +1898,7 @@ class Config:
     profiles: list[str]
     files: list[Path]
     dependencies: list[str]
-    minimum_version: Optional[GenericVersion]
+    minimum_version: Optional[str]
     pass_environment: list[str]
 
     distribution: Distribution
