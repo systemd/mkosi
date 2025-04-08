@@ -82,7 +82,6 @@ runs:
     - name: Ensure git history is available
       shell: bash
       run: |
-        set -x
         if [[ ! -d "${{ github.action_path }}/.git" ]]; then
             rm -rf "${{ github.action_path }}"
             git clone "https://github.com/${{ inputs.action_repository }}" "${{ github.action_path }}"
