@@ -74,11 +74,11 @@ runs:
         sudo apt-get remove apparmor
 
     - name: Ensure git history is available
-      shell: bash
+      shell: bash -x
       run: |
         if [[ ! -d "${{ github.action_path }}/.git" ]]; then
             rm -rf "${{ github.action_path }}"
-            git clone "$GITHUB_ACTION_REPOSITORY" "${{ github.action_path }}"
+            git clone "https://github.com/$GITHUB_ACTION_REPOSITORY" "${{ github.action_path }}"
             git -C "${{ github.action_path }}" checkout "$GITHUB_ACTION_REF"
         fi
       env:
