@@ -2166,11 +2166,11 @@ config file is read:
 :   The minimum **mkosi** version required to build this configuration. If
     specified multiple times, the highest specified version is used.
 
-    The minimum version can also be specified as a unabbreviated git
-    commit hash, in which case mkosi must be executed from a git
-    checkout and the specified git commit hash must be an ancestor of
-    the currently checked out git commit in the repository that mkosi is
-    being executed from.
+    The minimum version can also be specified as a git commit hash when
+    prefixed with `commit:`, in which case mkosi must be executed from a
+    git checkout and the specified git commit hash must be an ancestor
+    of the currently checked out git commit in the repository that mkosi
+    is being executed from.
 
 `ConfigureScripts=`, `--configure-script=`
 :   Takes a comma-separated list of paths to executables that are used as

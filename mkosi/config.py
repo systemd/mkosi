@@ -1467,17 +1467,22 @@ def config_parse_minimum_version(value: Optional[str], old: Optional[str]) -> Op
     if not value:
         return old
 
-    if len(value) == 40 and all(c.isalnum() for c in value):
+    if hash := startswith(value, "commit:"):
         if not in_sandbox():
             gitdir = Path(__file__).parent.parent
             if not (gitdir / ".git").exists():
-                die("Cannot check mkosi git version, not running from a git repository")
+                die("Cannot check mkosi git version, not running mkosi from a git repository")
 
-            result = run(["git", "-C", gitdir, "merge-base", "--is-ancestor", value, "HEAD"], check=False)
+            current = run(["git", "-C", gitdir, "rev-parse", "HEAD"], stdout=subprocess.PIPE).stdout.strip()
+
+            result = run(["git", "-C", gitdir, "merge-base", "--is-ancestor", hash, current], check=False)
             if result.returncode == 1:
-                die(f"mkosi commit {value} or newer is required by this configuration")
+                die(
+                    f"mkosi commit {hash} or newer is required by this configuration",
+                    hint=f"Currently checked out commit is {current}"
+                )
             elif result.returncode != 0:
-                die(f"Failed to check if mkosi git checkout is newer than commit {value}")
+                die(f"Failed to check if mkosi git checkout is newer than commit {hash}")
 
         return value
 
