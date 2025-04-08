@@ -2967,10 +2967,13 @@ def run_depmod(context: Context, *, cache: bool = False) -> None:
         return
 
     if not cache:
-        for kver, _ in gen_kernel_images(context):
+        for modulesd in (context.root / "usr/lib/modules").glob("*"):
+            if not modulesd.is_dir():
+                continue
+
             process_kernel_modules(
                 context,
-                kver,
+                modulesd.name,
                 modules_include=finalize_kernel_modules_include(
                     context,
                     include=context.config.kernel_modules_include,
@@ -2991,8 +2994,9 @@ def run_depmod(context: Context, *, cache: bool = False) -> None:
         "modules.symbols.bin",
     )
 
-    for kver, _ in gen_kernel_images(context):
-        modulesd = context.root / "usr/lib/modules" / kver
+    for modulesd in (context.root / "usr/lib/modules").glob("*"):
+        if not modulesd.is_dir():
+            continue
 
         if (
             not cache
@@ -3003,8 +3007,8 @@ def run_depmod(context: Context, *, cache: bool = False) -> None:
             if all(m.stat().st_mtime <= mtime for m in modulesd.rglob("*.ko*")):
                 continue
 
-        with complete_step(f"Running depmod for {kver}"):
-            run(["depmod", "--all", kver], sandbox=chroot_cmd(root=context.rootoptions))
+        with complete_step(f"Running depmod for {modulesd.name}"):
+            run(["depmod", "--all", modulesd.name], sandbox=chroot_cmd(root=context.rootoptions))
 
 
 def run_sysusers(context: Context) -> None:
