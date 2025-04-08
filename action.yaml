@@ -74,7 +74,7 @@ runs:
         sudo apt-get remove apparmor
 
     - name: Ensure git history is available
-      shell: bash
+      shell: bash -x
       run: |
         if [[ ! -d "${{ github.action_path }}/.git" ]]; then
             rm -rf "${{ github.action_path }}"
