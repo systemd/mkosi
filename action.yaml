@@ -73,6 +73,10 @@ runs:
         sudo aa-teardown || true
         sudo apt-get remove apparmor
 
+    - name: Unshallow
+      shell: bash
+      run: git -C ${{ github.action_path }} fetch --unshallow
+
     - name: Install
       shell: bash
       run: sudo ln -svf ${{ github.action_path }}/bin/mkosi /usr/bin/mkosi
