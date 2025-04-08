@@ -71,6 +71,7 @@ from mkosi.config import (
     cat_config,
     expand_delayed_specifiers,
     format_bytes,
+    get_configdir,
     have_history,
     in_sandbox,
     parse_boolean,
@@ -4478,8 +4479,10 @@ def generate_key_cert_pair(args: Args) -> None:
     keylength = 2048
     expiration_date = datetime.date.today() + datetime.timedelta(int(args.genkey_valid_days))
 
-    for f in ("mkosi.key", "mkosi.crt"):
-        if Path(f).exists() and not args.force:
+    configdir = get_configdir(args)
+
+    for f in (configdir / "mkosi.key", configdir / "mkosi.crt"):
+        if f.exists() and not args.force:
             die(
                 f"{f} already exists",
                 hint="To generate new keys, first remove mkosi.key and mkosi.crt",
@@ -4502,8 +4505,8 @@ def generate_key_cert_pair(args: Args) -> None:
             "-new",
             "-x509",
             "-newkey", f"rsa:{keylength}",
-            "-keyout", "mkosi.key",
-            "-out", "mkosi.crt",
+            "-keyout", configdir / "mkosi.key",
+            "-out", configdir / "mkosi.crt",
             "-days", str(args.genkey_valid_days),
             "-subj", f"/CN={args.genkey_common_name}/",
             "-nodes"

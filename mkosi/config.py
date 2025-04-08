@@ -4964,6 +4964,20 @@ def finalize_default_tools(
     return Config.from_dict(context.finalize())
 
 
+def get_configdir(args: Args) -> Path:
+    """Allow locating all mkosi configuration in a mkosi/ subdirectory
+    instead of in the top-level directory of a git repository.
+    """
+    if (
+        args.directory is not None
+        and not (Path("mkosi.conf").exists() or Path("mkosi.tools.conf").exists())
+        and (Path("mkosi/mkosi.conf").is_file() or Path("mkosi/mkosi.tools.conf").exists())
+    ):
+        return Path.cwd() / "mkosi"
+
+    return Path.cwd()
+
+
 def parse_config(
     argv: Sequence[str] = (),
     *,
@@ -5050,16 +5064,7 @@ def parse_config(
 
     context.config["files"] = []
 
-    # Allow locating all mkosi configuration in a mkosi/ subdirectory instead of in the top-level directory
-    # of a git repository.
-    if (
-        args.directory is not None
-        and not (Path("mkosi.conf").exists() or Path("mkosi.tools.conf").exists())
-        and (Path("mkosi/mkosi.conf").is_file() or Path("mkosi/mkosi.tools.conf").exists())
-    ):
-        configdir = Path.cwd() / "mkosi"
-    else:
-        configdir = Path.cwd()
+    configdir = get_configdir(args)
 
     # Parse the global configuration unless the user explicitly asked us not to.
     if args.directory is not None:
