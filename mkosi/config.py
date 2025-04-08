@@ -1479,7 +1479,7 @@ def config_parse_minimum_version(value: Optional[str], old: Optional[str]) -> Op
             if result.returncode == 1:
                 die(
                     f"mkosi commit {hash} or newer is required by this configuration",
-                    hint=f"Currently checked out commit is {current}"
+                    hint=f"Currently checked out commit is {current}",
                 )
             elif result.returncode != 0:
                 die(f"Failed to check if mkosi git checkout is newer than commit {hash}")
