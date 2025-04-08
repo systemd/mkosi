@@ -73,9 +73,18 @@ runs:
         sudo aa-teardown || true
         sudo apt-get remove apparmor
 
-    - name: Unshallow
+    - name: Ensure git history is available
       shell: bash
-      run: git -C ${{ github.action_path }} fetch --unshallow
+      run: |
+        if [[ ! -d "${{ github.action_path }}/.git" ]]; then
+            rm -rf "${{ github.action_path }}"
+            git clone "$GITHUB_ACTION_REPOSITORY" "${{ github.action_path }}"
+            git -C "${{ github.action_path }}" checkout "$GITHUB_ACTION_REF"
+        fi
+      env:
+        # https://github.com/actions/runner/issues/2473
+        GITHUB_ACTION_REPOSITORY: ${{ github.action_repository }}
+        GITHUB_ACTION_REF: ${{ github.action_ref }}
 
     - name: Install
       shell: bash
