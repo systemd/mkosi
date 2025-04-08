@@ -1,6 +1,12 @@
 name: setup-mkosi
 description: Install mkosi
 
+# https://github.com/actions/runner/issues/2473
+inputs:
+  action_ref:
+    default: ${{ github.action_ref }}
+  action_repository:
+    default: ${{ github.action_repository }}
 runs:
   using: composite
   steps:
@@ -79,13 +85,9 @@ runs:
         set -x
         if [[ ! -d "${{ github.action_path }}/.git" ]]; then
             rm -rf "${{ github.action_path }}"
-            git clone "https://github.com/$GITHUB_ACTION_REPOSITORY" "${{ github.action_path }}"
-            git -C "${{ github.action_path }}" checkout "$GITHUB_ACTION_REF"
+            git clone "https://github.com/${{ inputs.action_repository }}" "${{ github.action_path }}"
+            git -C "${{ github.action_path }}" checkout "${{ inputs.action_ref }}"
         fi
-      env:
-        # https://github.com/actions/runner/issues/2473
-        GITHUB_ACTION_REPOSITORY: ${{ github.action_repository }}
-        GITHUB_ACTION_REF: ${{ github.action_ref }}
 
     - name: Install
       shell: bash
