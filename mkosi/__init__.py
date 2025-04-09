@@ -3304,7 +3304,7 @@ def save_esp_components(
         if not stub.exists():
             die(f"sd-stub not found at /{stub.relative_to(context.root)} in the image")
 
-        return shutil.copy2(stub, context.workspace), None, None, []
+        return Path(shutil.copy2(stub, context.workspace)), None, None, []
 
     if context.config.output_format not in (OutputFormat.uki, OutputFormat.esp):
         return None, None, None, []
@@ -3317,7 +3317,7 @@ def save_esp_components(
 
         return None, None, None, []
 
-    kimg = shutil.copy2(context.root / kimg, context.workspace)
+    kimg = Path(shutil.copy2(context.root / kimg, context.workspace))
 
     if not context.config.architecture.to_efi():
         die(f"Architecture {context.config.architecture} does not support UEFI")
@@ -3326,7 +3326,7 @@ def save_esp_components(
     if not stub.exists():
         die(f"sd-stub not found at /{stub.relative_to(context.root)} in the image")
 
-    stub = shutil.copy2(stub, context.workspace)
+    stub = Path(shutil.copy2(stub, context.workspace))
     microcode = build_microcode_initrd(context)
 
     return stub, kver, kimg, microcode
