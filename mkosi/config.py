@@ -3446,7 +3446,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         parse=config_parse_key,
         path_suffixes=("key",),
         help="Private key for signing expected PCR signature",
-        scope=SettingScope.universal,
+        scope=SettingScope.inherit,
     ),
     ConfigSetting(
         dest="sign_expected_pcr_key_source",
@@ -3455,7 +3455,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         parse=config_parse_key_source,
         default=KeySource(type=KeySourceType.file),
         help="The source to use to retrieve the expected PCR signing key",
-        scope=SettingScope.universal,
+        scope=SettingScope.inherit,
     ),
     ConfigSetting(
         dest="sign_expected_pcr_certificate",
@@ -3464,7 +3464,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         parse=config_parse_certificate,
         path_suffixes=("crt",),
         help="Certificate for signing expected PCR signature in X509 format",
-        scope=SettingScope.universal,
+        scope=SettingScope.inherit,
     ),
     ConfigSetting(
         dest="sign_expected_pcr_certificate_source",
@@ -3473,7 +3473,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         parse=config_parse_certificate_source,
         default=CertificateSource(type=CertificateSourceType.file),
         help="The source to use to retrieve the expected PCR signing certificate",
-        scope=SettingScope.universal,
+        scope=SettingScope.inherit,
     ),
     ConfigSetting(
         dest="passphrase",

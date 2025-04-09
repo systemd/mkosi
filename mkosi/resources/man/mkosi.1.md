@@ -2913,10 +2913,6 @@ following settings are universal and cannot be configured in subimages:
 - `VerityCertificateSource=`
 - `VerityKey=`
 - `VerityKeySource=`
-- `SignExpectedPcrCertificate=`
-- `SignExpectedPcrCertificateSource=`
-- `SignExpectedPcrKey=`
-- `SignExpectedPcrKeySource=`
 - `VolatilePackageDirectories=`
 - `WithNetwork=`
 - `WithTests`
@@ -2934,6 +2930,10 @@ down to subimages but can be overridden:
 - `CacheKey=`
 - `BuildKey=`
 - `CompressLevel=`
+- `SignExpectedPcrKey=`
+- `SignExpectedPcrKeySource=`
+- `SignExpectedPcrCertificate=`
+- `SignExpectedPcrCertificateSource=`
 
 Additionally, there are various settings that can only be configured in
 the main image but which are not passed down to subimages:
