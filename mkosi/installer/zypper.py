@@ -39,7 +39,7 @@ class Zypper(PackageManager):
             "rpm":    cls.apivfs_script_cmd(context) + rpm_cmd(),
             "mkosi-install":   install,
             "mkosi-upgrade":   ["zypper", "update"],
-            "mkosi-remove":    ["zypper", "remove", "--clean-deps"],
+            "mkosi-remove":    ["zypper", "--ignore-unknown", "remove", "--clean-deps"],
             "mkosi-reinstall": install + ["--force"],
         }  # fmt: skip
 
@@ -122,11 +122,12 @@ class Zypper(PackageManager):
         operation: str,
         arguments: Sequence[str] = (),
         *,
+        options: Sequence[str] = (),
         apivfs: bool = False,
         stdout: _FILE = None,
     ) -> CompletedProcess:
         return run(
-            cls.cmd(context) + [operation, *arguments],
+            cls.cmd(context) + [*options, operation, *arguments],
             sandbox=cls.sandbox(context, apivfs=apivfs),
             env=cls.finalize_environment(context),
             stdout=stdout,
@@ -150,7 +151,7 @@ class Zypper(PackageManager):
 
     @classmethod
     def remove(cls, context: Context, packages: Sequence[str]) -> None:
-        cls.invoke(context, "remove", ["--clean-deps", *packages], apivfs=True)
+        cls.invoke(context, "remove", ["--clean-deps", *packages], apivfs=True, options=["--ignore-unknown"])
 
     @classmethod
     def sync(cls, context: Context, force: bool, arguments: Sequence[str] = ()) -> None:
