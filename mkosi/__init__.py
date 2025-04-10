@@ -4126,6 +4126,8 @@ def run_sandbox(args: Args, config: Config) -> None:
         env |= {"MKOSI_HOST_DISTRIBUTION": str(hd)}
     if hr:
         env |= {"MKOSI_HOST_RELEASE": hr}
+    if config.tools_tree:
+        env |= {"MKOSI_DEFAULT_TOOLS_TREE_PATH": os.fspath(config.tools_tree)}
 
     cmdline = [*args.cmdline]
 
@@ -4933,13 +4935,8 @@ def run_build(
         )
 
 
-def dump_history_json(tools: Optional[Config], images: Sequence[Config]) -> str:
-    return json.dumps(
-        {"Tools": tools.to_dict() if tools else None, "Images": [config.to_dict() for config in images]},
-        cls=JsonEncoder,
-        indent=4,
-        sort_keys=True,
-    )
+def dump_json(dict: dict[str, Any]) -> str:
+    return json.dumps(dict, cls=JsonEncoder, indent=4, sort_keys=True)
 
 
 def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, resources: Path) -> None:
@@ -4994,7 +4991,12 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
 
     if args.verb == Verb.summary:
         if args.json:
-            text = dump_history_json(tools, images)
+            text = dump_json(
+                {
+                    "Tools": tools.to_dict() if tools else None,
+                    "Images": [config.to_dict() for config in images],
+                }
+            )
         else:
             text = f"{summary(tools)}\n" if tools else ""
             text += "\n".join(summary(config) for config in images)
@@ -5031,12 +5033,6 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
                 f"Default tools tree requested for image '{last.image}' but it is out-of-date or has not "
                 "been built yet",
                 hint="Make sure to (re)build the tools tree first with 'mkosi build' or use '--force'",
-            )
-        elif in_sandbox():
-            die(
-                "Cannot rebuild out-of-date default tools tree from inside mkosi sandbox",
-                hint="Exit mkosi sandbox and re-enter the sandbox again with mkosi -f sandbox to "
-                "rebuild the default tools tree",
             )
         elif last.incremental == Incremental.strict:
             die(
@@ -5075,12 +5071,16 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
                 keyring_dir=Path(keyring_dir),
                 metadata_dir=Path(metadata_dir),
             )
-            _, _, manifest = cache_tree_paths(tools)
-            manifest.write_text(
-                json.dumps(tools.cache_manifest(), cls=JsonEncoder, indent=4, sort_keys=True)
-            )
 
-    if not args.verb.needs_build():
+        _, _, manifest = cache_tree_paths(tools)
+        manifest.write_text(dump_json(tools.cache_manifest()))
+        Path(".mkosi-private/history/tools.json").unlink(missing_ok=True)
+
+    if tools and last.history and not Path(".mkosi-private/history/tools.json").exists():
+        Path(".mkosi-private/history").mkdir(parents=True, exist_ok=True)
+        Path(".mkosi-private/history/tools.json").write_text(dump_json(tools.to_dict()))
+
+    if args.verb.needs_tools():
         return {
             Verb.ssh: run_ssh,
             Verb.journalctl: run_journalctl,
@@ -5281,7 +5281,9 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
 
         if last.history and history:
             Path(".mkosi-private/history").mkdir(parents=True, exist_ok=True)
-            Path(".mkosi-private/history/latest.json").write_text(dump_history_json(tools, images))
+            Path(".mkosi-private/history/latest.json").write_text(
+                dump_json({"Images": [config.to_dict() for config in images]})
+            )
 
     if args.verb == Verb.build:
         return

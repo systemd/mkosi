@@ -26,7 +26,6 @@ class ImageConfig:
     distribution: Distribution
     release: str
     debug_shell: bool
-    tools: Optional[Path]
 
 
 class Image:
@@ -67,7 +66,6 @@ class Image:
         return run(
             [
                 "python3", "-m", "mkosi",
-                *(["--tools-tree", os.fspath(self.config.tools)] if self.config.tools else []),
                 "--debug",
                 *options,
                 verb,
@@ -158,9 +156,6 @@ class Image:
             raise subprocess.CalledProcessError(result.returncode, result.args, result.stdout, result.stderr)
 
         return result
-
-    def genkey(self) -> CompletedProcess:
-        return self.mkosi("genkey", ["--force"])
 
 
 @pytest.fixture(scope="session", autouse=True)

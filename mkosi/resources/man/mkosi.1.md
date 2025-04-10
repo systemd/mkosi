@@ -1587,7 +1587,8 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     the latest build to the `.mkosi-private` subdirectory in the
     directory from which it was invoked. This information is then used
     to restore the config of the latest build when running any verb that
-    needs a build without specifying `--force`.
+    does not rebuild the image or when running any verb that may rebuild
+    the image without specifying `--force`.
 
     Note that configure scripts will not be executed if we reuse the
     history from a previous build.

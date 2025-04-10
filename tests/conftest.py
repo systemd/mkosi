@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 from collections.abc import Iterator
-from pathlib import Path
 from typing import Any, cast
 
 import pytest
@@ -50,7 +49,6 @@ def config(request: Any) -> ImageConfig:
         distribution=distribution,
         release=release,
         debug_shell=request.config.getoption("--debug-shell"),
-        tools=p if (p := Path("mkosi.tools")).exists() else None,
     )
 
 
