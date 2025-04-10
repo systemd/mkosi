@@ -148,10 +148,10 @@ class Dnf(PackageManager):
             "--setopt=keepcache=1",
             "--setopt=logdir=/var/log",
             f"--setopt=cachedir=/var/cache/{cls.subdir(context.config)}",
-            f"--setopt=persistdir=/var/lib/{cls.subdir(context.config)}",
             f"--setopt=install_weak_deps={int(context.config.with_recommends)}",
             "--setopt=check_config_file_age=0",
             "--disable-plugin=*" if dnf == "dnf5" else "--disableplugin=*",
+            "--setopt=persistdir=/buildroot/var/lib/dnf",
         ]  # fmt: skip
 
         for plugin in ("builddep", "versionlock", "reflink"):

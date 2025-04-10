@@ -102,6 +102,10 @@ class Apt(PackageManager):
         }  # fmt: skip
 
     @classmethod
+    def options(cls, *, root: PathString, apivfs: bool = True) -> list[PathString]:
+        return super().options(root=root, apivfs=apivfs) + ["--dir", "/var/lib/apt/lists/partial"]
+
+    @classmethod
     def setup(cls, context: Context, repositories: Sequence[AptRepository]) -> None:
         (context.sandbox_tree / "etc/apt").mkdir(exist_ok=True, parents=True)
         (context.sandbox_tree / "etc/apt/apt.conf.d").mkdir(exist_ok=True, parents=True)
@@ -171,7 +175,8 @@ class Apt(PackageManager):
             "-o", "Acquire::AllowReleaseInfoChange=true",
             "-o", "Acquire::Check-Valid-Until=false",
             "-o", "Dir::Cache=/var/cache/apt",
-            "-o", "Dir::State=/var/lib/apt",
+            "-o", "Dir::State=/buildroot/var/lib/apt",
+            "-o", "Dir::State::lists=/var/lib/apt/lists/",
             "-o", "Dir::Log=/var/log/apt",
             "-o", "Dir::State::Status=/buildroot/var/lib/dpkg/status",
             "-o", f"Dir::Bin::DPkg={context.config.find_binary('dpkg')}",

@@ -3899,6 +3899,10 @@ def copy_repository_metadata(config: Config, dst: Path) -> None:
             logging.debug(f"{cachedir} does not exist, not copying repository metadata from it")
 
         statedir = config.package_cache_dir_or_default() / "lib" / subdir
+
+        with umask(~0o755):
+            (dst / "lib" / subdir).mkdir(parents=True, exist_ok=True)
+
         for src in config.distribution.package_manager(config).state_subdirs(statedir):
             if not src.exists():
                 logging.debug(f"{src} does not exist, not copying repository metadata from it")
