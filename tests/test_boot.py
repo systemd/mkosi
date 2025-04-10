@@ -32,7 +32,6 @@ def test_format(config: ImageConfig, format: OutputFormat) -> None:
         ):
             pytest.skip("Cannot build RHEL-UBI images with format 'esp' or 'uki'")
 
-        image.genkey()
         image.build(options=["--format", str(format)])
 
         if format in (OutputFormat.disk, OutputFormat.directory) and os.getuid() == 0:
@@ -80,6 +79,5 @@ def test_bootloader(config: ImageConfig, bootloader: Bootloader) -> None:
     firmware = Firmware.linux if bootloader == Bootloader.none else Firmware.auto
 
     with Image(config) as image:
-        image.genkey()
         image.build(["--format=disk", "--bootloader", str(bootloader)])
         image.vm(["--firmware", str(firmware)])

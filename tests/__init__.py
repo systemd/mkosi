@@ -157,9 +157,6 @@ class Image:
 
         return result
 
-    def genkey(self) -> CompletedProcess:
-        return self.mkosi("genkey", ["--force"])
-
 
 @pytest.fixture(scope="session", autouse=True)
 def suspend_capture_stdin(pytestconfig: Any) -> Iterator[None]:

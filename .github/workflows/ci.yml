@@ -203,6 +203,9 @@ jobs:
               chmod +x "mkosi.${script}"
           done
 
+      - name: Generate key
+        run: sudo mkosi genkey
+
       - name: Summary
         run: sudo mkosi summary
 
