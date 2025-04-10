@@ -8,6 +8,7 @@ from mkosi.config import Config, yes_no
 from mkosi.context import Context
 from mkosi.installer import PackageManager
 from mkosi.installer.rpm import RpmRepository, rpm_cmd
+from mkosi.log import ARG_DEBUG
 from mkosi.run import CompletedProcess, run, workdir
 from mkosi.util import _FILE, PathString
 
@@ -113,6 +114,7 @@ class Zypper(PackageManager):
             *(["--gpg-auto-import-keys"] if context.config.repository_key_fetch else []),
             *(["--no-gpg-checks"] if not context.config.repository_key_check else []),
             *([f"--plus-content={repo}" for repo in context.config.repositories]),
+            *(["-vv"] if ARG_DEBUG.get() else []),
         ]
 
     @classmethod
