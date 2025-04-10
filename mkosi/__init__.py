@@ -4126,8 +4126,8 @@ def run_sandbox(args: Args, config: Config) -> None:
         env |= {"MKOSI_HOST_DISTRIBUTION": str(hd)}
     if hr:
         env |= {"MKOSI_HOST_RELEASE": hr}
-    if config.tools_tree:
-        env |= {"MKOSI_DEFAULT_TOOLS_TREE_PATH": os.fspath(config.tools_tree)}
+    if config.tools() != Path("/"):
+        env |= {"MKOSI_DEFAULT_TOOLS_TREE_PATH": os.fspath(config.tools())}
 
     cmdline = [*args.cmdline]
 

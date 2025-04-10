@@ -5099,7 +5099,7 @@ def parse_config(
 
     if config.get("tools_tree") == Path("default"):
         if in_sandbox():
-            config["tools_tree"] = os.environ["MKOSI_DEFAULT_TOOLS_TREE_PATH"]
+            config["tools_tree"] = Path(os.environ["MKOSI_DEFAULT_TOOLS_TREE_PATH"])
         else:
             tools = finalize_default_tools(context, config, configdir=configdir, resources=resources)
             config["tools_tree"] = tools.output_dir_or_cwd() / tools.output
