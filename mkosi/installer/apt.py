@@ -170,6 +170,8 @@ class Apt(PackageManager):
             "-o", "Dir::State=/var/lib/apt",
             "-o", "Dir::Log=/var/log/apt",
             "-o", "Dir::State::Status=/buildroot/var/lib/dpkg/status",
+            # This directory contains package installation data that should be included in the image.
+            "-o", "Dir::State::extended_states=/buildroot/var/lib/apt/extended_states",
             "-o", f"Dir::Bin::DPkg={context.config.find_binary('dpkg')}",
             "-o", "Debug::NoLocking=true",
             "-o", "DPkg::Options::=--root=/buildroot",
