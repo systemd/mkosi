@@ -108,6 +108,9 @@ class Verb(StrEnum):
             Verb.dependencies,
         )
 
+    def needs_tools(self) -> bool:
+        return self in (Verb.sandbox, Verb.journalctl, Verb.coredumpctl, Verb.ssh)
+
     def needs_build(self) -> bool:
         return self in (
             Verb.build,
@@ -4904,13 +4907,25 @@ class ParseContext:
         return ns
 
 
-def have_history(args: Args) -> bool:
-    return (
-        args.directory is not None
-        and args.verb.needs_build()
-        and ((args.verb != Verb.build and not args.force) or args.rerun_build_scripts)
-        and Path(".mkosi-private/history/latest.json").exists()
-    )
+def have_history(args: Args, tools: bool = False) -> bool:
+    filename = "tools" if tools else "latest"
+
+    if args.directory is None:
+        return False
+
+    if args.verb in (Verb.build, Verb.cat_config, Verb.clean):
+        return False
+
+    if args.verb == Verb.summary and args.force > 0:
+        return False
+
+    if args.verb.needs_tools() and args.force > 0:
+        return False
+
+    if args.verb.needs_build() and args.force > 0 and not args.rerun_build_scripts:
+        return False
+
+    return Path(f".mkosi-private/history/{filename}.json").exists()
 
 
 def finalize_default_tools(
@@ -5007,8 +5022,11 @@ def parse_config(
     if args.debug_sandbox:
         ARG_DEBUG_SANDBOX.set(args.debug_sandbox)
 
+    if args.rerun_build_scripts and not args.verb.needs_build():
+        die(f"--rerun-build-scripts cannot be used with the '{args.verb}' command")
+
     if args.cmdline and not args.verb.supports_cmdline():
-        die(f"Arguments after verb are not supported for {args.verb}.")
+        die(f"Arguments after verb are not supported for the '{args.verb}' command")
 
     # If --debug was passed, apply it as soon as possible.
     if ARG_DEBUG.get():
@@ -5024,7 +5042,6 @@ def parse_config(
     if have_history(args):
         try:
             j = json.loads(Path(".mkosi-private/history/latest.json").read_text())
-            tools = Config.from_json(j["Tools"]) if j["Tools"] is not None else None
             *subimages, prev = [Config.from_json(c) for c in j["Images"]]
         except (KeyError, ValueError):
             die(
@@ -5053,9 +5070,13 @@ def parse_config(
         context.only_sections = ("Include", "Runtime", "Host")
     else:
         context.only_sections = tuple(only_sections)
-        tools = None
         subimages = []
         prev = None
+
+    if not in_sandbox() and have_history(args, tools=True):
+        tools = Config.from_json(json.loads(Path(".mkosi-private/history/tools.json").read_text()))
+    else:
+        tools = None
 
     # One of the specifiers needs access to the directory, so make sure it is available.
     context.config["directory"] = args.directory
@@ -5077,8 +5098,11 @@ def parse_config(
         return args, tools, (*subimages, Config.from_dict(config))
 
     if config.get("tools_tree") == Path("default"):
-        tools = finalize_default_tools(context, config, configdir=configdir, resources=resources)
-        config["tools_tree"] = tools.output_dir_or_cwd() / tools.output
+        if in_sandbox():
+            config["tools_tree"] = os.environ["MKOSI_DEFAULT_TOOLS_TREE_PATH"]
+        else:
+            tools = finalize_default_tools(context, config, configdir=configdir, resources=resources)
+            config["tools_tree"] = tools.output_dir_or_cwd() / tools.output
 
     images = []
 
