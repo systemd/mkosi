@@ -615,7 +615,7 @@ def copy_ephemeral(config: Config, src: Path) -> Iterator[Path]:
                 sandbox=config.sandbox,
             )
 
-        with flock(src):
+        with flock(src, flags=fcntl.LOCK_SH):
             fork_and_wait(copy)
         yield tmp
     finally:

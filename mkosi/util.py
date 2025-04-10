@@ -139,9 +139,9 @@ def flock(path: Path, flags: int = fcntl.LOCK_EX) -> Iterator[int]:
 
 
 @contextlib.contextmanager
-def flock_or_die(path: Path) -> Iterator[Path]:
+def flock_or_die(path: Path, flags: int = fcntl.LOCK_EX) -> Iterator[Path]:
     try:
-        with flock(path, fcntl.LOCK_EX | fcntl.LOCK_NB):
+        with flock(path, flags | fcntl.LOCK_NB):
             yield path
     except OSError as e:
         if e.errno != errno.EWOULDBLOCK:
