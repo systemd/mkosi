@@ -148,7 +148,6 @@ class Dnf(PackageManager):
             "--setopt=keepcache=1",
             "--setopt=logdir=/var/log",
             f"--setopt=cachedir=/var/cache/{cls.subdir(context.config)}",
-            f"--setopt=persistdir=/var/lib/{cls.subdir(context.config)}",
             f"--setopt=install_weak_deps={int(context.config.with_recommends)}",
             "--setopt=check_config_file_age=0",
             "--disable-plugin=*" if dnf == "dnf5" else "--disableplugin=*",
@@ -189,6 +188,9 @@ class Dnf(PackageManager):
                 "--config=/etc/dnf/dnf.conf",
                 "--setopt=reposdir=/etc/yum.repos.d",
                 "--setopt=varsdir=/etc/dnf/vars",
+                # In dnf the transaction history is stored in the persistdir which is required for autoremove
+                # operations so we make sure it is stored in the image.
+                "--setopt=persistdir=/buildroot/var/lib/dnf",
             ]
 
         if context.config.proxy_url:
