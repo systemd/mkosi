@@ -1944,10 +1944,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `SshKey=`, `--ssh-key=`
 :   Path to the X.509 private key in PEM format to use to connect to a
     virtual machine started with `mkosi vm` and built with the `Ssh=`
-    option enabled via the `mkosi ssh` command. If not configured and
-    `mkosi.key` exists in the working directory, it will automatically be
-    used for this purpose. Run `mkosi genkey` to automatically generate
-    a key in `mkosi.key`.
+    option enabled (or **systemd-ssh-generator** installed) via the `mkosi ssh` command.
+    If not configured and `mkosi.key` exists in the working directory,
+    it will automatically be used for this purpose.
+    Run `mkosi genkey` to automatically generate a key in `mkosi.key`.
 
 `SshCertificate=`, `--ssh-certificate=`
 :   Path to the X.509 certificate in PEM format to provision as the SSH
