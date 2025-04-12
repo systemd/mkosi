@@ -5030,8 +5030,7 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
     if tools and not have_cache(tools):
         if (args.rerun_build_scripts or args.verb != Verb.build) and args.force == 0:
             die(
-                f"Default tools tree requested for image '{last.image}' but it is out-of-date or has not "
-                "been built yet",
+                "Default tools tree requested but it is out-of-date or has not been built yet",
                 hint="Make sure to (re)build the tools tree first with 'mkosi build' or use '--force'",
             )
         elif last.incremental == Incremental.strict:
