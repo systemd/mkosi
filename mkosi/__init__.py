@@ -5028,7 +5028,7 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
 
     # For the default tools tree have_cache() encompasses the "has the tools tree been built at all" check.
     if tools and not have_cache(tools):
-        if args.verb != Verb.build and args.force == 0:
+        if (args.rerun_build_scripts or args.verb != Verb.build) and args.force == 0:
             die(
                 f"Default tools tree requested for image '{last.image}' but it is out-of-date or has not "
                 "been built yet",
