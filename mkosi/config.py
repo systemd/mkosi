@@ -4971,7 +4971,7 @@ def finalize_default_tools(
     return Config.from_dict(context.finalize())
 
 
-def get_configdir(args: Args) -> Path:
+def finalize_configdir(args: Args) -> Path:
     """Allow locating all mkosi configuration in a mkosi/ subdirectory
     instead of in the top-level directory of a git repository.
     """
@@ -5077,7 +5077,7 @@ def parse_config(
 
     context.config["files"] = []
 
-    configdir = get_configdir(args)
+    configdir = finalize_configdir(args)
 
     # Parse the global configuration unless the user explicitly asked us not to.
     if args.directory is not None:

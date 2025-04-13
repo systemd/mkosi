@@ -71,8 +71,8 @@ from mkosi.config import (
     cat_config,
     dump_json,
     expand_delayed_specifiers,
+    finalize_configdir,
     format_bytes,
-    get_configdir,
     have_history,
     in_sandbox,
     parse_boolean,
@@ -4486,7 +4486,7 @@ def generate_key_cert_pair(args: Args) -> None:
     keylength = 2048
     expiration_date = datetime.date.today() + datetime.timedelta(int(args.genkey_valid_days))
 
-    configdir = get_configdir(args)
+    configdir = finalize_configdir(args)
 
     for f in (configdir / "mkosi.key", configdir / "mkosi.crt"):
         if f.exists() and not args.force:
