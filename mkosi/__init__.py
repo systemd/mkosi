@@ -73,7 +73,6 @@ from mkosi.config import (
     expand_delayed_specifiers,
     finalize_configdir,
     format_bytes,
-    have_history,
     in_sandbox,
     parse_boolean,
     parse_config,
@@ -5070,11 +5069,6 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
 
         _, _, manifest = cache_tree_paths(tools)
         manifest.write_text(dump_json(tools.cache_manifest()))
-        Path(".mkosi-private/history/tools.json").unlink(missing_ok=True)
-
-    if tools and last.history and not Path(".mkosi-private/history/tools.json").exists():
-        Path(".mkosi-private/history").mkdir(parents=True, exist_ok=True)
-        Path(".mkosi-private/history/tools.json").write_text(dump_json(tools.to_dict()))
 
     if args.verb.needs_tools():
         return {
@@ -5165,27 +5159,22 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
             if args.force > 1 or not have_cache(initrd):
                 remove_cache_entries(initrd)
 
-    if not have_history(args):
-        for i, config in enumerate(images):
-            if args.verb != Verb.build:
-                check_tools(config, args.verb)
+    for i, config in enumerate(images):
+        if args.verb != Verb.build:
+            check_tools(config, args.verb)
 
-            images[i] = config = run_configure_scripts(config)
+        images[i] = config = run_configure_scripts(config)
 
-        # The images array has been modified so we need to reevaluate last again.
-        # Also ensure that all other images are reordered in case their dependencies were modified.
-        last = images[-1]
-        images = resolve_deps(images[:-1], last.dependencies) + [last]
+    # The images array has been modified so we need to reevaluate last again.
+    # Also ensure that all other images are reordered in case their dependencies were modified.
+    last = images[-1]
+    images = resolve_deps(images[:-1], last.dependencies) + [last]
 
     if (
         args.rerun_build_scripts
         or last.output_format == OutputFormat.none
         or not (last.output_dir_or_cwd() / last.output).exists()
     ):
-        history = (last.output_format == OutputFormat.none and not args.rerun_build_scripts) or (
-            last.output_format != OutputFormat.none and not (last.output_dir_or_cwd() / last.output).exists()
-        )
-
         for config in images:
             if any(
                 source.type != KeySourceType.file
@@ -5267,12 +5256,6 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
 
         if args.auto_bump:
             bump_image_version()
-
-        if last.history and history:
-            Path(".mkosi-private/history").mkdir(parents=True, exist_ok=True)
-            Path(".mkosi-private/history/latest.json").write_text(
-                dump_json({"Images": [config.to_dict() for config in images]})
-            )
 
     if args.verb == Verb.build:
         return

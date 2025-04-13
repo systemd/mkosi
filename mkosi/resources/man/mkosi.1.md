@@ -1583,15 +1583,11 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     up in the generated XFS filesystem.
 
 `History=`, `--history=`
-:   Takes a boolean. If enabled, **mkosi** will write information about
-    the latest build to the `.mkosi-private` subdirectory in the
-    directory from which it was invoked. This information is then used
-    to restore the config of the latest build when running any verb that
-    does not rebuild the image or when running any verb that may rebuild
-    the image without specifying `--force`.
-
-    Note that configure scripts will not be executed if we reuse the
-    history from a previous build.
+:   Takes a boolean. If enabled, **mkosi** will write the configuration
+    provided via the CLI for the latest build to the `.mkosi-private`
+    subdirectory in the directory from which it was invoked. These
+    arguments are then reused as long as the image is not rebuilt to
+    avoid having to specify them over and over again.
 
     To give an example of why this is useful, if you run
     `mkosi -O my-custom-output-dir -f` followed by `mkosi vm`, **mkosi**
