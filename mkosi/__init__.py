@@ -3976,10 +3976,7 @@ def build_image(context: Context) -> None:
         check_root_populated(context)
         run_build_scripts(context)
 
-        if context.config.output_format == OutputFormat.none or (
-            context.args.rerun_build_scripts
-            and (context.config.output_dir_or_cwd() / context.config.output).exists()
-        ):
+        if context.config.output_format == OutputFormat.none or context.args.rerun_build_scripts:
             return
 
         if wantrepo:
@@ -4662,8 +4659,11 @@ def validate_certificates_and_keys(config: Config) -> None:
 
 
 def needs_build(args: Args, config: Config, force: int = 1) -> bool:
+    if args.rerun_build_scripts:
+        return False
+
     return (
-        (args.force >= force and not args.rerun_build_scripts)
+        (args.force >= force)
         or not (config.output_dir_or_cwd() / config.output_with_compression).exists()
         # When the output is a directory, its name is the same as the symlink we create that points to the
         # actual output when not building a directory. So if the full output path exists, we have to check
@@ -5101,12 +5101,7 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
         logging.info(f"Output path {output} exists already. (Use --force to rebuild.)")
         return
 
-    if (
-        args.rerun_build_scripts
-        and not args.force
-        and last.output_format != OutputFormat.none
-        and not output.exists()
-    ):
+    if args.rerun_build_scripts and last.output_format != OutputFormat.none and not output.exists():
         die(
             f"Image '{last.image}' must be built once before --rerun-build-scripts can be used",
             hint="Build the image once with 'mkosi build'",
@@ -5139,9 +5134,7 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
                     hint="Add the &I specifier to the cache key to avoid this issue",
                 )
 
-    if last.is_incremental() and (
-        last.incremental == Incremental.strict or (args.rerun_build_scripts and not args.force)
-    ):
+    if last.is_incremental() and (last.incremental == Incremental.strict or args.rerun_build_scripts):
         if args.force > 1:
             die(
                 "Cannot remove incremental caches when building with Incremental=strict",

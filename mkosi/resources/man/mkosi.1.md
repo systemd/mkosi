@@ -307,8 +307,8 @@ Those settings cannot be configured in the configuration files.
 `--rerun-build-scripts`, `-R`
 :   Rerun build scripts. Requires the `Incremental=` option to be
     enabled and the image to have been built once already. If `History=`
-    is enabled, the config from the previous build will be reused and no
-    new history will be written.
+    is enabled, the history from the previous build will be reused and
+    no new history will be written.
 
 ## Supported output formats
 

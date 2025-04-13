@@ -5017,6 +5017,9 @@ def parse_config(
     if args.rerun_build_scripts and not args.verb.needs_build():
         die(f"--rerun-build-scripts cannot be used with the '{args.verb}' command")
 
+    if args.rerun_build_scripts and args.force:
+        die("--force cannot be used together with --rerun-build-scripts")
+
     if args.cmdline and not args.verb.supports_cmdline():
         die(f"Arguments after verb are not supported for the '{args.verb}' command")
 
