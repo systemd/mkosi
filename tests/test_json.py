@@ -41,6 +41,7 @@ from mkosi.config import (
     Verity,
     Vmm,
     VsockCID,
+    dump_json,
 )
 from mkosi.distributions import Distribution
 
@@ -92,7 +93,7 @@ def test_args(path: Optional[Path]) -> None:
         wipe_build_dir=True,
     )
 
-    assert args.to_json(indent=4, sort_keys=True) == dump.rstrip()
+    assert dump_json(args.to_dict()) == dump.rstrip()
     assert Args.from_json(dump) == args
 
 
@@ -615,5 +616,5 @@ def test_config() -> None:
         workspace_dir=Path("/cwd"),
     )
 
-    assert args.to_json() == dump.rstrip()
+    assert dump_json(args.to_dict()) == dump.rstrip()
     assert Config.from_json(dump) == args

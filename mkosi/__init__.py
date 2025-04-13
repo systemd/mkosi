@@ -69,6 +69,7 @@ from mkosi.config import (
     Verity,
     Vmm,
     cat_config,
+    dump_json,
     expand_delayed_specifiers,
     format_bytes,
     get_configdir,
@@ -578,7 +579,7 @@ def finalize_host_scripts(
 @contextlib.contextmanager
 def finalize_config_json(config: Config) -> Iterator[Path]:
     with tempfile.NamedTemporaryFile(mode="w") as f:
-        f.write(config.to_json())
+        f.write(dump_json(config.to_dict()))
         f.flush()
         yield Path(f.name)
 
@@ -620,7 +621,7 @@ def run_configure_scripts(config: Config) -> Config:
                             *sources,
                         ],
                     ),
-                    input=config.to_json(indent=None),
+                    input=dump_json(config.to_dict(), indent=None),
                     stdout=subprocess.PIPE,
                 )  # fmt: skip
 
@@ -4933,10 +4934,6 @@ def run_build(
                 package_dir=package_dir,
             )
         )
-
-
-def dump_json(dict: dict[str, Any]) -> str:
-    return json.dumps(dict, cls=JsonEncoder, indent=4, sort_keys=True)
 
 
 def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, resources: Path) -> None:

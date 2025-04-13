@@ -1787,10 +1787,6 @@ class Args:
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self, dict_factory=dict_with_capitalised_keys_factory)
 
-    def to_json(self, *, indent: Optional[int] = 4, sort_keys: bool = True) -> str:
-        """Dump Args as JSON string."""
-        return json.dumps(self.to_dict(), cls=JsonEncoder, indent=indent, sort_keys=sort_keys)
-
     @classmethod
     def from_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "Args":
         """Instantiate a Args object from a (partial) JSON dump."""
@@ -2346,10 +2342,6 @@ class Config:
             d["BuildSubdirectory"] = self.build_subdir
 
         return d
-
-    def to_json(self, *, indent: Optional[int] = 4, sort_keys: bool = True) -> str:
-        """Dump Config as JSON string."""
-        return json.dumps(self.to_dict(), cls=JsonEncoder, indent=indent, sort_keys=sort_keys)
 
     @classmethod
     def from_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "Config":
@@ -5508,6 +5500,10 @@ class JsonEncoder(json.JSONEncoder):
         elif isinstance(o, (Args, Config)):
             return o.to_dict()
         return super().default(o)
+
+
+def dump_json(dict: dict[str, Any], indent: Optional[int] = 4) -> str:
+    return json.dumps(dict, cls=JsonEncoder, indent=indent, sort_keys=True)
 
 
 E = TypeVar("E", bound=StrEnum)
