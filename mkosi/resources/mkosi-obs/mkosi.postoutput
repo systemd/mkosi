@@ -110,6 +110,15 @@ if ((${#DDIS[@]} > 0)); then
     cert-to-efi-sig-list -g "$guid" /usr/src/packages/SOURCES/_projectcert.crt db.esl
     cp db.esl KEK.esl
     cp db.esl PK.esl
+
+    # If there are any additional certs, concatenate them
+    for cert in /usr/src/packages/SOURCES/*/mkosi.uefi.db/*.crt; do
+        test -f "$cert" || continue
+        cert-to-efi-sig-list -g "$guid" "$cert" tmp.esl
+        cat tmp.esl >>db.esl
+        rm -f tmp.esl
+    done
+
     for i in *.esl; do
         sign-efi-sig-list -o -g "$guid" -t "$(date -d "@${SOURCE_DATE_EPOCH:-0}" "+%Y-%m-%d %H:%M:%S")" "${i%.esl}" "$i" "${i%.esl}.auth"
     done
