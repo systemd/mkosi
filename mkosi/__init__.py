@@ -633,6 +633,10 @@ def run_sync_scripts(config: Config) -> None:
     if not config.sync_scripts:
         return
 
+    for script in config.sync_scripts:
+        if not os.access(script, os.X_OK):
+            die(f"{script} is not executable")
+
     env = dict(
         DISTRIBUTION=str(config.distribution),
         RELEASE=config.release,
