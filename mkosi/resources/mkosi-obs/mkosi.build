@@ -223,18 +223,17 @@ done < <(find hashes/roothashes -type f -name '*.sig')
 rm -rf hashes/roothashes
 
 # Sixth step: prepare EFI authvars for self-enrollment
-# as implemented by https://github.com/openSUSE/pesign-obs-integration/blob/master/pesign-repackage.spec.in#L162
 while read -r SIG; do
-    test -x /usr/lib/rpm/pesign/kernel-sign-file || break
-    f="${SIG%.sig}"
-    /usr/lib/rpm/pesign/kernel-sign-file -N -P -d -C _projectcert.cer -i pkcs7 -s "$SIG" sha256 _projectcert.cer "$f"
-    fbase="${f##*/}"
-    fbase="${fbase%.auth}"
-    fbase="${fbase%%-*}"
-    perl -0777 -npe 's/\A(?:[\040-\176]\0)+.{18}\0\0.{14}\0\0//s' < "$f" > "$f.orig"
-    sign-efi-sig-list -t "$(date -d "@${SOURCE_DATE_EPOCH:-0}" "+%Y-%m-%d %H:%M:%S")" -i "$f.p7sd" "$fbase" "$f.orig" "$f.tmp"
-    mv "$f.tmp" "$f"
-    rm -f "$f.p7s" "$f.p7sd" "$f.orig"
+    varname="${SIG%.auth.sig}"
+    auth="${varname}.auth"
+    esl="${varname}.esl"
+    p7s="${varname}.p7s"
+
+    PATH=/usr/lib/systemd/:$PATH systemd-keyutil --certificate /usr/src/packages/SOURCES/_projectcert.crt --output "$p7s" --signature "$SIG" pkcs7
+
+    rm -f "$auth"
+    sign-efi-sig-list -t "$(date -d "@${SOURCE_DATE_EPOCH:-0}" "+%Y-%m-%d %H:%M:%S")" -i "$p7s" "$varname" "$esl" "$auth"
+    rm -f "$esl" "$SIG" "$p7s"
 done < <(find hashes/authvars -type f -name '*.auth.sig')
 declare -a AUTHVARS
 mapfile -t AUTHVARS < <(find hashes/authvars -type f -name "*.auth")
