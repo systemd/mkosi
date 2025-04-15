@@ -216,6 +216,9 @@ while read -r SIG; do
         zstd --force "$OUTPUTDIR/$(basename "${SIG%roothash.sig}")"raw*
         rm -f "$OUTPUTDIR/$(basename "${SIG%roothash.sig}raw")" "$OUTPUTDIR/$(basename "${SIG%roothash.sig}raw.img")"
     fi
+
+    # Do not publish the roothash here, as importctl and friends will mistake it as the roothash of the .raw image
+    rm -f "$OUTPUTDIR/$(basename "${SIG%.sig}")"
 done < <(find hashes/roothashes -type f -name '*.sig')
 rm -rf hashes/roothashes
 
