@@ -1156,10 +1156,12 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `Ssh=`, `--ssh=`
 :   Specifies whether to install an **sshd** socket unit and matching service
     in the final image. Takes one of `always`, `never`, `auto` or `runtime`.
-    Defaults to `auto`. If set to `auto` and `systemd-ssh-generator`
+    Defaults to `auto`.
+    
+    If set to `auto` and the generator binary `systemd-ssh-generator`
     is not preset in the image, or set to `always`, mkosi will install **sshd** units
     in the final image that expose SSH over VSock. If set to `never`,
-    mkosi will not install the **sshd* units. If the `runtime` value is used,
+    mkosi will not install these units. If the `runtime` value is used,
     mkosi will also not install any units but abort starting `mkosi vm` if no
     SSH credentials are configured. When building with this
     option and running the image using `mkosi vm`, the `mkosi ssh`
@@ -1947,7 +1949,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `SshKey=`, `--ssh-key=`
 :   Path to the X.509 private key in PEM format to use to connect to a
     virtual machine started with `mkosi vm` and built with the `Ssh=`
-    option enabled (or **systemd-ssh-generator** installed) via the `mkosi ssh` command.
+    option enabled (or with **systemd-ssh-generator** installed) via the `mkosi ssh` command.
     If not configured and `mkosi.key` exists in the working directory,
     it will automatically be used for this purpose.
     Run `mkosi genkey` to automatically generate a key in `mkosi.key`.
