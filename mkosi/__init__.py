@@ -4518,29 +4518,11 @@ def generate_key_cert_pair(args: Args) -> None:
     )  # fmt: skip
 
 
-def bump_image_version() -> None:
-    """Write current image version plus one to mkosi.version"""
-
-    version_file = Path("mkosi.version")
-    if not version_file.exists():
-        die(f"Cannot bump image version, '{version_file}' not found")
-
-    if os.access(version_file, os.X_OK):
-        die(f"Cannot bump image version, '{version_file}' is executable")
-
-    version = version_file.read_text().strip()
-    v = version.split(".")
-
-    try:
-        v[-1] = str(int(v[-1]) + 1)
-    except ValueError:
-        v += ["2"]
-        logging.warning("Last component of current version is not a decimal integer, appending '.2'")
-
-    new_version = ".".join(v)
-
-    logging.info(f"Bumping version: '{version}' → '{new_version}'")
-    version_file.write_text(f"{new_version}\n")
+def finalize_image_version(args: Args, config: Config) -> None:
+    p = finalize_configdir(args) / "mkosi.version"
+    assert config.image_version
+    p.write_text(config.image_version)
+    logging.info(f"Wrote new version {config.image_version} to {p}")
 
 
 def check_workspace_directory(config: Config) -> None:
@@ -4965,9 +4947,6 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
     if args.verb == Verb.genkey:
         return generate_key_cert_pair(args)
 
-    if args.verb == Verb.bump:
-        return bump_image_version()
-
     if args.verb == Verb.dependencies:
         _, _, [deps] = parse_config(
             ["--directory=", "--repositories=", *args.cmdline, "--include=mkosi-tools", "build"],
@@ -5007,6 +4986,10 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
 
     # The images array has been modified so we need to reevaluate last again.
     last = images[-1]
+
+    if args.verb == Verb.bump:
+        finalize_image_version(args, last)
+        return
 
     if args.verb == Verb.clean:
         if tools and args.force > 0:
@@ -5255,7 +5238,7 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
                 logging.info("All images have already been built and do not have any build scripts")
 
         if args.auto_bump:
-            bump_image_version()
+            finalize_image_version(args, last)
 
     if args.verb == Verb.build:
         return

@@ -31,7 +31,7 @@ from pathlib import Path
 from typing import Any, Callable, ClassVar, Generic, Optional, Protocol, TypeVar, Union, cast
 
 from mkosi.distributions import Distribution, detect_distribution
-from mkosi.log import ARG_DEBUG, ARG_DEBUG_SANDBOX, ARG_DEBUG_SHELL, die
+from mkosi.log import ARG_DEBUG, ARG_DEBUG_SANDBOX, ARG_DEBUG_SHELL, complete_step, die
 from mkosi.pager import page
 from mkosi.run import SandboxProtocol, find_binary, nosandbox, run, sandbox_cmd, workdir
 from mkosi.sandbox import Style, __version__
@@ -5012,6 +5012,36 @@ def finalize_configdir(args: Args) -> Path:
     return Path.cwd()
 
 
+def bump_image_version(configdir: Path) -> str:
+    version_file = configdir / "mkosi.version"
+    if os.access(version_file, os.X_OK):
+        die(f"Cannot bump image version, '{version_file}' is executable")
+
+    if version_file.exists():
+        version = version_file.read_text().strip()
+    else:
+        version = None
+
+    if (bump := configdir / "mkosi.bump").exists():
+        with complete_step(f"Running bump script {bump}"):
+            new_version = run([bump], stdout=subprocess.PIPE).stdout.strip()
+    elif version is not None:
+        v = version.split(".")
+
+        try:
+            v[-1] = str(int(v[-1]) + 1)
+        except ValueError:
+            v += ["2"]
+            logging.warning("Last component of current version is not a decimal integer, appending '.2'")
+
+        new_version = ".".join(v)
+    else:
+        new_version = "1"
+
+    logging.info(f"Bumping version: '{none_to_na(version)}' → '{new_version}'")
+    return new_version
+
+
 def parse_config(
     argv: Sequence[str] = (),
     *,
@@ -5089,6 +5119,13 @@ def parse_config(
     context.config["files"] = []
 
     configdir = finalize_configdir(args)
+
+    if (
+        (args.auto_bump and args.verb.needs_build())
+        or args.verb == Verb.bump
+        and context.cli.get("image_version") is not None
+    ):
+        context.cli["image_version"] = bump_image_version(configdir)
 
     # Parse the global configuration unless the user explicitly asked us not to.
     if args.directory is not None:
