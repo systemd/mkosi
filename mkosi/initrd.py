@@ -308,7 +308,7 @@ def main() -> None:
         ]  # fmt: skip
 
         if not args.generic:
-            cmdline += ["--kernel-modules-include=host"]
+            cmdline += ["--kernel-modules=host"]
 
         for p in args.profile:
             cmdline += ["--profile", p]
