@@ -25,7 +25,7 @@ class Dnf(PackageManager):
         return Path("libdnf5" if cls.executable(config) == "dnf5" else "dnf")
 
     @classmethod
-    def cache_subdirs(cls, cache: Path) -> list[Path]:
+    def package_subdirs(cls, cache: Path) -> list[Path]:
         return [
             p / "packages" for p in cache.iterdir() if p.is_dir() and "-" in p.name and "mkosi" not in p.name
         ]

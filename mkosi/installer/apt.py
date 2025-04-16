@@ -54,7 +54,7 @@ class Apt(PackageManager):
         return Path("apt")
 
     @classmethod
-    def cache_subdirs(cls, cache: Path) -> list[Path]:
+    def package_subdirs(cls, cache: Path) -> list[Path]:
         return [cache / "archives"]
 
     @classmethod

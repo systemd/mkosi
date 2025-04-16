@@ -35,7 +35,7 @@ class Pacman(PackageManager):
         return Path("pacman")
 
     @classmethod
-    def cache_subdirs(cls, cache: Path) -> list[Path]:
+    def package_subdirs(cls, cache: Path) -> list[Path]:
         return [cache / "pkg"]
 
     @classmethod
