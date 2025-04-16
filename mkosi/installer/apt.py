@@ -58,6 +58,10 @@ class Apt(PackageManager):
         return [cache / "archives"]
 
     @classmethod
+    def state_subdirs(cls, state: Path) -> list[Path]:
+        return [state / "lists"]
+
+    @classmethod
     def dpkg_cmd(cls, command: str) -> list[PathString]:
         return [
             command,
