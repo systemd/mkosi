@@ -1163,8 +1163,16 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     used as an initramfs.
 
 `Ssh=`, `--ssh=`
-:   If specified, an **sshd** socket unit and matching service are installed
-    in the final image that expose SSH over VSock. When building with this
+:   Specifies whether to install an **sshd** socket unit and matching service
+    in the final image. Takes one of `always`, `never`, `auto` or `runtime`.
+    Defaults to `auto`.
+    
+    If set to `auto` and the generator binary `systemd-ssh-generator`
+    is not preset in the image, or set to `always`, mkosi will install **sshd** units
+    in the final image that expose SSH over VSock. If set to `never`,
+    mkosi will not install these units. If the `runtime` value is used,
+    mkosi will also not install any units but abort starting `mkosi vm` if no
+    SSH credentials are configured. When building with this
     option and running the image using `mkosi vm`, the `mkosi ssh`
     command can be used to connect to the container/VM via SSH. Note that
     you still have to make sure openssh is installed in the image to make
@@ -1947,10 +1955,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `SshKey=`, `--ssh-key=`
 :   Path to the X.509 private key in PEM format to use to connect to a
     virtual machine started with `mkosi vm` and built with the `Ssh=`
-    option enabled via the `mkosi ssh` command. If not configured and
-    `mkosi.key` exists in the working directory, it will automatically be
-    used for this purpose. Run `mkosi genkey` to automatically generate
-    a key in `mkosi.key`.
+    option enabled (or with **systemd-ssh-generator** installed) via the `mkosi ssh` command.
+    If not configured and `mkosi.key` exists in the working directory,
+    it will automatically be used for this purpose.
+    Run `mkosi genkey` to automatically generate a key in `mkosi.key`.
 
 `SshCertificate=`, `--ssh-certificate=`
 :   Path to the X.509 certificate in PEM format to provision as the SSH

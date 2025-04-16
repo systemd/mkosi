@@ -38,6 +38,7 @@ from mkosi.config import (
     Firmware,
     Network,
     OutputFormat,
+    Ssh,
     VsockCID,
     finalize_term,
     format_bytes,
@@ -939,7 +940,7 @@ def finalize_credentials(config: Config) -> dict[str, str]:
                 sandbox=config.sandbox(options=["--become-root", "--ro-bind", "/etc/passwd", "/etc/passwd"]),
             ).stdout.strip()
             creds["ssh.authorized_keys.root"] = sshpubkey
-        elif config.ssh:
+        elif config.ssh in (Ssh.always, Ssh.runtime):
             die(
                 "Ssh= is enabled but no SSH certificate was found",
                 hint="Run 'mkosi genkey' to automatically create one",
