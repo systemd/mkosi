@@ -69,10 +69,10 @@ from mkosi.config import (
     Verity,
     Vmm,
     cat_config,
+    dump_json,
     expand_delayed_specifiers,
+    finalize_configdir,
     format_bytes,
-    get_configdir,
-    have_history,
     in_sandbox,
     parse_boolean,
     parse_config,
@@ -578,7 +578,7 @@ def finalize_host_scripts(
 @contextlib.contextmanager
 def finalize_config_json(config: Config) -> Iterator[Path]:
     with tempfile.NamedTemporaryFile(mode="w") as f:
-        f.write(config.to_json())
+        f.write(dump_json(config.to_dict()))
         f.flush()
         yield Path(f.name)
 
@@ -620,7 +620,7 @@ def run_configure_scripts(config: Config) -> Config:
                             *sources,
                         ],
                     ),
-                    input=config.to_json(indent=None),
+                    input=dump_json(config.to_dict(), indent=None),
                     stdout=subprocess.PIPE,
                 )  # fmt: skip
 
@@ -3979,10 +3979,7 @@ def build_image(context: Context) -> None:
         check_root_populated(context)
         run_build_scripts(context)
 
-        if context.config.output_format == OutputFormat.none or (
-            context.args.rerun_build_scripts
-            and (context.config.output_dir_or_cwd() / context.config.output).exists()
-        ):
+        if context.config.output_format == OutputFormat.none or context.args.rerun_build_scripts:
             return
 
         if wantrepo:
@@ -4489,7 +4486,7 @@ def generate_key_cert_pair(args: Args) -> None:
     keylength = 2048
     expiration_date = datetime.date.today() + datetime.timedelta(int(args.genkey_valid_days))
 
-    configdir = get_configdir(args)
+    configdir = finalize_configdir(args)
 
     for f in (configdir / "mkosi.key", configdir / "mkosi.crt"):
         if f.exists() and not args.force:
@@ -4525,29 +4522,11 @@ def generate_key_cert_pair(args: Args) -> None:
     )  # fmt: skip
 
 
-def bump_image_version() -> None:
-    """Write current image version plus one to mkosi.version"""
-
-    version_file = Path("mkosi.version")
-    if not version_file.exists():
-        die(f"Cannot bump image version, '{version_file}' not found")
-
-    if os.access(version_file, os.X_OK):
-        die(f"Cannot bump image version, '{version_file}' is executable")
-
-    version = version_file.read_text().strip()
-    v = version.split(".")
-
-    try:
-        v[-1] = str(int(v[-1]) + 1)
-    except ValueError:
-        v += ["2"]
-        logging.warning("Last component of current version is not a decimal integer, appending '.2'")
-
-    new_version = ".".join(v)
-
-    logging.info(f"Bumping version: '{version}' → '{new_version}'")
-    version_file.write_text(f"{new_version}\n")
+def finalize_image_version(args: Args, config: Config) -> None:
+    p = finalize_configdir(args) / "mkosi.version"
+    assert config.image_version
+    p.write_text(config.image_version)
+    logging.info(f"Wrote new version {config.image_version} to {p}")
 
 
 def check_workspace_directory(config: Config) -> None:
@@ -4665,8 +4644,11 @@ def validate_certificates_and_keys(config: Config) -> None:
 
 
 def needs_build(args: Args, config: Config, force: int = 1) -> bool:
+    if args.rerun_build_scripts:
+        return False
+
     return (
-        (args.force >= force and not args.rerun_build_scripts)
+        (args.force >= force)
         or not (config.output_dir_or_cwd() / config.output_with_compression).exists()
         # When the output is a directory, its name is the same as the symlink we create that points to the
         # actual output when not building a directory. So if the full output path exists, we have to check
@@ -4939,10 +4921,6 @@ def run_build(
         )
 
 
-def dump_json(dict: dict[str, Any]) -> str:
-    return json.dumps(dict, cls=JsonEncoder, indent=4, sort_keys=True)
-
-
 def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, resources: Path) -> None:
     images = list(images)
 
@@ -4972,9 +4950,6 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
 
     if args.verb == Verb.genkey:
         return generate_key_cert_pair(args)
-
-    if args.verb == Verb.bump:
-        return bump_image_version()
 
     if args.verb == Verb.dependencies:
         _, _, [deps] = parse_config(
@@ -5015,6 +4990,10 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
 
     # The images array has been modified so we need to reevaluate last again.
     last = images[-1]
+
+    if args.verb == Verb.bump:
+        finalize_image_version(args, last)
+        return
 
     if args.verb == Verb.clean:
         if tools and args.force > 0:
@@ -5077,11 +5056,6 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
 
         _, _, manifest = cache_tree_paths(tools)
         manifest.write_text(dump_json(tools.cache_manifest()))
-        Path(".mkosi-private/history/tools.json").unlink(missing_ok=True)
-
-    if tools and last.history and not Path(".mkosi-private/history/tools.json").exists():
-        Path(".mkosi-private/history").mkdir(parents=True, exist_ok=True)
-        Path(".mkosi-private/history/tools.json").write_text(dump_json(tools.to_dict()))
 
     if args.verb.needs_tools():
         return {
@@ -5108,12 +5082,7 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
         logging.info(f"Output path {output} exists already. (Use --force to rebuild.)")
         return
 
-    if (
-        args.rerun_build_scripts
-        and not args.force
-        and last.output_format != OutputFormat.none
-        and not output.exists()
-    ):
+    if args.rerun_build_scripts and last.output_format != OutputFormat.none and not output.exists():
         die(
             f"Image '{last.image}' must be built once before --rerun-build-scripts can be used",
             hint="Build the image once with 'mkosi build'",
@@ -5146,9 +5115,7 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
                     hint="Add the &I specifier to the cache key to avoid this issue",
                 )
 
-    if last.is_incremental() and (
-        last.incremental == Incremental.strict or (args.rerun_build_scripts and not args.force)
-    ):
+    if last.is_incremental() and (last.incremental == Incremental.strict or args.rerun_build_scripts):
         if args.force > 1:
             die(
                 "Cannot remove incremental caches when building with Incremental=strict",
@@ -5179,27 +5146,22 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
             if args.force > 1 or not have_cache(initrd):
                 remove_cache_entries(initrd)
 
-    if not have_history(args):
-        for i, config in enumerate(images):
-            if args.verb != Verb.build:
-                check_tools(config, args.verb)
+    for i, config in enumerate(images):
+        if args.verb != Verb.build:
+            check_tools(config, args.verb)
 
-            images[i] = config = run_configure_scripts(config)
+        images[i] = config = run_configure_scripts(config)
 
-        # The images array has been modified so we need to reevaluate last again.
-        # Also ensure that all other images are reordered in case their dependencies were modified.
-        last = images[-1]
-        images = resolve_deps(images[:-1], last.dependencies) + [last]
+    # The images array has been modified so we need to reevaluate last again.
+    # Also ensure that all other images are reordered in case their dependencies were modified.
+    last = images[-1]
+    images = resolve_deps(images[:-1], last.dependencies) + [last]
 
     if (
         args.rerun_build_scripts
         or last.output_format == OutputFormat.none
         or not (last.output_dir_or_cwd() / last.output).exists()
     ):
-        history = (last.output_format == OutputFormat.none and not args.rerun_build_scripts) or (
-            last.output_format != OutputFormat.none and not (last.output_dir_or_cwd() / last.output).exists()
-        )
-
         for config in images:
             if any(
                 source.type != KeySourceType.file
@@ -5280,13 +5242,7 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
                 logging.info("All images have already been built and do not have any build scripts")
 
         if args.auto_bump:
-            bump_image_version()
-
-        if last.history and history:
-            Path(".mkosi-private/history").mkdir(parents=True, exist_ok=True)
-            Path(".mkosi-private/history/latest.json").write_text(
-                dump_json({"Images": [config.to_dict() for config in images]})
-            )
+            finalize_image_version(args, last)
 
     if args.verb == Verb.build:
         return

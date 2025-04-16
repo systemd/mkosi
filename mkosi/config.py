@@ -31,7 +31,7 @@ from pathlib import Path
 from typing import Any, Callable, ClassVar, Generic, Optional, Protocol, TypeVar, Union, cast
 
 from mkosi.distributions import Distribution, detect_distribution
-from mkosi.log import ARG_DEBUG, ARG_DEBUG_SANDBOX, ARG_DEBUG_SHELL, die
+from mkosi.log import ARG_DEBUG, ARG_DEBUG_SANDBOX, ARG_DEBUG_SHELL, complete_step, die
 from mkosi.pager import page
 from mkosi.run import SandboxProtocol, find_binary, nosandbox, run, sandbox_cmd, workdir
 from mkosi.sandbox import Style, __version__
@@ -1787,10 +1787,6 @@ class Args:
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self, dict_factory=dict_with_capitalised_keys_factory)
 
-    def to_json(self, *, indent: Optional[int] = 4, sort_keys: bool = True) -> str:
-        """Dump Args as JSON string."""
-        return json.dumps(self.to_dict(), cls=JsonEncoder, indent=indent, sort_keys=sort_keys)
-
     @classmethod
     def from_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "Args":
         """Instantiate a Args object from a (partial) JSON dump."""
@@ -2347,12 +2343,15 @@ class Config:
 
         return d
 
-    def to_json(self, *, indent: Optional[int] = 4, sort_keys: bool = True) -> str:
-        """Dump Config as JSON string."""
-        return json.dumps(self.to_dict(), cls=JsonEncoder, indent=indent, sort_keys=sort_keys)
+    @classmethod
+    def to_partial_dict(cls, partial: dict[str, Any]) -> dict[str, Any]:
+        return dict_with_capitalised_keys_factory([(k, v) for k, v in partial.items() if k in cls.fields()])
 
     @classmethod
-    def from_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "Config":
+    def from_partial_json(
+        cls,
+        s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]],
+    ) -> dict[str, Any]:
         """Instantiate a Config object from a (partial) JSON dump."""
         if isinstance(s, str):
             j = json.loads(s)
@@ -2382,9 +2381,13 @@ class Config:
                 )
 
         value_transformer = json_type_transformer(cls)
-        j = {(tk := key_transformer(k)): value_transformer(tk, v) for k, v in j.items()}
+        return {(tk := key_transformer(k)): value_transformer(tk, v) for k, v in j.items()}
 
-        return dataclasses.replace(cls.default(), **{k: v for k, v in j.items() if k in cls.fields()})
+    @classmethod
+    def from_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "Config":
+        return dataclasses.replace(
+            cls.default(), **{k: v for k, v in cls.from_partial_json(s).items() if k in cls.fields()}
+        )
 
     def find_binary(self, *names: PathString, tools: bool = True) -> Optional[Path]:
         return find_binary(*names, root=self.tools() if tools else Path("/"), extra=self.extra_search_paths)
@@ -4518,7 +4521,6 @@ class ParseContext:
         self.defaults: dict[str, Any] = {}
         # Compare inodes instead of paths so we can't get tricked by bind mounts and such.
         self.includes: set[tuple[int, int]] = set()
-        self.only_sections: tuple[str, ...] = tuple()
 
     def setting_prohibited(self, setting: ConfigSetting[T]) -> bool:
         image = self.config["image"]
@@ -4799,9 +4801,6 @@ class ParseContext:
                 if self.setting_prohibited(s):
                     continue
 
-                if self.only_sections and s.section not in self.only_sections:
-                    continue
-
                 for f in s.path_suffixes:
                     f = f"mkosi.{f}"
 
@@ -4841,7 +4840,7 @@ class ParseContext:
 
             for section, k, v in parse_ini(
                 path,
-                only_sections=self.only_sections or {s.section for s in SETTINGS} | {"Host"},
+                only_sections={s.section for s in SETTINGS} | {"Host"},
             ):
                 if not k and not v:
                     continue
@@ -4907,13 +4906,30 @@ class ParseContext:
         return ns
 
 
-def have_history(args: Args, tools: bool = False) -> bool:
-    filename = "tools" if tools else "latest"
+def want_new_history(args: Args) -> bool:
+    if args.directory is None:
+        return False
+
+    if not args.verb.needs_build():
+        return False
+
+    if args.rerun_build_scripts:
+        return False
+
+    if args.verb != Verb.build and args.force == 0:
+        return False
+
+    return True
+
+
+def have_history(args: Args) -> bool:
+    if want_new_history(args):
+        return False
 
     if args.directory is None:
         return False
 
-    if args.verb in (Verb.build, Verb.cat_config, Verb.clean):
+    if args.verb in (Verb.clean, Verb.sandbox):
         return False
 
     if args.verb == Verb.summary and args.force > 0:
@@ -4922,10 +4938,13 @@ def have_history(args: Args, tools: bool = False) -> bool:
     if args.verb.needs_tools() and args.force > 0:
         return False
 
-    if args.verb.needs_build() and args.force > 0 and not args.rerun_build_scripts:
+    if args.verb.needs_build() and args.force > 0:
         return False
 
-    return Path(f".mkosi-private/history/{filename}.json").exists()
+    if args.verb == Verb.build and not args.rerun_build_scripts:
+        return False
+
+    return Path(".mkosi-private/history/latest.json").exists()
 
 
 def finalize_default_tools(
@@ -4979,7 +4998,7 @@ def finalize_default_tools(
     return Config.from_dict(context.finalize())
 
 
-def get_configdir(args: Args) -> Path:
+def finalize_configdir(args: Args) -> Path:
     """Allow locating all mkosi configuration in a mkosi/ subdirectory
     instead of in the top-level directory of a git repository.
     """
@@ -4993,11 +5012,40 @@ def get_configdir(args: Args) -> Path:
     return Path.cwd()
 
 
+def bump_image_version(configdir: Path) -> str:
+    version_file = configdir / "mkosi.version"
+    if os.access(version_file, os.X_OK):
+        die(f"Cannot bump image version, '{version_file}' is executable")
+
+    if version_file.exists():
+        version = version_file.read_text().strip()
+    else:
+        version = None
+
+    if (bump := configdir / "mkosi.bump").exists():
+        with complete_step(f"Running bump script {bump}"):
+            new_version = run([bump], stdout=subprocess.PIPE).stdout.strip()
+    elif version is not None:
+        v = version.split(".")
+
+        try:
+            v[-1] = str(int(v[-1]) + 1)
+        except ValueError:
+            v += ["2"]
+            logging.warning("Last component of current version is not a decimal integer, appending '.2'")
+
+        new_version = ".".join(v)
+    else:
+        new_version = "1"
+
+    logging.info(f"Bumping version: '{none_to_na(version)}' → '{new_version}'")
+    return new_version
+
+
 def parse_config(
     argv: Sequence[str] = (),
     *,
     resources: Path = Path("/"),
-    only_sections: Sequence[str] = (),
 ) -> tuple[Args, Optional[Config], tuple[Config, ...]]:
     argv = list(argv)
 
@@ -5025,6 +5073,9 @@ def parse_config(
     if args.rerun_build_scripts and not args.verb.needs_build():
         die(f"--rerun-build-scripts cannot be used with the '{args.verb}' command")
 
+    if args.rerun_build_scripts and args.force:
+        die("--force cannot be used together with --rerun-build-scripts")
+
     if args.cmdline and not args.verb.supports_cmdline():
         die(f"Arguments after verb are not supported for the '{args.verb}' command")
 
@@ -5040,14 +5091,7 @@ def parse_config(
         return args, None, ()
 
     if have_history(args):
-        try:
-            j = json.loads(Path(".mkosi-private/history/latest.json").read_text())
-            *subimages, prev = [Config.from_json(c) for c in j["Images"]]
-        except (KeyError, ValueError):
-            die(
-                "Unable to parse history from .mkosi-private/history/latest.json",
-                hint="Build with -f to generate a new history file from scratch",
-            )
+        history = Config.from_partial_json(Path(".mkosi-private/history/latest.json").read_text())
 
         # If we're operating on a previously built image (vm, boot, shell, ...), we're not rebuilding the
         # image and the configuration of the latest build is available, we load the config that was used to
@@ -5055,28 +5099,17 @@ def parse_config(
         # section settings which we allow changing without requiring a rebuild of the image.
         for s in SETTINGS:
             if s.section in ("Include", "Runtime"):
+                history.pop(s.dest, None)
                 continue
 
-            if s.dest in context.cli and context.cli[s.dest] != getattr(prev, s.dest):
+            if s.dest in context.cli and context.cli[s.dest] != history[s.dest]:
                 logging.warning(
                     f"Ignoring {s.long} from the CLI. Run with -f to rebuild the image with this setting"
                 )
 
-            if hasattr(prev, s.dest):
-                context.cli[s.dest] = getattr(prev, s.dest)
-                if s.dest in context.config:
-                    del context.config[s.dest]
+        context.cli |= history
 
-        context.only_sections = ("Include", "Runtime", "Host")
-    else:
-        context.only_sections = tuple(only_sections)
-        subimages = []
-        prev = None
-
-    if not in_sandbox() and have_history(args, tools=True):
-        tools = Config.from_json(json.loads(Path(".mkosi-private/history/tools.json").read_text()))
-    else:
-        tools = None
+    cli = copy.deepcopy(context.cli)
 
     # One of the specifiers needs access to the directory, so make sure it is available.
     context.config["directory"] = args.directory
@@ -5085,7 +5118,14 @@ def parse_config(
 
     context.config["files"] = []
 
-    configdir = get_configdir(args)
+    configdir = finalize_configdir(args)
+
+    if (
+        (args.auto_bump and args.verb.needs_build())
+        or args.verb == Verb.bump
+        and context.cli.get("image_version") is not None
+    ):
+        context.cli["image_version"] = bump_image_version(configdir)
 
     # Parse the global configuration unless the user explicitly asked us not to.
     if args.directory is not None:
@@ -5094,9 +5134,11 @@ def parse_config(
 
     config = context.finalize()
 
-    if prev:
-        return args, tools, (*subimages, Config.from_dict(config))
+    if config["history"] and want_new_history(args):
+        Path(".mkosi-private/history").mkdir(parents=True, exist_ok=True)
+        Path(".mkosi-private/history/latest.json").write_text(dump_json(Config.to_partial_dict(cli)))
 
+    tools = None
     if config.get("tools_tree") == Path("default"):
         if in_sandbox():
             config["tools_tree"] = Path(os.environ["MKOSI_DEFAULT_TOOLS_TREE_PATH"])
@@ -5508,6 +5550,10 @@ class JsonEncoder(json.JSONEncoder):
         elif isinstance(o, (Args, Config)):
             return o.to_dict()
         return super().default(o)
+
+
+def dump_json(dict: dict[str, Any], indent: Optional[int] = 4) -> str:
+    return json.dumps(dict, cls=JsonEncoder, indent=indent, sort_keys=True)
 
 
 E = TypeVar("E", bound=StrEnum)

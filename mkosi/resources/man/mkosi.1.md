@@ -178,7 +178,11 @@ The following command line verbs are known:
     simple versioning scheme: each time this verb is called the version is
     bumped in preparation for the subsequent build. Note that
     `--auto-bump`/`-B` may be used to automatically bump the version
-    after each successful build.
+    as part of a build. The new version is only written to
+    `mkosi.version` if the build succeeds in that case.
+
+    If `mkosi.bump` exists, it is invoked to generate the new version to
+    be used instead of using mkosi's own logic.
 
 `genkey`
 :   Generate a pair of SecureBoot keys for usage with the
@@ -281,11 +285,14 @@ Those settings cannot be configured in the configuration files.
     Defaults to two years (730 days).
 
 `--auto-bump=`, `-B`
-:   If specified, after each successful build the version is bumped in a
-    fashion equivalent to the `bump` verb, in preparation for the next
-    build. This is useful for simple, linear version management: each
-    build in a series will have a version number one higher then the
-    previous one.
+:   If specified, the version is bumped and if the build succeeds, the
+    version is written to `mkosi.version` in a fashion equivalent to the
+    `bump` verb. This is useful for simple, linear version management:
+    each build in a series will have a version number one higher then
+    the previous one.
+
+    If `mkosi.bump` exists, it is invoked to generate the new version to
+    be used instead of using mkosi's own logic.
 
 `--doc-format`
 :   The format to show the documentation in. Supports the values `markdown`,
@@ -307,8 +314,8 @@ Those settings cannot be configured in the configuration files.
 `--rerun-build-scripts`, `-R`
 :   Rerun build scripts. Requires the `Incremental=` option to be
     enabled and the image to have been built once already. If `History=`
-    is enabled, the config from the previous build will be reused and no
-    new history will be written.
+    is enabled, the history from the previous build will be reused and
+    no new history will be written.
 
 ## Supported output formats
 
@@ -1583,15 +1590,11 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     up in the generated XFS filesystem.
 
 `History=`, `--history=`
-:   Takes a boolean. If enabled, **mkosi** will write information about
-    the latest build to the `.mkosi-private` subdirectory in the
-    directory from which it was invoked. This information is then used
-    to restore the config of the latest build when running any verb that
-    does not rebuild the image or when running any verb that may rebuild
-    the image without specifying `--force`.
-
-    Note that configure scripts will not be executed if we reuse the
-    history from a previous build.
+:   Takes a boolean. If enabled, **mkosi** will write the configuration
+    provided via the CLI for the latest build to the `.mkosi-private`
+    subdirectory in the directory from which it was invoked. These
+    arguments are then reused as long as the image is not rebuilt to
+    avoid having to specify them over and over again.
 
     To give an example of why this is useful, if you run
     `mkosi -O my-custom-output-dir -f` followed by `mkosi vm`, **mkosi**
