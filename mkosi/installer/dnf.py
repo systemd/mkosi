@@ -25,7 +25,7 @@ class Dnf(PackageManager):
         return Path("libdnf5" if cls.executable(config) == "dnf5" else "dnf")
 
     @classmethod
-    def cache_subdirs(cls, cache: Path) -> list[Path]:
+    def package_subdirs(cls, cache: Path) -> list[Path]:
         return [
             p / "packages" for p in cache.iterdir() if p.is_dir() and "-" in p.name and "mkosi" not in p.name
         ]
@@ -148,10 +148,10 @@ class Dnf(PackageManager):
             "--setopt=keepcache=1",
             "--setopt=logdir=/var/log",
             f"--setopt=cachedir=/var/cache/{cls.subdir(context.config)}",
-            f"--setopt=persistdir=/var/lib/{cls.subdir(context.config)}",
             f"--setopt=install_weak_deps={int(context.config.with_recommends)}",
             "--setopt=check_config_file_age=0",
             "--disable-plugin=*" if dnf == "dnf5" else "--disableplugin=*",
+            "--setopt=persistdir=/buildroot/var/lib/dnf",
         ]  # fmt: skip
 
         for plugin in ("builddep", "versionlock", "reflink"):

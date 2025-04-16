@@ -22,7 +22,7 @@ class PackageManager:
         return Path("custom")
 
     @classmethod
-    def cache_subdirs(cls, cache: Path) -> list[Path]:
+    def package_subdirs(cls, cache: Path) -> list[Path]:
         return []
 
     @classmethod
@@ -85,7 +85,7 @@ class PackageManager:
             # configured package cache directory in this scenario, we mount in the relevant directories from
             # the configured package cache directory.
             if d == "cache" and context.metadata_dir != context.config.package_cache_dir_or_default():
-                caches = context.config.distribution.package_manager(context.config).cache_subdirs(src)
+                caches = context.config.distribution.package_manager(context.config).package_subdirs(src)
                 mounts += flatten(
                     (
                         "--bind",

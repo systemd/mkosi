@@ -35,12 +35,12 @@ class Pacman(PackageManager):
         return Path("pacman")
 
     @classmethod
-    def cache_subdirs(cls, cache: Path) -> list[Path]:
+    def package_subdirs(cls, cache: Path) -> list[Path]:
         return [cache / "pkg"]
 
     @classmethod
     def state_subdirs(cls, state: Path) -> list[Path]:
-        return [state / "local"]
+        return [state / "sync"]
 
     @classmethod
     def scripts(cls, context: Context) -> dict[str, list[PathString]]:

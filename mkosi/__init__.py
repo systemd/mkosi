@@ -3873,30 +3873,22 @@ def copy_repository_metadata(config: Config, dst: Path) -> None:
     subdir = config.distribution.package_manager(config).subdir(config)
 
     with complete_step("Copying repository metadata"):
-        for d in ("cache", "lib"):
-            src = config.package_cache_dir_or_default() / d / subdir
-            if not src.exists():
-                logging.debug(f"{src} does not exist, not copying repository metadata from it")
-                continue
+        cachedir = config.package_cache_dir_or_default() / "cache" / subdir
+        if cachedir.exists():
+            with umask(~0o755):
+                (dst / "cache" / subdir).mkdir(parents=True, exist_ok=True)
 
             with tempfile.TemporaryDirectory() as tmp:
                 os.chmod(tmp, 0o755)
 
                 # cp doesn't support excluding directories but we can imitate it by bind mounting
                 # an empty directory over the directories we want to exclude.
-                exclude: list[PathString]
-                if d == "cache":
-                    exclude = flatten(
-                        ("--ro-bind", tmp, workdir(p))
-                        for p in config.distribution.package_manager(config).cache_subdirs(src)
-                    )
-                else:
-                    exclude = flatten(
-                        ("--ro-bind", tmp, workdir(p))
-                        for p in config.distribution.package_manager(config).state_subdirs(src)
-                    )
+                exclude = flatten(
+                    ("--ro-bind", tmp, workdir(p))
+                    for p in config.distribution.package_manager(config).package_subdirs(cachedir)
+                )
 
-                subdst = dst / d / subdir
+                subdst = dst / "cache" / subdir
                 with umask(~0o755):
                     subdst.mkdir(parents=True, exist_ok=True)
 
@@ -3906,7 +3898,25 @@ def copy_repository_metadata(config: Config, dst: Path) -> None:
                 ) -> AbstractContextManager[list[PathString]]:
                     return config.sandbox(options=[*options, *exclude])
 
-                copy_tree(src, subdst, sandbox=sandbox)
+                copy_tree(cachedir, subdst, sandbox=sandbox)
+        else:
+            logging.debug(f"{cachedir} does not exist, not copying repository metadata from it")
+
+        statedir = config.package_cache_dir_or_default() / "lib" / subdir
+
+        with umask(~0o755):
+            (dst / "lib" / subdir).mkdir(parents=True, exist_ok=True)
+
+        for src in config.distribution.package_manager(config).state_subdirs(statedir):
+            if not src.exists():
+                logging.debug(f"{src} does not exist, not copying repository metadata from it")
+                continue
+
+            subdst = dst / "lib" / subdir / src.relative_to(statedir)
+            with umask(~0o755):
+                subdst.mkdir(parents=True, exist_ok=True)
+
+            copy_tree(src, subdst, sandbox=config.sandbox)
 
 
 @contextlib.contextmanager
@@ -4839,7 +4849,7 @@ def sync_repository_metadata(
                 )
 
     src = last.package_cache_dir_or_default() / "cache" / subdir
-    for p in last.distribution.package_manager(last).cache_subdirs(src):
+    for p in last.distribution.package_manager(last).package_subdirs(src):
         p.mkdir(parents=True, exist_ok=True)
 
     # If we're in incremental mode and caching metadata is not explicitly disabled, cache the keyring and the

@@ -23,7 +23,7 @@ class Zypper(PackageManager):
         return Path("zypp")
 
     @classmethod
-    def cache_subdirs(cls, cache: Path) -> list[Path]:
+    def package_subdirs(cls, cache: Path) -> list[Path]:
         return [cache / "packages"]
 
     @classmethod
