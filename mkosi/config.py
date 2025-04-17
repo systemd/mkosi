@@ -5093,7 +5093,8 @@ def parse_config(
 
     # Do the same for help.
     if args.verb == Verb.help:
-        PagerHelpAction.__call__(None, argparser, context.cli)  # type: ignore
+        page(argparser.format_help(), context.cli["pager"])
+        sys.exit(0)
 
     if not args.verb.needs_config():
         return args, None, ()
