@@ -150,12 +150,8 @@ class Dnf(PackageManager):
             f"--setopt=cachedir=/var/cache/{cls.subdir(context.config)}",
             f"--setopt=install_weak_deps={int(context.config.with_recommends)}",
             "--setopt=check_config_file_age=0",
-            "--disable-plugin=*" if dnf == "dnf5" else "--disableplugin=*",
             "--setopt=persistdir=/buildroot/var/lib/dnf",
-        ]  # fmt: skip
-
-        for plugin in ("builddep", "versionlock", "reflink"):
-            cmdline += ["--enable-plugin", plugin] if dnf == "dnf5" else ["--enableplugin", plugin]
+        ]
 
         if ARG_DEBUG.get():
             cmdline += ["--setopt=debuglevel=10"]
