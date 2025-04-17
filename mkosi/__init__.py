@@ -27,6 +27,7 @@ from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Any, Optional, Union, cast
 
+from mkosi._version import __version__
 from mkosi.archive import can_extract_tar, extract_tar, make_cpio, make_tar
 from mkosi.bootloader import (
     efi_boot_binary,
@@ -130,7 +131,6 @@ from mkosi.sandbox import (
     MOUNT_ATTR_RDONLY,
     MS_REC,
     MS_SLAVE,
-    __version__,
     acquire_privileges,
     have_effective_cap,
     join_new_session_keyring,
@@ -602,6 +602,7 @@ def run_configure_scripts(config: Config) -> Config:
         MKOSI_UID=str(os.getuid()),
         MKOSI_GID=str(os.getgid()),
         MKOSI_DEBUG=one_zero(ARG_DEBUG.get()),
+        MKOSI_VERSION=__version__,
     )
 
     if config.profiles:
@@ -647,6 +648,7 @@ def run_sync_scripts(config: Config) -> None:
         MKOSI_UID=str(os.getuid()),
         MKOSI_GID=str(os.getgid()),
         MKOSI_CONFIG="/work/config.json",
+        MKOSI_VERSION=__version__,
         CACHED=one_zero(have_cache(config)),
         MKOSI_DEBUG=one_zero(ARG_DEBUG.get()),
     )
@@ -766,6 +768,7 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
         MKOSI_UID=str(os.getuid()),
         MKOSI_GID=str(os.getgid()),
         MKOSI_CONFIG="/work/config.json",
+        MKOSI_VERSION=__version__,
         WITH_DOCS=one_zero(context.config.with_docs),
         WITH_NETWORK=one_zero(context.config.with_network),
         WITH_TESTS=one_zero(context.config.with_tests),
@@ -836,6 +839,7 @@ def run_build_scripts(context: Context) -> None:
         MKOSI_UID=str(os.getuid()),
         MKOSI_GID=str(os.getgid()),
         MKOSI_CONFIG="/work/config.json",
+        MKOSI_VERSION=__version__,
         WITH_DOCS=one_zero(context.config.with_docs),
         WITH_NETWORK=one_zero(context.config.with_network),
         WITH_TESTS=one_zero(context.config.with_tests),
@@ -911,6 +915,7 @@ def run_postinst_scripts(context: Context) -> None:
         MKOSI_UID=str(os.getuid()),
         MKOSI_GID=str(os.getgid()),
         MKOSI_CONFIG="/work/config.json",
+        MKOSI_VERSION=__version__,
         WITH_NETWORK=one_zero(context.config.with_network),
         MKOSI_DEBUG=one_zero(ARG_DEBUG.get()),
     )
@@ -980,6 +985,7 @@ def run_finalize_scripts(context: Context) -> None:
         MKOSI_UID=str(os.getuid()),
         MKOSI_GID=str(os.getgid()),
         MKOSI_CONFIG="/work/config.json",
+        MKOSI_VERSION=__version__,
         WITH_NETWORK=one_zero(context.config.with_network),
         MKOSI_DEBUG=one_zero(ARG_DEBUG.get()),
     )
@@ -1043,6 +1049,7 @@ def run_postoutput_scripts(context: Context) -> None:
         MKOSI_GID=str(os.getgid()),
         MKOSI_CONFIG="/work/config.json",
         MKOSI_DEBUG=one_zero(ARG_DEBUG.get()),
+        MKOSI_VERSION=__version__,
     )
 
     if context.config.profiles:
@@ -4579,6 +4586,7 @@ def run_clean_scripts(config: Config) -> None:
         MKOSI_GID=str(os.getgid()),
         MKOSI_CONFIG="/work/config.json",
         MKOSI_DEBUG=one_zero(ARG_DEBUG.get()),
+        MKOSI_VERSION=__version__,
     )
 
     if config.profiles:
