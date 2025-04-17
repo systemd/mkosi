@@ -168,7 +168,6 @@ jobs:
           KernelCommandLine=systemd.default_device_timeout_sec=180
 
           [Build]
-          ToolsTree=default
           ToolsTreeDistribution=${{ matrix.tools }}
           Environment=SYSTEMD_REPART_MKFS_OPTIONS_EROFS="--quiet"
 
