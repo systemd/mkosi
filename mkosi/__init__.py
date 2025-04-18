@@ -4772,7 +4772,7 @@ def ensure_directories_exist(config: Config) -> None:
         config.cache_dir,
         config.package_cache_dir_or_default(),
         config.build_dir,
-        config.workspace_dir,
+        config.workspace_dir_or_default(),
     ):
         if not p or p.exists():
             continue
