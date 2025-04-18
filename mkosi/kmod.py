@@ -419,6 +419,9 @@ def process_kernel_modules(
 
             p = context.root / m
             if p.is_file() or p.is_symlink():
+                if p.is_symlink():
+                    p_target = context.root / p.resolve().relative_to("/")
+                    p_target.unlink()
                 p.unlink()
             elif p.exists():
                 p.rmdir()

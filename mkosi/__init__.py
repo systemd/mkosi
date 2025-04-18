@@ -2981,7 +2981,9 @@ def run_depmod(context: Context, *, cache: bool = False) -> None:
 
     if not cache:
         for modulesd in (context.root / "usr/lib/modules").glob("*"):
-            if not modulesd.is_dir():
+            if not modulesd.is_dir() or not (
+                (modulesd / "modules.dep").exists() or (modulesd / "modules.dep.bin").exists()
+            ):
                 continue
 
             process_kernel_modules(
@@ -3008,7 +3010,9 @@ def run_depmod(context: Context, *, cache: bool = False) -> None:
     )
 
     for modulesd in (context.root / "usr/lib/modules").glob("*"):
-        if not modulesd.is_dir():
+        if not modulesd.is_dir() or not (
+            (modulesd / "modules.dep").exists() or (modulesd / "modules.dep.bin").exists()
+        ):
             continue
 
         if (
