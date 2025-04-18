@@ -316,6 +316,13 @@ def main() -> None:
         if not args.generic:
             cmdline += ["--kernel-modules=host"]
 
+        for path, _, files in os.walk(modulesd / "weak-updates"):
+            cmdline += [
+                f"--extra-tree={fpath.resolve()}:{fpath.resolve()}"
+                for f in files
+                if (fpath := Path(f"{path}/{f}")).is_symlink()
+            ]
+
         for p in args.profile:
             cmdline += ["--profile", p]
             if p == "raid":
