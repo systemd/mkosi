@@ -4504,7 +4504,9 @@ def generate_key_cert_pair(args: Args) -> None:
     keylength = 2048
     expiration_date = datetime.date.today() + datetime.timedelta(int(args.genkey_valid_days))
 
-    configdir = finalize_configdir(args)
+    configdir = finalize_configdir(args.directory)
+    if not configdir:
+        die("genkey cannot be used with empty --directory")
 
     for f in (configdir / "mkosi.key", configdir / "mkosi.crt"):
         if f.exists() and not args.force:
@@ -4541,7 +4543,10 @@ def generate_key_cert_pair(args: Args) -> None:
 
 
 def finalize_image_version(args: Args, config: Config) -> None:
-    p = finalize_configdir(args) / "mkosi.version"
+    configdir = finalize_configdir(args.directory)
+    if not configdir:
+        die("Image version cannot be finalized with empty --directory")
+    p = configdir / "mkosi.version"
     assert config.image_version
     p.write_text(config.image_version)
     logging.info(f"Wrote new version {config.image_version} to {p}")
