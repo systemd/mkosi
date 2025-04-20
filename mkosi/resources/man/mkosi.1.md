@@ -1166,7 +1166,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   Specifies whether to install an **sshd** socket unit and matching service
     in the final image. Takes one of `always`, `never`, `auto` or `runtime`.
     Defaults to `auto`.
-    
+
     If set to `auto` and the generator binary `systemd-ssh-generator`
     is not preset in the image, or set to `always`, mkosi will install **sshd** units
     in the final image that expose SSH over VSock. If set to `never`,
@@ -1341,6 +1341,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     image and use it as the tools tree. This image can be further configured
     using the settings below or with `mkosi.tools.conf` which can either be a
     file or directory containing extra configuration for the default tools tree.
+
+    If `mkosi.tools.conf` exists in the directory mkosi is invoked in,
+    a default tools tree is used if no tools tree is specified.
 
     The following table shows for which distributions default tools tree
     packages are defined and which packages are included in those default
