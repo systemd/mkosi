@@ -2131,6 +2131,7 @@ class Config:
             for line in f.read_text().strip().splitlines()
         )
         env |= self.environment
+        env |= finalize_git_config(self.proxy_url, env)
 
         return env
 
@@ -5242,6 +5243,27 @@ def finalize_term() -> str:
         term = "vt220" if sys.stderr.isatty() else "dumb"
 
     return term if sys.stderr.isatty() else "dumb"
+
+
+def finalize_git_config(proxy_url: Optional[str], env: dict[str, str]) -> dict[str, str]:
+    if proxy_url is None:
+        return {}
+
+    try:
+        cnt = int(env.get("GIT_CONFIG_COUNT", "0"))
+    except ValueError:
+        raise ValueError("GIT_CONFIG_COUNT environment variable must be set to a valid integer")
+
+    # Override HTTP/HTTPS proxy in case its set in .gitconfig to a different value than proxy_url.
+    # No need to override http.proxy / https.proxy if set in a previous GIT_CONFIG_* variable since
+    # the last setting always wins.
+    return {
+        "GIT_CONFIG_COUNT": str(cnt + 2),
+        f"GIT_CONFIG_KEY_{cnt}": "http.proxy",
+        f"GIT_CONFIG_VALUE_{cnt}": proxy_url,
+        f"GIT_CONFIG_KEY_{cnt + 1}": "https.proxy",
+        f"GIT_CONFIG_VALUE_{cnt + 1}": proxy_url,
+    }
 
 
 def yes_no(b: bool) -> str:
