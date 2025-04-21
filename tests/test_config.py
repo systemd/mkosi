@@ -1321,6 +1321,58 @@ def test_environment(tmp_path: Path) -> None:
         assert "TestValue2" not in sub.environment
 
 
+def test_proxy(tmp_path: Path) -> None:
+    d = tmp_path
+
+    # Verify environment variables are set correctly when GIT_CONFIG_COUNT is not set
+    (d / "mkosi.conf").write_text(
+        """\
+        [Build]
+        ProxyUrl=http://proxy:8080
+        """
+    )
+
+    with chdir(d):
+        _, _, [config] = parse_config()
+
+        expected = {
+            "GIT_CONFIG_COUNT": "2",
+            "GIT_CONFIG_KEY_0": "http.proxy",
+            "GIT_CONFIG_VALUE_0": "http://proxy:8080",
+            "GIT_CONFIG_KEY_1": "https.proxy",
+            "GIT_CONFIG_VALUE_1": "http://proxy:8080",
+        }
+
+        # Only check values for keys from expected, as config.environment contains other items as well
+        assert {k: config.finalize_environment()[k] for k in expected.keys()} == expected
+
+    (d / "mkosi.conf").write_text(
+        """\
+        [Build]
+        ProxyUrl=http://proxy:8080
+        Environment=GIT_CONFIG_COUNT=1
+                    GIT_CONFIG_KEY_0=user.name
+                    GIT_CONFIG_VALUE_0=bob
+        """
+    )
+
+    with chdir(d):
+        _, _, [config] = parse_config()
+
+        expected = {
+            "GIT_CONFIG_COUNT": "3",
+            "GIT_CONFIG_KEY_0": "user.name",
+            "GIT_CONFIG_VALUE_0": "bob",
+            "GIT_CONFIG_KEY_1": "http.proxy",
+            "GIT_CONFIG_VALUE_1": "http://proxy:8080",
+            "GIT_CONFIG_KEY_2": "https.proxy",
+            "GIT_CONFIG_VALUE_2": "http://proxy:8080",
+        }
+
+        # Only check values for keys from expected, as config.environment contains other items as well
+        assert {k: config.finalize_environment()[k] for k in expected.keys()} == expected
+
+
 def test_mkosi_version_executable(tmp_path: Path) -> None:
     d = tmp_path
 
