@@ -152,6 +152,14 @@ def is_valid_modulesd(modulesd: Path) -> bool:
     )
 
 
+def weak_modules(modulesd: Path) -> list[str]:
+    return [
+        f"--extra-tree={m.resolve()}:{m.resolve()}"
+        for m in (modulesd / "weak-updates").rglob("*.ko*")
+        if m.is_symlink()
+    ]
+
+
 def process_crypttab(staging_dir: Path) -> list[str]:
     cmdline = []
 
@@ -320,6 +328,8 @@ def main() -> None:
 
         if not args.generic:
             cmdline += ["--kernel-modules=host"]
+
+        cmdline += weak_modules(modulesd)
 
         for p in args.profile:
             cmdline += ["--profile", p]

@@ -419,6 +419,10 @@ def process_kernel_modules(
 
             p = context.root / m
             if p.is_file() or p.is_symlink():
+                if p.is_symlink():
+                    p_target = Path(chase(os.fspath(context.root), os.fspath(m)))
+                    if p_target.exists():
+                        p_target.unlink()
                 p.unlink()
             elif p.exists():
                 p.rmdir()
