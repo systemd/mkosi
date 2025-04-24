@@ -3401,6 +3401,8 @@ def make_image(
             "--generate-fstab=/etc/fstab",
             "--generate-crypttab=/etc/crypttab",
         ]
+    if tabs and systemd_tool_version("systemd-repart", sandbox=context.sandbox) >= 258:
+        cmdline += ["--append-fstab=auto"]
 
     for d in definitions:
         cmdline += ["--definitions", workdir(d)]
