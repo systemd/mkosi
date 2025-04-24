@@ -1792,8 +1792,8 @@ class Args:
 
     @classmethod
     @functools.lru_cache(maxsize=1)
-    def fields(cls) -> set[str]:
-        return {f.name for f in dataclasses.fields(cls)}
+    def fields(cls) -> dict[str, dataclasses.Field[Any]]:
+        return {f.name: f for f in dataclasses.fields(cls)}
 
     @classmethod
     def from_namespace(cls, ns: dict[str, Any]) -> "Args":
@@ -2190,8 +2190,8 @@ class Config:
 
     @classmethod
     @functools.lru_cache(maxsize=1)
-    def fields(cls) -> set[str]:
-        return {f.name for f in dataclasses.fields(cls)}
+    def fields(cls) -> dict[str, dataclasses.Field[Any]]:
+        return {f.name: f for f in dataclasses.fields(cls)}
 
     @classmethod
     def from_dict(cls, ns: dict[str, Any]) -> "Config":
@@ -4684,8 +4684,18 @@ class ParseContext:
         ):
             return v
 
-        if (setting.dest in self.cli or setting.dest in self.config) and isinstance(
-            setting.parse(None, None), (dict, list, set)
+        # If the type is a collection or optional and the setting was set explicitly, don't use the default
+        # value.
+        fieldname = (
+            setting.dest.removeprefix("tools_tree_") if setting.scope == SettingScope.tools else setting.dest
+        )
+        field = Config.fields().get(fieldname)
+        origin = typing.get_origin(field.type) if field else None
+        args = typing.get_args(field.type) if field else []
+        if (
+            (setting.dest in self.cli or setting.dest in self.config)
+            and field
+            and (origin in (dict, list, str) or (origin is typing.Union and type(None) in args))
         ):
             default = setting.parse(None, None)
         elif setting.dest in self.defaults:

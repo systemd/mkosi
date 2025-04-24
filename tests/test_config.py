@@ -450,6 +450,20 @@ def test_override_default(tmp_path: Path) -> None:
     assert config.tools_tree is None
     assert "MY_KEY" not in config.environment
 
+    (d / "mkosi.tools.conf").touch()
+
+    (d / "mkosi.local.conf").write_text(
+        """\
+        [Build]
+        ToolsTree=
+        """
+    )
+
+    with chdir(d):
+        _, _, [config] = parse_config([])
+
+    assert config.tools_tree is None
+
 
 def test_local_config(tmp_path: Path) -> None:
     d = tmp_path
