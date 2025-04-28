@@ -1005,14 +1005,6 @@ def config_default_release(namespace: dict[str, Any]) -> str:
     return cast(str, namespace["distribution"].default_release())
 
 
-def config_default_tools_tree(namespace: dict[str, Any]) -> Optional[Path]:
-    if namespace.get("image") != "main":
-        return None
-
-    configdir = finalize_configdir(namespace["directory"])
-    return Path("default") if configdir and (configdir / "mkosi.tools.conf").exists() else None
-
-
 def config_default_tools_tree_distribution(namespace: dict[str, Any]) -> Distribution:
     if d := os.getenv("MKOSI_HOST_DISTRIBUTION"):
         return Distribution(d).default_tools_tree_distribution()
@@ -3541,7 +3533,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Build",
         parse=config_make_path_parser(constants=("default",)),
         path_suffixes=("tools",),
-        default_factory=config_default_tools_tree,
         help="Look up programs to execute inside the given tree",
         scope=SettingScope.universal,
     ),
