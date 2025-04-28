@@ -1342,9 +1342,6 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     using the settings below or with `mkosi.tools.conf` which can either be a
     file or directory containing extra configuration for the default tools tree.
 
-    If `mkosi.tools.conf` exists in the directory mkosi is invoked in,
-    a default tools tree is used if no tools tree is specified.
-
     The following table shows for which distributions default tools tree
     packages are defined and which packages are included in those default
     tools trees:
