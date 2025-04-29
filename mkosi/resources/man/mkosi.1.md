@@ -1167,16 +1167,16 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     in the final image. Takes one of `always`, `never`, `auto` or `runtime`.
     Defaults to `auto`.
 
-    If set to `auto` and the generator binary `systemd-ssh-generator`
-    is not preset in the image, or set to `always`, mkosi will install **sshd** units
-    in the final image that expose SSH over VSock. If set to `never`,
-    mkosi will not install these units. If the `runtime` value is used,
+    If set to `auto` and `sshd` is present in the image and the generator binary
+    `systemd-ssh-generator` is not present, or if set to `always`,
+    mkosi will install **sshd** units in the final image that expose SSH over VSock.
+    If set to `never`, mkosi will not install these units. If the `runtime` value is used,
     mkosi will also not install any units but abort starting `mkosi vm` if no
     SSH credentials are configured. When building with this
     option and running the image using `mkosi vm`, the `mkosi ssh`
     command can be used to connect to the container/VM via SSH. Note that
     you still have to make sure openssh is installed in the image to make
-    this option behave correctly. Run `mkosi genkey` to automatically
+    `mkosi ssh` behave correctly. Run `mkosi genkey` to automatically
     generate an X.509 certificate and private key to be used by **mkosi** to
     enable SSH access to any virtual machines via `mkosi ssh`. To access
     images booted using `mkosi boot`, use **machinectl**.

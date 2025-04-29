@@ -116,6 +116,7 @@ from mkosi.run import (
     chroot_options,
     finalize_interpreter,
     finalize_passwd_symlinks,
+    find_binary,
     fork_and_wait,
     run,
     spawn,
@@ -2888,9 +2889,9 @@ def configure_ssh(context: Context) -> None:
     if context.config.ssh in (Ssh.never, Ssh.runtime):
         return
 
-    if (
-        context.config.ssh == Ssh.auto
-        and (context.root / "usr/lib/systemd/system-generators/systemd-ssh-generator").exists()
+    if context.config.ssh == Ssh.auto and (
+        (context.root / "usr/lib/systemd/system-generators/systemd-ssh-generator").exists()
+        or not find_binary("sshd", root=context.root)
     ):
         # systemd-ssh-generator is installed, so we don't need to configure SSH.
         return
