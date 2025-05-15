@@ -147,6 +147,7 @@ from mkosi.user import INVOKING_USER, become_root_cmd
 from mkosi.util import (
     PathString,
     current_home_dir,
+    dir_only_contains,
     flatten,
     flock,
     flock_or_die,
@@ -2982,9 +2983,7 @@ def run_depmod(context: Context, *, cache: bool = False) -> None:
 
     if not cache:
         for modulesd in (context.root / "usr/lib/modules").glob("*"):
-            if not modulesd.is_dir() or (
-                (modulesd / "updates").exists() and len(list(modulesd.glob("*"))) == 1
-            ):
+            if dir_only_contains(modulesd, "updates"):
                 continue
 
             process_kernel_modules(
@@ -3011,7 +3010,7 @@ def run_depmod(context: Context, *, cache: bool = False) -> None:
     )
 
     for modulesd in (context.root / "usr/lib/modules").glob("*"):
-        if not modulesd.is_dir() or ((modulesd / "updates").exists() and len(list(modulesd.glob("*"))) == 1):
+        if dir_only_contains(modulesd, "updates"):
             continue
 
         if (
