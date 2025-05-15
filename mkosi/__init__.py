@@ -87,7 +87,7 @@ from mkosi.context import Context
 from mkosi.distributions import Distribution, detect_distribution
 from mkosi.documentation import show_docs
 from mkosi.installer import clean_package_manager_metadata
-from mkosi.kmod import gen_required_kernel_modules, loaded_modules, process_kernel_modules
+from mkosi.kmod import gen_required_kernel_modules, is_valid_kdir, loaded_modules, process_kernel_modules
 from mkosi.log import ARG_DEBUG, complete_step, die, log_notice, log_step
 from mkosi.manifest import Manifest
 from mkosi.mounts import (
@@ -2983,9 +2983,7 @@ def run_depmod(context: Context, *, cache: bool = False) -> None:
 
     if not cache:
         for modulesd in (context.root / "usr/lib/modules").glob("*"):
-            if not modulesd.is_dir() or (
-                (modulesd / "updates").exists() and len(list(modulesd.glob("*"))) == 1
-            ):
+            if not is_valid_kdir(modulesd):
                 continue
 
             process_kernel_modules(
@@ -3012,7 +3010,7 @@ def run_depmod(context: Context, *, cache: bool = False) -> None:
     )
 
     for modulesd in (context.root / "usr/lib/modules").glob("*"):
-        if not modulesd.is_dir() or ((modulesd / "updates").exists() and len(list(modulesd.glob("*"))) == 1):
+        if not is_valid_kdir(modulesd):
             continue
 
         if (
