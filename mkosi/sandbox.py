@@ -57,6 +57,7 @@ NR_open_tree = 428
 OPEN_TREE_CLOEXEC = os.O_CLOEXEC
 OPEN_TREE_CLONE = 1
 OVERLAYFS_SUPER_MAGIC = 0x794C7630
+ZFS_SUPER_MAGIC = 0x0CB1BA00
 PR_CAP_AMBIENT = 47
 PR_CAP_AMBIENT_RAISE = 2
 # These definitions are taken from the libseccomp headers
