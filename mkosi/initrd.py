@@ -16,7 +16,7 @@ from typing import Optional, cast
 import mkosi.resources
 from mkosi.config import DocFormat, InitrdProfile, OutputFormat
 from mkosi.documentation import show_docs
-from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, log_notice, log_setup
+from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, die, log_notice, log_setup
 from mkosi.run import find_binary, run, uncaught_exception_handler
 from mkosi.sandbox import __version__, umask
 from mkosi.tree import copy_tree, move_tree, rmtree
@@ -143,6 +143,21 @@ def create_parser() -> argparse.ArgumentParser:
 
     initrd_common_args(parser)
     return parser
+
+
+def is_valid_modulesd(modulesd: Path) -> bool:
+    # Check whether a provided kernel modules directory is valid
+    return modulesd.is_dir() and (
+        (modulesd / "modules.dep").exists() or (modulesd / "modules.dep.bin").exists()
+    )
+
+
+def weak_modules(modulesd: Path) -> list[str]:
+    return [
+        f"--extra-tree={m.resolve()}:{m.resolve()}"
+        for m in (modulesd / "weak-updates").rglob("*.ko*")
+        if m.is_symlink()
+    ]
 
 
 def process_crypttab(staging_dir: Path) -> list[str]:
@@ -289,6 +304,10 @@ def main() -> None:
             show_docs("mkosi-initrd", DocFormat.all(), resources=r)
         return
 
+    modulesd = Path("/usr/lib/modules") / args.kernel_version
+    if not is_valid_modulesd(modulesd):
+        die(f"Invalid kernel directory: {modulesd}")
+
     with (
         tempfile.TemporaryDirectory() as staging_dir,
         tempfile.TemporaryDirectory() as sandbox_tree,
@@ -300,7 +319,7 @@ def main() -> None:
             f"--format={args.format}",
             f"--output={args.output}",
             f"--output-directory={staging_dir}",
-            f"--extra-tree=/usr/lib/modules/{args.kernel_version}:/usr/lib/modules/{args.kernel_version}",
+            f"--extra-tree={modulesd}:{modulesd}",
             "--extra-tree=/usr/lib/firmware:/usr/lib/firmware",
             "--remove-files=/usr/lib/firmware/*-ucode",
             "--build-sources=",
@@ -308,7 +327,9 @@ def main() -> None:
         ]  # fmt: skip
 
         if not args.generic:
-            cmdline += ["--kernel-modules-include=host"]
+            cmdline += ["--kernel-modules=host"]
+
+        cmdline += weak_modules(modulesd)
 
         for p in args.profile:
             cmdline += ["--profile", p]
@@ -317,7 +338,7 @@ def main() -> None:
 
         if args.kernel_image:
             cmdline += [
-                f"--extra-tree={args.kernel_image}:/usr/lib/modules/{args.kernel_version}/vmlinuz",
+                f"--extra-tree={args.kernel_image}:{modulesd}/vmlinuz",
             ]
 
         if args.debug:
