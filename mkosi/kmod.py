@@ -441,3 +441,14 @@ def process_kernel_modules(
                     p.parent.rmdir()
             elif p.exists():
                 p.rmdir()
+
+
+def is_valid_kdir(kdir: Path) -> bool:
+    dircontent = list(kdir.glob("*"))
+
+    # kdir does not exist or is empty
+    if not dircontent:
+        return False
+
+    # check that kdir contains more than just updates
+    return dircontent != [kdir / "updates"]
