@@ -158,3 +158,6 @@ class GenericVersion:
 
     def __str__(self) -> str:
         return self._version
+
+    def __repr__(self) -> str:
+        return f"GenericVersion('{self._version}')"
