@@ -272,4 +272,13 @@ def mandatory_variable(name: str) -> str:
 
 
 def dir_only_contains(dir: Path, tgt: PathString) -> bool:
-    return not dir.is_dir() or (dir / tgt).exists() and len(list(dir.glob("*"))) == 1
+    if not dir.is_dir():
+        return True
+
+    # Ensure the directory only contains a single entry
+    try:
+        [child] = dir.iterdir()
+    except ValueError:
+        return False
+
+    return child.name == tgt
