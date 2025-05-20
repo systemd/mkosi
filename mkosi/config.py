@@ -5142,8 +5142,10 @@ def parse_config(
     configdir = finalize_configdir(args.directory)
 
     if (
-        ((args.auto_bump and args.verb.needs_build()) or args.verb == Verb.bump)
-        and context.cli.get("image_version") is not None
+        (
+          (args.auto_bump and args.verb.needs_build())
+          or (args.verb == Verb.bump and (args.auto_bump or context.cli.get("image_version") is not None))
+        )
         and configdir is not None
     ):
         context.cli["image_version"] = bump_image_version(configdir)
