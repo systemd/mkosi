@@ -11,12 +11,7 @@ version = "25.3"
 description = "Build Bespoke OS Images"
 readme = "README.md"
 requires-python = ">=3.9"
-license-files = [
-    "LICENSES/GPL-2.0-only.txt",
-    "LICENSES/LGPL-2.1-or-later.txt",
-    "LICENSES/OFL-1.1.txt",
-    "LICENSES/PSF-2.0.txt"
-]
+license = {file = "LICENSES/LGPL-2.1-or-later.txt"}
 
 [project.optional-dependencies]
 bootable = [
