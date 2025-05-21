@@ -885,7 +885,10 @@ def main() -> None:
     chdir = None
     become_root = suppress_chown = suppress_sync = unshare_net = unshare_ipc = suspend = pack_fds = False
 
-    ttyname = os.ttyname(2) if os.isatty(2) else ""
+    try:
+        ttyname = os.ttyname(2) if os.isatty(2) else ""
+    except FileNotFoundError:
+        ttyname = ""
 
     while argv:
         arg = argv.pop()
