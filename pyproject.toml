@@ -11,7 +11,7 @@ version = "25.3"
 description = "Build Bespoke OS Images"
 readme = "README.md"
 requires-python = ">=3.9"
-license = {file = "LICENSES/LGPL-2.1-or-later.txt"}
+license = {text = "LGPL-2.1-or-later"}
 
 [project.optional-dependencies]
 bootable = [
