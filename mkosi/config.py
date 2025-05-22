@@ -1484,9 +1484,13 @@ def config_parse_minimum_version(value: Optional[str], old: Optional[str]) -> Op
             if not (gitdir / ".git").exists():
                 die("Cannot check mkosi git version, not running mkosi from a git repository")
 
-            current = run(["git", "-C", gitdir, "rev-parse", "HEAD"], stdout=subprocess.PIPE).stdout.strip()
+            git: list[PathString] = ["git", "-C", gitdir]
+            if os.getuid() == 0:
+                git += ["-c", f"safe.directory={gitdir}"]
 
-            result = run(["git", "-C", gitdir, "merge-base", "--is-ancestor", hash, current], check=False)
+            current = run([*git, "rev-parse", "HEAD"], stdout=subprocess.PIPE).stdout.strip()
+
+            result = run([*git, "merge-base", "--is-ancestor", hash, current], check=False)
             if result.returncode == 1:
                 die(
                     f"mkosi commit {hash} or newer is required by this configuration",
