@@ -2999,6 +2999,14 @@ repository.
   value of the respective `extension-release` file when building a sysext
   or confext. By default the value is set to `initrd system portable`.
 
+Environment variables starting with `MKOSI__`, i.e. with two underscores after `MKOSI`, are internal to mkosi
+and are not guaranteed to be backwards compatible, but may be used to work around certain limitations,
+e.g. in external tools mkosi is calling, but any breakage due to the usage of these variables is not a bug.
+
+* `MKOSI__REPREPRO_EXTRA_ARGS` can be used to pass extra commandline options to **reprepro**, which mkosi
+  uses to generate the internal repository on deb-based systems. This can be used to set the package section,
+  priority or other fields.
+
 # EXAMPLES
 
 Create and run a raw *GPT* image with *ext4*, as `image.raw`:
