@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 import dataclasses
+import shlex
 import textwrap
 from collections.abc import Sequence
 from pathlib import Path
@@ -299,6 +300,7 @@ class Apt(PackageManager):
             [
                 "reprepro",
                 "--ignore=extension",
+                *shlex.split(context.config.environment.get("MKOSI__REPREPRO_EXTRA_ARGS", "")),
                 "includedeb",
                 "mkosi",
                 *names,
