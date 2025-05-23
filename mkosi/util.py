@@ -269,3 +269,16 @@ def mandatory_variable(name: str) -> str:
         return os.environ[name]
     except KeyError:
         die(f"${name} must be set in the environment")
+
+
+def dir_only_contains(dir: Path, tgt: PathString) -> bool:
+    if not dir.is_dir():
+        return True
+
+    # Ensure the directory only contains a single entry
+    try:
+        [child] = dir.iterdir()
+    except ValueError:
+        return False
+
+    return child.name == tgt
