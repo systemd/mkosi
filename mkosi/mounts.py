@@ -141,7 +141,8 @@ def finalize_certificate_mounts(config: Config, relaxed: bool = False) -> list[P
         mounts += [
             (root / subdir, Path("/") / subdir)
             for subdir in (
-                Path("etc/pki"),
+                Path("etc/pki/ca-trust"),
+                Path("etc/pki/tls"),
                 Path("etc/ssl"),
                 Path("etc/ca-certificates"),
                 Path("var/lib/ca-certificates"),

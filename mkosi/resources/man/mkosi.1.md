@@ -1447,10 +1447,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `ToolsTreeCertificates=`, `--tools-tree-certificates=`
 :   Specify whether to use certificates and keys from the tools tree.
-    Enabled by default. If enabled, `/etc/pki`, `/etc/ssl`,
-    `/etc/ca-certificates`, and `/var/lib/ca-certificates` from the
-    tools tree are used. Otherwise, these directories are picked up from
-    the host.
+    Enabled by default. If enabled, `/etc/pki/ca-trust`, `/etc/pki/tls`,
+    `/etc/ssl`, `/etc/ca-certificates`, and `/var/lib/ca-certificates`
+    from the tools tree are used. Otherwise, these directories are
+    picked up from the host.
 
 `ExtraSearchPaths=`, `--extra-search-path=`
 :   List of colon-separated paths to look for tools in, before using the

@@ -62,7 +62,7 @@ runs:
     - name: Create missing mountpoints
       shell: bash
       run: |
-        for p in /etc/pki /etc/ssl /etc/ca-certificates /var/lib/ca-certificates /etc/crypto-policies; do
+        for p in /etc/pki/ca-trust /etc/pki/tls /etc/ssl /etc/ca-certificates /var/lib/ca-certificates /etc/crypto-policies; do
           if [[ ! -e "$p" ]]; then
             sudo mkdir -p "$p"
           fi
