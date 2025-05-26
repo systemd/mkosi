@@ -128,8 +128,12 @@ system call is prohibited via seccomp if mkosi is being executed inside a contai
 """
 
 
+def is_main() -> bool:
+    return __name__ == "__main__"
+
+
 def oserror(syscall: str, filename: str = "") -> None:
-    if ctypes.get_errno() == ENOSYS:
+    if ctypes.get_errno() == ENOSYS and is_main():
         print(ENOSYS_MSG.format(syscall=syscall, kver=os.uname().version), file=sys.stderr)
 
     raise OSError(ctypes.get_errno(), os.strerror(ctypes.get_errno()), filename or None)
@@ -438,7 +442,7 @@ def become_user(uid: int, gid: int) -> None:
     try:
         unshare(CLONE_NEWUSER)
     except OSError as e:
-        if e.errno == EPERM:
+        if e.errno == EPERM and is_main():
             print(UNSHARE_EPERM_MSG, file=sys.stderr)
         raise
     finally:
@@ -871,11 +875,11 @@ documentation", for workarounds.\
 """
 
 
-def main() -> None:
+def main(argv: list[str] = sys.argv[1:]) -> None:
     # We don't use argparse as it takes +- 10ms to import and since this is primarily for internal
     # use, it's not necessary to have amazing UX for this CLI interface so it's trivial to write
     # ourselves.
-    argv = list(reversed(sys.argv[1:]))
+    argv = list(reversed(argv))
     fsops: list[FSOperation] = []
     setenv = []
     unsetenv = []
@@ -966,9 +970,13 @@ def main() -> None:
             argv.append(arg)
             break
 
-    argv.reverse()
+    if argv:
+        if not is_main():
+            raise ValueError(f"A command line to execute can only be provided if {__name__} is executed")
 
-    argv = argv or ["bash"]
+        argv.reverse()
+    else:
+        argv = ["bash"] if is_main() else []
 
     # Make sure all destination paths are absolute.
     for fsop in fsops:
@@ -1010,7 +1018,7 @@ def main() -> None:
     except OSError as e:
         # This can happen here as well as in become_user, it depends on exactly
         # how the userns restrictions are implemented.
-        if e.errno == EPERM:
+        if e.errno == EPERM and is_main():
             print(UNSHARE_EPERM_MSG, file=sys.stderr)
         raise
 
@@ -1080,16 +1088,17 @@ def main() -> None:
     if suspend:
         os.kill(os.getpid(), SIGSTOP)
 
-    try:
-        os.execvp(argv[0], argv)
-    except OSError as e:
-        # Let's return a recognizable error when the binary we're going to execute is not found.
-        # We use 127 as that's the exit code used by shells when a program to execute is not found.
-        if e.errno == ENOENT:
-            sys.exit(127)
+    if is_main():
+        try:
+            os.execvp(argv[0], argv)
+        except OSError as e:
+            # Let's return a recognizable error when the binary we're going to execute is not found.
+            # We use 127 as that's the exit code used by shells when a program to execute is not found.
+            if e.errno == ENOENT:
+                sys.exit(127)
 
-        raise
+            raise
 
 
-if __name__ == "__main__":
+if is_main():
     main()
