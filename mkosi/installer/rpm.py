@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 import dataclasses
+import subprocess
 import textwrap
 from pathlib import Path
 from typing import Literal, Optional, overload
@@ -8,6 +9,7 @@ from typing import Literal, Optional, overload
 from mkosi.context import Context
 from mkosi.distributions import Distribution
 from mkosi.log import die
+from mkosi.run import run
 from mkosi.util import PathString
 
 
@@ -52,16 +54,23 @@ def find_rpm_gpgkey(
 ) -> Optional[str]:
     # We assume here that GPG keys will only ever be relative symlinks and never absolute symlinks.
 
-    if gpgpath := next((context.config.tools() / "usr/share/distribution-gpg-keys").rglob(key), None):
-        return (Path("/") / gpgpath.resolve().relative_to(context.config.tools())).as_uri()
+    globs = [
+        f"/usr/share/distribution-gpg-keys/*/{key}*",
+        f"/etc/pki/rpm-gpg/{key}*",
+    ]
 
-    # ToolsTreeCertificates= only applies to certificates but the rpm gpg keys in /etc are located within the
-    # /etc/pki certificates directory so as a result the option has to apply to the rpm gpg keys in /etc as
-    # well
-    root = context.config.tools() if context.config.tools_tree_certificates else Path("/")
+    paths = (
+        run(
+            ["bash", "-c", rf"shopt -s nullglob && printf '%s\n' {' '.join(globs)}"],
+            sandbox=context.sandbox(),
+            stdout=subprocess.PIPE,
+        )
+        .stdout.strip()
+        .splitlines()
+    )
 
-    if gpgpath := next(Path(root / "etc/pki/rpm-gpg").rglob(key), None):
-        return (Path("/") / gpgpath.resolve().relative_to(root)).as_uri()
+    if paths:
+        return Path(paths[0]).as_uri()
 
     if fallback and context.config.repository_key_fetch:
         return fallback
