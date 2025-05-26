@@ -4998,8 +4998,6 @@ def finalize_default_tools(
 
             ns[dest] = copy.deepcopy(finalized[s.dest])
 
-    context.cli["output_format"] = OutputFormat.directory
-
     context.config |= {
         "image": "tools",
         "directory": finalized["directory"],
