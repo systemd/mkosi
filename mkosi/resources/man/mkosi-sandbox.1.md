@@ -21,6 +21,20 @@ Note that this sandbox is not designed to be a security boundary. Its intended p
 is to allow running commands in an isolated environment so they are not affected by the
 host system.
 
+It is possible to use `mkosi-sandbox` to create an in process sandbox for python
+applications by importing it as a module and invoking its main function with only
+options. No command line to execute is needed in this case. As an example:
+
+```python
+import mkosi.sandbox
+
+mkosi.sandbox.main(["--become-root"])
+print(os.getuid())
+```
+
+Only the `main` function can be invoked. Invoking any other functions
+from `mkosi.sandbox` is not supported and may break in future versions.
+
 # OPTIONS
 
 `--tmpfs DST`
