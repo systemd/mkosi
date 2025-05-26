@@ -189,7 +189,10 @@ class Installer(DistributionInstaller):
 
         fixup_os_release(context)
 
-        if "apt" in itertools.chain(context.config.packages, context.config.volatile_packages):
+        if (
+            "apt" in itertools.chain(context.config.packages, context.config.volatile_packages)
+            or (context.root / "usr/bin/apt").exists()
+        ):
             install_apt_sources(context, cls.repositories(context, local=False))
 
     @classmethod
