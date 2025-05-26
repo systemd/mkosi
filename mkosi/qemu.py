@@ -824,15 +824,19 @@ def finalize_state(config: Config, cid: int) -> Iterator[None]:
 
     with flock(statedir):
         if (p := statedir / f"{config.machine_or_name()}.json").exists():
-            die(
-                f"Another virtual machine named {config.machine_or_name()} is already running",
-                hint="Use --machine to specify a different virtual machine name",
-            )
+            state = json.loads(p.read_text())
+
+            if "Pid" not in state or Path(f"/proc/{state['Pid']}").exists():
+                die(
+                    f"Another virtual machine named {config.machine_or_name()} is already running",
+                    hint="Use --machine to specify a different virtual machine name",
+                )
 
         p.write_text(
             json.dumps(
                 {
                     "Machine": config.machine_or_name(),
+                    "Pid": os.getpid(),
                     "ProxyCommand": f"socat - VSOCK-CONNECT:{cid}:%p",
                     "SshKey": os.fspath(config.ssh_key) if config.ssh_key else None,
                 },
