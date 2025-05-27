@@ -1342,66 +1342,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     using the settings below or with `mkosi.tools.conf` which can either be a
     file or directory containing extra configuration for the default tools tree.
 
-    The following table shows for which distributions default tools tree
-    packages are defined and which packages are included in those default
-    tools trees:
-
-    |                         | Fedora | CentOS | Debian | Kali | Ubuntu | Arch | openSUSE |
-    |-------------------------|:------:|:------:|:------:|:----:|:------:|:----:|:--------:|
-    | `acl`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `apt`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
-    | `archlinux-keyring`     | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
-    | `attr`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `bash`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `btrfs-progs`           | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `ca-certificates`       | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `coreutils`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `cpio`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `createrepo_c`          | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `curl`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `debian-keyring`        | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
-    | `diffutils`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `distribution-gpg-keys` | ✓      | ✓      | ✓      | ✓    |        | ✓    | ✓        |
-    | `dnf`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `dosfstools`            | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `e2fsprogs`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `edk2-ovmf`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `erofs-utils`           | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `findutils`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `git`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `grep`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `grub-tools`            | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
-    | `jq`                    | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `kali-archive-keyring`  |        |        |        | ✓    |        |      |          |
-    | `kmod`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `less`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `mtools`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `nano`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `opensc`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `openssh`               | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `openssl`               | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `pkcs11-provider`       | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `perf`                  | ✓      | ✓      | ✓      | ✓    |        | ✓    | ✓        |
-    | `sed`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `pacman`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
-    | `policycoreutils`       | ✓      | ✓      | ✓      | ✓    | ✓      |      | ✓        |
-    | `qemu`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `sbsigntools`           | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `socat`                 | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `squashfs-tools`        | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `strace`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `swtpm`                 | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `systemd`               | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `ukify`                 | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `tar`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `ubuntu-keyring`        | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
-    | `util-linux`            | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `virtiofsd`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `virt-firmware`         | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `xfsprogs`              | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `xz`                    | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `zstd`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `zypper`                | ✓      |        | ✓      | ✓    | ✓      | ✓    | ✓        |
+    See the **TOOLS TREE** section for further details.
 
 `ToolsTreeDistribution=`, `--tools-tree-distribution=`
 :   Set the distribution to use for the default tools tree. Defaults to the host distribution except for
@@ -2857,6 +2798,88 @@ final cache only apply to uses of **mkosi** with a source tree and build
 script. When all three are enabled together turn-around times for
 complete image builds are minimal, as only changed source files need to
 be recompiled.
+
+# TOOLS TREES
+
+Tools trees are a secondary image that mkosi can use to build the actual images. This is useful to make image
+builds more reproducible, but also allows to use newer tooling, that is not yet available in the host
+distribution running mkosi.
+
+Tools trees can be provided via the `ToolsTree=` option, the `mkosi.tools` directory or built automatically
+by mkosi if set to `ToolsTree=default`. For most use cases setting it is sufficient to use the default tools
+trees and the use of a tools tree is recommended.
+
+Fully custom tools trees can be built like any other mkosi image, but mkosi provides a builtin include
+providing the default tools tree packages:
+
+```bash
+mkosi --include=mkosi-tools --format=directory
+```
+
+Tools trees, including default tools trees, can be further customized via the different `ToolsTree*=`
+variables as well as the `mkosi.tools.conf` configuration file or directory. The output format for tools
+trees cannot currently be changed via configuration files.
+
+The following table shows for which distributions default tools tree
+packages are defined and which packages are included in those default
+tools trees:
+
+|                         | Fedora | CentOS | Debian | Kali | Ubuntu | Arch | openSUSE |
+|-------------------------|:------:|:------:|:------:|:----:|:------:|:----:|:--------:|
+| `acl`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `apt`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
+| `archlinux-keyring`     | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
+| `attr`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `bash`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `btrfs-progs`           | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `ca-certificates`       | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `coreutils`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `cpio`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `createrepo_c`          | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `curl`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `debian-keyring`        | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
+| `diffutils`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `distribution-gpg-keys` | ✓      | ✓      | ✓      | ✓    |        | ✓    | ✓        |
+| `dnf`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `dosfstools`            | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `e2fsprogs`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `edk2-ovmf`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `erofs-utils`           | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `findutils`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `git`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `grep`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `grub-tools`            | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
+| `jq`                    | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `kali-archive-keyring`  |        |        |        | ✓    |        |      |          |
+| `kmod`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `less`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `mtools`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `nano`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `opensc`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `openssh`               | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `openssl`               | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `pkcs11-provider`       | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `perf`                  | ✓      | ✓      | ✓      | ✓    |        | ✓    | ✓        |
+| `sed`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `pacman`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
+| `policycoreutils`       | ✓      | ✓      | ✓      | ✓    | ✓      |      | ✓        |
+| `qemu`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `sbsigntools`           | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `socat`                 | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `squashfs-tools`        | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `strace`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `swtpm`                 | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `systemd`               | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `ukify`                 | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `tar`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `ubuntu-keyring`        | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
+| `util-linux`            | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `virtiofsd`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `virt-firmware`         | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `xfsprogs`              | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `xz`                    | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `zstd`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `zypper`                | ✓      |        | ✓      | ✓    | ✓      | ✓    | ✓        |
 
 # BUILDING MULTIPLE IMAGES
 
