@@ -1202,7 +1202,8 @@ def install_sandbox_trees(config: Config, dst: Path) -> None:
     # Create various mountpoints in /etc as /etc from the sandbox tree is mounted read-only into the sandbox.
 
     for d in (
-        "etc/pki",
+        "etc/pki/ca-trust",
+        "etc/pki/tls",
         "etc/ssl",
         "etc/ca-certificates",
         "etc/pacman.d/gnupg",
