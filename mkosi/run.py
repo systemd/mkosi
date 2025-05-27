@@ -196,7 +196,7 @@ def spawn(
         "PATH": os.environ["PATH"],
         "TERM": os.getenv("TERM", "vt220"),
         "LANG": "C.UTF-8",
-        **env,
+        **{k: v for k, v in env.items() if k != "LANG" and not k.startswith("LC_")},
     }
 
     if "TMPDIR" in os.environ:
