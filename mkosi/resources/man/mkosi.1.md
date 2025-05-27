@@ -1327,7 +1327,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     but the `mkosi.tools/` directory is found in the local directory it is
     automatically used for this purpose with the root directory as target.
 
-:   The tools tree directory is kept between repeated image builds unless
+    The tools tree directory is kept between repeated image builds unless
     cleaned by calling `mkosi clean -f`.
 
     Note that binaries found in any of the paths configured with
