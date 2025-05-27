@@ -282,18 +282,20 @@ class Apt(PackageManager):
 
         if not (conf := context.repository / "conf/distributions").exists():
             conf.parent.mkdir(exist_ok=True)
-            conf.write_text(
-                textwrap.dedent(
-                    f"""\
-                    Origin: mkosi
-                    Label: mkosi
-                    Architectures: {context.config.distribution.architecture(context.config.architecture)}
-                    Codename: mkosi
-                    Components: main
-                    Description: mkosi local repository
-                    """
-                )
+            distconfig = textwrap.dedent(
+                f"""\
+                Origin: mkosi
+                Label: mkosi
+                Architectures: {context.config.distribution.architecture(context.config.architecture)}
+                Codename: mkosi
+                Components: main
+                Description: mkosi local repository
+                """
             )
+            for distconfinclude in ("usr/lib/reprepro/", "etc/reprepro/"):
+                if (context.sandbox_tree / distconfinclude).exists():
+                    distconfig += f"!include: /{distconfinclude}\n"
+            conf.write_text(distconfig)
 
         run(
             [
