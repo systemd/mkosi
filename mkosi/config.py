@@ -1490,7 +1490,14 @@ def config_parse_minimum_version(value: Optional[str], old: Optional[str]) -> Op
 
             current = run([*git, "rev-parse", "HEAD"], stdout=subprocess.PIPE).stdout.strip()
 
-            result = run([*git, "merge-base", "--is-ancestor", hash, current], check=False)
+            result = run(
+                [*git, "rev-parse", "--quiet", "--verify", f"{hash}^{{commit}}"],
+                # git rev-parse seems to produce output even with --quiet added to the options.
+                stdout=subprocess.DEVNULL,
+                check=False,
+            )
+            if result.returncode == 0:
+                result = run([*git, "merge-base", "--is-ancestor", hash, current], check=False)
             if result.returncode == 1:
                 die(
                     f"mkosi commit {hash} or newer is required by this configuration",
