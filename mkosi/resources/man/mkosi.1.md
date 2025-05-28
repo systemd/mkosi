@@ -228,7 +228,7 @@ The following command line verbs are known:
 :   This verb is equivalent to the `--help` switch documented below: it
     shows a brief usage explanation.
 
-## Commandline-only Options
+## Command-Line-Only Options
 
 Those settings cannot be configured in the configuration files.
 
@@ -3114,9 +3114,9 @@ $ mkosi -d fedora --console=gui qemu
 A kernel may be booted directly with
 `mkosi vm -kernel ... -initrd ... -append '...'`.
 This is a bit faster because no boot loader is used, and it is also
-easier to experiment with different kernels and kernel commandlines.
+easier to experiment with different kernels and kernel command lines.
 Note that despite the name, **qemu**'s `-append` option replaces
-the default kernel commandline embedded in the kernel
+the default kernel command line embedded in the kernel
 and any previous `-append` specifications.
 
 The UKI is also copied into the output directory and may be booted directly:
