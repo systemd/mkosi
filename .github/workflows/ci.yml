@@ -170,6 +170,7 @@ jobs:
           [Build]
           ToolsTreeDistribution=${{ matrix.tools }}
           Environment=SYSTEMD_REPART_MKFS_OPTIONS_EROFS="--quiet"
+                      SYSTEMD_REPART_OVERRIDE_FSTYPE_ROOT=ext4
 
           [Runtime]
           KVM=yes
