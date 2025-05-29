@@ -504,14 +504,6 @@ def sandbox_cmd(
             elif p.is_dir():
                 cmdline += ["--ro-bind", p, Path("/") / p.relative_to(tools)]
 
-        # If we're using /usr from a tools tree, we have to use /etc/alternatives and /etc/ld.so.cache from
-        # the tools tree as well if they exists since those are directly related to /usr. In relaxed mode, we
-        # only do this if the mountpoint already exists on the host as otherwise we'd modify the host's /etc
-        # by creating the mountpoint ourselves (or fail when trying to create it).
-        for p in (Path("etc/alternatives"), Path("etc/ld.so.cache")):
-            if (tools / p).exists() and (not relaxed or (Path("/") / p).exists()):
-                cmdline += ["--ro-bind", tools / p, Path("/") / p]
-
         if (tools / "nix/store").exists():
             cmdline += ["--bind", tools / "nix/store", "/nix/store"]
 
@@ -526,20 +518,14 @@ def sandbox_cmd(
                     Path("/lib"),
                     Path("/lib32"),
                     Path("/lib64"),
+                    Path("/etc"),
                 ):
                     if p.is_symlink():
                         cmdline += ["--symlink", p.readlink(), p]
                     else:
                         cmdline += ["--bind", p, p]
 
-                # /etc might be full of symlinks to /usr/share/factory, so make sure we use
-                # /usr/share/factory from the host and not from the tools tree.
-                if (
-                    tools != Path("/")
-                    and (tools / "usr/share/factory").exists()
-                    and (factory := Path("/usr/share/factory")).exists()
-                ):
-                    cmdline += ["--bind", factory, factory]
+            cmdline += ["--ro-bind", tools / "etc", "/etc"]
         else:
             cmdline += [
                 "--dir", "/var/tmp",
@@ -556,10 +542,17 @@ def sandbox_cmd(
             else:
                 cmdline += ["--dev", "/dev"]
 
-            if network:
-                for p in (Path("/etc/resolv.conf"), Path("/run/systemd/resolve")):
-                    if p.exists():
-                        cmdline += ["--ro-bind", p, p]
+            # If we're using /usr from a tools tree, we have to use /etc/alternatives and /etc/ld.so.cache
+            # from the tools tree as well if they exists since those are directly related to /usr.
+            for p in (Path("etc/alternatives"), Path("etc/ld.so.cache")):
+                if (tools / p).exists():
+                    cmdline += ["--ro-bind", tools / p, Path("/") / p]
+
+            if network and (p := Path("/run/systemd/resolve")).exists():
+                cmdline += ["--ro-bind", p, p]
+
+        if network and (p := Path("/etc/resolv.conf")).exists():
+            cmdline += ["--ro-bind", p, p]
 
         path = finalize_path(
             root=tools,
