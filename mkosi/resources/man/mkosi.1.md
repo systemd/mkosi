@@ -228,7 +228,7 @@ The following command line verbs are known:
 :   This verb is equivalent to the `--help` switch documented below: it
     shows a brief usage explanation.
 
-## Commandline-only Options
+## Command-Line-Only Options
 
 Those settings cannot be configured in the configuration files.
 
@@ -240,7 +240,7 @@ Those settings cannot be configured in the configuration files.
     re-building the image. If incremental builds are enabled,
     specifying this option twice will ensure the intermediary
     cache files are removed, too, before the re-build is initiated. If a
-    package cache is used (also see the **Files** section below),
+    package cache is used (also see the **FILES** section below),
     specifying this option thrice will ensure the package cache is
     removed too, before the re-build is initiated. For the `clean`
     operation this option has a slightly different effect: by default
@@ -709,7 +709,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `CleanScripts=`, `--clean-script=`
 :   Takes a comma-separated list of paths to executables that are used as
-    the clean scripts for this image. See the **Scripts** section for
+    the clean scripts for this image. See the **SCRIPTS** section for
     more information.
 
 ### [Content] Section
@@ -827,7 +827,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     Use this to insert files and directories into the OS tree before the
     package manager installs any packages. If the `mkosi.skeleton/`
     directory is found in the local directory it is also used for this
-    purpose with the root directory as target (also see the **Files**
+    purpose with the root directory as target (also see the **FILES**
     section below).
 
     Note that skeleton trees are cached and any changes to skeleton trees
@@ -856,7 +856,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     default configuration files shipped with the distribution. If the
     `mkosi.extra/` directory is found in the local directory it is also
     used for this purpose with the root directory as target (also see the
-    **Files** section below).
+    **FILES** section below).
 
     As with the base tree logic above, instead of a directory, a tar
     file may be provided too. `mkosi.extra.tar` will be automatically
@@ -892,32 +892,32 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `SyncScripts=`, `--sync-script=`
 :   Takes a comma-separated list of paths to executables that are used as
-    the sync scripts for this image. See the **Scripts** section for
+    the sync scripts for this image. See the **SCRIPTS** section for
     more information.
 
 `PrepareScripts=`, `--prepare-script=`
 :   Takes a comma-separated list of paths to executables that are used as
-    the prepare scripts for this image. See the **Scripts** section for
+    the prepare scripts for this image. See the **SCRIPTS** section for
     more information.
 
 `BuildScripts=`, `--build-script=`
 :   Takes a comma-separated list of paths to executables that are used as
-    the build scripts for this image. See the **Scripts** section for more
+    the build scripts for this image. See the **SCRIPTS** section for more
     information.
 
 `PostInstallationScripts=`, `--postinst-script=`
 :   Takes a comma-separated list of paths to executables that are used as
-    the post-installation scripts for this image. See the **Scripts** section
+    the post-installation scripts for this image. See the **SCRIPTS** section
     for more information.
 
 `FinalizeScripts=`, `--finalize-script=`
 :   Takes a comma-separated list of paths to executables that are used as
-    the finalize scripts for this image. See the **Scripts** section for more
+    the finalize scripts for this image. See the **SCRIPTS** section for more
     information.
 
 `PostOutputScripts=`, `--postoutput-script=`
 :   Takes a comma-separated list of paths to executables that are used as
-    the post output scripts for this image. See the **Scripts** section for more
+    the post output scripts for this image. See the **SCRIPTS** section for more
     information.
 
 `Bootable=`, `--bootable=`
@@ -1153,7 +1153,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `RootPassword=`, `--root-password=`,
 :   Set the system root password. If this option is not used, but a `mkosi.rootpw` file is found in the local
     directory, the password is automatically read from it or if the file is executable it is run as a script
-    and stdout is read instead (see the **Scripts** section below). If the password starts with `hashed:`, it is
+    and stdout is read instead (see the **SCRIPTS** section below). If the password starts with `hashed:`, it is
     treated as an already hashed root password. The root password is also stored in `/usr/lib/credstore` under
     the appropriate systemd credential so that it applies even if only `/usr` is shipped in the image. To create
     an unlocked account without any password use `hashed:` without a hash.
@@ -1331,7 +1331,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     but the `mkosi.tools/` directory is found in the local directory it is
     automatically used for this purpose with the root directory as target.
 
-:   The tools tree directory is kept between repeated image builds unless
+    The tools tree directory is kept between repeated image builds unless
     cleaned by calling `mkosi clean -f`.
 
     Note that binaries found in any of the paths configured with
@@ -1346,66 +1346,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     using the settings below or with `mkosi.tools.conf` which can either be a
     file or directory containing extra configuration for the default tools tree.
 
-    The following table shows for which distributions default tools tree
-    packages are defined and which packages are included in those default
-    tools trees:
-
-    |                         | Fedora | CentOS | Debian | Kali | Ubuntu | Arch | openSUSE |
-    |-------------------------|:------:|:------:|:------:|:----:|:------:|:----:|:--------:|
-    | `acl`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `apt`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
-    | `archlinux-keyring`     | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
-    | `attr`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `bash`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `btrfs-progs`           | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `ca-certificates`       | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `coreutils`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `cpio`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `createrepo_c`          | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `curl`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `debian-keyring`        | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
-    | `diffutils`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `distribution-gpg-keys` | ✓      | ✓      | ✓      | ✓    |        | ✓    | ✓        |
-    | `dnf`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `dosfstools`            | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `e2fsprogs`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `edk2-ovmf`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `erofs-utils`           | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `findutils`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `git`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `grep`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `grub-tools`            | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
-    | `jq`                    | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `kali-archive-keyring`  |        |        |        | ✓    |        |      |          |
-    | `kmod`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `less`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `mtools`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `nano`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `opensc`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `openssh`               | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `openssl`               | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `pkcs11-provider`       | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `perf`                  | ✓      | ✓      | ✓      | ✓    |        | ✓    | ✓        |
-    | `sed`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `pacman`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
-    | `policycoreutils`       | ✓      | ✓      | ✓      | ✓    | ✓      |      | ✓        |
-    | `qemu`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `sbsigntools`           | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `socat`                 | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `squashfs-tools`        | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `strace`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `swtpm`                 | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `systemd`               | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `ukify`                 | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `tar`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `ubuntu-keyring`        | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
-    | `util-linux`            | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `virtiofsd`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `virt-firmware`         | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `xfsprogs`              | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `xz`                    | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `zstd`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
-    | `zypper`                | ✓      |        | ✓      | ✓    | ✓      | ✓    | ✓        |
+    See the **TOOLS TREE** section for further details.
 
 `ToolsTreeDistribution=`, `--tools-tree-distribution=`
 :   Set the distribution to use for the default tools tree. Defaults to the host distribution except for
@@ -1493,7 +1434,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     path of each pair refers to a directory to copy into the mkosi
     sandbox before executing a tool. If the `mkosi.sandbox/` directory
     is found in the local directory it is used for this purpose with the
-    root directory as target (also see the **Files** section below).
+    root directory as target (also see the **FILES** section below).
 
     **mkosi** will look for the package manager configuration and related
     files in the configured sandbox trees. Unless specified otherwise,
@@ -1559,7 +1500,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     **mkosi-chroot** is invoked during execution of the build scripts. If
     this option is not specified, but a directory `mkosi.builddir/` exists
     in the local directory it is automatically used for this purpose (also
-    see the **Files** section below).
+    see the **FILES** section below).
 
 `BuildKey=`, `--build-key=`
 :   Specifies the subdirectory within the build directory where to store
@@ -2178,7 +2119,7 @@ config file is read:
 
     When this setting is specified for the "main" image, it specifies
     which subimages should be built. See the
-    **Building multiple images** section for more information.
+    **BUILDING MULTIPLE IMAGES** section for more information.
 
 `MinimumVersion=`, `--minimum-version=`
 :   The minimum **mkosi** version required to build this configuration. If
@@ -2192,14 +2133,14 @@ config file is read:
 
 `ConfigureScripts=`, `--configure-script=`
 :   Takes a comma-separated list of paths to executables that are used as
-    the configure scripts for this image. See the **Scripts** section for
+    the configure scripts for this image. See the **SCRIPTS** section for
     more information.
 
 `PassEnvironment=`, `--pass-environment=`
 :   Takes a list of environment variable names separated by spaces. When
     building multiple images, pass the listed environment variables to
     each individual subimage as if they were "universal" settings. See
-    the **Building multiple images** section for more information.
+    the **BUILDING MULTIPLE IMAGES** section for more information.
 
 ### [UKIProfile] Section
 
@@ -2328,7 +2269,7 @@ Note that when not using a custom mirror, `RHEL` images can only be
 built from a host system with a `RHEL` subscription (established using
 e.g. `subscription-manager`).
 
-# Execution Flow
+# EXECUTION FLOW
 
 Execution flow for `mkosi build`. Default values/calls are shown in parentheses.
 When building with `--incremental=yes` **mkosi** creates a cache of the distribution
@@ -2387,7 +2328,7 @@ Then, for each image, we execute the following steps:
 1. Generate final output format
 1. Run post-output scripts (`mkosi.postoutput`)
 
-# Scripts
+# SCRIPTS
 
 To allow for image customization that cannot be implemented using
 **mkosi**'s builtin features, **mkosi** supports running scripts at various
@@ -2696,7 +2637,7 @@ running scripts are thrown away after the scripts finish executing. Use
 the output, build or cache directories if you need to persist data
 between builds.
 
-# Files
+# FILES
 
 To make it easy to build images for development versions of your
 projects, **mkosi** can read configuration data from the local directory,
@@ -2862,7 +2803,89 @@ script. When all three are enabled together turn-around times for
 complete image builds are minimal, as only changed source files need to
 be recompiled.
 
-# Building multiple images
+# TOOLS TREES
+
+Tools trees are a secondary image that mkosi can use to build the actual images. This is useful to make image
+builds more reproducible, but also allows to use newer tooling, that is not yet available in the host
+distribution running mkosi.
+
+Tools trees can be provided via the `ToolsTree=` option, the `mkosi.tools` directory or built automatically
+by mkosi if set to `ToolsTree=default`. For most use cases setting it is sufficient to use the default tools
+trees and the use of a tools tree is recommended.
+
+Fully custom tools trees can be built like any other mkosi image, but mkosi provides a builtin include
+providing the default tools tree packages:
+
+```bash
+mkosi --include=mkosi-tools --format=directory
+```
+
+Tools trees, including default tools trees, can be further customized via the different `ToolsTree*=`
+variables as well as the `mkosi.tools.conf` configuration file or directory. The output format for tools
+trees cannot currently be changed via configuration files.
+
+The following table shows for which distributions default tools tree
+packages are defined and which packages are included in those default
+tools trees:
+
+|                         | Fedora | CentOS | Debian | Kali | Ubuntu | Arch | openSUSE |
+|-------------------------|:------:|:------:|:------:|:----:|:------:|:----:|:--------:|
+| `acl`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `apt`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
+| `archlinux-keyring`     | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
+| `attr`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `bash`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `btrfs-progs`           | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `ca-certificates`       | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `coreutils`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `cpio`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `createrepo_c`          | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `curl`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `debian-keyring`        | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
+| `diffutils`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `distribution-gpg-keys` | ✓      | ✓      | ✓      | ✓    |        | ✓    | ✓        |
+| `dnf`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `dosfstools`            | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `e2fsprogs`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `edk2-ovmf`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `erofs-utils`           | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `findutils`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `git`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `grep`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `grub-tools`            | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
+| `jq`                    | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `kali-archive-keyring`  |        |        |        | ✓    |        |      |          |
+| `kmod`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `less`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `mtools`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `nano`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `opensc`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `openssh`               | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `openssl`               | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `pkcs11-provider`       | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `perf`                  | ✓      | ✓      | ✓      | ✓    |        | ✓    | ✓        |
+| `sed`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `pacman`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
+| `policycoreutils`       | ✓      | ✓      | ✓      | ✓    | ✓      |      | ✓        |
+| `qemu`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `sbsigntools`           | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `socat`                 | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `squashfs-tools`        | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `strace`                | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `swtpm`                 | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `systemd`               | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `ukify`                 | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `tar`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `ubuntu-keyring`        | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
+| `util-linux`            | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `virtiofsd`             | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `virt-firmware`         | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `xfsprogs`              | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `xz`                    | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `zstd`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `zypper`                | ✓      |        | ✓      | ✓    | ✓      | ✓    | ✓        |
+
+# BUILDING MULTIPLE IMAGES
 
 If the `mkosi.images/` directory exists, **mkosi** will load individual
 subimage configurations from it and build each of them. Image
@@ -3095,9 +3118,9 @@ $ mkosi -d fedora --console=gui qemu
 A kernel may be booted directly with
 `mkosi vm -kernel ... -initrd ... -append '...'`.
 This is a bit faster because no boot loader is used, and it is also
-easier to experiment with different kernels and kernel commandlines.
+easier to experiment with different kernels and kernel command lines.
 Note that despite the name, **qemu**'s `-append` option replaces
-the default kernel commandline embedded in the kernel
+the default kernel command line embedded in the kernel
 and any previous `-append` specifications.
 
 The UKI is also copied into the output directory and may be booted directly:
@@ -3164,7 +3187,7 @@ include <tunables/global>
 }
 ```
 
-# Frequently Asked Questions (FAQ)
+# FREQUENTLY ASKED QUESTIONS (FAQ)
 
 - Why does `mkosi vm` with KVM not work on Debian/Kali/Ubuntu?
 
