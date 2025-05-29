@@ -4126,21 +4126,33 @@ def run_sandbox(args: Args, config: Config) -> None:
     if not args.cmdline:
         die("Please specify a command to execute in the sandbox")
 
-    mounts = finalize_certificate_mounts(config, relaxed=True)
+    mounts = []
+    if config.tools() != Path("/"):
+        for f in ("passwd", "group", "shadow", "gshadow"):
+            if Path(f"/etc/{f}").exists() and (config.tools() / "etc" / f).exists():
+                mounts += ["--ro-bind", f"/etc/{f}", f"/etc/{f}"]
 
-    if config.tools() != Path("/") and (config.tools() / "etc/crypto-policies").exists():
-        mounts += ["--ro-bind", config.tools() / "etc/crypto-policies", Path("/etc/crypto-policies")]
+        if Path("/etc/nsswitch.conf").exists() and (config.tools() / "etc/nsswitch.conf").exists():
+            mounts += ["--ro-bind", "/etc/nsswitch.conf", "/etc/nsswitch.conf"]
 
-    # Since we reuse almost every top level directory from the host except /usr, the crypto mountpoints
-    # have to exist already in these directories or we'll fail with a permission error. Let's check this
-    # early and show a better error and a suggestion on how users can fix this issue. We use slice
-    # notation to get every 3rd item from the mounts list which is the destination path.
-    for dst in mounts[2::3]:
-        if not Path(dst).exists():
-            die(
-                f"Missing mountpoint {dst}",
-                hint=f"Create an empty directory at {dst} using 'mkdir -p {dst}' as root and try again",
-            )
+        # We can't bind mount in the hosts's /etc/resolv.conf if this file doesn't exist without making the
+        # entirety of /etc writable or messing around with overlayfs, so let's just ensure it exists.
+        if (
+            not (config.tools() / "etc/resolv.conf").is_symlink()
+            and not (config.tools() / "etc/resolv.conf").exists()
+        ):
+            (config.tools() / "etc/resolv.conf").touch()
+
+        # Since we reuse almost every top level directory from the host except /usr and /etc, the crypto
+        # mountpoints have to exist already in these directories or we'll fail with a permission error. Let's
+        # check this early and show a better error and a suggestion on how users can fix this issue. We use
+        # slice notation to get every 3rd item from the mounts list which is the destination path.
+        for dst in finalize_certificate_mounts(config, relaxed=True)[2::3]:
+            if not os.fspath(dst).startswith("/etc") and not Path(dst).exists():
+                die(
+                    f"Missing mountpoint {dst}",
+                    hint=f"Create an empty directory at {dst} using 'mkdir -p {dst}' as root and try again",
+                )
 
     hd, hr = detect_distribution()
 
