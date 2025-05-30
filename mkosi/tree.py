@@ -157,6 +157,7 @@ def copy_tree(
         # cmdline, above, will need to be suitably adjusted.
         with tempfile.TemporaryDirectory() as tmp:
             import textwrap
+            
             p = Path(tmp) / "xattr.conf"
             p.write_text(
                 textwrap.dedent(
