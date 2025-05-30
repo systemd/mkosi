@@ -27,6 +27,7 @@ class Installer(debian.Installer):
 
         components = (
             "main",
+            "universe",
             *context.config.repositories,
         )
 
@@ -35,7 +36,7 @@ class Installer(debian.Installer):
                 types=("deb",),
                 url=context.config.local_mirror,
                 suite=context.config.release,
-                components=("main",),
+                components=("main", "universe",),
                 signedby=None,
             )
             return
