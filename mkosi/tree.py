@@ -161,15 +161,15 @@ def copy_tree(
             p.write_text(
                 textwrap.dedent(
                     """
-                    *                             skip          # Default: ignore all xattr but
-                    system.*                      permissions   #   allow well-known 'system'
-                    trusted.*                     permissions   #   allow well-known 'trusted'
-                    user.*                        permissions   #   allow well-known 'user'
-                    security.*                    permissions   #   allow well-known 'security'
-                                                                # but 
-                    trusted.SGI_*                 skip          #   skip XFS-specific namespace (not portable)
-                    user.Beagle.*                 skip          #   skip Beagle index data (not portable)
-                    security.evm                  skip          #   skip evm (may only be written by kernel)
+                    *                 skip          # Default: ignore all xattr but
+                    system.*          permissions   #   allow well-known 'system'
+                    trusted.*         permissions   #   allow well-known 'trusted'
+                    user.*            permissions   #   allow well-known 'user'
+                    security.*        permissions   #   allow well-known 'security'
+                                                    # but 
+                    trusted.SGI_*     skip          #   skip XFS-specific namespace (not portable)
+                    user.Beagle.*     skip          #   skip Beagle index data (not portable)
+                    security.evm      skip          #   skip evm (may only be written by kernel)
                     """
                 )
             )
