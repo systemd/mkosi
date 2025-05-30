@@ -295,6 +295,9 @@ def install_distribution(context: Context) -> None:
                     context, context.config.packages
                 )
 
+    with complete_step(f"Finalizing {context.config.distribution.pretty_name()}"):
+        context.config.distribution.finalize(context)
+
     for f in (
         "var/lib/systemd/random-seed",
         "var/lib/systemd/credential.secret",

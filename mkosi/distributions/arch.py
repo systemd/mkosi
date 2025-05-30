@@ -64,6 +64,10 @@ class Installer(DistributionInstaller):
         Pacman.install(context, ["filesystem"], apivfs=False)
 
     @classmethod
+    def finalize(cls, context: Context) -> None:
+        pass
+
+    @classmethod
     def repositories(cls, context: Context) -> Iterable[PacmanRepository]:
         if context.config.local_mirror:
             yield PacmanRepository("core", context.config.local_mirror)

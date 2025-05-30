@@ -131,6 +131,10 @@ class Installer(DistributionInstaller):
         Dnf.install(context, ["basesystem"], apivfs=False)
 
     @classmethod
+    def finalize(cls, context: Context) -> None:
+        pass
+
+    @classmethod
     def repositories(cls, context: Context) -> Iterable[RpmRepository]:
         gpgurls = find_fedora_rpm_gpgkeys(context)
 

@@ -80,6 +80,10 @@ class Installer(DistributionInstaller):
         Dnf.install(context, ["basesystem"], apivfs=False)
 
     @classmethod
+    def finalize(cls, context: Context) -> None:
+        pass
+
+    @classmethod
     def architecture(cls, arch: Architecture) -> str:
         a = {
             Architecture.x86_64:   "x86_64",
