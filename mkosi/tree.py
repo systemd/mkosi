@@ -148,13 +148,14 @@ def copy_tree(
         if src.is_dir():
             cmdline += ["--no-target-directory"]
 
-        # A valid /etc/xattr.conf is necessary to work around cross-filesystem copy failures (bug #3732).
-        # This can collapse to the following when cp implements a way to filter out specific xattr
-        # on the command line:
+        # A valid /etc/xattr.conf is necessary to work around cross-filesystem copy failures:
+        #    https://github.com/systemd/mkosi/issues/3732.
+        # A bug is opened with coreutils:
+        #    https://debbugs.gnu.org/cgi/bugreport.cgi?bug=78623
+        # When the bug closes, this can collapse to the following with appropriate adjustments:
         #
         #     run(cmdline, sandbox=sandbox(options=options))
         #
-        # cmdline, above, will need to be suitably adjusted.
         with tempfile.TemporaryDirectory() as tmp:
             import textwrap
 
