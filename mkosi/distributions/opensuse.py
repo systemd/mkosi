@@ -56,6 +56,10 @@ class Installer(DistributionInstaller):
         cls.package_manager(context.config).install(context, ["filesystem"], apivfs=False)
 
     @classmethod
+    def finalize(cls, context: Context) -> None:
+        pass
+
+    @classmethod
     def repositories(cls, context: Context) -> Iterable[RpmRepository]:
         if context.config.local_mirror:
             yield RpmRepository(id="local-mirror", url=f"baseurl={context.config.local_mirror}", gpgurls=())
