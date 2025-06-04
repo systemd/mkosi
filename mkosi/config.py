@@ -5134,7 +5134,7 @@ def parse_config(
                 history.pop(s.dest, None)
                 continue
 
-            if s.dest in context.cli and context.cli[s.dest] != history[s.dest]:
+            if s.dest in context.cli and s.dest in history and context.cli[s.dest] != history[s.dest]:
                 logging.warning(
                     f"Ignoring {s.long} from the CLI. Run with -f to rebuild the image with this setting"
                 )
