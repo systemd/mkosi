@@ -170,6 +170,9 @@ from mkosi.util import (
 from mkosi.versioncomp import GenericVersion
 from mkosi.vmspawn import run_vmspawn
 
+# Allowed characters from https://uapi-group.org/specifications/specs/version_format_specification
+KERNEL_VERSION_PATTERN = r"\d+\.\d+[\w.\-~^+]*"
+
 
 @contextlib.contextmanager
 def mount_base_trees(context: Context) -> Iterator[None]:
@@ -1292,6 +1295,23 @@ def gzip_binary(context: Context) -> str:
     return "pigz" if context.config.find_binary("pigz") else "gzip"
 
 
+def kernel_get_ver_from_modules(context: Context) -> Optional[str]:
+    # Try to get version from the first dir under usr/lib/modules but fail if multiple versions are found
+    versions = [
+        p.name
+        for p in (context.root / "usr/lib/modules").glob("*")
+        if re.match(KERNEL_VERSION_PATTERN, p.name)
+    ]
+    if len(versions) > 1:
+        die(
+            "Multiple kernel module directories found in /usr/lib/modules, unable to determine correct version to use"  # noqa: E501
+        )
+    elif len(versions) == 0:
+        return None
+
+    return versions[0]
+
+
 def fixup_vmlinuz_location(context: Context) -> None:
     # Some architectures ship an uncompressed vmlinux (ppc64el, riscv64)
     for type in ("vmlinuz", "vmlinux"):
@@ -1299,7 +1319,14 @@ def fixup_vmlinuz_location(context: Context) -> None:
             if d.is_symlink():
                 continue
 
-            kver = d.name.removeprefix(f"{type}-")
+            # Extract kernel version pattern from filename
+            filename = d.name.removeprefix(f"{type}-")
+            match = re.search(KERNEL_VERSION_PATTERN, filename)
+            kver = match.group(0) if match else kernel_get_ver_from_modules(context)
+            if kver is None:
+                logging.debug("Unable to get kernel version from modules directory")
+                continue
+
             vmlinuz = context.root / "usr/lib/modules" / kver / type
             if not vmlinuz.parent.exists():
                 continue
