@@ -1051,7 +1051,7 @@ def config_default_proxy_url(namespace: dict[str, Any]) -> Optional[str]:
 
     for k, v in os.environ.items():
         if k in names:
-            return cast(str, v)
+            return v
 
     return None
 

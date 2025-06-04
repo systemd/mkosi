@@ -98,7 +98,7 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def filesystem(cls) -> str:
-        return "btrfs"
+        return "ext4"
 
     @classmethod
     def package_type(cls) -> PackageType:

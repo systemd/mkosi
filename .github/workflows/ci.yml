@@ -182,6 +182,9 @@ jobs:
           DefaultDeviceTimeoutSec=180
           EOF
 
+          # TODO: Use $SYSTEMD_REPART_OVERRIDE_FSTYPE_ROOT once we drop support for Ubuntu Noble.
+          sed -i 's/return "btrfs"/return "ext4"/' mkosi/distributions/*.py
+
           # fail if the script already exists, to avoid hard to debug CI errors
           [[ -f mkosi.configure ]] && exit 1
           tee mkosi.configure <<EOF
