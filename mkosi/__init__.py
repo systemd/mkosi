@@ -1286,6 +1286,21 @@ def gzip_binary(context: Context) -> str:
     return "pigz" if context.config.find_binary("pigz") else "gzip"
 
 
+def _kernel_get_ver_from_modules(context: Context) -> str:
+    moddir = context.root / "usr/lib/modules"
+    # try to get version from the first dir under usr/lib/modules
+
+    kvers = sorted(
+        [
+            item.name
+            for item in moddir.glob("[0-9]*")
+            if item.is_dir() and re.match(r"\d+\.\d+.*", item.name)
+        ],
+        key=lambda p: GenericVersion(p),
+    )
+    return kvers[0] if len(kvers) else "unknown"
+
+
 def fixup_vmlinuz_location(context: Context) -> None:
     # Some architectures ship an uncompressed vmlinux (ppc64el, riscv64)
     for type in ("vmlinuz", "vmlinux"):
@@ -1293,7 +1308,11 @@ def fixup_vmlinuz_location(context: Context) -> None:
             if d.is_symlink():
                 continue
 
-            kver = d.name.removeprefix(f"{type}-")
+            # Extract kernel version pattern from filename
+            filename = d.name.removeprefix(f"{type}-")
+            match = re.search(r"\d+\.\d+[\w\.-]*", filename)
+            kver = match.group(0) if match else _kernel_get_ver_from_modules(context)
+
             vmlinuz = context.root / "usr/lib/modules" / kver / type
             if not vmlinuz.parent.exists():
                 continue
