@@ -175,8 +175,7 @@ def copy_tree(
                     """
                 )
             )
-            local_options = options + ["--ro-bind", p, "/etc/xattr.conf"]
-            run(cmdline, sandbox=sandbox(options=local_options))
+            run(cmdline, sandbox=sandbox(options=options + ["--ro-bind", p, "/etc/xattr.conf"]))
 
     # Subvolumes always have inode 256 so we can use that to check if a directory is a subvolume.
     if (
