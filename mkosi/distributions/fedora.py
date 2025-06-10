@@ -92,6 +92,12 @@ def find_fedora_rpm_gpgkeys(context: Context) -> Iterable[str]:
 
 
 class Installer(DistributionInstaller):
+    _default_release = "rawhide"
+    _releasemap = {
+        "adams": ("42", "42"),
+        "rawhide": ("99", "rawhide"),
+    }
+
     @classmethod
     def pretty_name(cls) -> str:
         return "Fedora Linux"
@@ -103,10 +109,6 @@ class Installer(DistributionInstaller):
     @classmethod
     def package_type(cls) -> PackageType:
         return PackageType.rpm
-
-    @classmethod
-    def default_release(cls) -> str:
-        return "rawhide"
 
     @classmethod
     def grub_prefix(cls) -> str:
