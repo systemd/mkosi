@@ -27,3 +27,7 @@ class Installer(DistributionInstaller):
     @classmethod
     def install(cls, context: Context) -> None:
         pass
+
+    @classmethod
+    def finalize(cls, context: Context) -> None:
+        pass
