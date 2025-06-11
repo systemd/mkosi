@@ -196,6 +196,24 @@ def process_crypttab(staging_dir: Path) -> list[str]:
     return cmdline
 
 
+def network_config() -> list[str]:
+    return [
+        f"--extra-tree={f}:{f}"
+        for f in (
+            "/etc/systemd/network",
+            "/etc/systemd/networkd.conf",
+            "/etc/systemd/networkd.conf.d",
+            "/etc/systemd/resolved.conf",
+            "/etc/systemd/resolved.conf.d",
+        )
+        if Path(f).exists()
+    ]
+
+
+def nfs_config() -> list[str]:
+    return [f"--extra-tree={f}:{f}" for f in ("/etc/idmapd.conf", "/etc/idmapd.conf.d") if Path(f).exists()]
+
+
 def raid_config() -> list[str]:
     return [
         f"--extra-tree={f}:{f}"
@@ -333,7 +351,11 @@ def main() -> None:
 
         for p in args.profile:
             cmdline += ["--profile", p]
-            if p == "raid":
+            if p == "network":
+                cmdline += network_config()
+            elif p == "nfs":
+                cmdline += nfs_config()
+            elif p == "raid":
                 cmdline += raid_config()
 
         if args.kernel_image:
