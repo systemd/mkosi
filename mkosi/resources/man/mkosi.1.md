@@ -256,6 +256,12 @@ Those settings cannot be configured in the configuration files.
     working directory. If the empty string is specified, all configuration in
     the current working directory will be ignored.
 
+`--default=`
+:   Takes an absolute path to a configuration file. **mkosi** parses this file
+    before doing anything. This allows a user to select an entry point to
+    programmatically decide among various available options (e.g.: profiles)
+    without having to select them on the command line.
+
 `--debug`
 :   Enable additional debugging output.
 
