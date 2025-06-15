@@ -375,6 +375,7 @@ def main() -> None:
         for p in (
             "dnf",
             "yum.repos.d/",
+            "pki/rpm-gpg",
             "apt",
             "zypp",
             "pacman.conf",
