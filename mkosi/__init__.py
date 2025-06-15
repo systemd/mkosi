@@ -4127,14 +4127,18 @@ def run_sandbox(args: Args, config: Config) -> None:
         die("Please specify a command to execute in the sandbox")
 
     mounts = finalize_certificate_mounts(config, relaxed=True)
+    if config.tools() != Path("/"):
+        for f in ("passwd", "group", "shadow", "gshadow"):
+            if Path(f"/etc/{f}").exists() and (config.tools() / "etc" / f).exists():
+                mounts += ["--ro-bind", f"/etc/{f}", f"/etc/{f}"]
 
-    if config.tools() != Path("/") and (config.tools() / "etc/crypto-policies").exists():
-        mounts += ["--ro-bind", config.tools() / "etc/crypto-policies", Path("/etc/crypto-policies")]
+        if Path("/etc/nsswitch.conf").exists() and (config.tools() / "etc/nsswitch.conf").exists():
+            mounts += ["--ro-bind", "/etc/nsswitch.conf", "/etc/nsswitch.conf"]
 
-    # Since we reuse almost every top level directory from the host except /usr, the crypto mountpoints
-    # have to exist already in these directories or we'll fail with a permission error. Let's check this
-    # early and show a better error and a suggestion on how users can fix this issue. We use slice
-    # notation to get every 3rd item from the mounts list which is the destination path.
+    # Since we reuse almost every top level directory from the host except /usr and /etc, the crypto
+    # mountpoints have to exist already in these directories or we'll fail with a permission error. Let's
+    # check this early and show a better error and a suggestion on how users can fix this issue. We use
+    # slice notation to get every 3rd item from the mounts list which is the destination path.
     for dst in mounts[2::3]:
         if not Path(dst).exists():
             die(
@@ -4948,6 +4952,22 @@ def run_build(
         )
 
 
+def ensure_tools_tree_has_etc_resolv_conf(config: Config) -> None:
+    if not config.tools_tree:
+        return
+
+    # We can't bind mount in the hosts's /etc/resolv.conf if this file doesn't exist without making the
+    # entirety of /etc writable or messing around with overlayfs, so let's just ensure it exists.
+    path = config.tools_tree / "etc/resolv.conf"
+
+    if not path.is_symlink() and not path.exists():
+        die(
+            f"Tools tree {config.tools_tree} is missing /etc/resolv.conf",
+            hint="If you're using a default tools tree, run mkosi -f clean to remove the old tools tree "
+            "without /etc/resolv.conf",
+        )
+
+
 def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, resources: Path) -> None:
     images = list(images)
 
@@ -5081,8 +5101,14 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
                 metadata_dir=Path(metadata_dir),
             )
 
+        resolv = tools.output_dir_or_cwd() / tools.output / "etc/resolv.conf"
+        if not resolv.is_symlink() and not resolv.exists():
+            resolv.touch()
+
         _, _, manifest = cache_tree_paths(tools)
         manifest.write_text(dump_json(tools.cache_manifest()))
+
+    ensure_tools_tree_has_etc_resolv_conf(last)
 
     if args.verb.needs_tools():
         return {

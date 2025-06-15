@@ -138,15 +138,18 @@ def finalize_certificate_mounts(config: Config, relaxed: bool = False) -> list[P
     root = config.tools() if config.tools_tree_certificates else Path("/")
 
     if not relaxed or root != Path("/"):
-        mounts += [
-            (root / subdir, Path("/") / subdir)
-            for subdir in (
+        subdirs = [Path("var/lib/ca-certificates")]
+        if not relaxed:
+            subdirs += [
                 Path("etc/pki/ca-trust"),
                 Path("etc/pki/tls"),
                 Path("etc/ssl"),
                 Path("etc/ca-certificates"),
-                Path("var/lib/ca-certificates"),
-            )
+            ]
+
+        mounts += [
+            (root / subdir, Path("/") / subdir)
+            for subdir in subdirs
             if (root / subdir).exists() and any(p for p in (root / subdir).rglob("*") if not p.is_dir())
         ]
 
