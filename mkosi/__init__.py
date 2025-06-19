@@ -655,6 +655,7 @@ def run_sync_scripts(config: Config) -> None:
     if config.profiles:
         env["PROFILES"] = " ".join(config.profiles)
 
+    config.workspace_dir_or_default().mkdir(parents=True, exist_ok=True)
     with (
         finalize_source_mounts(config, ephemeral=False) as sources,
         finalize_config_json(config) as json,
