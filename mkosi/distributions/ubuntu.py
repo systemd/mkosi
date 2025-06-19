@@ -9,13 +9,28 @@ from mkosi.installer.apt import AptRepository
 
 
 class Installer(debian.Installer):
+    _default_release = "noble"
+    _releasemap = {
+        "20.04": ("20.04", "focal"),
+        "focal": ("20.04", "focal"),
+        "focal fossa": ("20.04", "focal"),
+        "22.04": ("22.04", "jammy"),
+        "jammy": ("22.04", "jammy"),
+        "jammy jellyfish": ("22.04", "jammy"),
+        "24.04": ("24.04", "noble"),
+        "noble": ("24.04", "noble"),
+        "noble numbat": ("24.04", "noble"),
+        "24.10": ("24.10", "oracular"),
+        "oracular": ("24.10", "oracular"),
+        "oracular oriole": ("24.10", "oracular"),
+        "25.04": ("25.04", "plucky"),
+        "plucky": ("25.04", "plucky"),
+        "plucky puffin": ("25.04", "plucky"),
+    }
+
     @classmethod
     def pretty_name(cls) -> str:
         return "Ubuntu"
-
-    @classmethod
-    def default_release(cls) -> str:
-        return "noble"
 
     @classmethod
     def default_tools_tree_distribution(cls) -> Distribution:
@@ -34,7 +49,7 @@ class Installer(debian.Installer):
             yield AptRepository(
                 types=("deb",),
                 url=context.config.local_mirror,
-                suite=context.config.release,
+                suite=str(context.config.release),
                 components=("main",),
                 signedby=None,
             )
@@ -50,7 +65,7 @@ class Installer(debian.Installer):
         yield AptRepository(
             types=types,
             url=mirror,
-            suite=context.config.release,
+            suite=str(context.config.release),
             components=components,
             signedby=signedby,
         )
