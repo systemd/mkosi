@@ -5071,9 +5071,9 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
 
         run_clean(args, tools)
 
+        ensure_directories_exist(tools)
         run_sync_scripts(tools)
         check_tools(tools, Verb.build)
-        ensure_directories_exist(tools)
 
         with (
             tempfile.TemporaryDirectory(
@@ -5254,6 +5254,7 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
             ) as package_dir,
         ):
             for config in images:
+                ensure_directories_exist(config)
                 run_sync_scripts(config)
 
             synced = False
@@ -5269,7 +5270,6 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
 
                 check_tools(config, Verb.build)
                 check_inputs(config)
-                ensure_directories_exist(config)
 
                 if not synced:
                     sync_repository_metadata(
