@@ -453,11 +453,10 @@ def vartmpdir() -> Iterator[Path]:
                     shutil.rmtree(d)
 
                 fork_and_wait(remove)
-                return
             elif e.errno != errno.ENOENT:
                 raise
-
-        shutil.rmtree(d)
+        else:
+            shutil.rmtree(d)
 
 
 @contextlib.contextmanager
