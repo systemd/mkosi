@@ -546,7 +546,7 @@ def pack_file_descriptors() -> int:
 
             nfd = libc.fcntl(fds[i], F_DUPFD, SD_LISTEN_FDS_START + i)
             if nfd < 0:
-                oserror("fnctl")
+                oserror("fcntl")
 
             try:
                 os.close(fds[i])
