@@ -3460,7 +3460,7 @@ def make_image(
 
     if split:
         for p in partitions:
-            if p.split_path:
+            if p.split_path and p.type not in skip:
                 maybe_compress(context, context.config.compress_output, p.split_path)
 
     if ArtifactOutput.roothash in context.config.split_artifacts and (

@@ -209,12 +209,25 @@ while read -r SIG; do
         cp "/usr/src/packages/SOURCES/$(basename "${SIG%roothash.sig}osrelease")" mkosi.repart/usr/lib/os-release
         ARGS+=(--root="$PWD"/mkosi.repart)
     fi
+
+    if jq -r '.SplitArtifacts[]' "$MKOSI_CONFIG" | grep -q partitions; then
+        # Need to recreate the split artifact and compress it if needed
+        ARGS+=(--split=yes)
+        split=1
+    fi
     systemd-repart "${ARGS[@]}"
     rm -rf mkosi.repart
 
     if ((recompress)); then
         zstd --force "$OUTPUTDIR/$(basename "${SIG%roothash.sig}")"raw*
         rm -f "$OUTPUTDIR/$(basename "${SIG%roothash.sig}raw")" "$OUTPUTDIR/$(basename "${SIG%roothash.sig}raw.img")"
+        if ((split)); then
+            zstd --force "$OUTPUTDIR/$(basename "${SIG%roothash.sig}")"*-verity-sig.*.raw
+            # sd-repart will split out all partitions again
+            rm -f "$OUTPUTDIR/$(basename "${SIG%roothash.sig}")"usr-*.raw \
+                "$OUTPUTDIR/$(basename "${SIG%roothash.sig}")"root-*.raw \
+                "$OUTPUTDIR/$(basename "${SIG%roothash.sig}")"esp.raw
+        fi
     fi
 
     # Do not publish the roothash here, as importctl and friends will mistake it as the roothash of the .raw image
@@ -240,6 +253,10 @@ mapfile -t AUTHVARS < <(find hashes/authvars -type f -name "*.auth")
 if (( ${#AUTHVARS[@]} > 0 )); then
     for ddi in "$OUTPUTDIR"/*.raw*; do
         test -f "$ddi" || continue
+        # Skip over split artifacts, if any
+        [[ "$ddi" =~ \.usr- ]] && continue
+        [[ "$ddi" =~ \.root- ]] && continue
+        [[ "$ddi" =~ -verity ]] && continue
 
         if [[ $ddi == *.zst ]]; then
             unzstd "${ddi}"

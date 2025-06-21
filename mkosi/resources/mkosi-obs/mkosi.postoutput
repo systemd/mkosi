@@ -72,6 +72,11 @@ done
 # Handle bootloaders separately from UKIs
 for ddi in "${DDIS[@]}"; do
     test -f "$ddi" || continue
+    # Skip over split artifacts, if any
+    [[ "$ddi" =~ \.usr- ]] && continue
+    [[ "$ddi" =~ \.root- ]] && continue
+    [[ "$ddi" =~ -verity ]] && continue
+
     if [[ $ddi == *.zst ]]; then
         unzstd "${ddi}"
     fi
@@ -141,12 +146,17 @@ echo "Staging the following files for signing:"
 cpio -t <"$OUTPUTDIR/hashes.cpio.rsasign"
 
 # The second stage will not do a full rebuild, but only attach signatures to the existing UKI
+# Remember whether we need to split out the verity signature partition, as it's generated later
+if jq -r '.SplitArtifacts[]' "$MKOSI_CONFIG" | grep -q partitions; then
+    split="SplitArtifacts=partitions"
+fi
 cat >"$OUTPUTDIR/mkosi.conf" <<EOF
 [Distribution]
 Distribution=custom
 [Output]
 Format=none
 ImageId=$IMAGE_ID
+${split:-}
 [Include]
 Include=mkosi-obs
 [Build]
