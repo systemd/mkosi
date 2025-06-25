@@ -1768,6 +1768,7 @@ class Args:
     cmdline: list[str]
     force: int
     directory: Optional[Path]
+    default_config: Optional[Path]
     debug: bool
     debug_shell: bool
     debug_workspace: bool
@@ -4329,6 +4330,14 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
         metavar="PATH",
     )
     parser.add_argument(
+        "--default",
+        dest="default_config",
+        help="Use a specific configuration file as the entry point, allowing to set various defaults",
+        type=Path,
+        default=None,
+        metavar="PATH",
+    )
+    parser.add_argument(
         "--debug",
         help="Turn on debugging output",
         action="store_true",
@@ -4410,10 +4419,6 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
     parser.add_argument(
         "--nspawn-keep-unit",
         nargs=0,
-        action=IgnoreAction,
-    )
-    parser.add_argument(
-        "--default",
         action=IgnoreAction,
     )
     parser.add_argument(
@@ -4531,6 +4536,7 @@ class ConfigAction(argparse.Action):
 
 class ParseContext:
     def __init__(self, resources: Path = Path("/")) -> None:
+        self.default_config: Optional[Path] = None
         self.resources = resources
         # We keep two namespaces around, one for the settings specified on the CLI and one for
         # the settings specified in configuration files. This is required to implement both [Match]
@@ -4810,10 +4816,14 @@ class ParseContext:
 
         if extras:
             if parse_local:
-                for localpath in (
-                    *([p] if (p := path.parent / "mkosi.local").is_dir() else []),
-                    *([p] if (p := path.parent / "mkosi.local.conf").is_file() else []),
-                ):
+                localpaths = []
+                if (p := path.parent / "mkosi.local").is_dir():
+                    localpaths.append(p)
+                if (p := path.parent / "mkosi.local.conf").is_file():
+                    localpaths.append(p)
+                if self.default_config is not None and self.default_config.is_file():
+                    localpaths.append(self.default_config)
+                for localpath in localpaths:
                     with chdir(localpath if localpath.is_dir() else Path.cwd()):
                         self.parse_config_one(localpath if localpath.is_file() else Path.cwd())
 
@@ -5145,6 +5155,15 @@ def parse_config(
 
     # One of the specifiers needs access to the directory, so make sure it is available.
     context.config["directory"] = args.directory
+
+    # Config paths need to be absolute - as a special case, if it is not, look in the parent
+    # of --directory. This works nicely on OBS, where the --directory is the git repository
+    # and the --default is the mkosi.conf selected at source service time, placed in the parent.
+    if args.default_config is not None:
+        if args.directory is not None and not args.default_config.is_absolute():
+            context.default_config = args.directory.parent / args.default_config
+        else:
+            context.default_config = args.default_config
 
     context.parse_new_includes()
 
