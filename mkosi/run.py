@@ -525,6 +525,11 @@ def sandbox_cmd(
                         cmdline += ["--bind", p, p]
 
             cmdline += ["--ro-bind", tools / "etc", "/etc"]
+
+            if tools != Path("/"):
+                for f in ("passwd", "group", "shadow", "gshadow", "nsswitch.conf"):
+                    if Path(f"/etc/{f}").exists() and (tools / "etc" / f).exists():
+                        cmdline += ["--ro-bind", f"/etc/{f}", f"/etc/{f}"]
         else:
             cmdline += [
                 "--dir", "/var/tmp",

@@ -4127,13 +4127,6 @@ def run_sandbox(args: Args, config: Config) -> None:
         die("Please specify a command to execute in the sandbox")
 
     mounts = finalize_certificate_mounts(config, relaxed=True)
-    if config.tools() != Path("/"):
-        for f in ("passwd", "group", "shadow", "gshadow"):
-            if Path(f"/etc/{f}").exists() and (config.tools() / "etc" / f).exists():
-                mounts += ["--ro-bind", f"/etc/{f}", f"/etc/{f}"]
-
-        if Path("/etc/nsswitch.conf").exists() and (config.tools() / "etc/nsswitch.conf").exists():
-            mounts += ["--ro-bind", "/etc/nsswitch.conf", "/etc/nsswitch.conf"]
 
     # Since we reuse almost every top level directory from the host except /usr and /etc, the crypto
     # mountpoints have to exist already in these directories or we'll fail with a permission error. Let's
