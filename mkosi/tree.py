@@ -148,7 +148,34 @@ def copy_tree(
         if src.is_dir():
             cmdline += ["--no-target-directory"]
 
-        run(cmdline, sandbox=sandbox(options=options))
+        # A valid /etc/xattr.conf is necessary to work around cross-filesystem copy failures:
+        #    https://github.com/systemd/mkosi/issues/3732.
+        # A bug is opened with coreutils:
+        #    https://debbugs.gnu.org/cgi/bugreport.cgi?bug=78623
+        # When the bug closes, this can collapse to the following with appropriate adjustments:
+        #
+        #     run(cmdline, sandbox=sandbox(options=options))
+        #
+        with tempfile.TemporaryDirectory() as tmp:
+            import textwrap
+
+            p = Path(tmp) / "xattr.conf"
+            p.write_text(
+                textwrap.dedent(
+                    """
+                    *                 skip          # Default: ignore all xattr but
+                    system.*          permissions   #   allow well-known 'system'
+                    trusted.*         permissions   #   allow well-known 'trusted'
+                    user.*            permissions   #   allow well-known 'user'
+                    security.*        permissions   #   allow well-known 'security'
+                                                    # but 
+                    trusted.SGI_*     skip          #   skip XFS-specific namespace (not portable)
+                    user.Beagle.*     skip          #   skip Beagle index data (not portable)
+                    security.evm      skip          #   skip evm (may only be written by kernel)
+                    """
+                )
+            )
+            run(cmdline, sandbox=sandbox(options=options + ["--ro-bind", p, "/etc/xattr.conf"]))
 
     # Subvolumes always have inode 256 so we can use that to check if a directory is a subvolume.
     if (
