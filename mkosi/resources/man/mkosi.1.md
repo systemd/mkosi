@@ -467,7 +467,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   The distribution to install in the image. Takes one of the following
     arguments: `fedora`, `debian`, `kali`, `ubuntu`, `arch`, `opensuse`,
     `mageia`, `centos`, `rhel`, `rhel-ubi`, `openmandriva`, `rocky`, `alma`,
-    `azure` or `custom`. If not specified, defaults to the distribution of
+    `azure`, `amazonlinux`, or `custom`. If not specified, defaults to the distribution of
     the host or `custom` if the distribution of the host is not a supported
     distribution.
 
@@ -515,6 +515,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     | `mageia`       | https://www.mageia.org            |                                |
     | `openmandriva` | http://mirrors.openmandriva.org   |                                |
     | `azure`        | https://packages.microsoft.com/   |                                |
+    | `amazonlinux`  | https://cdn.amazonlinux.com/      |                                |
 
 `LocalMirror=`, `--local-mirror=`
 :   The mirror will be used as a local, plain and direct mirror instead
@@ -2247,6 +2248,8 @@ distributions:
 * *Alma Linux*
 
 * *Azure Linux*
+
+* *Amazon Linux 2023*
 
 * *None* (**Requires the user to provide a pre-built rootfs**)
 
