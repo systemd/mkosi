@@ -4,6 +4,7 @@
 import contextlib
 import functools
 import os
+import stat
 import sys
 import tempfile
 from collections.abc import Iterator
@@ -16,6 +17,15 @@ else:
     from importlib.abc import Traversable
 
 
+def make_executable_if_script(path: Path) -> Path:
+    with path.open("rb") as f:
+        buf = f.read(3)
+        if buf == b"#!/":
+            os.chmod(path, path.stat().st_mode | stat.S_IEXEC)
+
+    return path
+
+
 @contextlib.contextmanager
 def temporary_file(path: Traversable, suffix: str = "") -> Iterator[Path]:
     fd, raw_path = tempfile.mkstemp(suffix=suffix)
@@ -24,7 +34,7 @@ def temporary_file(path: Traversable, suffix: str = "") -> Iterator[Path]:
             os.write(fd, path.read_bytes())
         finally:
             os.close(fd)
-        yield Path(raw_path)
+        yield make_executable_if_script(Path(raw_path))
     finally:
         try:
             os.remove(raw_path)
@@ -73,4 +83,5 @@ def write_contents(target: Path, source: Traversable) -> Path:
             write_contents(child, item)
     else:
         child.write_bytes(source.read_bytes())
+        make_executable_if_script(child)
     return child
