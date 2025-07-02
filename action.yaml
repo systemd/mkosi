@@ -23,18 +23,20 @@ runs:
         KERNEL=="vhost-net", GROUP="kvm", MODE="0666", OPTIONS+="static_node=vhost-net"
         EOF
         sudo udevadm control --reload-rules
-        sudo modprobe kvm
-        sudo modprobe vhost_vsock
-        sudo modprobe vhost_net
+        # kvm/vhost might not be available (e.g.: s390x, ppc64le)
+        sudo modprobe kvm || true
+        sudo modprobe vhost_vsock || true
+        sudo modprobe vhost_net || true
         [[ -e /dev/kvm ]] && sudo udevadm trigger --name-match=kvm
-        sudo udevadm trigger --name-match=vhost-vsock
-        sudo udevadm trigger --name-match=vhost-net
+        [[ -e /dev/vhost-vsock ]] && sudo udevadm trigger --name-match=vhost-vsock
+        [[ -e /dev/vhost-net ]] && sudo udevadm trigger --name-match=vhost-net
         [[ -e /dev/kvm ]] && sudo chmod 666 /dev/kvm
-        sudo chmod 666 /dev/vhost-vsock
-        sudo chmod 666 /dev/vhost-net
+        [[ -e /dev/vhost-vsock ]] && sudo chmod 666 /dev/vhost-vsock
+        [[ -e /dev/vhost-net ]] && sudo chmod 666 /dev/vhost-net
         lsmod
         [[ -e /dev/kvm ]] && ls -l /dev/kvm
-        ls -l /dev/vhost-*
+        [[ -e /dev/vhost-vsock ]] && ls -l /dev/vhost-vsock
+        [[ -e /dev/vhost-net ]] && ls -l /dev/vhost-net
         id
 
     - name: Check clock source
