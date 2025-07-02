@@ -1938,20 +1938,18 @@ def finalize_cmdline(
     else:
         cmdline = []
 
+    if roothash:
+        cmdline += [roothash]
+
     cmdline += context.config.kernel_command_line
 
-    for name in ("root", "mount.usr"):
-        type_prefix = name.removeprefix("mount.")
-        if not (root := next((p.uuid for p in partitions if p.type.startswith(type_prefix)), None)):
-            continue
+    if not roothash:
+        for name in ("root", "mount.usr"):
+            type_prefix = name.removeprefix("mount.")
+            if not (root := next((p.uuid for p in partitions if p.type.startswith(type_prefix)), None)):
+                continue
 
-        cmdline = [f"{name}=PARTUUID={root}" if c == f"{name}=PARTUUID" else c for c in cmdline]
-
-    if roothash and (
-        (roothash.startswith("roothash=") and not any(c.startswith("root=") for c in cmdline))
-        or (roothash.startswith("usrhash=") and not any(c.startswith("mount.usr") for c in cmdline))
-    ):
-        cmdline += [roothash]
+            cmdline = [f"{name}=PARTUUID={root}" if c == f"{name}=PARTUUID" else c for c in cmdline]
 
     return cmdline
 

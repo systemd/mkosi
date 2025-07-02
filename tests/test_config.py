@@ -21,6 +21,7 @@ from mkosi.config import (
     OutputFormat,
     Verb,
     config_parse_bytes,
+    in_sandbox,
     parse_config,
     parse_ini,
 )
@@ -1485,6 +1486,9 @@ def test_cli_collection_reset(tmp_path: Path) -> None:
 def test_tools(tmp_path: Path) -> None:
     d = tmp_path
     argv = ["--tools-tree=default"]
+
+    if in_sandbox():
+        pytest.skip("Cannot run test_tools() test within mkosi sandbox environment")
 
     with resource_path(mkosi.resources) as resources, chdir(d):
         _, tools, _ = parse_config(argv, resources=resources)
