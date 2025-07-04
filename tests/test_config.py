@@ -25,7 +25,13 @@ from mkosi.config import (
     parse_config,
     parse_ini,
 )
-from mkosi.distributions import Distribution, detect_distribution
+from mkosi.distributions import (
+    Distribution,
+    DistributionRelease,
+    debian,
+    detect_distribution,
+    ubuntu,
+)
 from mkosi.util import chdir, resource_path
 
 
@@ -1558,3 +1564,48 @@ def test_subdir(tmp_path: Path) -> None:
 
         _, _, [config] = parse_config()
         assert config.output == "abc"
+
+
+@pytest.mark.parametrize(
+    "s1,s2",
+    itertools.combinations_with_replacement(
+        enumerate(
+            [
+                debian.Installer.parse_release("bullseye"),
+                debian.Installer.parse_release("bookworm"),
+                debian.Installer.parse_release("trixie"),
+                debian.Installer.parse_release("forky"),
+                debian.Installer.parse_release("duke"),
+                debian.Installer.parse_release("sid"),
+            ],
+            start=11,
+        ),
+        2,
+    ),
+)
+def test_debian_release(
+    s1: tuple[int, DistributionRelease],
+    s2: tuple[int, DistributionRelease],
+) -> None:
+    i1, v1 = s1
+    i2, v2 = s2
+    assert (v1 == v2) == (i1 == i2)
+    assert (v1 < v2) == (i1 < i2)
+    assert (v1 <= v2) == (i1 <= i2)
+    assert (v1 > v2) == (i1 > i2)
+    assert (v1 >= v2) == (i1 >= i2)
+    assert (v1 != v2) == (i1 != i2)
+    assert v1 == str(v1)
+    if v1 != debian.Installer.parse_release("sid"):
+        assert v1 == i1
+        assert v1 == str(i1)
+        assert v1 < (i1 + 1)
+        assert v1 > (i1 - 1)
+
+
+def test_debian_unstable() -> None:
+    assert debian.Installer.parse_release("sid") == debian.Installer.parse_release("unstable")
+
+
+def test_debian_not_ubuntu() -> None:
+    assert debian.Installer.parse_release("bookworm") != ubuntu.Installer.parse_release("bookworm")
