@@ -74,7 +74,7 @@ from mkosi.config import (
     expand_delayed_specifiers,
     finalize_configdir,
     format_bytes,
-    in_sandbox,
+    in_box,
     parse_boolean,
     parse_config,
     resolve_deps,
@@ -4114,11 +4114,11 @@ def build_image(context: Context) -> None:
     print_output_size(context.config.output_dir_or_cwd() / context.config.output_with_compression)
 
 
-def run_sandbox(args: Args, config: Config) -> None:
-    if in_sandbox():
+def run_box(args: Args, config: Config) -> None:
+    if in_box():
         die(
-            "mkosi sandbox cannot be invoked from within another mkosi sandbox environment",
-            hint="Exit the current sandbox environment and try again",
+            "mkosi box cannot be invoked from within another mkosi box environment",
+            hint="Exit the current mkosi box environment and try again",
         )
 
     if not args.cmdline:
@@ -4139,7 +4139,7 @@ def run_sandbox(args: Args, config: Config) -> None:
 
     hd, hr = detect_distribution()
 
-    env = {"MKOSI_IN_SANDBOX": "1"}
+    env = {"MKOSI_IN_BOX": "1"}
     if hd:
         env |= {"MKOSI_HOST_DISTRIBUTION": str(hd)}
     if hr:
@@ -5106,7 +5106,8 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
             Verb.ssh: run_ssh,
             Verb.journalctl: run_journalctl,
             Verb.coredumpctl: run_coredumpctl,
-            Verb.sandbox: run_sandbox,
+            Verb.box: run_box,
+            Verb.sandbox: run_box,
         }[args.verb](args, last)
 
     if last.output_format == OutputFormat.none:
