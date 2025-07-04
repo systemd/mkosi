@@ -170,9 +170,6 @@ jobs:
           [Build]
           ToolsTreeDistribution=${{ matrix.tools }}
           Environment=SYSTEMD_REPART_MKFS_OPTIONS_EROFS="--quiet"
-
-          [Runtime]
-          KVM=yes
           EOF
 
           # TODO: Remove once all distros have recent enough systemd that knows systemd.default_device_timeout_sec.
