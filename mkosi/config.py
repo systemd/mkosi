@@ -87,6 +87,7 @@ class Verb(StrEnum):
     dependencies = enum.auto()
     completion = enum.auto()
     sysupdate = enum.auto()
+    box = enum.auto()
     sandbox = enum.auto()
     init = enum.auto()
 
@@ -104,12 +105,13 @@ class Verb(StrEnum):
             Verb.completion,
             Verb.documentation,
             Verb.sysupdate,
+            Verb.box,
             Verb.sandbox,
             Verb.dependencies,
         )
 
     def needs_tools(self) -> bool:
-        return self in (Verb.sandbox, Verb.journalctl, Verb.coredumpctl, Verb.ssh)
+        return self in (Verb.box, Verb.sandbox, Verb.journalctl, Verb.coredumpctl, Verb.ssh)
 
     def needs_build(self) -> bool:
         return self in (
@@ -675,8 +677,8 @@ def parse_boolean(s: str) -> bool:
     return value
 
 
-def in_sandbox() -> bool:
-    return parse_boolean(os.getenv("MKOSI_IN_SANDBOX", "0"))
+def in_box() -> bool:
+    return parse_boolean(os.getenv("MKOSI_IN_BOX", "0"))
 
 
 def parse_path(
@@ -1479,7 +1481,7 @@ def config_parse_minimum_version(value: Optional[str], old: Optional[str]) -> Op
         return old
 
     if hash := startswith(value, "commit:"):
-        if not in_sandbox():
+        if not in_box():
             gitdir = Path(__file__).parent.parent
             if not (gitdir / ".git").exists():
                 die("Cannot check mkosi git version, not running mkosi from a git repository")
@@ -2175,7 +2177,7 @@ class Config:
         return self.package_cache_dir or (INVOKING_USER.cache_dir() / "mkosi" / key)
 
     def tools(self) -> Path:
-        if in_sandbox():
+        if in_box():
             return Path("/")
 
         return self.tools_tree or Path("/")
@@ -2310,8 +2312,8 @@ class Config:
             # Caching the package manager used does not matter for the default tools tree because we don't
             # cache the package manager metadata for the tools tree either. In fact, it can cause issues as
             # the cache manifest for the tools tree will sometimes be different depending on whether we're
-            # running inside or outside of the mkosi sandbox. To avoid these issues, don't cache the package
-            # manager used in the tools tree cache manifest.
+            # running inside or outside of the mkosi box environment. To avoid these issues, don't cache the
+            # package manager used in the tools tree cache manifest.
             **(
                 {"package_manager": self.distribution.package_manager(self).executable(self)}
                 if self.image != "tools"
@@ -5172,7 +5174,7 @@ def parse_config(
 
     tools = None
     if config.get("tools_tree") == Path("default"):
-        if in_sandbox():
+        if in_box():
             config["tools_tree"] = Path(os.environ["MKOSI_DEFAULT_TOOLS_TREE_PATH"])
         else:
             tools = finalize_default_tools(context, config, configdir=configdir, resources=resources)

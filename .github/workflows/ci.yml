@@ -212,14 +212,14 @@ jobs:
         run: sudo mkosi summary
 
       - name: Build tools tree
-        run: sudo mkosi -f sandbox -- true
+        run: sudo mkosi -f box -- true
 
       - name: Build image
         run: sudo mkosi --distribution ${{ matrix.distro }} -f
 
       - name: Run integration tests
         run: |
-          sudo mkosi sandbox -- \
+          sudo mkosi box -- \
             timeout -k 30 1h \
             python3 -m pytest \
             --tb=no \

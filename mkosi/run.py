@@ -444,7 +444,8 @@ def vartmpdir() -> Iterator[Path]:
         # the subdirectory when it is empty is not a problem because deleting a subdirectory depends on the
         # permissions of the parent directory and not the directory itself.
         try:
-            (d / "work").rmdir()
+            if (p := d / "work").exists():
+                p.rmdir()
         except OSError as e:
             if e.errno == errno.ENOTEMPTY:
 
@@ -453,7 +454,7 @@ def vartmpdir() -> Iterator[Path]:
                     shutil.rmtree(d)
 
                 fork_and_wait(remove)
-            elif e.errno != errno.ENOENT:
+            else:
                 raise
         else:
             shutil.rmtree(d)

@@ -22,8 +22,8 @@ from pathlib import Path
 from types import ModuleType
 from typing import IO, Any, Callable, Optional, Protocol, TypeVar, Union
 
-from mkosi.backport import as_file
 from mkosi.log import die
+from mkosi.resources import as_file
 
 T = TypeVar("T")
 V = TypeVar("V")
