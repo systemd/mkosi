@@ -30,7 +30,7 @@ mkosi — Build Bespoke OS Images
 
 `mkosi [options…] sysupdate [-- sysupdate settings…]`
 
-`mkosi [options…] sandbox [-- command line…]`
+`mkosi [options…] box [-- command line…]`
 
 `mkosi [options…] dependencies [-- options…]`
 
@@ -143,8 +143,8 @@ The following command line verbs are known:
     specified after the `sysupdate` verb and separated from the regular
     options with `--` are passed directly to **systemd-sysupdate**.
 
-`sandbox`
-:   Run arbitrary commands inside of the same sandbox used to execute
+`box`
+:   Run arbitrary commands inside of the same environment used to execute
     other verbs such as `boot`, `shell`, `vm` and more. This means
     `/usr` will be replaced by `/usr` from the tools tree if one is used
     while everything else will remain in place. If no command is provided,
