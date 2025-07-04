@@ -702,7 +702,10 @@ def finalize_firmware(
 
     # At the moment there are no qemu firmware descriptions for non-x86 architectures that advertise
     # secure-boot support so let's default to no secure boot for non-x86 architectures.
-    if config.architecture.is_x86_variant():
+    # Debian/Ubuntu however do ship those, so enable it there.
+    if config.architecture.is_x86_variant() or (
+        config.architecture.is_arm_variant() and config.distribution.is_apt_distribution()
+    ):
         return Firmware.uefi_secure_boot
 
     return Firmware.uefi
@@ -1313,7 +1316,8 @@ def run_qemu(args: Args, config: Config) -> None:
             ovmf_vars, ovmf_vars_format = finalize_firmware_variables(config, ovmf, stack)
 
             cmdline += ["-drive", f"file={ovmf_vars},if=pflash,format={ovmf_vars_format}"]
-            if firmware == Firmware.uefi_secure_boot:
+            # These configurations break booting aarch64
+            if firmware == Firmware.uefi_secure_boot and not config.architecture.is_arm_variant():
                 cmdline += [
                     "-global", "ICH9-LPC.disable_s3=1",
                     "-global", "driver=cfi.pflash01,property=secure,value=on",
