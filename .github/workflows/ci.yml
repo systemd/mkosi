@@ -100,10 +100,10 @@ jobs:
         run: tools/make-man-page.sh
 
   integration-test:
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.runner }}
     needs: unit-test
     concurrency:
-      group: ${{ github.workflow }}-${{ matrix.distro }}-${{ matrix.tools }}-${{ github.ref }}
+      group: ${{ github.workflow }}-${{ matrix.distro }}-${{ matrix.tools }}-${{ matrix.runner }}-${{ github.ref }}
       cancel-in-progress: true
     strategy:
       fail-fast: false
@@ -122,6 +122,8 @@ jobs:
           - fedora
           - opensuse
           - ubuntu
+        runner:
+          - ubuntu-24.04
         exclude:
           # pacman is not packaged in EPEL.
           - distro: arch
@@ -139,6 +141,17 @@ jobs:
             tools: opensuse
           - distro: ubuntu
             tools: opensuse
+        include:
+          # low rate limit on s390x/ppc64le/arm64 workers, just run two jobs
+          - distro: debian
+            tools: debian
+            runner: ubuntu-24.04-s390x
+          - distro: fedora
+            tools: fedora
+            runner: ubuntu-24.04-ppc64le
+          - distro: debian
+            tools: debian
+            runner: ubuntu-24.04-arm
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -170,9 +183,6 @@ jobs:
           [Build]
           ToolsTreeDistribution=${{ matrix.tools }}
           Environment=SYSTEMD_REPART_MKFS_OPTIONS_EROFS="--quiet"
-
-          [Runtime]
-          KVM=yes
           EOF
 
           # TODO: Remove once all distros have recent enough systemd that knows systemd.default_device_timeout_sec.
@@ -219,12 +229,15 @@ jobs:
 
       - name: Run integration tests
         run: |
-          sudo mkosi box -- \
-            timeout -k 30 1h \
-            python3 -m pytest \
-            --tb=no \
-            --capture=no \
-            --verbose \
-            -m integration \
-            --distribution ${{ matrix.distro }} \
-            tests/
+          # Without KVM the tests are way too slow and time out
+          if [[ -e /dev/kvm ]]; then
+            sudo mkosi box -- \
+              timeout -k 30 1h \
+              python3 -m pytest \
+              --tb=no \
+              --capture=no \
+              --verbose \
+              -m integration \
+              --distribution ${{ matrix.distro }} \
+              tests/
+          fi
