@@ -22,7 +22,7 @@ class PackageManager:
         return Path("custom")
 
     @classmethod
-    def package_subdirs(cls, cache: Path) -> list[Path]:
+    def package_subdirs(cls, cache: Path) -> list[tuple[Path, Path]]:
         return []
 
     @classmethod
@@ -89,13 +89,11 @@ class PackageManager:
                 mounts += flatten(
                     (
                         "--bind",
-                        context.config.package_cache_dir_or_default() / d / subdir / p,
-                        Path("/var") / d / subdir / p,
+                        context.config.package_cache_dir_or_default() / d / subdir / srcsubdir,
+                        Path("/var") / d / subdir / dstsubdir,
                     )
-                    for p in caches
-                    if (
-                        context.config.package_cache_dir_or_default() / d / subdir / p
-                    ).exists()
+                    for srcsubdir, dstsubdir in caches
+                    if (context.config.package_cache_dir_or_default() / d / subdir / srcsubdir).exists()
                 )
 
         return mounts

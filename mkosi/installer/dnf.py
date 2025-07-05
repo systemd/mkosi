@@ -25,9 +25,18 @@ class Dnf(PackageManager):
         return Path("libdnf5" if cls.executable(config) == "dnf5" else "dnf")
 
     @classmethod
-    def package_subdirs(cls, cache: Path) -> list[Path]:
+    def package_subdirs(cls, cache: Path) -> list[tuple[Path, Path]]:
+        dirs = [p for p in cache.iterdir() if p.is_dir() and "-" in p.name and "mkosi" not in p.name]
         return [
-            (p / "packages").relative_to(cache) for p in cache.iterdir() if p.is_dir() and "-" in p.name and "mkosi" not in p.name
+            (
+                d.relative_to(cache) / "packages"
+                if cache == Path("/var")
+                # Cache directories look like <repo-id>-<baseurl-hash> so let's strip off the hash to reuse
+                # the same package cache directory regardless of baseurl.
+                else Path("packages") / d.name[: d.name.rfind("-")],
+                d.relative_to(cache) / "packages",
+            )
+            for d in dirs
         ]
 
     @classmethod
