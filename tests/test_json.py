@@ -296,6 +296,7 @@ def test_config() -> None:
             "Release": "53",
             "Removable": false,
             "RemoveFiles": [],
+            "SkipPackages": [],
             "RemovePackages": [
                 "all"
             ],
@@ -540,6 +541,7 @@ def test_config() -> None:
         release="53",
         removable=False,
         remove_files=[],
+        skip_packages=[],
         remove_packages=["all"],
         repart_dirs=[],
         repart_offline=True,
