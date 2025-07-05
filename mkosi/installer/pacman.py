@@ -198,7 +198,12 @@ class Pacman(PackageManager):
 
     @classmethod
     def remove(cls, context: Context, packages: Sequence[str]) -> None:
-        cls.invoke(context, "--remove", ["--nosave", "--recursive", *packages], apivfs=True)
+        installed = {
+            cls.parse_pkg_desc(i)[0] for i in (context.root / "var/lib/pacman/local").glob("*/desc")
+        }
+        remove = [p for p in packages if p in installed]
+        if remove:
+            cls.invoke(context, "--remove", ["--nosave", "--recursive", *remove], apivfs=True)
 
     @classmethod
     def keyring(cls, context: Context) -> None:
@@ -262,3 +267,22 @@ class Pacman(PackageManager):
 
         # pacman can't sync a single repository, so we go behind its back and do it ourselves.
         shutil.move(context.repository / "mkosi.db.tar", context.metadata_dir / "lib/pacman/sync/mkosi.db")
+
+    @classmethod
+    def parse_pkg_desc(cls, path: Path) -> tuple[str, str, str, str]:
+        name = version = base = arch = ""
+
+        with path.open() as desc:
+            for line in desc:
+                line = line.strip()
+                if line == "%NAME%":
+                    name = next(desc).strip()
+                elif line == "%VERSION%":
+                    version = next(desc).strip()
+                elif line == "%BASE%":
+                    base = next(desc).strip()
+                elif line == "%ARCH%":
+                    arch = next(desc).strip()
+                    break
+
+        return name, version, base, arch
