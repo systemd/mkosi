@@ -67,15 +67,10 @@ class Zypper(PackageManager):
             repofile.parent.mkdir(exist_ok=True, parents=True)
             with repofile.open("w") as f:
                 for repo in repositories:
-                    # zypper uses the repo ID as its cache key which is unsafe so add a hash of the url used
-                    # to it to make sure a unique cache is used for each repository. We use roughly the same
-                    # algorithm here that dnf uses as well.
-                    key = hashlib.sha256(repo.url.encode()).hexdigest()[:16]
-
                     f.write(
                         textwrap.dedent(
                             f"""\
-                            [{repo.id}-{key}]
+                            [{repo.id}]
                             name={repo.id}
                             {repo.url}
                             gpgcheck=1
