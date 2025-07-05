@@ -219,12 +219,15 @@ jobs:
 
       - name: Run integration tests
         run: |
-          sudo mkosi box -- \
-            timeout -k 30 1h \
-            python3 -m pytest \
-            --tb=no \
-            --capture=no \
-            --verbose \
-            -m integration \
-            --distribution ${{ matrix.distro }} \
-            tests/
+          # Without KVM the tests are way too slow and time out
+          if [[ -e /dev/kvm ]]; then
+            sudo mkosi box -- \
+              timeout -k 30 1h \
+              python3 -m pytest \
+              --tb=no \
+              --capture=no \
+              --verbose \
+              -m integration \
+              --distribution ${{ matrix.distro }} \
+              tests/
+          fi
