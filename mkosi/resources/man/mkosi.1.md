@@ -862,6 +862,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     file may be provided too. `mkosi.extra.tar` will be automatically
     used if found in the local directory.
 
+`SkipPackages=`, `--skip-package=`
+:   Skip package from being installed, if configured in another configuration 
+    file.
+
 `RemovePackages=`, `--remove-package=`
 :   Takes a comma-separated list of package specifications for removal, in
     the same format as `Packages=`. The removal will be performed as one

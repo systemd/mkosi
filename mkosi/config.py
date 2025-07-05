@@ -2938,7 +2938,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ),
     ConfigSetting(
         dest="skip_packages",
-        long="--skip-packages",
+        long="--skip-package",
         metavar="PACKAGE",
         section="Content",
         parse=config_make_list_parser(delimiter=","),
