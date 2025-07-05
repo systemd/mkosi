@@ -96,8 +96,20 @@ class Installer(DistributionInstaller):
             if context.config.release == "tumbleweed":
                 if context.config.architecture == Architecture.x86_64:
                     subdir = ""
+                elif context.config.architecture == Architecture.arm64:
+                    subdir = "ports/aarch64"
+                elif context.config.architecture == Architecture.arm:
+                    subdir = "ports/armv7hl"
+                elif context.config.architecture in (
+                    Architecture.ppc64_le,
+                    Architecture.ppc64,
+                    Architecture.ppc,
+                ):
+                    subdir = "ports/ppc"
+                elif context.config.architecture in (Architecture.s390x, Architecture.s390):
+                    subdir = "ports/zsystems"
                 else:
-                    subdir = f"ports/{cls.architecture(context.config.architecture)}"
+                    die(f"{context.config.architecture} not supported by openSUSE Tumbleweed")
             else:
                 if context.config.architecture != Architecture.x86_64:
                     die(f"Old snapshots are only supported for x86-64 on {cls.pretty_name()}")
@@ -156,8 +168,20 @@ class Installer(DistributionInstaller):
 
             if context.config.architecture == Architecture.x86_64:
                 subdir = ""
+            elif context.config.architecture == Architecture.arm64:
+                subdir = "ports/aarch64"
+            elif context.config.architecture == Architecture.arm:
+                subdir = "ports/armv7hl"
+            elif context.config.architecture in (
+                Architecture.ppc64_le,
+                Architecture.ppc64,
+                Architecture.ppc,
+            ):
+                subdir = "ports/ppc"
+            elif context.config.architecture in (Architecture.s390x, Architecture.s390):
+                subdir = "ports/zsystems"
             else:
-                subdir = f"ports/{cls.architecture(context.config.architecture)}"
+                die(f"{context.config.architecture} not supported by openSUSE {context.config.release}")
 
             for repo in ("oss", "non-oss"):
                 url = join_mirror(mirror, f"{subdir}/distribution/{release}/repo/{repo}")
@@ -208,6 +232,8 @@ class Installer(DistributionInstaller):
         a = {
             Architecture.x86_64: "x86_64",
             Architecture.arm64:  "aarch64",
+            Architecture.ppc64_le: "ppc64le",
+            Architecture.s390x:  "s390x",
         }.get(arch)  # fmt: skip
 
         if not a:
