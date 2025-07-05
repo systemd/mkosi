@@ -89,12 +89,12 @@ class PackageManager:
                 mounts += flatten(
                     (
                         "--bind",
-                        context.config.package_cache_dir_or_default() / d / subdir / p.relative_to(src),
-                        Path("/var") / d / subdir / p.relative_to(src),
+                        context.config.package_cache_dir_or_default() / d / subdir / p,
+                        Path("/var") / d / subdir / p,
                     )
                     for p in caches
                     if (
-                        context.config.package_cache_dir_or_default() / d / subdir / p.relative_to(src)
+                        context.config.package_cache_dir_or_default() / d / subdir / p
                     ).exists()
                 )
 

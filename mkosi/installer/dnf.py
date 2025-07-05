@@ -27,7 +27,7 @@ class Dnf(PackageManager):
     @classmethod
     def package_subdirs(cls, cache: Path) -> list[Path]:
         return [
-            p / "packages" for p in cache.iterdir() if p.is_dir() and "-" in p.name and "mkosi" not in p.name
+            (p / "packages").relative_to(cache) for p in cache.iterdir() if p.is_dir() and "-" in p.name and "mkosi" not in p.name
         ]
 
     @classmethod

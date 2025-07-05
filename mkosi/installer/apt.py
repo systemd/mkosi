@@ -55,7 +55,7 @@ class Apt(PackageManager):
 
     @classmethod
     def package_subdirs(cls, cache: Path) -> list[Path]:
-        return [cache / "archives"]
+        return [Path("archives")]
 
     @classmethod
     def state_subdirs(cls, state: Path) -> list[Path]:
