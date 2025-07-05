@@ -23,8 +23,8 @@ class Zypper(PackageManager):
         return Path("zypp")
 
     @classmethod
-    def package_subdirs(cls, cache: Path) -> list[Path]:
-        return [Path("packages")]
+    def package_subdirs(cls, cache: Path) -> list[tuple[Path, Path]]:
+        return [(Path("packages"), Path("packages"))]
 
     @classmethod
     def scripts(cls, context: Context) -> dict[str, list[PathString]]:

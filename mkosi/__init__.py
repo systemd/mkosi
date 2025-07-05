@@ -3922,8 +3922,8 @@ def copy_repository_metadata(config: Config, dst: Path) -> None:
                 # cp doesn't support excluding directories but we can imitate it by bind mounting
                 # an empty directory over the directories we want to exclude.
                 exclude = flatten(
-                    ("--ro-bind", tmp, workdir(cachedir / p))
-                    for p in config.distribution.package_manager(config).package_subdirs(cachedir)
+                    ("--ro-bind", tmp, workdir(cachedir / srcsubdir))
+                    for srcsubdir, _ in config.distribution.package_manager(config).package_subdirs(cachedir)
                 )
 
                 subdst = dst / "cache" / subdir
@@ -4895,8 +4895,8 @@ def sync_repository_metadata(
                 )
 
     src = last.package_cache_dir_or_default() / "cache" / subdir
-    for p in last.distribution.package_manager(last).package_subdirs(src):
-        (src / p).mkdir(parents=True, exist_ok=True)
+    for srcsubdir, _ in last.distribution.package_manager(last).package_subdirs(src):
+        (src / srcsubdir).mkdir(parents=True, exist_ok=True)
 
     # If we're in incremental mode and caching metadata is not explicitly disabled, cache the keyring and the
     # synced repository metadata so we can reuse them later.
