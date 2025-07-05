@@ -1972,6 +1972,7 @@ class Config:
     skeleton_trees: list[ConfigTree]
     extra_trees: list[ConfigTree]
 
+    skip_packages: list[str]
     remove_packages: list[str]
     remove_files: list[str]
     clean_package_metadata: ConfigFeature
@@ -2934,6 +2935,14 @@ SETTINGS: list[ConfigSetting[Any]] = [
         parse=config_make_list_parser(delimiter=",", parse=make_tree_parser()),
         path_suffixes=("extra", "extra.tar"),
         help="Copy an extra tree on top of image",
+    ),
+    ConfigSetting(
+        dest="skip_packages",
+        long="--skip-packages",
+        metavar="PACKAGE",
+        section="Content",
+        parse=config_make_list_parser(delimiter=","),
+        help="Skip package if specified in another configuration file",
     ),
     ConfigSetting(
         dest="remove_packages",
@@ -5427,6 +5436,7 @@ def summary(config: Config) -> str:
                      Skeleton Trees: {line_join_list(config.skeleton_trees)}
                         Extra Trees: {line_join_list(config.extra_trees)}
 
+                      Skip Packages: {line_join_list(config.skip_packages)}
                     Remove Packages: {line_join_list(config.remove_packages)}
                        Remove Files: {line_join_list(config.remove_files)}
      Clean Package Manager Metadata: {config.clean_package_metadata}

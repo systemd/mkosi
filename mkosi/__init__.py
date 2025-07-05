@@ -245,7 +245,7 @@ def remove_files(context: Context) -> None:
 
 
 def finalize_packages(config: Config) -> list[str]:
-    s = set(config.remove_packages)
+    s = set(config.skip_packages)
     return [p for p in config.packages if p not in s]
 
 
