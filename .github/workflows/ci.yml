@@ -100,10 +100,10 @@ jobs:
         run: tools/make-man-page.sh
 
   integration-test:
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.runner }}
     needs: unit-test
     concurrency:
-      group: ${{ github.workflow }}-${{ matrix.distro }}-${{ matrix.tools }}-${{ github.ref }}
+      group: ${{ github.workflow }}-${{ matrix.distro }}-${{ matrix.tools }}-${{ matrix.runner }}-${{ github.ref }}
       cancel-in-progress: true
     strategy:
       fail-fast: false
@@ -122,6 +122,8 @@ jobs:
           - fedora
           - opensuse
           - ubuntu
+        runner:
+          - ubuntu-24.04
         exclude:
           # pacman is not packaged in EPEL.
           - distro: arch
@@ -139,6 +141,11 @@ jobs:
             tools: opensuse
           - distro: ubuntu
             tools: opensuse
+        include:
+          # low rate limit on arm64 workers
+          - distro: debian
+            tools: debian
+            runner: ubuntu-24.04-arm
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
