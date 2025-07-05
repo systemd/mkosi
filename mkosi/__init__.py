@@ -88,6 +88,8 @@ from mkosi.context import Context
 from mkosi.distributions import Distribution, detect_distribution
 from mkosi.documentation import show_docs
 from mkosi.installer import clean_package_manager_metadata
+from mkosi.installer.pacman import Pacman
+from mkosi.installer.zypper import Zypper
 from mkosi.kmod import gen_required_kernel_modules, is_valid_kdir, loaded_modules, process_kernel_modules
 from mkosi.log import ARG_DEBUG, complete_step, die, log_notice, log_step
 from mkosi.manifest import Manifest
@@ -4867,8 +4869,23 @@ def sync_repository_metadata(
 
     subdir = last.distribution.package_manager(last).subdir(last)
 
+    # Pacman and Zypper are unable to cache repository metadata for multiple mirrors at the same time in the
+    # same cache directory as they both only use the repository id as the cache key which will trivially
+    # conflict across multiple mirrors. Apt and Fedora put the mirror in the cache key for the repository
+    # metadata in some form which avoids conflicts across different mirrors.
+    shared_repository_metadata_cache = last.distribution.package_manager(last) not in (Pacman, Zypper)
+
+    if shared_repository_metadata_cache:
+        dst = last.package_cache_dir_or_default()
+    elif last.is_incremental() and last.cacheonly != Cacheonly.never:
+        if not metadata_cache(last).exists():
+            make_tree(metadata_cache(last), use_subvolumes=last.use_subvolumes, sandbox=last.sandbox)
+        dst = metadata_cache(last)
+    else:
+        dst = metadata_dir
+
     for d in ("cache", "lib"):
-        (last.package_cache_dir_or_default() / d / subdir).mkdir(parents=True, exist_ok=True)
+        (dst / d / subdir).mkdir(parents=True, exist_ok=True)
 
     # Sync repository metadata unless explicitly disabled.
     if last.cacheonly not in (Cacheonly.always, Cacheonly.metadata):
@@ -4879,7 +4896,7 @@ def sync_repository_metadata(
                 workspace=workspace,
                 resources=resources,
                 keyring_dir=keyring_dir,
-                metadata_dir=last.package_cache_dir_or_default(),
+                metadata_dir=dst,
             )
             context.root.mkdir(mode=0o755)
 
@@ -4901,20 +4918,26 @@ def sync_repository_metadata(
     # If we're in incremental mode and caching metadata is not explicitly disabled, cache the keyring and the
     # synced repository metadata so we can reuse them later.
     if last.is_incremental() and last.cacheonly != Cacheonly.never:
-        rmtree(keyring_cache(last), metadata_cache(last), sandbox=last.sandbox)
+        rmtree(
+            keyring_cache(last),
+            *([metadata_cache(last)] if shared_repository_metadata_cache else []),
+            sandbox=last.sandbox,
+        )
 
-        for p in (keyring_cache(last), metadata_cache(last)):
-            make_tree(p, use_subvolumes=last.use_subvolumes, sandbox=last.sandbox)
-
+        make_tree(keyring_cache(last), use_subvolumes=last.use_subvolumes, sandbox=last.sandbox)
         copy_tree(keyring_dir, keyring_cache(last), use_subvolumes=last.use_subvolumes, sandbox=last.sandbox)
-        copy_repository_metadata(last, metadata_cache(last))
+
+        if shared_repository_metadata_cache:
+            make_tree(metadata_cache(last), use_subvolumes=last.use_subvolumes, sandbox=last.sandbox)
+            copy_repository_metadata(last, metadata_cache(last))
+
         copy_tree(
             metadata_cache(last),
             metadata_dir,
             use_subvolumes=last.use_subvolumes,
             sandbox=last.sandbox,
         )
-    else:
+    elif shared_repository_metadata_cache:
         copy_repository_metadata(last, metadata_dir)
 
 
