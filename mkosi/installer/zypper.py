@@ -24,7 +24,7 @@ class Zypper(PackageManager):
 
     @classmethod
     def package_subdirs(cls, cache: Path) -> list[Path]:
-        return [cache / "packages"]
+        return [Path("packages")]
 
     @classmethod
     def scripts(cls, context: Context) -> dict[str, list[PathString]]:
