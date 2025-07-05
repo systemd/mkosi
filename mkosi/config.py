@@ -479,10 +479,11 @@ class Architecture(StrEnum):
 
     def to_efi(self) -> Optional[str]:
         return {
-            Architecture.x86_64:      "x64",
             Architecture.x86:         "ia32",
-            Architecture.arm64:       "aa64",
+            Architecture.x86_64:      "x64",
             Architecture.arm:         "arm",
+            Architecture.arm64:       "aa64",
+            Architecture.riscv32:     "riscv32",
             Architecture.riscv64:     "riscv64",
             Architecture.loongarch64: "loongarch64",
         }.get(self)  # fmt: skip
@@ -1101,6 +1102,13 @@ def config_make_enum_matcher(type: type[SE]) -> ConfigMatchCallback[SE]:
         return make_enum_parser(type)(match) == value
 
     return config_match_enum
+
+
+def config_match_architecture(match: str, value: Architecture) -> bool:
+    if match == "uefi":
+        return value.to_efi() is not None
+
+    return config_make_enum_matcher(Architecture)(match, value)
 
 
 def package_sort_key(package: str) -> tuple[int, str]:
@@ -2632,7 +2640,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Distribution",
         specifier="a",
         parse=config_make_enum_parser(Architecture),
-        match=config_make_enum_matcher(Architecture),
+        match=config_match_architecture,
         default=Architecture.native(),
         choices=Architecture.choices(),
         help="Override the architecture of installation",

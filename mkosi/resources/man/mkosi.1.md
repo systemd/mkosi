@@ -1985,6 +1985,8 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     and no architecture has been explicitly configured yet, the host
     architecture is used.
 
+:   `Architecture=uefi` can be used to match against any architecture that supports UEFI.
+
 `Repositories=`
 :   Matches against repositories enabled with the `Repositories=` setting.
     Takes a single repository name.

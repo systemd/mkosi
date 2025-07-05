@@ -902,6 +902,25 @@ def test_match_repositories(tmp_path: Path) -> None:
     assert config.output == "qed"
 
 
+def test_match_architecture(tmp_path: Path) -> None:
+    d = tmp_path
+
+    (d / "mkosi.conf").write_text(
+        """\
+        [Match]
+        Architecture=uefi
+
+        [Content]
+        Output=qed
+        """
+    )
+
+    with chdir(d):
+        _, _, [config] = parse_config(["--architecture", "arm64"])
+
+    assert config.output == "qed"
+
+
 @pytest.mark.parametrize("image1,image2", itertools.combinations_with_replacement(["image_a", "image_b"], 2))
 def test_match_imageid(tmp_path: Path, image1: str, image2: str) -> None:
     with chdir(tmp_path):
