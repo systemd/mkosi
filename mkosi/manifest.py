@@ -5,13 +5,13 @@ import datetime
 import json
 import subprocess
 import textwrap
-from pathlib import Path
 from typing import IO, Any, Optional
 
 from mkosi.config import ManifestFormat
 from mkosi.context import Context
 from mkosi.distributions import PackageType
 from mkosi.installer.apt import Apt
+from mkosi.installer.pacman import Pacman
 from mkosi.log import complete_step
 from mkosi.run import run
 
@@ -61,23 +61,6 @@ class SourcePackageManifest:
         if self.changelog:
             t += f"""\nChangelog:\n{self.changelog}\n"""
         return t
-
-
-def parse_pkg_desc(f: Path) -> tuple[str, str, str, str]:
-    name = version = base = arch = ""
-    with f.open() as desc:
-        for line in desc:
-            line = line.strip()
-            if line == "%NAME%":
-                name = next(desc).strip()
-            elif line == "%VERSION%":
-                version = next(desc).strip()
-            elif line == "%BASE%":
-                base = next(desc).strip()
-            elif line == "%ARCH%":
-                arch = next(desc).strip()
-                break
-    return name, version, base, arch
 
 
 @dataclasses.dataclass
@@ -221,7 +204,7 @@ class Manifest:
         packages = sorted((self.context.root / "var/lib/pacman/local").glob("*/desc"))
 
         for desc in packages:
-            name, version, source, arch = parse_pkg_desc(desc)
+            name, version, source, arch = Pacman.parse_pkg_desc(desc)
             package = PackageManifest("pkg", name, version, arch, 0)
             self.packages.append(package)
 
