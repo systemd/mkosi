@@ -1,4 +1,5 @@
 #!/bin/bash
 set -e
 
+mkdir -p "$BUILDROOT/usr/share/p11-kit/modules"
 echo "module: opensc-pkcs11.so" >"$BUILDROOT/usr/share/p11-kit/modules/opensc.module"
