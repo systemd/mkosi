@@ -36,8 +36,10 @@ def read_remote_rawhide_key_symlink(context: Context) -> str:
 @tuplify
 def find_fedora_rpm_gpgkeys(context: Context) -> Iterable[str]:
     versionre = re.compile(r"RPM-GPG-KEY-fedora-(\d+)-primary")
+    # ELN uses the rawhide GPG keys.
+    release = "rawhide" if context.config.release == "eln" else context.config.release
 
-    if context.config.release == "rawhide" and context.config.repository_key_fetch:
+    if release == "rawhide" and context.config.repository_key_fetch:
         # Rawhide is a moving target and signed with a different GPG key every time a new Fedora release is
         # done. In distribution-gpg-keys this is modeled by a symlink that is continuously updated to point
         # to the current GPG key for rawhide. Of course, this symlink gets outdated when using a locally
@@ -69,13 +71,13 @@ def find_fedora_rpm_gpgkeys(context: Context) -> Iterable[str]:
 
     key = find_rpm_gpgkey(
         context,
-        key=f"RPM-GPG-KEY-fedora-{context.config.release}-primary",
-        fallback=f"{DISTRIBUTION_GPG_KEYS_UPSTREAM}/RPM-GPG-KEY-fedora-{context.config.release}-primary",
+        key=f"RPM-GPG-KEY-fedora-{release}-primary",
+        fallback=f"{DISTRIBUTION_GPG_KEYS_UPSTREAM}/RPM-GPG-KEY-fedora-{release}-primary",
     )
 
     yield key
 
-    if context.config.release == "rawhide" and (rawhide_will_be := versionre.match(Path(key).name)):
+    if release == "rawhide" and (rawhide_will_be := versionre.match(Path(key).name)):
         # When querying the rawhide version remotely, we add the N+1 key as the symlink might not have been
         # updated yet. We do expect the symlink update to happen in reasonable time so we only add the N+1
         # key. When using a locally installed distribution-gpg-keys package on older Fedora versions, there's
@@ -125,7 +127,7 @@ class Installer(DistributionInstaller):
             context,
             list(cls.repositories(context)),
             filelists=False,
-            metadata_expire="6h" if context.config.release == "rawhide" else None,
+            metadata_expire="6h" if context.config.release in ("eln", "rawhide") else None,
         )
 
     @classmethod
@@ -141,15 +143,15 @@ class Installer(DistributionInstaller):
             return
 
         if context.config.release == "eln":
-            mirror = (
-                context.config.mirror
-                or "https://odcs.fedoraproject.org/composes/production/latest-Fedora-ELN/compose"
-            )
-            for repo in ("Appstream", "BaseOS", "Extras", "CRB"):
+            mirror = context.config.mirror or "https://dl.fedoraproject.org/pub/eln/1/"
+
+            for repo in ("AppStream", "BaseOS", "Extras", "CRB"):
                 url = f"baseurl={join_mirror(mirror, repo)}"
                 yield RpmRepository(repo.lower(), f"{url}/$basearch/os", gpgurls)
-                yield RpmRepository(repo.lower(), f"{url}/$basearch/debug/tree", gpgurls, enabled=False)
-                yield RpmRepository(repo.lower(), f"{url}/source/tree", gpgurls, enabled=False)
+                yield RpmRepository(
+                    f"{repo.lower()}-debuginfo", f"{url}/$basearch/debug/tree", gpgurls, enabled=False
+                )
+                yield RpmRepository(f"{repo.lower()}-source", f"{url}/source/tree", gpgurls, enabled=False)
         elif m := context.config.mirror:
             directory = "development" if context.config.release == "rawhide" else "releases"
             url = f"baseurl={join_mirror(m, f'linux/{directory}/$releasever/Everything')}"
