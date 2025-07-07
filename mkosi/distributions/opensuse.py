@@ -259,7 +259,7 @@ def fetch_gpgurls(context: Context, repourl: str) -> tuple[str, ...]:
     root = ElementTree.fromstring(xml)
 
     tags = root.find("{http://linux.duke.edu/metadata/repo}tags")
-    if not tags:
+    if tags is None:
         die("repomd.xml missing <tags> element")
 
     for child in tags.iter("{http://linux.duke.edu/metadata/repo}content"):
