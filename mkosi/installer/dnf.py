@@ -29,9 +29,12 @@ class Dnf(PackageManager):
         dirs = [p for p in cache.iterdir() if p.is_dir() and "-" in p.name and "mkosi" not in p.name]
         return [
             (
-                d.relative_to(cache) / "packages" if cache == Path("/var") else Path("packages") / d.name[:d.name.rfind("-")],
+                d.relative_to(cache) / "packages"
+                if cache == Path("/var")
+                else Path("packages") / d.name[: d.name.rfind("-")],
                 d.relative_to(cache) / "packages",
-            ) for d in dirs
+            )
+            for d in dirs
         ]
 
     @classmethod

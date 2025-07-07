@@ -93,9 +93,7 @@ class PackageManager:
                         Path("/var") / d / subdir / dstsubdir,
                     )
                     for srcsubdir, dstsubdir in caches
-                    if (
-                        context.config.package_cache_dir_or_default() / d / subdir / srcsubdir
-                    ).exists()
+                    if (context.config.package_cache_dir_or_default() / d / subdir / srcsubdir).exists()
                 )
 
         return mounts
