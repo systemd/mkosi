@@ -23,9 +23,14 @@ class Installer(centos.Installer):
         )
 
     @classmethod
-    def repository_variants(cls, context: Context, repo: str) -> Iterable[RpmRepository]:
+    def repository_variants(
+        cls,
+        context: Context,
+        gpgurls: tuple[str, ...],
+        repo: str,
+    ) -> Iterable[RpmRepository]:
         if context.config.local_mirror:
-            yield RpmRepository(repo, f"baseurl={context.config.local_mirror}", cls.gpgurls(context))
+            yield RpmRepository(repo, f"baseurl={context.config.local_mirror}", gpgurls)
         else:
             mirror = context.config.mirror or "https://cdn-ubi.redhat.com/content/public/ubi/dist/"
 
@@ -33,24 +38,25 @@ class Installer(centos.Installer):
             yield RpmRepository(
                 f"ubi-{v}-{repo}-rpms",
                 f"baseurl={join_mirror(mirror, f'ubi{v}/{v}/$basearch/{repo}/os')}",
-                cls.gpgurls(context),
+                gpgurls,
             )
             yield RpmRepository(
                 f"ubi-{v}-{repo}-debug-rpms",
                 f"baseurl={join_mirror(mirror, f'ubi{v}/{v}/$basearch/{repo}/debug')}",
-                cls.gpgurls(context),
+                gpgurls,
                 enabled=False,
             )
             yield RpmRepository(
                 f"ubi-{v}-{repo}-source",
                 f"baseurl={join_mirror(mirror, f'ubi{v}/{v}/$basearch/{repo}/source')}",
-                cls.gpgurls(context),
+                gpgurls,
                 enabled=False,
             )
 
     @classmethod
     def repositories(cls, context: Context) -> Iterable[RpmRepository]:
-        yield from cls.repository_variants(context, "baseos")
-        yield from cls.repository_variants(context, "appstream")
-        yield from cls.repository_variants(context, "codeready-builder")
+        gpgurls = cls.gpgurls(context)
+        yield from cls.repository_variants(context, gpgurls, "baseos")
+        yield from cls.repository_variants(context, gpgurls, "appstream")
+        yield from cls.repository_variants(context, gpgurls, "codeready-builder")
         yield from cls.epel_repositories(context)

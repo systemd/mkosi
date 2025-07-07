@@ -126,21 +126,26 @@ class Installer(DistributionInstaller):
         return tuple(key for key in (one, two, sig) if key is not None)
 
     @classmethod
-    def repository_variants(cls, context: Context, repo: str) -> Iterable[RpmRepository]:
+    def repository_variants(
+        cls,
+        context: Context,
+        gpgurls: tuple[str, ...],
+        repo: str,
+    ) -> Iterable[RpmRepository]:
         if context.config.local_mirror:
-            yield RpmRepository(repo, f"baseurl={context.config.local_mirror}", cls.gpgurls(context))
+            yield RpmRepository(repo, f"baseurl={context.config.local_mirror}", gpgurls)
 
         elif mirror := context.config.mirror:
             if repo == "extras":
                 yield RpmRepository(
                     repo.lower(),
                     f"baseurl={join_mirror(mirror, f'SIGs/$stream/{repo}/$basearch/extras-common')}",
-                    cls.gpgurls(context),
+                    gpgurls,
                 )
                 yield RpmRepository(
                     f"{repo.lower()}-source",
                     f"baseurl={join_mirror(mirror, f'SIGs/$stream/{repo}/source/extras-common')}",
-                    cls.gpgurls(context),
+                    gpgurls,
                     enabled=False,
                 )
 
@@ -148,18 +153,18 @@ class Installer(DistributionInstaller):
                 yield RpmRepository(
                     repo.lower(),
                     f"baseurl={join_mirror(mirror, f'$stream/{repo}/$basearch/os')}",
-                    cls.gpgurls(context),
+                    gpgurls,
                 )
                 yield RpmRepository(
                     f"{repo.lower()}-debuginfo",
                     f"baseurl={join_mirror(mirror, f'$stream/{repo}/$basearch/debug/tree')}",
-                    cls.gpgurls(context),
+                    gpgurls,
                     enabled=False,
                 )
                 yield RpmRepository(
                     f"{repo.lower()}-source",
                     f"baseurl={join_mirror(mirror, f'$stream/{repo}/source/tree')}",
-                    cls.gpgurls(context),
+                    gpgurls,
                     enabled=False,
                 )
         else:
@@ -169,43 +174,45 @@ class Installer(DistributionInstaller):
                 yield RpmRepository(
                     repo.lower(),
                     f"{url}?arch=$basearch&repo=centos-extras-sig-extras-common-$stream",
-                    cls.gpgurls(context),
+                    gpgurls,
                 )
                 yield RpmRepository(
                     f"{repo.lower()}-source",
                     f"{url}?arch=source&repo=centos-extras-sig-extras-common-source-$stream",
-                    cls.gpgurls(context),
+                    gpgurls,
                     enabled=False,
                 )
             else:
                 yield RpmRepository(
                     repo.lower(),
                     f"{url}?arch=$basearch&repo=centos-{repo.lower()}-$stream",
-                    cls.gpgurls(context),
+                    gpgurls,
                 )
                 yield RpmRepository(
                     f"{repo.lower()}-debuginfo",
                     f"{url}?arch=$basearch&repo=centos-{repo.lower()}-debug-$stream",
-                    cls.gpgurls(context),
+                    gpgurls,
                     enabled=False,
                 )
                 yield RpmRepository(
                     f"{repo.lower()}-source",
                     f"{url}?arch=source&repo=centos-{repo.lower()}-source-$stream",
-                    cls.gpgurls(context),
+                    gpgurls,
                     enabled=False,
                 )
 
     @classmethod
     def repositories(cls, context: Context) -> Iterable[RpmRepository]:
+        gpgurls = cls.gpgurls(context)
+
         if context.config.local_mirror:
-            yield from cls.repository_variants(context, "AppStream")
+            yield from cls.repository_variants(context, gpgurls, "AppStream")
             return
 
-        yield from cls.repository_variants(context, "BaseOS")
-        yield from cls.repository_variants(context, "AppStream")
-        yield from cls.repository_variants(context, "extras")
-        yield from cls.repository_variants(context, "CRB")
+        yield from cls.repository_variants(context, gpgurls, "BaseOS")
+        yield from cls.repository_variants(context, gpgurls, "AppStream")
+        yield from cls.repository_variants(context, gpgurls, "extras")
+        yield from cls.repository_variants(context, gpgurls, "CRB")
 
         yield from cls.epel_repositories(context)
         yield from cls.sig_repositories(context)

@@ -1,5 +1,4 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
-import hashlib
 import textwrap
 from collections.abc import Sequence
 from pathlib import Path
