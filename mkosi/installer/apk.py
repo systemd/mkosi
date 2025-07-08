@@ -39,6 +39,7 @@ class Apk(PackageManager):
         ]
 
         mounts += ["--ro-bind", "/etc/apk/keys", "/etc/apk/keys"]
+        mounts += ["--ro-bind", "/home/clayton/.local/var/pmbootstrap/packages", "/home/clayton/.local/var/pmbootstrap/packages"]
 
         cache_dir = context.config.package_cache_dir_or_default() / "apk"
         cache_dir.mkdir(parents=True, exist_ok=True)

@@ -74,6 +74,7 @@ class Installer(DistributionInstaller):
         print("fetch repos")
         return iter(
             [
+                "/home/clayton/.local/var/pmbootstrap/packages/edge",
                 "https://mirror.postmarketos.org/postmarketos/extra-repos/systemd/master/",
                 "https://mirror.postmarketos.org/postmarketos/master",
                 "https://dl-cdn.alpinelinux.org/alpine/edge/main",
