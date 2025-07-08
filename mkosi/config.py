@@ -1985,6 +1985,7 @@ class Config:
     build_scripts: list[Path]
     postinst_scripts: list[Path]
     finalize_scripts: list[Path]
+    postroot_scripts: list[Path]
     postoutput_scripts: list[Path]
     clean_scripts: list[Path]
 
@@ -3026,6 +3027,17 @@ SETTINGS: list[ConfigSetting[Any]] = [
         recursive_path_suffixes=("finalize.d/*",),
         help="Postinstall script to run outside image",
         compat_names=("FinalizeScript",),
+    ),
+    ConfigSetting(
+        dest="postroot_scripts",
+        long="--postroot-script",
+        metavar="PATH",
+        name="PostRootScripts",
+        section="Content",
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        path_suffixes=("postroot",),
+        recursive_path_suffixes=("postroot.d/*",),
+        help="Root postprocessing script to run outside image",
     ),
     ConfigSetting(
         dest="postoutput_scripts",
@@ -4655,6 +4667,7 @@ class ParseContext:
                     *config.build_scripts,
                     *config.postinst_scripts,
                     *config.finalize_scripts,
+                    *config.postroot_scripts,
                     *config.postoutput_scripts,
                 )
 
@@ -5440,6 +5453,7 @@ def summary(config: Config) -> str:
                       Build Scripts: {line_join_list(config.build_scripts)}
                 Postinstall Scripts: {line_join_list(config.postinst_scripts)}
                    Finalize Scripts: {line_join_list(config.finalize_scripts)}
+                   Postroot Scripts: {line_join_list(config.postroot_scripts)}
                  Postoutput Scripts: {line_join_list(config.postoutput_scripts)}
 
                            Bootable: {config.bootable}
