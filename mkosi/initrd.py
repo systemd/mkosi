@@ -210,6 +210,10 @@ def network_config() -> list[str]:
     ]
 
 
+def nfs_config() -> list[str]:
+    return [f"--extra-tree={f}:{f}" for f in ("/etc/idmapd.conf", "/etc/idmapd.conf.d") if Path(f).exists()]
+
+
 def raid_config() -> list[str]:
     return [
         f"--extra-tree={f}:{f}"
@@ -349,6 +353,8 @@ def main() -> None:
             cmdline += ["--profile", p]
             if p == "network":
                 cmdline += network_config()
+            elif p == "nfs":
+                cmdline += nfs_config()
             elif p == "raid":
                 cmdline += raid_config()
 
