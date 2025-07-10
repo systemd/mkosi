@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
+import datetime
 import tempfile
 from collections.abc import Iterable
 from pathlib import Path
@@ -8,7 +9,7 @@ from mkosi.archive import extract_tar
 from mkosi.config import Architecture, Config
 from mkosi.context import Context
 from mkosi.curl import curl
-from mkosi.distributions import DistributionInstaller, PackageType
+from mkosi.distributions import DistributionInstaller, PackageType, join_mirror
 from mkosi.installer.pacman import Pacman, PacmanRepository
 from mkosi.log import complete_step, die
 
@@ -44,7 +45,7 @@ class Installer(DistributionInstaller):
                 curl(
                     context.config,
                     "https://archlinux.org/packages/core/any/archlinux-keyring/download",
-                    Path(d),
+                    output_dir=Path(d),
                 )
                 extract_tar(
                     next(Path(d).iterdir()),
@@ -69,9 +70,24 @@ class Installer(DistributionInstaller):
             yield PacmanRepository("core", context.config.local_mirror)
         else:
             if context.config.architecture.is_arm_variant():
-                url = f"{context.config.mirror or 'http://mirror.archlinuxarm.org'}/$arch/$repo"
+                if context.config.snapshot and not context.config.mirror:
+                    die("There is no known public mirror for snapshots of Arch Linux ARM")
+
+                mirror = context.config.mirror or "http://mirror.archlinuxarm.org"
             else:
-                url = f"{context.config.mirror or 'https://geo.mirror.pkgbuild.com'}/$repo/os/$arch"
+                if context.config.mirror:
+                    mirror = context.config.mirror
+                elif context.config.snapshot:
+                    mirror = "https://archive.archlinux.org"
+                else:
+                    mirror = "https://geo.mirror.pkgbuild.com"
+
+            if context.config.snapshot:
+                url = join_mirror(mirror, f"repos/{context.config.snapshot}/$repo/os/$arch")
+            elif context.config.architecture.is_arm_variant():
+                url = join_mirror(mirror, "$arch/$repo")
+            else:
+                url = join_mirror(mirror, "$repo/os/$arch")
 
             # Testing repositories have to go before regular ones to to take precedence.
             repos = [
@@ -107,3 +123,10 @@ class Installer(DistributionInstaller):
             die(f"Architecture {a} is not supported by Arch Linux")
 
         return a
+
+    @classmethod
+    def latest_snapshot(cls, config: Config) -> str:
+        url = join_mirror(config.mirror or "https://archive.archlinux.org", "repos/last/lastsync")
+        return datetime.datetime.fromtimestamp(int(curl(config, url)), datetime.timezone.utc).strftime(
+            "%Y/%m/%d"
+        )

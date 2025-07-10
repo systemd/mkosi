@@ -1,14 +1,17 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 import itertools
+import json
 import tempfile
 from collections.abc import Iterable
 from pathlib import Path
+from typing import cast
 
 from mkosi.archive import extract_tar
 from mkosi.config import Architecture, Config
 from mkosi.context import Context
-from mkosi.distributions import DistributionInstaller, PackageType
+from mkosi.curl import curl
+from mkosi.distributions import DistributionInstaller, PackageType, join_mirror
 from mkosi.installer.apt import Apt, AptRepository
 from mkosi.log import die
 from mkosi.run import run, workdir
@@ -51,19 +54,33 @@ class Installer(DistributionInstaller):
             )
             return
 
-        mirror = context.config.mirror or "http://deb.debian.org/debian"
+        if context.config.mirror:
+            mirror = context.config.mirror
+        elif context.config.snapshot:
+            mirror = "https://snapshot.debian.org"
+        else:
+            mirror = "http://deb.debian.org"
+
+        if context.config.snapshot:
+            url = join_mirror(mirror, f"archive/debian/{context.config.snapshot}")
+        else:
+            url = join_mirror(mirror, "debian")
+
         signedby = Path("/usr/share/keyrings/debian-archive-keyring.gpg")
 
         yield AptRepository(
             types=types,
-            url=mirror,
+            url=url,
             suite=context.config.release,
             components=components,
             signedby=signedby,
         )
 
         # Debug repos are typically not mirrored.
-        url = "http://deb.debian.org/debian-debug"
+        if context.config.snapshot:
+            url = join_mirror(mirror, f"archive/debian-debug/{context.config.snapshot}")
+        else:
+            url = join_mirror(mirror, "debian-debug")
 
         yield AptRepository(
             types=types,
@@ -76,18 +93,24 @@ class Installer(DistributionInstaller):
         if context.config.release in ("unstable", "sid"):
             return
 
-        yield AptRepository(
-            types=types,
-            url=mirror,
-            suite=f"{context.config.release}-updates",
-            components=components,
-            signedby=signedby,
-        )
+        if not context.config.snapshot:
+            yield AptRepository(
+                types=types,
+                url=join_mirror(mirror, "debian"),
+                suite=f"{context.config.release}-updates",
+                components=components,
+                signedby=signedby,
+            )
+
+        # Security updates repos are never mirrored.
+        if context.config.snapshot:
+            url = join_mirror(mirror, f"archive/debian-security/{context.config.snapshot}")
+        else:
+            url = join_mirror(mirror, "debian-security")
 
         yield AptRepository(
             types=types,
-            # Security updates repos are never mirrored.
-            url="http://security.debian.org/debian-security",
+            url=url,
             suite=f"{context.config.release}-security",
             components=components,
             signedby=signedby,
@@ -219,6 +242,11 @@ class Installer(DistributionInstaller):
             die(f"Architecture {arch} is not supported by {cls.pretty_name()}")
 
         return a
+
+    @classmethod
+    def latest_snapshot(cls, config: Config) -> str:
+        url = join_mirror(config.mirror or "https://snapshot.debian.org", "mr/timestamp")
+        return cast(str, json.loads(curl(config, url))["result"]["debian"][-1])
 
 
 def install_apt_sources(context: Context, repos: Iterable[AptRepository]) -> None:
