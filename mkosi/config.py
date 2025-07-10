@@ -636,6 +636,7 @@ class ToolsTreeProfile(StrEnum):
 
 class InitrdProfile(StrEnum):
     lvm = enum.auto()
+    network = enum.auto()
     pkcs11 = enum.auto()
     plymouth = enum.auto()
     raid = enum.auto()
