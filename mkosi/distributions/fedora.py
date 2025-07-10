@@ -64,7 +64,7 @@ def find_fedora_rpm_gpgkeys(context: Context) -> Iterable[str]:
             # The rawhide key is a symlink and github doesn't redirect those to the actual file for some
             # reason, so we fetch the file and read the release it points to ourselves.
             with tempfile.TemporaryDirectory() as d:
-                curl(context.config, f"{keys}/RPM-GPG-KEY-fedora-rawhide-primary", Path(d))
+                curl(context.config, f"{keys}/RPM-GPG-KEY-fedora-rawhide-primary", output_dir=Path(d))
                 key = (Path(d) / "RPM-GPG-KEY-fedora-rawhide-primary").read_text()
 
             yield f"{keys}/{key}"
@@ -79,7 +79,7 @@ def find_fedora_rpm_gpgkeys(context: Context) -> Iterable[str]:
                         curl(
                             context.config,
                             f"{keys}/RPM-GPG-KEY-fedora-{version + 1}-primary",
-                            Path(d),
+                            output_dir=Path(d),
                             log=False,
                         )
 
@@ -133,6 +133,23 @@ class Installer(DistributionInstaller):
     def repositories(cls, context: Context) -> Iterable[RpmRepository]:
         gpgurls = find_fedora_rpm_gpgkeys(context)
 
+        if context.config.snapshot and context.config.release != "rawhide":
+            die(f"Snapshot= is only supported for rawhide on {cls.pretty_name()}")
+
+        mirror = context.config.mirror
+        if not mirror and context.config.snapshot:
+            mirror = "https://kojipkgs.fedoraproject.org"
+
+        if context.config.snapshot and mirror != "https://kojipkgs.fedoraproject.org":
+            die(
+                f"Snapshot= is only supported for {cls.pretty_name()} if Mirror=https://kojipkgs.fedoraproject.org"
+            )
+
+        if mirror == "https://kojipkgs.fedoraproject.org" and not context.config.snapshot:
+            die(
+                f"Snapshot= must be used on {cls.pretty_name()} if Mirror=https://kojipkgs.fedoraproject.org"
+            )
+
         if context.config.local_mirror:
             yield RpmRepository("fedora", f"baseurl={context.config.local_mirror}", gpgurls)
             return
@@ -147,20 +164,37 @@ class Installer(DistributionInstaller):
                     f"{repo.lower()}-debuginfo", f"{url}/$basearch/debug/tree", gpgurls, enabled=False
                 )
                 yield RpmRepository(f"{repo.lower()}-source", f"{url}/source/tree", gpgurls, enabled=False)
-        elif m := context.config.mirror:
-            directory = "development" if context.config.release == "rawhide" else "releases"
-            url = f"baseurl={join_mirror(m, f'linux/{directory}/$releasever/Everything')}"
+        elif mirror:
+            if mirror == "https://kojipkgs.fedoraproject.org":
+                subdir = f"compose/{context.config.release}"
+            else:
+                subdir = "linux/"
+                subdir += "development" if context.config.release == "rawhide" else "releases"
+                subdir += "/$releasever"
+
+            if context.config.snapshot:
+                subdir += f"/Fedora-{context.config.release.capitalize()}-{context.config.snapshot}/compose"
+
+                try:
+                    curl(context.config, join_mirror(mirror, subdir))
+                except subprocess.CalledProcessError:
+                    die(
+                        f"Could not access snapshot at {join_mirror(mirror, subdir)}",
+                        hint="Does the snapshot still exist?",
+                    )
+
+            url = f"baseurl={join_mirror(mirror, f'{subdir}/Everything')}"
             yield RpmRepository("fedora", f"{url}/$basearch/os", gpgurls)
             yield RpmRepository("fedora-debuginfo", f"{url}/$basearch/debug/tree", gpgurls, enabled=False)
             yield RpmRepository("fedora-source", f"{url}/source/tree", gpgurls, enabled=False)
 
             if context.config.release != "rawhide":
-                url = f"baseurl={join_mirror(m, 'linux/updates/$releasever/Everything')}"
+                url = f"baseurl={join_mirror(mirror, 'linux/updates/$releasever/Everything')}"
                 yield RpmRepository("updates", f"{url}/$basearch", gpgurls)
                 yield RpmRepository("updates-debuginfo", f"{url}/$basearch/debug", gpgurls, enabled=False)
                 yield RpmRepository("updates-source", f"{url}/source/tree", gpgurls, enabled=False)
 
-                url = f"baseurl={join_mirror(m, 'linux/updates/testing/$releasever/Everything')}"
+                url = f"baseurl={join_mirror(mirror, 'linux/updates/testing/$releasever/Everything')}"
                 yield RpmRepository("updates-testing", f"{url}/$basearch", gpgurls, enabled=False)
                 yield RpmRepository(
                     "updates-testing-debuginfo", f"{url}/$basearch/debug", gpgurls, enabled=False
@@ -222,3 +256,13 @@ class Installer(DistributionInstaller):
             die(f"Architecture {a} is not supported by Fedora")
 
         return a
+
+    @classmethod
+    def latest_snapshot(cls, config: Config) -> str:
+        mirror = config.mirror or "https://kojipkgs.fedoraproject.org"
+
+        url = join_mirror(
+            mirror, f"compose/{config.release}/latest-Fedora-{config.release.capitalize()}/COMPOSE_ID"
+        )
+
+        return curl(config, url).removeprefix(f"Fedora-{config.release.capitalize()}-").strip()
