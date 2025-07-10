@@ -22,6 +22,7 @@ class AptRepository:
     suite: str
     components: tuple[str, ...]
     signedby: Optional[Path]
+    snapshot: Optional[str] = None
 
     def __str__(self) -> str:
         return textwrap.dedent(
@@ -31,6 +32,7 @@ class AptRepository:
             Suites: {self.suite}
             Components: {" ".join(self.components)}
             {"Signed-By" if self.signedby else "Trusted"}: {self.signedby or "yes"}
+            {f"Snapshot: {self.snapshot}" if self.snapshot else ""}
 
             """
         )

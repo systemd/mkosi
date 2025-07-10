@@ -90,6 +90,7 @@ class Verb(StrEnum):
     box = enum.auto()
     sandbox = enum.auto()
     init = enum.auto()
+    latest_snapshot = enum.auto()
 
     def supports_cmdline(self) -> bool:
         return self in (
@@ -111,7 +112,14 @@ class Verb(StrEnum):
         )
 
     def needs_tools(self) -> bool:
-        return self in (Verb.box, Verb.sandbox, Verb.journalctl, Verb.coredumpctl, Verb.ssh)
+        return self in (
+            Verb.box,
+            Verb.sandbox,
+            Verb.journalctl,
+            Verb.coredumpctl,
+            Verb.ssh,
+            Verb.latest_snapshot,
+        )
 
     def needs_build(self) -> bool:
         return self in (
@@ -1954,6 +1962,7 @@ class Config:
     release: str
     architecture: Architecture
     mirror: Optional[str]
+    snapshot: Optional[str]
     local_mirror: Optional[str]
     repository_key_check: bool
     repository_key_fetch: bool
@@ -2335,6 +2344,7 @@ class Config:
             "distribution": self.distribution,
             "release": self.release,
             "mirror": self.mirror,
+            "snapshot": self.snapshot,
             "architecture": self.architecture,
             # Caching the package manager used does not matter for the default tools tree because we don't
             # cache the package manager metadata for the tools tree either. In fact, it can cause issues as
@@ -2672,6 +2682,15 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Distribution",
         help="Distribution mirror to use",
         scope=SettingScope.universal,
+    ),
+    ConfigSetting(
+        dest="snapshot",
+        section="Distribution",
+        help="Distribution snapshot to use",
+        path_suffixes=("snapshot",),
+        path_read_text=True,
+        scope=SettingScope.universal,
+        tools=True,
     ),
     ConfigSetting(
         dest="local_mirror",
@@ -4992,7 +5011,7 @@ def have_history(args: Args) -> bool:
     if args.directory is None:
         return False
 
-    if args.verb in (Verb.clean, Verb.sandbox):
+    if args.verb in (Verb.clean, Verb.sandbox, Verb.latest_snapshot):
         return False
 
     if args.verb == Verb.summary and args.force > 0:
@@ -5413,6 +5432,7 @@ def summary(config: Config) -> str:
                             Release: {bold(none_to_na(config.release))}
                        Architecture: {config.architecture}
                              Mirror: {none_to_default(config.mirror)}
+                           Snapshot: {none_to_none(config.snapshot)}
                Local Mirror (build): {none_to_none(config.local_mirror)}
            Repo Signature/Key check: {yes_no(config.repository_key_check)}
               Fetch Repository Keys: {yes_no(config.repository_key_fetch)}
