@@ -211,6 +211,16 @@ jobs:
       - name: Summary
         run: sudo mkosi summary
 
+      - name: Determine snapshot
+        id: snapshot
+        run: echo "snapshot=$(mkosi summary --json | jq -r '.Images[-1].Snapshot')" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        if: ${{ steps.snapshot.outputs.snapshot }} != "null"
+        with:
+          path: /var/cache/mkosi
+          key: ${{ matrix.distro }}-${{ matrix.tools }}-${{ steps.snapshot.outputs.snapshot }}
+
       - name: Build tools tree
         run: sudo mkosi -f box -- true
 
