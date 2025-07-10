@@ -369,6 +369,7 @@ def test_config() -> None:
                     "Target": "/qux"
                 }
             ],
+            "Snapshot": "snapshot",
             "SourceDateEpoch": 12345,
             "Splash": "/splash",
             "SplitArtifacts": [
@@ -576,6 +577,7 @@ def test_config() -> None:
         sign_expected_pcr=ConfigFeature.disabled,
         sign=False,
         skeleton_trees=[ConfigTree(Path("/foo/bar"), Path("/")), ConfigTree(Path("/bar/baz"), Path("/qux"))],
+        snapshot="snapshot",
         source_date_epoch=12345,
         splash=Path("/splash"),
         split_artifacts=[ArtifactOutput.uki, ArtifactOutput.kernel],

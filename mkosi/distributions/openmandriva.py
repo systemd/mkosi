@@ -29,6 +29,9 @@ class Installer(fedora.Installer):
 
     @classmethod
     def repositories(cls, context: Context) -> Iterable[RpmRepository]:
+        if context.config.snapshot:
+            die(f"Snapshot= is not supported for {cls.pretty_name()}")
+
         mirror = context.config.mirror or "http://mirror.openmandriva.org"
 
         gpgurls = (
