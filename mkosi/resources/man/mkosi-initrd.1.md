@@ -45,6 +45,9 @@ initrds and Unified Kernel Images for the current running system.
     disabled.
 
     The `lvm` profile enables support for LVM.
+    The `network` profile enables support for network via **systemd-networkd**.
+    The `nfs` profile enables support for NFS. It requires networking in the
+    initrd, using the `network` profile, or some other custom method.
     The `pkcs11` profile enables support for PKCS#11.
     The `plymouth` profile provides a graphical interface at boot (animation and
     password prompt).
