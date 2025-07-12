@@ -135,13 +135,15 @@ class Image:
         return result
 
     def vm(self, options: Sequence[str] = (), args: Sequence[str] = ()) -> CompletedProcess:
+        need_hyperv_workaround = os.uname().machine == "x86_64"
+
         result = self.mkosi(
             "vm",
             [
                 "--runtime-build-sources=no",
                 "--vsock=yes",
                 # TODO: Drop once both Hyper-V bugs are fixed in Github Actions.
-                "--qemu-args=-cpu max,pcid=off",
+                *(["--qemu-args=-cpu max,pcid=off"] if need_hyperv_workaround else []),
                 "--ram=2G",
                 "--ephemeral=yes",
                 "--register=no",
