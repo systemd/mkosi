@@ -146,6 +146,15 @@ jobs:
           - distro: debian
             tools: debian
             runner: ubuntu-24.04-arm
+          - distro: fedora
+            tools: fedora
+            runner: ubuntu-24.04-arm
+          - distro: opensuse
+            tools: opensuse
+            runner: ubuntu-24.04-arm
+          - distro: ubuntu
+            tools: ubuntu
+            runner: ubuntu-24.04-arm
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
