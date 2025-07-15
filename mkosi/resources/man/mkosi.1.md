@@ -1730,7 +1730,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     `linux` otherwise.
 
 `FirmwareVariables=`, `--firmware-variables=`
-:   Configures the path to the the virtual machine firmware variables file
+:   Configures the path to the virtual machine firmware variables file
     to use. Currently, this option is only taken into account when the `uefi`
     or `uefi-secure-boot` firmware is used. If not specified, **mkosi** will search
     for the default variables file and use that instead.
