@@ -142,7 +142,7 @@ jobs:
           - distro: ubuntu
             tools: opensuse
         include:
-          # low rate limit on arm64 workers
+          # low rate limit on ppc64le/arm64 workers
           - distro: debian
             tools: debian
             runner: ubuntu-24.04-arm
@@ -155,6 +155,12 @@ jobs:
           - distro: ubuntu
             tools: ubuntu
             runner: ubuntu-24.04-arm
+          - distro: fedora
+            tools: fedora
+            runner: ubuntu-24.04-ppc64le
+          - distro: debian
+            tools: debian
+            runner: ubuntu-24.04-ppc64le
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
