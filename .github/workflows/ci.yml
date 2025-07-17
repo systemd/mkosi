@@ -21,11 +21,6 @@ jobs:
           python3 -m pip install --break-system-packages codespell mypy reuse ruff
           npm install -g pyright
 
-      - name: Run ruff check
-        run: |
-          ruff --version
-          ruff check mkosi/ tests/ kernel-install/*.install
-
       - name: Run ruff format
         run: |
           ruff --version
@@ -34,6 +29,11 @@ jobs:
               echo "Please run 'ruff format' on the above files or apply the diffs below manually"
               ruff format --check --quiet --diff mkosi/ tests/ kernel-install/*.install
           fi
+
+      - name: Run ruff check
+        run: |
+          ruff --version
+          ruff check mkosi/ tests/ kernel-install/*.install
 
       - name: Check that tabs are not used in code
         run: sh -c '! git grep -P "\\t" "*.py"'
