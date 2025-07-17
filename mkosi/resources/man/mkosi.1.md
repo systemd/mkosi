@@ -1001,13 +1001,18 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `UnifiedKernelImages=`, `--unified-kernel-images=`
 :   Specifies whether to use unified kernel images or not when
-    `Bootloader=` is set to `systemd-boot` or `grub`. Takes a boolean
-    value or `auto`. Defaults to `auto`. If enabled, unified kernel images
-    are always used and the build will fail if any components required to
-    build unified kernel images are missing. If set to `auto`, unified
+    `Bootloader=` is set to `systemd-boot` or `grub`. Takes one of `none`,
+    `unsigned`, `signed` or `auto`. Defaults to `auto`. If `unsigned` or `signed`,
+    unified kernel images are always used and the build will fail if any components
+    required to build unified kernel images are missing. If set to `auto`, unified
     kernel images will be used if all necessary components are available.
     Otherwise Type 1 entries as defined by the Boot Loader Specification
     will be used instead. If disabled, Type 1 entries will always be used.
+    If `Bootloader=` is set to one of the signed variant, a pre-built UKI
+    will be searched and the build will fail if it cannot be found, unless
+    `UnifiedKernelImages=` is set to `unsigned`, in which case the UKI will
+    be built locally. This is useful when combined with the runtime `Firmware=`
+    option set to `custom` so that the local signing key is enrolled in UEFI db.
 
 `UnifiedKernelImageFormat=`, `--unified-kernel-image-format=`
 :   Takes a filename without any path components to specify the format that
