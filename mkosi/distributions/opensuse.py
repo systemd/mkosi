@@ -53,7 +53,11 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def install(cls, context: Context) -> None:
-        cls.package_manager(context.config).install(context, ["filesystem"], apivfs=False)
+        packages = ["filesystem"]
+        if not any(p.endswith("-release") for p in context.config.packages):
+            packages += ["openSUSE-release"]
+
+        cls.package_manager(context.config).install(context, packages, apivfs=False)
 
     @classmethod
     def repositories(cls, context: Context) -> Iterable[RpmRepository]:
