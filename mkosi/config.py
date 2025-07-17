@@ -329,6 +329,16 @@ class ShimBootloader(StrEnum):
     unsigned = enum.auto()
 
 
+class UnifiedKernelImage(StrEnum):
+    none = enum.auto()
+    auto = enum.auto()
+    signed = enum.auto()
+    unsigned = enum.auto()
+
+    def enabled(self) -> bool:
+        return self in (UnifiedKernelImage.signed, UnifiedKernelImage.unsigned)
+
+
 class Cacheonly(StrEnum):
     always = enum.auto()
     auto = enum.auto()
@@ -1995,7 +2005,7 @@ class Config:
     bootloader: Bootloader
     bios_bootloader: BiosBootloader
     shim_bootloader: ShimBootloader
-    unified_kernel_images: ConfigFeature
+    unified_kernel_images: UnifiedKernelImage
     unified_kernel_image_format: str
     unified_kernel_image_profiles: list[UKIProfile]
     initrds: list[Path]
@@ -3077,7 +3087,10 @@ SETTINGS: list[ConfigSetting[Any]] = [
         dest="unified_kernel_images",
         metavar="FEATURE",
         section="Content",
-        parse=config_parse_feature,
+        parse=config_make_enum_parser_with_boolean(
+            UnifiedKernelImage, yes=UnifiedKernelImage.signed, no=UnifiedKernelImage.none
+        ),
+        default=UnifiedKernelImage.auto,
         help="Specify whether to use UKIs with grub/systemd-boot in UEFI mode",
     ),
     ConfigSetting(
@@ -5775,6 +5788,7 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         KeySource: key_source_transformer,
         Vmm: enum_transformer,
         list[UKIProfile]: uki_profile_transformer,
+        UnifiedKernelImage: enum_transformer,
         list[ArtifactOutput]: enum_list_transformer,
         CertificateSource: certificate_source_transformer,
         ConsoleMode: enum_transformer,

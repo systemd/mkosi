@@ -38,6 +38,7 @@ from mkosi.config import (
     ShimBootloader,
     Ssh,
     UKIProfile,
+    UnifiedKernelImage,
     Verb,
     Verity,
     Vmm,
@@ -597,7 +598,7 @@ def test_config() -> None:
                 sign_expected_pcr=True,
             )
         ],
-        unified_kernel_images=ConfigFeature.auto,
+        unified_kernel_images=UnifiedKernelImage.auto,
         unit_properties=["PROPERTY=VALUE"],
         use_subvolumes=ConfigFeature.auto,
         verity_certificate_source=CertificateSource(type=CertificateSourceType.file),
