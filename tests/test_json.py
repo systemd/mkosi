@@ -44,7 +44,7 @@ from mkosi.config import (
     VsockCID,
     dump_json,
 )
-from mkosi.distributions import Distribution
+from mkosi.distributions import Distribution, DistributionRelease
 
 
 @pytest.mark.parametrize("path", [None, "/baz/qux"])
@@ -537,7 +537,7 @@ def test_config() -> None:
         qemu_args=[],
         ram=123,
         register=ConfigFeature.enabled,
-        release="53",
+        release=DistributionRelease("53"),
         removable=False,
         remove_files=[],
         remove_packages=["all"],
