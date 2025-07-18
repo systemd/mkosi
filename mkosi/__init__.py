@@ -66,6 +66,7 @@ from mkosi.config import (
     SecureBootSignTool,
     ShimBootloader,
     Ssh,
+    UnifiedKernelImage,
     Verb,
     Verity,
     Vmm,
@@ -1894,9 +1895,9 @@ def systemd_stub_version(context: Context, stub: Path) -> Optional[GenericVersio
 def want_uki(context: Context) -> bool:
     return want_efi(context.config) and (
         context.config.bootloader.is_uki()
-        or context.config.unified_kernel_images == ConfigFeature.enabled
+        or context.config.unified_kernel_images.enabled()
         or (
-            context.config.unified_kernel_images == ConfigFeature.auto
+            context.config.unified_kernel_images == UnifiedKernelImage.auto
             and systemd_stub_binary(context).exists()
             and context.config.find_binary("ukify", "/usr/lib/systemd/ukify") is not None
         )
@@ -2133,7 +2134,10 @@ def install_uki(
     with umask(~0o700):
         boot_binary.parent.mkdir(parents=True, exist_ok=True)
 
-    if context.config.bootloader.is_signed():
+    if (
+        context.config.bootloader.is_signed()
+        and context.config.unified_kernel_images == UnifiedKernelImage.auto
+    ) or context.config.unified_kernel_images == UnifiedKernelImage.signed:
         for p in (context.root / "usr/lib/modules" / kver).glob("*.efi"):
             log_step(f"Installing prebuilt UKI at {p} to {boot_binary}")
             shutil.copy2(p, boot_binary)
@@ -2403,7 +2407,7 @@ def copy_nspawn_settings(context: Context) -> None:
 
 
 def get_uki_path(context: Context) -> Optional[Path]:
-    if not want_efi(context.config) or context.config.unified_kernel_images == ConfigFeature.disabled:
+    if not want_efi(context.config) or context.config.unified_kernel_images == UnifiedKernelImage.none:
         return None
 
     ukis = sorted(
@@ -2807,7 +2811,7 @@ def check_tools(config: Config, verb: Verb) -> None:
                 reason="build unified kernel image profiles",
                 hint=("Use ToolsTree=default to download most required tools including ukify automatically"),
             )
-        elif want_efi(config) and config.unified_kernel_images == ConfigFeature.enabled:
+        elif want_efi(config) and config.unified_kernel_images.enabled():
             check_ukify(
                 config,
                 version="254",
