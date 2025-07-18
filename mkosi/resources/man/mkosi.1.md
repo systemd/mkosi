@@ -353,8 +353,8 @@ Configuration is parsed in the following order:
 * `mkosi.local.conf` and `mkosi.local/` are parsed if they exists (in that order).
   This file and directory should be in `.gitignore` (or equivalent)
   and are intended for local configuration.
-* Any default paths (depending on the option) are configured if the
-  corresponding path exists.
+* If an option has a corresponding default path, it is parsed if the
+  corresponding default path exists.
 * `mkosi.conf` is parsed if it exists in the directory configured with
   `--directory=` or the current working directory if `--directory=` is
   not used. If the specified directory does not contain a `mkosi.conf` or
@@ -428,10 +428,10 @@ Architecture=|x86-64
 Architecture=|arm64
 ```
 
-The `[TriggerMatch]` section can be used to indicate triggering match
-sections. These are identical to triggering conditions except they apply
-to the entire match section instead of just a single condition. As an
-example, the following will match if the distribution is `debian` and
+The `[TriggerMatch]` section can be used to indicate triggering matches.
+These are identical to triggering conditions in systemd units except
+they apply to the entire match section instead of just a single condition.
+As an example, the following will match if the distribution is `debian` and
 the release is `bookworm` or if the distribution is `ubuntu` and the
 release is `noble`.
 
@@ -1435,9 +1435,13 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `SandboxTrees=`, `--sandbox-tree=`
 :   Takes a comma-separated list of colon-separated path pairs. The first
     path of each pair refers to a directory to copy into the mkosi
-    sandbox before executing a tool. If the `mkosi.sandbox/` directory
-    is found in the local directory it is used for this purpose with the
-    root directory as target (also see the **FILES** section below).
+    sandbox before executing a tool. The second path of each pair
+    refers to the target directory inside the sandbox. If the second path is
+    not provided, the directory is copied on top of the root directory of
+    the sandbox. The second path is always interpreted as an absolute path.
+    If the `mkosi.sandbox/` directory is found in the local directory it
+    is used for this purpose with the root directory as target (also see
+    the **FILES** section below).
 
     **mkosi** will look for the package manager configuration and related
     files in the configured sandbox trees. Unless specified otherwise,
@@ -1532,7 +1536,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     devices to build disk images. When disabled, **systemd-repart** will
     always use loopback devices to build disk images.
 
-    Note that when using `RepartOffline=no`**mkosi** cannot run unprivileged and
+    Note that when using `RepartOffline=no`, **mkosi** cannot run unprivileged and
     the image build has to be done as the root user outside of any
     containers and with loopback devices available on the host system.
 
@@ -1710,11 +1714,11 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `CDROM=`, `--cdrom=`
 :   Configures whether to attach the image as a CD-ROM device when booting a
-    virtual machine. Takes a boolean. Defaults to `no`.
+    virtual machine. Takes a boolean value. Defaults to `no`.
 
 `Removable=`, `--removable=`
 :   Configures whether to attach the image as a removable device when booting
-    a virtual machine. Takes a boolean. Defaults to `no`.
+    a virtual machine. Takes a boolean value. Defaults to `no`.
 
 `Firmware=`, `--firmware=`
 :   Configures the virtual machine firmware to use. Takes one of `uefi`,

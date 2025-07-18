@@ -165,7 +165,6 @@ to be able to run commands.
 mkosi-sandbox \
     --ro-bind /usr /usr \
     --symlink usr/bin /bin \
-    --symlink usr/bin /bin \
     --symlink usr/lib /lib \
     --symlink usr/lib64 /lib64 \
     --symlink usr/sbin /sbin \
