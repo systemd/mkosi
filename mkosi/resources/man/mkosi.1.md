@@ -3185,14 +3185,14 @@ For other systems, try researching the `kernel.unprivileged_userns_clone` or
 
 For Ubuntu systems, you can remove the restrictions for **mkosi** by
 adapting this snippet to point to your **mkosi** binary, copying it to
-`/etc/apparmor.d/path.to.mkosi`, and then running `systemctl reload apparmor`:
+`/etc/apparmor.d/resolved.path.to.mkosi`, and then running `systemctl reload apparmor`:
 
 ```
 abi <abi/4.0>,
 
 include <tunables/global>
 
-/path/to/mkosi flags=(default_allow) {
+/resolved/path/to/mkosi flags=(default_allow) {
   userns,
 }
 ```
