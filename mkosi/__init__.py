@@ -1032,6 +1032,72 @@ def run_finalize_scripts(context: Context) -> None:
                 )
 
 
+def run_postroot_scripts(context: Context, partitions: Sequence[Partition]) -> None:
+    if not context.config.postroot_scripts:
+        return
+
+    env = dict(
+        DISTRIBUTION=str(context.config.distribution),
+        RELEASE=context.config.release,
+        ARCHITECTURE=str(context.config.architecture),
+        DISTRIBUTION_ARCHITECTURE=context.config.distribution.architecture(context.config.architecture),
+        OUTPUT=context.config.output,
+        BUILDROOT="/buildroot",
+        SRCDIR="/work/src",
+        CHROOT_SRCDIR="/work/src",
+        OUTPUTDIR="/work/out",
+        CHROOT_OUTPUTDIR="/work/out",
+        SCRIPT="/work/postroot",
+        CHROOT_SCRIPT="/work/postroot",
+        MKOSI_UID=str(os.getuid()),
+        MKOSI_GID=str(os.getgid()),
+        MKOSI_CONFIG="/work/config.json",
+        WITH_NETWORK=one_zero(context.config.with_network),
+        MKOSI_DEBUG=one_zero(ARG_DEBUG.get()),
+    )
+
+    if context.config.profiles:
+        env["PROFILES"] = " ".join(context.config.profiles)
+
+    # Add partition-specific environment variables
+    context.config.architecture
+    for i, p in enumerate(partitions):
+        if p.type == f"usr-{context.config.architecture}":
+            env["USRHASH"] = p.roothash or ""
+        if p.type == f"root-{context.config.architecture}":
+            env["ROOTHASH"] = p.roothash or ""
+
+    env |= context.config.finalize_environment()
+
+    with (
+        finalize_source_mounts(
+            context.config,
+            ephemeral=bool(context.config.build_sources_ephemeral),
+        ) as sources,
+        finalize_config_json(context.config) as json,
+    ):
+        for script in context.config.postroot_scripts:
+            with complete_step(f"Running postroot script {script}…"):
+                options: list[PathString] = [
+                    "--ro-bind", script, "/work/postroot",
+                    "--ro-bind", json, "/work/config.json",
+                    "--bind", context.staging, "/work/out",
+                    *sources,
+                ]  # fmt: skip
+
+                run(
+                    ["/work/postroot"],
+                    env=env,
+                    stdin=sys.stdin,
+                    sandbox=script_maybe_chroot_sandbox(
+                        context,
+                        script=script,
+                        options=options,
+                        network=context.config.with_network,
+                    ),
+                )
+
+
 def run_postoutput_scripts(context: Context) -> None:
     if not context.config.postoutput_scripts:
         return
@@ -1210,6 +1276,7 @@ def install_sandbox_trees(config: Config, dst: Path) -> None:
         "etc/ssl",
         "etc/ca-certificates",
         "etc/pacman.d/gnupg",
+        "etc/apk/keys",
         "etc/alternatives",
     ):
         (dst / d).mkdir(parents=True, exist_ok=True)
@@ -1262,6 +1329,17 @@ def gzip_binary(context: Context) -> str:
     return "pigz" if context.config.find_binary("pigz") else "gzip"
 
 
+def _kernel_get_ver_from_modules(context: Context) -> str:
+    moddir = context.root / "usr/lib/modules"
+    # try to get version from the first dir under usr/lib/modules
+
+    for item in moddir.glob("[0-9]*"):
+        if item.is_dir() and re.match(r'\d+\.\d+.*', item.name):
+            return item.name
+
+    return "unknown"
+
+
 def fixup_vmlinuz_location(context: Context) -> None:
     # Some architectures ship an uncompressed vmlinux (ppc64el, riscv64)
     for type in ("vmlinuz", "vmlinux"):
@@ -1269,7 +1347,11 @@ def fixup_vmlinuz_location(context: Context) -> None:
             if d.is_symlink():
                 continue
 
-            kver = d.name.removeprefix(f"{type}-")
+            # Extract kernel version pattern from filename
+            filename = d.name.removeprefix(f"{type}-")
+            match = re.search(r'\d+\.\d+[\w\.-]*', filename)
+            kver = match.group(0) if match else _kernel_get_ver_from_modules(context)
+
             vmlinuz = context.root / "usr/lib/modules" / kver / type
             if not vmlinuz.parent.exists():
                 continue
@@ -2690,6 +2772,7 @@ def check_inputs(config: Config) -> None:
         config.build_scripts,
         config.postinst_scripts,
         config.finalize_scripts,
+        config.postroot_scripts,
         config.postoutput_scripts,
     ):
         if not os.access(script, os.X_OK):
@@ -4051,6 +4134,7 @@ def build_image(context: Context) -> None:
     normalize_mtime(context.root, context.config.source_date_epoch)
     partitions = make_disk(context, skip=("esp", "xbootldr"), tabs=True, msg="Generating disk image")
     install_kernel(context, partitions)
+    run_postroot_scripts(context, partitions)
     normalize_mtime(context.root, context.config.source_date_epoch, directory=Path("boot"))
     normalize_mtime(context.root, context.config.source_date_epoch, directory=Path("efi"))
     partitions = make_disk(context, msg="Formatting ESP/XBOOTLDR partitions")
