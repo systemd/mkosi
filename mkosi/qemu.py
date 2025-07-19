@@ -768,6 +768,8 @@ def finalize_firmware_variables(
             if config.firmware_variables == Path("microsoft") or not config.firmware_variables
             else config.firmware_variables
         )
+        if not vars.exists():
+            die(f"Firmware variables file {vars} does not exist")
         shutil.copy(vars, ovmf_vars)
 
     return ovmf_vars, ovmf_vars_format
