@@ -4995,8 +4995,7 @@ class ParseContext:
                 name = k.removeprefix("@")
                 if name != k:
                     logging.warning(
-                        f"{path.absolute()}: The '@' specifier is deprecated, please use {name} instead of "
-                        f"{k}"
+                        f"{path.absolute()}: The '@' specifier is deprecated, please use {name} instead of {k}"  # noqa: E501
                     )
 
                 if not (s := SETTINGS_LOOKUP_BY_NAME.get(name)):
@@ -5009,8 +5008,7 @@ class ParseContext:
 
                 if section != s.section:
                     logging.warning(
-                        f"{path.absolute()}: Setting {name} should be configured in [{s.section}], not "
-                        f"[{section}]."
+                        f"{path.absolute()}: Setting {name} should be configured in [{s.section}], not [{section}]."  # noqa: E501
                     )
 
                 if name != s.name:
