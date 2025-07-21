@@ -20,8 +20,8 @@ from mkosi.config import (
     ConfigTree,
     OutputFormat,
     Verb,
-    config_parse_bytes,
     in_box,
+    parse_bytes,
     parse_config,
     parse_ini,
 )
@@ -1152,24 +1152,23 @@ def test_wrong_section_warning(
 
 
 def test_config_parse_bytes() -> None:
-    assert config_parse_bytes(None) is None
-    assert config_parse_bytes("1") == 4096
-    assert config_parse_bytes("8000") == 8192
-    assert config_parse_bytes("8K") == 8192
-    assert config_parse_bytes("4097") == 8192
-    assert config_parse_bytes("1M") == 1024**2
-    assert config_parse_bytes("1.9M") == 1994752
-    assert config_parse_bytes("1G") == 1024**3
-    assert config_parse_bytes("7.3G") == 7838318592
+    assert parse_bytes("1") == 4096
+    assert parse_bytes("8000") == 8192
+    assert parse_bytes("8K") == 8192
+    assert parse_bytes("4097") == 8192
+    assert parse_bytes("1M") == 1024**2
+    assert parse_bytes("1.9M") == 1994752
+    assert parse_bytes("1G") == 1024**3
+    assert parse_bytes("7.3G") == 7838318592
 
     with pytest.raises(SystemExit):
-        config_parse_bytes("-1")
+        parse_bytes("-1")
     with pytest.raises(SystemExit):
-        config_parse_bytes("-2K")
+        parse_bytes("-2K")
     with pytest.raises(SystemExit):
-        config_parse_bytes("-3M")
+        parse_bytes("-3M")
     with pytest.raises(SystemExit):
-        config_parse_bytes("-4G")
+        parse_bytes("-4G")
 
 
 def test_specifiers(tmp_path: Path) -> None:
