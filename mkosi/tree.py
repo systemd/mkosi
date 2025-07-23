@@ -88,7 +88,7 @@ def maybe_make_nocow(path: Path) -> None:
 
 
 def tree_has_selinux_xattr(path: Path) -> bool:
-    return any("security.selinux" in os.listxattr(p) for p in (path, *path.rglob("*")))
+    return any("security.selinux" in os.listxattr(p, follow_symlinks=False) for p in (path, *path.rglob("*")))
 
 
 def copy_tree(
