@@ -7,13 +7,14 @@ import subprocess
 import textwrap
 from typing import IO, Any, Optional
 
-from mkosi.config import ManifestFormat
+from mkosi.config import ManifestFormat, OutputFormat
 from mkosi.context import Context
 from mkosi.distributions import PackageType
 from mkosi.installer.apt import Apt
 from mkosi.installer.pacman import Pacman
 from mkosi.log import complete_step
 from mkosi.run import run
+from mkosi.util import read_env_file
 
 
 @dataclasses.dataclass
@@ -68,6 +69,7 @@ class Manifest:
     context: Context
     packages: list[PackageManifest] = dataclasses.field(default_factory=list)
     source_packages: dict[str, SourcePackageManifest] = dataclasses.field(default_factory=dict)
+    extension: dict[str, str] = dataclasses.field(default_factory=dict)
 
     _init_timestamp: datetime.datetime = dataclasses.field(
         init=False, default_factory=lambda: datetime.datetime.now().replace(microsecond=0)
@@ -216,15 +218,26 @@ class Manifest:
                 self.source_packages[source] = source_package
             source_package.add(package)
 
+    def record_extension_release(self) -> None:
+        if self.context.config.output_format not in (OutputFormat.sysext, OutputFormat.confext):
+            return
+
+        with complete_step(f"Recording {type} information in manifest…"):
+            d = "usr/lib" if self.context.config.output_format == OutputFormat.sysext else "etc"
+            p = self.context.root / d / f"extension-release.d/extension-release.{self.context.config.output}"
+
+            self.extension = read_env_file(p)
+
     def has_data(self) -> bool:
         # We might add more data in the future
-        return len(self.packages) > 0
+        return len(self.packages) > 0 or len(self.extension) > 0
 
     def as_dict(self) -> dict[str, Any]:
         config = {
             "name": self.context.config.image_id or "image",
             "distribution": str(self.context.config.distribution),
             "architecture": str(self.context.config.architecture),
+            "output_format": str(self.context.config.output_format),
         }
         if self.context.config.image_version is not None:
             config["version"] = self.context.config.image_version
@@ -238,6 +251,8 @@ class Manifest:
             "config": config,
             # Describe the image content in terms of packages.
             "packages": [package.as_dict() for package in self.packages],
+            # Describe the SYSEXT / CONFEXT metadata.
+            "extension": self.extension,
         }
 
     def write_json(self, out: IO[str]) -> None:
