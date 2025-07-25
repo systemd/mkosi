@@ -5,15 +5,16 @@ import datetime
 import json
 import subprocess
 import textwrap
-from typing import IO, Any, Optional
+from typing import IO, Any, Literal, Optional
 
-from mkosi.config import ManifestFormat
+from mkosi.config import ManifestFormat, OutputFormat
 from mkosi.context import Context
 from mkosi.distributions import PackageType
 from mkosi.installer.apt import Apt
 from mkosi.installer.pacman import Pacman
 from mkosi.log import complete_step
 from mkosi.run import run
+from mkosi.util import read_env_file
 
 
 @dataclasses.dataclass
@@ -64,8 +65,41 @@ class SourcePackageManifest:
 
 
 @dataclasses.dataclass
+class ExtensionManifest:
+    """Sysext or Confext metadata"""
+
+    prefix: Literal["CONFEXT", "SYSEXT"]
+    id: str
+    scope: str
+    architecture: str
+    level: Optional[str]
+    version_id: Optional[str]
+    ext_id: Optional[str]
+    ext_version_id: Optional[str]
+
+    def as_dict(self) -> dict[str, str]:
+        ext = {
+            "ID": self.id,
+            f"{self.prefix}_SCOPE": self.scope,
+            "ARCHITECTURE": self.architecture,
+        }
+
+        if self.level:
+            ext[f"{self.prefix}_LEVEL"] = self.level
+        if self.version_id:
+            ext["VERSION_ID"] = self.version_id
+        if self.ext_id:
+            ext[f"{self.prefix}_ID"] = self.ext_id
+        if self.ext_version_id:
+            ext[f"{self.prefix}_VERSION_ID"] = self.ext_version_id
+
+        return ext
+
+
+@dataclasses.dataclass
 class Manifest:
     context: Context
+    ext: Optional[ExtensionManifest] = None
     packages: list[PackageManifest] = dataclasses.field(default_factory=list)
     source_packages: dict[str, SourcePackageManifest] = dataclasses.field(default_factory=dict)
 
@@ -214,6 +248,30 @@ class Manifest:
                 self.source_packages[source] = source_package
             source_package.add(package)
 
+    def record_extension_release(self) -> None:
+        if self.context.config.output_format not in (OutputFormat.sysext, OutputFormat.confext):
+            return
+
+        with complete_step("Recording sysext / confext information in manifest…"):
+            prefix: Literal["SYSEXT", "CONFEXT"] = (
+                "SYSEXT" if self.context.config.output_format == OutputFormat.sysext else "CONFEXT"
+            )
+            d = "usr/lib" if self.context.config.output_format == OutputFormat.sysext else "etc"
+            p = self.context.root / d / f"extension-release.d/extension-release.{self.context.config.output}"
+
+            extrelease = read_env_file(p)
+
+            self.ext = ExtensionManifest(
+                prefix,
+                extrelease["ID"],
+                extrelease[f"{prefix}_SCOPE"],
+                extrelease["ARCHITECTURE"],
+                extrelease.get(f"{prefix}_LEVEL"),
+                extrelease.get("VERSION_ID"),
+                extrelease.get(f"{prefix}_ID"),
+                extrelease.get(f"{prefix}_VERSION_ID"),
+            )
+
     def has_data(self) -> bool:
         # We might add more data in the future
         return len(self.packages) > 0
@@ -229,7 +287,7 @@ class Manifest:
         if self.context.config.release is not None:
             config["release"] = self.context.config.release
 
-        return {
+        d = {
             # Bump this when incompatible changes are made to the manifest format.
             "manifest_version": 1,
             # Describe the image itself.
@@ -237,6 +295,12 @@ class Manifest:
             # Describe the image content in terms of packages.
             "packages": [package.as_dict() for package in self.packages],
         }
+
+        # Optionally, describe the SYSEXT / CONFEXT metadata
+        if self.ext:
+            d[self.ext.prefix.lower()] = self.ext.as_dict()
+
+        return d
 
     def write_json(self, out: IO[str]) -> None:
         json.dump(self.as_dict(), out, indent=2)
