@@ -4047,6 +4047,9 @@ def build_image(context: Context) -> None:
         configure_ssh(context)
         configure_clock(context)
 
+        if manifest:
+            manifest.record_extension_release()
+
         install_systemd_boot(context)
         install_grub(context)
         install_shim(context)
