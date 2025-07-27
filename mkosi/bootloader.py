@@ -585,6 +585,10 @@ def find_and_install_shim_binary(
 
                 rel = p.relative_to(context.root)
                 if (context.root / output).is_dir():
+                    # The ESP wants .efi files, not .efi.signed or .efi.signed.latest
+                    if rel.suffix and rel.suffix != ".efi":
+                        left_stem, _ = rel.name.split(".", maxsplit=1)
+                        rel = rel.with_name(f"{left_stem}.efi")
                     output /= rel.name
 
                 log_step(f"Installing signed {name} EFI binary from /{rel} to /{output}")
