@@ -2014,6 +2014,7 @@ class Config:
     initrd_volatile_packages: list[str]
     microcode_host: bool
     devicetree: Optional[Path]
+    devicetree_auto: list[Path]
     splash: Optional[Path]
     kernel_command_line: list[str]
     kernel_modules_include: list[str]
@@ -3165,6 +3166,12 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Content",
         parse=config_parse_string,
         help="Devicetree to be used by the booting kernel",
+    ),
+    ConfigSetting(
+        dest="devicetree_auto",
+        section="Content",
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser(required=False)),
+        help="Devicetrees for automatic hardware-based selection in UKI builds",
     ),
     ConfigSetting(
         dest="splash",
@@ -5470,6 +5477,7 @@ def summary(config: Config) -> str:
                     Initrd Packages: {line_join_list(config.initrd_packages)}
            Initrd Volatile Packages: {line_join_list(config.initrd_volatile_packages)}
                          Devicetree: {none_to_none(config.devicetree)}
+                    Devicetree Auto: {line_join_list(config.devicetree_auto)}
                              Splash: {none_to_none(config.splash)}
                 Kernel Command Line: {line_join_list(config.kernel_command_line)}
                      Kernel Modules: {line_join_list(config.kernel_modules_include)}

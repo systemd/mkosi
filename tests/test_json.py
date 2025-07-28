@@ -151,6 +151,10 @@ def test_config() -> None:
                 "dep1"
             ],
             "Devicetree": "freescale/imx8mm-verdin-nonwifi-dev.dtb",
+            "DevicetreeAuto": [
+                "vendor/board1.dtb",
+                "vendor/board2.dtb"
+            ],
             "Distribution": "fedora",
             "Drives": [
                 {
@@ -511,6 +515,7 @@ def test_config() -> None:
         manifest_format=[ManifestFormat.json, ManifestFormat.changelog],
         microcode_host=True,
         devicetree=Path("freescale/imx8mm-verdin-nonwifi-dev.dtb"),
+        devicetree_auto=[Path("vendor/board1.dtb"), Path("vendor/board2.dtb")],
         minimum_version="123",
         mirror=None,
         nspawn_settings=None,
