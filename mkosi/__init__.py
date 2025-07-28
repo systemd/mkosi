@@ -609,6 +609,9 @@ def run_configure_scripts(config: Config) -> Config:
         MKOSI_DEBUG=one_zero(ARG_DEBUG.get()),
     )
 
+    if config.architecture.to_efi() is not None:
+        env["EFI_ARCHITECTURE"] = str(config.architecture.to_efi())
+
     if config.profiles:
         env["PROFILES"] = " ".join(config.profiles)
 
@@ -655,6 +658,9 @@ def run_sync_scripts(config: Config) -> None:
         CACHED=one_zero(have_cache(config)),
         MKOSI_DEBUG=one_zero(ARG_DEBUG.get()),
     )
+
+    if config.architecture.to_efi() is not None:
+        env["EFI_ARCHITECTURE"] = str(config.architecture.to_efi())
 
     if config.profiles:
         env["PROFILES"] = " ".join(config.profiles)
@@ -777,6 +783,9 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
         MKOSI_DEBUG=one_zero(ARG_DEBUG.get()),
     )
 
+    if context.config.architecture.to_efi() is not None:
+        env["EFI_ARCHITECTURE"] = str(context.config.architecture.to_efi())
+
     if context.config.profiles:
         env["PROFILES"] = " ".join(context.config.profiles)
 
@@ -846,6 +855,9 @@ def run_build_scripts(context: Context) -> None:
         WITH_TESTS=one_zero(context.config.with_tests),
         MKOSI_DEBUG=one_zero(ARG_DEBUG.get()),
     )
+
+    if context.config.architecture.to_efi() is not None:
+        env["EFI_ARCHITECTURE"] = str(context.config.architecture.to_efi())
 
     if context.config.profiles:
         env["PROFILES"] = " ".join(context.config.profiles)
@@ -920,6 +932,9 @@ def run_postinst_scripts(context: Context) -> None:
         MKOSI_DEBUG=one_zero(ARG_DEBUG.get()),
     )
 
+    if context.config.architecture.to_efi() is not None:
+        env["EFI_ARCHITECTURE"] = str(context.config.architecture.to_efi())
+
     if context.config.profiles:
         env["PROFILES"] = " ".join(context.config.profiles)
 
@@ -989,6 +1004,9 @@ def run_finalize_scripts(context: Context) -> None:
         MKOSI_DEBUG=one_zero(ARG_DEBUG.get()),
     )
 
+    if context.config.architecture.to_efi() is not None:
+        env["EFI_ARCHITECTURE"] = str(context.config.architecture.to_efi())
+
     if context.config.profiles:
         env["PROFILES"] = " ".join(context.config.profiles)
 
@@ -1049,6 +1067,9 @@ def run_postoutput_scripts(context: Context) -> None:
         MKOSI_CONFIG="/work/config.json",
         MKOSI_DEBUG=one_zero(ARG_DEBUG.get()),
     )
+
+    if context.config.architecture.to_efi() is not None:
+        env["EFI_ARCHITECTURE"] = str(context.config.architecture.to_efi())
 
     if context.config.profiles:
         env["PROFILES"] = " ".join(context.config.profiles)
@@ -4591,6 +4612,9 @@ def run_clean_scripts(config: Config) -> None:
         MKOSI_CONFIG="/work/config.json",
         MKOSI_DEBUG=one_zero(ARG_DEBUG.get()),
     )
+
+    if config.architecture.to_efi() is not None:
+        env["EFI_ARCHITECTURE"] = str(config.architecture.to_efi())
 
     if config.profiles:
         env["PROFILES"] = " ".join(config.profiles)

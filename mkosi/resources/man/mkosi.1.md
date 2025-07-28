@@ -2463,6 +2463,10 @@ Scripts executed by **mkosi** receive the following environment variables:
    the format used by **qemu**. Useful for finding the qemu binary (
     `qemu-system-$QEMU_ARCHITECTURE`).
 
+* `$EFI_ARCHITECTURE` contains the architecture from `$ARCHITECTURE` in
+   the format used by **UEFI**. It is unset on architectures that do not
+   support **UEFI**.
+
 * `$DISTRIBUTION` contains the distribution from the `Distribution=` setting.
 
 * `$RELEASE` contains the release from the `Release=` setting.
@@ -2582,6 +2586,7 @@ Consult this table for which script receives which environment variables:
 | `DESTDIR`                   |             |        |           | ✓       |            |            |              |         |
 | `DISTRIBUTION`              | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
 | `DISTRIBUTION_ARCHITECTURE` | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
+| `EFI_ARCHITECTURE`          | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
 | `IMAGE_ID`                  | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
 | `IMAGE_VERSION`             | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
 | `MKOSI_CONFIG`              |             | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
