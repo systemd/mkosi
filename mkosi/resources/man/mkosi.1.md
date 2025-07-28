@@ -1089,6 +1089,14 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     when both are specified. Only affects UKI builds; ignored for Type 1 boot
     entries which support single devicetree only.
 
+`DevicetreeAutoDirectory=`, `--devicetree-auto-directory=`
+:   Directory containing Devicetree blobs for automatic hardware-based selection
+    in UKI builds. All `.dtb` files found recursively in this directory are
+    included as `.dtbauto` sections. Results are merged with `DevicetreeAuto=`
+    list entries. Useful when DTB requirements are determined after
+    configuration time (e.g. in finalize.) Only affects UKI builds; ignored for
+    Type 1 boot entries which support single devicetree only.
+
 `Splash=`, `--splash=`
 :   When set, the boot splash for any unified kernel image built by **mkosi** will
     be picked up from the given path inside the image.

@@ -155,6 +155,7 @@ def test_config() -> None:
                 "vendor/board1.dtb",
                 "vendor/board2.dtb"
             ],
+            "DevicetreeAutoDirectory": "boot/dtbs",
             "Distribution": "fedora",
             "Drives": [
                 {
@@ -516,6 +517,7 @@ def test_config() -> None:
         microcode_host=True,
         devicetree=Path("freescale/imx8mm-verdin-nonwifi-dev.dtb"),
         devicetree_auto=[Path("vendor/board1.dtb"), Path("vendor/board2.dtb")],
+        devicetree_auto_directory=Path("boot/dtbs"),
         minimum_version="123",
         mirror=None,
         nspawn_settings=None,

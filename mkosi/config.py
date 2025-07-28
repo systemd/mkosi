@@ -2015,6 +2015,7 @@ class Config:
     microcode_host: bool
     devicetree: Optional[Path]
     devicetree_auto: list[Path]
+    devicetree_auto_directory: Optional[Path]
     splash: Optional[Path]
     kernel_command_line: list[str]
     kernel_modules_include: list[str]
@@ -3172,6 +3173,12 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Content",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser(required=False)),
         help="Devicetrees for automatic hardware-based selection in UKI builds",
+    ),
+    ConfigSetting(
+        dest="devicetree_auto_directory",
+        section="Content",
+        parse=config_make_path_parser(required=False),
+        help="Directory containing devicetrees for automatic hardware-based selection",
     ),
     ConfigSetting(
         dest="splash",
@@ -5478,6 +5485,7 @@ def summary(config: Config) -> str:
            Initrd Volatile Packages: {line_join_list(config.initrd_volatile_packages)}
                          Devicetree: {none_to_none(config.devicetree)}
                     Devicetree Auto: {line_join_list(config.devicetree_auto)}
+          Devicetree Auto Directory: {none_to_none(config.devicetree_auto_directory)}
                              Splash: {none_to_none(config.splash)}
                 Kernel Command Line: {line_join_list(config.kernel_command_line)}
                      Kernel Modules: {line_join_list(config.kernel_modules_include)}
