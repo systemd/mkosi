@@ -105,10 +105,6 @@ def want_grub_bios(context: Context, partitions: Sequence[Partition] = ()) -> bo
     if partitions and not bios and context.config.bootable == ConfigFeature.enabled:
         die("A BIOS bootable image with grub was requested but no BIOS Boot Partition was configured")
 
-    esp = any(p.type == "esp" for p in partitions)
-    if partitions and not esp and context.config.bootable == ConfigFeature.enabled:
-        die("A BIOS bootable image with grub was requested but no ESP partition was configured")
-
     root = any(p.type.startswith("root") or p.type.startswith("usr") for p in partitions)
     if partitions and not root and context.config.bootable == ConfigFeature.enabled:
         die("A BIOS bootable image with grub was requested but no root or usr partition was configured")
@@ -124,7 +120,7 @@ def want_grub_bios(context: Context, partitions: Sequence[Partition] = ()) -> bo
 
         installed = False
 
-    return (have and bios and esp and root and installed) if partitions else have
+    return (have and bios and root and installed) if partitions else have
 
 
 def find_grub_directory(context: Context, *, target: str) -> Optional[Path]:
@@ -145,9 +141,20 @@ def find_grub_binary(config: Config, binary: str) -> Optional[Path]:
 
 
 def prepare_grub_config(context: Context) -> Optional[Path]:
-    config = context.root / "efi" / context.config.distribution.grub_prefix() / "grub.cfg"
+    # Determine where to store grub.cfg: prefer xbootldr if present, else esp
+    xbootldr_path = context.root / "boot" / context.config.distribution.grub_prefix() / "grub.cfg"
+    esp_path = context.root / "efi" / context.config.distribution.grub_prefix() / "grub.cfg"
+
+    # Prefer xbootldr if the partition is present (directory exists), else fallback to esp
+    if (context.root / "boot").is_dir():
+        config = xbootldr_path
+        grub_prefix = "/boot/" + context.config.distribution.grub_prefix()
+    else:
+        config = esp_path
+        grub_prefix = "/efi/" + context.config.distribution.grub_prefix()
+
     with umask(~0o700):
-        config.parent.mkdir(exist_ok=True)
+        config.parent.mkdir(parents=True, exist_ok=True)
 
     # For some unknown reason, if we don't set the timeout to zero, grub never leaves its menu, so we default
     # to a zero timeout, but only if the config file hasn't been provided by the user.
@@ -169,8 +176,8 @@ def prepare_grub_config(context: Context) -> Optional[Path]:
         with umask(~0o700):
             earlyconfig.parent.mkdir(parents=True, exist_ok=True)
 
-        # Read the actual config file from the root of the ESP.
-        earlyconfig.write_text(f"configfile /{context.config.distribution.grub_prefix()}/grub.cfg\n")
+        # Point the shim to the correct grub.cfg location (xbootldr or esp)
+        earlyconfig.write_text(f"configfile {grub_prefix}/grub.cfg\n")
 
     return config
 
@@ -321,7 +328,7 @@ def install_grub(context: Context) -> None:
         return
 
     if want_grub_bios(context):
-        grub_mkimage(context, target="i386-pc", modules=("biosdisk",))
+        grub_mkimage(context, target="i386-pc", modules=("biosdisk", "ext2"))
 
     if want_grub_efi(context):
         if context.config.shim_bootloader != ShimBootloader.none:
