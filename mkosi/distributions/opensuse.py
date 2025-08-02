@@ -19,6 +19,12 @@ from mkosi.run import run
 
 
 class Installer(DistributionInstaller):
+    _default_release = "tumbleweed"
+    _releasemap = {
+        "tumbleweed": ("99", "tumbleweed"),
+        "rolling": ("99", "rolling"),
+    }
+
     @classmethod
     def pretty_name(cls) -> str:
         return "openSUSE"
@@ -30,10 +36,6 @@ class Installer(DistributionInstaller):
     @classmethod
     def package_type(cls) -> PackageType:
         return PackageType.rpm
-
-    @classmethod
-    def default_release(cls) -> str:
-        return "tumbleweed"
 
     @classmethod
     def grub_prefix(cls) -> str:
@@ -68,7 +70,7 @@ class Installer(DistributionInstaller):
         zypper = cls.package_manager(context.config) is Zypper
         mirror = context.config.mirror or "https://download.opensuse.org"
 
-        if context.config.release == "tumbleweed" or context.config.release.isdigit():
+        if context.config.release == cls.parse_release("tumbleweed") or context.config.release.isnumeric():
             gpgkeys = tuple(
                 p
                 for key in ("RPM-GPG-KEY-openSUSE-Tumbleweed", "RPM-GPG-KEY-openSUSE")

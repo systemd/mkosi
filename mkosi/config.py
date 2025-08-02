@@ -30,7 +30,7 @@ from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Any, Callable, ClassVar, Generic, Optional, Protocol, TypeVar, Union, cast
 
-from mkosi.distributions import Distribution, detect_distribution
+from mkosi.distributions import Distribution, DistributionRelease, detect_distribution
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SANDBOX, ARG_DEBUG_SHELL, complete_step, die
 from mkosi.pager import page
 from mkosi.run import SandboxProtocol, find_binary, nosandbox, run, sandbox_cmd, workdir
@@ -1007,12 +1007,13 @@ def config_default_distribution(namespace: dict[str, Any]) -> Distribution:
     return detected
 
 
-def config_default_release(namespace: dict[str, Any]) -> str:
+def config_default_release(namespace: dict[str, Any]) -> DistributionRelease:
     hd: Optional[Distribution]
-    hr: Optional[str]
+    hr: Optional[DistributionRelease]
 
     if (d := os.getenv("MKOSI_HOST_DISTRIBUTION")) and (r := os.getenv("MKOSI_HOST_RELEASE")):
-        hd, hr = Distribution(d), r
+        hd = Distribution(d)
+        hr = hd.parse_release(r)
     else:
         hd, hr = detect_distribution()
 
@@ -1020,7 +1021,7 @@ def config_default_release(namespace: dict[str, Any]) -> str:
     if namespace["distribution"] == hd and hr is not None:
         return hr
 
-    return cast(str, namespace["distribution"].default_release())
+    return cast(DistributionRelease, namespace["distribution"].default_release())
 
 
 def config_default_tools_tree_distribution(namespace: dict[str, Any]) -> Distribution:
@@ -1950,7 +1951,7 @@ class Config:
     pass_environment: list[str]
 
     distribution: Distribution
-    release: str
+    release: DistributionRelease
     architecture: Architecture
     mirror: Optional[str]
     local_mirror: Optional[str]
@@ -2126,6 +2127,9 @@ class Config:
     qemu_args: list[str]
 
     image: str
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "release", self.distribution.installer().parse_release(str(self.release)))
 
     def finalize_environment(self) -> dict[str, str]:
         env = {
@@ -2361,7 +2365,7 @@ class Config:
         specifiers = {
             "&": "&",
             "d": str(self.distribution),
-            "r": self.release,
+            "r": str(self.release),
             "a": str(self.architecture),
             "i": self.image_id or "",
             "v": self.image_version or "",
@@ -5624,6 +5628,8 @@ class JsonEncoder(json.JSONEncoder):
         if isinstance(o, StrEnum):
             return str(o)
         elif isinstance(o, GenericVersion):
+            return str(o)
+        elif isinstance(o, DistributionRelease):
             return str(o)
         elif isinstance(o, os.PathLike):
             return os.fspath(o)
