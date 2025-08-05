@@ -46,7 +46,11 @@ jobs:
       - name: License Checking (reuse)
         run: |
           reuse --version
-          reuse lint
+          if ! reuse lint
+          then
+              echo "Hint: If the above output lists unlicensed files tracked in git you might need to adjust REUSE.toml"
+              exit 1
+          fi
 
       - name: Type Checking (mypy)
         run: |
