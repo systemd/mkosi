@@ -105,6 +105,11 @@ def want_grub_bios(context: Context, partitions: Sequence[Partition] = ()) -> bo
     if partitions and not bios and context.config.bootable == ConfigFeature.enabled:
         die("A BIOS bootable image with grub was requested but no BIOS Boot Partition was configured")
 
+    esp = any(p.type == "esp" for p in partitions)
+    xbootldr = any(p.type == "xbootldr" for p in partitions)
+    if partitions and not esp and not xbootldr and context.config.bootable == ConfigFeature.enabled:
+        die("A BIOS bootable image with grub was requested but neither ESP nor XBOOTLDR partition were configured")
+
     root = any(p.type.startswith("root") or p.type.startswith("usr") for p in partitions)
     if partitions and not root and context.config.bootable == ConfigFeature.enabled:
         die("A BIOS bootable image with grub was requested but no root or usr partition was configured")
@@ -148,11 +153,8 @@ def prepare_grub_config(context: Context) -> Optional[Path]:
     # Prefer xbootldr if the partition is present (directory exists), else fallback to esp
     if (context.root / "boot").is_dir():
         config = xbootldr_path
-        grub_prefix = "/boot/" + context.config.distribution.grub_prefix()
     else:
         config = esp_path
-        grub_prefix = "/efi/" + context.config.distribution.grub_prefix()
-
     with umask(~0o700):
         config.parent.mkdir(parents=True, exist_ok=True)
 
@@ -176,8 +178,8 @@ def prepare_grub_config(context: Context) -> Optional[Path]:
         with umask(~0o700):
             earlyconfig.parent.mkdir(parents=True, exist_ok=True)
 
-        # Point the shim to the correct grub.cfg location (xbootldr or esp)
-        earlyconfig.write_text(f"configfile {grub_prefix}/grub.cfg\n")
+        # Read the actual config file from the root of the ESP.
+        earlyconfig.write_text(f"configfile /{context.config.distribution.grub_prefix()}/grub.cfg\n")
 
     return config
 
