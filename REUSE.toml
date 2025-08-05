@@ -45,7 +45,7 @@ SPDX-License-Identifier = "LGPL-2.1-or-later"
 [[annotations]]
 path = [
     "mkosi/resources/mkosi-initrd/mkosi.extra/usr/lib/udev/rules.d/10-mkosi-initrd-dm.rules",
-    "mkosi/resources/mkosi-initrd/mkosi.profiles/raid/mkosi.extra/usr/lib/udev/rules.d/10-mkosi-initrd-md.rules",
+    "mkosi/resources/mkosi-initrd/mkosi.profiles/raid/mkosi.extra/usr/lib/udev/rules.d/70-mkosi-initrd-md.rules",
 ]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "Mkosi Contributors"
