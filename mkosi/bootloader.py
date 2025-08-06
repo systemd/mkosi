@@ -330,7 +330,7 @@ def install_grub(context: Context) -> None:
         return
 
     if want_grub_bios(context):
-        grub_mkimage(context, target="i386-pc", modules=("biosdisk", "ext2"))
+        grub_mkimage(context, target="i386-pc", modules=("biosdisk",))
 
     if want_grub_efi(context):
         if context.config.shim_bootloader != ShimBootloader.none:
