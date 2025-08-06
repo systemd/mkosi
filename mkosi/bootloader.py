@@ -108,7 +108,10 @@ def want_grub_bios(context: Context, partitions: Sequence[Partition] = ()) -> bo
     esp = any(p.type == "esp" for p in partitions)
     xbootldr = any(p.type == "xbootldr" for p in partitions)
     if partitions and not esp and not xbootldr and context.config.bootable == ConfigFeature.enabled:
-        die("A BIOS bootable image with grub was requested but neither ESP nor XBOOTLDR partition were configured")
+        die(
+            "A BIOS bootable image with grub was requested but neither ESP nor XBOOTLDR "
+            "partition were configured"
+        )
 
     root = any(p.type.startswith("root") or p.type.startswith("usr") for p in partitions)
     if partitions and not root and context.config.bootable == ConfigFeature.enabled:
@@ -125,7 +128,7 @@ def want_grub_bios(context: Context, partitions: Sequence[Partition] = ()) -> bo
 
         installed = False
 
-    return (have and bios and root and installed) if partitions else have
+    return (have and bios and (esp or xbootldr) and root and installed) if partitions else have
 
 
 def find_grub_directory(context: Context, *, target: str) -> Optional[Path]:
