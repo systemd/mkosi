@@ -69,7 +69,9 @@ class Manifest:
     packages: list[PackageManifest] = dataclasses.field(default_factory=list)
     source_packages: dict[str, SourcePackageManifest] = dataclasses.field(default_factory=dict)
 
-    _init_timestamp: datetime.datetime = dataclasses.field(init=False, default_factory=datetime.datetime.now)
+    _init_timestamp: datetime.datetime = dataclasses.field(
+        init=False, default_factory=lambda: datetime.datetime.now().replace(microsecond=0)
+    )
 
     def need_source_info(self) -> bool:
         return ManifestFormat.changelog in self.context.config.manifest_format
