@@ -37,6 +37,15 @@ ln -s $PWD/mkosi/bin/mkosi ~/.local/bin/mkosi
 mkosi --version
 ```
 
+mkosi also provides other companion tools that can be enabled in a similar
+manner.
+
+```shell
+ln -s $PWD/mkosi/bin/mkosi-addon ~/.local/bin/mkosi-addon
+ln -s $PWD/mkosi/bin/mkosi-initrd ~/.local/bin/mkosi-initrd
+ln -s $PWD/mkosi/bin/mkosi-sandbox ~/.local/bin/mkosi-sandbox
+```
+
 ## Python installation methods
 
 mkosi can also be installed straight from the git repository url using
