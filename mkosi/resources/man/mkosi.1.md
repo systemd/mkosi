@@ -772,10 +772,6 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     running scripts. If the `mkosi.packages/` directory is found in the local
     directory it is also used for this purpose.
 
-    On deb-based distributions the local repository will be created with **reprepro** and additional
-    configuration for reprepro will be included from `/usr/lib/reprepro` and `/etc/reprepro` in the sandbox
-    trees, see **reprepro(1)** for details on reprepro configuration includes.
-
 `VolatilePackageDirectories=`, `--volatile-package-directory=`
 :   Like `PackageDirectories=`, but any changes to the packages in these
     directories will not invalidate the cached images if `Incremental=`

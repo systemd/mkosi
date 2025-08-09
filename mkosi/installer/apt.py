@@ -280,38 +280,17 @@ class Apt(PackageManager):
         if not names:
             return
 
-        if not (conf := context.repository / "conf/distributions").exists():
-            conf.parent.mkdir(exist_ok=True)
-            distconfig = textwrap.dedent(
-                f"""\
-                Origin: mkosi
-                Label: mkosi
-                Architectures: {context.config.distribution.architecture(context.config.architecture)}
-                Codename: mkosi
-                Components: main
-                Description: mkosi local repository
-                """
-            )
-            for distconfinclude in ("usr/lib/reprepro/", "etc/reprepro/"):
-                if (context.sandbox_tree / distconfinclude).exists():
-                    distconfig += f"!include: /{distconfinclude}\n"
-            conf.write_text(distconfig)
-
-        run(
-            [
-                "reprepro",
-                "--ignore=extension",
-                "includedeb",
-                "mkosi",
-                *names,
-            ],
-            sandbox=context.sandbox(
-                options=[
-                    "--bind", context.repository, workdir(context.repository),
-                    "--chdir", workdir(context.repository),
-                ],
-            ),
-        )  # fmt: skip
+        with (context.repository / "Packages").open("wb") as f:
+            run(
+                ["apt-ftparchive", "packages", "."],
+                stdout=f,
+                sandbox=context.sandbox(
+                    options=[
+                        "--ro-bind", context.repository, workdir(context.repository),
+                        "--chdir", workdir(context.repository),
+                    ],
+                ),
+            )  # fmt: skip
 
         (context.sandbox_tree / "etc/apt/sources.list.d").mkdir(parents=True, exist_ok=True)
         (context.sandbox_tree / "etc/apt/sources.list.d/mkosi-local.sources").write_text(
@@ -320,8 +299,7 @@ class Apt(PackageManager):
                 Enabled: yes
                 Types: deb
                 URIs: file:///repository
-                Suites: mkosi
-                Components: main
+                Suites: ./
                 Trusted: yes
                 """
             )
