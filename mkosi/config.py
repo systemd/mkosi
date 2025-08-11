@@ -5873,7 +5873,7 @@ def want_selinux_relabel(
 
 
 def systemd_tool_version(*tool: PathString, sandbox: SandboxProtocol = nosandbox) -> GenericVersion:
-    return GenericVersion(
+    version = GenericVersion(
         run(
             [*tool, "--version"],
             stdout=subprocess.PIPE,
@@ -5883,3 +5883,7 @@ def systemd_tool_version(*tool: PathString, sandbox: SandboxProtocol = nosandbox
         .strip("()")
         .removeprefix("v")
     )
+
+    logging.debug(f"Version reported by {tool[-1]} is {version}")
+
+    return version
