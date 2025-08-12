@@ -3024,7 +3024,7 @@ directory of the dependency. Or use the `%O` specifier to refer to the
 output directory.
 
 A good example on how to build multiple images can be found in the
-[systemd](https://github.com/systemd/systemd/tree/main/mkosi.images)
+[systemd](https://github.com/systemd/systemd/tree/main/mkosi/mkosi.images)
 repository.
 
 # ENVIRONMENT VARIABLES
