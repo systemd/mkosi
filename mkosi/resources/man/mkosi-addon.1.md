@@ -34,6 +34,10 @@ the running hardware can be included if a local configuration with the option
 :   Path to a directory where to place all generated artifacts. Defaults to the
     current working directory.
 
+`--workspace-dir=`
+:   Path to a directory where to store data required temporarily while
+    building the image. Defaults to `/var/tmp`.
+
 `--debug`
 :   Enable additional debugging output.
 
