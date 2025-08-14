@@ -19,6 +19,19 @@ from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey, setup_rpm
 from mkosi.log import die
 from mkosi.util import startswith, tuplify
 
+DISTRIBUTION_GPG_KEYS_UPSTREAM = (
+    "https://raw.githubusercontent.com/rpm-software-management/distribution-gpg-keys/main/keys/fedora"
+)
+
+
+def read_remote_rawhide_key_symlink(context: Context) -> str:
+    # https://fedoraproject.org/fedora.gpg is always outdated when the rawhide key changes. Instead,
+    # let's fetch it from distribution-gpg-keys on github if necessary, which is generally up-to-date.
+    with tempfile.TemporaryDirectory() as d:
+        # The rawhide key is a symlink and github doesn't redirect those to the actual file for some reason
+        curl(context.config, f"{DISTRIBUTION_GPG_KEYS_UPSTREAM}/RPM-GPG-KEY-fedora-rawhide-primary", Path(d))
+        return (Path(d) / "RPM-GPG-KEY-fedora-rawhide-primary").read_text()
+
 
 @tuplify
 def find_fedora_rpm_gpgkeys(context: Context) -> Iterable[str]:
@@ -36,14 +49,46 @@ def find_fedora_rpm_gpgkeys(context: Context) -> Iterable[str]:
         # For Rawhide, try to load the N+1 key, just in case our local configuration
         # still indicates that Rawhide==N, but really Rawhide==N+1.
         if context.config.release == "rawhide" and (rhs := startswith(key1, "file://")):
-            if m := versionre.match(Path(rhs).name):
+            version_file = Path(rhs)
+            version = 0
+            # If the local file points to rawhide, it is usually a symlink in the distribution-gpg-keys
+            # package that points to some released key, so we can extract the version from the key.
+            # If the local file is a release, we can extract the version directly.
+            if (
+                version_file.name == "RPM-GPG-KEY-fedora-rawhide-primary"
+                and version_file.is_symlink()
+                and (rawhide_will_be := versionre.match(version_file.readlink().name))
+            ):
+                version = int(rawhide_will_be.group(1))
+            elif m := versionre.match(version_file.name):
                 version = int(m.group(1))
+
+            if version:
                 if key3 := find_rpm_gpgkey(
                     context,
                     key=f"RPM-GPG-KEY-fedora-{version + 1}-primary",
                     required=False,
                 ):
                     yield key3
+
+            # The rawhide key can also not be a symlink and we end up with the wrong version so far. So let's
+            # cheat and look up the version remotely, but look for the version we get in the keys that exist
+            # locally.
+            remote_rawhide_version = read_remote_rawhide_key_symlink(context)
+            if key4 := find_rpm_gpgkey(context, key=remote_rawhide_version, required=False):
+                yield key4
+
+            # Same as above, the symlink in distribution-gpg-keys might not have been updated yet to point to
+            # the new rawhide key when branching happens, so try to load the N+1 key as well.
+            if m := versionre.match(remote_rawhide_version):
+                version = int(m.group(1))
+
+                if key5 := find_rpm_gpgkey(
+                    context,
+                    key=f"RPM-GPG-KEY-fedora-{version + 1}-primary",
+                    required=False,
+                ):
+                    yield key5
 
         yield key1
 
@@ -58,33 +103,23 @@ def find_fedora_rpm_gpgkeys(context: Context) -> Iterable[str]:
             )
 
         if context.config.release == "rawhide":
-            # https://fedoraproject.org/fedora.gpg is always outdated when the rawhide key changes. Instead,
-            # let's fetch it from distribution-gpg-keys on github, which is generally up-to-date.
-            keys = "https://raw.githubusercontent.com/rpm-software-management/distribution-gpg-keys/main/keys/fedora"
+            remote_rawhide_version = read_remote_rawhide_key_symlink(context)
+            yield f"{DISTRIBUTION_GPG_KEYS_UPSTREAM}/{remote_rawhide_version}"
 
-            # The rawhide key is a symlink and github doesn't redirect those to the actual file for some
-            # reason, so we fetch the file and read the release it points to ourselves.
-            with tempfile.TemporaryDirectory() as d:
-                curl(context.config, f"{keys}/RPM-GPG-KEY-fedora-rawhide-primary", Path(d))
-                key = (Path(d) / "RPM-GPG-KEY-fedora-rawhide-primary").read_text()
-
-            yield f"{keys}/{key}"
-
-            # Same as above, the symlink in distribution-gpg-keys might not have been updated yet to point to
-            # the new rawhide key when branching happens, so try to load the N+1 key as well.
-            if m := versionre.match(key):
+            # Same dance as above
+            if m := versionre.match(remote_rawhide_version):
                 version = int(m.group(1))
 
                 try:
                     with tempfile.TemporaryDirectory() as d:
                         curl(
                             context.config,
-                            f"{keys}/RPM-GPG-KEY-fedora-{version + 1}-primary",
+                            f"{DISTRIBUTION_GPG_KEYS_UPSTREAM}/RPM-GPG-KEY-fedora-{version + 1}-primary",
                             Path(d),
                             log=False,
                         )
 
-                    yield f"{keys}/RPM-GPG-KEY-fedora-{version + 1}-primary"
+                    yield f"{DISTRIBUTION_GPG_KEYS_UPSTREAM}/RPM-GPG-KEY-fedora-{version + 1}-primary"
                 except subprocess.CalledProcessError:
                     pass
         else:
