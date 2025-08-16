@@ -8,7 +8,7 @@ from typing import Optional
 from mkosi.log import log_step
 from mkosi.run import SandboxProtocol, finalize_passwd_symlinks, nosandbox, run, workdir
 from mkosi.sandbox import umask
-from mkosi.util import PathString, chdir
+from mkosi.util import PathString, chdir, is_below_symlink
 
 
 def tar_exclude_apivfs_tmp() -> list[str]:
@@ -118,6 +118,15 @@ def make_cpio(
             files = sorted(Path(".").rglob("*"))
     else:
         files = sorted(files)
+
+    # Filters out files that are below a symlink. If you have
+    # `lib/firmware/dirA/hugeblob.bin`, and `lib/firmware/dirB` is a
+    # symlink to `dirA`, we'd end up asking cpio to archive both
+    # `lib/firmware/dirA/hugeblob.bin` and
+    # `lib/firmware/dirB/hugeblob.bin`, i.e. two copies of the same
+    # file.
+    with chdir(src):
+        files = [p for p in files if not is_below_symlink(p)]
 
     log_step(f"Creating cpio archive {dst}…")
 
