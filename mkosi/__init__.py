@@ -1606,6 +1606,25 @@ def find_devicetree(context: Context, kver: str) -> Path:
     die(f"Requested devicetree {context.config.devicetree} not found")
 
 
+def find_devicetrees_auto(context: Context, kver: str, directory: Optional[Path] = None) -> list[Path]:
+    dtbs: list[Path] = []
+
+    # Search for any listed devicetrees
+    for d in (
+        context.root / f"usr/lib/firmware/{kver}/device-tree",
+        context.root / f"usr/lib/linux-image-{kver}",
+        context.root / f"usr/lib/modules/{kver}/dtb",
+    ):
+        dtbs.extend(d.rglob("*.dtb"))
+
+    # Search for devicetrees in a given directory
+    if directory:
+        dtb_dir = context.root / os.fspath(directory).lstrip("/")
+        dtbs.extend(dtb_dir.rglob("*.dtb"))
+
+    return dtbs
+
+
 def want_signed_pcrs(config: Config) -> bool:
     return config.sign_expected_pcr == ConfigFeature.enabled or (
         config.sign_expected_pcr == ConfigFeature.auto
@@ -1767,6 +1786,12 @@ def build_uki(
         dtb = find_devicetree(context, kver)
         arguments += ["--devicetree", workdir(dtb)]
         options += ["--ro-bind", dtb, workdir(dtb)]
+
+    if context.config.devicetree_auto or context.config.devicetree_auto_directory:
+        dtbs_auto = find_devicetrees_auto(context, kver, context.config.devicetree_auto_directory)
+        for dtb in dtbs_auto:
+            arguments += ["--devicetree-auto", workdir(dtb)]
+            options += ["--ro-bind", dtb, workdir(dtb)]
 
     if context.config.splash:
         splash = context.root / os.fspath(context.config.splash).lstrip("/")
