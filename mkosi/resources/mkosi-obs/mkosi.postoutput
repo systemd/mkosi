@@ -90,7 +90,6 @@ for ddi in "${DDIS[@]}"; do
 
     rm -rf EFI
     mcopy -s -i "${ddi%.zst}@@${offset}" ::EFI EFI || true
-    find EFI
 
     # UKIs are handled separately
     rm -rf EFI/Linux
