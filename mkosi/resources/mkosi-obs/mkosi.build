@@ -64,7 +64,7 @@ while read -r SIG; do
     # If there is a DDI with an ESP, add the UKI to it
     if [ -f "${DEST%efi}raw" ] || [ -f "${DEST%efi}raw.zst" ] || [ -f "${DEST%efi}img" ] || [ -f "${DEST%efi}img.zst" ]; then
         if [ -f "${DEST%efi}raw.zst" ] || [ -f "${DEST%efi}img.zst" ]; then
-            unzstd "${DEST%efi}"raw*.zst
+            unzstd --force "${DEST%efi}"raw*.zst
             rm -f "${DEST%efi}"raw*.zst
             recompress=1
         else
@@ -100,7 +100,7 @@ while read -r BOOTLOADER; do
     dest="${dest%.sig}"
 
     if [ -f "${ddi}.zst" ]; then
-        unzstd "${ddi}.zst"
+        unzstd --force "${ddi}.zst"
     fi
 
     offset="$(systemd-repart --json=short "$ddi" | jq -r '.[] | select(.type == "esp") | .offset')"
@@ -187,7 +187,7 @@ while read -r SIG; do
     rm -f "$OUTPUTDIR/$(basename "${SIG%roothash.sig}repart.tar")"
     if [ -f "$OUTPUTDIR/$(basename "${SIG%roothash.sig}raw.zst")" ] || [ -f "$OUTPUTDIR/$(basename "${SIG%roothash.sig}img.zst")" ]; then
         recompress=1
-        unzstd "$OUTPUTDIR/$(basename "${SIG%roothash.sig}")"raw*.zst
+        unzstd --force "$OUTPUTDIR/$(basename "${SIG%roothash.sig}")"raw*.zst
         rm -f "$OUTPUTDIR/$(basename "${SIG%roothash.sig}")"raw*.zst
     else
         recompress=0
@@ -259,7 +259,7 @@ if (( ${#AUTHVARS[@]} > 0 )); then
         [[ "$ddi" =~ -verity ]] && continue
 
         if [[ $ddi == *.zst ]]; then
-            unzstd "${ddi}"
+            unzstd --force "${ddi}"
             recompress=1
         else
             recompress=0
