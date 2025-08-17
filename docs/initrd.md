@@ -15,6 +15,7 @@ Building an image with a mkosi-built initrd is a two step process, because you w
 Format=cpio
 
 [Content]
+MakeInitrd=yes
 Packages=systemd
          udev
          kmod
