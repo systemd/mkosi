@@ -78,7 +78,7 @@ for ddi in "${DDIS[@]}"; do
     [[ "$ddi" =~ -verity ]] && continue
 
     if [[ $ddi == *.zst ]]; then
-        unzstd "${ddi}"
+        unzstd --force "${ddi}"
     fi
     offset="$(systemd-repart --json=short "${ddi%.zst}" | jq -r '.[] | select(.type == "esp") | .offset')"
     if [ "$offset" = "null" ]; then
