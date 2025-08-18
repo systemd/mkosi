@@ -14,13 +14,11 @@ from mkosi.log import die
 
 
 class Installer(fedora.Installer):
+    _default_release = "3.0"
+
     @classmethod
     def pretty_name(cls) -> str:
         return "Azure Linux"
-
-    @classmethod
-    def default_release(cls) -> str:
-        return "3.0"
 
     @classmethod
     def filesystem(cls) -> str:
@@ -50,7 +48,7 @@ class Installer(fedora.Installer):
             return
 
         mirror = context.config.mirror or "https://packages.microsoft.com/azurelinux"
-        url = join_mirror(mirror, context.config.release)
+        url = join_mirror(mirror, str(context.config.release))
 
         for repo in ("base", "extended", "ms-oss", "ms-non-oss", "cloud-native", "nvidia"):
             yield RpmRepository(
