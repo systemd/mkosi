@@ -238,9 +238,10 @@ class Pacman(PackageManager):
                 sandbox=context.sandbox,
             )
 
-        with complete_step("Populating pacman keyring"):
-            run(["pacman-key", "--init"], sandbox=sandbox())
-            run(["pacman-key", "--populate"], sandbox=sandbox())
+        if context.config.repository_key_check:
+            with complete_step("Populating pacman keyring"):
+                run(["pacman-key", "--init"], sandbox=sandbox())
+                run(["pacman-key", "--populate"], sandbox=sandbox())
 
     @classmethod
     def sync(cls, context: Context, force: bool) -> None:
