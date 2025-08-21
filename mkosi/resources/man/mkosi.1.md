@@ -1456,7 +1456,8 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     building the image. This directory should have enough space to store
     the full OS image, though in most modes the actually used disk space
     is smaller. If not specified, a subdirectory of `$XDG_CACHE_HOME` (if
-    set), `$HOME/.cache` (if set) or `/var/tmp` is used.
+    set), `$CACHE_DIRECTORY` (if set), `$HOME/.cache` (if set) or `/var/tmp`
+    is used.
 
     The data in this directory is removed automatically after each
     build. It's safe to manually remove the contents of this directory

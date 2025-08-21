@@ -67,7 +67,7 @@ def main() -> None:
 
         if os.getuid() == 0:
             cmdline += [
-                "--workspace-dir=/var/tmp",
+                f"--workspace-dir={args.workspace_dir}",
                 "--output-mode=600",
             ]
 
