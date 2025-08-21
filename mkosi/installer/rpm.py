@@ -61,7 +61,7 @@ def find_rpm_gpgkey(
 
     paths = (
         run(
-            ["bash", "-c", rf"shopt -s nullglob && printf '%s\n' {' '.join(globs)}"],
+            ["bash", "-c", rf"shopt -s nullglob && printf '%s\n' {' '.join(globs)} | xargs -r readlink -f"],
             sandbox=context.sandbox(),
             stdout=subprocess.PIPE,
         )
