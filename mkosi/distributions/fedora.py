@@ -17,7 +17,7 @@ from mkosi.distributions import (
 from mkosi.installer.dnf import Dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey, setup_rpm
 from mkosi.log import die
-from mkosi.util import startswith, tuplify
+from mkosi.util import tuplify
 
 DISTRIBUTION_GPG_KEYS_UPSTREAM = (
     "https://raw.githubusercontent.com/rpm-software-management/distribution-gpg-keys/main/keys/fedora"
@@ -35,95 +35,62 @@ def read_remote_rawhide_key_symlink(context: Context) -> str:
 
 @tuplify
 def find_fedora_rpm_gpgkeys(context: Context) -> Iterable[str]:
-    key1 = find_rpm_gpgkey(
-        context, key=f"RPM-GPG-KEY-fedora-{context.config.release}-primary", required=False
+    versionre = re.compile(r"RPM-GPG-KEY-fedora-(\d+)-primary")
+
+    if context.config.release == "rawhide" and context.config.repository_key_fetch:
+        # Rawhide is a moving target and signed with a different GPG key every time a new Fedora release is
+        # done. In distribution-gpg-keys this is modeled by a symlink that is continuously updated to point
+        # to the current GPG key for rawhide. Of course, this symlink gets outdated when using a locally
+        # installed distribution-gpg-keys package. If we're allowed to look up GPG keys remotely, look up the
+        # current rawhide version remotely and use the associated remote key.
+        key = read_remote_rawhide_key_symlink(context)
+        if not (rawhide_will_be := versionre.match(key)):
+            die(f"Missing Fedora version in remote rawhide key {key} from distribution-gpg-keys")
+
+        version = int(rawhide_will_be.group(1))
+        yield f"{DISTRIBUTION_GPG_KEYS_UPSTREAM}/RPM-GPG-KEY-fedora-{version}-primary"
+
+        # Also use the N+1 key if it exists to avoid issues when rawhide has been moved to the next key but
+        # the rawhide symlink in distribution-gpg-keys hasn't been updated yet.
+        try:
+            with tempfile.TemporaryDirectory() as d:
+                curl(
+                    context.config,
+                    f"{DISTRIBUTION_GPG_KEYS_UPSTREAM}/RPM-GPG-KEY-fedora-{version + 1}-primary",
+                    Path(d),
+                    log=False,
+                )
+
+            yield f"{DISTRIBUTION_GPG_KEYS_UPSTREAM}/RPM-GPG-KEY-fedora-{version + 1}-primary"
+        except subprocess.CalledProcessError:
+            pass
+
+        return
+
+    key = find_rpm_gpgkey(
+        context,
+        key=f"RPM-GPG-KEY-fedora-{context.config.release}-primary",
+        fallback=f"{DISTRIBUTION_GPG_KEYS_UPSTREAM}/RPM-GPG-KEY-fedora-{context.config.release}-primary",
     )
-    key2 = find_rpm_gpgkey(
-        context, key=f"RPM-GPG-KEY-fedora-{context.config.release}-secondary", required=False
-    )
 
-    versionre = re.compile(r"RPM-GPG-KEY-fedora-(\d+)-(primary|secondary)")
+    yield key
 
-    if key1:
-        # During branching, there is always a kerfuffle with the key transition.
-        # For Rawhide, try to load the N+1 key, just in case our local configuration
-        # still indicates that Rawhide==N, but really Rawhide==N+1.
-        if context.config.release == "rawhide" and (rhs := startswith(key1, "file://")):
-            version_file = Path(rhs)
-            version = 0
-            # If the local file points to rawhide, it is usually a symlink in the distribution-gpg-keys
-            # package that points to some released key, so we can extract the version from the key.
-            # If the local file is a release, we can extract the version directly.
-            if (
-                version_file.name == "RPM-GPG-KEY-fedora-rawhide-primary"
-                and version_file.is_symlink()
-                and (rawhide_will_be := versionre.match(version_file.readlink().name))
-            ):
-                version = int(rawhide_will_be.group(1))
-            elif m := versionre.match(version_file.name):
-                version = int(m.group(1))
+    if context.config.release == "rawhide" and (rawhide_will_be := versionre.match(Path(key).name)):
+        # When querying the rawhide version remotely, we add the N+1 key as the symlink might not have been
+        # updated yet. We do expect the symlink update to happen in reasonable time so we only add the N+1
+        # key. When using a locally installed distribution-gpg-keys package on older Fedora versions, there's
+        # a non-zero chance that rawhide might already be using the N+2 key. So let's play it safe and add
+        # all newer keys in this case.
+        version = int(rawhide_will_be.group(1))
 
-            if version:
-                if key3 := find_rpm_gpgkey(
-                    context,
-                    key=f"RPM-GPG-KEY-fedora-{version + 1}-primary",
-                    required=False,
-                ):
-                    yield key3
-
-            # The rawhide key can also not be a symlink and we end up with the wrong version so far. So let's
-            # cheat and look up the version remotely, but look for the version we get in the keys that exist
-            # locally.
-            remote_rawhide_version = read_remote_rawhide_key_symlink(context)
-            if key4 := find_rpm_gpgkey(context, key=remote_rawhide_version, required=False):
-                yield key4
-
-            # Same as above, the symlink in distribution-gpg-keys might not have been updated yet to point to
-            # the new rawhide key when branching happens, so try to load the N+1 key as well.
-            if m := versionre.match(remote_rawhide_version):
-                version = int(m.group(1))
-
-                if key5 := find_rpm_gpgkey(
-                    context,
-                    key=f"RPM-GPG-KEY-fedora-{version + 1}-primary",
-                    required=False,
-                ):
-                    yield key5
-
-        yield key1
-
-    if key2:
-        yield key2
-
-    if not key1 and not key2:
-        if not context.config.repository_key_fetch:
-            die(
-                "Fedora GPG keys not found in /usr/share/distribution-gpg-keys",
-                hint="Make sure the distribution-gpg-keys package is installed",
-            )
-
-        if context.config.release == "rawhide":
-            remote_rawhide_version = read_remote_rawhide_key_symlink(context)
-            yield f"{DISTRIBUTION_GPG_KEYS_UPSTREAM}/{remote_rawhide_version}"
-
-            # Same dance as above
-            if m := versionre.match(remote_rawhide_version):
-                version = int(m.group(1))
-
-                try:
-                    with tempfile.TemporaryDirectory() as d:
-                        curl(
-                            context.config,
-                            f"{DISTRIBUTION_GPG_KEYS_UPSTREAM}/RPM-GPG-KEY-fedora-{version + 1}-primary",
-                            Path(d),
-                            log=False,
-                        )
-
-                    yield f"{DISTRIBUTION_GPG_KEYS_UPSTREAM}/RPM-GPG-KEY-fedora-{version + 1}-primary"
-                except subprocess.CalledProcessError:
-                    pass
-        else:
-            yield "https://fedoraproject.org/fedora.gpg"
+        i = 1
+        while newerkey := find_rpm_gpgkey(
+            context,
+            key=f"RPM-GPG-KEY-fedora-{version + i}-primary",
+            required=False,
+        ):
+            yield newerkey
+            i += 1
 
 
 class Installer(DistributionInstaller):
