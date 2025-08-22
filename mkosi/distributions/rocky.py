@@ -22,13 +22,18 @@ class Installer(centos.Installer):
         )
 
     @classmethod
-    def repository_variants(cls, context: Context, repo: str) -> list[RpmRepository]:
+    def repository_variants(
+        cls,
+        context: Context,
+        gpgurls: tuple[str, ...],
+        repo: str,
+    ) -> list[RpmRepository]:
         if context.config.mirror:
             url = f"baseurl={join_mirror(context.config.mirror, f'$releasever/{repo}/$basearch/os')}"
         else:
             url = f"mirrorlist=https://mirrors.rockylinux.org/mirrorlist?arch=$basearch&repo={repo}-$releasever"
 
-        return [RpmRepository(repo, url, cls.gpgurls(context))]
+        return [RpmRepository(repo, url, gpgurls)]
 
     @classmethod
     def sig_repositories(cls, context: Context) -> list[RpmRepository]:

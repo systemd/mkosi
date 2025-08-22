@@ -71,14 +71,19 @@ class Installer(centos.Installer):
         return paths[0]
 
     @classmethod
-    def repository_variants(cls, context: Context, repo: str) -> Iterable[RpmRepository]:
+    def repository_variants(
+        cls,
+        context: Context,
+        gpgurls: tuple[str, ...],
+        repo: str,
+    ) -> Iterable[RpmRepository]:
         if context.config.local_mirror:
-            yield RpmRepository(repo, f"baseurl={context.config.local_mirror}", cls.gpgurls(context))
+            yield RpmRepository(repo, f"baseurl={context.config.local_mirror}", gpgurls)
         else:
             mirror = context.config.mirror or "https://cdn.redhat.com/content/dist/"
 
             common: dict[str, Any] = dict(
-                gpgurls=cls.gpgurls(context),
+                gpgurls=gpgurls,
                 sslcacert=cls.sslcacert(context),
                 sslclientcert=cls.sslclientcert(context),
                 sslclientkey=cls.sslclientkey(context),
@@ -107,7 +112,8 @@ class Installer(centos.Installer):
 
     @classmethod
     def repositories(cls, context: Context) -> Iterable[RpmRepository]:
-        yield from cls.repository_variants(context, "baseos")
-        yield from cls.repository_variants(context, "appstream")
-        yield from cls.repository_variants(context, "codeready-builder")
+        gpgurls = cls.gpgurls(context)
+        yield from cls.repository_variants(context, gpgurls, "baseos")
+        yield from cls.repository_variants(context, gpgurls, "appstream")
+        yield from cls.repository_variants(context, gpgurls, "codeready-builder")
         yield from cls.epel_repositories(context)
