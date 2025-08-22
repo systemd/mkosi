@@ -66,10 +66,7 @@ def main() -> None:
             cmdline += ["--debug-sandbox"]
 
         if os.getuid() == 0:
-            cmdline += [
-                "--workspace-dir=/var/tmp",
-                "--output-mode=600",
-            ]
+            cmdline += ["--output-mode=600"]
 
         cmdline += include_system_config("mkosi-addon")
         cmdline += process_crypttab(Path(staging_dir))

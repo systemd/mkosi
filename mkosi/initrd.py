@@ -374,7 +374,6 @@ def main() -> None:
 
         if os.getuid() == 0:
             cmdline += [
-                "--workspace-dir=/var/tmp",
                 "--package-cache-dir=/var",
                 "--cache-only=metadata",
             ]
