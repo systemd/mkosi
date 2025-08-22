@@ -112,6 +112,8 @@ class Installer(DistributionInstaller):
                     subdir = "ports/ppc"
                 elif context.config.architecture in (Architecture.s390x, Architecture.s390):
                     subdir = "ports/zsystems"
+                elif context.config.architecture == Architecture.riscv64:
+                    subdir = "ports/riscv"
                 else:
                     die(f"{context.config.architecture} not supported by openSUSE Tumbleweed")
             else:
@@ -237,6 +239,7 @@ class Installer(DistributionInstaller):
             Architecture.x86_64: "x86_64",
             Architecture.arm64:  "aarch64",
             Architecture.ppc64_le: "ppc64le",
+            Architecture.riscv64: "riscv64",
             Architecture.s390x:  "s390x",
         }.get(arch)  # fmt: skip
 
