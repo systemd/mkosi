@@ -690,3 +690,37 @@ def finalize_interpreter(tools: bool) -> str:
         return exe
 
     return "python3"
+
+
+def glob_in_sandbox(
+    *globs: str,
+    sandbox: AbstractContextManager[Sequence[PathString]] = contextlib.nullcontext([]),
+) -> list[Path]:
+    return [
+        Path(s)
+        for s in run(
+            [
+                "bash",
+                "-c",
+                rf"shopt -s nullglob && printf '%s\n' {' '.join(globs)} | xargs -r readlink -f",
+            ],
+            sandbox=sandbox,
+            stdout=subprocess.PIPE,
+        )
+        .stdout.strip()
+        .splitlines()
+    ]
+
+
+def exists_in_sandbox(
+    path: PathString,
+    sandbox: AbstractContextManager[Sequence[PathString]] = contextlib.nullcontext([]),
+) -> bool:
+    return (
+        run(
+            ["bash", "-c", rf"test -e {path}"],
+            sandbox=sandbox,
+            check=False,
+        ).returncode
+        == 0
+    )

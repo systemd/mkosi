@@ -8,6 +8,7 @@ from mkosi.context import Context
 from mkosi.distributions import centos, join_mirror
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey
 from mkosi.log import die
+from mkosi.run import exists_in_sandbox, glob_in_sandbox
 
 
 class Installer(centos.Installer):
@@ -30,45 +31,44 @@ class Installer(centos.Installer):
         if context.config.mirror:
             return None
 
-        p = Path("etc/rhsm/ca/redhat-uep.pem")
-        if (context.sandbox_tree / p).exists():
-            p = context.sandbox_tree / p
-        elif (Path("/") / p).exists():
-            p = Path("/") / p
-        else:
-            die("redhat-uep.pem certificate not found in host system or sandbox tree")
+        path = Path("/etc/rhsm/ca/redhat-uep.pem")
+        if not exists_in_sandbox(path, sandbox=context.sandbox()):
+            die(
+                f"redhat-uep.pem certificate not found in sandbox at {path}",
+                hint="Add the certificate to the sandbox with SandboxTrees= or mkosi.sandbox/",
+            )
 
-        return p
+        return path
 
     @staticmethod
     def sslclientkey(context: Context) -> Optional[Path]:
         if context.config.mirror:
             return None
 
-        pattern = "etc/pki/entitlement/*-key.pem"
+        glob = "/etc/pki/entitlement/*-key.pem"
+        paths = glob_in_sandbox(glob, sandbox=context.sandbox())
+        if not paths:
+            die(
+                f"No entitlement keys found at {glob} in sandbox",
+                hint="Add an entitlement key to the sandbox with SandboxTrees= or mkosi.sandbox/",
+            )
 
-        p = next((p for p in sorted(context.sandbox_tree.glob(pattern))), None)
-        if not p:
-            p = next((p for p in Path("/").glob(pattern)), None)
-        if not p:
-            die("Entitlement key not found in host system or sandbox tree")
-
-        return p
+        return paths[0]
 
     @staticmethod
     def sslclientcert(context: Context) -> Optional[Path]:
         if context.config.mirror:
             return None
 
-        pattern = "etc/pki/entitlement/*.pem"
+        glob = "/etc/pki/entitlement/*.pem"
+        paths = [p for p in glob_in_sandbox(glob, sandbox=context.sandbox()) if "-key.pem" not in p.name]
+        if not paths:
+            die(
+                f"No entitlement certificates found at {glob} in sandbox",
+                hint="Add an entitlement certificate to the sandbox with SandboxTrees= or mkosi.sandbox/",
+            )
 
-        p = next((p for p in sorted(context.sandbox_tree.glob(pattern)) if "key" not in p.name), None)
-        if not p:
-            p = next((p for p in sorted(Path("/").glob(pattern)) if "key" not in p.name), None)
-        if not p:
-            die("Entitlement certificate not found in host system or sandbox tree")
-
-        return p
+        return paths[0]
 
     @classmethod
     def repository_variants(cls, context: Context, repo: str) -> Iterable[RpmRepository]:
