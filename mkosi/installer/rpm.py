@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 import dataclasses
-import subprocess
 import textwrap
 from pathlib import Path
 from typing import Literal, Optional, overload
@@ -9,7 +8,7 @@ from typing import Literal, Optional, overload
 from mkosi.context import Context
 from mkosi.distributions import Distribution
 from mkosi.log import die
-from mkosi.run import run
+from mkosi.run import glob_in_sandbox
 from mkosi.util import PathString
 
 
@@ -54,19 +53,10 @@ def find_rpm_gpgkey(
 ) -> Optional[str]:
     # We assume here that GPG keys will only ever be relative symlinks and never absolute symlinks.
 
-    globs = [
+    paths = glob_in_sandbox(
         f"/usr/share/distribution-gpg-keys/*/{key}*",
         f"/etc/pki/rpm-gpg/{key}*",
-    ]
-
-    paths = (
-        run(
-            ["bash", "-c", rf"shopt -s nullglob && printf '%s\n' {' '.join(globs)} | xargs -r readlink -f"],
-            sandbox=context.sandbox(),
-            stdout=subprocess.PIPE,
-        )
-        .stdout.strip()
-        .splitlines()
+        sandbox=context.sandbox(),
     )
 
     if paths:
