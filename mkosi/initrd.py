@@ -269,13 +269,6 @@ def initrd_common_args(parser: argparse.ArgumentParser) -> None:
         type=Path,
     )
     parser.add_argument(
-        "--workspace-dir",
-        metavar="DIR",
-        help="Workspace directory",
-        default="/var/tmp",
-        type=Path,
-    )
-    parser.add_argument(
         "--debug",
         help="Turn on debugging output",
         action="store_true",
@@ -381,7 +374,7 @@ def main() -> None:
 
         if os.getuid() == 0:
             cmdline += [
-                f"--workspace-dir={args.workspace_dir}",
+                "--workspace-dir=/var/tmp",
                 "--package-cache-dir=/var",
                 "--cache-only=metadata",
             ]
