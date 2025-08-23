@@ -651,8 +651,8 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `SplitArtifacts=`, `--split-artifacts=`
 :   The artifact types to split out of the final image. A comma-delimited
     list consisting of `uki`, `kernel`, `initrd`, `os-release`, `prcs`, `partitions`,
-    `roothash` and `tar`. When building a bootable image `kernel` and `initrd`
-    correspond to their artifact found in the image (or in the UKI),
+    `roothash`, `kernel-modules-initrd` and `tar`. When building a bootable image `kernel`
+    and `initrd` correspond to their artifact found in the image (or in the UKI),
     while `uki` copies out the entire UKI. If `pcrs` is specified, a JSON
     file containing the pre-calculated TPM2 digests is written out, according
     to the [UKI specification](https://uapi-group.org/specifications/specs/unified_kernel_image/#json-format-for-pcrsig),
@@ -672,6 +672,11 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
     When `roothash` is specified and a dm-verity disk image is built, the dm-verity
     roothash is written out as a separate file, which is useful for offline signing.
+
+    `kernel-modules-initrd` corresponds to the separate kernel modules initrd which
+    mkosi appends to the main initrd. This is primarily intended for debugging as many
+    initrd inspection tools don't properly handle multiple initrds appended to each
+    other.
 
     By default `uki`, `kernel` and `initrd` are split out.
 
