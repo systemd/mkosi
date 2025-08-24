@@ -557,11 +557,11 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     tarball of the OS image is generated), `cpio` (similar, but a cpio
     archive is generated), `disk` (a block device OS image with a GPT
     partition table), `uki` (a unified kernel image with the OS image in
-    the `.initrd` PE section), `esp` (`uki` but wrapped in a disk image
-    with only an ESP partition), `oci` (a directory compatible with the
-    OCI image specification), `sysext`, `confext`, `portable`,
-    `addon` or `none` (the OS image is solely intended as a build
-    image to produce another artifact).
+    the `.initrd` PE section), `esp` (a disk image with only an ESP
+    partition, bootloader and optionally a UKI), `oci` (a directory
+    compatible with the OCI image specification), `sysext`, `confext`,
+    `portable`, `addon` or `none` (the OS image is solely intended as a
+    build image to produce another artifact).
 
     If the `disk` output format is used, the disk image is generated using
     **systemd-repart**. The repart partition definition files to use can be
@@ -927,6 +927,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     bootloader will be installed even if found inside the image, no
     unified kernel images will be generated and no ESP partition will be
     added to the image if the disk output format is used.
+
+    If the `esp` output format is used, an ESP partition and bootloader are
+    always added, and the `Bootable=` option only controls whether a UKI is
+    added to the ESP partition or not.
 
 `Bootloader=`, `--bootloader=`
 :   Takes one of `none`, `systemd-boot`, `uki`, `grub`,

@@ -3362,6 +3362,12 @@ def save_esp_components(
         if context.config.output_format == OutputFormat.uki:
             die("A kernel must be installed in the image to build a UKI")
 
+        if (
+            context.config.output_format == OutputFormat.esp
+            and context.config.bootable == ConfigFeature.enabled
+        ):
+            die("A kernel must be installed in the image to build a bootable ESP image")
+
         return None, None, None, []
 
     kimg = Path(shutil.copy2(context.root / kimg, context.workspace))
@@ -3700,7 +3706,11 @@ def make_esp(
     if not context.config.architecture.to_efi():
         die(f"Architecture {context.config.architecture} does not support UEFI")
 
-    if stub and kver and kimg:
+    if context.config.bootable == ConfigFeature.enabled or (
+        context.config.bootable == ConfigFeature.auto and stub and kver and kimg
+    ):
+        assert stub and kver and kimg
+
         token = find_entry_token(context)
         uki = context.root / finalize_uki_path(
             context, finalize_bootloader_entry_format(context, kver, token)
