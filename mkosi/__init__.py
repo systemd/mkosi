@@ -3700,7 +3700,7 @@ def make_esp(
     if not context.config.architecture.to_efi():
         die(f"Architecture {context.config.architecture} does not support UEFI")
 
-    if stub and kver and kimg:
+    if stub and kver and kimg and want_uki(context):
         token = find_entry_token(context)
         uki = context.root / finalize_uki_path(
             context, finalize_bootloader_entry_format(context, kver, token)
