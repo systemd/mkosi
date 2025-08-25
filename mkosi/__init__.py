@@ -4,6 +4,7 @@ import contextlib
 import dataclasses
 import datetime
 import functools
+import getpass
 import hashlib
 import itertools
 import json
@@ -155,7 +156,6 @@ from mkosi.tree import copy_tree, make_tree, move_tree, rmtree
 from mkosi.user import INVOKING_USER, become_root_cmd
 from mkosi.util import (
     PathString,
-    current_home_dir,
     flatten,
     flock,
     flock_or_die,
@@ -4370,9 +4370,8 @@ def run_shell(args: Args, config: Config) -> None:
             uidmap = "rootidmap" if tree.source.stat().st_uid != 0 else "noidmap"
             cmdline += ["--bind", f"{tree.source}:{target}:norbind,{uidmap}"]
 
-        if config.runtime_home and (path := current_home_dir()):
-            uidmap = "rootidmap" if path.stat().st_uid != 0 else "noidmap"
-            cmdline += ["--bind", f"{path}:/root:norbind,{uidmap}"]
+        if config.bind_user:
+            cmdline += ["--bind-user", getpass.getuser()]
 
         if config.runtime_scratch == ConfigFeature.enabled or (
             config.runtime_scratch == ConfigFeature.auto and config.output_format == OutputFormat.disk

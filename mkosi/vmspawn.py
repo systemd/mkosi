@@ -24,7 +24,7 @@ from mkosi.qemu import (
     finalize_register,
 )
 from mkosi.run import run
-from mkosi.util import PathString, current_home_dir
+from mkosi.util import PathString
 
 
 def run_vmspawn(args: Args, config: Config) -> None:
@@ -36,6 +36,9 @@ def run_vmspawn(args: Args, config: Config) -> None:
 
     if config.cdrom:
         die("systemd-vmspawn does not support CD-ROM images")
+
+    if config.bind_user:
+        die("systemd-vmspawn does not support --bind-user=")
 
     if config.firmware_variables and config.firmware_variables != Path("microsoft"):
         die("mkosi vmspawn does not support FirmwareVariables=")
@@ -87,9 +90,6 @@ def run_vmspawn(args: Args, config: Config) -> None:
         for tree in config.runtime_trees:
             target = Path("/root/src") / (tree.target or "")
             cmdline += ["--bind", f"{tree.source}:{target}"]
-
-        if config.runtime_home and (p := current_home_dir()):
-            cmdline += ["--bind", f"{p}:/root"]
 
         if kernel:
             cmdline += ["--linux", kernel]

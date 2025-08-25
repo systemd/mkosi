@@ -108,6 +108,7 @@ def test_config() -> None:
             "BaseTrees": [
                 "/hello/world"
             ],
+            "BindUser": true,
             "BiosBootloader": "none",
             "Bootable": "disabled",
             "Bootloader": "grub",
@@ -313,7 +314,6 @@ def test_config() -> None:
             ],
             "RootShell": "/bin/tcsh",
             "RuntimeBuildSources": true,
-            "RuntimeHome": true,
             "RuntimeNetwork": "interface",
             "RuntimeScratch": "enabled",
             "RuntimeSize": 8589934592,
@@ -441,6 +441,7 @@ def test_config() -> None:
         architecture=Architecture.ia64,
         autologin=False,
         base_trees=[Path("/hello/world")],
+        bind_user=True,
         bios_bootloader=BiosBootloader.none,
         bootable=ConfigFeature.disabled,
         bootloader=Bootloader.grub,
@@ -553,7 +554,6 @@ def test_config() -> None:
         root_password=("test1234", False),
         root_shell="/bin/tcsh",
         runtime_build_sources=True,
-        runtime_home=True,
         runtime_network=Network.interface,
         runtime_scratch=ConfigFeature.enabled,
         runtime_size=8589934592,

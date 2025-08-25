@@ -2105,7 +2105,7 @@ class Config:
     runtime_scratch: ConfigFeature
     runtime_network: Network
     runtime_build_sources: bool
-    runtime_home: bool
+    bind_user: bool
     unit_properties: list[str]
     ssh_key: Optional[Path]
     ssh_certificate: Optional[Path]
@@ -4009,11 +4009,11 @@ SETTINGS: list[ConfigSetting[Any]] = [
         scope=SettingScope.main,
     ),
     ConfigSetting(
-        dest="runtime_home",
+        dest="bind_user",
         metavar="BOOL",
         section="Runtime",
         parse=config_parse_boolean,
-        help="Mount current home directory to /root when booting the image",
+        help="Bind current user from host into container or virtual machine",
         scope=SettingScope.main,
     ),
     ConfigSetting(
@@ -5610,7 +5610,7 @@ def summary(config: Config) -> str:
                     Runtime Scratch: {config.runtime_scratch}
                     Runtime Network: {config.runtime_network}
               Runtime Build Sources: {config.runtime_build_sources}
-  Runtime Home or Working Directory: {yes_no(config.runtime_home)}
+                          Bind User: {yes_no(config.bind_user)}
                     Unit Properties: {line_join_list(config.unit_properties)}
                     SSH Signing Key: {none_to_none(config.ssh_key)}
                     SSH Certificate: {none_to_none(config.ssh_certificate)}
