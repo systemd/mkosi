@@ -10,10 +10,10 @@ from collections.abc import Iterable, Iterator, Reversible
 from pathlib import Path
 
 from mkosi.context import Context
-from mkosi.log import complete_step, die, log_step
+from mkosi.log import complete_step, log_step
 from mkosi.run import chroot_cmd, run
 from mkosi.sandbox import chase
-from mkosi.util import chdir, parents_below, path_and_parents_below
+from mkosi.util import chdir, parents_below
 
 
 def loaded_modules() -> list[str]:
@@ -281,8 +281,7 @@ def resolve_module_dependencies(
 
                 glob = "" if value.endswith("*") else ".*"
 
-                for fw in Path("usr/lib/firmware").glob(f"{value}{glob}"):
-                    firmware.add(fw)
+                firmware.update(Path("usr/lib/firmware").glob(f"{value}{glob}"))
 
             elif key == "name":
                 # The file names use dashes, but the module names use underscores. We track the names in
@@ -355,9 +354,9 @@ def gen_required_kernel_modules(
 
     # /usr/lib/firmware makes use of symbolic links so we have to make sure the symlinks and their targets
     # are all included.
-    todo = firmware.copy()
+    fwcopy = firmware.copy()
     firmware.clear()
-    for fw in todo:
+    for fw in fwcopy:
         # Every path component from /usr/lib/firmware up to and including the firmware file itself might be a
         # symlink. We need to make sure we include all of them so we iterate over them and keep resolving
         # each symlink separately (and recursively) and add all of them to the list of firmware to add.
@@ -384,25 +383,38 @@ def gen_required_kernel_modules(
         # /usr/lib/firmware/nvidia/tu106/gsp
         # /usr/lib/firmware/nvidia/tu117/gsp
 
-        for p in reversed(path_and_parents_below(context.root / fw, context.root / firmwared)):
-            # Make sure only the last component of the path we're working is a symlink. We don't want to
-            # yield any paths with multiple components in them that are symlinks as these paths are passed to
-            # cpio and it interprets intermediary path components that are symlinks as regular directories.
-            # Additionally, intermediary path components that are symlinks also mess up the path
-            # deduplication we want to get by putting all the firmware to add in a set as the paths will hash
-            # differently even though they're the same paths after resolution.
-            p = p.parent.resolve(strict=True).joinpath(p.name)
+        todo = list(reversed(fw.parts))
+        current = context.root
+        while todo:
+            part = todo.pop()
+            if part == "/":
+                current = context.root
+                continue
+            elif part == "..":
+                current = current.parent
+                continue
+            elif part == ".":
+                continue
 
-            while p.is_symlink():
-                target = p.readlink()
-                if target.is_absolute():
-                    die(f"Found unexpected absolute symlink {target} in {firmwared}")
+            current /= part
+            if not current.is_symlink():
+                continue
 
-                firmware.add(p.relative_to(context.root))
-                p = p.parent / target
+            if current.readlink().is_relative_to("/etc/alternatives"):
+                target = chase(os.fspath(context.root), os.fspath(current.relative_to(context.root)))
+                current.unlink()
+                current.symlink_to(os.path.relpath(target, start=current.parent))
+
+            firmware.add(current.relative_to(context.root))
+            todo += list(reversed(current.readlink().parts))
+            # Relative symlinks are resolved relative to the directory
+            # the symlink is located in. If the symlink is absolute we'll
+            # override the current path anyway so modifying it here doesn't
+            # matter.
+            current = current.parent
 
         # Finally, add the actual fully resolved path to the firmware file.
-        firmware.add((context.root / fw).resolve(strict=True).relative_to(context.root))
+        firmware.add(current.relative_to(context.root))
 
     yield from sorted(
         itertools.chain(
