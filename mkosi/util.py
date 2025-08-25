@@ -194,10 +194,6 @@ def parents_below(path: Path, below: Path) -> list[Path]:
     return parents[: parents.index(below)]
 
 
-def path_and_parents_below(path: Path, below: Path) -> list[Path]:
-    return [path] + parents_below(path, below)
-
-
 @contextlib.contextmanager
 def resource_path(mod: ModuleType) -> Iterator[Path]:
     t = importlib.resources.files(mod)
