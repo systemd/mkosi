@@ -4195,7 +4195,7 @@ def run_box(args: Args, config: Config) -> None:
 
     cmdline = [*args.cmdline]
 
-    if sys.stdin.isatty() and config.find_binary("systemd-pty-forward"):
+    if sys.stdin.isatty() and sys.stdout.isatty() and config.find_binary("systemd-pty-forward"):
         cmdline = [
             "systemd-pty-forward",
             "--title=mkosi-sandbox",
