@@ -242,7 +242,7 @@ class Manifest:
         if self.context.config.image_version is not None:
             config["version"] = self.context.config.image_version
         if self.context.config.release is not None:
-            config["release"] = self.context.config.release
+            config["release"] = str(self.context.config.release)
 
         return {
             # Bump this when incompatible changes are made to the manifest format.

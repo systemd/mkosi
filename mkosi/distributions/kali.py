@@ -11,13 +11,11 @@ from mkosi.log import die
 
 
 class Installer(debian.Installer):
+    _default_release = "kali-rolling"
+
     @classmethod
     def pretty_name(cls) -> str:
         return "Kali Linux"
-
-    @classmethod
-    def default_release(cls) -> str:
-        return "kali-rolling"
 
     @classmethod
     def default_tools_tree_distribution(cls) -> Distribution:
@@ -29,7 +27,7 @@ class Installer(debian.Installer):
             yield AptRepository(
                 types=("deb",),
                 url=context.config.local_mirror,
-                suite=context.config.release,
+                suite=str(context.config.release),
                 components=("main",),
                 signedby=None,
             )
@@ -38,7 +36,7 @@ class Installer(debian.Installer):
         yield AptRepository(
             types=("deb", "deb-src"),
             url=context.config.mirror or "http://http.kali.org/kali",
-            suite=context.config.release,
+            suite=str(context.config.release),
             components=("main", *context.config.repositories),
             signedby=Path("/usr/share/keyrings/kali-archive-keyring.gpg"),
         )
