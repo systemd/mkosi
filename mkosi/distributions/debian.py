@@ -189,6 +189,8 @@ class Installer(DistributionInstaller):
 
         fixup_os_release(context)
 
+    @classmethod
+    def finalize(cls, context: Context) -> None:
         if (
             "apt" in itertools.chain(context.config.packages, context.config.volatile_packages)
             or (context.root / "usr/bin/apt").exists()
