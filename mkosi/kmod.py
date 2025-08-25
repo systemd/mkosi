@@ -10,10 +10,10 @@ from collections.abc import Iterable, Iterator, Reversible
 from pathlib import Path
 
 from mkosi.context import Context
-from mkosi.log import complete_step, log_step
+from mkosi.log import complete_step, die, log_step
 from mkosi.run import chroot_cmd, run
 from mkosi.sandbox import chase
-from mkosi.util import chdir, parents_below
+from mkosi.util import chdir, parents_below, path_and_parents_below
 
 
 def loaded_modules() -> list[str]:
@@ -165,7 +165,7 @@ def filter_firmware(
     if include:
         firmwared = Path("usr/lib/firmware")
         with chdir(root):
-            all_firmware = set(firmwared.rglob("*"))
+            all_firmware = {p for p in firmwared.rglob("*") if p.is_file() or p.is_symlink()}
 
         patterns = [p[3:] for p in include if p.startswith("re:")]
         regex = re.compile("|".join(patterns))
@@ -349,14 +349,56 @@ def gen_required_kernel_modules(
     # Include or exclude firmware explicitly configured
     firmware = filter_firmware(context.root, firmware, include=firmware_include, exclude=firmware_exclude)
 
-    # Some firmware dependencies are symbolic links, so the targets for those must be included in the list
-    # of required firmware files too. Intermediate symlinks are not included, and so links pointing to links
-    # results in dangling symlinks in the final image.
-    for fw in firmware.copy():
-        if (context.root / fw).is_symlink():
-            target = Path(chase(os.fspath(context.root), os.fspath(fw)))
-            if target.exists():
-                firmware.add(target.relative_to(context.root))
+    # /usr/lib/firmware makes use of symbolic links so we have to make sure the symlinks and their targets
+    # are all included.
+    todo = firmware.copy()
+    firmware.clear()
+    for fw in todo:
+        # Every path component from /usr/lib/firmware up to and including the firmware file itself might be a
+        # symlink. We need to make sure we include all of them so we iterate over them and keep resolving
+        # each symlink separately (and recursively) and add all of them to the list of firmware to add.
+        #
+        # As of the time of writing this logic, the only firmware that actually requires intermediate path
+        # symlink resolution are the following:
+        #
+        # $ find /usr/lib/firmware -type l | grep -v "\."
+        # /usr/lib/firmware/intel/sof-ace-tplg
+        # /usr/lib/firmware/nvidia/ad103
+        # /usr/lib/firmware/nvidia/ad104
+        # /usr/lib/firmware/nvidia/ad106
+        # /usr/lib/firmware/nvidia/ad107
+        # /usr/lib/firmware/nvidia/ga103/gsp
+        # /usr/lib/firmware/nvidia/ga104/gsp
+        # /usr/lib/firmware/nvidia/ga106/gsp
+        # /usr/lib/firmware/nvidia/ga107/gsp
+        # /usr/lib/firmware/nvidia/gb102
+        # /usr/lib/firmware/nvidia/gb203
+        # /usr/lib/firmware/nvidia/gb205
+        # /usr/lib/firmware/nvidia/gb206
+        # /usr/lib/firmware/nvidia/gb207
+        # /usr/lib/firmware/nvidia/tu104/gsp
+        # /usr/lib/firmware/nvidia/tu106/gsp
+        # /usr/lib/firmware/nvidia/tu117/gsp
+
+        for p in reversed(path_and_parents_below(context.root / fw, context.root / firmwared)):
+            # Make sure only the last component of the path we're working is a symlink. We don't want to
+            # yield any paths with multiple components in them that are symlinks as these paths are passed to
+            # cpio and it interprets intermediary path components that are symlinks as regular directories.
+            # Additionally, intermediary path components that are symlinks also mess up the path
+            # deduplication we want to get by putting all the firmware to add in a set as the paths will hash
+            # differently even though they're the same paths after resolution.
+            p = p.parent.resolve(strict=True).joinpath(p.name)
+
+            while p.is_symlink():
+                target = p.readlink()
+                if target.is_absolute():
+                    die(f"Found unexpected absolute symlink {target} in {firmwared}")
+
+                firmware.add(p.relative_to(context.root))
+                p = p.parent / target
+
+        # Finally, add the actual fully resolved path to the firmware file.
+        firmware.add((context.root / fw).resolve(strict=True).relative_to(context.root))
 
     yield from sorted(
         itertools.chain(

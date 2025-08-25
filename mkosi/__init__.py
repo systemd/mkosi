@@ -1590,6 +1590,9 @@ def build_kernel_modules_initrd(context: Context, kver: str) -> Path:
 
         maybe_compress(context, compression, kmods, kmods)
 
+    if ArtifactOutput.kernel_modules_initrd in context.config.split_artifacts:
+        shutil.copy(kmods, context.staging / context.config.output_split_kernel_modules_initrd)
+
     return kmods
 
 
