@@ -40,7 +40,7 @@ def want_efi(config: Config) -> bool:
     # Note that this returns True also in the case where autodetection might later cause the system to not be
     # made bootable on EFI firmware after the filesystem has been populated.
 
-    if config.output_format in (OutputFormat.uki, OutputFormat.esp):
+    if config.output_format == OutputFormat.esp:
         return True
 
     if config.bootable == ConfigFeature.disabled:
@@ -51,7 +51,7 @@ def want_efi(config: Config) -> bool:
 
     if (
         config.output_format
-        in (OutputFormat.cpio, OutputFormat.directory, OutputFormat.none, OutputFormat.oci)
+        in (OutputFormat.cpio, OutputFormat.directory, OutputFormat.none, OutputFormat.oci, OutputFormat.uki)
         or config.output_format.is_extension_or_portable_image()
         or config.overlay
     ) and config.bootable == ConfigFeature.auto:
