@@ -4379,9 +4379,12 @@ def run_shell(args: Args, config: Config) -> None:
         if config.runtime_scratch == ConfigFeature.enabled or (
             config.runtime_scratch == ConfigFeature.auto and config.output_format == OutputFormat.disk
         ):
-            scratch = stack.enter_context(tempfile.TemporaryDirectory(dir="/var/tmp"))
-            os.chmod(scratch, 0o1777)
-            cmdline += ["--bind", f"{scratch}:/var/tmp"]
+            scratch = Path(
+                stack.enter_context(tempfile.TemporaryDirectory(dir="/var/tmp", prefix="mkosi-scratch-"))
+            )
+            scratch.chmod(0o1777)
+            uidmap = "rootidmap" if scratch.stat().st_uid != 0 else "noidmap"
+            cmdline += ["--bind", f"{scratch}:/var/tmp:{uidmap}"]
 
         if args.verb == Verb.boot and config.forward_journal:
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
@@ -4393,8 +4396,9 @@ def run_shell(args: Args, config: Config) -> None:
                 if config.output_format == OutputFormat.directory and (stat := os.stat(fname)).st_uid != 0:
                     os.chown(addr, stat.st_uid, stat.st_gid)
                 stack.enter_context(start_journal_remote(config, sock.fileno()))
+                uidmap = "rootidmap" if addr.stat().st_uid != 0 else "noidmap"
                 cmdline += [
-                    f"--bind={addr}:/run/host/journal/socket",
+                    f"--bind={addr}:/run/host/journal/socket:{uidmap}",
                     "--set-credential=journal.forward_to_socket:/run/host/journal/socket",
                 ]
 
