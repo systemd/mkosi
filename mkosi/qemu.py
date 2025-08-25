@@ -54,7 +54,6 @@ from mkosi.user import INVOKING_USER, become_root_in_subuid_range, become_root_i
 from mkosi.util import (
     PathString,
     StrEnum,
-    current_home_dir,
     flock,
     flock_or_die,
     groupby,
@@ -1146,6 +1145,9 @@ def run_qemu(args: Args, config: Config) -> None:
     ):
         die("SecureBootCertificate= must be configured to use FirmwareVariables=custom|microsoft-mok")
 
+    if config.bind_user:
+        die("mkosi qemu does not support --bind-user=")
+
     # After we unshare the user namespace to sandbox qemu, we might not have access to /dev/kvm or related
     # device nodes anymore as access to these might be gated behind the kvm group and we won't be part of the
     # kvm group anymore after unsharing the user namespace. To get around this, open all those device nodes
@@ -1216,7 +1218,6 @@ def run_qemu(args: Args, config: Config) -> None:
     if (
         config.runtime_trees
         or config.runtime_build_sources
-        or config.runtime_home
         or config.output_format == OutputFormat.directory
     ):
         shm = ["-object", f"memory-backend-memfd,id=mem,size={config.ram // 1024**2}M,share=on"]
