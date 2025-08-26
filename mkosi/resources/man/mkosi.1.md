@@ -1085,6 +1085,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     instead of the one provided by firmware. **mkosi** will search for the
     specified file relative to common paths where Linux distributions install
     Devicetree files. It should typically have the format `<vendor>/<board>.dtb`.
+    When this includes globs, multiple dtbs may be included **only** when building a UKI.
+    Internally this uses the dtbauto feature. Using globs/dtbauto is is **not**
+    supported for Type 1 booting.
 
 `Splash=`, `--splash=`
 :   When set, the boot splash for any unified kernel image built by **mkosi** will
