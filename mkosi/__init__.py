@@ -91,7 +91,13 @@ from mkosi.documentation import show_docs
 from mkosi.installer import clean_package_manager_metadata
 from mkosi.installer.pacman import Pacman
 from mkosi.installer.zypper import Zypper
-from mkosi.kmod import gen_required_kernel_modules, is_valid_kdir, loaded_modules, process_kernel_modules, globs_match_filename
+from mkosi.kmod import (
+    filter_devicetrees,
+    gen_required_kernel_modules,
+    is_valid_kdir,
+    loaded_modules,
+    process_kernel_modules,
+)
 from mkosi.log import ARG_DEBUG, complete_step, die, log_notice, log_step
 from mkosi.manifest import Manifest
 from mkosi.mounts import (
@@ -1597,54 +1603,6 @@ def build_kernel_modules_initrd(context: Context, kver: str) -> Path:
     return kmods
 
 
-def find_devicetree(context: Context, kver: str) -> Path:
-    assert context.config.devicetree
-    assert not glob.has_magic(os.fspath(context.config.devicetree))
-
-    for d in (
-        context.root / f"usr/lib/firmware/{kver}/device-tree",
-        context.root / f"usr/lib/linux-image-{kver}",
-        context.root / f"usr/lib/modules/{kver}/dtb",
-    ):
-        dtb = d / context.config.devicetree
-        if dtb.exists():
-            return dtb
-
-    die(f"Requested devicetree {context.config.devicetree} not found")
-
-
-
-def find_devicetrees(context: Context, kver: str) -> list[Path]:
-    assert context.config.devicetree
-
-    if not glob.has_magic(os.fspath(context.config.devicetree)):
-        # Single devicetree
-        return [find_devicetree(context, kver)]
-
-    # Glob pattern - search all directories
-    dtb_dirs = [
-        context.root / f"usr/lib/firmware/{kver}/device-tree",
-        context.root / f"usr/lib/linux-image-{kver}",
-        context.root / f"usr/lib/modules/{kver}/dtb",
-    ]
-
-    matched_dtbs = []
-    for dtb_dir in dtb_dirs:
-        if not dtb_dir.exists():
-            continue
-
-        all_dtbs = [p for p in dtb_dir.rglob("*.dtb") if p.is_file()]
-        for dtb in all_dtbs:
-            rel_path = os.fspath(dtb.relative_to(dtb_dir))
-            if globs_match_filename(rel_path, [os.fspath(context.config.devicetree)], match_default=False):
-                matched_dtbs.append(dtb)
-
-    if not matched_dtbs:
-        logging.warning(f"Devicetree glob '{context.config.devicetree}' matched 0 files")
-
-    return matched_dtbs
-
-
 def want_signed_pcrs(config: Config) -> bool:
     return config.sign_expected_pcr == ConfigFeature.enabled or (
         config.sign_expected_pcr == ConfigFeature.auto
@@ -1802,15 +1760,17 @@ def build_uki(
         *flatten(["--ro-bind", os.fspath(profile), os.fspath(workdir(profile))] for profile in profiles),
     ]  # fmt: skip
 
-    if context.config.devicetree:
-        if glob.has_magic(os.fspath(context.config.devicetree)):
-            for dtb in find_devicetrees(context, kver):
-                arguments += ["--devicetree-auto", workdir(dtb)]
-                options += ["--ro-bind", dtb, workdir(dtb)]
-        else:
-            dtb = find_devicetree(context, kver)
+    if context.config.devicetrees:
+        dtbs = filter_devicetrees(context.root, kver, include=context.config.devicetrees)
+        if len(dtbs) == 1:
+            dtb = context.root / dtbs[0]
             arguments += ["--devicetree", workdir(dtb)]
             options += ["--ro-bind", dtb, workdir(dtb)]
+        else:
+            for dtb_rel in dtbs:
+                dtb = context.root / dtb_rel
+                arguments += ["--devicetree-auto", workdir(dtb)]
+                options += ["--ro-bind", dtb, workdir(dtb)]
 
     if context.config.splash:
         splash = context.root / os.fspath(context.config.splash).lstrip("/")
@@ -2054,10 +2014,14 @@ def install_type1(
         entry.parent.mkdir(parents=True, exist_ok=True)
 
     dtb = None
-    if context.config.devicetree:
-        if glob.has_magic(os.fspath(context.config.devicetree)):
-            die("Devicetree globs are not supported with Type 1 boot entries, use UKI builds instead")
-        dtb = dst / context.config.devicetree
+    source_dtb = None
+    if context.config.devicetrees:
+        dtbs = filter_devicetrees(context.root, kver, include=context.config.devicetrees)
+        if len(dtbs) != 1:
+            die("Type 1 boot entries support only single devicetree, use UKI builds for multiple devicetrees")
+
+        source_dtb = context.root / dtbs[0]
+        dtb = dst / dtbs[0].relative_to(f"usr/lib/modules/{kver}/dtb")
         with umask(~0o700):
             dtb.parent.mkdir(parents=True, exist_ok=True)
 
@@ -2080,8 +2044,8 @@ def install_type1(
             Path(shutil.copy2(initrd, dst.parent / initrd.name)) for initrd in microcode + initrds
         ] + [Path(shutil.copy2(kmods, dst / "kernel-modules.initrd"))]
 
-        if dtb:
-            shutil.copy2(find_devicetree(context, kver), dtb)
+        if dtb and source_dtb is not None:
+            shutil.copy2(source_dtb, dtb)
 
         with entry.open("w") as f:
             f.write(
