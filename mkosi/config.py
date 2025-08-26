@@ -2014,7 +2014,7 @@ class Config:
     initrd_packages: list[str]
     initrd_volatile_packages: list[str]
     microcode_host: bool
-    devicetree: Optional[Path]
+    devicetree: Optional[str]
     splash: Optional[Path]
     kernel_command_line: list[str]
     kernel_modules_include: list[str]
