@@ -150,7 +150,9 @@ def test_config() -> None:
             "Dependencies": [
                 "dep1"
             ],
-            "Devicetree": "freescale/imx8mm-verdin-nonwifi-dev.dtb",
+            "Devicetrees": [
+                "freescale/imx8mm-verdin-nonwifi-dev.dtb"
+            ],
             "Distribution": "fedora",
             "Drives": [
                 {
@@ -510,7 +512,7 @@ def test_config() -> None:
         make_initrd=False,
         manifest_format=[ManifestFormat.json, ManifestFormat.changelog],
         microcode_host=True,
-        devicetree="freescale/imx8mm-verdin-nonwifi-dev.dtb",
+        devicetrees=["freescale/imx8mm-verdin-nonwifi-dev.dtb"],
         minimum_version="123",
         mirror=None,
         nspawn_settings=None,
