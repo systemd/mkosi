@@ -510,7 +510,7 @@ def test_config() -> None:
         make_initrd=False,
         manifest_format=[ManifestFormat.json, ManifestFormat.changelog],
         microcode_host=True,
-        devicetree=Path("freescale/imx8mm-verdin-nonwifi-dev.dtb"),
+        devicetree="freescale/imx8mm-verdin-nonwifi-dev.dtb",
         minimum_version="123",
         mirror=None,
         nspawn_settings=None,
