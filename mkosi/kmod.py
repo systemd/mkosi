@@ -510,3 +510,43 @@ def is_valid_kdir(kdir: Path) -> bool:
 
     # check that kdir contains more than just updates
     return dircontent != [kdir / "updates"]
+
+
+def filter_devicetrees(
+    root: Path,
+    kver: str,
+    *,
+    include: Iterable[str],
+) -> list[Path]:
+    if not include:
+        return []
+
+    logging.debug(f"Devicetrees include: {' '.join(include)}")
+
+    # Search standard DTB locations
+    dtb_dirs = [
+        Path("usr/lib/firmware") / kver / "device-tree",
+        Path(f"usr/lib/linux-image-{kver}"),
+        Path("usr/lib/modules") / kver / "dtb",
+    ]
+
+    matched_dtbs = []
+    globs = list(include)
+
+    with chdir(root):
+        for dtb_dir in dtb_dirs:
+            all_dtbs = [p for p in dtb_dir.rglob("*.dtb") if p.is_file() or p.is_symlink()]
+            logging.debug(f"Found {len(all_dtbs)} DTB files in {dtb_dir}")
+
+            for dtb in all_dtbs:
+                rel_path = os.fspath(dtb.relative_to(dtb_dir))
+                if globs_match_filename(rel_path, globs):
+                    logging.debug(f"Matched DTB: {rel_path} in {dtb_dir}")
+                    matched_dtbs.append(dtb)
+
+    if not matched_dtbs:
+        logging.warning(f"Devicetrees patterns '{globs}' matched 0 files")
+    else:
+        logging.debug(f"Including {len(matched_dtbs)} devicetree files")
+
+    return sorted(matched_dtbs)
