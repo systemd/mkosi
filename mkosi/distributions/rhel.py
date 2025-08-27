@@ -112,6 +112,9 @@ class Installer(centos.Installer):
 
     @classmethod
     def repositories(cls, context: Context) -> Iterable[RpmRepository]:
+        if context.config.snapshot:
+            die(f"Snapshot= is not supported for {cls.pretty_name()}")
+
         gpgurls = cls.gpgurls(context)
         yield from cls.repository_variants(context, gpgurls, "baseos")
         yield from cls.repository_variants(context, gpgurls, "appstream")
