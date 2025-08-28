@@ -15,6 +15,7 @@ mkosi-chroot \
     --password "$(openssl passwd -1 mkosi)" \
     --groups "$SUDO_GROUP",systemd-journal \
     --shell /bin/bash \
+    --uid 4711 \
     mkosi
 
 systemctl --root="$BUILDROOT" mask lvm2-monitor.service
