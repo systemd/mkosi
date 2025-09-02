@@ -292,6 +292,27 @@ class Apt(PackageManager):
                 ),
             )  # fmt: skip
 
+        metadata = [
+            "Origin=mkosi",
+            f"Architectures={context.config.distribution.architecture(context.config.architecture)}",
+            "Description=mkosi local repository",
+        ]
+
+        with (context.repository / "Release").open("wb") as f:
+            run(
+                [
+                    "apt-ftparchive", "release", ".",
+                    *(f"-o=APT::FTPArchive::Release::{m}" for m in metadata),
+                ],
+                stdout=f,
+                sandbox=context.sandbox(
+                    options=[
+                        "--ro-bind", context.repository, workdir(context.repository),
+                        "--chdir", workdir(context.repository),
+                    ]
+                ),
+            )  # fmt: skip
+
         (context.sandbox_tree / "etc/apt/sources.list.d").mkdir(parents=True, exist_ok=True)
         (context.sandbox_tree / "etc/apt/sources.list.d/mkosi-local.sources").write_text(
             textwrap.dedent(
