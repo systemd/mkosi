@@ -168,6 +168,7 @@ class Apt(PackageManager):
             "-o", f"APT::Install-Recommends={str(context.config.with_recommends).lower()}",
             "-o", "APT::Immediate-Configure=off",
             "-o", "APT::Get::Assume-Yes=true",
+            "-o", "APT::Get::allow-downgrades=true",
             "-o", "APT::Get::AutomaticRemove=true",
             "-o", "APT::Get::Allow-Change-Held-Packages=true",
             "-o", "APT::Get::Allow-Remove-Essential=true",
@@ -310,7 +311,7 @@ class Apt(PackageManager):
             textwrap.dedent(
                 """\
                 Package: *
-                Pin: origin mkosi
+                Pin: origin ""
                 Pin-Priority: 1100
                 """
             )
