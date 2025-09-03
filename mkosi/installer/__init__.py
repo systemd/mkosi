@@ -150,6 +150,7 @@ class PackageManager:
         packages: Sequence[str],
         *,
         apivfs: bool = True,
+        allow_downgrade: bool = False,
     ) -> None:
         pass
 

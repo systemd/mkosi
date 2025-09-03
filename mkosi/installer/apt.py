@@ -245,6 +245,7 @@ class Apt(PackageManager):
         packages: Sequence[str],
         *,
         apivfs: bool = True,
+        allow_downgrade: bool = False,
     ) -> None:
         # Debian policy is to start daemons by default. The policy-rc.d script can be used choose which ones
         # to start. Let's install one that denies all daemon startups.
@@ -257,7 +258,14 @@ class Apt(PackageManager):
         with umask(~0o644):
             policyrcd.write_text("#!/bin/sh\nexit 101\n")
 
-        cls.invoke(context, "install", packages, apivfs=apivfs)
+        arguments = []
+
+        if allow_downgrade:
+            arguments += ["--allow-downgrades"]
+
+        arguments += [*packages]
+
+        cls.invoke(context, "install", arguments, apivfs=apivfs)
 
         policyrcd.unlink()
 
@@ -310,7 +318,7 @@ class Apt(PackageManager):
             textwrap.dedent(
                 """\
                 Package: *
-                Pin: origin mkosi
+                Pin: origin ""
                 Pin-Priority: 1100
                 """
             )
