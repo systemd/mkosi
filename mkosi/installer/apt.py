@@ -318,7 +318,7 @@ class Apt(PackageManager):
             textwrap.dedent(
                 """\
                 Package: *
-                Pin: origin mkosi
+                Pin: origin ""
                 Pin-Priority: 1100
                 """
             )
