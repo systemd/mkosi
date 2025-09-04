@@ -3,6 +3,7 @@
 from mkosi.context import Context
 from mkosi.distributions import centos, join_mirror
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey
+from mkosi.log import die
 
 
 class Installer(centos.Installer):
@@ -28,6 +29,9 @@ class Installer(centos.Installer):
         gpgurls: tuple[str, ...],
         repo: str,
     ) -> list[RpmRepository]:
+        if context.config.snapshot:
+            die(f"Snapshot= is not supported for {cls.pretty_name()}")
+
         if context.config.mirror:
             url = f"baseurl={join_mirror(context.config.mirror, f'$releasever/{repo}/$basearch/os')}"
         else:
