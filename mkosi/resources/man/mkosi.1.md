@@ -1080,11 +1080,17 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   Similar to `VolatilePackages=`, except it applies to the default
     initrd.
 
-`Devicetree=`, `--devicetree=`
-:   When set, specifies a Devicetree blob to be used by the booting system,
-    instead of the one provided by firmware. **mkosi** will search for the
-    specified file relative to common paths where Linux distributions install
-    Devicetree files. It should typically have the format `<vendor>/<board>.dtb`.
+`Devicetrees=`, `--devicetrees=`
+:   Comma-separated list of devicetree patterns for automatic hardware-based selection.
+    Patterns are glob expressions. **mkosi** searches for devicetree files in standard
+    locations relative to `/usr/lib/modules/<kver>/dtb/`, `/usr/lib/firmware/<kver>/device-tree/`,
+    and `/usr/lib/linux-image-<kver>/`.
+
+    For UKI builds, multiple matches enable automatic hardware-based selection using
+    the `.dtbauto` sections. Type 1 boot entries require exactly one match.
+
+    Example: `Devicetrees=rockchip/*,imx.*` would include all Rockchip devicetrees
+    and any IMX devicetrees.
 
 `Splash=`, `--splash=`
 :   When set, the boot splash for any unified kernel image built by **mkosi** will
