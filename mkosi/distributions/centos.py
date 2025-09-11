@@ -4,6 +4,7 @@ from collections.abc import Iterable
 
 from mkosi.config import Architecture, Config
 from mkosi.context import Context
+from mkosi.curl import curl
 from mkosi.distributions import (
     Distribution,
     DistributionInstaller,
@@ -13,6 +14,7 @@ from mkosi.distributions import (
 from mkosi.installer.dnf import Dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey, setup_rpm
 from mkosi.log import die
+from mkosi.util import startswith
 from mkosi.versioncomp import GenericVersion
 
 CENTOS_SIG_REPO_PRIORITY = 50
@@ -132,38 +134,67 @@ class Installer(DistributionInstaller):
         gpgurls: tuple[str, ...],
         repo: str,
     ) -> Iterable[RpmRepository]:
+        mirror = context.config.mirror
+        if not mirror and context.config.snapshot:
+            mirror = "https://composes.stream.centos.org"
+
+        if context.config.snapshot and mirror not in (
+            "https://composes.stream.centos.org",
+            "https://mirror.facebook.net/centos-composes",
+        ):
+            die(
+                f"Snapshot= is only supported for {cls.pretty_name()} if Mirror=https://composes.stream.centos.org"
+            )
+
+        if (
+            mirror in ("https://composes.stream.centos.org", "https://mirror.facebook.net/centos-composes")
+            and not context.config.snapshot
+        ):
+            die(f"Snapshot= must be used on {cls.pretty_name()} if Mirror={mirror}")
+
         if context.config.local_mirror:
             yield RpmRepository(repo, f"baseurl={context.config.local_mirror}", gpgurls)
 
-        elif mirror := context.config.mirror:
+        elif mirror:
+            if mirror == "https://composes.stream.centos.org":
+                subdir = f"stream-{context.config.release}/production"
+            elif mirror == "https://mirror.facebook.net/centos-composes":
+                subdir = context.config.release
+            elif repo == "extras":
+                subdir = "SIGs/$stream"
+            else:
+                subdir = "$stream"
+
+            if context.config.snapshot:
+                subdir += f"/CentOS-Stream-{context.config.release}-{context.config.snapshot}/compose"
+
             if repo == "extras":
                 yield RpmRepository(
                     repo.lower(),
-                    f"baseurl={join_mirror(mirror, f'SIGs/$stream/{repo}/$basearch/extras-common')}",
+                    f"baseurl={join_mirror(mirror, f'{subdir}/{repo}/$basearch/extras-common')}",
                     gpgurls,
                 )
                 yield RpmRepository(
                     f"{repo.lower()}-source",
-                    f"baseurl={join_mirror(mirror, f'SIGs/$stream/{repo}/source/extras-common')}",
+                    f"baseurl={join_mirror(mirror, f'{subdir}/{repo}/source/extras-common')}",
                     gpgurls,
                     enabled=False,
                 )
-
             else:
                 yield RpmRepository(
                     repo.lower(),
-                    f"baseurl={join_mirror(mirror, f'$stream/{repo}/$basearch/os')}",
+                    f"baseurl={join_mirror(mirror, f'{subdir}/{repo}/$basearch/os')}",
                     gpgurls,
                 )
                 yield RpmRepository(
                     f"{repo.lower()}-debuginfo",
-                    f"baseurl={join_mirror(mirror, f'$stream/{repo}/$basearch/debug/tree')}",
+                    f"baseurl={join_mirror(mirror, f'{subdir}/{repo}/$basearch/debug/tree')}",
                     gpgurls,
                     enabled=False,
                 )
                 yield RpmRepository(
                     f"{repo.lower()}-source",
-                    f"baseurl={join_mirror(mirror, f'$stream/{repo}/source/tree')}",
+                    f"baseurl={join_mirror(mirror, f'{subdir}/{repo}/source/tree')}",
                     gpgurls,
                     enabled=False,
                 )
@@ -211,8 +242,9 @@ class Installer(DistributionInstaller):
 
         yield from cls.repository_variants(context, gpgurls, "BaseOS")
         yield from cls.repository_variants(context, gpgurls, "AppStream")
-        yield from cls.repository_variants(context, gpgurls, "extras")
         yield from cls.repository_variants(context, gpgurls, "CRB")
+        if not context.config.snapshot:
+            yield from cls.repository_variants(context, gpgurls, "extras")
 
         yield from cls.epel_repositories(context)
         yield from cls.sig_repositories(context)
@@ -422,3 +454,20 @@ class Installer(DistributionInstaller):
                         enabled=False,
                         priority=CENTOS_SIG_REPO_PRIORITY,
                     )
+
+    @classmethod
+    def latest_snapshot(cls, config: Config) -> str:
+        mirror = config.mirror or "https://composes.stream.centos.org"
+
+        if mirror == "https://mirror.facebook.net/centos-composes":
+            subdir = config.release
+        else:
+            subdir = f"stream-{config.release}/production"
+
+        url = join_mirror(mirror, f"{subdir}/latest-CentOS-Stream/compose/.composeinfo")
+
+        for line in curl(config, url).splitlines():
+            if snapshot := startswith(line, f"id = CentOS-Stream-{config.release}-"):
+                return snapshot
+
+        die("composeinfo is missing compose ID field")

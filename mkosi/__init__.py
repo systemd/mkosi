@@ -1344,6 +1344,7 @@ def finalize_default_initrd(
         f"--release={config.release}",
         f"--architecture={config.architecture}",
         *([f"--mirror={config.mirror}"] if config.mirror else []),
+        *([f"--snapshot={config.snapshot}"] if config.snapshot else []),
         f"--repository-key-check={config.repository_key_check}",
         f"--repository-key-fetch={config.repository_key_fetch}",
         *([f"--repositories={repository}" for repository in config.repositories]),
@@ -4243,6 +4244,10 @@ def run_box(args: Args, config: Config) -> None:
         )
 
 
+def run_latest_snapshot(args: Args, config: Config) -> None:
+    print(config.distribution.latest_snapshot(config))
+
+
 def run_shell(args: Args, config: Config) -> None:
     opname = "acquire shell in" if args.verb == Verb.shell else "boot"
     if config.output_format not in (OutputFormat.directory, OutputFormat.disk):
@@ -5101,6 +5106,10 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
 
     if args.verb == Verb.bump:
         finalize_image_version(args, last)
+        return
+
+    if args.verb == Verb.latest_snapshot:
+        run_latest_snapshot(args, last)
         return
 
     if args.verb == Verb.clean:

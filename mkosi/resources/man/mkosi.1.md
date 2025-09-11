@@ -48,6 +48,8 @@ mkosi — Build Bespoke OS Images
 
 `mkosi [options…] completion [shell]`
 
+`mkosi [options…] latest-snapshot`
+
 `mkosi [options…] help`
 
 # DESCRIPTION
@@ -223,6 +225,14 @@ The following command line verbs are known:
     the packages in the runtime profile on top of the regular packages.
     See the documentation for `ToolsTreeProfiles=` for a list of
     available profiles.
+
+`latest-snapshot`
+:   Output the latest available snapshot in the configured mirror.
+
+    This verb is useful to automatically bump snapshots every so often.
+    Note that this verb only outputs the latest snapshot. It's up to the
+    caller to ensure that the snapshot is written to the intended configuration
+    file.
 
 `help`
 :   This verb is equivalent to the `--help` switch documented below: it
@@ -502,7 +512,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
     |                | x86-64                            | aarch64                        |
     |----------------|-----------------------------------|--------------------------------|
-    | `debian`       | http://deb.debian.org/debian      |                                |
+    | `debian`       | http://deb.debian.org             |                                |
     | `arch`         | https://geo.mirror.pkgbuild.com   | http://mirror.archlinuxarm.org |
     | `opensuse`     | http://download.opensuse.org      |                                |
     | `kali`         | http://http.kali.org/kali         |                                |
@@ -515,6 +525,26 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     | `mageia`       | https://www.mageia.org            |                                |
     | `openmandriva` | http://mirrors.openmandriva.org   |                                |
     | `azure`        | https://packages.microsoft.com/   |                                |
+
+`Snapshot=`
+:   Download packages from the given snapshot instead of downloading the latest
+    distribution packages from the given mirror. Takes a snapshot ID (the format
+    of the snapshot ID differs per distribution), use the `latest-snapshot` verb
+    to figure out the latest available snapshot.
+
+    If this setting is configured and `Mirror=` is not explicitly configured, different
+    default mirrors are used:
+
+    |                | x86-64                             | aarch64                        |
+    |----------------|------------------------------------|--------------------------------|
+    | `debian`       | https://snapshot.debian.org        |                                |
+    | `arch`         | https://archive.archlinux.org      | http://mirror.archlinuxarm.org |
+    | `opensuse`     | http://download.opensuse.org       |                                |
+    | `ubuntu`       | http://archive.ubuntu.com          | http://ports.ubuntu.com        |
+    | `centos`       | https://composes.stream.centos.org |                                |
+    | `fedora`       | https://kojipkgs.fedoraproject.org |                                |
+
+    For any distribution not listed above, snapshots are not supported.
 
 `LocalMirror=`, `--local-mirror=`
 :   The mirror will be used as a local, plain and direct mirror instead

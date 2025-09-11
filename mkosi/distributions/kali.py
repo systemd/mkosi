@@ -25,6 +25,9 @@ class Installer(debian.Installer):
 
     @classmethod
     def repositories(cls, context: Context, local: bool = True) -> Iterable[AptRepository]:
+        if context.config.snapshot:
+            die(f"Snapshot= is not supported for {cls.pretty_name()}")
+
         if context.config.local_mirror and local:
             yield AptRepository(
                 types=("deb",),

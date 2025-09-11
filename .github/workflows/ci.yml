@@ -188,6 +188,9 @@ jobs:
       - name: Configure
         run: |
           tee mkosi.local.conf <<EOF
+          [Distribution]
+          Distribution=${{ matrix.distro }}
+
           [Output]
           ManifestFormat=json
 
@@ -242,7 +245,7 @@ jobs:
         run: sudo mkosi -f box -- true
 
       - name: Build image
-        run: sudo mkosi --distribution ${{ matrix.distro }} -f
+        run: sudo mkosi -f
 
       - name: Run integration tests
         run: |

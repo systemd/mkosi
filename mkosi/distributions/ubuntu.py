@@ -1,11 +1,17 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
+import datetime
+import locale
 from collections.abc import Iterable
 from pathlib import Path
 
+from mkosi.config import Config
 from mkosi.context import Context
-from mkosi.distributions import Distribution, debian
+from mkosi.curl import curl
+from mkosi.distributions import Distribution, debian, join_mirror
 from mkosi.installer.apt import AptRepository
+from mkosi.log import die
+from mkosi.util import startswith
 
 
 class Installer(debian.Installer):
@@ -53,6 +59,7 @@ class Installer(debian.Installer):
             suite=context.config.release,
             components=components,
             signedby=signedby,
+            snapshot=context.config.snapshot,
         )
 
         yield AptRepository(
@@ -61,6 +68,7 @@ class Installer(debian.Installer):
             suite=f"{context.config.release}-updates",
             components=components,
             signedby=signedby,
+            snapshot=context.config.snapshot,
         )
 
         # Security updates repos are never mirrored. But !x86 are on the ports server.
@@ -75,4 +83,26 @@ class Installer(debian.Installer):
             suite=f"{context.config.release}-security",
             components=components,
             signedby=signedby,
+            snapshot=context.config.snapshot,
         )
+
+    @classmethod
+    def latest_snapshot(cls, config: Config) -> str:
+        mirror = config.mirror or "http://snapshot.ubuntu.com"
+        release = curl(config, join_mirror(mirror, f"ubuntu/dists/{config.release}-updates/Release"))
+
+        for line in release.splitlines():
+            if date := startswith(line, "Date: "):
+                # %a and %b parse the abbreviated day of the week and the abbreviated month which are both
+                # locale-specific so set the locale to C explicitly to make sure we try to parse the english
+                # abbreviations used in the Release file.
+                lc = locale.setlocale(locale.LC_TIME)
+                try:
+                    locale.setlocale(locale.LC_TIME, "C")
+                    return datetime.datetime.strptime(date, "%a, %d %b %Y %H:%M:%S %Z").strftime(
+                        "%Y%m%dT%H%M%SZ"
+                    )
+                finally:
+                    locale.setlocale(locale.LC_TIME, lc)
+
+        die("Release file is missing Date field")

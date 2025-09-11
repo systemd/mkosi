@@ -6,6 +6,7 @@ import urllib.parse
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, cast
 
+from mkosi.log import die
 from mkosi.util import StrEnum, read_env_file
 
 if TYPE_CHECKING:
@@ -65,6 +66,10 @@ class DistributionInstaller:
     @classmethod
     def grub_prefix(cls) -> str:
         return "grub"
+
+    @classmethod
+    def latest_snapshot(cls, config: "Config") -> str:
+        die(f"{cls.pretty_name()} does not support snapshots")
 
 
 class Distribution(StrEnum):
@@ -147,6 +152,9 @@ class Distribution(StrEnum):
 
     def createrepo(self, context: "Context") -> None:
         return self.installer().package_manager(context.config).createrepo(context)
+
+    def latest_snapshot(self, config: "Config") -> str:
+        return self.installer().latest_snapshot(config)
 
     def installer(self) -> type[DistributionInstaller]:
         modname = str(self).replace("-", "_")

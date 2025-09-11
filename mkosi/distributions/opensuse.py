@@ -68,7 +68,7 @@ class Installer(DistributionInstaller):
         zypper = cls.package_manager(context.config) is Zypper
         mirror = context.config.mirror or "https://download.opensuse.org"
 
-        if context.config.release == "tumbleweed" or context.config.release.isdigit():
+        if context.config.release == "tumbleweed":
             gpgkeys = tuple(
                 p
                 for key in ("RPM-GPG-KEY-openSUSE-Tumbleweed", "RPM-GPG-KEY-openSUSE")
@@ -97,7 +97,12 @@ class Installer(DistributionInstaller):
                     ),
                 )  # fmt: skip
 
-            if context.config.release == "tumbleweed":
+            if context.config.snapshot:
+                if context.config.architecture != Architecture.x86_64:
+                    die(f"Snapshot= is only supported for x86-64 on {cls.pretty_name()}")
+
+                subdir = f"history/{context.config.snapshot}"
+            else:
                 if context.config.architecture == Architecture.x86_64:
                     subdir = ""
                 elif context.config.architecture == Architecture.arm64:
@@ -116,11 +121,6 @@ class Installer(DistributionInstaller):
                     subdir = "ports/riscv"
                 else:
                     die(f"{context.config.architecture} not supported by openSUSE Tumbleweed")
-            else:
-                if context.config.architecture != Architecture.x86_64:
-                    die(f"Old snapshots are only supported for x86-64 on {cls.pretty_name()}")
-
-                subdir = f"history/{context.config.release}"
 
             for repo in ("oss", "non-oss"):
                 url = join_mirror(mirror, f"{subdir}/tumbleweed/repo/{repo}")
@@ -131,7 +131,7 @@ class Installer(DistributionInstaller):
                     enabled=repo == "oss",
                 )
 
-                if context.config.release == "tumbleweed":
+                if not context.config.snapshot:
                     for d in ("debug", "source"):
                         url = join_mirror(mirror, f"{subdir}/{d}/tumbleweed/repo/{repo}")
                         yield RpmRepository(
@@ -141,7 +141,7 @@ class Installer(DistributionInstaller):
                             enabled=False,
                         )
 
-            if context.config.release == "tumbleweed":
+            if not context.config.snapshot:
                 url = join_mirror(mirror, f"{subdir}/update/tumbleweed")
                 yield RpmRepository(
                     id="oss-update",
@@ -157,6 +157,9 @@ class Installer(DistributionInstaller):
                     enabled=False,
                 )
         else:
+            if context.config.snapshot:
+                die(f"Snapshot= is only supported for Tumbleweed on {cls.pretty_name()}")
+
             if (
                 context.config.release in ("current", "stable", "leap")
                 and context.config.architecture != Architecture.x86_64
@@ -248,12 +251,17 @@ class Installer(DistributionInstaller):
 
         return a
 
+    @classmethod
+    def latest_snapshot(cls, config: Config) -> str:
+        url = join_mirror(config.mirror or "https://download.opensuse.org", "history/latest")
+        return curl(config, url).strip()
+
 
 def fetch_gpgurls(context: Context, repourl: str) -> tuple[str, ...]:
     gpgurls = [f"{repourl}/repodata/repomd.xml.key"]
 
     with tempfile.TemporaryDirectory() as d:
-        curl(context.config, f"{repourl}/repodata/repomd.xml", Path(d))
+        curl(context.config, f"{repourl}/repodata/repomd.xml", output_dir=Path(d))
         xml = (Path(d) / "repomd.xml").read_text()
 
     root = ElementTree.fromstring(xml)
