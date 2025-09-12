@@ -34,6 +34,7 @@ ENOENT = 2
 ENOSYS = 38
 F_DUPFD = 0
 F_GETFD = 1
+FD_CLOEXEC = 1
 FS_IOC_GETFLAGS = 0x80086601
 FS_IOC_SETFLAGS = 0x40086602
 FS_NOCOW_FL = 0x00800000
@@ -529,7 +530,24 @@ def pack_file_descriptors() -> int:
     # os.scandir() either opens a file descriptor to the given path or dups the given file descriptor. Either
     # way, there will be an extra file descriptor in the fds array that's not valid anymore now, so find out
     # which one and drop it.
-    fds = sorted(fd for fd in fds if libc.fcntl(fd, F_GETFD, 0) >= 0)
+    #
+    # Also, since python 3.14, importing ctypes can result in an extra file descriptor being opened by
+    # libffi for handling closures, which we don't use. This file descriptor will have O_CLOEXEC set, and
+    # since we immediately call execvp() after calling pack_file_descriptors(), we should be OK to close all
+    # file descriptors marked with FD_CLOEXEC here already.
+
+    def process_fd(fd: int) -> bool:
+        flags = libc.fcntl(fd, F_GETFD, 0)
+        if flags < 0:
+            return False
+
+        if flags & FD_CLOEXEC:
+            os.close(fd)
+            return False
+
+        return True
+
+    fds = sorted(fd for fd in fds if process_fd(fd))
 
     # The following is a reimplementation of pack_fds() in systemd.
 
@@ -992,12 +1010,6 @@ def main(argv: list[str] = sys.argv[1:]) -> None:
         if e in os.environ:
             del os.environ[e]
 
-    if pack_fds:
-        nfds = pack_file_descriptors()
-        if nfds > 0:
-            os.environ["LISTEN_FDS"] = str(nfds)
-            os.environ["LISTEN_PID"] = str(os.getpid())
-
     namespaces = CLONE_NEWNS
     if unshare_net and have_effective_cap(CAP_NET_ADMIN):
         namespaces |= CLONE_NEWNET
@@ -1084,6 +1096,12 @@ def main(argv: list[str] = sys.argv[1:]) -> None:
 
     if chdir:
         os.chdir(chdir)
+
+    if pack_fds:
+        nfds = pack_file_descriptors()
+        if nfds > 0:
+            os.environ["LISTEN_FDS"] = str(nfds)
+            os.environ["LISTEN_PID"] = str(os.getpid())
 
     if suspend:
         os.kill(os.getpid(), SIGSTOP)
