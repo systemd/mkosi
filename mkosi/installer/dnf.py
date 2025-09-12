@@ -153,6 +153,7 @@ class Dnf(PackageManager):
         cmdline: list[PathString] = [
             dnf,
             "--assumeyes",
+            "--best",
             f"--releasever={context.config.release}",
             "--installroot=/buildroot",
             "--setopt=keepcache=1",
@@ -215,14 +216,13 @@ class Dnf(PackageManager):
         operation: str,
         arguments: Sequence[str] = (),
         *,
-        options: Sequence[str] = (),
         apivfs: bool = False,
         stdout: _FILE = None,
         cached_metadata: bool = True,
     ) -> CompletedProcess:
         try:
             return run(
-                cls.cmd(context, cached_metadata=cached_metadata) + [*options, operation, *arguments],
+                cls.cmd(context, cached_metadata=cached_metadata) + [operation, *arguments],
                 sandbox=cls.sandbox(context, apivfs=apivfs),
                 env=cls.finalize_environment(context),
                 stdout=stdout,
@@ -245,17 +245,13 @@ class Dnf(PackageManager):
         allow_downgrade: bool = False,
     ) -> None:
         arguments = []
-        options = []
 
-        if allow_downgrade:
-            if Dnf.executable(context.config) == "dnf5":
-                arguments += ["--allow-downgrade"]
-        else:
-            options += ["--best"]
+        if allow_downgrade and Dnf.executable(context.config) == "dnf5":
+            arguments += ["--allow-downgrade"]
 
         arguments += [*packages]
 
-        cls.invoke(context, "install", arguments, options=options, apivfs=apivfs)
+        cls.invoke(context, "install", arguments, apivfs=apivfs)
 
     @classmethod
     def remove(cls, context: Context, packages: Sequence[str]) -> None:
