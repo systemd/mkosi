@@ -1350,6 +1350,11 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     `/etc/crypttab` expect the passphrase files). The file must have an
     access mode of 0600 or less.
 
+    Note that this setting on its own does not enable any encryption.
+    You also have to add one or more partition definition files to
+    `mkosi.repart/` with `Encrypt=key-file` to add encrypted partitions
+    to the image.
+
 `Checksum=`, `--checksum=`
 :   Generate a `<output>.SHA256SUMS` file of all generated artifacts
     after the build is complete.
