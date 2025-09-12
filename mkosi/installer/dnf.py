@@ -29,8 +29,10 @@ class Dnf(PackageManager):
         dirs = [p for p in cache.iterdir() if p.is_dir() and "-" in p.name and "mkosi" not in p.name]
         return [
             (
+                # If the package cache directory is set to /var, we need to make sure we look up packages
+                # where they were stored by dnf, so don't do any special handling in that case.
                 d.relative_to(cache) / "packages"
-                if cache == Path("/var")
+                if cache.parent == Path("/var/cache")
                 # Cache directories look like <repo-id>-<baseurl-hash> so let's strip off the hash to reuse
                 # the same package cache directory regardless of baseurl.
                 else Path("packages") / d.name[: d.name.rfind("-")],
