@@ -938,38 +938,45 @@ def main(argv: list[str] = sys.argv[1:]) -> None:
             print(__version__, file=sys.stderr)
             sys.exit(0)
         if arg == "--tmpfs":
-            fsops.append(TmpfsOperation(argv.pop()))
+            fsops.append(TmpfsOperation(os.path.abspath(argv.pop())))
         elif arg == "--dev":
-            fsops.append(DevOperation(ttyname, argv.pop()))
+            fsops.append(DevOperation(ttyname, os.path.abspath(argv.pop())))
         elif arg == "--proc":
-            fsops.append(ProcOperation(argv.pop()))
+            fsops.append(ProcOperation(os.path.abspath(argv.pop())))
         elif arg == "--dir":
-            fsops.append(DirOperation(argv.pop()))
+            fsops.append(DirOperation(os.path.abspath(argv.pop())))
         elif arg in ("--bind", "--ro-bind", "--bind-try", "--ro-bind-try"):
             readonly = arg.startswith("--ro")
             required = not arg.endswith("-try")
             src = argv.pop()
             fsops.append(
                 BindOperation(
-                    src.removeprefix("+"),
-                    argv.pop(),
+                    os.path.abspath(src.removeprefix("+")),
+                    os.path.abspath(argv.pop()),
                     readonly=readonly,
                     required=required,
                     relative=src.startswith("+"),
                 )
             )
         elif arg == "--symlink":
-            fsops.append(SymlinkOperation(argv.pop(), argv.pop()))
+            fsops.append(SymlinkOperation(argv.pop(), os.path.abspath(argv.pop())))
         elif arg == "--write":
-            fsops.append(WriteOperation(argv.pop(), argv.pop()))
+            fsops.append(WriteOperation(argv.pop(), os.path.abspath(argv.pop())))
         elif arg == "--overlay-lowerdir":
-            lowerdirs.append(argv.pop())
+            lowerdirs.append(os.path.abspath(argv.pop()))
         elif arg == "--overlay-upperdir":
-            upperdir = argv.pop()
+            upperdir = os.path.abspath(argv.pop())
         elif arg == "--overlay-workdir":
-            workdir = argv.pop()
+            workdir = os.path.abspath(argv.pop())
         elif arg == "--overlay":
-            fsops.append(OverlayOperation(tuple(reversed(lowerdirs)), upperdir, workdir, argv.pop()))
+            fsops.append(
+                OverlayOperation(
+                    tuple(reversed(lowerdirs)),
+                    upperdir,
+                    workdir,
+                    os.path.abspath(argv.pop()),
+                )
+            )
             upperdir = ""
             workdir = ""
             lowerdirs = []
@@ -978,7 +985,7 @@ def main(argv: list[str] = sys.argv[1:]) -> None:
         elif arg == "--setenv":
             setenv.append((argv.pop(), argv.pop()))
         elif arg == "--chdir":
-            chdir = argv.pop()
+            chdir = os.path.abspath(argv.pop())
         elif arg == "--same-dir":
             chdir = os.getcwd()
         elif arg == "--become-root":
