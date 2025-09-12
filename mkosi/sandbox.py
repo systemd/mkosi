@@ -8,6 +8,7 @@ minimum, please don't import any extra modules if it can be avoided.
 
 """
 
+import ctypes
 import os
 import sys
 import warnings  # noqa: F401 (loaded lazily by os.execvp() which happens too late)
@@ -32,6 +33,8 @@ EPERM = 1
 ENOENT = 2
 ENOSYS = 38
 F_DUPFD = 0
+F_GETFD = 1
+FD_CLOEXEC = 1
 FS_IOC_GETFLAGS = 0x80086601
 FS_IOC_SETFLAGS = 0x40086602
 FS_NOCOW_FL = 0x00800000
@@ -62,59 +65,6 @@ SCMP_ACT_ALLOW = 0x7FFF0000
 SCMP_ACT_ERRNO = 0x00050000
 SD_LISTEN_FDS_START = 3
 SIGSTOP = 19
-
-
-def is_valid_fd(fd: int) -> bool:
-    try:
-        os.close(os.dup(fd))
-    except OSError as e:
-        if e.errno != EBADF:
-            raise
-
-        return False
-
-    return True
-
-
-def open_file_descriptors() -> list[int]:
-    fds = []
-
-    with os.scandir("/proc/self/fd") as it:
-        for e in it:
-            if not e.is_symlink() and (e.is_file() or e.is_dir()):
-                continue
-
-            try:
-                fd = int(e.name)
-            except ValueError:
-                continue
-
-            fds.append(fd)
-
-    # os.scandir() either opens a file descriptor to the given path or dups the given file descriptor. Either
-    # way, there will be an extra file descriptor in the fds array that's not valid anymore now, so find out
-    # which one and drop it.
-    return sorted(fd for fd in fds if is_valid_fd(fd))
-
-
-class CloseNewFileDescriptors:
-    def __enter__(self) -> None:
-        self.fds = set(open_file_descriptors())
-
-    def __exit__(self, *args: object, **kwargs: object) -> None:
-        for fd in open_file_descriptors():
-            if fd not in self.fds:
-                os.close(fd)
-
-
-# Since python 3.14, importing ctypes opens an extra file descriptor which is used to allocate libffi
-# closures which are in turn used by ctypes to pass python functions as C callback function pointers. We
-# don't use this functionality, yet the file descriptor is still opened and messes with the file descriptor
-# packing logic since the file descriptor to libffi will be passed as a packed file descriptor to the
-# executable we're invoking. To avoid that from happening, we close libffi's file descriptor after importing
-# ctypes. See https://github.com/python/cpython/issues/135893.
-with CloseNewFileDescriptors():
-    import ctypes
 
 
 class mount_attr(ctypes.Structure):
@@ -560,7 +510,44 @@ def is_relative_to(one: str, two: str) -> bool:
 
 
 def pack_file_descriptors() -> int:
-    fds = [fd for fd in open_file_descriptors() if fd >= SD_LISTEN_FDS_START]
+    fds = []
+
+    with os.scandir("/proc/self/fd") as it:
+        for e in it:
+            if not e.is_symlink() and (e.is_file() or e.is_dir()):
+                continue
+
+            try:
+                fd = int(e.name)
+            except ValueError:
+                continue
+
+            if fd < SD_LISTEN_FDS_START:
+                continue
+
+            fds.append(fd)
+
+    # os.scandir() either opens a file descriptor to the given path or dups the given file descriptor. Either
+    # way, there will be an extra file descriptor in the fds array that's not valid anymore now, so find out
+    # which one and drop it.
+    #
+    # Also, since python 3.14, importing ctypes can result in an extra file descriptor being opened by
+    # libffi for handling closures, which we don't use. This file descriptor will have O_CLOEXEC set, and
+    # since we immediately call execvp() after calling pack_file_descriptors(), we should be OK to close all
+    # file descriptors marked with FD_CLOEXEC here already.
+
+    def process_fd(fd: int) -> bool:
+        flags = libc.fcntl(fd, F_GETFD, 0)
+        if flags < 0:
+            return False
+
+        if flags & FD_CLOEXEC:
+            os.close(fd)
+            return False
+
+        return True
+
+    fds = sorted(fd for fd in fds if process_fd(fd))
 
     # The following is a reimplementation of pack_fds() in systemd.
 
@@ -1030,12 +1017,6 @@ def main(argv: list[str] = sys.argv[1:]) -> None:
         if e in os.environ:
             del os.environ[e]
 
-    if pack_fds:
-        nfds = pack_file_descriptors()
-        if nfds > 0:
-            os.environ["LISTEN_FDS"] = str(nfds)
-            os.environ["LISTEN_PID"] = str(os.getpid())
-
     namespaces = CLONE_NEWNS
     if unshare_net and have_effective_cap(CAP_NET_ADMIN):
         namespaces |= CLONE_NEWNET
@@ -1122,6 +1103,12 @@ def main(argv: list[str] = sys.argv[1:]) -> None:
 
     if chdir:
         os.chdir(chdir)
+
+    if pack_fds:
+        nfds = pack_file_descriptors()
+        if nfds > 0:
+            os.environ["LISTEN_FDS"] = str(nfds)
+            os.environ["LISTEN_PID"] = str(os.getpid())
 
     if suspend:
         os.kill(os.getpid(), SIGSTOP)
