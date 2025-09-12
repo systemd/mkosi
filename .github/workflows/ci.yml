@@ -159,13 +159,12 @@ jobs:
           - distro: ubuntu
             tools: ubuntu
             runner: ubuntu-24.04-arm
-          # TODO: Re-enable when https://github.com/IBM/actionspz/issues/27 is addressed.
-          # - distro: fedora
-          #   tools: fedora
-          #   runner: ubuntu-24.04-ppc64le
-          # - distro: debian
-          #   tools: debian
-          #   runner: ubuntu-24.04-ppc64le
+          - distro: fedora
+            tools: fedora
+            runner: ubuntu-24.04-ppc64le
+          - distro: debian
+            tools: debian
+            runner: ubuntu-24.04-ppc64le
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
