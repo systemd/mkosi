@@ -4891,7 +4891,12 @@ def sync_repository_metadata(
     # same cache directory as they both only use the repository id as the cache key which will trivially
     # conflict across multiple mirrors. Apt and Fedora put the mirror in the cache key for the repository
     # metadata in some form which avoids conflicts across different mirrors.
-    shared_repository_metadata_cache = last.distribution.package_manager(last) not in (Pacman, Zypper)
+    #
+    # If /var is used as the package cache directory, we are reusing the system package cache directory in
+    # mkosi-initrd so we *do* want to pick up the metadata from there in that case.
+    shared_repository_metadata_cache = last.package_cache_dir_or_default() == Path(
+        "/var"
+    ) or last.distribution.package_manager(last) not in (Pacman, Zypper)
 
     if shared_repository_metadata_cache:
         dst = last.package_cache_dir_or_default()
