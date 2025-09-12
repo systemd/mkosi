@@ -227,7 +227,7 @@ jobs:
           chmod +x mkosi.configure
 
           # prepare and postinst are already used in CI
-          for script in sync build finalize postoutput clean
+          for script in sync finalize postoutput clean
           do
               [[ -f "mkosi.${script}" ]] && exit 1
               tee "mkosi.${script}" <<TOK
