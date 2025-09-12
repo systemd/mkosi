@@ -4,6 +4,7 @@ import contextlib
 import dataclasses
 import datetime
 import functools
+import getpass
 import hashlib
 import itertools
 import json
@@ -155,7 +156,6 @@ from mkosi.tree import copy_tree, make_tree, move_tree, rmtree
 from mkosi.user import INVOKING_USER, become_root_cmd
 from mkosi.util import (
     PathString,
-    current_home_dir,
     flatten,
     flock,
     flock_or_die,
@@ -4280,14 +4280,12 @@ def run_shell(args: Args, config: Config) -> None:
 
     # Underscores are not allowed in machine names so replace them with hyphens.
     name = config.machine_or_name().replace("_", "-")
-    cmdline += ["--machine", name]
-
-    for k, v in finalize_credentials(config).items():
-        cmdline += [f"--set-credential={k}:{v}"]
-
-    cmdline += ["--register", yes_no(finalize_register(config))]
+    cmdline += ["--machine", name, "--register", yes_no(finalize_register(config))]
 
     with contextlib.ExitStack() as stack:
+        for f in finalize_credentials(config, stack).iterdir():
+            cmdline += [f"--load-credential={f.name}:{f}"]
+
         # Make sure the latest nspawn settings are always used.
         if config.nspawn_settings:
             if not (config.output_dir_or_cwd() / f"{name}.nspawn").exists():
@@ -4372,16 +4370,18 @@ def run_shell(args: Args, config: Config) -> None:
             uidmap = "rootidmap" if tree.source.stat().st_uid != 0 else "noidmap"
             cmdline += ["--bind", f"{tree.source}:{target}:norbind,{uidmap}"]
 
-        if config.runtime_home and (path := current_home_dir()):
-            uidmap = "rootidmap" if path.stat().st_uid != 0 else "noidmap"
-            cmdline += ["--bind", f"{path}:/root:norbind,{uidmap}"]
+        if config.bind_user:
+            cmdline += ["--bind-user", getpass.getuser()]
 
         if config.runtime_scratch == ConfigFeature.enabled or (
             config.runtime_scratch == ConfigFeature.auto and config.output_format == OutputFormat.disk
         ):
-            scratch = stack.enter_context(tempfile.TemporaryDirectory(dir="/var/tmp"))
-            os.chmod(scratch, 0o1777)
-            cmdline += ["--bind", f"{scratch}:/var/tmp"]
+            scratch = Path(
+                stack.enter_context(tempfile.TemporaryDirectory(dir="/var/tmp", prefix="mkosi-scratch-"))
+            )
+            scratch.chmod(0o1777)
+            uidmap = "rootidmap" if scratch.stat().st_uid != 0 else "noidmap"
+            cmdline += ["--bind", f"{scratch}:/var/tmp:{uidmap}"]
 
         if args.verb == Verb.boot and config.forward_journal:
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
@@ -4393,8 +4393,9 @@ def run_shell(args: Args, config: Config) -> None:
                 if config.output_format == OutputFormat.directory and (stat := os.stat(fname)).st_uid != 0:
                     os.chown(addr, stat.st_uid, stat.st_gid)
                 stack.enter_context(start_journal_remote(config, sock.fileno()))
+                uidmap = "rootidmap" if addr.stat().st_uid != 0 else "noidmap"
                 cmdline += [
-                    f"--bind={addr}:/run/host/journal/socket",
+                    f"--bind={addr}:/run/host/journal/socket:{uidmap}",
                     "--set-credential=journal.forward_to_socket:/run/host/journal/socket",
                 ]
 
