@@ -146,7 +146,7 @@ jobs:
           - distro: ubuntu
             tools: opensuse
         include:
-          # low rate limit on ppc64le/arm64 workers
+          # low rate limit on s390x/ppc64le/arm64 workers
           - distro: debian
             tools: debian
             runner: ubuntu-24.04-arm
@@ -159,13 +159,15 @@ jobs:
           - distro: ubuntu
             tools: ubuntu
             runner: ubuntu-24.04-arm
-          # TODO: Re-enable when https://github.com/IBM/actionspz/issues/27 is addressed.
-          # - distro: fedora
-          #   tools: fedora
-          #   runner: ubuntu-24.04-ppc64le
-          # - distro: debian
-          #   tools: debian
-          #   runner: ubuntu-24.04-ppc64le
+          - distro: fedora
+            tools: fedora
+            runner: ubuntu-24.04-ppc64le
+          - distro: debian
+            tools: debian
+            runner: ubuntu-24.04-ppc64le
+          - distro: debian
+            tools: debian
+            runner: ubuntu-24.04-s390x
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -225,7 +227,7 @@ jobs:
           chmod +x mkosi.configure
 
           # prepare and postinst are already used in CI
-          for script in sync build finalize postoutput clean
+          for script in sync finalize postoutput clean
           do
               [[ -f "mkosi.${script}" ]] && exit 1
               tee "mkosi.${script}" <<TOK
