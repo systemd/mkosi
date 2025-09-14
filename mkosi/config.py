@@ -1046,7 +1046,11 @@ def config_default_tools_tree_distribution(namespace: dict[str, Any]) -> Distrib
 
 def config_default_repository_key_fetch(namespace: dict[str, Any]) -> bool:
     def needs_repository_key_fetch(distribution: Distribution) -> bool:
-        return distribution == Distribution.arch or distribution.is_rpm_distribution()
+        return (
+            distribution == Distribution.arch
+            or distribution.is_rpm_distribution()
+            or distribution.is_apk_distribution()
+        )
 
     if namespace["tools_tree"] != Path("default"):
         return (

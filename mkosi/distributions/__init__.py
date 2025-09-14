@@ -20,6 +20,7 @@ class PackageType(StrEnum):
     rpm = enum.auto()
     deb = enum.auto()
     pkg = enum.auto()
+    apk = enum.auto()
 
 
 class DistributionInstaller:
@@ -89,6 +90,7 @@ class Distribution(StrEnum):
     rocky = enum.auto()
     alma = enum.auto()
     azure = enum.auto()
+    alpine = enum.auto()
     custom = enum.auto()
 
     def is_centos_variant(self) -> bool:
@@ -116,6 +118,11 @@ class Distribution(StrEnum):
             Distribution.rocky,
             Distribution.alma,
         )
+
+    def is_apk_distribution(self) -> bool:
+        return self in (
+            Distribution.alpine,
+        )  # fmt: skip
 
     def pretty_name(self) -> str:
         return self.installer().pretty_name()

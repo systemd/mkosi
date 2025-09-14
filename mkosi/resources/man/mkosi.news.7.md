@@ -34,6 +34,7 @@
   Previous separate Include and Exclude options that take regexps are now
   deprecated and are replaced by a single option that takes a list of
   positive and negative globs. The new option is FirmwareFiles=.
+- Added experimental Alpine Linux support.
 
 ## v25
 

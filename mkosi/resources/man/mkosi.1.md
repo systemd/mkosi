@@ -55,7 +55,7 @@ mkosi — Build Bespoke OS Images
 # DESCRIPTION
 
 **mkosi** is a tool for easily building customized OS images. It's a fancy wrapper around **dnf**, **apt**,
-**pacman** and **zypper** that may generate disk images with a number of bells and whistles.
+**pacman**, **zypper**, and **apk** that may generate disk images with a number of bells and whistles.
 
 ## Command Line Verbs
 
@@ -477,9 +477,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   The distribution to install in the image. Takes one of the following
     arguments: `fedora`, `debian`, `kali`, `ubuntu`, `arch`, `opensuse`,
     `mageia`, `centos`, `rhel`, `rhel-ubi`, `openmandriva`, `rocky`, `alma`,
-    `azure` or `custom`. If not specified, defaults to the distribution of
-    the host or `custom` if the distribution of the host is not a supported
-    distribution.
+    `azure`, `alpine`, or `custom`. If not specified, defaults to the
+    distribution of the host or `custom` if the distribution of the host is not
+    a supported distribution.
 
 `Release=`, `--release=`, `-r`
 :   The release of the distribution to install in the image. The precise
@@ -510,21 +510,22 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     The default mirrors for each distribution are as follows (unless
     specified, the same mirror is used for all architectures):
 
-    |                | x86-64                            | aarch64                        |
-    |----------------|-----------------------------------|--------------------------------|
-    | `debian`       | http://deb.debian.org             |                                |
-    | `arch`         | https://geo.mirror.pkgbuild.com   | http://mirror.archlinuxarm.org |
-    | `opensuse`     | http://download.opensuse.org      |                                |
-    | `kali`         | http://http.kali.org/kali         |                                |
-    | `ubuntu`       | http://archive.ubuntu.com         | http://ports.ubuntu.com        |
-    | `centos`       | https://mirrors.centos.org        |                                |
-    | `rocky`        | https://mirrors.rockylinux.org    |                                |
-    | `alma`         | https://mirrors.almalinux.org     |                                |
-    | `fedora`       | https://mirrors.fedoraproject.org |                                |
-    | `rhel-ubi`     | https://cdn-ubi.redhat.com        |                                |
-    | `mageia`       | https://www.mageia.org            |                                |
-    | `openmandriva` | http://mirrors.openmandriva.org   |                                |
-    | `azure`        | https://packages.microsoft.com/   |                                |
+    |                | x86-64                                | aarch64                        |
+    |----------------|---------------------------------------|--------------------------------|
+    | `debian`       | http://deb.debian.org                 |                                |
+    | `arch`         | https://geo.mirror.pkgbuild.com       | http://mirror.archlinuxarm.org |
+    | `opensuse`     | http://download.opensuse.org          |                                |
+    | `kali`         | http://http.kali.org/kali             |                                |
+    | `ubuntu`       | http://archive.ubuntu.com             | http://ports.ubuntu.com        |
+    | `centos`       | https://mirrors.centos.org            |                                |
+    | `rocky`        | https://mirrors.rockylinux.org        |                                |
+    | `alma`         | https://mirrors.almalinux.org         |                                |
+    | `fedora`       | https://mirrors.fedoraproject.org     |                                |
+    | `rhel-ubi`     | https://cdn-ubi.redhat.com            |                                |
+    | `mageia`       | https://www.mageia.org                |                                |
+    | `openmandriva` | http://mirrors.openmandriva.org       |                                |
+    | `azure`        | https://packages.microsoft.com/       |                                |
+    | `alpine`       | https://dl-cdn.alpinelinux.org/alpine |                                |
 
 `Snapshot=`
 :   Download packages from the given snapshot instead of downloading the latest
@@ -2309,6 +2310,8 @@ distributions:
 
 * *Azure Linux*
 
+* *Alpine Linux* (**experimental**)
+
 * *None* (**Requires the user to provide a pre-built rootfs**)
 
 In theory, any distribution may be used on the host for building images
@@ -2319,6 +2322,7 @@ any distribution that packages **apt** may be used to build *Debian*, *Kali* or 
 Any distribution that packages **dnf** may be used to build images for any of the RPM-based distributions.
 Any distro that packages **pacman** may be used to build *Arch Linux* images.
 Any distribution that packages **zypper** may be used to build *openSUSE* images.
+Any distribution that packages **apk** may be used to build *Alpine Linux* images.
 Other distributions and build automation tools for embedded Linux
 systems such as Buildroot, OpenEmbedded and Yocto Project may be used by
 selecting the `custom` distribution, and populating the rootfs via a
@@ -2675,7 +2679,7 @@ available via `$PATH` to simplify common usecases.
   to the name (`mkosi.build.chroot` instead of `mkosi.build`, etc.).
 
 * For all of the supported package managers (**dnf**, **rpm**, **apt**, **dpkg**,
-  **pacman**, **zypper**), scripts of the same name are put into `$PATH`
+  **pacman**, **zypper**, and **apk**), scripts of the same name are put into `$PATH`
   that make sure these commands operate on the image's root directory
   with the configuration supplied by the user instead of on the host
   system. This means that from a script, you can do e.g.
@@ -2897,6 +2901,7 @@ tools trees:
 |                         | Fedora | CentOS | Debian | Kali | Ubuntu | Arch | openSUSE |
 |-------------------------|:------:|:------:|:------:|:----:|:------:|:----:|:--------:|
 | `acl`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
+| `apk`                   | ✓      |        |        |      |        | ✓    | ✓        |
 | `apt`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
 | `archlinux-keyring`     | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |
 | `attr`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        |
