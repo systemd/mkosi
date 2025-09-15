@@ -668,7 +668,7 @@ def install_systemd_boot(context: Context) -> None:
         if context.config.bootable == ConfigFeature.enabled:
             die(
                 f"An EFI bootable image with systemd-boot was requested but a {'signed ' if signed else ''}"
-                f"systemd-boot binary was not found at {directory.relative_to(context.root)}"
+                f"systemd-boot binary was not found at /{directory.relative_to(context.root)}"
             )
         return
 
