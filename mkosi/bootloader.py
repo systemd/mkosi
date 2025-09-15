@@ -664,7 +664,7 @@ def install_systemd_boot(context: Context) -> None:
 
     directory = context.root / "usr/lib/systemd/boot/efi"
     signed = context.config.bootloader.is_signed()
-    if not directory.glob("*.efi.signed" if signed else "*.efi"):
+    if not any(directory.glob("*.efi.signed" if signed else "*.efi")):
         if context.config.bootable == ConfigFeature.enabled:
             die(
                 f"An EFI bootable image with systemd-boot was requested but a {'signed ' if signed else ''}"
