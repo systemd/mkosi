@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Final, Optional
 
-from mkosi.config import PACKAGE_GLOBS, Config, ConfigFeature
+from mkosi.config import Config, ConfigFeature
 from mkosi.context import Context
 from mkosi.installer import PackageManager
 from mkosi.log import die
@@ -286,7 +286,7 @@ class Apt(PackageManager):
 
     @classmethod
     def createrepo(cls, context: Context) -> None:
-        names = [d.name for glob in PACKAGE_GLOBS for d in context.repository.glob(glob) if "deb" in glob]
+        names = [d.name for glob in cls.package_globs() for d in context.repository.glob(glob)]
         if not names:
             return
 
@@ -335,3 +335,7 @@ class Apt(PackageManager):
                 "-o", "APT::Get::List-Cleanup=0",
             ],
         )  # fmt: skip
+
+    @classmethod
+    def package_globs(cls) -> list[str]:
+        return ["*.deb", "*.ddeb"]

@@ -49,7 +49,6 @@ from mkosi.bootloader import (
 from mkosi.burn import run_burn
 from mkosi.completion import print_completion
 from mkosi.config import (
-    PACKAGE_GLOBS,
     Args,
     ArtifactOutput,
     Cacheonly,
@@ -1261,9 +1260,9 @@ def install_package_directories(context: Context, directories: Sequence[Path]) -
         return
 
     with complete_step("Copying in extra packages…"):
-        for d in directories:
-            for p in itertools.chain(*(d.glob(glob) for glob in PACKAGE_GLOBS)):
-                shutil.copy(p, context.repository, follow_symlinks=True)
+        context.config.distribution.package_manager(context.config).install_package_directories(
+            context, directories
+        )
 
 
 def install_extra_trees(context: Context) -> None:

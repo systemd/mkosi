@@ -293,3 +293,7 @@ class Pacman(PackageManager):
                     break
 
         return name, version, base, arch
+
+    @classmethod
+    def package_globs(cls) -> list[str]:
+        return ["*.pkg.tar*"]

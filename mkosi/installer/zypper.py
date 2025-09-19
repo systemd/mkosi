@@ -180,3 +180,7 @@ class Zypper(PackageManager):
         )
 
         cls.sync(context, force=True, arguments=["mkosi"])
+
+    @classmethod
+    def package_globs(cls) -> list[str]:
+        return ["*.rpm"]

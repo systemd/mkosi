@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
+import itertools
+import shutil
 from collections.abc import Sequence
 from contextlib import AbstractContextManager
 from pathlib import Path
@@ -165,6 +167,16 @@ class PackageManager:
     @classmethod
     def createrepo(cls, context: Context) -> None:
         pass
+
+    @classmethod
+    def package_globs(cls) -> list[str]:
+        return []
+
+    @classmethod
+    def install_package_directories(cls, context: Context, directories: Sequence[Path]) -> None:
+        for d in directories:
+            for p in itertools.chain(*(d.glob(glob) for glob in cls.package_globs())):
+                shutil.copy(p, context.repository, follow_symlinks=True)
 
 
 def clean_package_manager_metadata(context: Context) -> None:
