@@ -258,6 +258,7 @@ def test_config() -> None:
                 "json",
                 "changelog"
             ],
+            "MaxMem": 123,
             "MicrocodeHost": true,
             "MinimumVersion": "123",
             "Mirror": null,
@@ -513,6 +514,7 @@ def test_config() -> None:
         machine="machine",
         make_initrd=False,
         manifest_format=[ManifestFormat.json, ManifestFormat.changelog],
+        maxmem=123,
         microcode_host=True,
         devicetrees=["freescale/imx8mm-verdin-nonwifi-dev.dtb"],
         minimum_version="123",

@@ -1241,11 +1241,15 @@ def run_qemu(args: Args, config: Config) -> None:
         if config.console == ConsoleMode.read_only:
             cmdline += ["--read-only"]
 
+    memory = f"{config.ram // 1024**2}M"
+    if config.maxmem:
+        memory += f",maxmem={(config.maxmem // 1024**2)}M"
+
     cmdline += [
         qemu,
         "-machine", machine,
         "-smp", str(config.cpus or os.cpu_count()),
-        "-m", f"{config.ram // 1024**2}M",
+        "-m", memory,
         "-object", "rng-random,filename=/dev/urandom,id=rng0",
         "-device", "virtio-rng-pci,rng=rng0,id=rng-device0",
         "-device", "virtio-balloon,free-page-reporting=on",

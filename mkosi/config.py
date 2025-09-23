@@ -2116,6 +2116,7 @@ class Config:
     console: ConsoleMode
     cpus: int
     ram: int
+    maxmem: int
     kvm: ConfigFeature
     vsock: ConfigFeature
     vsock_cid: int
@@ -4114,6 +4115,15 @@ SETTINGS: list[ConfigSetting[Any]] = [
         scope=SettingScope.main,
     ),
     ConfigSetting(
+        dest="maxmem",
+        name="MaxMem",
+        metavar="BYTES",
+        section="Runtime",
+        parse=config_parse_bytes,
+        help="Configure guest's MaxMem size",
+        scope=SettingScope.main,
+    ),
+    ConfigSetting(
         dest="kvm",
         name="KVM",
         metavar="FEATURE",
@@ -5623,6 +5633,7 @@ def summary(config: Config) -> str:
                             Console: {config.console}
                           CPU Cores: {config.cpus}
                                 RAM: {format_bytes(config.ram)}
+                             MaxMem: {format_bytes_or_none(config.maxmem)}
                                 KVM: {config.kvm}
                               VSock: {config.vsock}
                 VSock Connection ID: {VsockCID.format(config.vsock_cid)}
