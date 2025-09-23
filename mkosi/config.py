@@ -575,6 +575,9 @@ class Architecture(StrEnum):
     def supports_hpet(self) -> bool:
         return self.is_x86_variant()
 
+    def supports_cxl(self) -> bool:
+        return self.is_x86_variant() or self.is_arm_variant()
+
     def can_kvm(self) -> bool:
         return self == Architecture.native() or (
             Architecture.native() == Architecture.x86_64 and self == Architecture.x86
@@ -2118,6 +2121,7 @@ class Config:
     ram: int
     maxmem: int
     kvm: ConfigFeature
+    cxl: bool
     vsock: ConfigFeature
     vsock_cid: int
     tpm: ConfigFeature
@@ -4135,6 +4139,15 @@ SETTINGS: list[ConfigSetting[Any]] = [
         scope=SettingScope.main,
     ),
     ConfigSetting(
+        dest="cxl",
+        name="CXL",
+        metavar="BOOLEAN",
+        section="Runtime",
+        parse=config_parse_boolean,
+        help="Enable CXL device support",
+        scope=SettingScope.main,
+    ),
+    ConfigSetting(
         dest="vsock",
         name="VSock",
         metavar="FEATURE",
@@ -5635,6 +5648,7 @@ def summary(config: Config) -> str:
                                 RAM: {format_bytes(config.ram)}
                              MaxMem: {format_bytes_or_none(config.maxmem)}
                                 KVM: {config.kvm}
+                                CXL: {config.cxl}
                               VSock: {config.vsock}
                 VSock Connection ID: {VsockCID.format(config.vsock_cid)}
                                 TPM: {config.tpm}

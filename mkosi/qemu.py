@@ -1227,6 +1227,8 @@ def run_qemu(args: Args, config: Config) -> None:
         machine += f",smm={'on' if firmware == Firmware.uefi_secure_boot else 'off'}"
     if shm:
         machine += ",memory-backend=mem"
+    if config.cxl and config.architecture.supports_cxl():
+        machine += ",cxl=on"
     if config.architecture.supports_hpet():
         machine += ",hpet=off"
 

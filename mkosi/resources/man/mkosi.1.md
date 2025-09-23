@@ -1752,6 +1752,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   Configures whether KVM acceleration should be used when booting a virtual machine. Takes a
     boolean value or `auto`. Defaults to `auto`.
 
+`CXL=`, `--cxl=`
+:   Configures whether CXL devices are enabled for a given machine.  Only valid if the architecture
+    supports cxl.  Takes a boolean value. Defaults to `false`.
+
 `VSock=`, `--vsock=`
 :   Configures whether to provision a vsock when booting a virtual machine. Takes
     a boolean value or `auto`. Defaults to `auto`.
