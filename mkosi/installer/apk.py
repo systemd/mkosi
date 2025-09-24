@@ -9,6 +9,7 @@ from mkosi.config import Config
 from mkosi.context import Context
 from mkosi.installer import PackageManager
 from mkosi.run import CompletedProcess, run, workdir
+from mkosi.tree import rmtree
 from mkosi.util import _FILE, PathString
 
 
@@ -112,9 +113,14 @@ class Apk(PackageManager):
 
     @classmethod
     def sync(cls, context: Context, force: bool) -> None:
-        # Initialize database first
+        # Updating the cache requires an initialized apk database but we don't want to touch the image root
+        # directory so temporarily replace it with an empty directory to make apk happy.
+        saved = context.root.rename(context.workspace / "saved-root")
+        context.root.mkdir()
         cls.invoke(context, "add", ["--initdb"])
         cls.invoke(context, "update", ["--update-cache"] if force else [])
+        rmtree(context.root)
+        saved.rename(context.root)
 
     @classmethod
     def createrepo(cls, context: Context) -> None:

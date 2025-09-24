@@ -38,12 +38,6 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def setup(cls, context: Context) -> None:
-        # TODO: Create merged /usr manually for now until our upstream (Alpine Linux) supports it:
-        # https://gitlab.alpinelinux.org/alpine/aports/-/merge_requests/85504
-        for dir in ["lib", "bin", "sbin"]:
-            (context.root / "usr" / dir).mkdir(parents=True, exist_ok=True)
-            (context.root / dir).symlink_to(f"usr/{dir}")
-
         with complete_step("Setting up postmarketOS keyring"):
             # Create keys directory in sandbox
             keys_dir = context.sandbox_tree / "etc/apk/keys"
@@ -69,6 +63,12 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def install(cls, context: Context) -> None:
+        # TODO: Create merged /usr manually for now until our upstream (Alpine Linux) supports it:
+        # https://gitlab.alpinelinux.org/alpine/aports/-/merge_requests/85504
+        for dir in ["lib", "bin", "sbin"]:
+            (context.root / "usr" / dir).mkdir(parents=True, exist_ok=True)
+            (context.root / dir).symlink_to(f"usr/{dir}")
+
         Apk.install(context, ["postmarketos-baselayout", "postmarketos-release"], apivfs=False)
 
     @classmethod
