@@ -287,3 +287,7 @@ class Dnf(PackageManager):
         )
 
         cls.sync(context, force=True, arguments=["--disablerepo=*", "--enablerepo=mkosi"])
+
+    @classmethod
+    def package_globs(cls) -> list[str]:
+        return ["*.rpm"]
