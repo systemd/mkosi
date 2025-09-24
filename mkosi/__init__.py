@@ -171,7 +171,7 @@ from mkosi.versioncomp import GenericVersion
 from mkosi.vmspawn import run_vmspawn
 
 # Allowed characters from https://uapi-group.org/specifications/specs/version_format_specification
-KERNEL_VERSION_PATTERN = re.compile(r"\d+\.\d+[\w.\-~^+]*")
+KERNEL_VERSION_PATTERN = re.compile(r"\d+\.\d+[\w\-.~^+]*", re.ASCII)
 
 
 @contextlib.contextmanager
@@ -1930,7 +1930,7 @@ def systemd_stub_version(context: Context, stub: Path) -> Optional[GenericVersio
 
     if not (
         version := re.match(
-            r"#### LoaderInfo: systemd-stub (?P<version>[.~^a-zA-Z0-9-+_]+) ####", sdmagic_text
+            r"#### LoaderInfo: systemd-stub (?P<version>[\w\-.~^+]+) ####", sdmagic_text, re.ASCII
         )
     ):
         die(f"Unable to determine systemd-stub version, found {sdmagic_text!r}")
