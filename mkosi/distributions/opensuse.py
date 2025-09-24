@@ -133,6 +133,8 @@ class Installer(DistributionInstaller):
 
                 if not context.config.snapshot:
                     for d in ("debug", "source"):
+                        if repo == "non-oss" and d == "debug":
+                            continue
                         url = join_mirror(mirror, f"{subdir}/{d}/tumbleweed/repo/{repo}")
                         yield RpmRepository(
                             id=f"{repo}-{d}",
