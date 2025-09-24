@@ -39,7 +39,7 @@ def read_remote_rawhide_key_symlink(context: Context) -> str:
 
 @tuplify
 def find_fedora_rpm_gpgkeys(context: Context) -> Iterable[str]:
-    versionre = re.compile(r"RPM-GPG-KEY-fedora-(\d+)-primary")
+    versionre = re.compile(r"RPM-GPG-KEY-fedora-(\d+)-primary", re.ASCII)
     # ELN uses the rawhide GPG keys.
     release = "rawhide" if context.config.release == "eln" else context.config.release
 
