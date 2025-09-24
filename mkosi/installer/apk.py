@@ -140,29 +140,37 @@ class Apk(PackageManager):
 
         # Generate temporary signing key using openssl
         # This uses the same method as abuild-keygen, because this tool is not available on all distros
-        key_name = "mkosi@local-temp"
-        priv_key = context.workspace / f"{key_name}.rsa"
-        pub_key = context.workspace / f"{key_name}.rsa.pub"
+        key = "mkosi@local"
+        priv = context.workspace / f"{key}.rsa"
+        pub = context.workspace / f"{key}.rsa.pub"
 
-        if not priv_key.exists():
-            run(["openssl", "genrsa", "-out", str(priv_key), "2048"], env=cls.finalize_environment(context))
+        if not priv.exists():
             run(
-                ["openssl", "rsa", "-in", str(priv_key), "-pubout", "-out", str(pub_key)],
+                ["openssl", "genrsa", "-out", workdir(priv), "2048"],
+                sandbox=context.sandbox(options=["--bind", priv.parent, workdir(priv.parent)]),
                 env=cls.finalize_environment(context),
             )
-            keys_dir = context.sandbox_tree / "etc/apk/keys"
-            keys_dir.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(pub_key, keys_dir / pub_key.name)
+            run(
+                ["openssl", "rsa", "-in", workdir(priv), "-pubout", "-out", workdir(pub)],
+                sandbox=context.sandbox(
+                    options=[
+                        "--bind", priv, workdir(priv),
+                        "--bind", pub.parent, workdir(pub.parent),
+                    ]
+                ),
+                env=cls.finalize_environment(context),
+            )  # fmt: skip
+            keys = context.sandbox_tree / "etc/apk/keys"
+            keys.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(pub, keys / pub.name)
 
-        # Create index archive
         run(
             [
                 "apk",
                 "index",
                 "-o", "APKINDEX.tar.gz",
                 "--rewrite-arch", arch,
-                # Note: "allow-untrusted" because pkgs may be signed by another key that might not be
-                # available
+                # packages may be signed by another key that might not be available.
                 "--allow-untrusted",
                 *packages,
             ],
@@ -172,27 +180,35 @@ class Apk(PackageManager):
                     "--chdir", workdir(arch_dir),
                 ]
             ),
+            env=cls.finalize_environment(context),
         )  # fmt: skip
 
         # Create and sign index signature file
         # Note: The index signing stuff below was largely inspired by what abuild-sign and abuild-tar tools
         # do on Alpine Linux. These tools are not always packages for other distros.
-        sig_file = arch_dir / f".SIGN.RSA.{pub_key.name}"
+        index = arch_dir / "APKINDEX.tar.gz"
+        sig = arch_dir / f".SIGN.RSA.{pub.name}"
         run(
             [
                 "openssl",
                 "dgst",
                 "-sha1",
-                "-sign", str(priv_key),
-                "-out", str(sig_file),
-                str(arch_dir / "APKINDEX.tar.gz"),
+                "-sign", workdir(priv),
+                "-out", workdir(sig),
+                workdir(index),
             ],
+            sandbox=context.sandbox(
+                options=[
+                    "--bind", priv, workdir(priv),
+                    "--bind", sig.parent, workdir(sig.parent),
+                    "--bind", index, workdir(index),
+                ]
+            ),
             env=cls.finalize_environment(context),
         )  # fmt: skip
 
-        # Create tar of signature, and strip EOF markers to allow concatenation with compressed index
-        temp_tar = context.workspace / "sig.tar"
-        with temp_tar.open("wb") as f:
+        tar = context.workspace / "sig.tar"
+        with tar.open("wb") as f:
             run(
                 [
                     "tar", "-cf", "-",
@@ -200,36 +216,42 @@ class Apk(PackageManager):
                     "--owner=0",
                     "--group=0",
                     "--numeric-owner",
-                    "-C", str(arch_dir),
-                    sig_file.name,
+                    "-C", workdir(arch_dir),
+                    sig.name,
                 ],
+                sandbox=context.sandbox(options=["--bind", arch_dir, workdir(arch_dir)]),
                 stdout=f,
             )  # fmt: skip
 
-        tar_data = temp_tar.read_bytes()
-        while tar_data.endswith(b"\x00" * 512):
-            tar_data = tar_data[:-512]
-        temp_tar.write_bytes(tar_data)
+        # Strip EOF markers to allow concatenation with compressed index.
+        data = tar.read_bytes()
+        while data.endswith(b"\x00" * 512):
+            data = data[:-512]
+        tar.write_bytes(data)
 
         # Prepend gzipped signature to original index
-        index_file = arch_dir / "APKINDEX.tar.gz"
-        temp_signed = context.workspace / "signed.tar.gz"
-        with temp_signed.open("wb") as out:
-            run(["gzip", "-n", "-9", "-c", str(temp_tar)], stdout=out)
-            out.write(index_file.read_bytes())
+
+        signed = context.workspace / "signed.tar.gz"
+        with signed.open("wb") as out:
+            run(
+                ["gzip", "-n", "-9", "-c", workdir(tar)],
+                sandbox=context.sandbox(options=["--bind", tar, workdir(tar)]),
+                stdout=out,
+            )
+            out.write(index.read_bytes())
 
         # Finally, overwrite the original index archive with the signed index archive
-        temp_signed.replace(index_file)
+        signed.rename(index)
 
         repos = context.sandbox_tree / "etc/apk/repositories"
-        local_repo = "file:///repository/"
+        repo = "file:///repository/"
         if repos.exists():
             content = repos.read_text()
-            if local_repo not in content:
+            if repo not in content:
                 with repos.open("a") as f:
-                    f.write(f"{local_repo}\n")
+                    f.write(f"{repo}\n")
         else:
-            repos.write_text(f"{local_repo}\n")
+            repos.write_text(f"{repo}\n")
 
         cls.sync(context, force=True)
 
