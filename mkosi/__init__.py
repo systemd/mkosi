@@ -171,7 +171,7 @@ from mkosi.versioncomp import GenericVersion
 from mkosi.vmspawn import run_vmspawn
 
 # Allowed characters from https://uapi-group.org/specifications/specs/version_format_specification
-KERNEL_VERSION_PATTERN = r"\d+\.\d+[\w.\-~^+]*"
+KERNEL_VERSION_PATTERN = re.compile(r"\d+\.\d+[\w.\-~^+]*")
 
 
 @contextlib.contextmanager
@@ -1298,9 +1298,7 @@ def gzip_binary(context: Context) -> str:
 def kernel_get_ver_from_modules(context: Context) -> Optional[str]:
     # Try to get version from the first dir under usr/lib/modules but fail if multiple versions are found
     versions = [
-        p.name
-        for p in (context.root / "usr/lib/modules").glob("*")
-        if re.match(KERNEL_VERSION_PATTERN, p.name)
+        p.name for p in (context.root / "usr/lib/modules").glob("*") if KERNEL_VERSION_PATTERN.match(p.name)
     ]
     if len(versions) > 1:
         die(
@@ -1321,7 +1319,7 @@ def fixup_vmlinuz_location(context: Context) -> None:
 
             # Extract kernel version pattern from filename
             filename = d.name.removeprefix(f"{type}-")
-            match = re.search(KERNEL_VERSION_PATTERN, filename)
+            match = KERNEL_VERSION_PATTERN.search(filename)
             kver = match.group(0) if match else kernel_get_ver_from_modules(context)
             if kver is None:
                 logging.debug("Unable to get kernel version from modules directory")
