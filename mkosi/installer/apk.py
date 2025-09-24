@@ -44,7 +44,6 @@ class Apk(PackageManager):
             return
 
         config.parent.mkdir(exist_ok=True, parents=True)
-
         config.write_text("\n".join(repo.url for repo in repositories) + "\n")
 
     @classmethod
@@ -98,14 +97,18 @@ class Apk(PackageManager):
         apivfs: bool = True,
         allow_downgrade: bool = False,
     ) -> None:
-        arguments = [
-            "--initdb",
-            "--upgrade",
-            # effectively disable refreshing the cache in this situation
-            "--cache-max-age", "999999999",
-            *packages,
-        ]  # fmt: skip
-        cls.invoke(context, "add", arguments, apivfs=apivfs)
+        cls.invoke(
+            context,
+            "add",
+            [
+                "--initdb",
+                "--upgrade",
+                # effectively disable refreshing the cache in this situation
+                "--cache-max-age", "999999999",
+                *packages,
+            ],
+            apivfs=apivfs,
+        )  # fmt: skip
 
     @classmethod
     def remove(cls, context: Context, packages: Sequence[str]) -> None:
