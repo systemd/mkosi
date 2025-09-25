@@ -38,18 +38,10 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def setup(cls, context: Context) -> None:
-        # TODO: Create merged /usr manually for now until our upstream (Alpine Linux) supports it:
-        # https://gitlab.alpinelinux.org/alpine/aports/-/merge_requests/85504
-        for dir in ["lib", "bin", "sbin"]:
-            (context.root / "usr" / dir).mkdir(parents=True, exist_ok=True)
-            (context.root / dir).symlink_to(f"usr/{dir}")
-
         with complete_step("Setting up postmarketOS keyring"):
-            # Create keys directory in sandbox
-            keys_dir = context.sandbox_tree / "etc/apk/keys"
-            keys_dir.mkdir(parents=True, exist_ok=True)
+            keys = context.sandbox_tree / "etc/apk/keys"
+            keys.mkdir(parents=True, exist_ok=True)
 
-            # Copy keys from various sources (if they exist)
             for d in [
                 context.config.tools() / "usr/lib/apk/keys",
                 context.config.tools() / "usr/share/distribution-gpg-keys/alpine-linux",
@@ -57,18 +49,28 @@ class Installer(DistributionInstaller):
             ]:
                 if not d.exists():
                     continue
-                # Preserve/do not overwrite keys in keys_dir that already exist
+
+                # Do not overwrite keys in /etc/apk/keys to make sure that user provided keys take priority.
                 for key in d.iterdir():
-                    if key.is_file():
-                        dest = keys_dir / key.name
-                        if dest.exists():
-                            continue
-                        shutil.copy2(key, dest)
+                    if key.is_dir():
+                        continue
+
+                    dest = keys / key.name
+                    if dest.exists():
+                        continue
+
+                    shutil.copy2(key, dest)
 
         Apk.setup(context, list(cls.repositories(context)))
 
     @classmethod
     def install(cls, context: Context) -> None:
+        # TODO: Create merged /usr manually for now until our upstream (Alpine Linux) supports it:
+        # https://gitlab.alpinelinux.org/alpine/aports/-/merge_requests/85504
+        for dir in ["lib", "bin", "sbin"]:
+            (context.root / "usr" / dir).mkdir(parents=True, exist_ok=True)
+            (context.root / dir).symlink_to(f"usr/{dir}")
+
         Apk.install(context, ["postmarketos-baselayout", "postmarketos-release"], apivfs=False)
 
     @classmethod
@@ -92,13 +94,8 @@ class Installer(DistributionInstaller):
         mirror = context.config.mirror or "https://mirror.postmarketos.org/postmarketos"
         subdir = "master" if context.config.release == "edge" else f"v{context.config.release}"
 
-        # systemd repo
-        url = f"{mirror}/extra-repos/systemd/{subdir}"
-        yield ApkRepository(url=url)
-
-        # main repo
-        url = f"{mirror}/{subdir}"
-        yield ApkRepository(url=url)
+        yield ApkRepository(url=f"{mirror}/extra-repos/systemd/{subdir}")
+        yield ApkRepository(url=f"{mirror}/{subdir}")
 
     @classmethod
     def architecture(cls, arch: Architecture) -> str:
