@@ -9,7 +9,6 @@ enable dbus-broker.service
 
 # Make sure we have networking available.
 enable systemd-networkd.service
-enable systemd-networkd-wait-online.service
 enable systemd-resolved.service
 
 # We install dnf in some images but it's only going to be used rarely,
