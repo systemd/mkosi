@@ -61,11 +61,12 @@ class Apk(PackageManager):
         return [
             "apk",
             "--root", "/buildroot",
+            "--cache-packages",
             "--cache-dir", "/var/cache/apk",
+            "--cache-predownload",
             "--arch", context.config.distribution.architecture(context.config.architecture),
             "--no-interactive",
             "--preserve-env",
-            "--cache-packages",
             "--keys-dir", "/etc/apk/keys",
             "--repositories-file", "/etc/apk/repositories",
             *(["--allow-untrusted"] if not context.config.repository_key_check else []),
