@@ -255,7 +255,3 @@ class Apk(PackageManager):
             repos.write_text(f"{repo}\n")
 
         cls.sync(context, force=True)
-
-    @classmethod
-    def keyring(cls, context: Context) -> None:
-        pass
