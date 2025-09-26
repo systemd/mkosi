@@ -89,8 +89,6 @@ from mkosi.context import Context
 from mkosi.distributions import Distribution, detect_distribution
 from mkosi.documentation import show_docs
 from mkosi.installer import clean_package_manager_metadata
-from mkosi.installer.pacman import Pacman
-from mkosi.installer.zypper import Zypper
 from mkosi.kmod import (
     filter_devicetrees,
     gen_required_kernel_modules,
@@ -157,7 +155,6 @@ from mkosi.user import INVOKING_USER, become_root_cmd
 from mkosi.util import (
     PathString,
     flatten,
-    flock,
     flock_or_die,
     format_rlimit,
     hash_file,
@@ -3939,68 +3936,6 @@ def setup_workspace(args: Args, config: Config) -> Iterator[Path]:
 
 
 @contextlib.contextmanager
-def lock_repository_metadata(config: Config) -> Iterator[None]:
-    subdir = config.distribution.package_manager(config).subdir(config)
-
-    with contextlib.ExitStack() as stack:
-        for d in ("cache", "lib"):
-            if (src := config.package_cache_dir_or_default() / d / subdir).exists():
-                stack.enter_context(flock(src))
-
-        yield
-
-
-def copy_repository_metadata(config: Config, dst: Path) -> None:
-    subdir = config.distribution.package_manager(config).subdir(config)
-
-    with complete_step("Copying repository metadata"):
-        cachedir = config.package_cache_dir_or_default() / "cache" / subdir
-        if cachedir.exists():
-            with umask(~0o755):
-                (dst / "cache" / subdir).mkdir(parents=True, exist_ok=True)
-
-            with tempfile.TemporaryDirectory() as tmp:
-                os.chmod(tmp, 0o755)
-
-                # cp doesn't support excluding directories but we can imitate it by bind mounting
-                # an empty directory over the directories we want to exclude.
-                exclude = flatten(
-                    ("--ro-bind", tmp, workdir(cachedir / srcsubdir))
-                    for srcsubdir, _ in config.distribution.package_manager(config).package_subdirs(cachedir)
-                )
-
-                subdst = dst / "cache" / subdir
-                with umask(~0o755):
-                    subdst.mkdir(parents=True, exist_ok=True)
-
-                def sandbox(
-                    *,
-                    options: Sequence[PathString] = (),
-                ) -> AbstractContextManager[list[PathString]]:
-                    return config.sandbox(options=[*options, *exclude])
-
-                copy_tree(cachedir, subdst, sandbox=sandbox)
-        else:
-            logging.debug(f"{cachedir} does not exist, not copying repository metadata from it")
-
-        statedir = config.package_cache_dir_or_default() / "lib" / subdir
-
-        with umask(~0o755):
-            (dst / "lib" / subdir).mkdir(parents=True, exist_ok=True)
-
-        for src in config.distribution.package_manager(config).state_subdirs(statedir):
-            if not src.exists():
-                logging.debug(f"{src} does not exist, not copying repository metadata from it")
-                continue
-
-            subdst = dst / "lib" / subdir / src.relative_to(statedir)
-            with umask(~0o755):
-                subdst.mkdir(parents=True, exist_ok=True)
-
-            copy_tree(src, subdst, sandbox=config.sandbox)
-
-
-@contextlib.contextmanager
 def createrepo(context: Context) -> Iterator[None]:
     st = context.repository.stat()
     try:
@@ -4761,18 +4696,15 @@ def needs_build(args: Args, config: Config, force: int = 1) -> bool:
     )
 
 
-def remove_cache_entries(config: Config, *, extra: Sequence[Path] = ()) -> None:
+def remove_cache_entries(config: Config) -> None:
     if not config.cache_dir:
         return
 
     sandbox = functools.partial(config.sandbox, tools=False)
 
-    if any(p.exists() for p in itertools.chain(cache_tree_paths(config), extra)):
+    if any(p.exists() for p in cache_tree_paths(config)):
         with complete_step(f"Removing cache entries of {config.image} image…"):
-            rmtree(
-                *(p for p in itertools.chain(cache_tree_paths(config), extra) if p.exists()),
-                sandbox=sandbox,
-            )
+            rmtree(*(p for p in cache_tree_paths(config) if p.exists()), sandbox=sandbox)
 
 
 def run_clean(args: Args, config: Config) -> None:
@@ -4832,22 +4764,13 @@ def run_clean(args: Args, config: Config) -> None:
             rmtree(*config.build_subdir.iterdir(), sandbox=sandbox)
 
     if remove_image_cache and config.cache_dir:
-        if config.image in ("main", "tools"):
-            extra = [keyring_cache(config), metadata_cache(config)]
-        else:
-            extra = []
+        remove_cache_entries(config)
 
-        remove_cache_entries(config, extra=extra)
-
-    if remove_package_cache and any(config.package_cache_dir_or_default().glob("*")):
-        subdir = config.distribution.package_manager(config).subdir(config)
-
-        with (
-            complete_step(f"Clearing out package cache of {config.image} image…"),
-            lock_repository_metadata(config),
-        ):
+    if remove_package_cache and config.cache_dir and config.image in ("main", "tools"):
+        with complete_step(f"Clearing out metadata and keyring cache of {config.image} image…"):
             rmtree(
-                *(config.package_cache_dir_or_default() / d / subdir for d in ("cache", "lib")),
+                metadata_cache(config),
+                keyring_cache(config),
                 sandbox=sandbox,
             )
 
@@ -4880,66 +4803,50 @@ def sync_repository_metadata(
     images: Sequence[Config],
     *,
     resources: Path,
-    keyring_dir: Path,
-    metadata_dir: Path,
-) -> None:
+    stack: contextlib.ExitStack,
+) -> tuple[Path, Path]:
     last = images[-1]
 
-    # If we have a metadata cache and any cached image and using cached metadata is not explicitly disabled,
-    # reuse the metadata cache.
-    if (
-        last.is_incremental()
-        and keyring_cache(last).exists()
-        and metadata_cache(last).exists()
-        and last.cacheonly != Cacheonly.never
-        and any(have_cache(config) for config in images)
-    ):
-        if any(keyring_cache(last).iterdir()):
-            with complete_step("Copying cached package manager keyring"):
-                copy_tree(
-                    keyring_cache(last),
-                    keyring_dir,
-                    use_subvolumes=last.use_subvolumes,
-                    sandbox=last.sandbox,
+    if last.cache_dir:
+        keyring_dir = keyring_cache(last)
+    else:
+        keyring_dir = Path(
+            stack.enter_context(
+                tempfile.TemporaryDirectory(
+                    dir=last.workspace_dir_or_default(),
+                    prefix="mkosi-keyring-",
                 )
-
-        with complete_step("Copying cached package manager metadata"):
-            copy_tree(
-                metadata_cache(last),
-                metadata_dir,
-                use_subvolumes=last.use_subvolumes,
-                sandbox=last.sandbox,
             )
+        )
 
-        return
+    # If /var is used as the package cache directory, we are reusing the system package cache directory in
+    # mkosi-initrd so we want to pick up the metadata from there in that case.
+    if last.package_cache_dir_or_default() == Path("/var"):
+        metadata_dir = last.package_cache_dir_or_default()
+    elif last.cache_dir:
+        metadata_dir = metadata_cache(last)
+    else:
+        metadata_dir = Path(
+            stack.enter_context(
+                tempfile.TemporaryDirectory(
+                    dir=last.workspace_dir_or_default(),
+                    prefix="mkosi-metadata-",
+                )
+            )
+        )
 
     subdir = last.distribution.package_manager(last).subdir(last)
-
-    # Pacman and Zypper are unable to cache repository metadata for multiple mirrors at the same time in the
-    # same cache directory as they both only use the repository id as the cache key which will trivially
-    # conflict across multiple mirrors. Apt and Fedora put the mirror in the cache key for the repository
-    # metadata in some form which avoids conflicts across different mirrors.
-    #
-    # If /var is used as the package cache directory, we are reusing the system package cache directory in
-    # mkosi-initrd so we *do* want to pick up the metadata from there in that case.
-    shared_repository_metadata_cache = last.package_cache_dir_or_default() == Path(
-        "/var"
-    ) or last.distribution.package_manager(last) not in (Pacman, Zypper)
-
-    if shared_repository_metadata_cache:
-        dst = last.package_cache_dir_or_default()
-    elif last.is_incremental() and last.cacheonly != Cacheonly.never:
-        if not metadata_cache(last).exists():
-            make_tree(metadata_cache(last), use_subvolumes=last.use_subvolumes, sandbox=last.sandbox)
-        dst = metadata_cache(last)
-    else:
-        dst = metadata_dir
-
     for d in ("cache", "lib"):
-        (dst / d / subdir).mkdir(parents=True, exist_ok=True)
+        (metadata_dir / d / subdir).mkdir(parents=True, exist_ok=True)
+
+    (last.package_cache_dir_or_default() / "cache" / subdir).mkdir(parents=True, exist_ok=True)
 
     # Sync repository metadata unless explicitly disabled.
-    if last.cacheonly not in (Cacheonly.always, Cacheonly.metadata):
+    if (
+        not last.cache_dir
+        or last.cacheonly == Cacheonly.never
+        or (last.cacheonly == Cacheonly.auto and not any(have_cache(config) for config in images))
+    ):
         with setup_workspace(args, last) as workspace:
             context = Context(
                 args,
@@ -4947,7 +4854,7 @@ def sync_repository_metadata(
                 workspace=workspace,
                 resources=resources,
                 keyring_dir=keyring_dir,
-                metadata_dir=dst,
+                metadata_dir=metadata_dir,
             )
             context.root.mkdir(mode=0o755)
 
@@ -4956,40 +4863,22 @@ def sync_repository_metadata(
 
             context.config.distribution.keyring(context)
 
-            with complete_step("Syncing package manager metadata"), lock_repository_metadata(last):
+            with complete_step("Syncing package manager metadata"):
                 context.config.distribution.package_manager(context.config).sync(
                     context,
                     force=context.args.force > 1 or context.config.cacheonly == Cacheonly.never,
                 )
 
-    src = last.package_cache_dir_or_default() / "cache" / subdir
-    for srcsubdir, _ in last.distribution.package_manager(last).package_subdirs(src):
-        (src / srcsubdir).mkdir(parents=True, exist_ok=True)
+        src = metadata_dir / "cache" / subdir
+        dst = last.package_cache_dir_or_default() / "cache" / subdir
 
-    # If we're in incremental mode and caching metadata is not explicitly disabled, cache the keyring and the
-    # synced repository metadata so we can reuse them later.
-    if last.is_incremental() and last.cacheonly != Cacheonly.never:
-        rmtree(
-            keyring_cache(last),
-            *([metadata_cache(last)] if shared_repository_metadata_cache else []),
-            sandbox=last.sandbox,
-        )
+        # We just synced package manager metadata, in the case of dnf, this means we can now iterate the
+        # synced repository metadata directories and use that to create the corresponding directories in the
+        # package cache directory.
+        for srcsubdir, _ in last.distribution.package_manager(last).package_subdirs(src):
+            (dst / srcsubdir).mkdir(parents=True, exist_ok=True)
 
-        make_tree(keyring_cache(last), use_subvolumes=last.use_subvolumes, sandbox=last.sandbox)
-        copy_tree(keyring_dir, keyring_cache(last), use_subvolumes=last.use_subvolumes, sandbox=last.sandbox)
-
-        if shared_repository_metadata_cache:
-            make_tree(metadata_cache(last), use_subvolumes=last.use_subvolumes, sandbox=last.sandbox)
-            copy_repository_metadata(last, metadata_cache(last))
-
-        copy_tree(
-            metadata_cache(last),
-            metadata_dir,
-            use_subvolumes=last.use_subvolumes,
-            sandbox=last.sandbox,
-        )
-    elif shared_repository_metadata_cache:
-        copy_repository_metadata(last, metadata_dir)
+    return keyring_dir, metadata_dir
 
 
 def run_build(
@@ -5178,30 +5067,20 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
         run_sync_scripts(tools)
         check_tools(tools, Verb.build)
 
-        with (
-            tempfile.TemporaryDirectory(
-                dir=tools.workspace_dir_or_default(),
-                prefix="mkosi-keyring-",
-            ) as keyring_dir,
-            tempfile.TemporaryDirectory(
-                dir=tools.workspace_dir_or_default(),
-                prefix="mkosi-metadata-",
-            ) as metadata_dir,
-        ):
-            sync_repository_metadata(
+        with contextlib.ExitStack() as stack:
+            tkd, tmd = sync_repository_metadata(
                 args,
                 [tools],
                 resources=resources,
-                keyring_dir=Path(keyring_dir),
-                metadata_dir=Path(metadata_dir),
+                stack=stack,
             )
             fork_and_wait(
                 run_build,
                 args,
                 tools,
                 resources=resources,
-                keyring_dir=Path(keyring_dir),
-                metadata_dir=Path(metadata_dir),
+                keyring_dir=tkd,
+                metadata_dir=tmd,
             )
 
         resolv = tools.output_dir_or_cwd() / tools.output / "etc/resolv.conf"
@@ -5343,25 +5222,21 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
 
         ensure_directories_exist(last)
 
-        with (
-            tempfile.TemporaryDirectory(
-                dir=last.workspace_dir_or_default(),
-                prefix="mkosi-keyring-",
-            ) as keyring_dir,
-            tempfile.TemporaryDirectory(
-                dir=last.workspace_dir_or_default(),
-                prefix="mkosi-metadata-",
-            ) as metadata_dir,
-            tempfile.TemporaryDirectory(
-                dir=last.workspace_dir_or_default(),
-                prefix="mkosi-packages-",
-            ) as package_dir,
-        ):
+        with contextlib.ExitStack() as stack:
+            package_dir = Path(
+                stack.enter_context(
+                    tempfile.TemporaryDirectory(
+                        dir=last.workspace_dir_or_default(),
+                        prefix="mkosi-packages-",
+                    )
+                )
+            )
+
             for config in images:
                 ensure_directories_exist(config)
                 run_sync_scripts(config)
 
-            synced = False
+            ikd = imd = None
 
             for config in images:
                 # If the output format is "none" or we're rebuilding and there are no build scripts, there's
@@ -5375,27 +5250,25 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
                 check_tools(config, Verb.build)
                 check_inputs(config)
 
-                if not synced:
-                    sync_repository_metadata(
+                if not ikd and not imd:
+                    ikd, imd = sync_repository_metadata(
                         args,
                         images,
                         resources=resources,
-                        keyring_dir=Path(keyring_dir),
-                        metadata_dir=Path(metadata_dir),
+                        stack=stack,
                     )
-                    synced = True
 
                 fork_and_wait(
                     run_build,
                     args,
                     config,
                     resources=resources,
-                    keyring_dir=Path(keyring_dir),
-                    metadata_dir=Path(metadata_dir),
-                    package_dir=Path(package_dir),
+                    keyring_dir=ikd,
+                    metadata_dir=imd,
+                    package_dir=package_dir,
                 )
 
-            if not synced:
+            if not ikd and not imd:
                 logging.info("All images have already been built and do not have any build scripts")
 
         if args.auto_bump:
