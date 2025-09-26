@@ -28,6 +28,10 @@ class Apk(PackageManager):
         return Path("apk")
 
     @classmethod
+    def package_subdirs(cls, cache: Path) -> list[tuple[Path, Path]]:
+        return [(Path("."), Path("."))]
+
+    @classmethod
     def scripts(cls, context: Context) -> dict[str, list[PathString]]:
         return {
             "apk": cls.apivfs_script_cmd(context) + cls.env_cmd(context) + cls.cmd(context),
