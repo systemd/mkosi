@@ -5260,63 +5260,66 @@ def parse_config(
         None if "dependencies" in context.cli or "dependencies" in context.config else []
     )
 
+    # For the subimages in mkosi.images/, we want settings that are marked as
+    # "universal" to override whatever settings are specified in the subimage
+    # configuration files. We achieve this by making it appear like these settings
+    # were specified on the CLI by copying them to the CLI namespace. Any settings
+    # that are not marked as "universal" are deleted from the CLI namespace.
+    for s in SETTINGS:
+        if s.scope in (SettingScope.universal, SettingScope.multiversal):
+            context.cli[s.dest] = copy.deepcopy(config[s.dest])
+        elif s.dest in context.cli:
+            del context.cli[s.dest]
+
+    todo = []
     if configdir is not None and (imagedir := configdir / "mkosi.images").exists():
-        # For the subimages in mkosi.images/, we want settings that are marked as
-        # "universal" to override whatever settings are specified in the subimage
-        # configuration files. We achieve this by making it appear like these settings
-        # were specified on the CLI by copying them to the CLI namespace. Any settings
-        # that are not marked as "universal" are deleted from the CLI namespace.
+        todo += sorted(imagedir.iterdir())
+
+    for p in todo:
+        p = p.absolute()
+
+        if not p.is_dir() and not p.suffix == ".conf":
+            continue
+
+        name = p.name.removesuffix(".conf")
+        if not name:
+            die(f"{p} is not a valid image name")
+
+        context.config = {
+            "image": name,
+            "directory": args.directory,
+            "files": [],
+        }
+
+        # Settings that are marked as "inherit" are passed down to subimages but can
+        # be overridden, so we copy these to the config namespace so that they'll be
+        # overridden if the setting is explicitly configured by the subimage.
         for s in SETTINGS:
-            if s.scope in (SettingScope.universal, SettingScope.multiversal):
-                context.cli[s.dest] = copy.deepcopy(config[s.dest])
-            elif s.dest in context.cli:
-                del context.cli[s.dest]
+            if s.scope == SettingScope.inherit and s.dest in config:
+                context.config[s.dest] = copy.deepcopy(config[s.dest])
 
-        for p in sorted(imagedir.iterdir()):
-            p = p.absolute()
+        context.config["environment"] = {
+            name: config["environment"][name]
+            for name in config.get("pass_environment", {})
+            if name in config.get("environment", {})
+        }
 
-            if not p.is_dir() and not p.suffix == ".conf":
+        # Allow subimage configuration to include everything again.
+        context.includes = set()
+        context.defaults = {}
+
+        with chdir(p if p.is_dir() else Path.cwd()):
+            if not context.parse_config_one(
+                p if p.is_file() else Path.cwd(),
+                parse_profiles=p.is_dir(),
+                parse_local=True,
+            ):
                 continue
 
-            name = p.name.removesuffix(".conf")
-            if not name:
-                die(f"{p} is not a valid image name")
+        images += [context.finalize()]
 
-            context.config = {
-                "image": name,
-                "directory": args.directory,
-                "files": [],
-            }
-
-            # Settings that are marked as "inherit" are passed down to subimages but can
-            # be overridden, so we copy these to the config namespace so that they'll be
-            # overridden if the setting is explicitly configured by the subimage.
-            for s in SETTINGS:
-                if s.scope == SettingScope.inherit and s.dest in config:
-                    context.config[s.dest] = copy.deepcopy(config[s.dest])
-
-            context.config["environment"] = {
-                name: config["environment"][name]
-                for name in config.get("pass_environment", {})
-                if name in config.get("environment", {})
-            }
-
-            # Allow subimage configuration to include everything again.
-            context.includes = set()
-            context.defaults = {}
-
-            with chdir(p if p.is_dir() else Path.cwd()):
-                if not context.parse_config_one(
-                    p if p.is_file() else Path.cwd(),
-                    parse_profiles=p.is_dir(),
-                    parse_local=True,
-                ):
-                    continue
-
-            images += [context.finalize()]
-
-            if dependencies is not None:
-                dependencies += [name]
+        if dependencies is not None:
+            dependencies += [name]
 
     if dependencies is not None:
         config["dependencies"] = dependencies
