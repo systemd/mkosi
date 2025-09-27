@@ -76,24 +76,38 @@ class PackageManager:
 
         subdir = context.config.distribution.package_manager(context.config).subdir(context.config)
 
-        for d in ("cache", "lib"):
-            src = context.metadata_dir / d / subdir
-            mounts += ["--bind", src, Path("/var") / d / subdir]
+        src = context.metadata_dir / "lib" / subdir
+        mounts += ["--bind", src, Path("/var/lib") / subdir]
+
+        src = context.metadata_dir / "cache" / subdir
+        caches = context.config.distribution.package_manager(context.config).package_subdirs(src)
+
+        # If there are no package cache subdirectories, we always operate on the package cache directory,
+        # since we can't do any mount tricks to combine caches from different locations in this case.
+        if caches == [(Path("."), Path("."))]:
+            mounts += [
+                "--bind",
+                context.config.package_cache_dir_or_default() / "cache" / subdir,
+                Path("/var/cache") / subdir,
+            ]
+        else:
+            mounts += ["--bind", src, Path("/var/cache") / subdir]
 
             # If we're not operating on the configured package cache directory, we're operating on a snapshot
             # of the repository metadata. To make sure any downloaded packages are still cached in the
             # configured package cache directory in this scenario, we mount in the relevant directories from
             # the configured package cache directory.
-            if d == "cache" and context.metadata_dir != context.config.package_cache_dir_or_default():
-                caches = context.config.distribution.package_manager(context.config).package_subdirs(src)
+            if context.metadata_dir != context.config.package_cache_dir_or_default():
                 mounts += flatten(
                     (
                         "--bind",
-                        context.config.package_cache_dir_or_default() / d / subdir / srcsubdir,
-                        Path("/var") / d / subdir / dstsubdir,
+                        context.config.package_cache_dir_or_default() / "cache" / subdir / srcsubdir,
+                        Path("/var/cache") / subdir / dstsubdir,
                     )
                     for srcsubdir, dstsubdir in caches
-                    if (context.config.package_cache_dir_or_default() / d / subdir / srcsubdir).exists()
+                    if (
+                        context.config.package_cache_dir_or_default() / "cache" / subdir / srcsubdir
+                    ).exists()
                 )
 
         return mounts

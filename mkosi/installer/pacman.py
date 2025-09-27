@@ -238,6 +238,8 @@ class Pacman(PackageManager):
                 sandbox=context.sandbox,
             )
 
+        context.keyring_dir.mkdir(parents=True, exist_ok=True)
+
         with complete_step("Populating pacman keyring"):
             run(["pacman-key", "--init"], sandbox=sandbox())
             run(["pacman-key", "--populate"], sandbox=sandbox())
