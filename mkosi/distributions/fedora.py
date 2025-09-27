@@ -267,3 +267,7 @@ class Installer(DistributionInstaller):
         )
 
         return curl(config, url).removeprefix(f"Fedora-{config.release.capitalize()}-").strip()
+
+    @classmethod
+    def is_kernel_package(cls, package: str) -> bool:
+        return package in ("kernel", "kernel-core")

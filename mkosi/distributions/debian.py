@@ -248,6 +248,10 @@ class Installer(DistributionInstaller):
         url = join_mirror(config.mirror or "https://snapshot.debian.org", "mr/timestamp")
         return cast(str, json.loads(curl(config, url))["result"]["debian"][-1])
 
+    @classmethod
+    def is_kernel_package(cls, package: str) -> bool:
+        return package.startswith("linux-image-")
+
 
 def install_apt_sources(context: Context, repos: Iterable[AptRepository]) -> None:
     sources = context.root / f"etc/apt/sources.list.d/{context.config.release}.sources"

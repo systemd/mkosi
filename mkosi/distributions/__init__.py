@@ -72,6 +72,10 @@ class DistributionInstaller:
     def latest_snapshot(cls, config: "Config") -> str:
         die(f"{cls.pretty_name()} does not support snapshots")
 
+    @classmethod
+    def is_kernel_package(cls, package: str) -> bool:
+        return False
+
 
 class Distribution(StrEnum):
     # Please consult docs/distribution-policy.md and contact one
@@ -157,6 +161,9 @@ class Distribution(StrEnum):
 
     def latest_snapshot(self, config: "Config") -> str:
         return self.installer().latest_snapshot(config)
+
+    def is_kernel_package(self, package: str) -> bool:
+        return self.installer().is_kernel_package(package)
 
     def installer(self) -> type[DistributionInstaller]:
         modname = str(self).replace("-", "_")

@@ -10,6 +10,7 @@ import functools
 import getpass
 import graphlib
 import io
+import itertools
 import json
 import logging
 import math
@@ -1652,6 +1653,19 @@ class SettingScope(StrEnum):
     main = enum.auto()
     # Only passed down to tools tree, can only be configured in main image.
     tools = enum.auto()
+    # Only passed down to initrd, can only be configured in main image.
+    initrd = enum.auto()
+
+    def is_main_setting(self) -> bool:
+        return self in (SettingScope.main, SettingScope.tools, SettingScope.initrd, SettingScope.multiversal)
+
+    def removeprefix(self, setting: str) -> str:
+        if self == SettingScope.tools:
+            return setting.removeprefix("tools_tree_")
+        elif self == SettingScope.initrd:
+            return setting.removeprefix("initrd_")
+        else:
+            return setting
 
 
 @dataclasses.dataclass(frozen=True)
@@ -3165,6 +3179,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         choices=InitrdProfile.values(),
         default=[],
         help="Which profiles to enable for the default initrd",
+        scope=SettingScope.initrd,
     ),
     ConfigSetting(
         dest="initrd_packages",
@@ -3173,6 +3188,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Content",
         parse=config_make_list_parser(delimiter=","),
         help="Add additional packages to the default initrd",
+        scope=SettingScope.initrd,
     ),
     ConfigSetting(
         dest="initrd_volatile_packages",
@@ -3181,6 +3197,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Content",
         parse=config_make_list_parser(delimiter=","),
         help="Packages to install in the initrd that are not cached",
+        scope=SettingScope.initrd,
     ),
     ConfigSetting(
         dest="devicetrees",
@@ -4617,10 +4634,7 @@ class ParseContext:
 
         return (
             (not setting.tools and image == "tools")
-            or (
-                setting.scope in (SettingScope.main, SettingScope.tools, SettingScope.multiversal)
-                and image != "main"
-            )
+            or (setting.scope.is_main_setting() and image != "main")
             or (setting.scope == SettingScope.universal and image not in ("main", "tools"))
         )
 
@@ -4758,10 +4772,7 @@ class ParseContext:
 
         # If the type is a collection or optional and the setting was set explicitly, don't use the default
         # value.
-        fieldname = (
-            setting.dest.removeprefix("tools_tree_") if setting.scope == SettingScope.tools else setting.dest
-        )
-        field = Config.fields().get(fieldname)
+        field = Config.fields().get(setting.scope.removeprefix(setting.dest))
         origin = typing.get_origin(field.type) if field else None
         args = typing.get_args(field.type) if field else []
         if (
@@ -5062,7 +5073,7 @@ def finalize_default_tools(
         elif s.scope == SettingScope.tools:
             # If the setting was specified on the CLI for the main config, we treat it as specified on the
             # CLI for the tools tree as well. Idem for config and defaults.
-            dest = s.dest.removeprefix("tools_tree_")
+            dest = s.scope.removeprefix(s.dest)
 
             if s.dest in main.cli:
                 ns = context.cli
@@ -5094,6 +5105,50 @@ def finalize_default_tools(
 
     with chdir(resources / "mkosi-tools"):
         context.parse_config_one(resources / "mkosi-tools", parse_profiles=True)
+
+    return Config.from_dict(context.finalize())
+
+
+def finalize_default_initrd(
+    main: ParseContext,
+    finalized: dict[str, Any],
+    *,
+    resources: Path,
+) -> Config:
+    context = ParseContext(resources)
+
+    for s in SETTINGS:
+        if s.scope in (SettingScope.universal, SettingScope.multiversal):
+            context.cli[s.dest] = copy.deepcopy(finalized[s.dest])
+        elif s.scope == SettingScope.initrd:
+            # If the setting was specified on the CLI for the main config, we treat it as specified on the
+            # CLI for the default initrd as well. Idem for config and defaults.
+            dest = s.scope.removeprefix(s.dest)
+
+            if s.dest in main.cli:
+                ns = context.cli
+                if f"{s.dest}_was_none" in main.cli:
+                    ns[f"{dest}_was_none"] = main.cli[f"{s.dest}_was_none"]
+            elif s.dest in main.config:
+                ns = context.config
+            else:
+                ns = context.defaults
+
+            ns[dest] = copy.deepcopy(finalized[s.dest])
+
+    context.config |= {
+        "image": "default-initrd",
+        "directory": finalized["directory"],
+        "files": [],
+    }
+
+    context.config["environment"] = {
+        name: finalized["environment"][name]
+        for name in finalized.get("environment", {}).keys() & finalized.get("pass_environment", [])
+    }
+
+    with chdir(resources / "mkosi-initrd"):
+        context.parse_config_one(resources / "mkosi-initrd", parse_profiles=True)
 
     return Config.from_dict(context.finalize())
 
@@ -5141,6 +5196,36 @@ def bump_image_version(configdir: Path) -> str:
 
     logging.info(f"Bumping version: '{none_to_na(version)}' → '{new_version}'")
     return new_version
+
+
+def want_kernel(config: Config) -> bool:
+    if config.output_format in (OutputFormat.uki, OutputFormat.esp):
+        return False
+
+    if config.bootable == ConfigFeature.disabled:
+        return False
+
+    if config.bootable == ConfigFeature.auto and (
+        config.output_format == OutputFormat.cpio
+        or config.output_format.is_extension_or_portable_image()
+        or config.overlay
+    ):
+        return False
+
+    return True
+
+
+def want_default_initrd(config: Config) -> bool:
+    if not want_kernel(config):
+        return False
+
+    if config.bootable == ConfigFeature.auto and not any(
+        config.distribution.is_kernel_package(p)
+        for p in itertools.chain(config.packages, config.volatile_packages)
+    ):
+        return False
+
+    return True
 
 
 def parse_config(
@@ -5325,8 +5410,29 @@ def parse_config(
         config["dependencies"] = dependencies
 
     main = Config.from_dict(config)
-
     subimages = [Config.from_dict(ns) for ns in images]
+
+    if any(want_default_initrd(image) for image in subimages + [main]):
+        initrd = finalize_default_initrd(context, config, resources=resources)
+
+        if want_default_initrd(main):
+            main = dataclasses.replace(
+                main,
+                initrds=[*main.initrds, initrd.output_dir_or_cwd() / initrd.output],
+                dependencies=main.dependencies + [initrd.image],
+            )
+
+        subimages = [
+            dataclasses.replace(
+                image,
+                initrds=[*image.initrds, initrd.output_dir_or_cwd() / initrd.output],
+                dependencies=image.dependencies + [initrd.image],
+            )
+            for image in subimages
+        ]
+
+        subimages += [initrd]
+
     subimages = resolve_deps(subimages, main.dependencies)
 
     return args, tools, tuple(subimages + [main])

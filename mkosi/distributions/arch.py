@@ -130,3 +130,7 @@ class Installer(DistributionInstaller):
         return datetime.datetime.fromtimestamp(int(curl(config, url)), datetime.timezone.utc).strftime(
             "%Y/%m/%d"
         )
+
+    @classmethod
+    def is_kernel_package(cls, package: str) -> bool:
+        return package in ("kernel", "linux-lts", "linux-zen", "linux-hardened", "linux-rt", "linux-rt-lts")
