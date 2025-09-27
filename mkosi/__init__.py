@@ -1811,14 +1811,13 @@ def build_uki(
             "--pcr-banks", "sha256",
         ]  # fmt: skip
 
-        # TODO: bump version to 258 once it is released
         if (
             systemd_tool_version(
                 python_binary(context.config),
                 ukify,
                 sandbox=context.sandbox,
             )
-            >= "257.999"
+            >= "258"
         ):
             cert_parameter = "--pcr-certificate"
         else:
@@ -2851,11 +2850,10 @@ def check_tools(config: Config, verb: Verb) -> None:
         if (
             want_efi(config) or config.output_format in (OutputFormat.uki, OutputFormat.esp)
         ) and config.unified_kernel_image_profiles:
-            # TODO: bump version to 258 once it is released
             check_ukify(
                 config,
                 version=(
-                    "257.999"
+                    "258"
                     if any(not profile.sign_expected_pcr for profile in config.unified_kernel_image_profiles)
                     else "257"
                 ),
@@ -2917,12 +2915,11 @@ def check_tools(config: Config, verb: Verb) -> None:
             check_tool(config, "sbvarsign", reason="set up systemd-boot secure boot auto-enrollment")
 
         if ArtifactOutput.pcrs in config.split_artifacts:
-            # TODO: bump version to 258 once it is released
             check_systemd_tool(
                 config,
                 "systemd-measure",
                 "/usr/lib/systemd/systemd-measure",
-                version="257.999",
+                version="258",
                 reason="generate TPM2 policy digests",
             )
 
