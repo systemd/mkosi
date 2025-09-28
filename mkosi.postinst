@@ -2,18 +2,12 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 set -e
 
-if [[ "$DISTRIBUTION" =~ ubuntu|kali|debian ]]; then
-    SUDO_GROUP=sudo
-else
-    SUDO_GROUP=wheel
-fi
-
 mkosi-chroot \
     useradd \
     --user-group \
     --create-home \
     --password "$(openssl passwd -1 mkosi)" \
-    --groups "$SUDO_GROUP",systemd-journal \
+    --groups systemd-journal \
     --shell /bin/bash \
     --uid 4711 \
     mkosi
