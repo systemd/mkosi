@@ -24,6 +24,7 @@ def test_extension(config: ImageConfig, format: OutputFormat) -> None:
                     "--incremental=no",
                     "--base-tree", Path(image.output_dir) / "image",
                     "--overlay=yes",
+                    "--selinux-relabel=no",
                     "--package=lsof",
                     f"--format={format}",
                 ]
