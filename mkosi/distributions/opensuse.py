@@ -258,6 +258,10 @@ class Installer(DistributionInstaller):
         url = join_mirror(config.mirror or "https://download.opensuse.org", "history/latest")
         return curl(config, url).strip()
 
+    @classmethod
+    def is_kernel_package(cls, package: str) -> bool:
+        return package in ("kernel-default", "kernel-kvmsmall")
+
 
 def fetch_gpgurls(context: Context, repourl: str) -> tuple[str, ...]:
     gpgurls = [f"{repourl}/repodata/repomd.xml.key"]

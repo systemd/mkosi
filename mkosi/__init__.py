@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 import contextlib
-import dataclasses
 import datetime
 import functools
 import getpass
@@ -82,6 +81,7 @@ from mkosi.config import (
     resolve_deps,
     summary,
     systemd_tool_version,
+    want_kernel,
     want_selinux_relabel,
     yes_no,
 )
@@ -154,6 +154,7 @@ from mkosi.tree import copy_tree, make_tree, move_tree, rmtree
 from mkosi.user import INVOKING_USER, become_root_cmd
 from mkosi.util import (
     PathString,
+    chdir,
     flatten,
     flock_or_die,
     format_rlimit,
@@ -1347,143 +1348,6 @@ def want_initrd(context: Context) -> bool:
     return True
 
 
-def finalize_default_initrd(
-    config: Config,
-    *,
-    resources: Path,
-    tools: bool = True,
-    output_dir: Optional[Path] = None,
-) -> Config:
-    if config.root_password:
-        password, hashed = config.root_password
-        rootpwopt = f"hashed:{password}" if hashed else password
-    else:
-        rootpwopt = None
-
-    relabel = (
-        ConfigFeature.auto if config.selinux_relabel == ConfigFeature.enabled else config.selinux_relabel
-    )
-
-    # Default values are assigned via the parser so we go via the argument parser to construct
-    # the config for the initrd.
-    cmdline = [
-        "--directory=",
-        f"--distribution={config.distribution}",
-        f"--release={config.release}",
-        f"--architecture={config.architecture}",
-        *([f"--mirror={config.mirror}"] if config.mirror else []),
-        *([f"--snapshot={config.snapshot}"] if config.snapshot else []),
-        f"--repository-key-check={config.repository_key_check}",
-        f"--repository-key-fetch={config.repository_key_fetch}",
-        *([f"--repositories={repository}" for repository in config.repositories]),
-        *([f"--sandbox-tree={tree}" for tree in config.sandbox_trees]),
-        # Note that when compress_output == Compression.none == 0 we don't pass --compress-output
-        # which means the default compression will get picked. This is exactly what we want so that
-        # initrds are always compressed.
-        *([f"--compress-output={c}"] if (c := config.compress_output) else []),
-        f"--compress-level={config.compress_level}",
-        f"--with-network={config.with_network}",
-        f"--cache-only={config.cacheonly}",
-        *([f"--output-directory={os.fspath(output_dir)}"] if output_dir else []),
-        *([f"--workspace-directory={os.fspath(config.workspace_dir)}"] if config.workspace_dir else []),
-        *([f"--cache-directory={os.fspath(config.cache_dir)}"] if config.cache_dir else []),
-        f"--cache-key={config.cache_key or '-'}",
-        *([f"--package-cache-directory={os.fspath(p)}"] if (p := config.package_cache_dir) else []),
-        *([f"--local-mirror={config.local_mirror}"] if config.local_mirror else []),
-        f"--incremental={config.incremental}",
-        *(f"--profile={profile}" for profile in config.initrd_profiles),
-        *(f"--package={package}" for package in config.initrd_packages),
-        *(f"--volatile-package={package}" for package in config.initrd_volatile_packages),
-        *(f"--package-directory={d}" for d in config.package_directories),
-        *(f"--volatile-package-directory={d}" for d in config.volatile_package_directories),
-        "--output=initrd",
-        *([f"--image-id={config.image_id}"] if config.image_id else []),
-        *([f"--image-version={config.image_version}"] if config.image_version else []),
-        *(
-            [f"--source-date-epoch={config.source_date_epoch}"]
-            if config.source_date_epoch is not None else
-            []
-        ),
-        *([f"--locale={config.locale}"] if config.locale else []),
-        *([f"--locale-messages={config.locale_messages}"] if config.locale_messages else []),
-        *([f"--keymap={config.keymap}"] if config.keymap else []),
-        *([f"--timezone={config.timezone}"] if config.timezone else []),
-        *([f"--hostname={config.hostname}"] if config.hostname else []),
-        *([f"--root-password={rootpwopt}"] if rootpwopt else []),
-        *([f"--environment={k}='{v}'" for k, v in config.environment.items()]),
-        *([f"--tools-tree={os.fspath(config.tools_tree)}"] if config.tools_tree and tools else []),
-        f"--tools-tree-certificates={config.tools_tree_certificates}",
-        *([f"--extra-search-path={os.fspath(p)}" for p in config.extra_search_paths]),
-        *([f"--proxy-url={config.proxy_url}"] if config.proxy_url else []),
-        *([f"--proxy-exclude={host}" for host in config.proxy_exclude]),
-        *([f"--proxy-peer-certificate={os.fspath(p)}"] if (p := config.proxy_peer_certificate) else []),
-        *([f"--proxy-client-certificate={os.fspath(p)}"] if (p := config.proxy_client_certificate) else []),
-        *([f"--proxy-client-key={os.fspath(p)}"] if (p := config.proxy_client_key) else []),
-        f"--selinux-relabel={relabel}",
-        "--include=mkosi-initrd",
-    ]  # fmt: skip
-
-    _, _, [initrd] = parse_config(cmdline + ["build"], resources=resources)
-
-    run_configure_scripts(initrd)
-
-    initrd = dataclasses.replace(initrd, image="default-initrd")
-
-    if initrd.is_incremental() and initrd.expand_key_specifiers(
-        initrd.cache_key
-    ) == config.expand_key_specifiers(config.cache_key):
-        die(
-            f"Image '{config.image}' and its default initrd image have the same cache key '{config.expand_key_specifiers(config.cache_key)}'",  # noqa: E501
-            hint="Add the &I specifier to the cache key to avoid this issue",
-        )
-
-    return initrd
-
-
-def build_default_initrd(context: Context) -> Path:
-    if context.config.distribution == Distribution.custom:
-        die("Building a default initrd is not supported for custom distributions")
-
-    config = finalize_default_initrd(
-        context.config,
-        resources=context.resources,
-        output_dir=context.workspace,
-    )
-
-    assert config.output_dir
-
-    if config.is_incremental() and config.incremental == Incremental.strict and not have_cache(config):
-        die(
-            f"Strict incremental mode is enabled and cache for image {config.image} is out-of-date",
-            hint="Build once with -i yes to update the image cache",
-        )
-
-    config.output_dir.mkdir(exist_ok=True)
-
-    if (config.output_dir / config.output).exists():
-        return config.output_dir / config.output
-
-    with (
-        complete_step("Building default initrd"),
-        setup_workspace(context.args, config) as workspace,
-    ):
-        build_image(
-            Context(
-                context.args,
-                config,
-                workspace=workspace,
-                resources=context.resources,
-                # Reuse the keyring, repository metadata and local package repository from the main image for
-                # the default initrd.
-                keyring_dir=context.keyring_dir,
-                metadata_dir=context.metadata_dir,
-                package_dir=context.package_dir,
-            )
-        )
-
-    return config.output_dir / config.output
-
-
 def identify_cpu(root: Path) -> tuple[Optional[Path], Optional[Path]]:
     for entry in Path("/proc/cpuinfo").read_text().split("\n\n"):
         vendor_id = family = model = stepping = None
@@ -1574,7 +1438,8 @@ def build_microcode_initrd(context: Context) -> list[Path]:
 def finalize_kernel_modules_include(context: Context, *, include: Sequence[str], host: bool) -> set[str]:
     final = {i for i in include if i not in ("default", "host")}
     if "default" in include:
-        initrd = finalize_default_initrd(context.config, resources=context.resources)
+        with chdir(context.resources / "mkosi-initrd"):
+            _, _, [initrd] = parse_config([], resources=context.resources)
         final.update(initrd.kernel_modules_include)
     if host or "host" in include:
         final.update(loaded_modules())
@@ -2009,11 +1874,7 @@ def finalize_microcode(context: Context) -> list[Path]:
 
 
 def finalize_initrds(context: Context) -> list[Path]:
-    if context.config.initrds:
-        return context.config.initrds
-    elif any((context.artifacts / "io.mkosi.initrd").glob("*")):
-        return sorted((context.artifacts / "io.mkosi.initrd").iterdir())
-    return [build_default_initrd(context)]
+    return context.config.initrds + sorted((context.artifacts / "io.mkosi.initrd").glob("*"))
 
 
 def install_type1(
@@ -2294,17 +2155,7 @@ def install_kernel(context: Context, partitions: Sequence[Partition]) -> None:
     # single-file images have the benefit that they can be signed like normal EFI binaries, and can
     # encode everything necessary to boot a specific root device, including the root hash.
 
-    if context.config.output_format in (OutputFormat.uki, OutputFormat.esp):
-        return
-
-    if context.config.bootable == ConfigFeature.disabled:
-        return
-
-    if context.config.bootable == ConfigFeature.auto and (
-        context.config.output_format == OutputFormat.cpio
-        or context.config.output_format.is_extension_or_portable_image()
-        or context.config.overlay
-    ):
+    if not want_kernel(context.config):
         return
 
     stub = systemd_stub_binary(context)
@@ -2731,7 +2582,7 @@ def check_inputs(config: Config) -> None:
             ):
                 die(f"Must run as root to use disk images in {name} trees")
 
-    if config.output_format != OutputFormat.none and config.bootable != ConfigFeature.disabled:
+    if want_kernel(config):
         for p in config.initrds:
             if not p.exists():
                 die(f"Initrd {p} not found")
@@ -5038,9 +4889,6 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
         for config in images:
             run_clean(args, config)
 
-        if args.force > 0 and last.distribution != Distribution.custom:
-            remove_cache_entries(finalize_default_initrd(last, tools=False, resources=resources))
-
         rmtree(Path(".mkosi-private"))
 
         return
@@ -5172,12 +5020,6 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
     if needs_build(args, last) or args.wipe_build_dir:
         for config in images:
             run_clean(args, config)
-
-        if last.distribution != Distribution.custom:
-            initrd = finalize_default_initrd(last, resources=resources)
-
-            if args.force > 1 or not have_cache(initrd):
-                remove_cache_entries(initrd)
 
     for i, config in enumerate(images):
         if args.verb != Verb.build:

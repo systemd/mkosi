@@ -106,3 +106,7 @@ class Installer(debian.Installer):
                     locale.setlocale(locale.LC_TIME, lc)
 
         die("Release file is missing Date field")
+
+    @classmethod
+    def is_kernel_package(cls, package: str) -> bool:
+        return package.startswith("linux-")

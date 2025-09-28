@@ -471,3 +471,7 @@ class Installer(DistributionInstaller):
                 return snapshot
 
         die("composeinfo is missing compose ID field")
+
+    @classmethod
+    def is_kernel_package(cls, package: str) -> bool:
+        return package in ("kernel", "kernel-core")

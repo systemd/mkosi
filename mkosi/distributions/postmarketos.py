@@ -109,3 +109,8 @@ class Installer(DistributionInstaller):
             die(f"Architecture {a} is not supported by postmarketOS")
 
         return a
+
+    @classmethod
+    def is_kernel_package(cls, package: str) -> bool:
+        # TODO: Cover all of postmarketos's kernel packages.
+        return package == "linux-virt"
