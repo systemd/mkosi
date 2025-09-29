@@ -5786,6 +5786,8 @@ class JsonEncoder(json.JSONEncoder):
             return str(o)
         elif isinstance(o, (Args, Config)):
             return o.to_dict()
+        elif dataclasses.is_dataclass(o) and not isinstance(o, type):
+            return dataclasses.asdict(o)
         return super().default(o)
 
 
