@@ -112,5 +112,21 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def is_kernel_package(cls, package: str) -> bool:
-        # TODO: Cover all of postmarketos's kernel packages.
-        return package == "linux-virt"
+        if not package.startswith("linux-"):
+            return False
+
+        if package.endswith(("-doc", "-dev", "-manual")):
+            return False
+
+        # These pkgs end with many different things
+        if package.startswith(("linux-tools-", "linux-firmware-")):
+            return False
+
+        if package in {
+            "linux-timemachine",
+            "linux-headers",
+            "linux-apfs-rw-src",
+        }:
+            return False
+
+        return True
