@@ -8,7 +8,7 @@ import sys
 from collections.abc import Iterator
 from typing import Any, NoReturn, Optional
 
-from mkosi.sandbox import Style
+from mkosi.sandbox import Style, terminal_is_dumb
 
 # This global should be initialized after parsing arguments
 ARG_DEBUG = contextvars.ContextVar("debug", default=False)
@@ -32,8 +32,12 @@ def log_step(text: str) -> None:
         # De-emphasize this step here, so the user can tell more
         # easily which step generated the exception. The exception
         # or error will only be printed after we finish cleanup.
+        if not terminal_is_dumb():
+            print(f"\033]0;mkosi: {text}", file=sys.stderr)
         logging.info(f"{prefix}({text})")
     else:
+        if not terminal_is_dumb():
+            print(f"\033]0;mkosi: {text}", file=sys.stderr)
         logging.info(f"{prefix}{Style.bold}{text}{Style.reset}")
 
 
@@ -85,3 +89,17 @@ def log_setup(default_log_level: str = "info") -> None:
     logging.getLogger().setLevel(
         logging.getLevelName(os.getenv("SYSTEMD_LOG_LEVEL", default_log_level).upper())
     )
+
+
+@contextlib.contextmanager
+def stash_terminal_title() -> Iterator[None]:
+    try:
+        # push terminal window title to stack
+        if not terminal_is_dumb():
+            print("\033[22t", file=sys.stderr)
+
+        yield
+    finally:
+        # pop terminal window title from stack to reset
+        if not terminal_is_dumb():
+            print("\033[23t", file=sys.stderr)
