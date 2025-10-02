@@ -5120,6 +5120,8 @@ def finalize_default_initrd(
     for s in SETTINGS:
         if s.scope in (SettingScope.universal, SettingScope.multiversal):
             context.cli[s.dest] = copy.deepcopy(finalized[s.dest])
+        elif s.scope == SettingScope.inherit and s.dest in finalized:
+            context.config[s.dest] = copy.deepcopy(finalized[s.dest])
         elif s.scope == SettingScope.initrd:
             # If the setting was specified on the CLI for the main config, we treat it as specified on the
             # CLI for the default initrd as well. Idem for config and defaults.
