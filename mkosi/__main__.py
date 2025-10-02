@@ -10,7 +10,7 @@ from typing import Optional
 import mkosi.resources
 from mkosi import run_verb
 from mkosi.config import parse_config
-from mkosi.log import log_setup
+from mkosi.log import log_setup, stash_terminal_title
 from mkosi.run import find_binary, run, uncaught_exception_handler
 from mkosi.util import resource_path
 
@@ -34,7 +34,7 @@ def main() -> None:
 
     log_setup()
 
-    with resource_path(mkosi.resources) as resources:
+    with resource_path(mkosi.resources) as resources, stash_terminal_title():
         args, tools, images = parse_config(sys.argv[1:], resources=resources)
 
         if args.debug:
