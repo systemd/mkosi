@@ -133,4 +133,4 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def is_kernel_package(cls, package: str) -> bool:
-        return package in ("kernel", "linux-lts", "linux-zen", "linux-hardened", "linux-rt", "linux-rt-lts")
+        return package in ("linux", "linux-lts", "linux-zen", "linux-hardened", "linux-rt", "linux-rt-lts")
