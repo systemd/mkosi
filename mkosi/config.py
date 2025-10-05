@@ -5425,10 +5425,14 @@ def parse_config(
             )
 
         subimages = [
-            dataclasses.replace(
-                image,
-                initrds=[*image.initrds, initrd.output_dir_or_cwd() / initrd.output],
-                dependencies=image.dependencies + [initrd.image],
+            (
+                dataclasses.replace(
+                    image,
+                    initrds=[*image.initrds, initrd.output_dir_or_cwd() / initrd.output],
+                    dependencies=image.dependencies + [initrd.image],
+                )
+                if want_default_initrd(image)
+                else image
             )
             for image in subimages
         ]
