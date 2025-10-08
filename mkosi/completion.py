@@ -147,7 +147,9 @@ def finalize_completion_bash(options: list[CompletionItem], resources: Path) -> 
 
 def finalize_completion_fish(options: list[CompletionItem], resources: Path) -> str:
     with io.StringIO() as c:
+        # REUSE-IgnoreStart
         c.write("# SPDX-License-Identifier: LGPL-2.1-or-later\n\n")
+        # REUSE-IgnoreEnd
         c.write("complete -c mkosi -f\n")
 
         c.write("complete -c mkosi -n '__fish_is_first_token' -a \"")
