@@ -2651,6 +2651,13 @@ def check_inputs(config: Config) -> None:
                 hint="Use Profile= to configure the profile ID",
             )
 
+    if (
+        config.cacheonly not in (Cacheonly.never, Cacheonly.auto)
+        and not config.cache_dir
+        and config.package_cache_dir_or_default() != Path("/var")
+    ):
+        die(f"A cache directory must be configured in order to use CacheOnly={config.cacheonly}")
+
 
 def check_tool(config: Config, *tools: PathString, reason: str, hint: Optional[str] = None) -> Path:
     tool = config.find_binary(*tools)
@@ -4690,10 +4697,8 @@ def sync_repository_metadata(
     (last.package_cache_dir_or_default() / "cache" / subdir).mkdir(parents=True, exist_ok=True)
 
     # Sync repository metadata unless explicitly disabled.
-    if (
-        not last.cache_dir
-        or last.cacheonly == Cacheonly.never
-        or (last.cacheonly == Cacheonly.auto and not any(have_cache(config) for config in images))
+    if last.cacheonly == Cacheonly.never or (
+        last.cacheonly == Cacheonly.auto and not any(have_cache(config) for config in images)
     ):
         with setup_workspace(args, last) as workspace:
             context = Context(
