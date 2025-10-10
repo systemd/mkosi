@@ -45,6 +45,10 @@ class DistributionInstaller:
         raise NotImplementedError
 
     @classmethod
+    def finalize(cls, context: "Context") -> None:
+        raise NotImplementedError
+
+    @classmethod
     def filesystem(cls) -> str:
         return "ext4"
 
@@ -137,6 +141,9 @@ class Distribution(StrEnum):
 
     def install(self, context: "Context") -> None:
         return self.installer().install(context)
+
+    def finalize(self, context: "Context") -> None:
+        return self.installer().finalize(context)
 
     def filesystem(self) -> str:
         return self.installer().filesystem()
