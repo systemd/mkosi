@@ -278,9 +278,9 @@ def seccomp_suppress(*, chown: bool = False, sync: bool = False) -> None:
             if r < 0:
                 oserror("seccomp_rule_add_exact", errno=r)
 
-            r = libseccomp.seccomp_load(seccomp)
-            if r < 0:
-                oserror("seccomp_load", errno=r)
+        r = libseccomp.seccomp_load(seccomp)
+        if r < 0:
+            oserror("seccomp_load", errno=r)
     finally:
         libseccomp.seccomp_release(seccomp)
 
