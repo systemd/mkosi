@@ -1294,13 +1294,13 @@ def gzip_binary(context: Context) -> str:
 
 
 def kernel_get_ver_from_modules(context: Context) -> Optional[str]:
-    # Try to get version from the first dir under usr/lib/modules but fail if multiple versions are found
-    versions = [
+    # Try to get version from the first dir under usr/lib/modules, warn if multiple versions are found
+    versions = sorted(
         p.name for p in (context.root / "usr/lib/modules").glob("*") if KERNEL_VERSION_PATTERN.match(p.name)
-    ]
+    )
     if len(versions) > 1:
-        die(
-            "Multiple kernel module directories found in /usr/lib/modules, unable to determine correct version to use"  # noqa: E501
+        logging.warning(
+            f"Multiple kernel module directories found in /usr/lib/modules, determining version from first: {versions[0]}"  # noqa: E501
         )
     elif len(versions) == 0:
         return None
