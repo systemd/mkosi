@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Final, Optional
 
-from mkosi.config import PACKAGE_GLOBS, Config, ConfigFeature
+from mkosi.config import Config, ConfigFeature
 from mkosi.context import Context
 from mkosi.installer import PackageManager
 from mkosi.log import die
@@ -58,6 +58,10 @@ class Apt(PackageManager):
     @classmethod
     def package_subdirs(cls, cache: Path) -> list[tuple[Path, Path]]:
         return [(Path("archives"), Path("archives"))]
+
+    @classmethod
+    def package_globs(cls) -> list[str]:
+        return ["*.deb", "*.ddeb"]
 
     @classmethod
     def state_subdirs(cls, state: Path) -> list[Path]:
@@ -286,7 +290,7 @@ class Apt(PackageManager):
 
     @classmethod
     def createrepo(cls, context: Context) -> None:
-        names = [d.name for glob in PACKAGE_GLOBS for d in context.repository.glob(glob) if "deb" in glob]
+        names = [d.name for glob in cls.package_globs() for d in context.repository.glob(glob)]
         if not names:
             return
 

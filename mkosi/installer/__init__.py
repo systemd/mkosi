@@ -26,6 +26,10 @@ class PackageManager:
         return []
 
     @classmethod
+    def package_globs(cls) -> list[str]:
+        return []
+
+    @classmethod
     def state_subdirs(cls, state: Path) -> list[Path]:
         return []
 

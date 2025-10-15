@@ -43,6 +43,10 @@ class Dnf(PackageManager):
         ]
 
     @classmethod
+    def package_globs(cls) -> list[str]:
+        return ["*.rpm"]
+
+    @classmethod
     def scripts(cls, context: Context) -> dict[str, list[PathString]]:
         return {
             "dnf": cls.apivfs_script_cmd(context) + cls.env_cmd(context) + cls.cmd(context),

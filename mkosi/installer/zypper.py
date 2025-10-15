@@ -27,6 +27,10 @@ class Zypper(PackageManager):
         return [(Path("packages"), Path("packages"))]
 
     @classmethod
+    def package_globs(cls) -> list[str]:
+        return ["*.rpm"]
+
+    @classmethod
     def scripts(cls, context: Context) -> dict[str, list[PathString]]:
         install: list[PathString] = [
             "zypper",

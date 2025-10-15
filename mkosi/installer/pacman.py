@@ -39,6 +39,10 @@ class Pacman(PackageManager):
         return [(Path("pkg"), Path("pkg"))]
 
     @classmethod
+    def package_globs(cls) -> list[str]:
+        return ["*.pkg.tar"]
+
+    @classmethod
     def state_subdirs(cls, state: Path) -> list[Path]:
         return [state / "sync"]
 
