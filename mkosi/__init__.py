@@ -1309,6 +1309,17 @@ def kernel_get_ver_from_modules(context: Context) -> Optional[str]:
 
 
 def fixup_vmlinuz_location(context: Context) -> None:
+    modulesd = Path("usr/lib/modules")
+
+    if not (context.root / modulesd).exists():
+        return
+
+    # Don't touch anything if all the modules directories contain a kernel image already.
+    if all(
+        (d / "vmlinuz").is_file() or (d / "vmlinux").is_file() for d in (context.root / modulesd).iterdir()
+    ):
+        return
+
     # Some architectures ship an uncompressed vmlinux (ppc64el, riscv64)
     for type in ("vmlinuz", "vmlinux"):
         for d in context.root.glob(f"boot/{type}-*"):
