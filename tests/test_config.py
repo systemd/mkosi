@@ -1578,3 +1578,75 @@ def test_subdir(tmp_path: Path) -> None:
 
         _, _, [config] = parse_config()
         assert config.output == "abc"
+
+
+def test_assert(tmp_path: Path) -> None:
+    d = tmp_path
+
+    with chdir(d):
+        (d / "mkosi.conf").write_text(
+            """
+            [Assert]
+            ImageId=abcde
+            """
+        )
+
+        with pytest.raises(SystemExit):
+            parse_config()
+
+        # Does not raise, i.e. parses successfully, but we don't care for the content.
+        parse_config(["--image-id", "abcde"])
+
+        (d / "mkosi.conf").write_text(
+            """
+            [Assert]
+            ImageId=abcde
+
+            [Assert]
+            Environment=ABC=QED
+            """
+        )
+
+        with pytest.raises(SystemExit):
+            parse_config([])
+        with pytest.raises(SystemExit):
+            parse_config(["--image-id", "abcde"])
+        with pytest.raises(SystemExit):
+            parse_config(["--environment", "ABC=QED"])
+
+        parse_config(["--image-id", "abcde", "--environment", "ABC=QED"])
+
+        (d / "mkosi.conf").write_text(
+            """
+            [TriggerAssert]
+            ImageId=abcde
+
+            [TriggerAssert]
+            Environment=ABC=QED
+            """
+        )
+
+        with pytest.raises(SystemExit):
+            parse_config()
+
+        parse_config(["--image-id", "abcde"])
+        parse_config(["--environment", "ABC=QED"])
+
+        (d / "mkosi.conf").write_text(
+            """
+            [Assert]
+            ImageId=abcde
+
+            [TriggerAssert]
+            Environment=ABC=QED
+
+            [TriggerAssert]
+            Environment=DEF=QEE
+            """
+        )
+
+        with pytest.raises(SystemExit):
+            parse_config()
+
+        parse_config(["--image-id", "abcde", "--environment", "ABC=QED"])
+        parse_config(["--image-id", "abcde", "--environment", "DEF=QEE"])
