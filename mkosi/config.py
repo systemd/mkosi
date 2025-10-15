@@ -2566,7 +2566,7 @@ def parse_ini(path: Path, only_sections: Collection[str] = ()) -> Iterator[tuple
     if section and setting and value is not None:
         yield section, setting, value
 
-    if section:
+    if section and (not only_sections or section in only_sections):
         yield section, "", ""
 
 
@@ -4808,7 +4808,7 @@ class ParseContext:
 
         return default
 
-    def match_config(self, path: Path) -> bool:
+    def match_config(self, path: Path, asserts: bool = False) -> bool:
         condition_triggered: Optional[bool] = None
         match_triggered: Optional[bool] = None
         skip = False
@@ -4818,12 +4818,17 @@ class ParseContext:
         if not path.exists():
             return True
 
-        for section, k, v in parse_ini(path, only_sections=["Match", "TriggerMatch"]):
-            if not k and not v:
-                if section == "Match" and condition_triggered is False:
-                    return False
+        sections = ("Assert", "TriggerAssert") if asserts else ("Match", "TriggerMatch")
 
-                if section == "TriggerMatch":
+        for section, k, v in parse_ini(path, only_sections=sections):
+            if not k and not v:
+                if condition_triggered is False:
+                    if section == "Assert":
+                        die(f"{path.absolute()}: Trigger condition in [Assert] section was not satisfied")
+                    elif section == "Match":
+                        return False
+
+                if section in ("TriggerAssert", "TriggerMatch"):
                     match_triggered = bool(match_triggered) or condition_triggered is not False
 
                 condition_triggered = None
@@ -4833,6 +4838,7 @@ class ParseContext:
             if skip:
                 continue
 
+            raw = v
             trigger = v.startswith("|")
             v = v.removeprefix("|")
             negate = v.startswith("!")
@@ -4867,14 +4873,20 @@ class ParseContext:
             if negate:
                 result = not result
             if not trigger and not result:
-                if section == "TriggerMatch":
+                if section.startswith("Trigger"):
                     skip = True
                     condition_triggered = False
                     continue
 
+                if asserts:
+                    die(f"{path.absolute()}: {k}={raw} in [Assert] section was not satisfied")
+
                 return False
             if trigger:
                 condition_triggered = bool(condition_triggered) or result
+
+        if match_triggered is False and asserts:
+            die(f"{path.absolute()}: None of the [TriggerAssert] sections was satisfied")
 
         return match_triggered is not False
 
@@ -4888,6 +4900,8 @@ class ParseContext:
 
         if not self.match_config(path):
             return False
+
+        self.match_config(path, asserts=True)
 
         if extras:
             if parse_local:

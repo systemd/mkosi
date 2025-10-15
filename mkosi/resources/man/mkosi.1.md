@@ -466,6 +466,12 @@ matches. The absence of match sections is valued as true. Logically this means:
 (⋀ᵢ Matchᵢ) ∧ (⋁ᵢ TriggerMatchᵢ)
 ```
 
+There is also support for `[Assert]` and `[TriggerAssert]` sections which
+behave identically to match sections except parsing configuration will
+fail if the assert sections are not satisfied, i.e. all `[Assert]`
+sections in a file as well as at least one `[TriggertAssert]` section
+have to be satisfied or config parsing will fail.
+
 Command line options that take no argument are shown without `=` in
 their long version. In the config files, they should be specified with a
 boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
