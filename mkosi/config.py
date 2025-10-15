@@ -5221,6 +5221,9 @@ def want_default_initrd(config: Config) -> bool:
     if not want_kernel(config):
         return False
 
+    if config.initrds:
+        return False
+
     if config.bootable == ConfigFeature.auto and not any(
         config.distribution.is_kernel_package(p)
         for p in itertools.chain(config.packages, config.volatile_packages)
