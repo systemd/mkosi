@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
+
 from collections.abc import Iterator
 from typing import Any, cast
 

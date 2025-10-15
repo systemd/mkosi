@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
-
 import os
 import tempfile
 from pathlib import Path
