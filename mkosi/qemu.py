@@ -28,6 +28,7 @@ from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import Optional
 
+from mkosi.bootloader import KernelType
 from mkosi.config import (
     Args,
     Config,
@@ -155,34 +156,6 @@ def find_unused_vsock_cid(config: Config, vfd: int) -> int:
             return cid
 
     die("Failed to find an unused VSock connection ID")
-
-
-class KernelType(StrEnum):
-    pe = enum.auto()
-    uki = enum.auto()
-    unknown = enum.auto()
-
-    @classmethod
-    def identify(cls, config: Config, path: Path) -> "KernelType":
-        if not config.find_binary("bootctl"):
-            logging.warning("bootctl is not installed, assuming 'unknown' kernel type")
-            return KernelType.unknown
-
-        if (v := systemd_tool_version("bootctl", sandbox=config.sandbox)) < 253:
-            logging.warning(f"bootctl {v} doesn't know kernel-identify verb, assuming 'unknown' kernel type")
-            return KernelType.unknown
-
-        type = run(
-            ["bootctl", "kernel-identify", workdir(path)],
-            stdout=subprocess.PIPE,
-            sandbox=config.sandbox(options=["--ro-bind", path, workdir(path)]),
-        ).stdout.strip()
-
-        try:
-            return cls(type)
-        except ValueError:
-            logging.warning(f"Unknown kernel type '{type}', assuming 'unknown'")
-            return KernelType.unknown
 
 
 def find_qemu_binary(config: Config) -> Path:

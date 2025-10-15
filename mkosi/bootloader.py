@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
+import enum
 import itertools
 import logging
 import os
@@ -30,11 +31,50 @@ from mkosi.context import Context
 from mkosi.distributions import Distribution
 from mkosi.log import complete_step, die, log_step
 from mkosi.partition import Partition
-from mkosi.qemu import KernelType
 from mkosi.run import CompletedProcess, run, workdir
 from mkosi.sandbox import umask
-from mkosi.util import _FILE, PathString, flatten
+from mkosi.util import _FILE, PathString, StrEnum, flatten
 from mkosi.versioncomp import GenericVersion
+
+
+class KernelType(StrEnum):
+    pe = enum.auto()
+    uki = enum.auto()
+    addon = enum.auto()
+    unknown = enum.auto()
+
+    @classmethod
+    def identify(cls, config: Config, path: Path) -> "KernelType":
+        pefile = textwrap.dedent(
+            f"""\
+            import pefile
+
+            try:
+                pe = pefile.PE("{workdir(path)}", fast_load=True)
+                sections = {{s.Name.decode().strip("\\0") for s in pe.sections}}
+
+                if all(s in sections for s in (".linux", ".sdmagic", ".osrel")):
+                    print("{KernelType.uki}")
+                elif (
+                    all(s in sections for s in (".linux", ".sdmagic")) and
+                    any(s in sections for s in (".cmdline", ".dtb", ".initrd", ".ucode"))
+                ):
+                    print("{KernelType.addon}")
+                else:
+                    print("{KernelType.pe}")
+            except pefile.PEFormatError:
+                print("{KernelType.unknown}")
+            """
+        )
+
+        result = run(
+            [python_binary(config)],
+            input=pefile,
+            stdout=subprocess.PIPE,
+            sandbox=config.sandbox(options=["--ro-bind", path, workdir(path)]),
+        )
+
+        return KernelType(result.stdout.strip())
 
 
 def want_efi(config: Config) -> bool:

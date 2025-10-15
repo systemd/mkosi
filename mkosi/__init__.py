@@ -29,6 +29,7 @@ from typing import Any, Optional, Union, cast
 
 from mkosi.archive import can_extract_tar, extract_tar, make_cpio, make_tar
 from mkosi.bootloader import (
+    KernelType,
     efi_boot_binary,
     extract_pe_section,
     gen_kernel_images,
@@ -106,7 +107,6 @@ from mkosi.mounts import (
 from mkosi.pager import page
 from mkosi.partition import Partition, finalize_root, finalize_roothash
 from mkosi.qemu import (
-    KernelType,
     copy_ephemeral,
     finalize_credentials,
     finalize_kernel_command_line_extra,
