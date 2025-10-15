@@ -1882,15 +1882,6 @@ class Args:
         return dataclasses.replace(cls.default(), **{k: v for k, v in j.items() if k in cls.fields()})
 
 
-PACKAGE_GLOBS = (
-    "*.rpm",
-    "*.pkg.tar*",
-    "*.deb",
-    "*.ddeb",
-    "*.apk",
-)
-
-
 @dataclasses.dataclass(frozen=True)
 class UKIProfile:
     profile: dict[str, str]
@@ -2375,7 +2366,9 @@ class Config:
             "package_directories": [
                 (p.name, p.stat().st_mtime_ns)
                 for d in self.package_directories
-                for p in sorted(flatten(d.glob(glob) for glob in PACKAGE_GLOBS))
+                for p in sorted(
+                    flatten(d.glob(glob) for glob in self.distribution.package_manager(self).package_globs())
+                )
             ],
             "repositories": sorted(self.repositories),
             "overlay": self.overlay,

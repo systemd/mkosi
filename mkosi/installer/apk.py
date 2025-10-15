@@ -32,6 +32,10 @@ class Apk(PackageManager):
         return [(Path("."), Path("."))]
 
     @classmethod
+    def package_globs(cls) -> list[str]:
+        return ["*.apk"]
+
+    @classmethod
     def scripts(cls, context: Context) -> dict[str, list[PathString]]:
         return {
             "apk": cls.apivfs_script_cmd(context) + cls.env_cmd(context) + cls.cmd(context),

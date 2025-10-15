@@ -48,7 +48,6 @@ from mkosi.bootloader import (
 from mkosi.burn import run_burn
 from mkosi.completion import print_completion
 from mkosi.config import (
-    PACKAGE_GLOBS,
     Args,
     ArtifactOutput,
     Cacheonly,
@@ -1263,7 +1262,10 @@ def install_package_directories(context: Context, directories: Sequence[Path]) -
 
     with complete_step("Copying in extra packages…"):
         for d in directories:
-            for p in itertools.chain(*(d.glob(glob) for glob in PACKAGE_GLOBS)):
+            for p in itertools.chain.from_iterable(
+                d.glob(glob)
+                for glob in context.config.distribution.package_manager(context.config).package_globs()
+            ):
                 shutil.copy(p, context.repository, follow_symlinks=True)
 
 
