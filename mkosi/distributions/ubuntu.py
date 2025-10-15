@@ -21,7 +21,7 @@ class Installer(debian.Installer):
 
     @classmethod
     def default_release(cls) -> str:
-        return "noble"
+        return "devel"
 
     @classmethod
     def default_tools_tree_distribution(cls) -> Distribution:
