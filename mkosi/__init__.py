@@ -1318,7 +1318,14 @@ def fixup_vmlinuz_location(context: Context) -> None:
             # Extract kernel version pattern from filename
             filename = d.name.removeprefix(f"{type}-")
             match = KERNEL_VERSION_PATTERN.search(filename)
-            kver = match.group(0) if match else kernel_get_ver_from_modules(context)
+
+            kver: Optional[str]
+            if match:
+                kver = match.group(0)
+            else:
+                logging.debug(f"Could not extract kernel version from {filename}, checking /usr/lib/modules")
+                kver = kernel_get_ver_from_modules(context)
+
             if kver is None:
                 logging.debug("Unable to get kernel version from modules directory")
                 continue
