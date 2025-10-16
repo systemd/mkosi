@@ -24,11 +24,15 @@ class Installer(debian.Installer, distribution=Distribution.kali):
         return Distribution.kali
 
     @classmethod
-    def repositories(cls, context: Context, local: bool = True) -> Iterable[AptRepository]:
-        if context.config.snapshot:
+    def repositories(cls, context: Context, for_image: bool = False) -> Iterable[AptRepository]:
+        mirror = None if for_image else context.config.mirror
+        if not mirror:
+            mirror = "http://http.kali.org/kali"
+
+        if context.config.snapshot and not for_image:
             die(f"Snapshot= is not supported for {cls.pretty_name()}")
 
-        if context.config.local_mirror and local:
+        if context.config.local_mirror and not for_image:
             yield AptRepository(
                 types=("deb",),
                 url=context.config.local_mirror,
@@ -40,7 +44,7 @@ class Installer(debian.Installer, distribution=Distribution.kali):
 
         yield AptRepository(
             types=("deb", "deb-src"),
-            url=context.config.mirror or "http://http.kali.org/kali",
+            url=mirror,
             suite=context.config.release,
             components=("main", *context.config.repositories),
             signedby=Path("/usr/share/keyrings/kali-archive-keyring.gpg"),

@@ -137,7 +137,7 @@ class Installer(DistributionInstaller, distribution=Distribution.fedora):
 
     @classmethod
     def install(cls, context: Context) -> None:
-        Dnf.install(context, ["basesystem"], apivfs=False)
+        cls.install_packages(context, ["basesystem"], apivfs=False)
 
     @classmethod
     def repositories(cls, context: Context) -> Iterable[RpmRepository]:

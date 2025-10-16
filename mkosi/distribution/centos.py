@@ -79,7 +79,7 @@ class Installer(DistributionInstaller, distribution=Distribution.centos):
 
     @classmethod
     def install(cls, context: Context) -> None:
-        Dnf.install(context, ["basesystem"], apivfs=False)
+        cls.install_packages(context, ["basesystem"], apivfs=False)
 
     @classmethod
     def architecture(cls, arch: Architecture) -> str:
