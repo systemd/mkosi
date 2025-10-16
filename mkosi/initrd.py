@@ -14,11 +14,12 @@ from pathlib import Path
 from typing import Optional, cast
 
 import mkosi.resources
+from mkosi._version import __version__
 from mkosi.config import DocFormat, InitrdProfile, OutputFormat
 from mkosi.documentation import show_docs
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, die, log_notice, log_setup
 from mkosi.run import find_binary, run, uncaught_exception_handler
-from mkosi.sandbox import __version__, umask
+from mkosi.sandbox import umask
 from mkosi.tree import copy_tree, move_tree, rmtree
 from mkosi.util import PathString, mandatory_variable, resource_path
 
