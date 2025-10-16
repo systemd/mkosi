@@ -62,7 +62,7 @@ class Installer(DistributionInstaller, distribution=Distribution.arch):
 
     @classmethod
     def install(cls, context: Context) -> None:
-        Pacman.install(context, ["filesystem"], apivfs=False)
+        cls.install_packages(context, ["filesystem"], apivfs=False)
 
     @classmethod
     def repositories(cls, context: Context) -> Iterable[PacmanRepository]:

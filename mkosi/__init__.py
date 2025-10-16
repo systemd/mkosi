@@ -268,7 +268,7 @@ def install_distribution(context: Context) -> None:
         with complete_step(
             f"Installing extra packages for {context.config.distribution.installer.pretty_name()}"
         ):
-            context.config.distribution.installer.package_manager(context.config).install(context, packages)
+            context.config.distribution.installer.install_packages(context, packages)
     else:
         if context.config.overlay or context.config.output_format.is_extension_image():
             if packages:
@@ -307,9 +307,7 @@ def install_distribution(context: Context) -> None:
                 (context.root / "boot/loader/entries.srel").write_text("type1\n")
 
             if packages:
-                context.config.distribution.installer.package_manager(context.config).install(
-                    context, packages
-                )
+                context.config.distribution.installer.install_packages(context, packages)
 
     for f in (
         "var/lib/systemd/random-seed",
@@ -333,9 +331,7 @@ def install_build_packages(context: Context) -> None:
         ),
         setup_build_overlay(context),
     ):
-        context.config.distribution.installer.package_manager(context.config).install(
-            context, context.config.build_packages
-        )
+        context.config.distribution.installer.install_packages(context, context.config.build_packages)
 
 
 def install_volatile_packages(context: Context) -> None:
@@ -345,7 +341,7 @@ def install_volatile_packages(context: Context) -> None:
     with complete_step(
         f"Installing volatile packages for {context.config.distribution.installer.pretty_name()}"
     ):
-        context.config.distribution.installer.package_manager(context.config).install(
+        context.config.distribution.installer.install_packages(
             context, context.config.volatile_packages, allow_downgrade=True
         )
 

@@ -28,15 +28,17 @@ class Installer(debian.Installer, distribution=Distribution.ubuntu):
         return Distribution.debian
 
     @classmethod
-    def repositories(cls, context: Context, local: bool = True) -> Iterable[AptRepository]:
+    def repositories(cls, context: Context, for_image: bool = False) -> Iterable[AptRepository]:
         types = ("deb", "deb-src")
+        mirror = None if for_image else context.config.mirror
+        snapshot = None if for_image else context.config.snapshot
 
         components = (
             "main",
             *context.config.repositories,
         )
 
-        if context.config.local_mirror and local:
+        if context.config.local_mirror and not for_image:
             yield AptRepository(
                 types=("deb",),
                 url=context.config.local_mirror,
@@ -46,10 +48,12 @@ class Installer(debian.Installer, distribution=Distribution.ubuntu):
             )
             return
 
-        if context.config.architecture.is_x86_variant():
-            mirror = context.config.mirror or "http://archive.ubuntu.com/ubuntu"
+        if mirror:
+            pass
+        elif context.config.architecture.is_x86_variant():
+            mirror = "http://archive.ubuntu.com/ubuntu"
         else:
-            mirror = context.config.mirror or "http://ports.ubuntu.com"
+            mirror = "http://ports.ubuntu.com"
 
         signedby = Path("/usr/share/keyrings/ubuntu-archive-keyring.gpg")
 
@@ -59,7 +63,7 @@ class Installer(debian.Installer, distribution=Distribution.ubuntu):
             suite=context.config.release,
             components=components,
             signedby=signedby,
-            snapshot=context.config.snapshot,
+            snapshot=snapshot,
         )
 
         yield AptRepository(
@@ -68,7 +72,7 @@ class Installer(debian.Installer, distribution=Distribution.ubuntu):
             suite=f"{context.config.release}-updates",
             components=components,
             signedby=signedby,
-            snapshot=context.config.snapshot,
+            snapshot=snapshot,
         )
 
         # Security updates repos are never mirrored. But !x86 are on the ports server.
@@ -83,7 +87,7 @@ class Installer(debian.Installer, distribution=Distribution.ubuntu):
             suite=f"{context.config.release}-security",
             components=components,
             signedby=signedby,
-            snapshot=context.config.snapshot,
+            snapshot=snapshot,
         )
 
     @classmethod

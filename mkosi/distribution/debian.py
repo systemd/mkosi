@@ -1,9 +1,8 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
-import itertools
 import json
 import tempfile
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import cast
 
@@ -40,11 +39,13 @@ class Installer(DistributionInstaller, distribution=Distribution.debian):
         return Apt
 
     @classmethod
-    def repositories(cls, context: Context, local: bool = True) -> Iterable[AptRepository]:
+    def repositories(cls, context: Context, for_image: bool = False) -> Iterable[AptRepository]:
         types = ("deb", "deb-src")
         components = ("main", *context.config.repositories)
+        mirror = None if for_image else context.config.mirror
+        snapshot = None if for_image else context.config.snapshot
 
-        if context.config.local_mirror and local:
+        if context.config.local_mirror and not for_image:
             yield AptRepository(
                 types=("deb",),
                 url=context.config.local_mirror,
@@ -54,15 +55,15 @@ class Installer(DistributionInstaller, distribution=Distribution.debian):
             )
             return
 
-        if context.config.mirror:
-            mirror = context.config.mirror
-        elif context.config.snapshot:
+        if mirror:
+            pass
+        elif snapshot:
             mirror = "https://snapshot.debian.org"
         else:
             mirror = "http://deb.debian.org"
 
-        if context.config.snapshot:
-            url = join_mirror(mirror, f"archive/debian/{context.config.snapshot}")
+        if snapshot:
+            url = join_mirror(mirror, f"archive/debian/{snapshot}")
         else:
             url = join_mirror(mirror, "debian")
 
@@ -77,8 +78,8 @@ class Installer(DistributionInstaller, distribution=Distribution.debian):
         )
 
         # Debug repos are typically not mirrored.
-        if context.config.snapshot:
-            url = join_mirror(mirror, f"archive/debian-debug/{context.config.snapshot}")
+        if snapshot:
+            url = join_mirror(mirror, f"archive/debian-debug/{snapshot}")
         else:
             url = join_mirror(mirror, "debian-debug")
 
@@ -93,7 +94,7 @@ class Installer(DistributionInstaller, distribution=Distribution.debian):
         if context.config.release in ("unstable", "sid"):
             return
 
-        if not context.config.snapshot:
+        if not snapshot:
             yield AptRepository(
                 types=types,
                 url=join_mirror(mirror, "debian"),
@@ -103,8 +104,8 @@ class Installer(DistributionInstaller, distribution=Distribution.debian):
             )
 
         # Security updates repos are never mirrored.
-        if context.config.snapshot:
-            url = join_mirror(mirror, f"archive/debian-security/{context.config.snapshot}")
+        if snapshot:
+            url = join_mirror(mirror, f"archive/debian-security/{snapshot}")
         else:
             url = join_mirror(mirror, "debian-security")
 
@@ -210,15 +211,25 @@ class Installer(DistributionInstaller, distribution=Distribution.debian):
         # Finally, run apt to properly install packages in the chroot without having to worry that maintainer
         # scripts won't find basic tools that they depend on.
 
-        Apt.install(context, [Path(deb).name.partition("_")[0].removesuffix(".deb") for deb in essential])
+        cls.install_packages(
+            context, [Path(deb).name.partition("_")[0].removesuffix(".deb") for deb in essential]
+        )
 
         fixup_os_release(context)
 
-        if (
-            "apt" in itertools.chain(context.config.packages, context.config.volatile_packages)
-            or (context.root / "usr/bin/apt").exists()
-        ):
-            install_apt_sources(context, cls.repositories(context, local=False))
+    @classmethod
+    def install_packages(
+        cls,
+        context: Context,
+        packages: Sequence[str],
+        *,
+        apivfs: bool = True,
+        allow_downgrade: bool = False,
+    ) -> None:
+        super().install_packages(context, packages, apivfs=apivfs, allow_downgrade=allow_downgrade)
+
+        if "apt" in packages:
+            install_apt_sources(context, cls.repositories(context, for_image=True))
 
     @classmethod
     def architecture(cls, arch: Architecture) -> str:

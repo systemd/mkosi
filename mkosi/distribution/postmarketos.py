@@ -71,7 +71,7 @@ class Installer(DistributionInstaller, distribution=Distribution.postmarketos):
             (context.root / "usr" / dir).mkdir(parents=True, exist_ok=True)
             (context.root / dir).symlink_to(f"usr/{dir}")
 
-        Apk.install(context, ["postmarketos-baselayout", "postmarketos-release"], apivfs=False)
+        cls.install_packages(context, ["postmarketos-baselayout", "postmarketos-release"], apivfs=False)
 
     @classmethod
     def repositories(cls, context: Context) -> Iterable[ApkRepository]:

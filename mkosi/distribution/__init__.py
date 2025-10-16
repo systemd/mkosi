@@ -3,6 +3,7 @@
 import enum
 import importlib
 import urllib.parse
+from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
@@ -100,6 +101,22 @@ class DistributionInstaller:
     @classmethod
     def install(cls, context: "Context") -> None:
         raise NotImplementedError
+
+    @classmethod
+    def install_packages(
+        cls,
+        context: "Context",
+        packages: Sequence[str],
+        *,
+        apivfs: bool = True,
+        allow_downgrade: bool = False,
+    ) -> None:
+        return cls.package_manager(context.config).install(
+            context,
+            packages,
+            apivfs=apivfs,
+            allow_downgrade=allow_downgrade,
+        )
 
     @classmethod
     def filesystem(cls) -> str:
