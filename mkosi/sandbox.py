@@ -133,11 +133,12 @@ def is_main() -> bool:
     return __name__ == "__main__"
 
 
-def oserror(syscall: str, filename: str = "") -> None:
-    if ctypes.get_errno() == ENOSYS and is_main():
+def oserror(syscall: str, filename: str = "", errno: int = 0) -> None:
+    errno = abs(errno) or ctypes.get_errno()
+    if errno == ENOSYS and is_main():
         print(ENOSYS_MSG.format(syscall=syscall, kver=os.uname().version), file=sys.stderr)
 
-    raise OSError(ctypes.get_errno(), os.strerror(ctypes.get_errno()), filename or None)
+    raise OSError(ctypes.get_errno(), os.strerror(errno), filename or None)
 
 
 def unshare(flags: int) -> None:
@@ -270,9 +271,16 @@ def seccomp_suppress(*, chown: bool = False, sync: bool = False) -> None:
     try:
         for syscall in suppress:
             id = libseccomp.seccomp_syscall_resolve_name(syscall)
-            libseccomp.seccomp_rule_add_exact(seccomp, SCMP_ACT_ERRNO, id, 0)
+            if id < 0:
+                continue
 
-            libseccomp.seccomp_load(seccomp)
+            r = libseccomp.seccomp_rule_add_exact(seccomp, SCMP_ACT_ERRNO, id, 0)
+            if r < 0:
+                oserror("seccomp_rule_add_exact", errno=r)
+
+        r = libseccomp.seccomp_load(seccomp)
+        if r < 0:
+            oserror("seccomp_load", errno=r)
     finally:
         libseccomp.seccomp_release(seccomp)
 
