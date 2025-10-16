@@ -489,14 +489,18 @@ def sandbox_cmd(
             *network_options(network=network),
         ]  # fmt: skip
 
-        if overlay and (overlay / "usr").exists():
-            cmdline += [
-                "--overlay-lowerdir", tools / "usr",
-                "--overlay-lowerdir", overlay / "usr",
-                "--overlay", "/usr",
-            ]  # fmt: skip
-        else:
-            cmdline += ["--ro-bind", tools / "usr", "/usr"]
+        for d in ("usr", "opt"):
+            if not (tools / d).exists():
+                continue
+
+            if overlay and (overlay / d).exists():
+                cmdline += [
+                    "--overlay-lowerdir", tools / d,
+                    "--overlay-lowerdir", overlay / d,
+                    "--overlay", Path("/") / d,
+                ]  # fmt: skip
+            else:
+                cmdline += ["--ro-bind", tools / d, Path("/") / d]
 
         for d in ("bin", "sbin", "lib", "lib32", "lib64"):
             if (p := tools / d).is_symlink():
@@ -512,6 +516,7 @@ def sandbox_cmd(
                 if p not in (
                     Path("/proc"),
                     Path("/usr"),
+                    Path("/opt"),
                     Path("/nix"),
                     Path("/bin"),
                     Path("/sbin"),
@@ -584,11 +589,10 @@ def sandbox_cmd(
             ]  # fmt: skip
             return
 
-        for d in ("etc", "opt"):
-            if overlay and (overlay / d).exists():
-                cmdline += ["--ro-bind", overlay / d, Path("/") / d]
-            else:
-                cmdline += ["--dir", Path("/") / d]
+        if overlay and (overlay / "etc").exists():
+            cmdline += ["--ro-bind", overlay / "etc", "/etc"]
+        else:
+            cmdline += ["--dir", "/etc"]
 
         for d in ("srv", "media", "mnt", "var", "run", "tmp"):
             tmp = None
