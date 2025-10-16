@@ -96,10 +96,10 @@ def stash_terminal_title() -> Iterator[None]:
     try:
         # push terminal window title to stack
         if not terminal_is_dumb():
-            print("\033[22t", file=sys.stderr)
+            print("\033[22t", file=sys.stderr, end="")
 
         yield
     finally:
         # pop terminal window title from stack to reset
         if not terminal_is_dumb():
-            print("\033[23t", file=sys.stderr)
+            print("\033[23t", file=sys.stderr, end="")
