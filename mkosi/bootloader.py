@@ -28,7 +28,7 @@ from mkosi.config import (
     systemd_tool_version,
 )
 from mkosi.context import Context
-from mkosi.distributions import Distribution
+from mkosi.distribution import Distribution
 from mkosi.log import complete_step, die, log_step
 from mkosi.partition import Partition
 from mkosi.run import CompletedProcess, run, workdir
@@ -187,7 +187,7 @@ def find_grub_binary(config: Config, binary: str) -> Optional[Path]:
 
 
 def prepare_grub_config(context: Context) -> Optional[Path]:
-    config = context.root / "efi" / context.config.distribution.grub_prefix() / "grub.cfg"
+    config = context.root / "efi" / context.config.distribution.installer.grub_prefix() / "grub.cfg"
     with umask(~0o700):
         config.parent.mkdir(exist_ok=True)
 
@@ -212,7 +212,9 @@ def prepare_grub_config(context: Context) -> Optional[Path]:
             earlyconfig.parent.mkdir(parents=True, exist_ok=True)
 
         # Read the actual config file from the root of the ESP.
-        earlyconfig.write_text(f"configfile /{context.config.distribution.grub_prefix()}/grub.cfg\n")
+        earlyconfig.write_text(
+            f"configfile /{context.config.distribution.installer.grub_prefix()}/grub.cfg\n"
+        )
 
     return config
 
@@ -231,6 +233,8 @@ def grub_mkimage(
     directory = find_grub_directory(context, target=target)
     assert directory
 
+    prefix = context.config.distribution.installer.grub_prefix()
+
     with (
         complete_step(f"Generating grub image for {target}"),
         tempfile.NamedTemporaryFile("w", prefix="grub-early-config") as earlyconfig,
@@ -238,8 +242,8 @@ def grub_mkimage(
         earlyconfig.write(
             textwrap.dedent(
                 f"""\
-                search --no-floppy --set=root --file /{context.config.distribution.grub_prefix()}/grub.cfg
-                set prefix=($root)/{context.config.distribution.grub_prefix()}
+                search --no-floppy --set=root --file /{prefix}/grub.cfg
+                set prefix=($root)/{prefix}
                 """
             )
         )
@@ -251,7 +255,7 @@ def grub_mkimage(
                 mkimage,
                 "--directory", "/grub",
                 "--config", workdir(Path(earlyconfig.name)),
-                "--prefix", f"/{context.config.distribution.grub_prefix()}",
+                "--prefix", f"/{prefix}",
                 "--output", workdir(output) if output else "/grub/core.img",
                 "--format", target,
                 *(["--sbat", os.fspath(workdir(sbat))] if sbat else []),
@@ -403,7 +407,7 @@ def install_grub(context: Context) -> None:
             if context.config.secure_boot:
                 sign_efi_binary(context, output, output)
 
-    dst = context.root / "efi" / context.config.distribution.grub_prefix() / "fonts"
+    dst = context.root / "efi" / context.config.distribution.installer.grub_prefix() / "fonts"
     with umask(~0o700):
         dst.mkdir(parents=True, exist_ok=True)
 

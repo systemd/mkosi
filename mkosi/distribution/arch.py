@@ -9,12 +9,12 @@ from mkosi.archive import extract_tar
 from mkosi.config import Architecture, Config
 from mkosi.context import Context
 from mkosi.curl import curl
-from mkosi.distributions import DistributionInstaller, PackageType, join_mirror
+from mkosi.distribution import Distribution, DistributionInstaller, PackageType, join_mirror
 from mkosi.installer.pacman import Pacman, PacmanRepository
 from mkosi.log import complete_step, die
 
 
-class Installer(DistributionInstaller):
+class Installer(DistributionInstaller, distribution=Distribution.arch):
     @classmethod
     def pretty_name(cls) -> str:
         return "Arch Linux"

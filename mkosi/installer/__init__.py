@@ -38,6 +38,10 @@ class PackageManager:
         return {}
 
     @classmethod
+    def architecture(cls, context: Context) -> str:
+        return context.config.distribution.installer.architecture(context.config.architecture)
+
+    @classmethod
     def finalize_environment(cls, context: Context) -> dict[str, str]:
         env = {
             "HOME": "/",  # Make sure rpm doesn't pick up ~/.rpmmacros and ~/.rpmrc.
@@ -78,13 +82,13 @@ class PackageManager:
         if context.config.local_mirror and (mirror := startswith(context.config.local_mirror, "file://")):
             mounts += ["--ro-bind", mirror, mirror]
 
-        subdir = context.config.distribution.package_manager(context.config).subdir(context.config)
+        subdir = context.config.distribution.installer.package_manager(context.config).subdir(context.config)
 
         src = context.metadata_dir / "lib" / subdir
         mounts += ["--bind", src, Path("/var/lib") / subdir]
 
         src = context.metadata_dir / "cache" / subdir
-        caches = context.config.distribution.package_manager(context.config).package_subdirs(src)
+        caches = context.config.distribution.installer.package_manager(context.config).package_subdirs(src)
 
         # If there are no package cache subdirectories, we always operate on the package cache directory,
         # since we can't do any mount tricks to combine caches from different locations in this case.
@@ -192,7 +196,7 @@ def clean_package_manager_metadata(context: Context) -> None:
     Try them all regardless of the distro: metadata is only removed if
     the package manager is not present in the image.
     """
-    subdir = context.config.distribution.package_manager(context.config).subdir(context.config)
+    subdir = context.config.distribution.installer.package_manager(context.config).subdir(context.config)
 
     if context.config.clean_package_metadata == ConfigFeature.disabled:
         return
@@ -207,7 +211,9 @@ def clean_package_manager_metadata(context: Context) -> None:
     # tar image (which are often used as a base tree for extension images and thus should retain package
     # manager metadata) or if the corresponding package manager is installed in the image.
 
-    executable = context.config.distribution.package_manager(context.config).executable(context.config)
+    executable = context.config.distribution.installer.package_manager(context.config).executable(
+        context.config
+    )
     remove = []
 
     for tool, paths in (

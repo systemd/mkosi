@@ -4,7 +4,8 @@ from collections.abc import Iterable
 
 from mkosi.config import Architecture
 from mkosi.context import Context
-from mkosi.distributions import (
+from mkosi.distribution import (
+    Distribution,
     fedora,
     join_mirror,
 )
@@ -13,7 +14,7 @@ from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey, setup_rpm
 from mkosi.log import die
 
 
-class Installer(fedora.Installer):
+class Installer(fedora.Installer, distribution=Distribution.azure):
     @classmethod
     def pretty_name(cls) -> str:
         return "Azure Linux"

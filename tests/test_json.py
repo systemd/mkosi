@@ -45,7 +45,7 @@ from mkosi.config import (
     VsockCID,
     dump_json,
 )
-from mkosi.distributions import Distribution
+from mkosi.distribution import Distribution
 
 
 @pytest.mark.parametrize("path", [None, "/baz/qux"])

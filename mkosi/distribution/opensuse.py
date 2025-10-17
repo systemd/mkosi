@@ -9,7 +9,7 @@ from xml.etree import ElementTree
 from mkosi.config import Architecture, Config
 from mkosi.context import Context
 from mkosi.curl import curl
-from mkosi.distributions import DistributionInstaller, PackageType, join_mirror
+from mkosi.distribution import Distribution, DistributionInstaller, PackageType, join_mirror
 from mkosi.installer.dnf import Dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey, setup_rpm
 from mkosi.installer.zypper import Zypper
@@ -18,7 +18,7 @@ from mkosi.mounts import finalize_certificate_mounts
 from mkosi.run import run
 
 
-class Installer(DistributionInstaller):
+class Installer(DistributionInstaller, distribution=Distribution.opensuse):
     @classmethod
     def pretty_name(cls) -> str:
         return "openSUSE"

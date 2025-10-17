@@ -72,7 +72,7 @@ class Apk(PackageManager):
             "--cache-packages",
             "--cache-dir", "/var/cache/apk",
             "--cache-predownload",
-            "--arch", context.config.distribution.architecture(context.config.architecture),
+            "--arch", cls.architecture(context),
             "--no-interactive",
             "--preserve-env",
             "--keys-dir", "/etc/apk/keys",
@@ -141,7 +141,7 @@ class Apk(PackageManager):
             return
 
         # Move apk files to arch-specific directory
-        arch = context.config.distribution.architecture(context.config.architecture)
+        arch = cls.architecture(context)
         arch_dir = context.repository / arch
         arch_dir.mkdir(exist_ok=True)
         for package in packages:

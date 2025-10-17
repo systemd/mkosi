@@ -215,7 +215,7 @@ jobs:
           EOF
 
           # TODO: Use $SYSTEMD_REPART_OVERRIDE_FSTYPE_ROOT once we drop support for Ubuntu Noble.
-          sed -i 's/return "btrfs"/return "ext4"/' mkosi/distributions/*.py
+          sed -i 's/return "btrfs"/return "ext4"/' mkosi/distribution/*.py
 
           # fail if the script already exists, to avoid hard to debug CI errors
           [[ -f mkosi.configure ]] && exit 1

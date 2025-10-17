@@ -8,13 +8,13 @@ from pathlib import Path
 from mkosi.config import Config
 from mkosi.context import Context
 from mkosi.curl import curl
-from mkosi.distributions import Distribution, debian, join_mirror
+from mkosi.distribution import Distribution, debian, join_mirror
 from mkosi.installer.apt import AptRepository
 from mkosi.log import die
 from mkosi.util import startswith
 
 
-class Installer(debian.Installer):
+class Installer(debian.Installer, distribution=Distribution.ubuntu):
     @classmethod
     def pretty_name(cls) -> str:
         return "Ubuntu"

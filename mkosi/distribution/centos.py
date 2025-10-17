@@ -5,7 +5,7 @@ from collections.abc import Iterable
 from mkosi.config import Architecture, Config
 from mkosi.context import Context
 from mkosi.curl import curl
-from mkosi.distributions import (
+from mkosi.distribution import (
     Distribution,
     DistributionInstaller,
     PackageType,
@@ -20,7 +20,7 @@ from mkosi.versioncomp import GenericVersion
 CENTOS_SIG_REPO_PRIORITY = 50
 
 
-class Installer(DistributionInstaller):
+class Installer(DistributionInstaller, distribution=Distribution.centos):
     @classmethod
     def pretty_name(cls) -> str:
         return "CentOS"

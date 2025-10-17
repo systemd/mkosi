@@ -5,13 +5,13 @@ from pathlib import Path
 from typing import Any, Optional
 
 from mkosi.context import Context
-from mkosi.distributions import centos, join_mirror
+from mkosi.distribution import Distribution, centos, join_mirror
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey
 from mkosi.log import die
 from mkosi.run import exists_in_sandbox, glob_in_sandbox
 
 
-class Installer(centos.Installer):
+class Installer(centos.Installer, distribution=Distribution.rhel):
     @classmethod
     def pretty_name(cls) -> str:
         return "RHEL"

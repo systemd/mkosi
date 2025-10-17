@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 from mkosi.context import Context
-from mkosi.distributions import centos, join_mirror
+from mkosi.distribution import Distribution, centos, join_mirror
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey
 from mkosi.log import die
 
 
-class Installer(centos.Installer):
+class Installer(centos.Installer, distribution=Distribution.alma):
     @classmethod
     def pretty_name(cls) -> str:
         return "AlmaLinux"

@@ -25,7 +25,7 @@ from mkosi.config import (
     parse_config,
     parse_ini,
 )
-from mkosi.distributions import Distribution, detect_distribution
+from mkosi.distribution import Distribution, detect_distribution
 from mkosi.util import chdir, resource_path
 
 
@@ -1515,7 +1515,9 @@ def test_tools(tmp_path: Path) -> None:
         assert tools
         host = detect_distribution()[0]
         if host:
-            assert tools.distribution == host.default_tools_tree_distribution()
+            assert tools.distribution == (
+                host.installer.default_tools_tree_distribution() or tools.distribution
+            )
 
         (d / "mkosi.tools.conf").write_text(
             f"""

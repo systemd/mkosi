@@ -27,7 +27,7 @@ mkosi-addon = "mkosi.addon:main"
 [tool.setuptools]
 packages = [
     "mkosi",
-    "mkosi.distributions",
+    "mkosi.distribution",
     "mkosi.installer",
     "mkosi.resources",
 ]

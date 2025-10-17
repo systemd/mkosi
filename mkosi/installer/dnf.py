@@ -187,9 +187,7 @@ class Dnf(PackageManager):
                 cmdline += ["--setopt=cacheonly=metadata"]
 
         if not context.config.architecture.is_native():
-            cmdline += [
-                f"--forcearch={context.config.distribution.architecture(context.config.architecture)}"
-            ]
+            cmdline += [f"--forcearch={cls.architecture(context)}"]
 
         if not context.config.with_docs:
             cmdline += ["--no-docs" if dnf == "dnf5" else "--nodocs"]

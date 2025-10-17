@@ -9,7 +9,7 @@ from pathlib import Path
 
 from mkosi.config import Config
 from mkosi.context import Context
-from mkosi.distributions import detect_distribution
+from mkosi.distribution import detect_distribution
 from mkosi.installer import PackageManager
 from mkosi.log import complete_step
 from mkosi.run import CompletedProcess, run, workdir
@@ -108,7 +108,7 @@ class Pacman(PackageManager):
                     SigLevel = {sig_level}
                     LocalFileSigLevel = Optional
                     ParallelDownloads = 5
-                    Architecture = {context.config.distribution.architecture(context.config.architecture)}
+                    Architecture = {cls.architecture(context)}
 
                     """
                 )
@@ -164,7 +164,7 @@ class Pacman(PackageManager):
             "--cachedir=/var/cache/pacman/mkosi",
             "--cachedir=/var/cache/pacman/pkg",
             "--hookdir=/buildroot/etc/pacman.d/hooks",
-            "--arch", context.config.distribution.architecture(context.config.architecture),
+            "--arch", cls.architecture(context),
             "--color", "auto",
             "--noconfirm",
         ]  # fmt: skip

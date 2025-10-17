@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Literal, Optional, overload
 
 from mkosi.context import Context
-from mkosi.distributions import Distribution
+from mkosi.distribution import Distribution
 from mkosi.log import die
 from mkosi.run import glob_in_sandbox
 from mkosi.util import PathString
