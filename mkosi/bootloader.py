@@ -28,7 +28,7 @@ from mkosi.config import (
     systemd_tool_version,
 )
 from mkosi.context import Context
-from mkosi.distributions import Distribution
+from mkosi.distribution import Distribution
 from mkosi.log import complete_step, die, log_step
 from mkosi.partition import Partition
 from mkosi.run import CompletedProcess, run, workdir

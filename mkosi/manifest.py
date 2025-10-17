@@ -9,7 +9,7 @@ from typing import IO, Any, Optional
 
 from mkosi.config import ManifestFormat, OutputFormat
 from mkosi.context import Context
-from mkosi.distributions import PackageType
+from mkosi.distribution import PackageType
 from mkosi.installer.apt import Apt
 from mkosi.installer.pacman import Pacman
 from mkosi.log import complete_step

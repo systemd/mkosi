@@ -13,7 +13,7 @@ from typing import Any, Optional
 
 import pytest
 
-from mkosi.distributions import Distribution
+from mkosi.distribution import Distribution
 from mkosi.run import CompletedProcess, fork_and_wait, run
 from mkosi.sandbox import acquire_privileges
 from mkosi.tree import rmtree

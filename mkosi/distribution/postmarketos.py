@@ -5,7 +5,7 @@ from collections.abc import Iterable
 
 from mkosi.config import Architecture, Config
 from mkosi.context import Context
-from mkosi.distributions import Distribution, DistributionInstaller, PackageType
+from mkosi.distribution import Distribution, DistributionInstaller, PackageType
 from mkosi.installer import PackageManager
 from mkosi.installer.apk import Apk, ApkRepository
 from mkosi.log import complete_step, die

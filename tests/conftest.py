@@ -7,7 +7,7 @@ import pytest
 
 import mkosi.resources
 from mkosi.config import parse_config
-from mkosi.distributions import Distribution, detect_distribution
+from mkosi.distribution import Distribution, detect_distribution
 from mkosi.log import log_setup
 from mkosi.util import resource_path
 

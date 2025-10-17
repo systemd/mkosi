@@ -2,7 +2,7 @@
 
 from mkosi.config import Architecture, Config
 from mkosi.context import Context
-from mkosi.distributions import Distribution, DistributionInstaller
+from mkosi.distribution import Distribution, DistributionInstaller
 from mkosi.installer import PackageManager
 
 

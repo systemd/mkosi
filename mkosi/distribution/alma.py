@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 from mkosi.context import Context
-from mkosi.distributions import Distribution, centos, join_mirror
+from mkosi.distribution import Distribution, centos, join_mirror
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey
 from mkosi.log import die
 

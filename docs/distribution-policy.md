@@ -44,7 +44,7 @@ To actually implement a new distribution, the following checklist can be
 used:
 
 - Add the distribution to the `Distribution` enum
-- Add the implementation of the distribution in `mkosi/distributions`.
+- Add the implementation of the distribution in `mkosi/distribution`.
   If the distribution is a variant of an existing distribution, inherit
   from the existing distribution's installer class and only override the
   necessary methods.

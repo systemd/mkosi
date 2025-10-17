@@ -71,7 +71,7 @@ class Distribution(StrEnum):
 
     @property
     def installer(self) -> type["DistributionInstaller"]:
-        importlib.import_module(f"mkosi.distributions.{self.name}")
+        importlib.import_module(f"mkosi.distribution.{self.name}")
         return DistributionInstaller.registry[self]
 
 

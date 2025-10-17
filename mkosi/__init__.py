@@ -86,7 +86,7 @@ from mkosi.config import (
     yes_no,
 )
 from mkosi.context import Context
-from mkosi.distributions import Distribution, detect_distribution
+from mkosi.distribution import Distribution, detect_distribution
 from mkosi.documentation import show_docs
 from mkosi.installer import clean_package_manager_metadata
 from mkosi.kmod import (

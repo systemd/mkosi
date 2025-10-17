@@ -25,7 +25,7 @@ from mkosi.config import (
     parse_config,
     parse_ini,
 )
-from mkosi.distributions import Distribution, detect_distribution
+from mkosi.distribution import Distribution, detect_distribution
 from mkosi.util import chdir, resource_path
 
 

@@ -4,7 +4,7 @@ from collections.abc import Iterable
 
 from mkosi.config import Architecture
 from mkosi.context import Context
-from mkosi.distributions import Distribution, fedora, join_mirror
+from mkosi.distribution import Distribution, fedora, join_mirror
 from mkosi.installer.dnf import Dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey
 from mkosi.log import die

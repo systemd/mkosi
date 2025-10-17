@@ -5,7 +5,7 @@ from pathlib import Path
 
 from mkosi.config import Architecture
 from mkosi.context import Context
-from mkosi.distributions import Distribution, debian
+from mkosi.distribution import Distribution, debian
 from mkosi.installer.apt import AptRepository
 from mkosi.log import die
 

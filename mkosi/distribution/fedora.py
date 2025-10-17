@@ -9,7 +9,7 @@ from pathlib import Path
 from mkosi.config import Architecture, Config
 from mkosi.context import Context
 from mkosi.curl import curl
-from mkosi.distributions import (
+from mkosi.distribution import (
     Distribution,
     DistributionInstaller,
     PackageType,

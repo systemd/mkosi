@@ -9,7 +9,7 @@ from pathlib import Path
 
 from mkosi.config import Config
 from mkosi.context import Context
-from mkosi.distributions import detect_distribution
+from mkosi.distribution import detect_distribution
 from mkosi.installer import PackageManager
 from mkosi.log import complete_step
 from mkosi.run import CompletedProcess, run, workdir

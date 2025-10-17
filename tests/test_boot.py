@@ -6,7 +6,7 @@ import subprocess
 import pytest
 
 from mkosi.config import Bootloader, Firmware, OutputFormat
-from mkosi.distributions import Distribution
+from mkosi.distribution import Distribution
 from mkosi.qemu import find_virtiofsd
 from mkosi.run import find_binary, run
 from mkosi.sandbox import userns_has_single_user
