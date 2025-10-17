@@ -1209,7 +1209,8 @@ def run_qemu(args: Args, config: Config) -> None:
 
     if config.console in (ConsoleMode.interactive, ConsoleMode.read_only):
         cmdline += [
-            "systemd-pty-forward", "--background=48;2;12;51;19",  # green
+            "systemd-pty-forward",
+            *(["--background=48;2;12;51;19"] if config.with_console_background else []),  # green
             "--title", f"Virtual Machine {config.machine_or_name()}",
         ]  # fmt: skip
 

@@ -4063,7 +4063,7 @@ def run_box(args: Args, config: Config) -> None:
         cmdline = [
             "systemd-pty-forward",
             "--title=mkosi-sandbox",
-            "--background=48;2;12;51;51",  # cyan
+            *(["--background=48;2;12;51;51"] if config.with_console_background else []),  # cyan
             *cmdline,
         ]
 
