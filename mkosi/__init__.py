@@ -2694,6 +2694,16 @@ def check_inputs(config: Config) -> None:
     ):
         die(f"A cache directory must be configured in order to use CacheOnly={config.cacheonly}")
 
+    if config.output_format == OutputFormat.portable and config.overlay:
+        die(
+            "Overlay=yes cannot be used with Format=portable",
+            hint=(
+                "Portable service images are always full images and cannot be overlay images.\n"
+                "See https://systemd.io/PORTABLE_SERVICES/#extension-images for how to use extension\n"
+                "images with portable services."
+            ),
+        )
+
 
 def check_tool(config: Config, *tools: PathString, reason: str, hint: Optional[str] = None) -> Path:
     tool = config.find_binary(*tools)
