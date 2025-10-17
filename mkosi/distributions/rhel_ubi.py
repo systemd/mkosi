@@ -3,12 +3,12 @@
 from collections.abc import Iterable
 
 from mkosi.context import Context
-from mkosi.distributions import centos, join_mirror
+from mkosi.distributions import Distribution, centos, join_mirror
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey
 from mkosi.log import die
 
 
-class Installer(centos.Installer):
+class Installer(centos.Installer, distribution=Distribution.rhel_ubi):
     @classmethod
     def pretty_name(cls) -> str:
         return "RHEL UBI"

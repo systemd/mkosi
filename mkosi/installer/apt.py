@@ -165,12 +165,10 @@ class Apt(PackageManager):
 
     @classmethod
     def cmd(cls, context: Context, command: str = "apt-get") -> list[PathString]:
-        debarch = context.config.distribution.architecture(context.config.architecture)
-
         cmdline: list[PathString] = [
             command,
-            "-o", f"APT::Architecture={debarch}",
-            "-o", f"APT::Architectures={debarch}",
+            "-o", f"APT::Architecture={cls.architecture(context)}",
+            "-o", f"APT::Architectures={cls.architecture(context)}",
             "-o", f"APT::Install-Recommends={str(context.config.with_recommends).lower()}",
             "-o", "APT::Immediate-Configure=off",
             "-o", "APT::Get::Assume-Yes=true",

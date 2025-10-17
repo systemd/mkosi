@@ -11,7 +11,7 @@ from mkosi.installer.apk import Apk, ApkRepository
 from mkosi.log import complete_step, die
 
 
-class Installer(DistributionInstaller):
+class Installer(DistributionInstaller, distribution=Distribution.postmarketos):
     @classmethod
     def pretty_name(cls) -> str:
         return "postmarketOS"

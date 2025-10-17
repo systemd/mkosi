@@ -265,8 +265,10 @@ def install_distribution(context: Context) -> None:
         if not packages:
             return
 
-        with complete_step(f"Installing extra packages for {context.config.distribution.pretty_name()}"):
-            context.config.distribution.package_manager(context.config).install(context, packages)
+        with complete_step(
+            f"Installing extra packages for {context.config.distribution.installer.pretty_name()}"
+        ):
+            context.config.distribution.installer.package_manager(context.config).install(context, packages)
     else:
         if context.config.overlay or context.config.output_format.is_extension_image():
             if packages:
@@ -276,8 +278,8 @@ def install_distribution(context: Context) -> None:
                 )
             return
 
-        with complete_step(f"Installing {context.config.distribution.pretty_name()}"):
-            context.config.distribution.install(context)
+        with complete_step(f"Installing {context.config.distribution.installer.pretty_name()}"):
+            context.config.distribution.installer.install(context)
 
             if context.config.machine_id:
                 with umask(~0o755):
@@ -305,7 +307,9 @@ def install_distribution(context: Context) -> None:
                 (context.root / "boot/loader/entries.srel").write_text("type1\n")
 
             if packages:
-                context.config.distribution.package_manager(context.config).install(context, packages)
+                context.config.distribution.installer.package_manager(context.config).install(
+                    context, packages
+                )
 
     for f in (
         "var/lib/systemd/random-seed",
@@ -324,10 +328,12 @@ def install_build_packages(context: Context) -> None:
         return
 
     with (
-        complete_step(f"Installing build packages for {context.config.distribution.pretty_name()}"),
+        complete_step(
+            f"Installing build packages for {context.config.distribution.installer.pretty_name()}"
+        ),
         setup_build_overlay(context),
     ):
-        context.config.distribution.package_manager(context.config).install(
+        context.config.distribution.installer.package_manager(context.config).install(
             context, context.config.build_packages
         )
 
@@ -336,8 +342,10 @@ def install_volatile_packages(context: Context) -> None:
     if not context.config.volatile_packages:
         return
 
-    with complete_step(f"Installing volatile packages for {context.config.distribution.pretty_name()}"):
-        context.config.distribution.package_manager(context.config).install(
+    with complete_step(
+        f"Installing volatile packages for {context.config.distribution.installer.pretty_name()}"
+    ):
+        context.config.distribution.installer.package_manager(context.config).install(
             context, context.config.volatile_packages, allow_downgrade=True
         )
 
@@ -350,7 +358,7 @@ def remove_packages(context: Context) -> None:
 
     with complete_step(f"Removing {len(context.config.remove_packages)} packages…"):
         try:
-            context.config.distribution.package_manager(context.config).remove(
+            context.config.distribution.installer.package_manager(context.config).remove(
                 context, context.config.remove_packages
             )
         except NotImplementedError:
@@ -610,7 +618,7 @@ def run_configure_scripts(config: Config) -> Config:
         RELEASE=config.release,
         ARCHITECTURE=str(config.architecture),
         QEMU_ARCHITECTURE=config.architecture.to_qemu(),
-        DISTRIBUTION_ARCHITECTURE=config.distribution.architecture(config.architecture),
+        DISTRIBUTION_ARCHITECTURE=config.distribution.installer.architecture(config.architecture),
         SRCDIR="/work/src",
         MKOSI_UID=str(os.getuid()),
         MKOSI_GID=str(os.getgid()),
@@ -658,7 +666,7 @@ def run_sync_scripts(config: Config) -> None:
         DISTRIBUTION=str(config.distribution),
         RELEASE=config.release,
         ARCHITECTURE=str(config.architecture),
-        DISTRIBUTION_ARCHITECTURE=config.distribution.architecture(config.architecture),
+        DISTRIBUTION_ARCHITECTURE=config.distribution.installer.architecture(config.architecture),
         SRCDIR="/work/src",
         MKOSI_UID=str(os.getuid()),
         MKOSI_GID=str(os.getgid()),
@@ -737,7 +745,7 @@ def script_maybe_chroot_sandbox(
             *(["--ro-bind-try", "/etc/resolv.conf", "/etc/resolv.conf"] if network else []),
             *(["--suppress-chown"] if suppress_chown else []),
         ],
-        **context.config.distribution.package_manager(context.config).scripts(context),
+        **context.config.distribution.installer.package_manager(context.config).scripts(context),
     }  # fmt: skip
 
     with finalize_host_scripts(context, helpers) as hd:
@@ -747,7 +755,7 @@ def script_maybe_chroot_sandbox(
                 options=[
                     *options,
                     *context.rootoptions(),
-                    *context.config.distribution.package_manager(context.config).mounts(context),
+                    *context.config.distribution.installer.package_manager(context.config).mounts(context),
                 ],
                 scripts=hd,
             ) as sandbox:  # fmt: skip
@@ -774,7 +782,9 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
         DISTRIBUTION=str(context.config.distribution),
         RELEASE=context.config.release,
         ARCHITECTURE=str(context.config.architecture),
-        DISTRIBUTION_ARCHITECTURE=context.config.distribution.architecture(context.config.architecture),
+        DISTRIBUTION_ARCHITECTURE=context.config.distribution.installer.architecture(
+            context.config.architecture
+        ),
         BUILDROOT="/buildroot",
         SRCDIR="/work/src",
         CHROOT_SRCDIR="/work/src",
@@ -845,7 +855,9 @@ def run_build_scripts(context: Context) -> None:
         DISTRIBUTION=str(context.config.distribution),
         RELEASE=context.config.release,
         ARCHITECTURE=str(context.config.architecture),
-        DISTRIBUTION_ARCHITECTURE=context.config.distribution.architecture(context.config.architecture),
+        DISTRIBUTION_ARCHITECTURE=context.config.distribution.installer.architecture(
+            context.config.architecture
+        ),
         BUILDROOT="/buildroot",
         DESTDIR="/work/dest",
         CHROOT_DESTDIR="/work/dest",
@@ -923,7 +935,9 @@ def run_postinst_scripts(context: Context) -> None:
         DISTRIBUTION=str(context.config.distribution),
         RELEASE=context.config.release,
         ARCHITECTURE=str(context.config.architecture),
-        DISTRIBUTION_ARCHITECTURE=context.config.distribution.architecture(context.config.architecture),
+        DISTRIBUTION_ARCHITECTURE=context.config.distribution.installer.architecture(
+            context.config.architecture
+        ),
         BUILDROOT="/buildroot",
         OUTPUTDIR="/work/out",
         CHROOT_OUTPUTDIR="/work/out",
@@ -995,7 +1009,9 @@ def run_finalize_scripts(context: Context) -> None:
         DISTRIBUTION=str(context.config.distribution),
         RELEASE=context.config.release,
         ARCHITECTURE=str(context.config.architecture),
-        DISTRIBUTION_ARCHITECTURE=context.config.distribution.architecture(context.config.architecture),
+        DISTRIBUTION_ARCHITECTURE=context.config.distribution.installer.architecture(
+            context.config.architecture
+        ),
         BUILDROOT="/buildroot",
         OUTPUTDIR="/work/out",
         CHROOT_OUTPUTDIR="/work/out",
@@ -1067,7 +1083,9 @@ def run_postoutput_scripts(context: Context) -> None:
         DISTRIBUTION=str(context.config.distribution),
         RELEASE=context.config.release,
         ARCHITECTURE=str(context.config.architecture),
-        DISTRIBUTION_ARCHITECTURE=context.config.distribution.architecture(context.config.architecture),
+        DISTRIBUTION_ARCHITECTURE=context.config.distribution.installer.architecture(
+            context.config.architecture
+        ),
         SRCDIR="/work/src",
         OUTPUTDIR="/work/out",
         MKOSI_UID=str(os.getuid()),
@@ -1264,7 +1282,9 @@ def install_package_directories(context: Context, directories: Sequence[Path]) -
         for d in directories:
             for p in itertools.chain.from_iterable(
                 d.glob(glob)
-                for glob in context.config.distribution.package_manager(context.config).package_globs()
+                for glob in context.config.distribution.installer.package_manager(
+                    context.config
+                ).package_globs()
             ):
                 shutil.copy(p, context.repository, follow_symlinks=True)
 
@@ -3471,7 +3491,7 @@ def make_disk(
                     f"""\
                     [Partition]
                     Type=root
-                    Format={context.config.distribution.filesystem()}
+                    Format={context.config.distribution.installer.filesystem()}
                     CopyFiles=/
                     Minimize=guess
                     """
@@ -3818,7 +3838,7 @@ def createrepo(context: Context) -> Iterator[None]:
     finally:
         if context.repository.stat().st_mtime_ns != st.st_mtime_ns:
             with complete_step("Rebuilding local package repository"):
-                context.config.distribution.createrepo(context)
+                context.config.distribution.installer.package_manager(context.config).createrepo(context)
 
 
 def make_rootdir(context: Context) -> None:
@@ -3858,7 +3878,7 @@ def build_image(context: Context) -> None:
             or context.config.finalize_scripts
         )
 
-        context.config.distribution.setup(context)
+        context.config.distribution.installer.setup(context)
         if wantrepo:
             with createrepo(context):
                 install_package_directories(context, context.config.package_directories)
@@ -4082,7 +4102,7 @@ def run_box(args: Args, config: Config) -> None:
 
 
 def run_latest_snapshot(args: Args, config: Config) -> None:
-    print(config.distribution.latest_snapshot(config))
+    print(config.distribution.installer.latest_snapshot(config))
 
 
 def run_shell(args: Args, config: Config) -> None:
@@ -4465,7 +4485,7 @@ def run_clean_scripts(config: Config) -> None:
         DISTRIBUTION=str(config.distribution),
         RELEASE=config.release,
         ARCHITECTURE=str(config.architecture),
-        DISTRIBUTION_ARCHITECTURE=config.distribution.architecture(config.architecture),
+        DISTRIBUTION_ARCHITECTURE=config.distribution.installer.architecture(config.architecture),
         SRCDIR="/work/src",
         OUTPUTDIR="/work/out",
         MKOSI_UID=str(os.getuid()),
@@ -4710,7 +4730,7 @@ def sync_repository_metadata(
             )
         )
 
-    subdir = last.distribution.package_manager(last).subdir(last)
+    subdir = last.distribution.installer.package_manager(last).subdir(last)
     for d in ("cache", "lib"):
         (metadata_dir / d / subdir).mkdir(parents=True, exist_ok=True)
 
@@ -4732,12 +4752,12 @@ def sync_repository_metadata(
             context.root.mkdir(mode=0o755)
 
             install_sandbox_trees(context.config, context.sandbox_tree)
-            context.config.distribution.setup(context)
+            context.config.distribution.installer.setup(context)
 
-            context.config.distribution.keyring(context)
+            context.config.distribution.installer.keyring(context)
 
             with complete_step("Syncing package manager metadata"):
-                context.config.distribution.package_manager(context.config).sync(
+                context.config.distribution.installer.package_manager(context.config).sync(
                     context,
                     force=context.args.force > 1 or context.config.cacheonly == Cacheonly.never,
                 )
@@ -4748,7 +4768,7 @@ def sync_repository_metadata(
         # We just synced package manager metadata, in the case of dnf, this means we can now iterate the
         # synced repository metadata directories and use that to create the corresponding directories in the
         # package cache directory.
-        for srcsubdir, _ in last.distribution.package_manager(last).package_subdirs(src):
+        for srcsubdir, _ in last.distribution.installer.package_manager(last).package_subdirs(src):
             (dst / srcsubdir).mkdir(parents=True, exist_ok=True)
 
     return keyring_dir, metadata_dir

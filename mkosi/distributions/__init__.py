@@ -4,7 +4,7 @@ import enum
 import importlib
 import urllib.parse
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, cast
+from typing import TYPE_CHECKING, Optional
 
 from mkosi.log import die
 from mkosi.util import StrEnum, read_env_file
@@ -21,60 +21,6 @@ class PackageType(StrEnum):
     deb = enum.auto()
     pkg = enum.auto()
     apk = enum.auto()
-
-
-class DistributionInstaller:
-    @classmethod
-    def pretty_name(cls) -> str:
-        raise NotImplementedError
-
-    @classmethod
-    def package_manager(cls, config: "Config") -> type["PackageManager"]:
-        raise NotImplementedError
-
-    @classmethod
-    def keyring(cls, context: "Context") -> None:
-        pass
-
-    @classmethod
-    def setup(cls, context: "Context") -> None:
-        raise NotImplementedError
-
-    @classmethod
-    def install(cls, context: "Context") -> None:
-        raise NotImplementedError
-
-    @classmethod
-    def filesystem(cls) -> str:
-        return "ext4"
-
-    @classmethod
-    def architecture(cls, arch: "Architecture") -> str:
-        raise NotImplementedError
-
-    @classmethod
-    def package_type(cls) -> PackageType:
-        return PackageType.none
-
-    @classmethod
-    def default_release(cls) -> str:
-        return ""
-
-    @classmethod
-    def default_tools_tree_distribution(cls) -> Optional["Distribution"]:
-        return None
-
-    @classmethod
-    def grub_prefix(cls) -> str:
-        return "grub"
-
-    @classmethod
-    def latest_snapshot(cls, config: "Config") -> str:
-        die(f"{cls.pretty_name()} does not support snapshots")
-
-    @classmethod
-    def is_kernel_package(cls, package: str) -> bool:
-        return False
 
 
 class Distribution(StrEnum):
@@ -123,54 +69,69 @@ class Distribution(StrEnum):
             Distribution.alma,
         )
 
-    def pretty_name(self) -> str:
-        return self.installer().pretty_name()
+    @property
+    def installer(self) -> type["DistributionInstaller"]:
+        importlib.import_module(f"mkosi.distributions.{self.name}")
+        return DistributionInstaller.registry[self]
 
-    def package_manager(self, config: "Config") -> type["PackageManager"]:
-        return self.installer().package_manager(config)
 
-    def keyring(self, context: "Context") -> None:
-        return self.installer().keyring(context)
+class DistributionInstaller:
+    registry: dict[Distribution, "type[DistributionInstaller]"] = {}
 
-    def setup(self, context: "Context") -> None:
-        return self.installer().setup(context)
+    def __init_subclass__(cls, distribution: Distribution):
+        cls.registry[distribution] = cls
 
-    def install(self, context: "Context") -> None:
-        return self.installer().install(context)
+    @classmethod
+    def pretty_name(cls) -> str:
+        raise NotImplementedError
 
-    def filesystem(self) -> str:
-        return self.installer().filesystem()
+    @classmethod
+    def package_manager(cls, config: "Config") -> type["PackageManager"]:
+        raise NotImplementedError
 
-    def architecture(self, arch: "Architecture") -> str:
-        return self.installer().architecture(arch)
+    @classmethod
+    def keyring(cls, context: "Context") -> None:
+        pass
 
-    def package_type(self) -> PackageType:
-        return self.installer().package_type()
+    @classmethod
+    def setup(cls, context: "Context") -> None:
+        raise NotImplementedError
 
-    def default_release(self) -> str:
-        return self.installer().default_release()
+    @classmethod
+    def install(cls, context: "Context") -> None:
+        raise NotImplementedError
 
-    def default_tools_tree_distribution(self) -> "Distribution":
-        return self.installer().default_tools_tree_distribution() or self
+    @classmethod
+    def filesystem(cls) -> str:
+        return "ext4"
 
-    def grub_prefix(self) -> str:
-        return self.installer().grub_prefix()
+    @classmethod
+    def architecture(cls, arch: "Architecture") -> str:
+        raise NotImplementedError
 
-    def createrepo(self, context: "Context") -> None:
-        return self.installer().package_manager(context.config).createrepo(context)
+    @classmethod
+    def package_type(cls) -> PackageType:
+        return PackageType.none
 
-    def latest_snapshot(self, config: "Config") -> str:
-        return self.installer().latest_snapshot(config)
+    @classmethod
+    def default_release(cls) -> str:
+        return ""
 
-    def is_kernel_package(self, package: str) -> bool:
-        return self.installer().is_kernel_package(package)
+    @classmethod
+    def default_tools_tree_distribution(cls) -> Optional[Distribution]:
+        return None
 
-    def installer(self) -> type[DistributionInstaller]:
-        modname = str(self).replace("-", "_")
-        mod = importlib.import_module(f"mkosi.distributions.{modname}")
-        installer = getattr(mod, "Installer")
-        assert issubclass(installer, DistributionInstaller)
-        return cast(type[DistributionInstaller], installer)
+    @classmethod
+    def grub_prefix(cls) -> str:
+        return "grub"
+
+    @classmethod
+    def latest_snapshot(cls, config: "Config") -> str:
+        die(f"{cls.pretty_name()} does not support snapshots")
+
+    @classmethod
+    def is_kernel_package(cls, package: str) -> bool:
+        return False
 
 
 def detect_distribution(root: Path = Path("/")) -> tuple[Optional[Distribution], Optional[str]]:

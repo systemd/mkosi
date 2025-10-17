@@ -20,7 +20,7 @@ from mkosi.versioncomp import GenericVersion
 CENTOS_SIG_REPO_PRIORITY = 50
 
 
-class Installer(DistributionInstaller):
+class Installer(DistributionInstaller, distribution=Distribution.centos):
     @classmethod
     def pretty_name(cls) -> str:
         return "CentOS"

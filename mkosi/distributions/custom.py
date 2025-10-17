@@ -2,11 +2,11 @@
 
 from mkosi.config import Architecture, Config
 from mkosi.context import Context
-from mkosi.distributions import DistributionInstaller
+from mkosi.distributions import Distribution, DistributionInstaller
 from mkosi.installer import PackageManager
 
 
-class Installer(DistributionInstaller):
+class Installer(DistributionInstaller, distribution=Distribution.custom):
     @classmethod
     def pretty_name(cls) -> str:
         return "Custom"

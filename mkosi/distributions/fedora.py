@@ -10,6 +10,7 @@ from mkosi.config import Architecture, Config
 from mkosi.context import Context
 from mkosi.curl import curl
 from mkosi.distributions import (
+    Distribution,
     DistributionInstaller,
     PackageType,
     join_mirror,
@@ -99,7 +100,7 @@ def find_fedora_rpm_gpgkeys(context: Context) -> Iterable[str]:
             i += 1
 
 
-class Installer(DistributionInstaller):
+class Installer(DistributionInstaller, distribution=Distribution.fedora):
     @classmethod
     def pretty_name(cls) -> str:
         return "Fedora Linux"

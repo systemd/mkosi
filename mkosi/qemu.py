@@ -634,7 +634,7 @@ def qemu_version(config: Config, binary: Path) -> GenericVersion:
 def want_scratch(config: Config) -> bool:
     return config.runtime_scratch == ConfigFeature.enabled or (
         config.runtime_scratch == ConfigFeature.auto
-        and config.find_binary(f"mkfs.{config.distribution.filesystem()}") is not None
+        and config.find_binary(f"mkfs.{config.distribution.installer.filesystem()}") is not None
     )
 
 
@@ -643,7 +643,7 @@ def generate_scratch_fs(config: Config) -> Iterator[Path]:
     with tempfile.NamedTemporaryFile(dir="/var/tmp", prefix="mkosi-scratch-") as scratch:
         maybe_make_nocow(Path(scratch.name))
         scratch.truncate(1024**4)
-        fs = config.distribution.filesystem()
+        fs = config.distribution.installer.filesystem()
         extra = config.finalize_environment().get(f"SYSTEMD_REPART_MKFS_OPTIONS_{fs.upper()}", "")
         run(
             [f"mkfs.{fs}", "-L", "scratch", "-q", *extra.split(), workdir(Path(scratch.name))],
@@ -1441,7 +1441,9 @@ def run_qemu(args: Args, config: Config) -> None:
                 "-blockdev", ",".join(blockdev),
                 "-device", "virtio-blk-pci,drive=scratch",
             ]  # fmt: skip
-            kcl += [f"systemd.mount-extra=LABEL=scratch:/var/tmp:{config.distribution.filesystem()}"]
+            kcl += [
+                f"systemd.mount-extra=LABEL=scratch:/var/tmp:{config.distribution.installer.filesystem()}"
+            ]
 
         if config.output_format == OutputFormat.cpio:
             cmdline += ["-initrd", fname]

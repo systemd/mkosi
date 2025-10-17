@@ -10,7 +10,7 @@ from mkosi.installer.apt import AptRepository
 from mkosi.log import die
 
 
-class Installer(debian.Installer):
+class Installer(debian.Installer, distribution=Distribution.kali):
     @classmethod
     def pretty_name(cls) -> str:
         return "Kali Linux"

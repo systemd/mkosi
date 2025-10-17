@@ -78,7 +78,7 @@ def test_initrd_lvm(config: ImageConfig) -> None:
         run(["lvm", "lvcreate", "--devicesfile", "", "-An", "-l", "100%FREE", "-n", "lv0", "vg_mkosi"])
         run(["lvm", "lvs", "--devicesfile", ""])
         run(["udevadm", "wait", "--timeout=30", "/dev/vg_mkosi/lv0"])
-        run([f"mkfs.{image.config.distribution.filesystem()}", "-L", "root", "/dev/vg_mkosi/lv0"])
+        run([f"mkfs.{image.config.distribution.installer.filesystem()}", "-L", "root", "/dev/vg_mkosi/lv0"])
 
         src = Path(stack.enter_context(tempfile.TemporaryDirectory()))
         run(["systemd-dissect", "--mount", "--mkdir", Path(image.output_dir) / "image.raw", src])
@@ -140,7 +140,7 @@ def test_initrd_luks(config: ImageConfig, passphrase: Path) -> None:
                 f"""\
                 [Partition]
                 Type=root
-                Format={config.distribution.filesystem()}
+                Format={config.distribution.installer.filesystem()}
                 Minimize=guess
                 Encrypt=key-file
                 CopyFiles=/
@@ -190,7 +190,7 @@ def test_initrd_luks_lvm(config: ImageConfig, passphrase: Path) -> None:
         run(["lvm", "lvcreate", "--devicesfile", "", "-An", "-l", "100%FREE", "-n", "lv0", "vg_mkosi"])
         run(["lvm", "lvs", "--devicesfile", ""])
         run(["udevadm", "wait", "--timeout=30", "/dev/vg_mkosi/lv0"])
-        run([f"mkfs.{image.config.distribution.filesystem()}", "-L", "root", "/dev/vg_mkosi/lv0"])
+        run([f"mkfs.{image.config.distribution.installer.filesystem()}", "-L", "root", "/dev/vg_mkosi/lv0"])
 
         src = Path(stack.enter_context(tempfile.TemporaryDirectory()))
         run(["systemd-dissect", "--mount", "--mkdir", Path(image.output_dir) / "image.raw", src])

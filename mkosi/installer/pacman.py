@@ -108,7 +108,7 @@ class Pacman(PackageManager):
                     SigLevel = {sig_level}
                     LocalFileSigLevel = Optional
                     ParallelDownloads = 5
-                    Architecture = {context.config.distribution.architecture(context.config.architecture)}
+                    Architecture = {cls.architecture(context)}
 
                     """
                 )
@@ -164,7 +164,7 @@ class Pacman(PackageManager):
             "--cachedir=/var/cache/pacman/mkosi",
             "--cachedir=/var/cache/pacman/pkg",
             "--hookdir=/buildroot/etc/pacman.d/hooks",
-            "--arch", context.config.distribution.architecture(context.config.architecture),
+            "--arch", cls.architecture(context),
             "--color", "auto",
             "--noconfirm",
         ]  # fmt: skip

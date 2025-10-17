@@ -1033,19 +1033,19 @@ def config_default_release(namespace: dict[str, Any]) -> str:
     if namespace["distribution"] == hd and hr is not None:
         return hr
 
-    return cast(str, namespace["distribution"].default_release())
+    return cast(str, namespace["distribution"].installer.default_release())
 
 
 def config_default_tools_tree_distribution(namespace: dict[str, Any]) -> Distribution:
     if d := os.getenv("MKOSI_HOST_DISTRIBUTION"):
-        return Distribution(d).default_tools_tree_distribution()
+        return Distribution(d).installer.default_tools_tree_distribution() or Distribution(d)
 
     detected = detect_distribution()[0]
 
     if not detected:
         return Distribution.custom
 
-    return detected.default_tools_tree_distribution()
+    return detected.installer.default_tools_tree_distribution() or detected
 
 
 def config_default_repository_key_fetch(namespace: dict[str, Any]) -> bool:
@@ -2356,7 +2356,7 @@ class Config:
             # running inside or outside of the mkosi box environment. To avoid these issues, don't cache the
             # package manager used in the tools tree cache manifest.
             **(
-                {"package_manager": self.distribution.package_manager(self).executable(self)}
+                {"package_manager": self.distribution.installer.package_manager(self).executable(self)}
                 if self.image != "tools"
                 else {}
             ),
@@ -2367,7 +2367,10 @@ class Config:
                 (p.name, p.stat().st_mtime_ns)
                 for d in self.package_directories
                 for p in sorted(
-                    flatten(d.glob(glob) for glob in self.distribution.package_manager(self).package_globs())
+                    flatten(
+                        d.glob(glob)
+                        for glob in self.distribution.installer.package_manager(self).package_globs()
+                    )
                 )
             ],
             "repositories": sorted(self.repositories),
@@ -3626,7 +3629,9 @@ SETTINGS: list[ConfigSetting[Any]] = [
         parse=config_parse_string,
         match=config_make_string_matcher(),
         default_factory_depends=("tools_tree_distribution",),
-        default_factory=lambda ns: d.default_release() if (d := ns["tools_tree_distribution"]) else None,
+        default_factory=(
+            lambda ns: d.installer.default_release() if (d := ns["tools_tree_distribution"]) else None
+        ),
         help="Set the release to use for the default tools tree",
         scope=SettingScope.tools,
     ),
@@ -4330,7 +4335,7 @@ SPECIFIERS = (
     ),
     Specifier(
         char="F",
-        callback=lambda ns, config: ns["distribution"].filesystem(),
+        callback=lambda ns, config: ns["distribution"].installer.filesystem(),
         depends=("distribution",),
     ),
     Specifier(
@@ -5232,7 +5237,7 @@ def want_default_initrd(config: Config) -> bool:
         return False
 
     if config.bootable == ConfigFeature.auto and not any(
-        config.distribution.is_kernel_package(p)
+        config.distribution.installer.is_kernel_package(p)
         for p in itertools.chain(config.packages, config.volatile_packages)
     ):
         return False

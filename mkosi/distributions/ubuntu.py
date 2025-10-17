@@ -14,7 +14,7 @@ from mkosi.log import die
 from mkosi.util import startswith
 
 
-class Installer(debian.Installer):
+class Installer(debian.Installer, distribution=Distribution.ubuntu):
     @classmethod
     def pretty_name(cls) -> str:
         return "Ubuntu"

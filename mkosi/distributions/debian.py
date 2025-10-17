@@ -11,14 +11,14 @@ from mkosi.archive import extract_tar
 from mkosi.config import Architecture, Config
 from mkosi.context import Context
 from mkosi.curl import curl
-from mkosi.distributions import DistributionInstaller, PackageType, join_mirror
+from mkosi.distributions import Distribution, DistributionInstaller, PackageType, join_mirror
 from mkosi.installer.apt import Apt, AptRepository
 from mkosi.log import die
 from mkosi.run import run, workdir
 from mkosi.sandbox import umask
 
 
-class Installer(DistributionInstaller):
+class Installer(DistributionInstaller, distribution=Distribution.debian):
     @classmethod
     def pretty_name(cls) -> str:
         return "Debian"
@@ -145,7 +145,9 @@ class Installer(DistributionInstaller):
             "sparc"       : ["lib64"],
             "sparc64"     : ["lib32", "lib64"],
             "x32"         : ["lib32", "lib64", "libx32"],
-        }.get(context.config.distribution.architecture(context.config.architecture), [])  # fmt: skip
+        }.get(
+            context.config.distribution.installer.architecture(context.config.architecture), []
+        )  # fmt: skip
 
         with umask(~0o755):
             for d in subdirs:

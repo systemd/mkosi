@@ -80,11 +80,11 @@ class Manifest:
 
     def record_packages(self) -> None:
         with complete_step("Recording packages in manifest…"):
-            if self.context.config.distribution.package_type() == PackageType.rpm:
+            if self.context.config.distribution.installer.package_type() == PackageType.rpm:
                 self.record_rpm_packages()
-            if self.context.config.distribution.package_type() == PackageType.deb:
+            if self.context.config.distribution.installer.package_type() == PackageType.deb:
                 self.record_deb_packages()
-            if self.context.config.distribution.package_type() == PackageType.pkg:
+            if self.context.config.distribution.installer.package_type() == PackageType.pkg:
                 self.record_pkg_packages()
 
     def record_rpm_packages(self) -> None:
