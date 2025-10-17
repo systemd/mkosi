@@ -2114,6 +2114,7 @@ class Config:
 
     vmm: Vmm
     console: ConsoleMode
+    with_console_background: bool
     cpus: int
     ram: int
     kvm: ConfigFeature
@@ -4090,6 +4091,14 @@ SETTINGS: list[ConfigSetting[Any]] = [
         scope=SettingScope.main,
     ),
     ConfigSetting(
+        dest="with_console_background",
+        metavar="BOOL",
+        section="Runtime",
+        parse=config_parse_boolean,
+        default=True,
+        help="Use a custom console background for Console=interactive and Console=read-only",
+    ),
+    ConfigSetting(
         dest="cpus",
         name="CPUs",
         metavar="CPUS",
@@ -5621,6 +5630,7 @@ def summary(config: Config) -> str:
 
             Virtual Machine Monitor: {config.vmm}
                             Console: {config.console}
+            With console background: {yes_no(config.with_console_background)}
                           CPU Cores: {config.cpus}
                                 RAM: {format_bytes(config.ram)}
                                 KVM: {config.kvm}

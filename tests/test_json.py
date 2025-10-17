@@ -428,6 +428,7 @@ def test_config() -> None:
             "VolatilePackages": [
                 "abc"
             ],
+            "WithConsoleBackground": true,
             "WithDocs": true,
             "WithNetwork": false,
             "WithRecommends": true,
@@ -615,6 +616,7 @@ def test_config() -> None:
         volatile_packages=["abc"],
         vsock_cid=VsockCID.hash,
         vsock=ConfigFeature.enabled,
+        with_console_background=True,
         with_docs=True,
         with_network=False,
         with_recommends=True,
