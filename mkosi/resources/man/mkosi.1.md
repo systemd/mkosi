@@ -736,8 +736,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     initially empty. Thus files that are not modified compared to the base trees
     will not be present in the final output.
 
-    This option may be used to create [systemd *system extensions* or
-    *portable services*](https://uapi-group.org/specifications/specs/extension_image).
+    This option may be used to create [systemd *system extensions*](https://uapi-group.org/specifications/specs/extension_image).
 
 `Seed=`, `--seed=`
 :   Takes a UUID as argument or the special value `random`.
