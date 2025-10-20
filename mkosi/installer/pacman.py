@@ -40,7 +40,7 @@ class Pacman(PackageManager):
 
     @classmethod
     def package_globs(cls) -> list[str]:
-        return ["*.pkg.tar"]
+        return ["*.pkg.tar*"]
 
     @classmethod
     def state_subdirs(cls, state: Path) -> list[Path]:
