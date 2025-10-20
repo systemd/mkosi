@@ -80,7 +80,7 @@ class Installer(DistributionInstaller, distribution=Distribution.arch):
                 elif context.config.snapshot:
                     mirror = "https://archive.archlinux.org"
                 else:
-                    mirror = "https://geo.mirror.pkgbuild.com"
+                    mirror = "https://fastly.mirror.pkgbuild.com"
 
             if context.config.snapshot:
                 url = join_mirror(mirror, f"repos/{context.config.snapshot}/$repo/os/$arch")

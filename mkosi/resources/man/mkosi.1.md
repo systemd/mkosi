@@ -516,21 +516,21 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     The default mirrors for each distribution are as follows (unless
     specified, the same mirror is used for all architectures):
 
-    |                | x86-64                            | aarch64                        |
-    |----------------|-----------------------------------|--------------------------------|
-    | `debian`       | http://deb.debian.org             |                                |
-    | `arch`         | https://geo.mirror.pkgbuild.com   | http://mirror.archlinuxarm.org |
-    | `opensuse`     | http://download.opensuse.org      |                                |
-    | `kali`         | http://http.kali.org/kali         |                                |
-    | `ubuntu`       | http://archive.ubuntu.com         | http://ports.ubuntu.com        |
-    | `centos`       | https://mirrors.centos.org        |                                |
-    | `rocky`        | https://mirrors.rockylinux.org    |                                |
-    | `alma`         | https://mirrors.almalinux.org     |                                |
-    | `fedora`       | https://mirrors.fedoraproject.org |                                |
-    | `rhel-ubi`     | https://cdn-ubi.redhat.com        |                                |
-    | `mageia`       | https://www.mageia.org            |                                |
-    | `openmandriva` | http://mirrors.openmandriva.org   |                                |
-    | `azure`        | https://packages.microsoft.com/   |                                |
+    |                | x86-64                             | aarch64                        |
+    |----------------|------------------------------------|--------------------------------|
+    | `debian`       | http://deb.debian.org              |                                |
+    | `arch`         | https://fastly.mirror.pkgbuild.com | http://mirror.archlinuxarm.org |
+    | `opensuse`     | http://download.opensuse.org       |                                |
+    | `kali`         | http://http.kali.org/kali          |                                |
+    | `ubuntu`       | http://archive.ubuntu.com          | http://ports.ubuntu.com        |
+    | `centos`       | https://mirrors.centos.org         |                                |
+    | `rocky`        | https://mirrors.rockylinux.org     |                                |
+    | `alma`         | https://mirrors.almalinux.org      |                                |
+    | `fedora`       | https://mirrors.fedoraproject.org  |                                |
+    | `rhel-ubi`     | https://cdn-ubi.redhat.com         |                                |
+    | `mageia`       | https://www.mageia.org             |                                |
+    | `openmandriva` | http://mirrors.openmandriva.org    |                                |
+    | `azure`        | https://packages.microsoft.com/    |                                |
 
 `Snapshot=`
 :   Download packages from the given snapshot instead of downloading the latest
