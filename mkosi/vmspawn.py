@@ -15,7 +15,6 @@ from mkosi.config import (
 )
 from mkosi.log import die
 from mkosi.qemu import (
-    apply_runtime_size,
     copy_ephemeral,
     finalize_credentials,
     finalize_firmware,
@@ -64,6 +63,7 @@ def run_vmspawn(args: Args, config: Config) -> None:
         "--secure-boot", yes_no(config.secure_boot),
         "--register", yes_no(finalize_register(config)),
         "--console", str(config.console),
+        "--grow-image", str(config.runtime_size),
     ]  # fmt: skip
 
     if config.runtime_network == Network.user:
@@ -76,8 +76,6 @@ def run_vmspawn(args: Args, config: Config) -> None:
             cmdline += [f"--load-credential={f.name}:{f}"]
 
         fname = stack.enter_context(copy_ephemeral(config, config.output_dir_or_cwd() / config.output))
-
-        apply_runtime_size(config, fname)
 
         if config.runtime_build_sources:
             for t in config.build_sources:
