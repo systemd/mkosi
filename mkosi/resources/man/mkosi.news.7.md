@@ -34,6 +34,8 @@
   Previous separate Include and Exclude options that take regexps are now
   deprecated and are replaced by a single option that takes a list of
   positive and negative globs. The new option is FirmwareFiles=.
+- The `RuntimeScratch=` option has been dropped. Use `RuntimeSize=`
+  instead to grow the image before booting it.
 
 ## v25
 

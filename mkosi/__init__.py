@@ -4234,16 +4234,6 @@ def run_shell(args: Args, config: Config) -> None:
         if config.bind_user:
             cmdline += ["--bind-user", getpass.getuser()]
 
-        if config.runtime_scratch == ConfigFeature.enabled or (
-            config.runtime_scratch == ConfigFeature.auto and config.output_format == OutputFormat.disk
-        ):
-            scratch = Path(
-                stack.enter_context(tempfile.TemporaryDirectory(dir="/var/tmp", prefix="mkosi-scratch-"))
-            )
-            scratch.chmod(0o1777)
-            uidmap = "rootidmap" if scratch.stat().st_uid != 0 else "noidmap"
-            cmdline += ["--bind", f"{scratch}:/var/tmp:{uidmap}"]
-
         if args.verb == Verb.boot and config.forward_journal:
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
                 addr = (

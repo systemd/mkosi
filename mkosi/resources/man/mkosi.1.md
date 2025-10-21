@@ -1933,15 +1933,6 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     bytes. Additionally, the suffixes `K`, `M` and `G` can be used to
     specify a size in kilobytes, megabytes and gigabytes respectively.
 
-`RuntimeScratch=`, `--runtime-scratch=`
-:   Takes a boolean value or `auto`. Specifies whether to mount extra
-    scratch space to `/var/tmp`. If enabled, practically unlimited scratch
-    space is made available under `/var/tmp` when booting the image with
-    `mkosi vm`, `mkosi boot` or `mkosi shell`.
-
-    Note that using this feature with `mkosi vm` requires systemd v254
-    or newer in the guest.
-
 `RuntimeNetwork=`, `--runtime-network=`
 :   Takes one of `user`, `interface` or `none`. Defaults to `user`.
     Specifies the networking to set up when booting the image. `user` sets

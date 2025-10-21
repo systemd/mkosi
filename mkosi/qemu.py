@@ -631,27 +631,6 @@ def qemu_version(config: Config, binary: Path) -> GenericVersion:
     )
 
 
-def want_scratch(config: Config) -> bool:
-    return config.runtime_scratch == ConfigFeature.enabled or (
-        config.runtime_scratch == ConfigFeature.auto
-        and config.find_binary(f"mkfs.{config.distribution.installer.filesystem()}") is not None
-    )
-
-
-@contextlib.contextmanager
-def generate_scratch_fs(config: Config) -> Iterator[Path]:
-    with tempfile.NamedTemporaryFile(dir="/var/tmp", prefix="mkosi-scratch-") as scratch:
-        maybe_make_nocow(Path(scratch.name))
-        scratch.truncate(1024**4)
-        fs = config.distribution.installer.filesystem()
-        extra = config.finalize_environment().get(f"SYSTEMD_REPART_MKFS_OPTIONS_{fs.upper()}", "")
-        run(
-            [f"mkfs.{fs}", "-L", "scratch", "-q", *extra.split(), workdir(Path(scratch.name))],
-            sandbox=config.sandbox(options=["--bind", scratch.name, workdir(Path(scratch.name))]),
-        )
-        yield Path(scratch.name)
-
-
 def finalize_firmware(
     config: Config,
     kernel: Optional[Path],
@@ -1422,28 +1401,8 @@ def run_qemu(args: Args, config: Config) -> None:
             sock = stack.enter_context(start_virtiofsd(config, tree.source))
             add_virtiofs_mount(sock, Path("/root/src") / (tree.target or ""), cmdline, credentials)
 
-        if want_scratch(config) or config.output_format in (OutputFormat.disk, OutputFormat.esp):
+        if config.output_format in (OutputFormat.disk, OutputFormat.esp):
             cmdline += ["-device", "virtio-scsi-pci,id=mkosi"]
-
-        if want_scratch(config):
-            scratch = stack.enter_context(generate_scratch_fs(config))
-            blockdev = [
-                "driver=raw",
-                "node-name=scratch",
-                "discard=unmap",
-                "file.driver=file",
-                f"file.filename={scratch}",
-                "file.aio=io_uring",
-                "cache.direct=on",
-                "cache.no-flush=on",
-            ]
-            cmdline += [
-                "-blockdev", ",".join(blockdev),
-                "-device", "virtio-blk-pci,drive=scratch",
-            ]  # fmt: skip
-            kcl += [
-                f"systemd.mount-extra=LABEL=scratch:/var/tmp:{config.distribution.installer.filesystem()}"
-            ]
 
         if config.output_format == OutputFormat.cpio:
             cmdline += ["-initrd", fname]

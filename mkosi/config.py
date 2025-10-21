@@ -2111,7 +2111,6 @@ class Config:
     storage_target_mode: ConfigFeature
     runtime_trees: list[ConfigTree]
     runtime_size: Optional[int]
-    runtime_scratch: ConfigFeature
     runtime_network: Network
     runtime_build_sources: bool
     bind_user: bool
@@ -4005,14 +4004,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
         scope=SettingScope.main,
     ),
     ConfigSetting(
-        dest="runtime_scratch",
-        metavar="FEATURE",
-        section="Runtime",
-        parse=config_parse_feature,
-        help="Mount extra scratch space to /var/tmp",
-        scope=SettingScope.main,
-    ),
-    ConfigSetting(
         dest="runtime_network",
         section="Runtime",
         parse=config_make_enum_parser(Network),
@@ -4497,14 +4488,8 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
         nargs=0,
         action=IgnoreAction,
     )
-    parser.add_argument(
-        "--default",
-        action=IgnoreAction,
-    )
-    parser.add_argument(
-        "--cache",
-        action=IgnoreAction,
-    )
+    for arg in ("--default", "--cache", "--runtime-scratch"):
+        parser.add_argument(arg, action=IgnoreAction)
 
     parser.add_argument(
         "verb",
@@ -5761,7 +5746,6 @@ def summary(config: Config) -> str:
           Extra Kernel Command Line: {line_join_list(config.kernel_command_line_extra)}
                       Runtime Trees: {line_join_list(config.runtime_trees)}
                        Runtime Size: {format_bytes_or_none(config.runtime_size)}
-                    Runtime Scratch: {config.runtime_scratch}
                     Runtime Network: {config.runtime_network}
               Runtime Build Sources: {config.runtime_build_sources}
                           Bind User: {yes_no(config.bind_user)}
