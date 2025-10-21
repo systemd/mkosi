@@ -2130,7 +2130,6 @@ class Config:
     vsock: ConfigFeature
     vsock_cid: int
     tpm: ConfigFeature
-    cdrom: bool
     removable: bool
     firmware: Firmware
     firmware_variables: Optional[Path]
@@ -4190,17 +4189,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
         scope=SettingScope.main,
     ),
     ConfigSetting(
-        dest="cdrom",
-        name="CDROM",
-        metavar="BOOLEAN",
-        section="Runtime",
-        parse=config_parse_boolean,
-        help="Attach the image as a CD-ROM to the virtual machine",
-        compat_longs=("--qemu-cdrom",),
-        compat_names=("QemuCdrom",),
-        scope=SettingScope.main,
-    ),
-    ConfigSetting(
         dest="removable",
         metavar="BOOLEAN",
         section="Runtime",
@@ -5767,7 +5755,6 @@ def summary(config: Config) -> str:
                               VSock: {config.vsock}
                 VSock Connection ID: {VsockCID.format(config.vsock_cid)}
                                 TPM: {config.tpm}
-                             CD-ROM: {yes_no(config.cdrom)}
                            Firmware: {config.firmware}
                  Firmware Variables: {none_to_none(config.firmware_variables)}
                               Linux: {none_to_none(config.linux)}

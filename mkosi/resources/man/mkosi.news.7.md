@@ -36,6 +36,7 @@
   positive and negative globs. The new option is FirmwareFiles=.
 - The `RuntimeScratch=` option has been dropped. Use `RuntimeSize=`
   instead to grow the image before booting it.
+- The `CDROM=` option has been dropped.
 
 ## v25
 

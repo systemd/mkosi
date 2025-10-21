@@ -837,10 +837,6 @@ def finalize_kernel_command_line_extra(config: Config) -> list[str]:
     ):
         cmdline += [f"systemd.hostname={config.machine}"]
 
-    if config.cdrom:
-        # CD-ROMs are read-only so tell systemd to boot in volatile mode.
-        cmdline += ["systemd.volatile=yes"]
-
     if config.console != ConsoleMode.gui:
         cmdline += [
             f"systemd.tty.term.console={term}",
@@ -1296,36 +1292,9 @@ def run_qemu(args: Args, config: Config) -> None:
                     "-global", "driver=cfi.pflash01,property=secure,value=on",
                 ]  # fmt: skip
 
-        if config.cdrom and config.output_format in (OutputFormat.disk, OutputFormat.esp):
-            # CD-ROM devices have sector size 2048 so we transform disk images into ones with sector size
-            # 2048.
-            src = (config.output_dir_or_cwd() / config.output_with_compression).resolve()
-            fname = src.parent / f"{src.name}-{uuid.uuid4().hex}"
-            run(
-                [
-                    "systemd-repart",
-                    "--definitions=/",
-                    "--no-pager",
-                    "--pretty=no",
-                    "--offline=yes",
-                    "--empty=create",
-                    "--size=auto",
-                    "--sector-size=2048",
-                    "--copy-from", workdir(src),
-                    workdir(fname),
-                ],  # fmt: skip
-                sandbox=config.sandbox(
-                    options=[
-                        "--bind", fname.parent, workdir(fname.parent),
-                        "--ro-bind", src, workdir(src),
-                    ],
-                ),
-            )  # fmt: skip
-            stack.callback(lambda: fname.unlink())
-        else:
-            fname = stack.enter_context(
-                copy_ephemeral(config, config.output_dir_or_cwd() / config.output_with_compression)
-            )
+        fname = stack.enter_context(
+            copy_ephemeral(config, config.output_dir_or_cwd() / config.output_with_compression)
+        )
 
         apply_runtime_size(config, fname)
 
@@ -1428,9 +1397,7 @@ def run_qemu(args: Args, config: Config) -> None:
             ]
 
             device_type = "virtio-blk-pci"
-            if config.cdrom:
-                device_type = "scsi-cd,device_id=mkosi"
-            elif config.removable:
+            if config.removable:
                 device_type = "scsi-hd,device_id=mkosi,removable=on"
 
             cmdline += [

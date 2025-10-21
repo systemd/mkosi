@@ -1779,10 +1779,6 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   Configure whether to use a virtual TPM when booting a virtual machine.
     Takes a boolean value or `auto`. Defaults to `auto`.
 
-`CDROM=`, `--cdrom=`
-:   Configures whether to attach the image as a CD-ROM device when booting a
-    virtual machine. Takes a boolean value. Defaults to `no`.
-
 `Removable=`, `--removable=`
 :   Configures whether to attach the image as a removable device when booting
     a virtual machine. Takes a boolean value. Defaults to `no`.
