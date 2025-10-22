@@ -33,11 +33,14 @@ def log_step(text: str) -> None:
         # easily which step generated the exception. The exception
         # or error will only be printed after we finish cleanup.
         if not terminal_is_dumb():
-            print(f"\033]0;mkosi: {text}", file=sys.stderr, end="")
+            print(f"\033]0;mkosi: {text}\033\\", file=sys.stderr, end="")
+            # konsole does not support ESC ]0; title ST, but instead supports this
+            print(f"\033]30;mkosi: {text}\033\\", file=sys.stderr, end="")
         logging.info(f"{prefix}({text})")
     else:
         if not terminal_is_dumb():
-            print(f"\033]0;mkosi: {text}", file=sys.stderr, end="")
+            print(f"\033]0;mkosi: {text}\033\\", file=sys.stderr, end="")
+            print(f"\033]30;mkosi: {text}\033\\", file=sys.stderr, end="")
         logging.info(f"{prefix}{Style.bold}{text}{Style.reset}")
 
 
