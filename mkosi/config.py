@@ -1921,7 +1921,8 @@ def make_simple_config_parser(
                 continue
 
             if not (s := lookup_by_name.get(name)):
-                die(f"{path.absolute()}: Unknown setting {name}")
+                logging.warning(f"{path.absolute()}: Unknown setting {name}")
+                continue
 
             if section != s.section:
                 logging.warning(
@@ -4949,7 +4950,8 @@ class ParseContext:
                     )
 
                 if not (s := SETTINGS_LOOKUP_BY_NAME.get(name)):
-                    die(f"{path.absolute()}: Unknown setting {name}")
+                    logging.warning(f"{path.absolute()}: Unknown setting {name}")
+                    continue
 
                 image = self.config["image"]
 
