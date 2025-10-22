@@ -16,6 +16,11 @@ ARG_DEBUG_SHELL = contextvars.ContextVar("debug-shell", default=False)
 ARG_DEBUG_SANDBOX = contextvars.ContextVar("debug-sandbox", default=False)
 LEVEL = 0
 
+# Terminal control characters
+ESCAPE_CODE_OSC = "\033]"
+ESCAPE_CODE_ST = "\033\\"
+ESCAPE_CODE_CSI = "\033["
+
 
 def die(message: str, *, hint: Optional[str] = None) -> NoReturn:
     logging.error(f"{message}")
@@ -33,11 +38,11 @@ def log_step(text: str) -> None:
         # easily which step generated the exception. The exception
         # or error will only be printed after we finish cleanup.
         if not terminal_is_dumb():
-            print(f"\033]0;mkosi: {text}", file=sys.stderr, end="")
+            print(f"{ESCAPE_CODE_OSC}0;mkosi: {text}{ESCAPE_CODE_ST}", file=sys.stderr, end="")
         logging.info(f"{prefix}({text})")
     else:
         if not terminal_is_dumb():
-            print(f"\033]0;mkosi: {text}", file=sys.stderr, end="")
+            print(f"{ESCAPE_CODE_OSC}0;mkosi: {text}{ESCAPE_CODE_ST}", file=sys.stderr, end="")
         logging.info(f"{prefix}{Style.bold}{text}{Style.reset}")
 
 
@@ -96,10 +101,10 @@ def stash_terminal_title() -> Iterator[None]:
     try:
         # push terminal window title to stack
         if not terminal_is_dumb():
-            print("\033[22t", file=sys.stderr, end="")
+            print(f"{ESCAPE_CODE_CSI}22t", file=sys.stderr, end="")
 
         yield
     finally:
         # pop terminal window title from stack to reset
         if not terminal_is_dumb():
-            print("\033[23t", file=sys.stderr, end="")
+            print(f"{ESCAPE_CODE_CSI}23t", file=sys.stderr, end="")
