@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 import contextlib
+import getpass
 import os
 import sys
 from pathlib import Path
@@ -33,9 +34,6 @@ def run_vmspawn(args: Args, config: Config) -> None:
     if config.firmware == Firmware.bios:
         die("systemd-vmspawn cannot boot BIOS firmware images")
 
-    if config.bind_user:
-        die("systemd-vmspawn does not support --bind-user=")
-
     if config.firmware_variables and config.firmware_variables != Path("microsoft"):
         die("mkosi vmspawn does not support FirmwareVariables=")
 
@@ -62,6 +60,9 @@ def run_vmspawn(args: Args, config: Config) -> None:
         "--console", str(config.console),
         "--grow-image", str(config.runtime_size),
     ]  # fmt: skip
+
+    if config.bind_user:
+        cmdline += ["--bind-user", getpass.getuser()]
 
     if config.runtime_network == Network.user:
         cmdline += ["--network-user-mode"]
