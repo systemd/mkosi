@@ -4198,11 +4198,16 @@ def run_box(args: Args, config: Config) -> None:
 
     cmdline = [*args.cmdline]
 
-    if sys.stdin.isatty() and sys.stdout.isatty() and config.find_binary("systemd-pty-forward"):
+    if (
+        sys.stdin.isatty()
+        and sys.stdout.isatty()
+        and config.find_binary("systemd-pty-forward")
+        and config.shall_customize_pty
+    ):
         cmdline = [
             "systemd-pty-forward",
-            "--title=mkosi-sandbox",
-            "--background=48;2;12;51;51",  # cyan
+            *(["--title=mkosi-sandbox"] if config.shall_customize_pty_title else []),
+            *(["--background=48;2;12;51;51"] if config.shall_customize_pty_bg else []),  # cyan
             *cmdline,
         ]
 

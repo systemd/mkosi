@@ -1171,10 +1171,15 @@ def run_qemu(args: Args, config: Config) -> None:
     if config.vsock == ConfigFeature.enabled and QemuDeviceNode.vhost_vsock not in qemu_device_fds:
         die("VSock requested but cannot access /dev/vhost-vsock")
 
-    if config.console not in (ConsoleMode.native, ConsoleMode.gui) and not config.find_binary(
-        "systemd-pty-forward"
-    ):
+    if config.console == ConsoleMode.read_only and not config.find_binary("systemd-pty-forward"):
         die(f"Console mode {config.console} requested but systemd-pty-forward not found")
+
+    if (
+        config.console == ConsoleMode.interactive
+        and config.shall_customize_pty
+        and not config.find_binary("systemd-pty-forward")
+    ):
+        die("Custom PTY title or background tint requested but systemd-pty-forward not found")
 
     if config.linux:
         kernel = config.expand_linux_specifiers()
@@ -1232,10 +1237,17 @@ def run_qemu(args: Args, config: Config) -> None:
 
     cmdline: list[PathString] = []
 
-    if config.console in (ConsoleMode.interactive, ConsoleMode.read_only):
+    if config.console == ConsoleMode.read_only or (
+        config.console == ConsoleMode.interactive and config.shall_customize_pty
+    ):
         cmdline += [
-            "systemd-pty-forward", "--background=48;2;12;51;19",  # green
-            "--title", f"Virtual Machine {config.machine_or_name()}",
+            "systemd-pty-forward",
+            *(["--background=48;2;12;51;19"] if config.shall_customize_pty_bg else []),  # green
+            *(
+                ["--title", f"Virtual Machine {config.machine_or_name()}"]
+                if config.shall_customize_pty_title
+                else []
+            ),
         ]  # fmt: skip
 
         if config.console == ConsoleMode.read_only:
