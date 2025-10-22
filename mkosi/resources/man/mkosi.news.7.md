@@ -34,6 +34,14 @@
   Previous separate Include and Exclude options that take regexps are now
   deprecated and are replaced by a single option that takes a list of
   positive and negative globs. The new option is FirmwareFiles=.
+- The `RuntimeScratch=` option has been dropped. Use `RuntimeSize=`
+  instead to grow the image before booting it.
+- The `CDROM=` option has been dropped.
+- Unknown settings now generate a warning message instead of failing the
+  image build. This allows configs to work across a wider range of mkosi
+  versions while still taking advantage of newer settings. MinimumVersion
+  can still be used to enforce a minimum version of mkosi that knows all
+  required settings.
 
 ## v25
 

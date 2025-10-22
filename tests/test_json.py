@@ -129,7 +129,6 @@ def test_config() -> None:
             ],
             "BuildSourcesEphemeral": "yes",
             "BuildSubdirectory": "abc/abc",
-            "CDROM": false,
             "CPUs": 2,
             "CXL": false,
             "CacheDirectory": "/is/this/the/cachedir",
@@ -317,7 +316,6 @@ def test_config() -> None:
             "RootShell": "/bin/tcsh",
             "RuntimeBuildSources": true,
             "RuntimeNetwork": "interface",
-            "RuntimeScratch": "enabled",
             "RuntimeSize": 8589934592,
             "RuntimeTrees": [
                 {
@@ -456,7 +454,6 @@ def test_config() -> None:
         cache_dir=Path("/is/this/the/cachedir"),
         cache_key="qed",
         cacheonly=Cacheonly.always,
-        cdrom=False,
         checksum=False,
         clean_package_metadata=ConfigFeature.auto,
         clean_scripts=[Path("/clean")],
@@ -559,7 +556,6 @@ def test_config() -> None:
         root_shell="/bin/tcsh",
         runtime_build_sources=True,
         runtime_network=Network.interface,
-        runtime_scratch=ConfigFeature.enabled,
         runtime_size=8589934592,
         runtime_trees=[
             ConfigTree(Path("/foo/bar"), Path("/baz")),

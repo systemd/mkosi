@@ -33,9 +33,6 @@ def run_vmspawn(args: Args, config: Config) -> None:
     if config.firmware == Firmware.bios:
         die("systemd-vmspawn cannot boot BIOS firmware images")
 
-    if config.cdrom:
-        die("systemd-vmspawn does not support CD-ROM images")
-
     if config.bind_user:
         die("systemd-vmspawn does not support --bind-user=")
 

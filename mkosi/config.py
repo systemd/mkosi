@@ -1921,7 +1921,8 @@ def make_simple_config_parser(
                 continue
 
             if not (s := lookup_by_name.get(name)):
-                die(f"{path.absolute()}: Unknown setting {name}")
+                logging.warning(f"{path.absolute()}: Unknown setting {name}")
+                continue
 
             if section != s.section:
                 logging.warning(
@@ -2111,7 +2112,6 @@ class Config:
     storage_target_mode: ConfigFeature
     runtime_trees: list[ConfigTree]
     runtime_size: Optional[int]
-    runtime_scratch: ConfigFeature
     runtime_network: Network
     runtime_build_sources: bool
     bind_user: bool
@@ -2131,7 +2131,6 @@ class Config:
     vsock: ConfigFeature
     vsock_cid: int
     tpm: ConfigFeature
-    cdrom: bool
     removable: bool
     firmware: Firmware
     firmware_variables: Optional[Path]
@@ -4005,14 +4004,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
         scope=SettingScope.main,
     ),
     ConfigSetting(
-        dest="runtime_scratch",
-        metavar="FEATURE",
-        section="Runtime",
-        parse=config_parse_feature,
-        help="Mount extra scratch space to /var/tmp",
-        scope=SettingScope.main,
-    ),
-    ConfigSetting(
         dest="runtime_network",
         section="Runtime",
         parse=config_make_enum_parser(Network),
@@ -4196,17 +4187,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
         help="Configure whether to use a virtual tpm or not",
         compat_longs=("--qemu-swtpm",),
         compat_names=("QemuSwtpm",),
-        scope=SettingScope.main,
-    ),
-    ConfigSetting(
-        dest="cdrom",
-        name="CDROM",
-        metavar="BOOLEAN",
-        section="Runtime",
-        parse=config_parse_boolean,
-        help="Attach the image as a CD-ROM to the virtual machine",
-        compat_longs=("--qemu-cdrom",),
-        compat_names=("QemuCdrom",),
         scope=SettingScope.main,
     ),
     ConfigSetting(
@@ -4497,14 +4477,8 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
         nargs=0,
         action=IgnoreAction,
     )
-    parser.add_argument(
-        "--default",
-        action=IgnoreAction,
-    )
-    parser.add_argument(
-        "--cache",
-        action=IgnoreAction,
-    )
+    for arg in ("--default", "--cache", "--runtime-scratch"):
+        parser.add_argument(arg, action=IgnoreAction)
 
     parser.add_argument(
         "verb",
@@ -4976,7 +4950,8 @@ class ParseContext:
                     )
 
                 if not (s := SETTINGS_LOOKUP_BY_NAME.get(name)):
-                    die(f"{path.absolute()}: Unknown setting {name}")
+                    logging.warning(f"{path.absolute()}: Unknown setting {name}")
+                    continue
 
                 image = self.config["image"]
 
@@ -5761,7 +5736,6 @@ def summary(config: Config) -> str:
           Extra Kernel Command Line: {line_join_list(config.kernel_command_line_extra)}
                       Runtime Trees: {line_join_list(config.runtime_trees)}
                        Runtime Size: {format_bytes_or_none(config.runtime_size)}
-                    Runtime Scratch: {config.runtime_scratch}
                     Runtime Network: {config.runtime_network}
               Runtime Build Sources: {config.runtime_build_sources}
                           Bind User: {yes_no(config.bind_user)}
@@ -5783,7 +5757,6 @@ def summary(config: Config) -> str:
                               VSock: {config.vsock}
                 VSock Connection ID: {VsockCID.format(config.vsock_cid)}
                                 TPM: {config.tpm}
-                             CD-ROM: {yes_no(config.cdrom)}
                            Firmware: {config.firmware}
                  Firmware Variables: {none_to_none(config.firmware_variables)}
                               Linux: {none_to_none(config.linux)}

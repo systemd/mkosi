@@ -1779,10 +1779,6 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   Configure whether to use a virtual TPM when booting a virtual machine.
     Takes a boolean value or `auto`. Defaults to `auto`.
 
-`CDROM=`, `--cdrom=`
-:   Configures whether to attach the image as a CD-ROM device when booting a
-    virtual machine. Takes a boolean value. Defaults to `no`.
-
 `Removable=`, `--removable=`
 :   Configures whether to attach the image as a removable device when booting
     a virtual machine. Takes a boolean value. Defaults to `no`.
@@ -1932,15 +1928,6 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     they're booted with `mkosi boot` or `mkosi vm`. Takes a size in
     bytes. Additionally, the suffixes `K`, `M` and `G` can be used to
     specify a size in kilobytes, megabytes and gigabytes respectively.
-
-`RuntimeScratch=`, `--runtime-scratch=`
-:   Takes a boolean value or `auto`. Specifies whether to mount extra
-    scratch space to `/var/tmp`. If enabled, practically unlimited scratch
-    space is made available under `/var/tmp` when booting the image with
-    `mkosi vm`, `mkosi boot` or `mkosi shell`.
-
-    Note that using this feature with `mkosi vm` requires systemd v254
-    or newer in the guest.
 
 `RuntimeNetwork=`, `--runtime-network=`
 :   Takes one of `user`, `interface` or `none`. Defaults to `user`.

@@ -631,27 +631,6 @@ def qemu_version(config: Config, binary: Path) -> GenericVersion:
     )
 
 
-def want_scratch(config: Config) -> bool:
-    return config.runtime_scratch == ConfigFeature.enabled or (
-        config.runtime_scratch == ConfigFeature.auto
-        and config.find_binary(f"mkfs.{config.distribution.installer.filesystem()}") is not None
-    )
-
-
-@contextlib.contextmanager
-def generate_scratch_fs(config: Config) -> Iterator[Path]:
-    with tempfile.NamedTemporaryFile(dir="/var/tmp", prefix="mkosi-scratch-") as scratch:
-        maybe_make_nocow(Path(scratch.name))
-        scratch.truncate(1024**4)
-        fs = config.distribution.installer.filesystem()
-        extra = config.finalize_environment().get(f"SYSTEMD_REPART_MKFS_OPTIONS_{fs.upper()}", "")
-        run(
-            [f"mkfs.{fs}", "-L", "scratch", "-q", *extra.split(), workdir(Path(scratch.name))],
-            sandbox=config.sandbox(options=["--bind", scratch.name, workdir(Path(scratch.name))]),
-        )
-        yield Path(scratch.name)
-
-
 def finalize_firmware(
     config: Config,
     kernel: Optional[Path],
@@ -857,10 +836,6 @@ def finalize_kernel_command_line_extra(config: Config) -> list[str]:
         and config.machine
     ):
         cmdline += [f"systemd.hostname={config.machine}"]
-
-    if config.cdrom:
-        # CD-ROMs are read-only so tell systemd to boot in volatile mode.
-        cmdline += ["systemd.volatile=yes"]
 
     if config.console != ConsoleMode.gui:
         cmdline += [
@@ -1317,36 +1292,9 @@ def run_qemu(args: Args, config: Config) -> None:
                     "-global", "driver=cfi.pflash01,property=secure,value=on",
                 ]  # fmt: skip
 
-        if config.cdrom and config.output_format in (OutputFormat.disk, OutputFormat.esp):
-            # CD-ROM devices have sector size 2048 so we transform disk images into ones with sector size
-            # 2048.
-            src = (config.output_dir_or_cwd() / config.output_with_compression).resolve()
-            fname = src.parent / f"{src.name}-{uuid.uuid4().hex}"
-            run(
-                [
-                    "systemd-repart",
-                    "--definitions=/",
-                    "--no-pager",
-                    "--pretty=no",
-                    "--offline=yes",
-                    "--empty=create",
-                    "--size=auto",
-                    "--sector-size=2048",
-                    "--copy-from", workdir(src),
-                    workdir(fname),
-                ],  # fmt: skip
-                sandbox=config.sandbox(
-                    options=[
-                        "--bind", fname.parent, workdir(fname.parent),
-                        "--ro-bind", src, workdir(src),
-                    ],
-                ),
-            )  # fmt: skip
-            stack.callback(lambda: fname.unlink())
-        else:
-            fname = stack.enter_context(
-                copy_ephemeral(config, config.output_dir_or_cwd() / config.output_with_compression)
-            )
+        fname = stack.enter_context(
+            copy_ephemeral(config, config.output_dir_or_cwd() / config.output_with_compression)
+        )
 
         apply_runtime_size(config, fname)
 
@@ -1422,28 +1370,8 @@ def run_qemu(args: Args, config: Config) -> None:
             sock = stack.enter_context(start_virtiofsd(config, tree.source))
             add_virtiofs_mount(sock, Path("/root/src") / (tree.target or ""), cmdline, credentials)
 
-        if want_scratch(config) or config.output_format in (OutputFormat.disk, OutputFormat.esp):
+        if config.output_format in (OutputFormat.disk, OutputFormat.esp):
             cmdline += ["-device", "virtio-scsi-pci,id=mkosi"]
-
-        if want_scratch(config):
-            scratch = stack.enter_context(generate_scratch_fs(config))
-            blockdev = [
-                "driver=raw",
-                "node-name=scratch",
-                "discard=unmap",
-                "file.driver=file",
-                f"file.filename={scratch}",
-                "file.aio=io_uring",
-                "cache.direct=on",
-                "cache.no-flush=on",
-            ]
-            cmdline += [
-                "-blockdev", ",".join(blockdev),
-                "-device", "virtio-blk-pci,drive=scratch",
-            ]  # fmt: skip
-            kcl += [
-                f"systemd.mount-extra=LABEL=scratch:/var/tmp:{config.distribution.installer.filesystem()}"
-            ]
 
         if config.output_format == OutputFormat.cpio:
             cmdline += ["-initrd", fname]
@@ -1469,9 +1397,7 @@ def run_qemu(args: Args, config: Config) -> None:
             ]
 
             device_type = "virtio-blk-pci"
-            if config.cdrom:
-                device_type = "scsi-cd,device_id=mkosi"
-            elif config.removable:
+            if config.removable:
                 device_type = "scsi-hd,device_id=mkosi,removable=on"
 
             cmdline += [
