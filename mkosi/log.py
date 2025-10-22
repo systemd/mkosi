@@ -24,6 +24,44 @@ def die(message: str, *, hint: Optional[str] = None) -> NoReturn:
     sys.exit(1)
 
 
+class ConsoleCodes:
+    OSC = "\033]"
+    CSI = "\033["
+    ST = "\033\\"
+    # \033\\ is one possible ECMA-48 string terminators, BEL would be valid for most terminal emulators as
+    # well, but kitty, annoyingly, actually rings the bell in that case. Other string terminators would be
+    # valid as well, but this one worked for:
+    # - alacritty
+    # - ghostty
+    # - gnome-terminal
+    # - kitty
+    # - konsole
+    # - ptyxis
+    # - xterm
+    # References:
+    # https://learn.microsoft.com/en-us/windows/console/console-virtual-terminal-sequences#window-title
+    # https://en.wikipedia.org/wiki/ANSI_escape_code#Operating_System_Command_sequences
+    # https://ghostty.org/docs/vt/concepts/sequences#osc-sequences
+    # https://sw.kovidgoyal.net/kitty/shell-integration/#notes-for-shell-developers
+
+    @classmethod
+    def set_window_title(cls, title: str) -> str:
+        # The title is set twice, once for all terminal emulators that are not konsole and once for konsole
+        return f"{cls.OSC}0;mkosi: {title}{cls.ST}{cls.OSC}30;mkosi: {title}{cls.ST}"
+
+    @classmethod
+    def push_window_title(cls) -> str:
+        """Push the window title on the window title stack."""
+        # not supported by konsole
+        return f"{cls.CSI}22t"
+
+    @classmethod
+    def pop_window_title(cls) -> str:
+        """Pop latest window title from the window title stack."""
+        # not supported by konsole
+        return f"{cls.CSI}23t"
+
+
 def log_step(text: str) -> None:
     prefix = " " * LEVEL
 
@@ -33,14 +71,11 @@ def log_step(text: str) -> None:
         # easily which step generated the exception. The exception
         # or error will only be printed after we finish cleanup.
         if not terminal_is_dumb():
-            print(f"\033]0;mkosi: {text}\033\\", file=sys.stderr, end="")
-            # konsole does not support ESC ]0; title ST, but instead supports this
-            print(f"\033]30;mkosi: {text}\033\\", file=sys.stderr, end="")
+            print(ConsoleCodes.set_window_title(text), file=sys.stderr, end="")
         logging.info(f"{prefix}({text})")
     else:
         if not terminal_is_dumb():
-            print(f"\033]0;mkosi: {text}\033\\", file=sys.stderr, end="")
-            print(f"\033]30;mkosi: {text}\033\\", file=sys.stderr, end="")
+            print(ConsoleCodes.set_window_title(text), file=sys.stderr, end="")
         logging.info(f"{prefix}{Style.bold}{text}{Style.reset}")
 
 
@@ -97,12 +132,10 @@ def log_setup(default_log_level: str = "info") -> None:
 @contextlib.contextmanager
 def stash_terminal_title() -> Iterator[None]:
     try:
-        # push terminal window title to stack
         if not terminal_is_dumb():
-            print("\033[22t", file=sys.stderr, end="")
+            print(ConsoleCodes.push_window_title(), file=sys.stderr, end="")
 
         yield
     finally:
-        # pop terminal window title from stack to reset
         if not terminal_is_dumb():
-            print("\033[23t", file=sys.stderr, end="")
+            print(ConsoleCodes.pop_window_title(), file=sys.stderr, end="")
