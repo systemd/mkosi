@@ -2342,6 +2342,22 @@ class Config:
 
         return self.build_dir / subdir
 
+    @property
+    def shall_customize_pty_title(self) -> bool:
+        return parse_boolean(self.environment.get("SYSTEMD_ADJUST_TERMINAL_TITLE", "1")) and parse_boolean(
+            os.environ.get("SYSTEMD_ADJUST_TERMINAL_TITLE", "1")
+        )
+
+    @property
+    def shall_customize_pty_bg(self) -> bool:
+        return parse_boolean(self.environment.get("SYSTEMD_TINT_BACKGROUND", "1")) and parse_boolean(
+            os.environ.get("SYSTEMD_TINT_BACKGROUND", "1")
+        )
+
+    @property
+    def shall_customize_pty(self) -> bool:
+        return self.shall_customize_pty_title or self.shall_customize_pty_bg
+
     def cache_manifest(self) -> dict[str, Any]:
         return {
             "distribution": self.distribution,
