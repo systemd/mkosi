@@ -374,7 +374,9 @@ Configuration is parsed in the following order:
 * `mkosi.conf.d/` is parsed in the same directory as `mkosi.conf` if it
   exists. Each directory and each file with the `.conf` extension in
   `mkosi.conf.d/` is parsed. Any directory in `mkosi.conf.d` is parsed
-  as if it were a regular top level directory.
+  as if it were a regular top level directory, except for `mkosi.images/`
+  and `mkosi.tools.conf`, which are only picked up in the top level
+  directory.
 * If any profiles are configured, their configuration is parsed from the
   `mkosi.profiles/` directory.
 * Subimages are parsed from the `mkosi.images/` directory if it exists.
