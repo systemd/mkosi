@@ -43,6 +43,7 @@ class ConsoleCodes:
     # https://en.wikipedia.org/wiki/ANSI_escape_code#Operating_System_Command_sequences
     # https://ghostty.org/docs/vt/concepts/sequences#osc-sequences
     # https://sw.kovidgoyal.net/kitty/shell-integration/#notes-for-shell-developers
+    BEL = "\07"
 
     @classmethod
     def set_window_title(cls, title: str) -> str:
@@ -59,6 +60,16 @@ class ConsoleCodes:
         """Pop latest window title from the window title stack."""
         # not supported by konsole
         return f"{cls.CSI}23t"
+
+    @classmethod
+    def ring_bell(cls) -> str:
+        return cls.BEL
+
+
+def ring_terminal_bell() -> None:
+    if terminal_is_dumb():
+        return None
+    print(ConsoleCodes.ring_bell(), file=sys.stderr, end="")
 
 
 def log_step(text: str) -> None:

@@ -97,7 +97,7 @@ from mkosi.kmod import (
     loaded_modules,
     process_kernel_modules,
 )
-from mkosi.log import ARG_DEBUG, complete_step, die, log_notice, log_step
+from mkosi.log import ARG_DEBUG, complete_step, die, log_notice, log_step, ring_terminal_bell
 from mkosi.manifest import Manifest
 from mkosi.mounts import (
     finalize_certificate_mounts,
@@ -5220,6 +5220,8 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
 
             if not ikd and not imd:
                 logging.info("All images have already been built and do not have any build scripts")
+            else:
+                ring_terminal_bell()
 
         if args.auto_bump:
             finalize_image_version(args, last)
