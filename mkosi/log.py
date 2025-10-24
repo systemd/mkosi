@@ -46,8 +46,7 @@ class ConsoleCodes:
 
     @classmethod
     def set_window_title(cls, title: str) -> str:
-        # The title is set twice, once for all terminal emulators that are not konsole and once for konsole
-        return f"{cls.OSC}0;mkosi: {title}{cls.ST}{cls.OSC}30;mkosi: {title}{cls.ST}"
+        return f"{cls.OSC}0;mkosi: {title}{cls.ST}"
 
     @classmethod
     def push_window_title(cls) -> str:
