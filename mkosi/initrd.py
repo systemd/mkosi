@@ -420,6 +420,10 @@ def main() -> None:
                     dirs_exist_ok=True,
                 )
 
+        # If there's a dpkg pre-invoke hook for etckeeper, it will fail if this directory does not exist so
+        # let's make sure it exists.
+        (Path(sandbox_tree) / "etc/etckeeper/pre-install.d").mkdir(parents=True, exist_ok=True)
+
         cmdline += [f"--sandbox-tree={sandbox_tree}"]
 
         cmdline += process_crypttab(Path(staging_dir))
