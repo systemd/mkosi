@@ -22,8 +22,21 @@ AT_NO_AUTOMOUNT = 0x800
 AT_RECURSIVE = 0x8000
 AT_SYMLINK_NOFOLLOW = 0x100
 BTRFS_SUPER_MAGIC = 0x9123683E
+CAP_CHOWN = 0
+CAP_DAC_OVERRIDE = 1
+CAP_DAC_READ_SEARCH = 2
+CAP_FOWNER = 3
+CAP_FSETID = 4
+CAP_SETGID = 6
+CAP_SETUID = 7
+CAP_SETPCAP = 8
+CAP_NET_BIND_SERVICE = 10
 CAP_NET_ADMIN = 12
+CAP_SYS_CHROOT = 18
+CAP_SYS_PTRACE = 19
 CAP_SYS_ADMIN = 21
+CAP_SYS_RESOURCE = 24
+CAP_SETFCAP = 31
 CLONE_NEWIPC = 0x08000000
 CLONE_NEWNET = 0x40000000
 CLONE_NEWNS = 0x00020000
@@ -59,7 +72,10 @@ OPEN_TREE_CLOEXEC = os.O_CLOEXEC
 OPEN_TREE_CLONE = 1
 OVERLAYFS_SUPER_MAGIC = 0x794C7630
 PR_CAP_AMBIENT = 47
+PR_CAP_AMBIENT_IS_SET = 1
 PR_CAP_AMBIENT_RAISE = 2
+PR_CAP_AMBIENT_LOWER = 3
+PR_CAPBSET_DROP = 24
 # These definitions are taken from the libseccomp headers
 SCMP_ACT_ALLOW = 0x7FFF0000
 SCMP_ACT_ERRNO = 0x00050000
@@ -171,31 +187,58 @@ def umount2(path: str, flags: int = 0) -> None:
         oserror("umount2", path)
 
 
-def cap_permitted_to_ambient() -> None:
-    """
-    When unsharing a user namespace and mapping the current user to itself, the user has a full
-    set of capabilities in the user namespace. This allows the user to do mounts after unsharing a
-    mount namespace for example. However, these capabilities are lost again when the user executes
-    a subprocess. As we also want subprocesses invoked by the user to be able to mount stuff, we
-    make sure the capabilities are inherited by adding all the user's capabilities to the inherited
-    and ambient capabilities set, which makes sure that they are passed down to subprocesses.
-    """
+def capability_mask(capabilities: list[int]) -> int:
+    mask = 0
+
+    for cap in capabilities:
+        mask |= 1 << cap
+
+    return mask
+
+
+def drop_capabilities(*, keep: list[int]) -> None:
+    # First, fetch the permitted capabilities and AND them
+    # with the ones with we want to keep to get the final list
+    # of capabilities.
+
     header = cap_user_header_t(LINUX_CAPABILITY_VERSION_3, 0)
     payload = (cap_user_data_t * LINUX_CAPABILITY_U32S_3)()
 
     if libc.capget(ctypes.addressof(header), ctypes.byref(payload)) < 0:
         oserror("capget")
 
-    payload[0].inheritable = payload[0].permitted
-    payload[1].inheritable = payload[1].permitted
+    permitted = payload[1].permitted << 32 | payload[0].permitted
+    permitted &= capability_mask(keep)
+
+    # Next, drop unwanted capabilities from the bounding set as
+    # later we'll drop the capability that lets us do so (CAP_SETPCAP).
+
+    with open("/proc/sys/kernel/cap_last_cap", "rb") as f:
+        last_cap = int(f.read())
+
+    libc.prctl.argtypes = (ctypes.c_int, ctypes.c_ulong)
+
+    for cap in range(ctypes.sizeof(ctypes.c_uint64) * 8):
+        if cap > last_cap:
+            break
+
+        if not (permitted & (1 << cap)) and libc.prctl(PR_CAPBSET_DROP, cap) < 0:
+            oserror("prctl")
+
+    # Now, modify the permitted, effective and inheritable
+    # capability sets with capset().
+
+    payload[0].permitted = permitted
+    payload[1].permitted = permitted >> 32
+    payload[0].effective = permitted
+    payload[1].effective = permitted >> 32
+    payload[0].inheritable = permitted
+    payload[1].inheritable = permitted >> 32
 
     if libc.capset(ctypes.addressof(header), ctypes.byref(payload)) < 0:
         oserror("capset")
 
-    effective = payload[1].effective << 32 | payload[0].effective
-
-    with open("/proc/sys/kernel/cap_last_cap", "rb") as f:
-        last_cap = int(f.read())
+    # Finally, modify the ambient set using the associated pcrtl()'s.
 
     libc.prctl.argtypes = (ctypes.c_int, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_ulong)
 
@@ -203,8 +246,15 @@ def cap_permitted_to_ambient() -> None:
         if cap > last_cap:
             break
 
-        if effective & (1 << cap) and libc.prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_RAISE, cap, 0, 0) < 0:
-            oserror("prctl")
+        if permitted & (1 << cap):
+            if libc.prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_RAISE, cap, 0, 0) < 0:
+                oserror("prctl")
+        else:
+            r = libc.prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_IS_SET, cap, 0, 0)
+            if r < 0:
+                oserror("prctl")
+            if r > 0 and libc.prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_LOWER, cap, 0, 0) < 0:
+                oserror("prctl")
 
 
 def have_effective_cap(capability: int) -> bool:
@@ -464,7 +514,7 @@ def become_user(uid: int, gid: int) -> None:
         raise OSError(rc, os.strerror(rc))
 
 
-def acquire_privileges(*, become_root: bool = False) -> bool:
+def acquire_privileges(*, become_root: bool = False, network: bool = False) -> bool:
     if have_effective_cap(CAP_SYS_ADMIN) and (os.getuid() == 0 or not become_root):
         return False
 
@@ -472,7 +522,38 @@ def acquire_privileges(*, become_root: bool = False) -> bool:
         become_user(0, 0)
     else:
         become_user(os.getuid(), os.getgid())
-        cap_permitted_to_ambient()
+
+    # When unsharing a user namespace, the process user has a full set of capabilities in the new user
+    # namespace. This allows the process to do mounts after unsharing a mount namespace for example. However,
+    # these capabilities are lost again when the user executes a subprocess. As we also want subprocesses
+    # invoked by the user to be able to mount stuff, we make sure the capabilities we are interested in are
+    # inherited across execve() by adding all the these capabilities to the inherited and ambient capability
+    # sets, which makes sure that they are passed down to subprocesses, regardless if we're uid 0 in the user
+    # namespace or not.
+
+    caps = [
+        CAP_CHOWN,
+        CAP_DAC_OVERRIDE,
+        CAP_DAC_READ_SEARCH,
+        CAP_FOWNER,
+        CAP_FSETID,
+        CAP_SETGID,
+        CAP_SETUID,
+        CAP_SETPCAP,
+        CAP_SYS_CHROOT,
+        CAP_SYS_PTRACE,
+        CAP_SYS_ADMIN,
+        CAP_SYS_RESOURCE,
+        CAP_SETFCAP,
+    ]
+    if network:
+        # If we're unsharing the network namespace, we want CAP_NET_BIND_SERVICE and CAP_NET_ADMIN as well.
+        caps += [
+            CAP_NET_BIND_SERVICE,
+            CAP_NET_ADMIN,
+        ]
+
+    drop_capabilities(keep=caps)
 
     return True
 
@@ -1031,7 +1112,7 @@ def main(argv: list[str] = sys.argv[1:]) -> None:
     if unshare_ipc:
         namespaces |= CLONE_NEWIPC
 
-    userns = acquire_privileges(become_root=become_root)
+    userns = acquire_privileges(become_root=become_root, network=bool(namespaces & CLONE_NEWNET))
 
     seccomp_suppress(
         # If we're root in a user namespace with a single user, we're still not going to be able to

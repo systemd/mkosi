@@ -349,6 +349,7 @@ def start_virtiofsd(
         "--sandbox=chroot",
         f"--inode-file-handles={'prefer' if os.getuid() == 0 and not uidmap else 'never'}",
         "--log-level=error",
+        "--modcaps=-mknod",
     ]  # fmt: skip
 
     if selinux:
