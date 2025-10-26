@@ -43,6 +43,7 @@ from mkosi.config import (
     VsockCID,
     finalize_term,
     format_bytes,
+    systemd_pty_forward,
     systemd_tool_version,
     want_selinux_relabel,
     yes_no,
@@ -1183,10 +1184,9 @@ def run_qemu(args: Args, config: Config) -> None:
     cmdline: list[PathString] = []
 
     if config.console in (ConsoleMode.interactive, ConsoleMode.read_only):
-        cmdline += [
-            "systemd-pty-forward", "--background=48;2;12;51;19",  # green
-            "--title", f"Virtual Machine {config.machine_or_name()}",
-        ]  # fmt: skip
+        cmdline += systemd_pty_forward(
+            config, "48;2;12;51;19", f"Virtual Machine {config.machine_or_name()}"
+        )
 
         if config.console == ConsoleMode.read_only:
             cmdline += ["--read-only"]

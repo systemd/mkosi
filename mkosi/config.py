@@ -6036,3 +6036,24 @@ def systemd_tool_version(*tool: PathString, sandbox: SandboxProtocol = nosandbox
     logging.debug(f"Version reported by {tool[-1]} is {version}")
 
     return version
+
+
+def systemd_pty_forward(config: Config, background: str, title: str) -> list[str]:
+    tint_bg = parse_boolean(config.environment.get("SYSTEMD_TINT_BACKGROUND", "1")) and parse_boolean(
+        os.environ.get("SYSTEMD_TINT_BACKGROUND", "1")
+    )
+    adjust_title = parse_boolean(
+        config.environment.get("SYSTEMD_ADJUST_TERMINAL_TITLE", "1")
+    ) and parse_boolean(os.environ.get("SYSTEMD_ADJUST_TERMINAL_TITLE", "1"))
+
+    if not tint_bg and not adjust_title:
+        return []
+    if not config.find_binary("systemd-pty-forward"):
+        return []
+
+    cmd = ["systemd-pty-forward"]
+    if tint_bg:
+        cmd += [f"--background={background}"]
+    if adjust_title:
+        cmd += ["--title=", title]
+    return cmd
