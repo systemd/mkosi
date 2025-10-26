@@ -80,6 +80,7 @@ from mkosi.config import (
     parse_config,
     resolve_deps,
     summary,
+    systemd_pty_forward,
     systemd_tool_version,
     want_kernel,
     want_selinux_relabel,
@@ -4059,13 +4060,8 @@ def run_box(args: Args, config: Config) -> None:
 
     cmdline = [*args.cmdline]
 
-    if sys.stdin.isatty() and sys.stdout.isatty() and config.find_binary("systemd-pty-forward"):
-        cmdline = [
-            "systemd-pty-forward",
-            "--title=mkosi-sandbox",
-            "--background=48;2;12;51;51",  # cyan
-            *cmdline,
-        ]
+    if sys.stdin.isatty() and sys.stdout.isatty():
+        cmdline = systemd_pty_forward(config, "48;2;12;51;51", "mkosi-sandbox") + cmdline
 
     with contextlib.ExitStack() as stack:
         if config.tools() != Path("/"):
