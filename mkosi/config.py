@@ -6038,7 +6038,12 @@ def systemd_tool_version(*tool: PathString, sandbox: SandboxProtocol = nosandbox
     return version
 
 
-def systemd_pty_forward(config: Config, background: str, title: str) -> list[str]:
+def systemd_pty_forward(
+    config: Config,
+    *,
+    background: Optional[str] = None,
+    title: Optional[str] = None,
+) -> list[str]:
     tint_bg = parse_boolean(config.environment.get("SYSTEMD_TINT_BACKGROUND", "1")) and parse_boolean(
         os.environ.get("SYSTEMD_TINT_BACKGROUND", "1")
     )
@@ -6052,8 +6057,8 @@ def systemd_pty_forward(config: Config, background: str, title: str) -> list[str
         return []
 
     cmd = ["systemd-pty-forward"]
-    if tint_bg:
-        cmd += [f"--background={background}"]
-    if adjust_title:
-        cmd += ["--title=", title]
+    if tint_bg and background:
+        cmd += ["--background", background]
+    if adjust_title and title:
+        cmd += ["--title", title]
     return cmd
