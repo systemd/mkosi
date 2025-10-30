@@ -4270,7 +4270,7 @@ def run_shell(args: Args, config: Config) -> None:
             cmdline += ["--bind", f"{tree.source}:{target}:norbind,{uidmap}"]
 
         if config.bind_user:
-            cmdline += ["--bind-user", getpass.getuser()]
+            cmdline += ["--bind-user", getpass.getuser(), "--bind-user-group=wheel"]
 
         if args.verb == Verb.boot and config.forward_journal:
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
