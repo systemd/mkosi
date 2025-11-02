@@ -364,7 +364,11 @@ def finalize_path(
         # Make sure that /usr/bin and /usr/sbin are always in $PATH.
         path += [s for s in ("/usr/bin", "/usr/sbin") if s not in path]
     else:
-        path += ["/usr/bin", "/usr/sbin"]
+        path += [
+            "/usr/bin",
+            "/usr/sbin",
+            *(el for el in os.environ.get("PATH", "").split(":") if el.startswith("/nix/store")),
+        ]
 
     if prefix_usr:
         path = [os.fspath(root / s.lstrip("/")) if s in ("/usr/bin", "/usr/sbin") else s for s in path]
@@ -567,14 +571,18 @@ def sandbox_cmd(
             else:
                 cmdline += ["--ro-bind", tools / d, Path("/") / d]
 
-        for d in ("bin", "sbin", "lib", "lib32", "lib64"):
+        for d in (
+            "bin",
+            "sbin",
+            "lib",
+            "lib32",
+            "lib64",
+            "nix/store",
+        ):
             if (p := tools / d).is_symlink():
                 cmdline += ["--symlink", p.readlink(), Path("/") / p.relative_to(tools)]
             elif p.is_dir():
                 cmdline += ["--ro-bind", p, Path("/") / p.relative_to(tools)]
-
-        if (tools / "nix/store").exists():
-            cmdline += ["--bind", tools / "nix/store", "/nix/store"]
 
         if relaxed:
             for p in Path("/").iterdir():
