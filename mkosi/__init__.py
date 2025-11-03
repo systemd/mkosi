@@ -4726,6 +4726,10 @@ def sync_repository_metadata(
     for d in ("cache", "lib"):
         (metadata_dir / d / subdir).mkdir(parents=True, exist_ok=True)
 
+    src = metadata_dir / "lib" / subdir
+    for p in last.distribution.installer.package_manager(last).state_subdirs():
+        (src / p).mkdir(parents=True, exist_ok=True)
+
     (last.package_cache_dir_or_default() / "cache" / subdir).mkdir(parents=True, exist_ok=True)
 
     # Sync repository metadata unless explicitly disabled.
@@ -4753,7 +4757,6 @@ def sync_repository_metadata(
                     context,
                     force=context.args.force > 1 or context.config.cacheonly == Cacheonly.never,
                 )
-
         src = metadata_dir / "cache" / subdir
         dst = last.package_cache_dir_or_default() / "cache" / subdir
 

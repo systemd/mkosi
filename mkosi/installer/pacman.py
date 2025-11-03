@@ -43,8 +43,8 @@ class Pacman(PackageManager):
         return ["*.pkg.tar*"]
 
     @classmethod
-    def state_subdirs(cls, state: Path) -> list[Path]:
-        return [state / "sync"]
+    def state_subdirs(cls) -> list[Path]:
+        return [Path("sync")]
 
     @classmethod
     def scripts(cls, context: Context) -> dict[str, list[PathString]]:

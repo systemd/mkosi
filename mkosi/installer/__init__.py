@@ -30,7 +30,7 @@ class PackageManager:
         return []
 
     @classmethod
-    def state_subdirs(cls, state: Path) -> list[Path]:
+    def state_subdirs(cls) -> list[Path]:
         return []
 
     @classmethod
@@ -85,7 +85,12 @@ class PackageManager:
         subdir = context.config.distribution.installer.package_manager(context.config).subdir(context.config)
 
         src = context.metadata_dir / "lib" / subdir
-        mounts += ["--bind", src, Path("/var/lib") / subdir]
+        mounts += flatten(
+            ("--bind", src / state_subdir, Path("/var/lib") / subdir / state_subdir)
+            for state_subdir in context.config.distribution.installer.package_manager(
+                context.config
+            ).state_subdirs()
+        )
 
         src = context.metadata_dir / "cache" / subdir
         caches = context.config.distribution.installer.package_manager(context.config).package_subdirs(src)
