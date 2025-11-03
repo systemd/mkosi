@@ -64,8 +64,8 @@ class Apt(PackageManager):
         return ["*.deb", "*.ddeb"]
 
     @classmethod
-    def state_subdirs(cls, state: Path) -> list[Path]:
-        return [state / "lists"]
+    def state_subdirs(cls) -> list[Path]:
+        return [Path("lists")]
 
     @classmethod
     def dpkg_cmd(cls, command: str) -> list[PathString]:
