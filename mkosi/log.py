@@ -83,8 +83,12 @@ def ring_terminal_bell() -> None:
     print(ConsoleCodes.ring_bell(), file=sys.stderr, end="")
 
 
+def get_log_prefix() -> str:
+    return " " * LEVEL
+
+
 def log_step(text: str) -> None:
-    prefix = " " * LEVEL
+    prefix = get_log_prefix()
 
     if sys.exc_info()[0]:
         # We are falling through exception handling blocks.
@@ -124,7 +128,7 @@ def complete_step(text: str, text2: Optional[str] = None) -> Iterator[list[Any]]
 
     elapsed = time.perf_counter() - start
     level = logging.INFO if ARG_DEBUG_TIMING.get() else logging.DEBUG
-    logging.log(level, f'{" " * (LEVEL)}{elapsed:.1f}s for step "{text}"')
+    logging.log(level, f'{get_log_prefix()}{elapsed:.1f}s for step "{text}"')
 
 
 class Formatter(logging.Formatter):
