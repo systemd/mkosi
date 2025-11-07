@@ -1087,6 +1087,21 @@ def config_default_proxy_url(namespace: dict[str, Any]) -> Optional[str]:
     return None
 
 
+def config_default_proxy_exclude(namespace: dict[str, Any]) -> Optional[list[str]]:
+    names = ("no_proxy", "NO_PROXY")
+
+    for env in namespace["environment"]:
+        k, _, v = cast(str, env).partition("=")
+        if k in names:
+            return v.split(",")
+
+    for k, v in os.environ.items():
+        if k in names:
+            return v.split(",")
+
+    return None
+
+
 def config_default_proxy_peer_certificate(namespace: dict[str, Any]) -> Optional[Path]:
     for p in (Path("/etc/pki/tls/certs/ca-bundle.crt"), Path("/etc/ssl/certs/ca-certificates.crt")):
         if p.exists():
@@ -3916,6 +3931,8 @@ SETTINGS: list[ConfigSetting[Any]] = [
     ConfigSetting(
         dest="proxy_exclude",
         section="Build",
+        default_factory=config_default_proxy_exclude,
+        default_factory_depends=("environment",),
         metavar="HOST",
         parse=config_make_list_parser(delimiter=","),
         help="Don't use the configured proxy for the specified host(s)",
