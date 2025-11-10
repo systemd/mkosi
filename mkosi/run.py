@@ -126,7 +126,7 @@ def log_process_failure(sandbox: Sequence[str], cmdline: Sequence[str], returnco
             logging.error(f"{cmdline[0]} not found.")
     else:
         logging.error(
-            f'"{shlex.join([*sandbox, *cmdline] if ARG_DEBUG.get() else cmdline)}"'
+            f'"{shlex.join([*sandbox, *cmdline])}"'
             f" returned non-zero exit code {returncode}."
         )
 
