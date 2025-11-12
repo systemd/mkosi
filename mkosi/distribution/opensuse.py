@@ -16,6 +16,7 @@ from mkosi.installer.zypper import Zypper
 from mkosi.log import die
 from mkosi.mounts import finalize_certificate_mounts
 from mkosi.run import run
+from mkosi.versioncomp import GenericVersion
 
 
 class Installer(DistributionInstaller, distribution=Distribution.opensuse):
@@ -55,7 +56,13 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
     def install(cls, context: Context) -> None:
         packages = ["filesystem"]
         if not any(p.endswith("-release") for p in context.config.packages):
-            packages += ["openSUSE-release"]
+            if (
+                context.config.release in ("current", "stable", "leap")
+                or GenericVersion(context.config.release) >= 16
+            ):
+                packages += ["Leap-release"]
+            else:
+                packages += ["openSUSE-release"]
 
         cls.install_packages(context, packages, apivfs=False)
 
@@ -213,30 +220,22 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
                         enabled=False,
                     )
 
-            if context.config.release in ("current", "stable", "leap"):
-                url = join_mirror(mirror, f"{subdir}/update/openSUSE-current")
-                yield RpmRepository(
-                    id="oss-update",
-                    url=f"baseurl={url}",
-                    gpgurls=fetch_gpgurls(context, url) if not zypper else (),
-                )
-
-                url = join_mirror(mirror, f"{subdir}/update/openSUSE-non-oss-current")
-                yield RpmRepository(
-                    id="non-oss-update",
-                    url=f"baseurl={url}",
-                    gpgurls=fetch_gpgurls(context, url) if not zypper else (),
-                    enabled=False,
-                )
+            if (
+                context.config.release in ("current", "stable", "leap")
+                or GenericVersion(context.config.release) >= 16
+            ):
+                subdir += f"/distribution/{release}/repo"
             else:
-                for repo in ("oss", "non-oss"):
-                    url = join_mirror(mirror, f"{subdir}/update/{release}/{repo}")
-                    yield RpmRepository(
-                        id=f"{repo}-update",
-                        url=f"baseurl={url}",
-                        gpgurls=fetch_gpgurls(context, url) if not zypper else (),
-                        enabled=repo == "oss",
-                    )
+                subdir += f"/update/{release}"
+
+            for repo in ("oss", "non-oss"):
+                url = join_mirror(mirror, f"{subdir}/{repo}")
+                yield RpmRepository(
+                    id=f"{repo}-update",
+                    url=f"baseurl={url}",
+                    gpgurls=fetch_gpgurls(context, url) if not zypper else (),
+                    enabled=repo == "oss",
+                )
 
     @classmethod
     def architecture(cls, arch: Architecture) -> str:
