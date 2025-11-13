@@ -3390,6 +3390,20 @@ def make_image(
     ):
         env["SYSTEMD_REPART_MKFS_EXT4_OPTIONS"] = "-O ^orphan_file"
 
+    if ARG_DEBUG.get():
+        for dir in definitions:
+            for c in dir.glob("*.conf"):
+                logging.debug(f"\n === {c} ===")
+                with open(c) as f:
+                    # Do not spam the logs in case something goes wrong
+                    maxlines = 100
+                    for line in itertools.islice(f, maxlines):
+                        logging.debug(line.strip())
+
+                    for anything_left in f:
+                        logging.debug(f"=== {c.name} truncated to {maxlines} lines ===")
+                        break
+
     with complete_step(msg):
         output = json.loads(
             run_systemd_sign_tool(
