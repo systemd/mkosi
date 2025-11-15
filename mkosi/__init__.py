@@ -4031,6 +4031,7 @@ def build_image(context: Context) -> None:
 
         if manifest:
             manifest.record_packages()
+        save_manifest(context, manifest)
 
         run_selinux_relabel(context)
 
@@ -4097,7 +4098,6 @@ def build_image(context: Context) -> None:
 
     calculate_sha256sum(context)
     calculate_signature(context)
-    save_manifest(context, manifest)
 
     output_base = context.staging / context.config.output
     if not output_base.exists() or output_base.is_symlink():
