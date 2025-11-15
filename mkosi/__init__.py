@@ -89,7 +89,7 @@ from mkosi.config import (
 from mkosi.context import Context
 from mkosi.distribution import Distribution, detect_distribution
 from mkosi.documentation import show_docs
-from mkosi.installer import clean_package_manager_metadata
+from mkosi.installer import clean_package_manager_metadata, package_manager_metadata_to_clean
 from mkosi.kmod import (
     filter_devicetrees,
     gen_required_kernel_modules,
@@ -2542,6 +2542,23 @@ def save_manifest(context: Context, manifest: Optional[Manifest]) -> None:
                     manifest.write_package_report(f)
 
 
+def save_manifest_to_image(context: Context, manifest: Optional[Manifest]) -> None:
+    """Write manifest to /usr/lib/os-manifest in the image"""
+    if package_manager_metadata_to_clean(context):
+        return
+
+    if not manifest:
+        return
+
+    if context.config.overlay or context.config.output_format.is_extension_image():
+        return
+
+    if manifest.has_data():
+        osmanifest = context.root / "usr/lib/os-manifest"
+        with osmanifest.open("w") as f:
+            manifest.write_json(f)
+
+
 def print_output_size(path: Path) -> None:
     if path.is_dir():
         log_step(f"{path} size is " + format_bytes(dir_size(path)) + ".")
@@ -3947,6 +3964,7 @@ def build_image(context: Context) -> None:
 
         if manifest:
             manifest.record_packages()
+        save_manifest_to_image(context, manifest)
         save_manifest(context, manifest)
 
         run_selinux_relabel(context)
