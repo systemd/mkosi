@@ -201,16 +201,24 @@ def clean_package_manager_metadata(context: Context) -> None:
     Try them all regardless of the distro: metadata is only removed if
     the package manager is not present in the image.
     """
+    pathsToClean = package_manager_metadata_to_clean(context)
+    rmtree(*pathsToClean, sandbox=context.sandbox)
+
+
+def package_manager_metadata_to_clean(context: Context) -> list[Path]:
+    """
+    Identifies any metadata paths that should be removed
+    """
     subdir = context.config.distribution.installer.package_manager(context.config).subdir(context.config)
 
     if context.config.clean_package_metadata == ConfigFeature.disabled:
-        return
+        return []
 
     if context.config.clean_package_metadata == ConfigFeature.auto and context.config.output_format in (
         OutputFormat.directory,
         OutputFormat.tar,
     ):
-        return
+        return []
 
     # If cleaning is not explicitly requested, keep the repository metadata if we're building a directory or
     # tar image (which are often used as a base tree for extension images and thus should retain package
@@ -219,7 +227,7 @@ def clean_package_manager_metadata(context: Context) -> None:
     executable = context.config.distribution.installer.package_manager(context.config).executable(
         context.config
     )
-    remove = []
+    pathsToClean = []
 
     for tool, paths in (
         ("rpm",      ["var/lib/rpm", "usr/lib/sysimage/rpm"]),
@@ -230,6 +238,6 @@ def clean_package_manager_metadata(context: Context) -> None:
         if context.config.clean_package_metadata == ConfigFeature.enabled or not find_binary(
             tool, root=context.root
         ):
-            remove += [context.root / p for p in paths if (context.root / p).exists()]
+            pathsToClean += [context.root / p for p in paths if (context.root / p).exists()]
 
-    rmtree(*remove, sandbox=context.sandbox)
+    return pathsToClean

@@ -626,6 +626,13 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     text format designed for diffing). By default no manifest is
     generated.
 
+    If a `json` manifest is generated, it is also written to
+    `/usr/lib/mkosi-manifest` inside the image when all of these are true:
+
+      1. Metadata is not removed by `CleanPackageMetadata=`
+      2. `Format=` is not `sysext`, `confext`, or `addon`
+      3. `Overlay=` is not set
+
 `Output=`, `--output=`, `-o`
 :   Name to use for the generated output image file or directory. Defaults
     to `image` or, if `ImageId=` is specified, it is used as the default
