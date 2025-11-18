@@ -275,7 +275,7 @@ mkosi depends on very recent versions of various systemd tools (v254 or
 newer). To support older distributions, we implemented so called tools
 trees. In short, `mkosi` can first build a tools image for you that
 contains all required tools to build the actual image. This can be
-enabled by adding `ToolsTree=default` to your mkosi configuration.
+enabled by adding `ToolsTree=yes` to your mkosi configuration.
 Building a tools image does not require a recent version of systemd.
 
 In the systemd mkosi configuration, we automatically use a tools tree if

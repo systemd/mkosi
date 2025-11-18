@@ -2727,7 +2727,7 @@ def check_systemd_tool(
     if v < version:
         die(
             f"Found '{tool}' with version {v} but version {version} or newer is required to {reason}.",
-            hint=f"Use ToolsTree=default to get a newer version of '{tools[0]}'.",
+            hint=f"Use ToolsTree=yes to get a newer version of '{tools[0]}'.",
         )
 
 
@@ -2743,7 +2743,7 @@ def check_ukify(
     if v < version:
         die(
             f"Found '{ukify}' with version {v} but version {version} or newer is required to {reason}.",
-            hint="Use ToolsTree=default to get a newer version of 'ukify'.",
+            hint="Use ToolsTree=yes to get a newer version of 'ukify'.",
         )
 
 
@@ -2763,7 +2763,7 @@ def check_tools(config: Config, verb: Verb) -> None:
                     else "257"
                 ),
                 reason="build unified kernel image profiles",
-                hint=("Use ToolsTree=default to download most required tools including ukify automatically"),
+                hint=("Use ToolsTree=yes to download most required tools including ukify automatically"),
             )
         elif want_efi(config) and config.unified_kernel_images.enabled():
             check_ukify(
@@ -2771,7 +2771,7 @@ def check_tools(config: Config, verb: Verb) -> None:
                 version="254",
                 reason="build bootable images",
                 hint=(
-                    "Use ToolsTree=default to download most required tools including ukify "
+                    "Use ToolsTree=yes to download most required tools including ukify "
                     "automatically or use Bootable=no to create a non-bootable image which doesn't "
                     "require ukify"
                 ),
