@@ -442,7 +442,7 @@ def test_override_default(tmp_path: Path) -> None:
         """\
         [Build]
         Environment=MY_KEY=MY_VALUE
-        ToolsTree=default
+        ToolsTree=yes
         """
     )
 

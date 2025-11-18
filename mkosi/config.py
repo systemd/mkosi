@@ -1052,7 +1052,7 @@ def config_default_repository_key_fetch(namespace: dict[str, Any]) -> bool:
     def needs_repository_key_fetch(distribution: Distribution) -> bool:
         return distribution == Distribution.arch or distribution.is_rpm_distribution()
 
-    if namespace["tools_tree"] != Path("default"):
+    if namespace["tools_tree"] not in (Path("default"), Path("yes")):
         return (
             detect_distribution(namespace["tools_tree"] or Path("/"))[0] == Distribution.ubuntu
             and needs_repository_key_fetch(namespace["distribution"])
@@ -3621,7 +3621,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         dest="tools_tree",
         metavar="PATH",
         section="Build",
-        parse=config_make_path_parser(constants=("default",)),
+        parse=config_make_path_parser(constants=("default", "yes", "no")),
         path_suffixes=("tools",),
         help="Look up programs to execute inside the given tree",
         scope=SettingScope.universal,
@@ -5335,12 +5335,14 @@ def parse_config(
         Path(".mkosi-private/history/latest.json").write_text(dump_json(Config.to_partial_dict(cli)))
 
     tools = None
-    if config.get("tools_tree") == Path("default"):
+    if config.get("tools_tree") in (Path("default"), Path("yes")):
         if in_box():
             config["tools_tree"] = Path(os.environ["MKOSI_DEFAULT_TOOLS_TREE_PATH"])
         else:
             tools = finalize_default_tools(context, config, configdir=configdir, resources=resources)
             config["tools_tree"] = tools.output_dir_or_cwd() / tools.output
+    elif config.get("tools_tree") == Path("no"):
+        config["tools_tree"] = None
 
     images = []
 

@@ -1404,7 +1404,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     this might result in failures when trying to execute binaries from
     any of the extra search paths.
 
-    If set to `default`, **mkosi** will automatically add an extra tools tree
+    If set to `yes`, **mkosi** will automatically add an extra tools tree
     image and use it as the tools tree. This image can be further configured
     using the settings below or with `mkosi.tools.conf` which can either be a
     file or directory containing extra configuration for the default tools tree.
@@ -2882,7 +2882,7 @@ builds more reproducible, but also allows to use newer tooling, that is not yet 
 distribution running mkosi.
 
 Tools trees can be provided via the `ToolsTree=` option, the `mkosi.tools` directory or built automatically
-by mkosi if set to `ToolsTree=default`. For most use cases setting it is sufficient to use the default tools
+by mkosi if set to `ToolsTree=yes`. For most use cases setting it is sufficient to use the default tools
 trees and the use of a tools tree is recommended.
 
 Fully custom tools trees can be built like any other mkosi image, but mkosi provides a builtin include
