@@ -56,7 +56,12 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
     def install(cls, context: Context) -> None:
         packages = ["filesystem"]
         if not any(p.endswith("-release") for p in context.config.packages):
-            packages += ["openSUSE-release"]
+            if context.config.release in ("current", "stable", "leap") or (
+                context.config.release != "tumbleweed" and GenericVersion(context.config.release) >= 16
+            ):
+                packages += ["Leap-release"]
+            else:
+                packages += ["openSUSE-release"]
 
         cls.install_packages(context, packages, apivfs=False)
 
