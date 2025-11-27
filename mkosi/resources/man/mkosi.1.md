@@ -1243,6 +1243,12 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     enable SSH access to any virtual machines via `mkosi ssh`. To access
     images booted using `mkosi boot`, use **machinectl**.
 
+    Starting with systemd v256, systemd-ssh-generator(8) will automatically
+    provide `sshd` over VSock when running inside a VM. So if you're using a
+    recent version of systemd inside a VM, this option is generally not used.
+    You still need openssh installed in the image, and the default setting of
+    `--vsock=auto` is enough to ensure a VSock is available inside the VM.
+
 `SELinuxRelabel=`, `--selinux-relabel=`
 :   Specifies whether to relabel files to match the image's SELinux
     policy. Takes a boolean value or `auto`. Defaults to `auto`. If
