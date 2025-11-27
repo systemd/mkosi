@@ -6040,6 +6040,21 @@ def want_selinux_relabel(
     return setfiles, policy, fc, binpolicy
 
 
+def swtpm_setup_version(sandbox: SandboxProtocol = nosandbox) -> GenericVersion:
+    version = GenericVersion(
+        run(
+            ["swtpm_setup", "--version"],
+            stdout=subprocess.PIPE,
+            sandbox=sandbox(),
+            success_exit_status=(0, 1),
+        ).stdout.split()[-1]
+    )
+
+    logging.debug(f"Version reported by swtpm_setup is {version}")
+
+    return version
+
+
 def systemd_tool_version(*tool: PathString, sandbox: SandboxProtocol = nosandbox) -> GenericVersion:
     version = GenericVersion(
         run(
