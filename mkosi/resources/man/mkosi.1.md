@@ -1249,6 +1249,11 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     You still need openssh installed in the image, and the default setting of
     `--vsock=auto` is enough to ensure a VSock is available inside the VM.
 
+    Note: if the image distro uses SELinux, mkosi's sshd service will be denied
+    access to the VSock, resulting in failure to connect to it from the host.
+    You will need to either disable SELinux enforcement, or create a custom
+    policy module (e.g. with `audit2allow`).
+
 `SELinuxRelabel=`, `--selinux-relabel=`
 :   Specifies whether to relabel files to match the image's SELinux
     policy. Takes a boolean value or `auto`. Defaults to `auto`. If
