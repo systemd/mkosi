@@ -6,6 +6,8 @@
 
 ## v26
 
+- The name of the systemd service created by `--ssh=yes` has been renamed
+  from `ssh.service` to `mkosi-sshd.service`.
 - Extra options to commands invoked by mkosi (e.g. when using `mkosi boot`
   or `mkosi shell`) should now be delimited from regular options using
   `--`. Options passed after the verb without using the `--` delimiter

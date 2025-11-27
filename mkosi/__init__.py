@@ -2860,7 +2860,7 @@ def configure_ssh(context: Context) -> None:
         unitdir.mkdir(parents=True, exist_ok=True)
 
     with umask(~0o644):
-        (unitdir / "ssh.socket").write_text(
+        (unitdir / "mkosi-sshd.socket").write_text(
             textwrap.dedent(
                 """\
                 [Unit]
@@ -2878,7 +2878,7 @@ def configure_ssh(context: Context) -> None:
             )
         )
 
-        (unitdir / "ssh@.service").write_text(
+        (unitdir / "mkosi-sshd@.service").write_text(
             textwrap.dedent(
                 """\
                 [Unit]
@@ -2903,7 +2903,7 @@ def configure_ssh(context: Context) -> None:
     with umask(~0o755):
         preset.parent.mkdir(parents=True, exist_ok=True)
     with umask(~0o644):
-        preset.write_text("enable ssh.socket\n")
+        preset.write_text("enable mkosi-sshd.socket\n")
 
 
 def configure_initrd(context: Context) -> None:
