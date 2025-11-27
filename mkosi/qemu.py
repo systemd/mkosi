@@ -43,6 +43,7 @@ from mkosi.config import (
     VsockCID,
     finalize_term,
     format_bytes,
+    swtpm_setup_version,
     systemd_pty_forward,
     systemd_tool_version,
     want_selinux_relabel,
@@ -271,6 +272,11 @@ def start_swtpm(config: Config) -> Iterator[Path]:
                 "--pcr-banks",
                 "sha256",
                 "--config", "/dev/null",
+                *(
+                    ["--profile-name=custom", "--profile-remove-disabled=check"]
+                    if swtpm_setup_version() >= "0.10.0" 
+                    else []
+                 ),
             ],
             sandbox=config.sandbox(options=["--bind", state, workdir(Path(state))]),
             stdout=None if ARG_DEBUG.get() else subprocess.DEVNULL,
