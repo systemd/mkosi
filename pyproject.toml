@@ -43,6 +43,7 @@ packages = [
     "mkosi-vm/**/*",
     "repart/**/*",
     "tmpfiles.d/*",
+    "pandoc/*",
 ]
 
 [tool.isort]

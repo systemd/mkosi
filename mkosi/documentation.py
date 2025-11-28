@@ -32,11 +32,16 @@ def show_docs(
                     logging.warn("pandoc is not available")
                     continue
                 pandoc = run(
-                    ["pandoc", "-t", "man", "-s", resources / f"man/{manual}.{man_chapter}.md"],
+                    [
+                        "pandoc",
+                        "-t", "man",
+                        "-s", resources / f"man/{manual}.{man_chapter}.md",
+                        "--lua-filter", resources / "pandoc/md2man.lua",
+                    ],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.DEVNULL,
                     log=False,
-                )
+                )  # fmt: skip
                 run(["man", "--local-file", "-"], input=pandoc.stdout)
                 return
             elif form == DocFormat.markdown:
