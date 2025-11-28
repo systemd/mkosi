@@ -109,7 +109,7 @@ The following command line verbs are known:
     monitor, separate them from regular options with `--`.
 
 `ssh`
-:   When the image is built with the `Ssh=yes` option, this command
+:   When the image is built with the `Ssh=always` option, this command
     connects to a booted virtual machine via SSH. Make sure to run `mkosi ssh`
     with the same config as `mkosi build` so that it has
     the necessary information available to connect to the running virtual
