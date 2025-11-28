@@ -335,6 +335,8 @@ The following output formats are supported:
 * Plain directory, containing the OS tree (*directory*)
 * Tar archive (*tar*)
 * CPIO archive (*cpio*)
+* Unified Kernel Image (*UKI*)
+* ... and much more. See `Format=` documentation below.
 
 The output format may also be set to *none* to have **mkosi** produce no
 image at all. This can be useful if you only want to use the image to
