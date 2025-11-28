@@ -274,7 +274,7 @@ def start_swtpm(config: Config) -> Iterator[Path]:
                 "--config", "/dev/null",
                 *(
                     ["--profile-name=custom", "--profile-remove-disabled=check"]
-                    if swtpm_setup_version() >= "0.10.0" 
+                    if swtpm_setup_version(config.sandbox) >= "0.10.0"
                     else []
                  ),
             ],
