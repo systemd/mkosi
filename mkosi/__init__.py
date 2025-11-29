@@ -511,6 +511,25 @@ def configure_autologin(context: Context) -> None:
         )
 
 
+def configure_verity_certificate(context: Context) -> None:
+    if not context.config.verity_certificate:
+        return
+
+    # TODO: support providers after https://github.com/systemd/systemd/pull/39962 is merged
+    if context.config.verity_certificate_source.type != CertificateSourceType.file:
+        return
+
+    veritydir = context.root / "usr/lib/verity.d"
+    with umask(~0o755):
+        veritydir.mkdir(parents=True, exist_ok=True)
+
+    # dissect wants .crt and will ignore anything else
+    dest = veritydir / context.config.verity_certificate.with_suffix(".crt").name
+
+    with umask(~0o644):
+        shutil.copy(context.config.verity_certificate, dest)
+
+
 @contextlib.contextmanager
 def setup_build_overlay(context: Context, volatile: bool = False) -> Iterator[None]:
     d = context.workspace / "build-overlay"
@@ -3931,6 +3950,7 @@ def build_image(context: Context) -> None:
         configure_initrd(context)
         configure_ssh(context)
         configure_clock(context)
+        configure_verity_certificate(context)
 
         if manifest:
             manifest.record_extension_release()
