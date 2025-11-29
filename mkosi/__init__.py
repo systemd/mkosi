@@ -511,6 +511,30 @@ def configure_autologin(context: Context) -> None:
         )
 
 
+def configure_verity_certs(context: Context) -> None:
+    if not context.config.verity_certificate:
+        return
+
+    if context.config.verity_certificate_source.type != CertificateSourceType.file:
+        return
+
+    veritydir = context.root / "usr/lib/verity.d"
+    with umask(~0o755):
+        veritydir.mkdir(parents=True, exist_ok=True)
+
+    # dissect wants .crt and will ignore anything else
+    if context.config.verity_certificate.suffix == ".crt":
+        dest = veritydir / context.config.verity_certificate.name
+    else:
+        dest = (
+            veritydir
+            / f"{context.config.verity_certificate.name[: -len(context.config.verity_certificate.suffix)]}.crt"  # noqa: E501
+        )
+
+    with umask(~0o644):
+        shutil.copy(context.config.verity_certificate, dest)
+
+
 @contextlib.contextmanager
 def setup_build_overlay(context: Context, volatile: bool = False) -> Iterator[None]:
     d = context.workspace / "build-overlay"
@@ -3930,6 +3954,7 @@ def build_image(context: Context) -> None:
         configure_initrd(context)
         configure_ssh(context)
         configure_clock(context)
+        configure_verity_certs(context)
 
         if manifest:
             manifest.record_extension_release()
