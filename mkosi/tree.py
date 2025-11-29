@@ -22,6 +22,10 @@ def is_subvolume(path: Path) -> bool:
     return path.is_dir() and path.stat().st_ino == 256 and statfs(os.fspath(path)) == BTRFS_SUPER_MAGIC
 
 
+def btrfs_supports(feature: str) -> bool:
+    return Path(f"/sys/fs/btrfs/features/{feature}").is_file()
+
+
 def cp_version(*, sandbox: SandboxProtocol = nosandbox) -> GenericVersion:
     return GenericVersion(
         run(
@@ -189,17 +193,19 @@ def rmtree(*paths: Path, sandbox: SandboxProtocol = nosandbox) -> None:
     paths = tuple(p.absolute() for p in paths)
 
     if subvolumes := sorted({p for p in paths if not p.is_symlink() and p.exists() and is_subvolume(p)}):
-        # Silence and ignore failures since when not running as root, this will fail with a permission error
-        # unless the btrfs filesystem is mounted with user_subvol_rm_allowed.
-        run(
-            ["btrfs", "--quiet", "subvolume", "delete", *(workdir(p, sandbox) for p in subvolumes)],
-            check=False,
-            sandbox=sandbox(
-                options=flatten(("--bind", p.parent, workdir(p.parent, sandbox)) for p in subvolumes),
-            ),
-            stdout=subprocess.DEVNULL if not ARG_DEBUG.get() else None,
-            stderr=subprocess.DEVNULL if not ARG_DEBUG.get() else None,
-        )
+        # skip privileged subvol delete when we just use the `rm -rf` below. (True for kernel 4.18+)
+        if not btrfs_supports("rmdir_subvol"):
+            # Silence and ignore failures since when not running as root, this will fail with a
+            # permission error unless the btrfs filesystem is mounted with user_subvol_rm_allowed.
+            run(
+                ["btrfs", "--quiet", "subvolume", "delete", *(workdir(p, sandbox) for p in subvolumes)],
+                check=False,
+                sandbox=sandbox(
+                    options=flatten(("--bind", p.parent, workdir(p.parent, sandbox)) for p in subvolumes),
+                ),
+                stdout=subprocess.DEVNULL if not ARG_DEBUG.get() else None,
+                stderr=subprocess.DEVNULL if not ARG_DEBUG.get() else None,
+            )
 
     filtered = sorted({p for p in paths if p.exists() or p.is_symlink()})
     if filtered:
