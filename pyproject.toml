@@ -81,7 +81,7 @@ scripts_are_modules = true
 [tool.ruff]
 target-version = "py39"
 line-length = 109
-lint.select = ["E", "F", "I", "UP"]
+lint.select = ["E", "F", "I", "UP", "W291"]
 
 [tool.pytest.ini_options]
 markers = [
