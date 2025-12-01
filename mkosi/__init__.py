@@ -3004,6 +3004,7 @@ def run_sysusers(context: Context) -> None:
         run(
             ["systemd-sysusers", "--root=/buildroot"],
             sandbox=context.sandbox(options=context.rootoptions()),
+            env=context.config.finalize_environment(),
         )
 
 
