@@ -2,8 +2,13 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 set -ex
 
-pandoc -t man -s -o mkosi/resources/man/mkosi.1 mkosi/resources/man/mkosi.1.md
-pandoc -t man -s -o mkosi/resources/man/mkosi-addon.1 mkosi/resources/man/mkosi-addon.1.md
-pandoc -t man -s -o mkosi/resources/man/mkosi-initrd.1 mkosi/resources/man/mkosi-initrd.1.md
-pandoc -t man -s -o mkosi/resources/man/mkosi-sandbox.1 mkosi/resources/man/mkosi-sandbox.1.md
-pandoc -t man -s -o mkosi/resources/man/mkosi.news.7 mkosi/resources/man/mkosi.news.7.md
+MD_DIR=mkosi/resources/man
+OUTPUT_DIR=mkosi/resources/man
+
+for mdfile in "$MD_DIR"/*.?.md; do
+    pandoc \
+    --lua-filter=mkosi/resources/pandoc/md2man.lua \
+    -s -t man \
+    -o  "${OUTPUT_DIR}/$(basename "${mdfile}" .md)" \
+    "${mdfile}"
+done
