@@ -1491,19 +1491,21 @@ def build_microcode_initrd(context: Context) -> list[Path]:
     return [microcode]
 
 
-def finalize_kernel_modules_include(context: Context, *, include: Sequence[str], host: bool) -> set[str]:
-    final = {i for i in include if i not in ("default", "host")}
-    if "default" in include:
-        with chdir(context.resources / "mkosi-initrd"):
-            # TODO: figure out a way to propagate all relevant settings, not just arch
-            _, _, [initrd] = parse_config(
-                ["--architecture", str(context.config.architecture)],
-                resources=context.resources,
-            )
-        final.update(initrd.kernel_modules_include)
-    if host or "host" in include:
-        final.update(loaded_modules())
-
+def finalize_kernel_modules_include(context: Context, *, include: Sequence[str], host: bool) -> list[str]:
+    final = []
+    for patt in include:
+        if "default" in patt:
+            with chdir(context.resources / "mkosi-initrd"):
+                # TODO: figure out a way to propagate all relevant settings, not just arch
+                _, _, [initrd] = parse_config(
+                    ["--architecture", str(context.config.architecture)],
+                    resources=context.resources,
+                )
+            final.extend(initrd.kernel_modules_include)
+        elif host or "host" in patt:
+            final.extend(loaded_modules())
+        else:
+            final.append(patt)
     return final
 
 
