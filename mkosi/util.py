@@ -252,3 +252,14 @@ def mandatory_variable(name: str) -> str:
         return os.environ[name]
     except KeyError:
         die(f"${name} must be set in the environment")
+
+
+def have_host_uid0() -> bool:
+    result = False
+    regex = rf"\s*{os.geteuid()}\s*{0}\s*(\d+)$"
+    with open("/proc/self/uid_map") as f:
+        for line in f.read().split("\n"):
+            if re.match(regex, line):
+                result = True
+
+    return result

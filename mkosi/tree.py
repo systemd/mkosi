@@ -14,7 +14,7 @@ from mkosi.config import ConfigFeature
 from mkosi.log import ARG_DEBUG, die
 from mkosi.run import SandboxProtocol, nosandbox, run, workdir
 from mkosi.sandbox import BTRFS_SUPER_MAGIC, FS_NOCOW_FL, OVERLAYFS_SUPER_MAGIC, chattr, lsattr, statfs
-from mkosi.util import PathString, flatten
+from mkosi.util import PathString, flatten, have_host_uid0
 from mkosi.versioncomp import GenericVersion
 
 
@@ -32,6 +32,24 @@ def cp_version(*, sandbox: SandboxProtocol = nosandbox) -> GenericVersion:
         .stdout.splitlines()[0]
         .split()[3]
     )
+
+
+def dir_mount_has_option(path: Path, option: str, sandbox: SandboxProtocol = nosandbox) -> bool:
+    cmdline = ["findmnt", "-rn", "-O", option, "-T", workdir(path, sandbox)]
+    completed_process = run(
+        cmdline,
+        check=True,
+        sandbox=sandbox(
+            options=flatten([("--bind", path.parent, workdir(path.parent, sandbox))]),
+        ),
+        success_exit_status=(0, 1),
+        stdout=subprocess.DEVNULL if not ARG_DEBUG.get() else None,
+        stderr=subprocess.DEVNULL if not ARG_DEBUG.get() else None,
+    )
+
+    # found : returncode=0 and stdout contains mount line
+    # not found : returncode=1 and stdout is empty
+    return completed_process.stdout is not None and option in completed_process.stdout
 
 
 def make_tree(
@@ -189,17 +207,18 @@ def rmtree(*paths: Path, sandbox: SandboxProtocol = nosandbox) -> None:
     paths = tuple(p.absolute() for p in paths)
 
     if subvolumes := sorted({p for p in paths if not p.is_symlink() and p.exists() and is_subvolume(p)}):
-        # Silence and ignore failures since when not running as root, this will fail with a permission error
-        # unless the btrfs filesystem is mounted with user_subvol_rm_allowed.
-        run(
-            ["btrfs", "--quiet", "subvolume", "delete", *(workdir(p, sandbox) for p in subvolumes)],
-            check=False,
-            sandbox=sandbox(
-                options=flatten(("--bind", p.parent, workdir(p.parent, sandbox)) for p in subvolumes),
-            ),
-            stdout=subprocess.DEVNULL if not ARG_DEBUG.get() else None,
-            stderr=subprocess.DEVNULL if not ARG_DEBUG.get() else None,
-        )
+        for p in subvolumes:
+            # Use fast subvol delete if we can. Else, the rm -rf below will handle it
+            if have_host_uid0() or dir_mount_has_option(p, "user_subvol_rm_allowed", sandbox=sandbox):
+                run(
+                    ["btrfs", "--quiet", "subvolume", "delete", workdir(p, sandbox)],
+                    check=True,
+                    sandbox=sandbox(
+                        options=flatten([("--bind", p.parent, workdir(p.parent, sandbox))]),
+                    ),
+                    stdout=subprocess.DEVNULL if not ARG_DEBUG.get() else None,
+                    stderr=subprocess.DEVNULL if not ARG_DEBUG.get() else None,
+                )
 
     filtered = sorted({p for p in paths if p.exists() or p.is_symlink()})
     if filtered:
