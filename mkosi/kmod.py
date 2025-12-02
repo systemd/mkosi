@@ -8,12 +8,18 @@ import re
 import subprocess
 from collections.abc import Iterable, Iterator, Reversible
 from pathlib import Path
+from typing import TypedDict
 
 from mkosi.context import Context
 from mkosi.log import complete_step, log_step
 from mkosi.run import chroot_cmd, run
 from mkosi.sandbox import chase
-from mkosi.util import chdir, parents_below
+from mkosi.util import chdir, flatten, parents_below
+
+
+class DepsDict(TypedDict):
+    moddep: dict[str, set[tuple[str, str]]]  # name: {(h)ard/(s)oft, name),...}
+    firmwaredep: dict[str, set[Path]]
 
 
 def loaded_modules() -> list[str]:
@@ -203,7 +209,7 @@ def module_path_to_name(path: Path) -> str:
 
 
 def modinfo(context: Context, kver: str, modules: Iterable[str]) -> str:
-    cmdline = ["modinfo", "--set-version", kver, "--null"]
+    cmdline = ["modinfo", "--modname", "--set-version", kver, "--null"]
 
     if context.config.output_format.is_extension_image() and not context.config.overlay:
         cmdline += ["--basedir", "/buildroot"]
@@ -220,44 +226,21 @@ def modinfo(context: Context, kver: str, modules: Iterable[str]) -> str:
     ).stdout.strip()
 
 
-def resolve_module_dependencies(
+def parse_modinfo_output(
     context: Context,
-    kver: str,
-    modules: Iterable[str],
-) -> tuple[set[Path], set[Path]]:
+    info: str,
+) -> DepsDict:
+    """Parse modinfo output into structured dependency data
+
+    Returns a DepsDict. all module names are normalized.
+    - moddep: name -> {(h)ard/(s)oft, name),...}
+    - firmwaredep: dict[str, set[Path]]
     """
-    Returns a tuple of lists containing the paths to the module and firmware dependencies of the given list
-    of module names (including the given module paths themselves). The paths are returned relative to the
-    root directory.
-    """
-    modulesd = Path("usr/lib/modules") / kver
-    if (p := context.root / modulesd / "modules.builtin").exists():
-        builtin = set(module_path_to_name(Path(m)) for m in p.read_text().splitlines())
-    else:
-        builtin = set()
-    with chdir(context.root):
-        allmodules = set(modulesd.rglob("*.ko*"))
-    nametofile = {module_path_to_name(m): m for m in allmodules}
+    result = DepsDict(moddep={}, firmwaredep={})
 
-    log_step("Running modinfo to fetch kernel module dependencies")
-
-    # We could run modinfo once for each module but that's slow. Luckily we can pass multiple modules to
-    # modinfo and it'll process them all in a single go. We get the modinfo for all modules to build two maps
-    # that map the path of the module to its module dependencies and its firmware dependencies
-    # respectively. Because there's more kernel modules than the max number of accepted CLI arguments, we
-    # split the modules list up into chunks.
-    info = ""
-    for i in range(0, len(nametofile.keys()), 8500):
-        chunk = list(nametofile.keys())[i : i + 8500]
-        info += modinfo(context, kver, chunk)
-
-    log_step("Calculating required kernel modules and firmware")
-
-    moddep = {}
-    firmwaredep = {}
-
-    depends: set[str] = set()
+    depends: set[tuple[str, str]] = set()
     firmware: set[Path] = set()
+    missing_firmware: set[str] = set()
 
     with chdir(context.root):
         for line in info.split("\0"):
@@ -268,51 +251,101 @@ def resolve_module_dependencies(
             value = value.strip()
 
             if key == "depends":
-                depends.update(normalize_module_name(d) for d in value.split(",") if d)
-
+                depends.update(("h", normalize_module_name(d)) for d in value.split(",") if d)
             elif key == "softdep":
                 # softdep is delimited by spaces and can contain strings like pre: and post: so discard
                 # anything that ends with a colon.
-                depends.update(normalize_module_name(d) for d in value.split() if not d.endswith(":"))
-
+                depends.update(("s", normalize_module_name(d)) for d in value.split() if not d.endswith(":"))
             elif key == "firmware":
                 if (Path("usr/lib/firmware") / value).exists():
-                    firmware.add(Path("usr/lib/firmware") / value)
+                    found = [Path("usr/lib/firmware") / value]
+                else:
+                    glob = "" if value.endswith("*") else ".*"
+                    found = list(Path("usr/lib/firmware").glob(f"{value}{glob}"))
 
-                glob = "" if value.endswith("*") else ".*"
+                firmware.update(found)
 
-                firmware.update(Path("usr/lib/firmware").glob(f"{value}{glob}"))
+                if not found:
+                    missing_firmware.add(value)
 
             elif key == "name":
-                # The file names use dashes, but the module names use underscores. We track the names in
-                # terms of the file names, since the depends use dashes and therefore filenames as well.
                 name = normalize_module_name(value)
 
-                moddep[name] = depends
-                firmwaredep[name] = firmware
+                for fw in missing_firmware:
+                    logging.warning(f"{fw} is a fw dependency of {name} but is not installed, ignoring")
+
+                result["moddep"][name] = depends
+                result["firmwaredep"][name] = firmware
 
                 depends = set()
                 firmware = set()
+                missing_firmware = set()
 
-    todo = [*builtin, *modules]
-    mods = set()
-    firmware = set()
+    return result
+
+
+def resolve_module_dependencies(
+    context: Context,
+    kver: str,
+    modules: Iterable[str],
+) -> tuple[set[Path], set[Path]]:
+    """Resolve module and firmware dependencies for specified modules
+
+    Returns a 2-tuple of sets of paths:
+    - The first set contains paths (relative to the root directory) to the
+      specified modules and all their direct and indirect module dependencies,
+      excluding built-in modules.
+    - The second set contains paths (relative to the root directory) to all
+      firmware files required by the modules in the first set.
+    """
+    modulesd = Path("usr/lib/modules") / kver
+    if (p := context.root / modulesd / "modules.builtin").exists():
+        builtin = set(module_path_to_name(Path(m)) for m in p.read_text().splitlines())
+    else:
+        builtin = set()
+    with chdir(context.root):
+        allmodules = set(modulesd.rglob("*.ko*"))
+    nametofile = {module_path_to_name(m): m for m in allmodules}
+
+    log_step("Resolving dependencies for kernel modules and detecting needed firmware")
+
+    moddep: dict[str, set[tuple[str, str]]] = {}
+    firmwaredep: dict[str, set[Path]] = {}
+
+    modules = set(normalize_module_name(m) for m in modules)  # ensure normalized names
+    available = builtin | nametofile.keys()
+    todo = set(modules) & available
+    done = set()
+
+    for m in set(modules) - available:
+        # FIXME: should abort here? and also on missing hard-deps below?
+        logging.warning(f"{m} was requested but is not installed, ignoring.")
 
     while todo:
-        m = todo.pop()
-        if m in mods:
-            continue
+        info = modinfo(context, kver, todo)
 
-        depends = moddep.get(m, set())
-        for d in depends:
-            if d not in nametofile and d not in builtin:
-                logging.warning(f"{d} is a dependency of {m} but is not installed, ignoring ")
+        result = parse_modinfo_output(context, info)
+        moddep.update(result["moddep"])
+        firmwaredep.update(result["firmwaredep"])
 
-        mods.add(m)
-        todo += depends
-        firmware.update(firmwaredep.get(m, set()))
+        done.update(todo)
+        todo = (set(m for _, m in flatten(moddep.values())) - done) & available
 
-    return set(nametofile[m] for m in mods if m in nametofile), set(firmware)
+    mods = (moddep.keys() - builtin) & available
+    firmware = set(fw for fws in firmwaredep.values() for fw in fws)
+
+    for m, depends in moddep.items():
+        for typ, name in depends:
+            typ = dict(s="soft", h="hard").get(typ, "?")
+            if name not in available:
+                logging.warning(f"{name} is a {typ} dependency of {m} but is not installed, ignoring.")
+
+    logging.debug(f"The following {len(mods)} kernel modules will be included in the image:")
+    logging.debug(sorted(mods))
+    logging.debug(f"The following {len(firmware)} firmware files were detected as kmod dependencies:")
+    logging.debug(sorted(firmware))
+
+    return set(nametofile[m] for m in mods if m in nametofile), firmware
 
 
 def gen_required_kernel_modules(
