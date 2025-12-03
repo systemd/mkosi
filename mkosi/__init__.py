@@ -1500,7 +1500,7 @@ def finalize_kernel_modules_include(context: Context, *, include: Sequence[str],
         host_included = True
 
     for p in include:
-        if "default" in p:
+        if p == "default":
             with chdir(context.resources / "mkosi-initrd"):
                 # TODO: figure out a way to propagate all relevant settings, not just arch
                 _, _, [initrd] = parse_config(
@@ -1508,7 +1508,7 @@ def finalize_kernel_modules_include(context: Context, *, include: Sequence[str],
                     resources=context.resources,
                 )
             final.extend(initrd.kernel_modules_include)
-        elif "host" == p and not host_included:
+        elif p == "host" and not host_included:
             final.extend(loaded_modules())
             host_included = True
         else:
