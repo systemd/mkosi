@@ -1493,8 +1493,14 @@ def build_microcode_initrd(context: Context) -> list[Path]:
 
 def finalize_kernel_modules_include(context: Context, *, include: Sequence[str], host: bool) -> list[str]:
     final = []
-    for patt in include:
-        if "default" in patt:
+
+    host_included = False
+    if host:
+        final.extend(loaded_modules())
+        host_included = True
+
+    for p in include:
+        if "default" in p:
             with chdir(context.resources / "mkosi-initrd"):
                 # TODO: figure out a way to propagate all relevant settings, not just arch
                 _, _, [initrd] = parse_config(
@@ -1502,10 +1508,12 @@ def finalize_kernel_modules_include(context: Context, *, include: Sequence[str],
                     resources=context.resources,
                 )
             final.extend(initrd.kernel_modules_include)
-        elif host or "host" in patt:
+        elif "host" == p and not host_included:
             final.extend(loaded_modules())
+            host_included = True
         else:
-            final.append(patt)
+            final.append(p)
+
     return final
 
 
