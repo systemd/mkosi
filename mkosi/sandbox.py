@@ -21,6 +21,10 @@ AT_FDCWD = -100
 AT_NO_AUTOMOUNT = 0x800
 AT_RECURSIVE = 0x8000
 AT_SYMLINK_NOFOLLOW = 0x100
+BTRFS_IOC_SNAP_CREATE_V2 = 0x50009417
+BTRFS_IOC_SUBVOL_CREATE_V2 = 0x50009418
+BTRFS_IOC_SNAP_DESTROY_V2 = 0x5000943F
+BTRFS_SUBVOL_NAME_MAX = 4039
 BTRFS_SUPER_MAGIC = 0x9123683E
 CAP_CHOWN = 0
 CAP_DAC_OVERRIDE = 1
@@ -42,6 +46,7 @@ CLONE_NEWNET = 0x40000000
 CLONE_NEWNS = 0x00020000
 CLONE_NEWUSER = 0x10000000
 EBADF = 9
+ENAMETOOLONG = 36
 EPERM = 1
 ENOENT = 2
 ENOSYS = 38
@@ -81,6 +86,16 @@ SCMP_ACT_ALLOW = 0x7FFF0000
 SCMP_ACT_ERRNO = 0x00050000
 SD_LISTEN_FDS_START = 3
 SIGSTOP = 19
+
+
+class btrfs_ioctl_vol_args_v2(ctypes.Structure):
+    _fields_ = [
+        ("fd", ctypes.c_int64),
+        ("transid", ctypes.c_uint64),
+        ("flags", ctypes.c_uint64),
+        ("unused", ctypes.c_uint64 * 4),
+        ("name", ctypes.c_char * (BTRFS_SUBVOL_NAME_MAX + 1)),
+    ]
 
 
 class mount_attr(ctypes.Structure):
@@ -366,6 +381,43 @@ def chattr(path: str, attr: int) -> None:
 
     if r != 0:
         raise OSError(r, os.strerror(r), path)
+
+
+def validate_subvol_name(name: str) -> None:
+    if len(name) > BTRFS_SUBVOL_NAME_MAX:
+        raise OSError(ENAMETOOLONG, os.strerror(ENAMETOOLONG), name)
+
+
+def btrfs_subvol_ioctl(path: str, cmd: int, src_fd: int = 0) -> None:
+    parent = os.path.dirname(path)
+    name = os.path.basename(path)
+    validate_subvol_name(name)
+    fd = os.open(parent, os.O_CLOEXEC | os.O_RDONLY | os.O_DIRECTORY)
+
+    try:
+        args = btrfs_ioctl_vol_args_v2(fd=src_fd, name=name.encode())
+
+        libc.ioctl.argtypes = (ctypes.c_int, ctypes.c_long, ctypes.c_void_p)
+        if libc.ioctl(fd, cmd, ctypes.byref(args)) < 0:
+            oserror("ioctl", path)
+    finally:
+        os.close(fd)
+
+
+def btrfs_subvol_create(path: str) -> None:
+    btrfs_subvol_ioctl(path, BTRFS_IOC_SUBVOL_CREATE_V2)
+
+
+def btrfs_subvol_snapshot(src: str, dst: str) -> None:
+    src_fd = os.open(src, os.O_CLOEXEC | os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        btrfs_subvol_ioctl(dst, BTRFS_IOC_SNAP_CREATE_V2, src_fd)
+    finally:
+        os.close(src_fd)
+
+
+def btrfs_subvol_delete(path: str) -> None:
+    btrfs_subvol_ioctl(path, BTRFS_IOC_SNAP_DESTROY_V2)
 
 
 def join_new_session_keyring() -> None:
