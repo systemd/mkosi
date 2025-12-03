@@ -1514,7 +1514,8 @@ def finalize_kernel_modules_include(context: Context, *, include: Sequence[str],
         else:
             final.append(p)
 
-    return final
+    # deduplicate while maintaining ordering
+    return list({k: None for k in final})
 
 
 def build_kernel_modules_initrd(context: Context, kver: str) -> Path:
