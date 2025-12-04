@@ -5044,7 +5044,7 @@ def have_history(args: Args) -> bool:
     if args.directory is None:
         return False
 
-    if args.verb in (Verb.clean, Verb.sandbox, Verb.latest_snapshot):
+    if args.verb in (Verb.clean, Verb.box, Verb.sandbox, Verb.latest_snapshot):
         return False
 
     if args.verb == Verb.summary and args.force > 0:

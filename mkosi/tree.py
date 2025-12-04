@@ -11,9 +11,19 @@ from collections.abc import Iterator
 from pathlib import Path
 
 from mkosi.config import ConfigFeature
-from mkosi.log import ARG_DEBUG, die
+from mkosi.log import die
 from mkosi.run import SandboxProtocol, nosandbox, run, workdir
-from mkosi.sandbox import BTRFS_SUPER_MAGIC, FS_NOCOW_FL, OVERLAYFS_SUPER_MAGIC, chattr, lsattr, statfs
+from mkosi.sandbox import (
+    BTRFS_SUPER_MAGIC,
+    FS_NOCOW_FL,
+    OVERLAYFS_SUPER_MAGIC,
+    btrfs_subvol_create,
+    btrfs_subvol_delete,
+    btrfs_subvol_snapshot,
+    chattr,
+    lsattr,
+    statfs,
+)
 from mkosi.util import PathString, flatten
 from mkosi.versioncomp import GenericVersion
 
@@ -34,12 +44,7 @@ def cp_version(*, sandbox: SandboxProtocol = nosandbox) -> GenericVersion:
     )
 
 
-def make_tree(
-    path: Path,
-    *,
-    use_subvolumes: ConfigFeature = ConfigFeature.disabled,
-    sandbox: SandboxProtocol = nosandbox,
-) -> Path:
+def make_tree(path: Path, *, use_subvolumes: ConfigFeature = ConfigFeature.disabled) -> Path:
     path = path.absolute()
 
     if statfs(os.fspath(path.parent)) != BTRFS_SUPER_MAGIC:
@@ -50,17 +55,17 @@ def make_tree(
         return path
 
     if use_subvolumes != ConfigFeature.disabled:
-        result = run(
-            ["btrfs", "--quiet", "subvolume", "create", workdir(path, sandbox)],
-            sandbox=sandbox(options=["--bind", path.parent, workdir(path.parent, sandbox)]),
-            check=use_subvolumes == ConfigFeature.enabled,
-        ).returncode
-    else:
-        result = 1
+        try:
+            btrfs_subvol_create(os.fspath(path))
+            return path
+        except OSError as e:
+            if use_subvolumes == ConfigFeature.enabled:
+                raise e
 
-    if result != 0:
-        path.mkdir()
+            if e.errno != errno.ENOTTY:
+                logging.debug(f"Failed to create subvolume {path}, using a regular directory: {e}")
 
+    path.mkdir()
     return path
 
 
@@ -169,13 +174,15 @@ def copy_tree(
     if dst.exists():
         dst.rmdir()
 
-    result = run(
-        ["btrfs", "--quiet", "subvolume", "snapshot", workdir(src, sandbox), workdir(dst, sandbox)],
-        check=use_subvolumes == ConfigFeature.enabled,
-        sandbox=sandbox(options=options),
-    ).returncode
+    try:
+        btrfs_subvol_snapshot(os.fspath(src), os.fspath(dst))
+    except OSError as e:
+        if use_subvolumes == ConfigFeature.enabled:
+            raise e
 
-    if result != 0:
+        if e.errno != errno.ENOTTY:
+            logging.debug(f"Failed to snapshot subvolume {src} to {dst}, falling back to copying: {e}")
+
         with preserve_target_directories_stat(src, dst) if not preserve else contextlib.nullcontext():
             copy()
 
@@ -188,18 +195,21 @@ def rmtree(*paths: Path, sandbox: SandboxProtocol = nosandbox) -> None:
 
     paths = tuple(p.absolute() for p in paths)
 
-    if subvolumes := sorted({p for p in paths if not p.is_symlink() and p.exists() and is_subvolume(p)}):
-        # Silence and ignore failures since when not running as root, this will fail with a permission error
-        # unless the btrfs filesystem is mounted with user_subvol_rm_allowed.
-        run(
-            ["btrfs", "--quiet", "subvolume", "delete", *(workdir(p, sandbox) for p in subvolumes)],
-            check=False,
-            sandbox=sandbox(
-                options=flatten(("--bind", p.parent, workdir(p.parent, sandbox)) for p in subvolumes),
-            ),
-            stdout=subprocess.DEVNULL if not ARG_DEBUG.get() else None,
-            stderr=subprocess.DEVNULL if not ARG_DEBUG.get() else None,
-        )
+    # Silence and ignore failures since when not running as root, this will fail with a permission error
+    # unless the btrfs filesystem is mounted with user_subvol_rm_allowed.
+    for p in sorted({p for p in paths if not p.is_symlink() and p.exists() and is_subvolume(p)}):
+        try:
+            # Make sure the subvolume is writable which is required to be able to remove it.
+            os.chmod(p, 755)
+            btrfs_subvol_delete(os.fspath(p))
+        except OSError as e:
+            if e.errno in (errno.EPERM, errno.EACCES):
+                logging.debug(
+                    f"Could not delete subvolume {p} due to permission issues.\n"
+                    "Consider adding user_subvol_rm_allowed to your btrfs filesystem mount options."
+                )
+            else:
+                logging.debug(f"Failed to delete subvolume {p}: {e}")
 
     filtered = sorted({p for p in paths if p.exists() or p.is_symlink()})
     if filtered:

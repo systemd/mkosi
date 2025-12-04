@@ -3893,7 +3893,7 @@ def make_rootdir(context: Context) -> None:
         if context.config.overlay:
             context.root.mkdir()
         else:
-            make_tree(context.root, use_subvolumes=context.config.use_subvolumes, sandbox=context.sandbox)
+            make_tree(context.root, use_subvolumes=context.config.use_subvolumes)
 
 
 def build_image(context: Context) -> None:
