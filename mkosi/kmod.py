@@ -330,7 +330,7 @@ def gen_required_kernel_modules(
     # There is firmware in /usr/lib/firmware that is not depended on by any modules so if any firmware was
     # installed we have to take the slow path to make sure we don't copy firmware into the initrd that is not
     # depended on by any kernel modules.
-    if modules_include or modules_exclude or (context.root / firmwared).glob("*"):
+    if modules_include or modules_exclude or any((context.root / firmwared).glob("*")):
         modules, firmware = resolve_module_dependencies(
             context,
             kver,
