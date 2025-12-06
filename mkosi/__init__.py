@@ -3462,10 +3462,7 @@ def make_image(
             if p.split_path and p.type not in skip:
                 maybe_compress(context, context.config.compress_output, p.split_path)
 
-    if ArtifactOutput.roothash in context.config.split_artifacts and (
-        roothash := finalize_roothash(partitions)
-    ):
-        (context.staging / context.config.output_split_roothash).write_text(roothash.partition("=")[2])
+    write_split_roothash(context, partitions)
 
     return partitions
 
@@ -3725,6 +3722,13 @@ def make_esp(
     )
 
 
+def write_split_roothash(context: Context, partitions: Sequence[Partition]) -> None:
+    if ArtifactOutput.roothash in context.config.split_artifacts and (
+        roothash := finalize_roothash(partitions)
+    ):
+        (context.staging / context.config.output_split_roothash).write_text(roothash.partition("=")[2])
+
+
 def make_extension_or_portable_image(context: Context, output: Path) -> None:
     if context.config.verity == Verity.disabled or (
         context.config.verity == Verity.auto
@@ -3806,6 +3810,8 @@ def make_extension_or_portable_image(context: Context, output: Path) -> None:
         for p in (Partition.from_dict(d) for d in j):
             if p.split_path:
                 maybe_compress(context, context.config.compress_output, p.split_path)
+
+    write_split_roothash(context, [Partition.from_dict(d) for d in j])
 
 
 def finalize_staging(context: Context) -> None:
