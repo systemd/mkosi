@@ -83,10 +83,11 @@ def filter_kernel_modules(
     include: Iterable[str],
     exclude: Iterable[str],
 ) -> list[str]:
+    log_step("Applying kernel modules include/exclude configuration")
     if include:
-        logging.debug(f"Kernel modules include: {' '.join(include)}")
+        logging.debug(f"Kernel modules include directives: {' '.join(include)}")
     if exclude:
-        logging.debug(f"Kernel modules exclude: {' '.join(exclude)}")
+        logging.debug(f"Kernel modules exclude directives: {' '.join(exclude)}")
 
     modulesd = Path("usr/lib/modules") / kver
     with chdir(root):
@@ -128,7 +129,7 @@ def filter_kernel_modules(
         # If no exclude patterns are specified, only keep the specified kernel modules.
         modules = {modulesd / m for m in keep}
 
-    logging.debug(f"Including {len(modules)}/{n_modules} kernel modules.")
+    logging.debug(f"Passing {len(modules)}/{n_modules} kernel modules on to dependency resolution.")
 
     return sorted(module_path_to_name(m) for m in modules)
 
@@ -140,10 +141,11 @@ def filter_firmware(
     include: Iterable[str],
     exclude: Iterable[str],
 ) -> set[Path]:
+    log_step("Applying firmware include/exclude configuration")
     if include:
-        logging.debug(f"Firmware include: {' '.join(include)}")
+        logging.debug(f"Firmware include directives: {' '.join(include)}")
     if exclude:
-        logging.debug(f"Firmware exclude: {' '.join(exclude)}")
+        logging.debug(f"Firmware exclude directives: {' '.join(exclude)}")
 
     # globs can be also used to exclude firmware, so we we need to apply them
     # to the inherited list of firmware files too.
@@ -175,7 +177,8 @@ def filter_firmware(
             if (patterns and regex.search(rel)) or globs_match_firmware(rel, globs):
                 firmware.add(f)
 
-    logging.debug(f"Including {len(firmware)} firmware files")
+    logging.debug(f"The following {len(firmware)} firmware files will be included in the image:")
+    logging.debug(sorted(firmware))
 
     return firmware
 
