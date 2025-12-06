@@ -3807,6 +3807,11 @@ def make_extension_or_portable_image(context: Context, output: Path) -> None:
             if p.split_path:
                 maybe_compress(context, context.config.compress_output, p.split_path)
 
+    if ArtifactOutput.roothash in context.config.split_artifacts and (
+        roothash := finalize_roothash([Partition.from_dict(d) for d in j])
+    ):
+        (context.staging / context.config.output_split_roothash).write_text(roothash.partition("=")[2])
+
 
 def finalize_staging(context: Context) -> None:
     rmtree(
