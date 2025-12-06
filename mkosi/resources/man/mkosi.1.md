@@ -1194,8 +1194,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     except that the paths are relative to `/usr/lib/firmware/<subdir>`.
     The compression suffix is ignored and must not be included in the pattern.
 
-    Firmware files that listed by modules that are included in the image are
-    automatically included.
+    Firmware dependencies of kernel modules installed in the image are automatically included.
 
     Example: `FirmwareFiles=cxgb4/bcm8483.bin` or `FirmwareFiles=bcm8483.*` would both cause
     `/usr/lib/firmware/cxgb4/bcm8483.bin.xz` to be included,
