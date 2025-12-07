@@ -2174,7 +2174,25 @@ def install_uki(
 
 def systemd_addon_stub_binary(context: Context) -> Path:
     arch = context.config.architecture.to_efi()
+
     stub = context.root / f"usr/lib/systemd/boot/efi/addon{arch}.efi.stub"
+    if stub.exists():
+        return stub
+    if context.config.output_format != OutputFormat.addon:
+        die(f"sd-stub not found at /{stub.relative_to(context.root)} in the image")
+
+    # When building kernel cmdline addons there will be no image to search the stub in,
+    # try the tools tree as the first fallback, and finally the host
+
+    if context.config.tools_tree:
+        stub = context.config.tools_tree / f"usr/lib/systemd/boot/efi/addon{arch}.efi.stub"
+        if stub.exists():
+            return stub
+
+    stub = Path("/") / f"usr/lib/systemd/boot/efi/addon{arch}.efi.stub"
+    if not stub.exists():
+        die(f"sd-stub not found at {stub} in the host")
+
     return stub
 
 
@@ -2183,8 +2201,6 @@ def build_uki_profiles(context: Context, cmdline: Sequence[str]) -> list[Path]:
         return []
 
     stub = systemd_addon_stub_binary(context)
-    if not stub.exists():
-        die(f"sd-stub not found at /{stub.relative_to(context.root)} in the image")
 
     (context.workspace / "uki-profiles").mkdir()
 
@@ -3313,8 +3329,6 @@ def save_esp_components(
 ) -> tuple[Optional[Path], Optional[str], Optional[Path], list[Path]]:
     if context.config.output_format == OutputFormat.addon:
         stub = systemd_addon_stub_binary(context)
-        if not stub.exists():
-            die(f"sd-stub not found at /{stub.relative_to(context.root)} in the image")
 
         return Path(shutil.copy2(stub, context.workspace)), None, None, []
 
