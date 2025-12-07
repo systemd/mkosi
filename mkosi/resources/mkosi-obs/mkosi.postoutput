@@ -70,6 +70,7 @@ for f in "${ROOTHASHES[@]}"; do
 done
 
 # Handle bootloaders separately from UKIs
+found_esp=0
 for ddi in "${DDIS[@]}"; do
     test -f "$ddi" || continue
     # Skip over split artifacts, if any
@@ -90,6 +91,7 @@ for ddi in "${DDIS[@]}"; do
 
     rm -rf EFI
     mcopy -s -i "${ddi%.zst}@@${offset}" ::EFI EFI || true
+    found_esp=1
 
     # UKIs are handled separately
     rm -rf EFI/Linux
@@ -105,8 +107,8 @@ for ddi in "${DDIS[@]}"; do
     rm -rf EFI
 done
 
-# If there is at least one DDI then there might be an ESP, so prepare the authvars for self-enrollment
-if ((${#DDIS[@]} > 0)); then
+# If there is an ESP prepare the authvars for self-enrollment
+if [ "$found_esp" -eq 1 ]; then
     mkdir -p hashes/authvars
     pushd hashes/authvars 2>/dev/null
     # Same as the GUID used by bootctl
