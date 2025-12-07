@@ -81,7 +81,7 @@ for ddi in "${DDIS[@]}"; do
         unzstd --force "${ddi}"
     fi
     offset="$(systemd-repart --json=short "${ddi%.zst}" | jq -r '.[] | select(.type == "esp") | .offset')"
-    if [ "$offset" = "null" ]; then
+    if [ -z "$offset" ] || [ "$offset" = "null" ]; then
         if [[ $ddi == *.zst ]]; then
             rm -f "${ddi%.zst}"
         fi
