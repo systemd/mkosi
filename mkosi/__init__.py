@@ -1541,19 +1541,19 @@ def build_kernel_modules_initrd(context: Context, kver: str) -> Path:
         sandbox=context.sandbox,
     )
 
-    if context.config.distribution.is_apt_distribution():
-        # Older Debian and Ubuntu releases do not compress their kernel modules, so we compress the
-        # initramfs instead. Note that this is not ideal since the compressed kernel modules will
-        # all be decompressed on boot which requires significant memory.
-        if context.config.distribution == Distribution.debian and context.config.release in (
-            "sid",
-            "testing",
-        ):
-            compression = Compression.none
-        else:
-            compression = Compression.zstd
+    # Older Debian and Ubuntu releases do not compress their kernel modules, so we compress the
+    # initramfs instead. Note that this is not ideal since the compressed kernel modules will
+    # all be decompressed on boot which requires significant memory.
+    # But we still compress, even if with level 0, since the initrds get all concatenated and
+    # it's then impossible to extract them again if it is a mixed compressed and uncompressed file,
+    # zstd/cpio choke on it. By concatenating only compressed files, even at zero level to avoid
+    # wasting time, piping unzstd to cpio to extract all of them works fine.
+    if context.config.release in ("bookworm", "bullseye", "jammy", "focal"):
+        compression_level = -1
+    else:
+        compression_level = 0
 
-        maybe_compress(context, compression, kmods, kmods)
+    maybe_compress(context, Compression.zstd, kmods, kmods, compression_level)
 
     if ArtifactOutput.kernel_modules_initrd in context.config.split_artifacts:
         shutil.copy(kmods, context.staging / context.config.output_split_kernel_modules_initrd)
@@ -2327,15 +2327,20 @@ def make_addon(context: Context, stub: Path, output: Path) -> None:
         )
 
 
-def compressor_command(context: Context, compression: Compression) -> list[PathString]:
+def compressor_command(
+    context: Context, compression: Compression, compression_level: Optional[int] = -1
+) -> list[PathString]:
     """Returns a command suitable for compressing archives."""
 
+    if compression_level is None or compression_level < 0:
+        compression_level = context.config.compress_level
+
     if compression == Compression.gz:
-        return [gzip_binary(context), f"-{context.config.compress_level}", "--stdout", "-"]
+        return [gzip_binary(context), f"-{compression_level}", "--stdout", "-"]
     elif compression == Compression.xz:
-        return ["xz", "--check=crc32", f"-{context.config.compress_level}", "-T0", "--stdout", "-"]
+        return ["xz", "--check=crc32", f"-{compression_level}", "-T0", "--stdout", "-"]
     elif compression == Compression.zstd:
-        return ["zstd", "-q", f"-{context.config.compress_level}", "-T0", "--stdout", "-"]
+        return ["zstd", "-q", f"-{compression_level}", "-T0", "--stdout", "-"]
     else:
         die(f"Unknown compression {compression}")
 
@@ -2345,6 +2350,7 @@ def maybe_compress(
     compression: Compression,
     src: Path,
     dst: Optional[Path] = None,
+    compression_level: Optional[int] = -1,
 ) -> None:
     if not compression or src.is_dir():
         if dst:
@@ -2359,7 +2365,7 @@ def maybe_compress(
     if not dst:
         dst = src.parent / f"{src.name}.{compression.extension()}"
 
-    cmd = compressor_command(context, compression)
+    cmd = compressor_command(context, compression, compression_level)
 
     with complete_step(f"Compressing {src} with {compression}"):
         with src.open("rb") as i:
