@@ -1,12 +1,6 @@
 name: setup-mkosi
 description: Install mkosi
 
-# https://github.com/actions/runner/issues/2473
-inputs:
-  action_ref:
-    default: ${{ github.action_ref }}
-  action_repository:
-    default: ${{ github.action_repository }}
 runs:
   using: composite
   steps:
@@ -80,15 +74,23 @@ runs:
     - name: Ensure git history is available
       shell: bash
       run: |
-        if [[ ! -e "${{ github.action_path }}/.git" ]]; then
-            rm -rf "${{ github.action_path }}"
-            git clone "https://github.com/${{ inputs.action_repository }}" "${{ github.action_path }}"
-            git -C "${{ github.action_path }}" checkout "${{ inputs.action_ref }}"
+        if [[ ! -e "$X_GITHUB_ACTION_PATH/.git" ]]; then
+            rm -rf "$X_GITHUB_ACTION_PATH"
+            git clone "https://github.com/$X_GITHUB_ACTION_REPOSITORY" "$X_GITHUB_ACTION_PATH"
+            git -C "$X_GITHUB_ACTION_PATH" checkout "$X_GITHUB_ACTION_REF"
         fi
+      # https://github.com/actions/runner/issues/2473
+      env:
+        X_GITHUB_ACTION_REPOSITORY: ${{ github.action_repository }}
+        X_GITHUB_ACTION_PATH: ${{ github.action_path }}
+        X_GITHUB_ACTION_REF: ${{ github.action_ref }}
 
     - name: Install
       shell: bash
-      run: sudo ln -svf ${{ github.action_path }}/bin/mkosi /usr/bin/mkosi
+      run: sudo ln -svf $X_GITHUB_ACTION_PATH/bin/mkosi /usr/bin/mkosi
+      # https://github.com/actions/runner/issues/2473
+      env:
+        X_GITHUB_ACTION_PATH: ${{ github.action_path }}
 
     - name: Dependencies
       shell: bash
