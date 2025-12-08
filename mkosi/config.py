@@ -5450,6 +5450,15 @@ def parse_config(
 
     subimages = resolve_deps(subimages, main.dependencies)
 
+    for config in tuple(subimages + [main]):
+        if "linux-firmware" not in config.packages and any(
+            config.distribution.installer.is_kernel_package(p)
+            for p in itertools.chain(config.packages, config.volatile_packages)
+        ):
+            logging.warning(
+                "This config installs a kernel in the image. You probably want to add `linux-firmware` to Packages=."
+            )
+            break
     return args, tools, tuple(subimages + [main])
 
 
