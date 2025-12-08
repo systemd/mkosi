@@ -40,6 +40,15 @@ def test_globs_match_module() -> None:
     assert not kmod.globs_match_module("drivers/ata/ahci.ko.zst", ["-*"])
     assert not kmod.globs_match_module("drivers/ata/ahci.ko.xz", ["-*"])
 
+    # absolute glob behavior unchanged when paths are relative to /lib/module/<kver>
+    assert kmod.globs_match_module("kernel/drivers/ata/ahci.ko", ["drivers/*"])
+    assert kmod.globs_match_module("kernel/drivers/ata/ahci.ko", ["/drivers/*"])
+    assert not kmod.globs_match_module("kernel/drivers/ata/ahci.ko.xz", ["/ata/*"])
+
+    # absolute globs match both relative to kernel/ and module_dir root
+    assert kmod.globs_match_module("kernel/drivers/ata/ahci.ko.xz", ["/drivers/ata/ahci"])
+    assert kmod.globs_match_module("kernel/drivers/ata/ahci.ko.xz", ["/kernel/drivers/ata/ahci"])
+
 
 def test_normalize_module_glob() -> None:
     assert kmod.normalize_module_glob("raid[0-9]") == "raid[0-9]"

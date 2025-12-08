@@ -1163,15 +1163,29 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     The modules that were last matched by a positive pattern are included in the image,
     as well as their module and firmware dependencies.
 
-    The module paths are taken relative to the `/usr/lib/modules/<kver>/<subdir>/kernel/` directory,
-    and the `.ko` suffix and compression suffix are ignored during matching.
-    The patterns may include just the basename (e.g. `loop`),
+    The `.ko` suffix and compression suffix are ignored during matching.
+
+    Globs are matched against module paths relative to `/usr/lib/module/<kver>`,
+    e.g. the module at `/usr/lib/module/<kver>/kernel/foo/bar.ko.xz`
+    becomes `kernel/foo/bar` for matching purposes.
+
+    Globs beginning with "/" are treated specially. The glob is *first* matched
+    against a path relative to `/usr/lib/module/<kver>/kernel`, and only then against
+    `/usr/lib/module/<kver>/`. This is a convenience, since usually only the in-tree
+    modules under `kernel/` are of interest.
+
+    For example, the module at`/usr/lib/module/<kver>/kernel/foo/bar.ko.xz`
+    can be matched by either `/foo/bar` or `/kernel/foo/bar`.
+
+    The glob patterns may include just the basename (e.g. `loop`),
     which must match the basename of the module,
     the relative path (e.g. `block/loop`),
     which must match the final components of the module path up to the basename,
     or an absolute path (e.g. `/drivers/block/loop`),
     which must match the full path to the module.
+
     When suffixed with `/`, the pattern will match all modules underneath that directory.
+
     The patterns may include shell-style globs (`*`, `?`, `[…-…]`).
 
     If the special value `default` is used, the default kernel modules
