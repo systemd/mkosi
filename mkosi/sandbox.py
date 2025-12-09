@@ -142,19 +142,18 @@ def terminal_is_dumb() -> bool:
     return not sys.stdout.isatty() or not sys.stderr.isatty() or os.getenv("TERM", "") == "dumb"
 
 
-class Style:
-    # fmt: off
-    bold: str   = "\033[0;1;39m"     if not terminal_is_dumb() else ""
-    blue: str   = "\033[0;1;34m"     if not terminal_is_dumb() else ""
-    gray: str   = "\033[0;38;5;245m" if not terminal_is_dumb() else ""
-    red: str    = "\033[31;1m"       if not terminal_is_dumb() else ""
-    yellow: str = "\033[33;1m"       if not terminal_is_dumb() else ""
-    reset: str  = "\033[0m"          if not terminal_is_dumb() else ""
-    # fmt: on
+# fmt: off
+ANSI_BOLD   = "\033[0;1;39m"     if not terminal_is_dumb() else ""
+ANSI_BLUE   = "\033[0;1;34m"     if not terminal_is_dumb() else ""
+ANSI_GRAY   = "\033[0;38;5;245m" if not terminal_is_dumb() else ""
+ANSI_RED    = "\033[31;1m"       if not terminal_is_dumb() else ""
+ANSI_YELLOW = "\033[33;1m"       if not terminal_is_dumb() else ""
+ANSI_RESET  = "\033[0m"          if not terminal_is_dumb() else ""
+# fmt: on
 
 
 ENOSYS_MSG = f"""\
-{Style.red}mkosi was unable to invoke the {{syscall}}() system call.{Style.reset}
+{ANSI_RED}mkosi was unable to invoke the {{syscall}}() system call.{ANSI_RESET}
 This probably means either the system call is not implemented by the running kernel version ({{kver}}) or the
 system call is prohibited via seccomp if mkosi is being executed inside a containerized environment.\
 """
@@ -1027,7 +1026,7 @@ See the mkosi-sandbox(1) man page for details.\
 
 
 UNSHARE_EPERM_MSG = f"""\
-{Style.red}mkosi was forbidden to unshare namespaces{Style.reset}.
+{ANSI_RED}mkosi was forbidden to unshare namespaces{ANSI_RESET}.
 This probably means your distribution has restricted unprivileged user namespaces.
 Please consult the REQUIREMENTS section of the mkosi man page, e.g. via "mkosi
 documentation", for workarounds.\

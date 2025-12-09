@@ -8,7 +8,7 @@ import sys
 from collections.abc import Iterator
 from typing import Any, NoReturn, Optional
 
-from mkosi.sandbox import Style, terminal_is_dumb
+from mkosi.sandbox import ANSI_BOLD, ANSI_GRAY, ANSI_RED, ANSI_RESET, ANSI_YELLOW, terminal_is_dumb
 
 # This global should be initialized after parsing arguments
 ARG_DEBUG = contextvars.ContextVar("debug", default=False)
@@ -75,11 +75,11 @@ def log_step(text: str) -> None:
     else:
         if not terminal_is_dumb():
             print(ConsoleCodes.set_window_title(text), file=sys.stderr, end="")
-        logging.info(f"{prefix}{Style.bold}{text}{Style.reset}")
+        logging.info(f"{prefix}{ANSI_BOLD}{text}{ANSI_RESET}")
 
 
 def log_notice(text: str) -> None:
-    logging.info(f"{Style.bold}{text}{Style.reset}")
+    logging.info(f"{ANSI_BOLD}{text}{ANSI_RESET}")
 
 
 @contextlib.contextmanager
@@ -105,11 +105,11 @@ class Formatter(logging.Formatter):
         fmt = fmt or "%(message)s"
 
         self.formatters = {
-            logging.DEBUG:    logging.Formatter(f"‣ {Style.gray}{fmt}{Style.reset}"),
+            logging.DEBUG:    logging.Formatter(f"‣ {ANSI_GRAY}{fmt}{ANSI_RESET}"),
             logging.INFO:     logging.Formatter(f"‣ {fmt}"),
-            logging.WARNING:  logging.Formatter(f"‣ {Style.yellow}{fmt}{Style.reset}"),
-            logging.ERROR:    logging.Formatter(f"‣ {Style.red}{fmt}{Style.reset}"),
-            logging.CRITICAL: logging.Formatter(f"‣ {Style.red}{Style.bold}{fmt}{Style.reset}"),
+            logging.WARNING:  logging.Formatter(f"‣ {ANSI_YELLOW}{fmt}{ANSI_RESET}"),
+            logging.ERROR:    logging.Formatter(f"‣ {ANSI_RED}{fmt}{ANSI_RESET}"),
+            logging.CRITICAL: logging.Formatter(f"‣ {ANSI_RED}{ANSI_BOLD}{fmt}{ANSI_RESET}"),
         }  # fmt: skip
 
         super().__init__(fmt, *args, **kwargs)
