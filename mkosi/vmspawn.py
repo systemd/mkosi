@@ -58,11 +58,13 @@ def run_vmspawn(args: Args, config: Config) -> None:
         "--secure-boot", yes_no(config.secure_boot),
         "--register", yes_no(finalize_register(config)),
         "--console", str(config.console),
-        "--grow-image", str(config.runtime_size),
     ]  # fmt: skip
 
+    if config.runtime_size:
+        cmdline += ["--grow-image", str(config.runtime_size)]
+
     if config.bind_user:
-        cmdline += ["--bind-user", getpass.getuser()]
+        cmdline += ["--bind-user", getpass.getuser(), "--bind-user-group=wheel"]
 
     if config.runtime_network == Network.user:
         cmdline += ["--network-user-mode"]
