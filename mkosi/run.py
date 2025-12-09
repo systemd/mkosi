@@ -141,6 +141,7 @@ def run(
     env: Mapping[str, str] = {},
     log: bool = True,
     success_exit_status: Sequence[int] = (0,),
+    setup: Sequence[PathString] = (),
     sandbox: AbstractContextManager[Sequence[PathString]] = contextlib.nullcontext([]),
 ) -> CompletedProcess:
     if input is not None:
@@ -156,6 +157,7 @@ def run(
         env=env,
         log=log,
         success_exit_status=success_exit_status,
+        setup=setup,
         sandbox=sandbox,
     ) as process:
         out, err = process.communicate(input)
@@ -177,6 +179,7 @@ def spawn(
     log: bool = True,
     preexec: Optional[Callable[[], None]] = None,
     success_exit_status: Sequence[int] = (0,),
+    setup: Sequence[PathString] = (),
     sandbox: AbstractContextManager[Sequence[PathString]] = contextlib.nullcontext([]),
 ) -> Iterator[Popen]:
     cmd = [os.fspath(x) for x in cmdline]
@@ -214,7 +217,7 @@ def spawn(
 
         try:
             proc = subprocess.Popen(
-                [*prefix, *cmdline],
+                [*setup, *prefix, *cmdline],
                 stdin=stdin,
                 stdout=stdout,
                 stderr=stderr,
@@ -246,10 +249,12 @@ def spawn(
             if log:
                 log_process_failure(prefix, cmd, returncode)
             if ARG_DEBUG_SHELL.get():
+                # --suspend will freeze the debug shell with no way to unfreeze it so strip it from the
+                # sandbox if it's there.
+                if "--suspend" in prefix:
+                    prefix.remove("--suspend")
                 subprocess.run(
-                    # --suspend will freeze the debug shell with no way to unfreeze it so strip it from the
-                    # sandbox if it's there.
-                    [s for s in prefix if s != "--suspend"] + ["bash"],
+                    [*setup, *prefix, "bash"],
                     check=False,
                     stdin=sys.stdin,
                     text=True,
@@ -470,7 +475,6 @@ def sandbox_cmd(
     relaxed: bool = False,
     overlay: Optional[Path] = None,
     options: Sequence[PathString] = (),
-    setup: Sequence[PathString] = (),
     extra: Sequence[Path] = (),
 ) -> Iterator[list[PathString]]:
     assert not (overlay and relaxed)
@@ -479,7 +483,6 @@ def sandbox_cmd(
         module = stack.enter_context(resource_path(sys.modules[__package__ or __name__]))
 
         cmdline: list[PathString] = [
-            *setup,
             *(["strace", "--detach-on=execve"] if ARG_DEBUG_SANDBOX.get() else []),
             sys.executable, "-SI", module / "sandbox.py",
             "--proc", "/proc",
