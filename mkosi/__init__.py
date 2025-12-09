@@ -2458,6 +2458,28 @@ def copy_initrd(context: Context) -> None:
         break
 
 
+def copy_repart_definitions(context: Context) -> None:
+    if ArtifactOutput.repart_definitions not in context.config.split_artifacts:
+        return
+
+    if context.config.output_format == OutputFormat.esp:
+        definitions = [context.workspace / "esp-definitions"]
+    elif context.config.output_format.is_extension_or_portable_image():
+        definitions = [extension_or_portable_image_repart_definitions(context)]
+    elif (d := context.workspace / "repart-definitions").exists():
+        definitions = [d]
+    elif context.config.output_format == OutputFormat.disk:
+        definitions = context.config.repart_dirs
+    else:
+        definitions = []
+
+    if not definitions:
+        return
+
+    for d in definitions:
+        copy_tree(d, context.config.output_dir_or_cwd() / context.config.output_split_repart_definitions)
+
+
 def calculate_sha256sum(context: Context) -> None:
     if not context.config.checksum:
         return
@@ -3729,7 +3751,7 @@ def write_split_roothash(context: Context, partitions: Sequence[Partition]) -> N
         (context.staging / context.config.output_split_roothash).write_text(roothash.partition("=")[2])
 
 
-def make_extension_or_portable_image(context: Context, output: Path) -> None:
+def extension_or_portable_image_repart_definitions(context: Context) -> Path:
     if context.config.verity == Verity.disabled or (
         context.config.verity == Verity.auto
         and (not context.config.verity_key or not context.config.verity_certificate)
@@ -3738,7 +3760,11 @@ def make_extension_or_portable_image(context: Context, output: Path) -> None:
     else:
         unsigned = ""
 
-    r = context.resources / f"repart/definitions/{context.config.output_format}{unsigned}.repart.d"
+    return context.resources / f"repart/definitions/{context.config.output_format}{unsigned}.repart.d"
+
+
+def make_extension_or_portable_image(context: Context, output: Path) -> None:
+    definitions = extension_or_portable_image_repart_definitions(context)
 
     cmdline: list[PathString] = [
         "systemd-repart",
@@ -3750,7 +3776,7 @@ def make_extension_or_portable_image(context: Context, output: Path) -> None:
         "--seed", str(context.config.seed) if context.config.seed else "random",
         "--empty=create",
         "--size=auto",
-        "--definitions", workdir(r),
+        "--definitions", workdir(definitions),
         workdir(output),
     ]  # fmt: skip
     options: list[PathString] = [
@@ -3759,7 +3785,7 @@ def make_extension_or_portable_image(context: Context, output: Path) -> None:
         "--become-root",
         "--bind", output.parent, workdir(output.parent),
         *context.rootoptions(readonly=True),
-        "--ro-bind", r, workdir(r),
+        "--ro-bind", definitions, workdir(definitions),
     ]  # fmt: skip
 
     if not context.config.architecture.is_native():
@@ -4019,6 +4045,7 @@ def build_image(context: Context) -> None:
     copy_uki(context)
     copy_vmlinuz(context)
     copy_initrd(context)
+    copy_repart_definitions(context)
 
     if context.config.output_format == OutputFormat.tar:
         make_tar(context.root, context.staging / context.config.output_with_format, sandbox=context.sandbox)
