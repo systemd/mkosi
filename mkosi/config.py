@@ -35,7 +35,7 @@ from mkosi.distribution import Distribution, detect_distribution
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SANDBOX, ARG_DEBUG_SHELL, complete_step, die
 from mkosi.pager import page
 from mkosi.run import SandboxProtocol, find_binary, nosandbox, run, sandbox_cmd, workdir
-from mkosi.sandbox import Style, __version__
+from mkosi.sandbox import ANSI_BLUE, ANSI_BOLD, ANSI_RESET, __version__
 from mkosi.user import INVOKING_USER
 from mkosi.util import (
     PathString,
@@ -4387,7 +4387,7 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
                 mkosi [options…] {b}help{e}
                 mkosi -h | --help
                 mkosi --version
-        """).format(b=Style.bold, e=Style.reset),
+        """).format(b=ANSI_BOLD, e=ANSI_RESET),
         add_help=False,
         allow_abbrev=False,
         argument_default=argparse.SUPPRESS,
@@ -5536,7 +5536,7 @@ def format_octal_or_default(oct_value: Optional[int]) -> str:
 
 
 def bold(s: Any) -> str:
-    return f"{Style.bold}{s}{Style.reset}"
+    return f"{ANSI_BOLD}{s}{ANSI_RESET}"
 
 
 def cat_config(images: Sequence[Config]) -> str:
@@ -5551,7 +5551,7 @@ def cat_config(images: Sequence[Config]) -> str:
             # Display the paths as relative to ., if underneath.
             if path.is_relative_to(Path.cwd()):
                 path = path.relative_to(Path.cwd())
-            print(f"{Style.blue}# {path}{Style.reset}", file=c)
+            print(f"{ANSI_BLUE}# {path}{ANSI_RESET}", file=c)
             print(path.read_text(), file=c)
 
     return c.getvalue()
