@@ -633,6 +633,7 @@ class ArtifactOutput(StrEnum):
     roothash = enum.auto()
     os_release = enum.auto()
     kernel_modules_initrd = enum.auto()
+    repart_definitions = enum.auto()
 
     @staticmethod
     def compat_no() -> list["ArtifactOutput"]:
@@ -2298,6 +2299,10 @@ class Config:
         return f"{self.output}.kernel-modules-initrd"
 
     @property
+    def output_split_repart_definitions(self) -> str:
+        return f"{self.output}.repart.d"
+
+    @property
     def output_nspawn_settings(self) -> str:
         return f"{self.output}.nspawn"
 
@@ -2339,6 +2344,7 @@ class Config:
             self.output_split_roothash,
             self.output_split_os_release,
             self.output_split_kernel_modules_initrd,
+            self.output_split_repart_definitions,
             self.output_nspawn_settings,
             self.output_checksum,
             self.output_signature,
