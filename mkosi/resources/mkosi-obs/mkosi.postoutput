@@ -57,12 +57,18 @@ for f in "${KERNELS[@]}"; do
 done
 
 repart_dir="$(jq -r '.RepartDirectories[-1]' "$MKOSI_CONFIG")"
+if [ -z "$repart_dir" ] || [ "$repart_dir" = "null" ]; then
+    output="$(jq -r '.Output' "$MKOSI_CONFIG")"
+    if [ -n "$output" ] && [ "$output" != "null" ] && [ -d "$OUTPUTDIR/$output.repart.d" ]; then
+        repart_dir="$OUTPUTDIR/$output.repart.d"
+    fi
+fi
 for f in "${ROOTHASHES[@]}"; do
     test -f "${OUTPUTDIR}/${f}" || continue
     mkdir -p hashes/roothashes
     cp "${OUTPUTDIR}/$f" hashes/roothashes/
     # If we have a DDI to operate on, we need the repart definitions, so save the configs across to the next stage
-    if [ "$repart_dir" != "null" ]; then
+    if [ -n "$repart_dir" ] && [ "$repart_dir" != "null" ]; then
         pushd "$repart_dir" 2>/dev/null
         tar cf "$OUTPUTDIR/${f%roothash}repart.tar" ./*
         popd 2>/dev/null
