@@ -165,7 +165,7 @@ def filter_firmware(
     if include:
         firmwared = Path("usr/lib/firmware")
         with chdir(root):
-            all_firmware = {p for p in firmwared.rglob("*") if p.is_file() or p.is_symlink()}
+            all_firmware = {p for p in firmwared.rglob("*") if p.resolve().is_file()}
 
         patterns = [p[3:] for p in include if p.startswith("re:")]
         regex = re.compile("|".join(patterns))
