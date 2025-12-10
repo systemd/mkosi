@@ -2464,7 +2464,7 @@ def copy_repart_definitions(context: Context) -> None:
 
     if context.config.output_format == OutputFormat.esp:
         definitions = [context.workspace / "esp-definitions"]
-    elif context.config.output_format.is_extension_or_portable_image():
+    elif context.config.output_format in (OutputFormat.sysext, OutputFormat.confext, OutputFormat.portable):
         definitions = [extension_or_portable_image_repart_definitions(context)]
     elif (d := context.workspace / "repart-definitions").exists():
         definitions = [d]
