@@ -1523,6 +1523,8 @@ def build_kernel_modules_initrd(context: Context, kver: str) -> Path:
     if kmods.exists():
         return kmods
 
+    log_step("Building kernel modules initrd")
+
     make_cpio(
         context.root,
         kmods,
