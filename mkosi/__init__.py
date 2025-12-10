@@ -2477,7 +2477,8 @@ def copy_repart_definitions(context: Context) -> None:
         return
 
     for d in definitions:
-        copy_tree(d, context.staging / context.config.output_split_repart_definitions)
+        if d.exists():
+            copy_tree(d, context.staging / context.config.output_split_repart_definitions)
 
 
 def calculate_sha256sum(context: Context) -> None:
