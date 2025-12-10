@@ -276,12 +276,13 @@ def resolve_module_dependencies(
                 depends.update(normalize_module_name(d) for d in value.split() if not d.endswith(":"))
 
             elif key == "firmware":
-                if (Path("usr/lib/firmware") / value).exists():
+                if (Path("usr/lib/firmware") / value).resolve().exists():
                     firmware.add(Path("usr/lib/firmware") / value)
 
                 glob = "" if value.endswith("*") else ".*"
-
-                firmware.update(Path("usr/lib/firmware").glob(f"{value}{glob}"))
+                firmware.update(
+                    fw for fw in Path("usr/lib/firmware").glob(f"{value}{glob}") if fw.resolve().exists()
+                )
 
             elif key == "name":
                 # The file names use dashes, but the module names use underscores. We track the names in
