@@ -1186,10 +1186,16 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     the host system are included as well.
 
 `KernelModulesInitrd=`, `--kernel-modules-initrd=`
-:   Boolean value, enabled (true) by default. If enabled, when building a bootable image, **mkosi** will generate
-    an extra initrd for each unified kernel image it assembles. This initrd contains only modules for
-    the specific kernel version, and will be appended to the prebuilt initrd. This allows generating kernel
-    independent initrds which are augmented with the necessary modules when the UKI is assembled.
+:   Boolean value, enabled (true) by default. If enabled, when building a bootable image,
+    **mkosi** will generate an extra initrd for each unified kernel image it assembles.
+    This initrd contains only modules and possibly firmware, and is then appended to the
+    base initrd to form the final initrd file. This keeps the base initrd kernel independent,
+    and only augments it with the necessary kernel-version specific modules when the UKI
+    is assembled.
+
+    If disabled, no extra initrd is generated. Note that the kernel modules will still **not**
+    be included in the base initrd, which remains kernel independent. Instead, it is assumed
+    the user provides the necessary modules, if any, via an additional custom initrd.
 
 `KernelInitrdModules=`, `--kernel-modules-initrd-include=`
 :   Like `KernelModules=`, but specifies the kernel modules to include in the initrd.
