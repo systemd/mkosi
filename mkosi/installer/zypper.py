@@ -37,6 +37,7 @@ class Zypper(PackageManager):
             "install",
             "--download", "in-advance",
             "--recommends" if context.config.with_recommends else "--no-recommends",
+            "--force-resolution",
         ]  # fmt: skip
 
         return {
@@ -146,6 +147,7 @@ class Zypper(PackageManager):
         arguments = [
             "--download", "in-advance",
             "--recommends" if context.config.with_recommends else "--no-recommends",
+            "--force-resolution",
         ]  # fmt: skip
 
         if allow_downgrade:
