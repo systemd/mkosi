@@ -588,7 +588,8 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `Repositories=`, `--repositories=`
 :   Enable package repositories that are disabled by default. This can be used to enable the EPEL repos for
-    CentOS or different components of the Debian/Kali/Ubuntu repositories.
+    CentOS or different components of the Debian/Kali/Ubuntu repositories.  Debian suites can be specified
+    ahead of the component, separated by a ":" (colon) character, e.g. `trixie-backports:main`.
 
 ### [Output] Section
 
