@@ -414,7 +414,8 @@ def gen_required_kernel_modules(
             current = current.parent
 
         # Finally, add the actual fully resolved path to the firmware file.
-        firmware.add(current.relative_to(context.root))
+        if current.exists():
+            firmware.add(current.relative_to(context.root))
 
     yield from sorted(
         itertools.chain(
