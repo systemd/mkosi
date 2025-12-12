@@ -296,12 +296,10 @@ def start_swtpm(config: Config) -> Iterator[Path]:
             with spawn(
                 cmdline,
                 pass_fds=(sock.fileno(),),
-                sandbox=config.sandbox(
-                    options=["--bind", state, workdir(Path(state))],
-                    setup=scope_cmd(
-                        name=f"mkosi-swtpm-{config.machine_or_name()}",
-                        description=f"swtpm for {config.machine_or_name()}",
-                    ),
+                sandbox=config.sandbox(options=["--bind", state, workdir(Path(state))]),
+                setup=scope_cmd(
+                    name=f"mkosi-swtpm-{config.machine_or_name()}",
+                    description=f"swtpm for {config.machine_or_name()}",
                 ),
             ) as proc:
                 yield path
@@ -422,11 +420,8 @@ def start_virtiofsd(
                     "--bind", directory, workdir(directory),
                     *(["--become-root"] if uidmap else []),
                 ],
-                setup=(
-                    scope +
-                    (become_root_in_subuid_range_cmd() if scope and not uidmap else [])
-                ),
             ),
+            setup=scope + (become_root_in_subuid_range_cmd() if scope and not uidmap else []),
         ) as proc:  # fmt: skip
             yield path
             proc.terminate()
@@ -540,8 +535,8 @@ def start_journal_remote(config: Config, sockfd: int) -> Iterator[None]:
                     "--ro-bind", f.name, "/etc/systemd/journal-remote.conf",
                     "--pack-fds",
                 ],
-                setup=scope,
             ),
+            setup=scope,
             user=user if not scope else None,
             group=group if not scope else None,
         ) as proc:  # fmt: skip
@@ -1525,12 +1520,12 @@ def run_qemu(args: Args, config: Config) -> None:
                 devices=True,
                 relaxed=True,
                 options=["--same-dir", "--suspend"],
-                setup=scope_cmd(
-                    name=name,
-                    description=f"mkosi Virtual Machine {name}",
-                    properties=config.unit_properties,
-                    environment=False,
-                ),
+            ),
+            setup=scope_cmd(
+                name=name,
+                description=f"mkosi Virtual Machine {name}",
+                properties=config.unit_properties,
+                environment=False,
             ),
         ) as proc:
             # We have to close these before we wait for qemu otherwise we'll deadlock as qemu will never

@@ -4252,8 +4252,8 @@ def run_shell(args: Args, config: Config) -> None:
                     network=True,
                     devices=True,
                     options=["--bind", fname, workdir(fname)],
-                    setup=become_root_cmd(),
                 ),
+                setup=become_root_cmd(),
             )  # fmt: skip
 
         if config.output_format == OutputFormat.directory:
@@ -4357,8 +4357,8 @@ def run_shell(args: Args, config: Config) -> None:
                 network=True,
                 relaxed=True,
                 options=["--same-dir"],
-                setup=become_root_cmd(),
             ),
+            setup=become_root_cmd(),
         )
 
 
@@ -4397,8 +4397,8 @@ def run_systemd_tool(tool: str, args: Args, config: Config) -> None:
             network=True,
             devices=config.output_format == OutputFormat.disk,
             relaxed=True,
-            setup=become_root_cmd() if need_root else [],
         ),
+        setup=become_root_cmd() if need_root else [],
     )
 
 
@@ -4437,8 +4437,8 @@ def start_storage_target_mode(config: Config) -> AbstractContextManager[Optional
             network=True,
             relaxed=True,
             options=["--chdir", config.output_dir_or_cwd()],
-            setup=become_root_cmd(),
         ),
+        setup=become_root_cmd(),
     )
 
 

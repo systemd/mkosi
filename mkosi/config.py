@@ -2490,7 +2490,6 @@ class Config:
         scripts: Optional[Path] = None,
         overlay: Optional[Path] = None,
         options: Sequence[PathString] = (),
-        setup: Sequence[PathString] = (),
     ) -> AbstractContextManager[list[PathString]]:
         opt: list[PathString] = [*options]
 
@@ -2512,7 +2511,6 @@ class Config:
             tools=self.tools() if tools else Path("/"),
             overlay=overlay,
             options=opt,
-            setup=setup,
             extra=self.extra_search_paths,
         )
 

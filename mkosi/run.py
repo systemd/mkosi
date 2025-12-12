@@ -18,8 +18,9 @@ from pathlib import Path
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Callable, Generic, NoReturn, Optional, Protocol, TypeVar
 
+import mkosi.sandbox
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SANDBOX, ARG_DEBUG_SHELL, die
-from mkosi.sandbox import acquire_privileges, joinpath, umask
+from mkosi.sandbox import SD_LISTEN_FDS_START, acquire_privileges, joinpath, umask
 from mkosi.util import _FILE, PathString, flatten, one_zero, resource_path, unique
 
 # These types are only generic during type checking and not at runtime, leading
@@ -110,7 +111,7 @@ def log_process_failure(sandbox: Sequence[str], cmdline: Sequence[str], returnco
         logging.error(f"Interrupted by {signal.Signals(-returncode).name} signal")
     elif returncode < 0:
         logging.error(
-            f'"{shlex.join([*sandbox, *cmdline] if ARG_DEBUG.get() else cmdline)}"'
+            f'"{shlex.join(["mkosi-sandbox", *sandbox, *cmdline] if ARG_DEBUG.get() else cmdline)}"'
             f" was killed by {signal.Signals(-returncode).name} signal."
         )
     elif returncode == 127 and cmdline[0] != "mkosi":
@@ -126,7 +127,7 @@ def log_process_failure(sandbox: Sequence[str], cmdline: Sequence[str], returnco
             logging.error(f"{cmdline[0]} not found.")
     else:
         logging.error(
-            f'"{shlex.join([*sandbox, *cmdline] if ARG_DEBUG.get() else cmdline)}"'
+            f'"{shlex.join(["mkosi-sandbox", *sandbox, *cmdline] if ARG_DEBUG.get() else cmdline)}"'
             f" returned non-zero exit code {returncode}."
         )
 
@@ -141,6 +142,7 @@ def run(
     env: Mapping[str, str] = {},
     log: bool = True,
     success_exit_status: Sequence[int] = (0,),
+    setup: Sequence[PathString] = (),
     sandbox: AbstractContextManager[Sequence[PathString]] = contextlib.nullcontext([]),
 ) -> CompletedProcess:
     if input is not None:
@@ -156,6 +158,7 @@ def run(
         env=env,
         log=log,
         success_exit_status=success_exit_status,
+        setup=setup,
         sandbox=sandbox,
     ) as process:
         out, err = process.communicate(input)
@@ -177,6 +180,7 @@ def spawn(
     log: bool = True,
     preexec: Optional[Callable[[], None]] = None,
     success_exit_status: Sequence[int] = (0,),
+    setup: Sequence[PathString] = (),
     sandbox: AbstractContextManager[Sequence[PathString]] = contextlib.nullcontext([]),
 ) -> Iterator[Popen]:
     cmd = [os.fspath(x) for x in cmdline]
@@ -209,21 +213,54 @@ def spawn(
     if "HOME" not in env:
         env["HOME"] = "/"
 
-    with sandbox as sbx:
-        prefix = [os.fspath(x) for x in sbx]
+    with contextlib.ExitStack() as stack:
+        sbx = [os.fspath(x) for x in stack.enter_context(sandbox)]
+        apply_sandbox_in_preexec = not setup and not ARG_DEBUG_SANDBOX.get()
+
+        def _preexec() -> None:
+            if preexec:
+                preexec()
+
+            if sbx and apply_sandbox_in_preexec:
+                # The env passed to subprocess.Popen() replaces the environment wholesale so any
+                # modifications made by mkosi-sandbox would be overridden if we used that. Hence process the
+                # environment in the preexec function.
+                os.environ.clear()
+                os.environ.update(env)
+                try:
+                    mkosi.sandbox.main(sbx)
+                except Exception:
+                    sys.excepthook(*ensure_exc_info())
+                    os._exit(1)
+
+        prefix = []
+        if sbx and not apply_sandbox_in_preexec:
+            module = stack.enter_context(resource_path(sys.modules[__package__ or __name__]))
+            prefix = [
+                *(["strace", "--detach-on=execve"] if ARG_DEBUG_SANDBOX.get() else []),
+                sys.executable, "-SI", os.fspath(module / "sandbox.py"),
+                *sbx,
+            ]  # fmt: skip
 
         try:
             proc = subprocess.Popen(
-                [*prefix, *cmdline],
+                [*setup, *prefix, *cmdline],
                 stdin=stdin,
                 stdout=stdout,
                 stderr=stderr,
                 text=True,
                 user=user,
                 group=group,
-                pass_fds=pass_fds,
-                env=env,
-                preexec_fn=preexec,
+                # Python closes file descriptors after calling the preexec function. Hence we need to tell it
+                # to keep the packed file descriptors intact instead of the original ones if --pack-fds is
+                # used.
+                pass_fds=(
+                    range(SD_LISTEN_FDS_START, SD_LISTEN_FDS_START + len(pass_fds))
+                    if apply_sandbox_in_preexec and "--pack-fds" in sbx
+                    else pass_fds
+                ),
+                env=env if not sbx or not apply_sandbox_in_preexec else None,
+                preexec_fn=_preexec,
             )
         except FileNotFoundError as e:
             die(f"{e.filename} not found.")
@@ -244,19 +281,23 @@ def spawn(
 
         if check and returncode is not None and returncode not in success_exit_status:
             if log:
-                log_process_failure(prefix, cmd, returncode)
+                log_process_failure(sbx, cmd, returncode)
             if ARG_DEBUG_SHELL.get():
+                # --suspend will freeze the debug shell with no way to unfreeze it so strip it from the
+                # sandbox if it's there.
+                if "--suspend" in prefix:
+                    prefix.remove("--suspend")
+                if "--suspend" in sbx:
+                    sbx.remove("--suspend")
                 subprocess.run(
-                    # --suspend will freeze the debug shell with no way to unfreeze it so strip it from the
-                    # sandbox if it's there.
-                    [s for s in prefix if s != "--suspend"] + ["bash"],
+                    [*setup, *prefix, "bash"],
                     check=False,
                     stdin=sys.stdin,
                     text=True,
                     user=user,
                     group=group,
-                    env=env,
-                    preexec_fn=preexec,
+                    env=env if not sbx or not apply_sandbox_in_preexec else None,
+                    preexec_fn=_preexec,
                 )
             raise subprocess.CalledProcessError(returncode, cmdline)
 
@@ -470,7 +511,6 @@ def sandbox_cmd(
     relaxed: bool = False,
     overlay: Optional[Path] = None,
     options: Sequence[PathString] = (),
-    setup: Sequence[PathString] = (),
     extra: Sequence[Path] = (),
 ) -> Iterator[list[PathString]]:
     assert not (overlay and relaxed)
@@ -479,9 +519,6 @@ def sandbox_cmd(
         module = stack.enter_context(resource_path(sys.modules[__package__ or __name__]))
 
         cmdline: list[PathString] = [
-            *setup,
-            *(["strace", "--detach-on=execve"] if ARG_DEBUG_SANDBOX.get() else []),
-            sys.executable, "-SI", module / "sandbox.py",
             "--proc", "/proc",
             # We mounted a subdirectory of TMPDIR to /var/tmp so we unset TMPDIR so that /tmp or /var/tmp are
             # used instead.
@@ -665,9 +702,8 @@ def chroot_cmd(
     network: bool = False,
     options: Sequence[PathString] = (),
 ) -> Iterator[list[PathString]]:
-    with vartmpdir() as dir, resource_path(sys.modules[__package__ or __name__]) as module:
+    with vartmpdir() as dir:
         cmdline: list[PathString] = [
-            sys.executable, "-SI", module / "sandbox.py",
             *root("/"),
             # We mounted a subdirectory of TMPDIR to /var/tmp so we unset TMPDIR so that /tmp or /var/tmp are
             # used instead.

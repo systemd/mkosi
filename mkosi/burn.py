@@ -45,6 +45,6 @@ def run_burn(args: Args, config: Config) -> None:
                 network=True,
                 relaxed=True,
                 options=["--same-dir"],
-                setup=become_root_cmd(),
             ),
+            setup=become_root_cmd(),
         )

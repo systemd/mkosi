@@ -84,7 +84,6 @@ def run_sysupdate(args: Args, config: Config) -> None:
                 devices=True,
                 network=True,
                 relaxed=True,
-                setup=become_root_cmd(),
                 options=[
                     *(["--bind", "/boot", "/boot"] if Path("/boot").exists() else []),
                     *(["--bind", "/efi", "/efi"] if Path("/efi").exists() else []),
@@ -101,4 +100,5 @@ def run_sysupdate(args: Args, config: Config) -> None:
                     "--same-dir",
                 ],
             ),
+            setup=become_root_cmd(),
         )  # fmt: skip
