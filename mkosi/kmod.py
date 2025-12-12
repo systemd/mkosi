@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
+import dataclasses
 import fnmatch
 import itertools
 import logging
@@ -14,6 +15,12 @@ from mkosi.log import complete_step, log_step
 from mkosi.run import chroot_cmd, run
 from mkosi.sandbox import chase
 from mkosi.util import chdir, parents_below
+
+
+@dataclasses.dataclass(frozen=True)
+class DepsInfo:
+    moddep: dict[str, set[str]]
+    firmwaredep: dict[str, set[Path]]
 
 
 def loaded_modules() -> list[str]:
@@ -231,6 +238,60 @@ def modinfo(context: Context, kver: str, modules: Iterable[str]) -> str:
     ).stdout.strip()
 
 
+def parse_modinfo_output(
+    context: Context,
+    info: str,
+) -> DepsInfo:
+    """Parses modinfo output into structured dependency data
+
+    Returns a tuple of dependency information (moddep, firmwaredep), where:
+    - moddep: dict[str, set[str]], maps normalized module names to thee normalized
+      names of their dependencies. Include `modules` as well as the transitive
+      closure of their dependencies.
+    - firmwaredep: dict[str, set[Path]], maps normalized names of firmware blobs
+      discovered as module dependencies, to their files path.
+    """
+    result = DepsInfo(moddep={}, firmwaredep={})
+
+    depends: set[str] = set()
+    firmware: set[Path] = set()
+
+    with chdir(context.root):
+        for line in info.split("\0"):
+            key, sep, value = line.partition(":")
+            if not sep:
+                key, sep, value = line.partition("=")
+
+            value = value.strip()
+
+            if key == "depends":
+                depends.update(normalize_module_name(d) for d in value.split(",") if d)
+
+            elif key == "softdep":
+                # softdep is delimited by spaces and can contain strings like pre: and post: so discard
+                # anything that ends with a colon.
+                depends.update(normalize_module_name(d) for d in value.split() if not d.endswith(":"))
+
+            elif key == "firmware":
+                if (Path("usr/lib/firmware") / value).exists():
+                    firmware.add(Path("usr/lib/firmware") / value)
+
+                glob = "" if value.endswith("*") else ".*"
+
+                firmware.update(Path("usr/lib/firmware").glob(f"{value}{glob}"))
+
+            elif key == "name":
+                name = normalize_module_name(value)
+
+                result.moddep[name] = depends
+                result.firmwaredep[name] = firmware
+
+                depends = set()
+                firmware = set()
+
+    return result
+
+
 def resolve_module_dependencies(
     context: Context,
     kver: str,
@@ -266,43 +327,9 @@ def resolve_module_dependencies(
     moddep = {}
     firmwaredep = {}
 
-    depends: set[str] = set()
-    firmware: set[Path] = set()
-
-    with chdir(context.root):
-        for line in info.split("\0"):
-            key, sep, value = line.partition(":")
-            if not sep:
-                key, sep, value = line.partition("=")
-
-            value = value.strip()
-
-            if key == "depends":
-                depends.update(normalize_module_name(d) for d in value.split(",") if d)
-
-            elif key == "softdep":
-                # softdep is delimited by spaces and can contain strings like pre: and post: so discard
-                # anything that ends with a colon.
-                depends.update(normalize_module_name(d) for d in value.split() if not d.endswith(":"))
-
-            elif key == "firmware":
-                if (Path("usr/lib/firmware") / value).exists():
-                    firmware.add(Path("usr/lib/firmware") / value)
-
-                glob = "" if value.endswith("*") else ".*"
-
-                firmware.update(Path("usr/lib/firmware").glob(f"{value}{glob}"))
-
-            elif key == "name":
-                # The file names use dashes, but the module names use underscores. We track the names in
-                # terms of the file names, since the depends use dashes and therefore filenames as well.
-                name = normalize_module_name(value)
-
-                moddep[name] = depends
-                firmwaredep[name] = firmware
-
-                depends = set()
-                firmware = set()
+    result = parse_modinfo_output(context, info)
+    moddep.update(result.moddep)
+    firmwaredep.update(result.firmwaredep)
 
     todo = [*builtin, *modules]
     mods = set()
