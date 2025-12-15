@@ -237,7 +237,7 @@ def spawn(
         if sbx and not apply_sandbox_in_preexec:
             module = stack.enter_context(resource_path(sys.modules[__package__ or __name__]))
             prefix = [
-                *(["strace", "--detach-on=execve"] if ARG_DEBUG_SANDBOX.get() else []),
+                *(["strace", "--detach-on=execve", "--string-limit=256"] if ARG_DEBUG_SANDBOX.get() else []),
                 sys.executable, "-SI", os.fspath(module / "sandbox.py"),
                 *sbx,
             ]  # fmt: skip
