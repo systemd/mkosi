@@ -946,6 +946,16 @@ class OverlayOperation(FSOperation):
         workdir = chase(oldroot, self.workdir) if self.workdir else None
         dst = chase(newroot, self.dst)
 
+        for p in lowerdirs:
+            if not os.path.exists(p):
+                oserror("mount", p, ENOENT)
+
+        if upperdir and upperdir != "tmpfs" and upperdir != dst and not os.path.exists(upperdir):
+            oserror("mount", upperdir, ENOENT)
+
+        if workdir and not os.path.exists(workdir):
+            oserror("mount", workdir, ENOENT)
+
         with umask(~0o755):
             os.makedirs(os.path.dirname(dst), exist_ok=True)
 
