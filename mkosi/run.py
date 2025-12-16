@@ -106,14 +106,22 @@ def fork_and_wait(target: Callable[..., None], *args: Any, **kwargs: Any) -> Non
         raise subprocess.CalledProcessError(rc, ["self"])
 
 
+def log_sandbox_issue(sandbox: Sequence[str], cmdline: Sequence[str], errmsg: str) -> None:
+    if ARG_DEBUG.get():
+        # Complete but very long and hard to read. It could be reusable.
+        logging.error(f"{shlex.join(['mkosi-sandbox', *sandbox, *cmdline])}")
+    else:
+        logging.error("sandbox command omitted, rerun with --debug to see full command with bind mounts")
+        logging.error(f"{shlex.join(cmdline)}")
+
+    logging.error(errmsg)
+
+
 def log_process_failure(sandbox: Sequence[str], cmdline: Sequence[str], returncode: int) -> None:
     if -returncode in (signal.SIGINT, signal.SIGTERM):
         logging.error(f"Interrupted by {signal.Signals(-returncode).name} signal")
     elif returncode < 0:
-        logging.error(
-            f'"{shlex.join(["mkosi-sandbox", *sandbox, *cmdline] if ARG_DEBUG.get() else cmdline)}"'
-            f" was killed by {signal.Signals(-returncode).name} signal."
-        )
+        log_sandbox_issue(sandbox, cmdline, f" was killed by {signal.Signals(-returncode).name} signal.")
     elif returncode == 127 and cmdline[0] != "mkosi":
         # Anything invoked beneath /work is a script that we mount into place (so we know it exists). If one
         # of these scripts fails with exit code 127, it's either because the script interpreter was not
@@ -126,10 +134,7 @@ def log_process_failure(sandbox: Sequence[str], cmdline: Sequence[str], returnco
         else:
             logging.error(f"{cmdline[0]} not found.")
     else:
-        logging.error(
-            f'"{shlex.join(["mkosi-sandbox", *sandbox, *cmdline] if ARG_DEBUG.get() else cmdline)}"'
-            f" returned non-zero exit code {returncode}."
-        )
+        log_sandbox_issue(sandbox, cmdline, f" returned non-zero exit code {returncode}.")
 
 
 def run(
