@@ -1102,7 +1102,9 @@ def main(argv: list[str] = sys.argv[1:]) -> None:
         elif arg == "--overlay-lowerdir":
             lowerdirs.append(os.path.abspath(argv.pop()))
         elif arg == "--overlay-upperdir":
-            upperdir = os.path.abspath(argv.pop())
+            upperdir = argv.pop()
+            if upperdir != "tmpfs":
+                upperdir = os.path.abspath(upperdir)
         elif arg == "--overlay-workdir":
             workdir = os.path.abspath(argv.pop())
         elif arg == "--overlay":
