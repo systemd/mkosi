@@ -1671,6 +1671,8 @@ class SettingScope(StrEnum):
     tools = enum.auto()
     # Only passed down to initrd, can only be configured in main image.
     initrd = enum.auto()
+    # Like inherit, but only inherited by the default initrd.
+    initrd_inherit = enum.auto()
 
     def is_main_setting(self) -> bool:
         return self in (SettingScope.main, SettingScope.tools, SettingScope.initrd, SettingScope.multiversal)
@@ -3362,6 +3364,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Content",
         parse=config_parse_string,
         help="Set the system keymap",
+        scope=SettingScope.initrd_inherit,
     ),
     ConfigSetting(
         dest="timezone",
@@ -3369,6 +3372,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Content",
         parse=config_parse_string,
         help="Set the system timezone",
+        scope=SettingScope.initrd_inherit,
     ),
     ConfigSetting(
         dest="hostname",
@@ -3376,6 +3380,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Content",
         parse=config_parse_string,
         help="Set the system hostname",
+        scope=SettingScope.initrd_inherit,
     ),
     ConfigSetting(
         dest="root_password",
@@ -3386,6 +3391,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         path_read_text=True,
         path_secret=True,
         help="Set the password for root",
+        scope=SettingScope.initrd_inherit,
     ),
     ConfigSetting(
         dest="root_shell",
@@ -5128,7 +5134,7 @@ def finalize_default_initrd(
     for s in SETTINGS:
         if s.scope in (SettingScope.universal, SettingScope.multiversal):
             context.cli[s.dest] = copy.deepcopy(finalized[s.dest])
-        elif s.scope == SettingScope.inherit and s.dest in finalized:
+        elif s.scope in (SettingScope.inherit, SettingScope.initrd_inherit) and s.dest in finalized:
             context.config[s.dest] = copy.deepcopy(finalized[s.dest])
         elif s.scope == SettingScope.initrd:
             # If the setting was specified on the CLI for the main config, we treat it as specified on the
