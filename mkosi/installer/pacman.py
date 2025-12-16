@@ -181,6 +181,7 @@ class Pacman(PackageManager):
     ) -> CompletedProcess:
         with umask(~0o755):
             (context.root / "var/lib/pacman/local").mkdir(parents=True, exist_ok=True)
+            (context.root / "etc/pacman.d/hooks").mkdir(parents=True, exist_ok=True)
 
         return run(
             cls.cmd(context) + [operation, *arguments],
