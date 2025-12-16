@@ -530,6 +530,17 @@ def configure_verity_certificate(context: Context) -> None:
         shutil.copy(context.config.verity_certificate, dest)
 
 
+def configure_mountpoints(context: Context) -> None:
+    if context.config.output_format != OutputFormat.portable:
+        return
+
+    for f in ("passwd", "group", "shadow", "gshadow", "nsswitch.conf", "resolv.conf", "machine-id"):
+        with umask(~0o600 if f in ("shadow", "gshadow") else ~0o644):
+            p = context.root / "etc" / f
+            if not p.is_symlink():
+                (context.root / "etc" / f).touch(exist_ok=True)
+
+
 @contextlib.contextmanager
 def setup_build_overlay(context: Context, volatile: bool = False) -> Iterator[None]:
     d = context.workspace / "build-overlay"
@@ -3996,6 +4007,7 @@ def build_image(context: Context) -> None:
         configure_ssh(context)
         configure_clock(context)
         configure_verity_certificate(context)
+        configure_mountpoints(context)
 
         if manifest:
             manifest.record_extension_release()
