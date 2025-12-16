@@ -254,25 +254,18 @@ def remove_files(context: Context) -> None:
                         t.rmdir()
 
 
-def finalize_packages(config: Config) -> list[str]:
-    s = set(config.remove_packages)
-    return [p for p in config.packages if p not in s]
-
-
 def install_distribution(context: Context) -> None:
-    packages = finalize_packages(context.config)
-
     if context.config.base_trees:
-        if not packages:
+        if not context.config.packages:
             return
 
         with complete_step(
             f"Installing extra packages for {context.config.distribution.installer.pretty_name()}"
         ):
-            context.config.distribution.installer.install_packages(context, packages)
+            context.config.distribution.installer.install_packages(context, context.config.packages)
     else:
         if context.config.overlay or context.config.output_format.is_extension_image():
-            if packages:
+            if context.config.packages:
                 die(
                     "Cannot install packages in extension images without a base tree",
                     hint="Configure a base tree with the BaseTrees= setting",
@@ -307,8 +300,8 @@ def install_distribution(context: Context) -> None:
             with umask(~0o600):
                 (context.root / "boot/loader/entries.srel").write_text("type1\n")
 
-            if packages:
-                context.config.distribution.installer.install_packages(context, packages)
+            if context.config.packages:
+                context.config.distribution.installer.install_packages(context, context.config.packages)
 
     for f in (
         "var/lib/systemd/random-seed",

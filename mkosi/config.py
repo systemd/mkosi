@@ -2384,7 +2384,6 @@ class Config:
             ),
             "packages": sorted(self.packages),
             "build_packages": sorted(self.build_packages),
-            "remove_packages": sorted(self.remove_packages),
             "package_directories": [
                 (p.name, p.stat().st_mtime_ns)
                 for d in self.package_directories
