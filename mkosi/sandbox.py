@@ -946,6 +946,16 @@ class OverlayOperation(FSOperation):
         workdir = chase(oldroot, self.workdir) if self.workdir else None
         dst = chase(newroot, self.dst)
 
+        for p in lowerdirs:
+            if not os.path.exists(p):
+                oserror("mount", p, ENOENT)
+
+        if upperdir and upperdir != "tmpfs" and upperdir != dst and not os.path.exists(upperdir):
+            oserror("mount", upperdir, ENOENT)
+
+        if workdir and not os.path.exists(workdir):
+            oserror("mount", workdir, ENOENT)
+
         with umask(~0o755):
             os.makedirs(os.path.dirname(dst), exist_ok=True)
 
@@ -1092,7 +1102,9 @@ def main(argv: list[str] = sys.argv[1:]) -> None:
         elif arg == "--overlay-lowerdir":
             lowerdirs.append(os.path.abspath(argv.pop()))
         elif arg == "--overlay-upperdir":
-            upperdir = os.path.abspath(argv.pop())
+            upperdir = argv.pop()
+            if upperdir != "tmpfs":
+                upperdir = os.path.abspath(upperdir)
         elif arg == "--overlay-workdir":
             workdir = os.path.abspath(argv.pop())
         elif arg == "--overlay":
