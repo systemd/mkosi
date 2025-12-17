@@ -5,6 +5,7 @@ import contextvars
 import logging
 import os
 import sys
+import time
 from collections.abc import Iterator
 from typing import Any, NoReturn, Optional
 
@@ -98,6 +99,7 @@ def complete_step(text: str, text2: Optional[str] = None) -> Iterator[list[Any]]
     global LEVEL
 
     log_step(text)
+    start = time.perf_counter()
 
     LEVEL += 1
     try:
@@ -109,6 +111,8 @@ def complete_step(text: str, text2: Optional[str] = None) -> Iterator[list[Any]]
 
     if text2 is not None:
         log_step(text2.format(*args))
+
+    logging.debug(f'{" " * (LEVEL)}{time.perf_counter() - start:.1f}s for step "{text}"')
 
 
 class Formatter(logging.Formatter):
