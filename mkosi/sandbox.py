@@ -168,7 +168,7 @@ def oserror(syscall: str, filename: str = "", errno: int = 0) -> None:
     if errno == ENOSYS and is_main():
         print(ENOSYS_MSG.format(syscall=syscall, kver=os.uname().version), file=sys.stderr)
 
-    raise OSError(ctypes.get_errno(), os.strerror(errno), filename or None)
+    raise OSError(errno, os.strerror(errno), filename or None)
 
 
 def unshare(flags: int) -> None:
