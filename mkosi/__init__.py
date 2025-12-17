@@ -512,6 +512,10 @@ def configure_verity_certificate(context: Context) -> None:
     if context.config.verity_certificate_source.type != CertificateSourceType.file:
         return
 
+    # Makes no sense to ship this in extensions/addons/etc, it's for the rootfs
+    if context.config.output_format.is_extension_or_portable_image():
+        return
+
     veritydir = context.root / "usr/lib/verity.d"
     with umask(~0o755):
         veritydir.mkdir(parents=True, exist_ok=True)
