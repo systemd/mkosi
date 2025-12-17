@@ -1531,42 +1531,41 @@ def build_kernel_modules_initrd(context: Context, kver: str) -> Path:
     if kmods.exists():
         return kmods
 
-    log_step("Building kernel modules initrd")
-
-    make_cpio(
-        context.root,
-        kmods,
-        files=gen_required_kernel_modules(
-            context,
-            kver,
-            modules_include=finalize_kernel_modules_include(
+    with complete_step("Building kernel modules initrd"):
+        make_cpio(
+            context.root,
+            kmods,
+            files=gen_required_kernel_modules(
                 context,
-                include=context.config.kernel_modules_initrd_include,
-                host=context.config.kernel_modules_initrd_include_host,
+                kver,
+                modules_include=finalize_kernel_modules_include(
+                    context,
+                    include=context.config.kernel_modules_initrd_include,
+                    host=context.config.kernel_modules_initrd_include_host,
+                ),
+                modules_exclude=context.config.kernel_modules_initrd_exclude,
+                firmware_include=context.config.firmware_include,
+                firmware_exclude=context.config.firmware_exclude,
             ),
-            modules_exclude=context.config.kernel_modules_initrd_exclude,
-            firmware_include=context.config.firmware_include,
-            firmware_exclude=context.config.firmware_exclude,
-        ),
-        sandbox=context.sandbox,
-    )
+            sandbox=context.sandbox,
+        )
 
-    if context.config.distribution.is_apt_distribution():
-        # Older Debian and Ubuntu releases do not compress their kernel modules, so we compress the
-        # initramfs instead. Note that this is not ideal since the compressed kernel modules will
-        # all be decompressed on boot which requires significant memory.
-        if context.config.distribution == Distribution.debian and context.config.release in (
-            "sid",
-            "testing",
-        ):
-            compression = Compression.none
-        else:
-            compression = Compression.zstd
+        if context.config.distribution.is_apt_distribution():
+            # Older Debian and Ubuntu releases do not compress their kernel modules, so we compress the
+            # initramfs instead. Note that this is not ideal since the compressed kernel modules will
+            # all be decompressed on boot which requires significant memory.
+            if context.config.distribution == Distribution.debian and context.config.release in (
+                "sid",
+                "testing",
+            ):
+                compression = Compression.none
+            else:
+                compression = Compression.zstd
 
-        maybe_compress(context, compression, kmods, kmods)
+            maybe_compress(context, compression, kmods, kmods)
 
-    if ArtifactOutput.kernel_modules_initrd in context.config.split_artifacts:
-        shutil.copy(kmods, context.staging / context.config.output_split_kernel_modules_initrd)
+        if ArtifactOutput.kernel_modules_initrd in context.config.split_artifacts:
+            shutil.copy(kmods, context.staging / context.config.output_split_kernel_modules_initrd)
 
     return kmods
 
