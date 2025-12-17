@@ -5,7 +5,7 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Optional
 
-from mkosi.log import log_step
+from mkosi.log import complete_step, log_step
 from mkosi.run import SandboxProtocol, finalize_passwd_symlinks, nosandbox, run, workdir
 from mkosi.sandbox import umask
 from mkosi.util import PathString, chdir
@@ -23,38 +23,37 @@ def tar_exclude_apivfs_tmp() -> list[str]:
 
 
 def make_tar(src: Path, dst: Path, *, sandbox: SandboxProtocol = nosandbox) -> None:
-    log_step(f"Creating tar archive {dst}…")
-
-    with dst.open("wb") as f:
-        run(
-            [
-                "tar",
-                "--create",
-                "--file", "-",
-                "--directory", workdir(src, sandbox),
-                "--acls",
-                "--selinux",
-                # --xattrs implies --format=pax
-                "--xattrs",
-                # PAX format emits additional headers for atime, ctime and mtime
-                # that would make the archive non-reproducible.
-                "--pax-option=delete=atime,delete=ctime,delete=mtime",
-                "--sparse",
-                "--force-local",
-                *(["--owner=root:0"] if os.getuid() != 0 else []),
-                *(["--group=root:0"] if os.getuid() != 0 else []),
-                *tar_exclude_apivfs_tmp(),
-                ".",
-            ],
-            stdout=f,
-            # Make sure tar uses user/group information from the root directory instead of the host.
-            sandbox=sandbox(
-                options=[
-                    "--ro-bind", src, workdir(src, sandbox),
-                    *finalize_passwd_symlinks(workdir(src, sandbox)),
+    with complete_step(f"Creating tar archive {dst}…"):
+        with dst.open("wb") as f:
+            run(
+                [
+                    "tar",
+                    "--create",
+                    "--file", "-",
+                    "--directory", workdir(src, sandbox),
+                    "--acls",
+                    "--selinux",
+                    # --xattrs implies --format=pax
+                    "--xattrs",
+                    # PAX format emits additional headers for atime, ctime and mtime
+                    # that would make the archive non-reproducible.
+                    "--pax-option=delete=atime,delete=ctime,delete=mtime",
+                    "--sparse",
+                    "--force-local",
+                    *(["--owner=root:0"] if os.getuid() != 0 else []),
+                    *(["--group=root:0"] if os.getuid() != 0 else []),
+                    *tar_exclude_apivfs_tmp(),
+                    ".",
                 ],
-            ),
-        )  # fmt: skip
+                stdout=f,
+                # Make sure tar uses user/group information from the root directory instead of the host.
+                sandbox=sandbox(
+                    options=[
+                        "--ro-bind", src, workdir(src, sandbox),
+                        *finalize_passwd_symlinks(workdir(src, sandbox)),
+                    ],
+                ),
+            )  # fmt: skip
 
 
 def can_extract_tar(src: Path) -> bool:
@@ -119,27 +118,26 @@ def make_cpio(
     else:
         files = sorted(files)
 
-    log_step(f"Creating cpio archive {dst}…")
-
-    with dst.open("wb") as f:
-        run(
-            [
-                "cpio",
-                "--create",
-                "--reproducible",
-                "--renumber-inodes",
-                "--null",
-                "--format=newc",
-                "--quiet",
-                "--directory", workdir(src, sandbox),
-                *(["--owner=0:0"] if os.getuid() != 0 else []),
-            ],
-            input="\0".join(os.fspath(f) for f in files),
-            stdout=f,
-            sandbox=sandbox(
-                options=[
-                    "--ro-bind", src, workdir(src, sandbox),
-                    *finalize_passwd_symlinks(workdir(src, sandbox))
+    with complete_step(f"Creating cpio archive {dst}…"):
+        with dst.open("wb") as f:
+            run(
+                [
+                    "cpio",
+                    "--create",
+                    "--reproducible",
+                    "--renumber-inodes",
+                    "--null",
+                    "--format=newc",
+                    "--quiet",
+                    "--directory", workdir(src, sandbox),
+                    *(["--owner=0:0"] if os.getuid() != 0 else []),
                 ],
-            ),
-        )  # fmt: skip
+                input="\0".join(os.fspath(f) for f in files),
+                stdout=f,
+                sandbox=sandbox(
+                    options=[
+                        "--ro-bind", src, workdir(src, sandbox),
+                        *finalize_passwd_symlinks(workdir(src, sandbox))
+                    ],
+                ),
+            )  # fmt: skip

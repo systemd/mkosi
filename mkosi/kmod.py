@@ -150,7 +150,6 @@ def filter_firmware(
     include: Iterable[str],
     exclude: Iterable[str],
 ) -> set[Path]:
-    log_step("Applying firmware include/exclude configuration")
     if include:
         logging.debug(f"Firmware include directives: {' '.join(include)}")
     if exclude:
@@ -251,17 +250,16 @@ def resolve_module_dependencies(
         allmodules = set(modulesd.rglob("*.ko*"))
     nametofile = {module_path_to_name(m): m for m in allmodules}
 
-    log_step("Running modinfo to fetch kernel module dependencies")
-
-    # We could run modinfo once for each module but that's slow. Luckily we can pass multiple modules to
-    # modinfo and it'll process them all in a single go. We get the modinfo for all modules to build two maps
-    # that map the path of the module to its module dependencies and its firmware dependencies
-    # respectively. Because there's more kernel modules than the max number of accepted CLI arguments, we
-    # split the modules list up into chunks.
-    info = ""
-    for i in range(0, len(nametofile.keys()), 8500):
-        chunk = list(nametofile.keys())[i : i + 8500]
-        info += modinfo(context, kver, chunk)
+    with complete_step("Running modinfo to fetch kernel module dependencies"):
+        # We could run modinfo once for each module but that's slow. Luckily we can pass multiple modules to
+        # modinfo and it'll process them all in a single go. We get the modinfo for all modules to build
+        # two maps that map the path of the module to its module dependencies and its firmware dependencies
+        # respectively. Because there's more kernel modules than the max number of accepted CLI arguments, we
+        # split the modules list up into chunks.
+        info = ""
+        for i in range(0, len(nametofile.keys()), 8500):
+            chunk = list(nametofile.keys())[i : i + 8500]
+            info += modinfo(context, kver, chunk)
 
     log_step("Calculating required kernel modules and firmware")
 
@@ -362,7 +360,10 @@ def gen_required_kernel_modules(
         firmware = set()
 
     # Include or exclude firmware explicitly configured
-    firmware = filter_firmware(context.root, firmware, include=firmware_include, exclude=firmware_exclude)
+    with complete_step("Applying firmware include/exclude configuration"):
+        firmware = filter_firmware(
+            context.root, firmware, include=firmware_include, exclude=firmware_exclude
+        )
 
     # /usr/lib/firmware makes use of symbolic links so we have to make sure the symlinks and their targets
     # are all included.
@@ -468,18 +469,18 @@ def process_kernel_modules(
     modulesd = Path("usr/lib/modules") / kver
     firmwared = Path("usr/lib/firmware")
 
-    with complete_step("Applying kernel module filters"):
-        required = set(
-            gen_required_kernel_modules(
-                context,
-                kver,
-                modules_include=modules_include,
-                modules_exclude=modules_exclude,
-                firmware_include=firmware_include,
-                firmware_exclude=firmware_exclude,
-            )
+    required = set(
+        gen_required_kernel_modules(
+            context,
+            kver,
+            modules_include=modules_include,
+            modules_exclude=modules_exclude,
+            firmware_include=firmware_include,
+            firmware_exclude=firmware_exclude,
         )
+    )
 
+    with complete_step("Applying kernel module filters"):
         with chdir(context.root):
             modules = sorted(modulesd.rglob("*.ko*"), reverse=True)
             firmware = sorted(firmwared.rglob("*"), reverse=True)
