@@ -84,6 +84,7 @@ PR_CAPBSET_DROP = 24
 # These definitions are taken from the libseccomp headers
 SCMP_ACT_ALLOW = 0x7FFF0000
 SCMP_ACT_ERRNO = 0x00050000
+SCMP_FLTATR_API_SYSRAWRC = 9
 SD_LISTEN_FDS_START = 3
 SIGSTOP = 19
 
@@ -299,6 +300,11 @@ def seccomp_suppress(*, chown: bool = False, sync: bool = False) -> None:
     libseccomp.seccomp_init.restype = ctypes.c_void_p
     libseccomp.seccomp_release.argtypes = (ctypes.c_void_p,)
     libseccomp.seccomp_release.restype = None
+    libseccomp.seccomp_attr_set.argtypes = (
+        ctypes.c_void_p,
+        ctypes.c_int,
+        ctypes.c_uint32,
+    )
     libseccomp.seccomp_syscall_resolve_name.argtypes = (ctypes.c_char_p,)
     libseccomp.seccomp_rule_add_exact.argtypes = (
         ctypes.c_void_p,
@@ -309,6 +315,10 @@ def seccomp_suppress(*, chown: bool = False, sync: bool = False) -> None:
     libseccomp.seccomp_load.argtypes = (ctypes.c_void_p,)
 
     seccomp = libseccomp.seccomp_init(SCMP_ACT_ALLOW)
+
+    r = libseccomp.seccomp_attr_set(seccomp, SCMP_FLTATR_API_SYSRAWRC, 1)
+    if r < 0:
+        oserror("seccomp_attr_set", errno=r)
 
     suppress = []
     if chown:
