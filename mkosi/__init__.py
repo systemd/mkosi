@@ -1496,6 +1496,9 @@ def build_microcode_initrd(context: Context) -> list[Path]:
 
     make_cpio(root, microcode, sandbox=context.sandbox)
 
+    if ArtifactOutput.microcode_initrd in context.config.split_artifacts:
+        shutil.copy(microcode, context.staging / context.config.output_split_microcode_initrd)
+
     return [microcode]
 
 

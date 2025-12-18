@@ -634,6 +634,7 @@ class ArtifactOutput(StrEnum):
     os_release = enum.auto()
     kernel_modules_initrd = enum.auto()
     repart_definitions = enum.auto()
+    microcode_initrd = enum.auto()
 
     @staticmethod
     def compat_no() -> list["ArtifactOutput"]:
@@ -2299,6 +2300,10 @@ class Config:
     @property
     def output_split_kernel_modules_initrd(self) -> str:
         return f"{self.output}.kernel-modules-initrd"
+
+    @property
+    def output_split_microcode_initrd(self) -> str:
+        return f"{self.output}.microcode-initrd"
 
     @property
     def output_split_repart_definitions(self) -> str:
