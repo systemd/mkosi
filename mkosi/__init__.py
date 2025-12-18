@@ -1459,42 +1459,43 @@ def build_microcode_initrd(context: Context) -> list[Path]:
     if not context.config.architecture.is_x86_variant():
         return []
 
-    microcode = context.workspace / "microcode.initrd"
-    if microcode.exists():
-        return [microcode]
+    with complete_step("Building microcode initrd"):
+        microcode = context.workspace / "microcode.initrd"
+        if microcode.exists():
+            return [microcode]
 
-    amd = context.root / "usr/lib/firmware/amd-ucode"
-    intel = context.root / "usr/lib/firmware/intel-ucode"
+        amd = context.root / "usr/lib/firmware/amd-ucode"
+        intel = context.root / "usr/lib/firmware/intel-ucode"
 
-    if not amd.exists() and not intel.exists():
-        logging.warning("/usr/lib/firmware/{amd-ucode,intel-ucode} not found, not adding microcode")
-        return []
-
-    root = context.workspace / "microcode-root"
-    destdir = root / "kernel/x86/microcode"
-
-    with umask(~0o755):
-        destdir.mkdir(parents=True, exist_ok=True)
-
-    if context.config.microcode_host:
-        vendorfile, ucodefile = identify_cpu(context.root)
-        if vendorfile is None or ucodefile is None:
-            logging.warning("Unable to identify CPU for MicrocodeHostonly=")
+        if not amd.exists() and not intel.exists():
+            logging.warning("/usr/lib/firmware/{amd-ucode,intel-ucode} not found, not adding microcode")
             return []
-        with (destdir / vendorfile).open("wb") as f:
-            f.write(ucodefile.read_bytes())
-    else:
-        if amd.exists():
-            with (destdir / "AuthenticAMD.bin").open("wb") as f:
-                for p in amd.iterdir():
-                    f.write(p.read_bytes())
 
-        if intel.exists():
-            with (destdir / "GenuineIntel.bin").open("wb") as f:
-                for p in intel.iterdir():
-                    f.write(p.read_bytes())
+        root = context.workspace / "microcode-root"
+        destdir = root / "kernel/x86/microcode"
 
-    make_cpio(root, microcode, sandbox=context.sandbox)
+        with umask(~0o755):
+            destdir.mkdir(parents=True, exist_ok=True)
+
+        if context.config.microcode_host:
+            vendorfile, ucodefile = identify_cpu(context.root)
+            if vendorfile is None or ucodefile is None:
+                logging.warning("Unable to identify CPU for MicrocodeHostonly=")
+                return []
+            with (destdir / vendorfile).open("wb") as f:
+                f.write(ucodefile.read_bytes())
+        else:
+            if amd.exists():
+                with (destdir / "AuthenticAMD.bin").open("wb") as f:
+                    for p in amd.iterdir():
+                        f.write(p.read_bytes())
+
+            if intel.exists():
+                with (destdir / "GenuineIntel.bin").open("wb") as f:
+                    for p in intel.iterdir():
+                        f.write(p.read_bytes())
+
+        make_cpio(root, microcode, sandbox=context.sandbox)
 
     return [microcode]
 
