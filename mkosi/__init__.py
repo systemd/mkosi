@@ -2455,9 +2455,19 @@ def copy_initrd(context: Context) -> None:
     if (context.staging / context.config.output_split_initrd).exists():
         return
 
-    # Extract the combined initrds from the UKI so we can use it to direct kernel boot with qemu if needed.
+    # Extract the combined initrds from the UKI so we can use it for direct kernel boot if needed.
     if uki := get_uki_path(context):
-        extract_pe_section(context, uki, ".initrd", context.staging / context.config.output_split_initrd)
+        initrd_output = context.staging / context.config.output_split_initrd
+        with tempfile.TemporaryDirectory(dir=context.config.workspace_dir_or_default()) as tmpdir:
+            temp_initrd = Path(tmpdir) / context.config.output_split_initrd
+            extract_pe_section(context, uki, ".initrd", temp_initrd)
+
+            microcode = context.workspace / "microcode.initrd"
+            if microcode.exists():
+                join_initrds([microcode] + [temp_initrd], initrd_output)
+                temp_initrd.unlink()
+            else:
+                shutil.move(temp_initrd, initrd_output)
         return
 
     for kver, _ in gen_kernel_images(context):
@@ -2466,6 +2476,11 @@ def copy_initrd(context: Context) -> None:
         if context.config.kernel_modules_initrd:
             kver = next(gen_kernel_images(context))[0]
             initrds += [build_kernel_modules_initrd(context, kver)]
+
+        microcode = context.workspace / "microcode.initrd"
+        if microcode.exists():
+            initrds = [microcode] + initrds
+
         join_initrds(initrds, context.staging / context.config.output_split_initrd)
         break
 
