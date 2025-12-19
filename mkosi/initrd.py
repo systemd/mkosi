@@ -19,7 +19,7 @@ from mkosi.documentation import show_docs
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, die, log_notice, log_setup
 from mkosi.run import find_binary, run, uncaught_exception_handler
 from mkosi.sandbox import __version__, umask
-from mkosi.tree import copy_tree, move_tree, rmtree
+from mkosi.tree import move_tree, rmtree
 from mkosi.util import PathString, copyfile2, mandatory_variable, resource_path
 
 
@@ -242,7 +242,7 @@ def initrd_finalize(staging_dir: Path, output: str, output_dir: Optional[Path]) 
     log_notice(f"Copying {staging} to {tmp}")
     # mkosi symlinks the expected output image, so dereference it
     try:
-        copy_tree(staging.resolve(), tmp)
+        copyfile2(staging.resolve(), tmp)
     except subprocess.CalledProcessError:
         rmtree(tmp)
         raise

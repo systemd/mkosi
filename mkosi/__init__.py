@@ -2466,7 +2466,7 @@ def copy_initrd(context: Context) -> None:
         if context.config.kernel_modules_initrd:
             kver = next(gen_kernel_images(context))[0]
             initrds += [build_kernel_modules_initrd(context, kver)]
-        join_initrds(context.config, initrds, context.staging / context.config.output_split_initrd)
+        join_initrds(initrds, context.staging / context.config.output_split_initrd)
         break
 
 
