@@ -3988,6 +3988,7 @@ def build_image(context: Context) -> None:
             run_prepare_scripts(context, build=True)
             fixup_vmlinuz_location(context)
             run_depmod(context, cache=True)
+            run_hwdb(context)
 
             save_cache(context)
             reuse_cache(context)
@@ -4028,7 +4029,6 @@ def build_image(context: Context) -> None:
         run_preset(context)
         run_depmod(context)
         run_firstboot(context)
-        run_hwdb(context)
 
         # These might be removed by the next steps, so let's save them for later if needed.
         stub, kver, kimg, microcode = save_esp_components(context)
