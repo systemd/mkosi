@@ -162,7 +162,7 @@ def detect_distribution(root: Path = Path("/")) -> tuple[Optional[Distribution],
 
     dist_id = os_release.get("ID", "linux")
     dist_id_like = os_release.get("ID_LIKE", "").split()
-    version_id = os_release.get("VERSION_ID", None)
+    version_id = os_release.get("VERSION_ID", None) if dist_id != "opensuse-tumbleweed" else "tumbleweed"
     version_codename = os_release.get("VERSION_CODENAME", None)
 
     quirks = {
