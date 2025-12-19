@@ -20,7 +20,7 @@ from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, die, log_notice, log_setup
 from mkosi.run import find_binary, run, uncaught_exception_handler
 from mkosi.sandbox import __version__, umask
 from mkosi.tree import copy_tree, move_tree, rmtree
-from mkosi.util import PathString, mandatory_variable, resource_path
+from mkosi.util import PathString, copyfile2, mandatory_variable, resource_path
 
 
 @dataclasses.dataclass(frozen=True)
@@ -407,7 +407,7 @@ def main() -> None:
 
             (Path(sandbox_tree) / "etc" / p).parent.mkdir(parents=True, exist_ok=True)
             if (Path("/etc") / p).resolve().is_file():
-                shutil.copy2(Path("/etc") / p, Path(sandbox_tree) / "etc" / p)
+                copyfile2(Path("/etc") / p, Path(sandbox_tree) / "etc" / p)
             else:
                 shutil.copytree(
                     Path("/etc") / p,

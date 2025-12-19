@@ -155,6 +155,8 @@ from mkosi.user import INVOKING_USER, become_root_cmd
 from mkosi.util import (
     PathString,
     chdir,
+    copyfile,
+    copyfile2,
     flatten,
     flock_or_die,
     format_rlimit,
@@ -417,7 +419,7 @@ def configure_os_release(context: Context) -> None:
             newosrelease.rename(osrelease)
 
         if ArtifactOutput.os_release in context.config.split_artifacts:
-            shutil.copy(osrelease, context.staging / context.config.output_split_os_release)
+            copyfile(osrelease, context.staging / context.config.output_split_os_release)
 
 
 def configure_extension_release(context: Context) -> None:
@@ -524,7 +526,7 @@ def configure_verity_certificate(context: Context) -> None:
     dest = veritydir / context.config.verity_certificate.with_suffix(".crt").name
 
     with umask(~0o644):
-        shutil.copy(context.config.verity_certificate, dest)
+        copyfile(context.config.verity_certificate, dest)
 
 
 def configure_mountpoints(context: Context) -> None:
@@ -1234,9 +1236,9 @@ def install_sandbox_trees(config: Config, dst: Path) -> None:
                 install_tree(config, tree.source, dst, target=tree.target, preserve=False)
 
     if Path("/etc/passwd").exists():
-        shutil.copy("/etc/passwd", dst / "etc/passwd")
+        copyfile("/etc/passwd", dst / "etc/passwd")
     if Path("/etc/group").exists():
-        shutil.copy("/etc/group", dst / "etc/group")
+        copyfile("/etc/group", dst / "etc/group")
 
     if not (dst / "etc/mtab").is_symlink():
         (dst / "etc/mtab").symlink_to("../proc/self/mounts")
@@ -1268,7 +1270,7 @@ def install_sandbox_trees(config: Config, dst: Path) -> None:
         )
 
     if not (dst / "etc/hosts").exists() and Path("/etc/hosts").exists():
-        shutil.copy("/etc/hosts", dst / "etc/hosts")
+        copyfile("/etc/hosts", dst / "etc/hosts")
 
     Path(dst / "etc/static").unlink(missing_ok=True)
     if (config.tools() / "etc/static").is_symlink():
@@ -1310,7 +1312,7 @@ def install_package_directories(context: Context, directories: Sequence[Path]) -
                     context.config
                 ).package_globs()
             ):
-                shutil.copy(p, context.repository, follow_symlinks=True)
+                copyfile(p, context.repository)
 
 
 def install_extra_trees(context: Context) -> None:
@@ -1396,7 +1398,7 @@ def fixup_vmlinuz_location(context: Context) -> None:
             if vmlinuz.is_symlink() and vmlinuz.resolve().is_relative_to("/boot"):
                 vmlinuz.unlink()
             if not vmlinuz.exists():
-                shutil.copy2(d, vmlinuz)
+                copyfile2(d, vmlinuz)
 
 
 def want_initrd(context: Context) -> bool:
@@ -1566,7 +1568,7 @@ def build_kernel_modules_initrd(context: Context, kver: str) -> Path:
             maybe_compress(context, compression, kmods, kmods)
 
         if ArtifactOutput.kernel_modules_initrd in context.config.split_artifacts:
-            shutil.copy(kmods, context.staging / context.config.output_split_kernel_modules_initrd)
+            copyfile(kmods, context.staging / context.config.output_split_kernel_modules_initrd)
 
     return kmods
 
@@ -1999,14 +2001,14 @@ def install_type1(
         ):
             kimg = sign_efi_binary(context, kimg, dst / "vmlinuz")
         else:
-            kimg = Path(shutil.copy2(context.root / kimg, dst / "vmlinuz"))
+            kimg = Path(copyfile2(context.root / kimg, dst / "vmlinuz"))
 
-        initrds = [
-            Path(shutil.copy2(initrd, dst.parent / initrd.name)) for initrd in microcode + initrds
-        ] + [Path(shutil.copy2(kmods, dst / "kernel-modules.initrd"))]
+        initrds = [Path(copyfile2(initrd, dst.parent / initrd.name)) for initrd in microcode + initrds] + [
+            Path(copyfile2(kmods, dst / "kernel-modules.initrd"))
+        ]
 
         if dtb and source_dtb:
-            shutil.copy2(source_dtb, dtb)
+            copyfile2(source_dtb, dtb)
 
         with entry.open("w") as f:
             f.write(
@@ -2132,7 +2134,7 @@ def install_uki(
     ) or context.config.unified_kernel_images == UnifiedKernelImage.signed:
         for p in (context.root / "usr/lib/modules" / kver).glob("*.efi"):
             log_step(f"Installing prebuilt UKI at {p} to {boot_binary}")
-            shutil.copy2(p, boot_binary)
+            copyfile2(p, boot_binary)
             break
         else:
             if context.config.bootable == ConfigFeature.enabled:
@@ -2385,7 +2387,7 @@ def copy_nspawn_settings(context: Context) -> None:
         return None
 
     with complete_step("Copying nspawn settings file…"):
-        shutil.copy2(context.config.nspawn_settings, context.staging / context.config.output_nspawn_settings)
+        copyfile2(context.config.nspawn_settings, context.staging / context.config.output_nspawn_settings)
 
 
 def get_uki_path(context: Context) -> Optional[Path]:
@@ -2422,7 +2424,7 @@ def copy_uki(context: Context) -> None:
         return
 
     if uki := get_uki_path(context):
-        shutil.copy(uki, context.staging / context.config.output_split_uki)
+        copyfile(uki, context.staging / context.config.output_split_uki)
 
 
 def copy_vmlinuz(context: Context) -> None:
@@ -2439,7 +2441,7 @@ def copy_vmlinuz(context: Context) -> None:
         return
 
     for _, kimg in gen_kernel_images(context):
-        shutil.copy(context.root / kimg, context.staging / context.config.output_split_kernel)
+        copyfile(context.root / kimg, context.staging / context.config.output_split_kernel)
         break
 
 
@@ -3348,7 +3350,7 @@ def save_esp_components(
         if not stub.exists():
             die(f"sd-stub not found at /{stub.relative_to(context.root)} in the image")
 
-        return Path(shutil.copy2(stub, context.workspace)), None, None, []
+        return Path(copyfile2(stub, context.workspace)), None, None, []
 
     if context.config.output_format not in (OutputFormat.uki, OutputFormat.esp):
         return None, None, None, []
@@ -3367,7 +3369,7 @@ def save_esp_components(
 
         return None, None, None, []
 
-    kimg = Path(shutil.copy2(context.root / kimg, context.workspace))
+    kimg = Path(copyfile2(context.root / kimg, context.workspace))
 
     if not context.config.architecture.to_efi():
         die(f"Architecture {context.config.architecture} does not support UEFI")
@@ -3376,7 +3378,7 @@ def save_esp_components(
     if not stub.exists():
         die(f"sd-stub not found at /{stub.relative_to(context.root)} in the image")
 
-    stub = Path(shutil.copy2(stub, context.workspace))
+    stub = Path(copyfile2(stub, context.workspace))
     microcode = build_microcode_initrd(context)
 
     return stub, kver, kimg, microcode
@@ -4238,7 +4240,7 @@ def run_shell(args: Args, config: Config) -> None:
                 stack.callback(
                     lambda: (config.output_dir_or_cwd() / f"{name}.nspawn").unlink(missing_ok=True)
                 )
-            shutil.copy2(config.nspawn_settings, config.output_dir_or_cwd() / f"{name}.nspawn")
+            copyfile2(config.nspawn_settings, config.output_dir_or_cwd() / f"{name}.nspawn")
 
         # If we're booting a directory image that wasn't built by root, we always make an ephemeral
         # copy to avoid ending up with files not owned by the directory image owner in the

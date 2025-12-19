@@ -53,6 +53,7 @@ ENOSYS = 38
 F_DUPFD = 0
 F_GETFD = 1
 FD_CLOEXEC = 1
+FICLONE = 0x40049409
 FS_IOC_GETFLAGS = 0x80086601
 FS_IOC_SETFLAGS = 0x40086602
 FS_NOCOW_FL = 0x00800000
@@ -421,6 +422,15 @@ def btrfs_subvol_snapshot(src: str, dst: str) -> None:
 
 def btrfs_subvol_delete(path: str) -> None:
     btrfs_subvol_ioctl(path, BTRFS_IOC_SNAP_DESTROY_V2)
+
+
+def reflink(src: str, dst: str) -> None:
+    with (
+        close(os.open(src, os.O_CLOEXEC | os.O_RDONLY)) as src_fd,
+        close(os.open(dst, os.O_CLOEXEC | os.O_WRONLY | os.O_CREAT | os.O_TRUNC)) as dst_fd,
+    ):
+        if libc.ioctl(dst_fd, FICLONE, src_fd) < 0:
+            oserror("ioctl", src)
 
 
 def join_new_session_keyring() -> None:

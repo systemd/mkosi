@@ -15,6 +15,7 @@ import logging
 import os
 import re
 import resource
+import shutil
 import stat
 import tempfile
 from collections.abc import Hashable, Iterable, Iterator, Mapping, Sequence
@@ -24,6 +25,7 @@ from typing import IO, Any, Callable, Optional, Protocol, TypeVar, Union
 
 from mkosi.log import die
 from mkosi.resources import as_file
+from mkosi.sandbox import reflink
 
 T = TypeVar("T")
 V = TypeVar("V")
@@ -252,3 +254,25 @@ def mandatory_variable(name: str) -> str:
         return os.environ[name]
     except KeyError:
         die(f"${name} must be set in the environment")
+
+
+def copyfile(src: PathString, dst: PathString) -> PathString:
+    if os.path.isdir(dst):
+        dst = os.path.join(dst, os.path.basename(src))
+
+    try:
+        reflink(os.fspath(src), os.fspath(dst))
+    except OSError as e:
+        if e.errno not in (errno.EBADF, errno.EINVAL, errno.EXDEV, errno.ENOTTY, errno.EOPNOTSUPP):
+            raise e
+
+        shutil.copyfile(src, dst)
+
+    shutil.copymode(src, dst)
+    return dst
+
+
+def copyfile2(src: PathString, dst: PathString) -> PathString:
+    dst = copyfile(src, dst)
+    shutil.copystat(src, dst)
+    return dst

@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
-import shutil
 from collections.abc import Iterable
 
 from mkosi.config import Architecture, Config
@@ -9,6 +8,7 @@ from mkosi.distribution import Distribution, DistributionInstaller, PackageType
 from mkosi.installer import PackageManager
 from mkosi.installer.apk import Apk, ApkRepository
 from mkosi.log import complete_step, die
+from mkosi.util import copyfile
 
 
 class Installer(DistributionInstaller, distribution=Distribution.postmarketos):
@@ -59,7 +59,7 @@ class Installer(DistributionInstaller, distribution=Distribution.postmarketos):
                     if dest.exists():
                         continue
 
-                    shutil.copy2(key, dest)
+                    copyfile(key, dest)
 
         Apk.setup(context, list(cls.repositories(context)))
 

@@ -57,6 +57,7 @@ from mkosi.user import INVOKING_USER, become_root_in_subuid_range, become_root_i
 from mkosi.util import (
     PathString,
     StrEnum,
+    copyfile,
     flock,
     flock_or_die,
     groupby,
@@ -724,7 +725,7 @@ def finalize_firmware_variables(
         )
         if not vars.exists():
             die(f"Firmware variables file {vars} does not exist")
-        shutil.copy(vars, ovmf_vars)
+        copyfile(vars, ovmf_vars)
 
     return ovmf_vars, ovmf_vars_format
 
