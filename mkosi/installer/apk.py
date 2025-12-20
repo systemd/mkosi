@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 import dataclasses
-import shutil
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -10,7 +9,7 @@ from mkosi.context import Context
 from mkosi.installer import PackageManager
 from mkosi.run import CompletedProcess, run, workdir
 from mkosi.tree import rmtree
-from mkosi.util import _FILE, PathString
+from mkosi.util import _FILE, PathString, copyfile
 
 
 @dataclasses.dataclass(frozen=True)
@@ -171,7 +170,7 @@ class Apk(PackageManager):
             )  # fmt: skip
             keys = context.sandbox_tree / "etc/apk/keys"
             keys.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(pub, keys / pub.name)
+            copyfile(pub, keys / pub.name)
 
         run(
             [

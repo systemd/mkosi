@@ -53,6 +53,7 @@ ENOSYS = 38
 F_DUPFD = 0
 F_GETFD = 1
 FD_CLOEXEC = 1
+FICLONE = 0x40049409
 FS_IOC_GETFLAGS = 0x80086601
 FS_IOC_SETFLAGS = 0x40086602
 FS_NOCOW_FL = 0x00800000
@@ -401,16 +402,13 @@ def btrfs_subvol_ioctl(path: str, cmd: int, src_fd: int = 0) -> None:
     parent = os.path.dirname(path)
     name = os.path.basename(path)
     validate_subvol_name(name)
-    fd = os.open(parent, os.O_CLOEXEC | os.O_RDONLY | os.O_DIRECTORY)
 
-    try:
+    with close(os.open(parent, os.O_CLOEXEC | os.O_RDONLY | os.O_DIRECTORY)) as fd:
         args = btrfs_ioctl_vol_args_v2(fd=src_fd, name=name.encode())
 
         libc.ioctl.argtypes = (ctypes.c_int, ctypes.c_long, ctypes.c_void_p)
         if libc.ioctl(fd, cmd, ctypes.byref(args)) < 0:
             oserror("ioctl", path)
-    finally:
-        os.close(fd)
 
 
 def btrfs_subvol_create(path: str) -> None:
@@ -418,15 +416,21 @@ def btrfs_subvol_create(path: str) -> None:
 
 
 def btrfs_subvol_snapshot(src: str, dst: str) -> None:
-    src_fd = os.open(src, os.O_CLOEXEC | os.O_RDONLY | os.O_DIRECTORY)
-    try:
+    with close(os.open(src, os.O_CLOEXEC | os.O_RDONLY | os.O_DIRECTORY)) as src_fd:
         btrfs_subvol_ioctl(dst, BTRFS_IOC_SNAP_CREATE_V2, src_fd)
-    finally:
-        os.close(src_fd)
 
 
 def btrfs_subvol_delete(path: str) -> None:
     btrfs_subvol_ioctl(path, BTRFS_IOC_SNAP_DESTROY_V2)
+
+
+def reflink(src: str, dst: str) -> None:
+    with (
+        close(os.open(src, os.O_CLOEXEC | os.O_RDONLY)) as src_fd,
+        close(os.open(dst, os.O_CLOEXEC | os.O_WRONLY | os.O_CREAT | os.O_TRUNC)) as dst_fd,
+    ):
+        if libc.ioctl(dst_fd, FICLONE, src_fd) < 0:
+            oserror("ioctl", src)
 
 
 def join_new_session_keyring() -> None:
@@ -461,7 +465,7 @@ def mount_rbind(src: str, dst: str, attrs: int = 0) -> None:
     if fd < 0:
         oserror("open_tree", src)
 
-    try:
+    with close(fd):
         attr = mount_attr()
         attr.attr_set = attrs
 
@@ -512,8 +516,6 @@ def mount_rbind(src: str, dst: str, attrs: int = 0) -> None:
 
         if r < 0:
             oserror("move_mount", dst)
-    finally:
-        os.close(fd)
 
 
 class umask:
@@ -525,6 +527,17 @@ class umask:
 
     def __exit__(self, *args: object, **kwargs: object) -> None:
         os.umask(self.mask)
+
+
+class close:
+    def __init__(self, fd: int) -> None:
+        self.fd = fd
+
+    def __enter__(self) -> int:
+        return self.fd
+
+    def __exit__(self, *args: object, **kwargs: object) -> None:
+        os.close(self.fd)
 
 
 def become_user(uid: int, gid: int) -> None:

@@ -57,6 +57,7 @@ from mkosi.user import INVOKING_USER, become_root_in_subuid_range, become_root_i
 from mkosi.util import (
     PathString,
     StrEnum,
+    copyfile,
     flock,
     flock_or_die,
     groupby,
@@ -605,11 +606,11 @@ def copy_ephemeral(config: Config, src: Path) -> Iterator[Path]:
         fork_and_wait(rm)
 
 
-def join_initrds(config: Config, initrds: Sequence[Path], output: Path) -> Path:
+def join_initrds(initrds: Sequence[Path], output: Path) -> Path:
     assert initrds
 
     if len(initrds) == 1:
-        copy_tree(initrds[0], output, sandbox=config.sandbox)
+        copyfile(initrds[0], output)
         return output
 
     seq = io.BytesIO()
@@ -724,7 +725,7 @@ def finalize_firmware_variables(
         )
         if not vars.exists():
             die(f"Firmware variables file {vars} does not exist")
-        shutil.copy(vars, ovmf_vars)
+        copyfile(vars, ovmf_vars)
 
     return ovmf_vars, ovmf_vars_format
 
@@ -769,7 +770,7 @@ def finalize_initrd(config: Config) -> Iterator[Optional[Path]]:
             yield config.output_dir_or_cwd() / config.output_split_initrd
         elif config.initrds:
             initrd = config.output_dir_or_cwd() / f"initrd-{uuid.uuid4().hex}"
-            join_initrds(config, config.initrds, initrd)
+            join_initrds(config.initrds, initrd)
             stack.callback(lambda: initrd.unlink())
             yield initrd
         else:

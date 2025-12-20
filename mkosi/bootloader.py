@@ -4,7 +4,6 @@ import enum
 import itertools
 import logging
 import os
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -33,7 +32,7 @@ from mkosi.log import complete_step, die, log_step
 from mkosi.partition import Partition
 from mkosi.run import CompletedProcess, run, workdir
 from mkosi.sandbox import umask
-from mkosi.util import _FILE, PathString, StrEnum, flatten
+from mkosi.util import _FILE, PathString, StrEnum, copyfile2, flatten
 from mkosi.versioncomp import GenericVersion
 
 
@@ -387,7 +386,7 @@ def install_grub(context: Context) -> None:
 
             rel = output.relative_to(context.root)
             log_step(f"Installing signed grub EFI binary from /{signed.relative_to(context.root)} to /{rel}")
-            shutil.copy2(signed, output)
+            copyfile2(signed, output)
         else:
             if context.config.secure_boot and context.config.shim_bootloader != ShimBootloader.none:
                 if not (signed := find_signed_grub_image(context)):
@@ -414,7 +413,7 @@ def install_grub(context: Context) -> None:
     for d in ("grub", "grub2"):
         unicode = context.root / "usr/share" / d / "unicode.pf2"
         if unicode.exists():
-            shutil.copy2(unicode, dst)
+            copyfile2(unicode, dst)
 
 
 def grub_bios_setup(context: Context, partitions: Sequence[Partition]) -> None:
@@ -638,7 +637,7 @@ def find_and_install_shim_binary(
                         output = output.with_name(f"{left_stem}.efi")
 
                 log_step(f"Installing signed {name} EFI binary from /{rel} to /{output}")
-                shutil.copy2(p, context.root / output)
+                copyfile2(p, context.root / output)
                 return
 
         if context.config.bootable == ConfigFeature.enabled:
@@ -661,7 +660,7 @@ def find_and_install_shim_binary(
                     sign_efi_binary(context, p, context.root / output)
                 else:
                     log_step(f"Installing unsigned {name} EFI binary /{rel} to /{output}")
-                    shutil.copy2(p, context.root / output)
+                    copyfile2(p, context.root / output)
 
                 return
 
@@ -755,7 +754,7 @@ def install_systemd_boot(context: Context) -> None:
         Path(context.root / "efi/loader/random-seed").unlink(missing_ok=True)
 
         if context.config.shim_bootloader != ShimBootloader.none:
-            shutil.copy2(
+            copyfile2(
                 context.root / f"efi/EFI/systemd/systemd-boot{context.config.architecture.to_efi()}.efi",
                 context.root / shim_second_stage_binary(context),
             )
