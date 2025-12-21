@@ -182,6 +182,9 @@ class Pacman(PackageManager):
         with umask(~0o755):
             (context.root / "var/lib/pacman/local").mkdir(parents=True, exist_ok=True)
             (context.root / "etc/pacman.d/hooks").mkdir(parents=True, exist_ok=True)
+            (
+                context.config.package_cache_dir_or_default() / "cache" / cls.subdir(context.config) / "pkg"
+            ).mkdir(parents=True, exist_ok=True)
 
         return run(
             cls.cmd(context) + [operation, *arguments],
