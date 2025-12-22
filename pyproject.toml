@@ -54,6 +54,11 @@ py_version = "39"
 
 [tool.pyright]
 pythonVersion = "3.9"
+include = [
+    "mkosi/**/*.py",
+    "tests/**/*.py",
+    "kernel-install/*.install"
+]
 
 [tool.mypy]
 python_version = 3.9
