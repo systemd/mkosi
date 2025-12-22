@@ -111,7 +111,6 @@ from mkosi.qemu import (
     copy_ephemeral,
     finalize_credentials,
     finalize_kernel_command_line_extra,
-    finalize_register,
     join_initrds,
     run_qemu,
     run_ssh,
@@ -4228,7 +4227,7 @@ def run_shell(args: Args, config: Config) -> None:
 
     # Underscores are not allowed in machine names so replace them with hyphens.
     name = config.machine_or_name().replace("_", "-")
-    cmdline += ["--machine", name, "--register", yes_no(finalize_register(config))]
+    cmdline += ["--machine", name, "--register", yes_no(config.register != ConfigFeature.disabled)]
 
     with contextlib.ExitStack() as stack:
         for f in finalize_credentials(config, stack).iterdir():

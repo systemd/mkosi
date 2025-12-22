@@ -962,41 +962,16 @@ def scope_cmd(
     ]  # fmt: skip
 
 
-def machine1_is_available(config: Config) -> bool:
-    if "DBUS_SYSTEM_ADDRESS" not in os.environ and not Path("/run/dbus/system_bus_socket").is_socket():
-        return False
-
-    services = json.loads(
-        run(
-            ["busctl", "list", "--json=pretty"],
-            env=os.environ | config.finalize_environment(),
-            sandbox=config.sandbox(relaxed=True),
-            stdout=subprocess.PIPE,
-        ).stdout.strip()
-    )
-
-    return any(service["name"] == "org.freedesktop.machine1" for service in services)
-
-
 def finalize_register(config: Config) -> bool:
     if config.register == ConfigFeature.disabled:
         return False
 
-    if config.register == ConfigFeature.auto and os.getuid() != 0:
-        return False
-
-    # Unprivileged registration via polkit was added after the varlink interface was added, so if the varlink
-    # interface is not available, we can assume unprivileged registration is not available either.
-    if (
-        not (p := Path("/run/systemd/machine/io.systemd.Machine")).is_socket()
-        or not os.access(p, os.R_OK | os.W_OK)
-    ) and (not machine1_is_available(config) or os.getuid() != 0):
+    if not (INVOKING_USER.runtime_dir() / "systemd/machine/io.systemd.Machine").is_socket():
         if config.register == ConfigFeature.enabled:
             die(
                 "Container registration was requested but systemd-machined is not available",
-                hint="Is the systemd-container package installed and is systemd-machined running?",
+                hint="Is the systemd-container package installed and sufficiently new (v259 or newer)?",
             )
-
         return False
 
     return True
@@ -1006,62 +981,31 @@ def register_machine(config: Config, pid: int, fname: Path, cid: Optional[int]) 
     if not finalize_register(config):
         return
 
-    if (p := Path("/run/systemd/machine/io.systemd.Machine")).is_socket() and os.access(
-        p, os.R_OK | os.W_OK
-    ):
-        run(
-            [
-                "varlinkctl",
-                "call",
-                p,
-                "io.systemd.Machine.Register",
-                json.dumps(
-                    {
-                        "name": config.machine_or_name().replace("_", "-"),
-                        "service": "mkosi",
-                        "class": "vm",
-                        "leader": pid,
-                        **({"rootDirectory": os.fspath(fname)} if fname.is_dir() else {}),
-                        **({"vSockCid": cid} if cid is not None else {}),
-                        **({"sshAddress": f"vsock/{cid}"} if cid is not None else {}),
-                        **({"sshPrivateKeyPath": f"{config.ssh_key}"} if config.ssh_key else {}),
-                    }
-                ),
-            ],
-            env=os.environ | config.finalize_environment(),
-            sandbox=config.sandbox(relaxed=True),
-            stdin=sys.stdin,
-            # Prevent varlinkctl's empty '{}' response from showing up in the terminal.
-            stdout=subprocess.DEVNULL,
-            # systemd 256 exposes the systemd-machined varlink interface only to the root user, but makes the
-            # varlink socket world readable/writable, which means this will fail when executed as an
-            # unprivileged user, so ignore the error in that case.
-            # TODO: Remove when https://github.com/systemd/systemd/pull/36344 is in a stable release.
-            check=os.getuid() == 0,
-        )
-    else:
-        run(
-            [
-                "busctl",
-                "call",
-                "--quiet",
-                "org.freedesktop.machine1",
-                "/org/freedesktop/machine1",
-                "org.freedesktop.machine1.Manager",
-                "RegisterMachine",
-                "sayssus",
-                config.machine_or_name().replace("_", "-"),
-                "0",
-                "mkosi",
-                "vm",
-                str(pid),
-                fname if fname.is_dir() else "",
-            ],  # fmt: skip
-            env=os.environ | config.finalize_environment(),
-            sandbox=config.sandbox(relaxed=True),
-            stdin=sys.stdin,
-            stdout=sys.stdout,
-        )
+    run(
+        [
+            "varlinkctl",
+            "call",
+            INVOKING_USER.runtime_dir() / "systemd/machine/io.systemd.Machine",
+            "io.systemd.Machine.Register",
+            json.dumps(
+                {
+                    "name": config.machine_or_name().replace("_", "-"),
+                    "service": "mkosi",
+                    "class": "vm",
+                    "leader": pid,
+                    **({"rootDirectory": os.fspath(fname)} if fname.is_dir() else {}),
+                    **({"vSockCid": cid} if cid is not None else {}),
+                    **({"sshAddress": f"vsock/{cid}"} if cid is not None else {}),
+                    **({"sshPrivateKeyPath": f"{config.ssh_key}"} if config.ssh_key else {}),
+                }
+            ),
+        ],
+        env=os.environ | config.finalize_environment(),
+        sandbox=config.sandbox(relaxed=True),
+        stdin=sys.stdin,
+        # Prevent varlinkctl's empty '{}' response from showing up in the terminal.
+        stdout=subprocess.DEVNULL,
+    )
 
 
 def run_qemu(args: Args, config: Config) -> None:

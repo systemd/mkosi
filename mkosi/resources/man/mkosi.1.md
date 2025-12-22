@@ -2029,6 +2029,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     systemd-machined. If `auto`, mkosi will register the vm/container
     with systemd-machined if it is available. Defaults to `auto`.
 
+    Note that mkosi will try to register the machine with
+    systemd-machined in the user session. systemd v259 or newer is
+    required to have systemd-machined be available in user sessions.
+
 `ForwardJournal=`, `--forward-journal=`
 :   Specify the path to which journal logs from containers and virtual
     machines should be forwarded. If the path has the `.journal`
