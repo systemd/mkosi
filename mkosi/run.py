@@ -244,7 +244,7 @@ def spawn(
 
         try:
             proc = subprocess.Popen(
-                [*setup, *prefix, *cmdline],
+                [*setup, *prefix, *cmd],
                 stdin=stdin,
                 stdout=stdout,
                 stderr=stderr,
