@@ -168,7 +168,8 @@ def scopedenv(env: Mapping[str, Any]) -> Iterator[None]:
     try:
         yield
     finally:
-        os.environ = old
+        os.environ.clear()
+        os.environ.update(old)
         tempfile.tempdir = None
 
 

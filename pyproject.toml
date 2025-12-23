@@ -87,7 +87,17 @@ scripts_are_modules = true
 [tool.ruff]
 target-version = "py39"
 line-length = 109
-lint.select = ["E", "F", "I", "UP", "W291"]
+lint.select = [
+    "E",    # pycodestyle
+    "W",    # pycodestyle (trailing whitespace)
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pypgrade
+    "B"     # flake8-bugbear
+]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["mkosi.run.nosandbox"]
 
 [tool.pytest.ini_options]
 markers = [

@@ -5477,7 +5477,7 @@ def finalize_git_config(proxy_url: Optional[str], env: dict[str, str]) -> dict[s
     try:
         cnt = int(env.get("GIT_CONFIG_COUNT", "0"))
     except ValueError:
-        raise ValueError("GIT_CONFIG_COUNT environment variable must be set to a valid integer")
+        raise ValueError("GIT_CONFIG_COUNT environment variable must be set to a valid integer") from None
 
     # Override HTTP/HTTPS proxy in case its set in .gitconfig to a different value than proxy_url.
     # No need to override http.proxy / https.proxy if set in a previous GIT_CONFIG_* variable since
