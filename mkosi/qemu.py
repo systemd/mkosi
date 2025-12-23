@@ -152,7 +152,7 @@ def find_unused_vsock_cid(config: Config, vfd: int) -> int:
 
         hash.update(i.to_bytes(length=4, byteorder="little"))
 
-    for i in range(64):
+    for _ in range(64):
         cid = random.randint(0, 0xFFFFFFFF - 1)
 
         if not vsock_cid_in_use(vfd, cid):
