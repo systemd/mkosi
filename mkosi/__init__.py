@@ -198,7 +198,11 @@ def mount_base_trees(context: Context) -> Iterator[None]:
                     ["systemd-dissect", "--mount", "--mkdir", path, d],
                     env=dict(SYSTEMD_DISSECT_VERITY_EMBEDDED="no", SYSTEMD_DISSECT_VERITY_SIDECAR="no"),
                 )
-                stack.callback(lambda: run(["systemd-dissect", "--umount", "--rmdir", d]))
+
+                def _umount(d: PathString = d) -> None:
+                    run(["systemd-dissect", "--umount", "--rmdir", d])
+
+                stack.callback(_umount)
                 bases += [d]
             else:
                 die(f"Unsupported base tree source {path}")
