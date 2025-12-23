@@ -237,9 +237,13 @@ def spawn(
                 preexec()
 
             if sbx and apply_sandbox_in_preexec:
-                # The env passed to subprocess.Popen() replaces the environment wholesale so any
-                # modifications made by mkosi-sandbox would be overridden if we used that. Hence process the
-                # environment in the preexec function.
+                # if we get here we should have neither a prefix nor a setup command to execute.
+                assert not prefix
+                assert not setup
+
+                # mkosi.sandbox.main() updates os.environ but the environment passed to Popen() is not yet in
+                # effect by the time the preexec function is called. To get around that, we update the
+                # environment ourselves here.
                 os.environ.clear()
                 os.environ.update(env)
                 try:
@@ -247,6 +251,19 @@ def spawn(
                 except Exception:
                     sys.excepthook(*ensure_exc_info())
                     os._exit(1)
+
+                # Python does its own executable lookup in $PATH before executing the preexec function, and
+                # hence before we have set up the sandbox which influences the lookup results. To get around
+                # that, let's call execvp() ourselves inside the preexec() function, and not give Python the
+                # chance to do it itself. This ensures we can do the proper executable lookup after setting
+                # up the sandbox. If we can't find the executable, do nothing, and let Python do its own
+                # search logic so it can return a proper error, which we cannot do from the preexec function.
+                # Note that by doing this we also skip Python closing all open file descriptors except the
+                # ones specified by the user in pass_fds, but since Python opens all file descriptors with
+                # O_CLOEXEC anyway, we'll assume we're good and don't need to close open file descriptors
+                # explicitly.
+                if s := shutil.which(cmd[0]):
+                    os.execvp(s, cmd)
 
         prefix = []
         if sbx and not apply_sandbox_in_preexec:
@@ -259,7 +276,7 @@ def spawn(
 
         try:
             proc = subprocess.Popen(
-                [*setup, *prefix, *cmdline],
+                [*setup, *prefix, *cmd],
                 stdin=stdin,
                 stdout=stdout,
                 stderr=stderr,
