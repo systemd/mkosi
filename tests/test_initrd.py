@@ -67,14 +67,14 @@ def test_initrd_lvm(config: ImageConfig) -> None:
         lodev = run(
             ["losetup", "--show", "--find", "--partscan", lvm], stdout=subprocess.PIPE
         ).stdout.strip()
-        stack.callback(lambda: run(["losetup", "--detach", lodev]))
+        stack.callback(run, ["losetup", "--detach", lodev])
         run(["sfdisk", "--label", "gpt", lodev], input="type=E6D6D379-F507-44C2-A23C-238F2A3DF928 bootable")
         run(["lvm", "pvcreate", "--devicesfile", "", f"{lodev}p1"])
         run(["lvm", "pvs", "--devicesfile", ""])
         run(["lvm", "vgcreate", "--devicesfile", "", "-An", "vg_mkosi", f"{lodev}p1"])
         run(["lvm", "vgchange", "--devicesfile", "", "-ay", "vg_mkosi"])
         run(["lvm", "vgs", "--devicesfile", ""])
-        stack.callback(lambda: run(["lvm", "vgchange", "--devicesfile", "", "-an", "vg_mkosi"]))
+        stack.callback(run, ["lvm", "vgchange", "--devicesfile", "", "-an", "vg_mkosi"])
         run(["lvm", "lvcreate", "--devicesfile", "", "-An", "-l", "100%FREE", "-n", "lv0", "vg_mkosi"])
         run(["lvm", "lvs", "--devicesfile", ""])
         run(["udevadm", "wait", "--timeout=30", "/dev/vg_mkosi/lv0"])
@@ -82,7 +82,7 @@ def test_initrd_lvm(config: ImageConfig) -> None:
 
         src = Path(stack.enter_context(tempfile.TemporaryDirectory()))
         run(["systemd-dissect", "--mount", "--mkdir", Path(image.output_dir) / "image.raw", src])
-        stack.callback(lambda: run(["systemd-dissect", "--umount", "--rmdir", src]))
+        stack.callback(run, ["systemd-dissect", "--umount", "--rmdir", src])
 
         dst = Path(stack.enter_context(tempfile.TemporaryDirectory()))
         stack.enter_context(mount(Path("/dev/vg_mkosi/lv0"), dst))
@@ -165,7 +165,7 @@ def test_initrd_luks_lvm(config: ImageConfig, passphrase: Path) -> None:
         lodev = run(
             ["losetup", "--show", "--find", "--partscan", lvm], stdout=subprocess.PIPE
         ).stdout.strip()
-        stack.callback(lambda: run(["losetup", "--detach", lodev]))
+        stack.callback(run, ["losetup", "--detach", lodev])
         run(["sfdisk", "--label", "gpt", lodev], input="type=E6D6D379-F507-44C2-A23C-238F2A3DF928 bootable")
         run(
             [
@@ -179,14 +179,14 @@ def test_initrd_luks_lvm(config: ImageConfig, passphrase: Path) -> None:
             ]
         )  # fmt: skip
         run(["cryptsetup", "--key-file", passphrase, "luksOpen", f"{lodev}p1", "lvm_root"])
-        stack.callback(lambda: run(["cryptsetup", "close", "lvm_root"]))
+        stack.callback(run, ["cryptsetup", "close", "lvm_root"])
         luks_uuid = run(["cryptsetup", "luksUUID", f"{lodev}p1"], stdout=subprocess.PIPE).stdout.strip()
         run(["lvm", "pvcreate", "--devicesfile", "", "/dev/mapper/lvm_root"])
         run(["lvm", "pvs", "--devicesfile", ""])
         run(["lvm", "vgcreate", "--devicesfile", "", "-An", "vg_mkosi", "/dev/mapper/lvm_root"])
         run(["lvm", "vgchange", "--devicesfile", "", "-ay", "vg_mkosi"])
         run(["lvm", "vgs", "--devicesfile", ""])
-        stack.callback(lambda: run(["lvm", "vgchange", "--devicesfile", "", "-an", "vg_mkosi"]))
+        stack.callback(run, ["lvm", "vgchange", "--devicesfile", "", "-an", "vg_mkosi"])
         run(["lvm", "lvcreate", "--devicesfile", "", "-An", "-l", "100%FREE", "-n", "lv0", "vg_mkosi"])
         run(["lvm", "lvs", "--devicesfile", ""])
         run(["udevadm", "wait", "--timeout=30", "/dev/vg_mkosi/lv0"])
@@ -194,7 +194,7 @@ def test_initrd_luks_lvm(config: ImageConfig, passphrase: Path) -> None:
 
         src = Path(stack.enter_context(tempfile.TemporaryDirectory()))
         run(["systemd-dissect", "--mount", "--mkdir", Path(image.output_dir) / "image.raw", src])
-        stack.callback(lambda: run(["systemd-dissect", "--umount", "--rmdir", src]))
+        stack.callback(run, ["systemd-dissect", "--umount", "--rmdir", src])
 
         dst = Path(stack.enter_context(tempfile.TemporaryDirectory()))
         stack.enter_context(mount(Path("/dev/vg_mkosi/lv0"), dst))
