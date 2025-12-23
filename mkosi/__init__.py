@@ -3916,7 +3916,7 @@ def setup_workspace(args: Args, config: Config) -> Iterator[Path]:
         workspace.chmod(stat.S_IMODE(workspace.stat().st_mode) & ~(stat.S_ISGID | stat.S_ISUID))
         # Explicitly pass the "root" subdirectory first because on btrfs it's likely a subvolume and this
         # allows us to delete it with btrfs subvolume delete instead of a costly rm -rf.
-        stack.callback(lambda: rmtree(workspace / "root", workspace, sandbox=config.sandbox))
+        stack.callback(rmtree, workspace / "root", workspace, sandbox=config.sandbox)
         (workspace / "tmp").mkdir(mode=0o1777)
 
         with scopedenv({"TMPDIR": os.fspath(workspace / "tmp")}):
@@ -4240,9 +4240,7 @@ def run_shell(args: Args, config: Config) -> None:
         # Make sure the latest nspawn settings are always used.
         if config.nspawn_settings:
             if not (config.output_dir_or_cwd() / f"{name}.nspawn").exists():
-                stack.callback(
-                    lambda: (config.output_dir_or_cwd() / f"{name}.nspawn").unlink(missing_ok=True)
-                )
+                stack.callback((config.output_dir_or_cwd() / f"{name}.nspawn").unlink, missing_ok=True)
             copyfile2(config.nspawn_settings, config.output_dir_or_cwd() / f"{name}.nspawn")
 
         # If we're booting a directory image that wasn't built by root, we always make an ephemeral

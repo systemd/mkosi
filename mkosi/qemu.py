@@ -771,7 +771,7 @@ def finalize_initrd(config: Config) -> Iterator[Optional[Path]]:
         elif config.initrds:
             initrd = config.output_dir_or_cwd() / f"initrd-{uuid.uuid4().hex}"
             join_initrds(config.initrds, initrd)
-            stack.callback(lambda: initrd.unlink())
+            stack.callback(initrd.unlink)
             yield initrd
         else:
             yield None
