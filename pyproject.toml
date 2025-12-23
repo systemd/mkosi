@@ -95,6 +95,9 @@ lint.select = [
     "UP",   # pypgrade
 ]
 
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["mkosi.run.nosandbox"]
+
 [tool.pytest.ini_options]
 markers = [
     "integration: mark a test as an integration test."

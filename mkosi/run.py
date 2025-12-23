@@ -132,6 +132,21 @@ def log_process_failure(sandbox: Sequence[str], cmdline: Sequence[str], returnco
         )
 
 
+class SandboxProtocol(Protocol):
+    def __call__(
+        self,
+        *,
+        options: Sequence[PathString] = (),
+    ) -> AbstractContextManager[list[PathString]]: ...
+
+
+def nosandbox(
+    *,
+    options: Sequence[PathString] = (),
+) -> AbstractContextManager[list[PathString]]:
+    return contextlib.nullcontext([])
+
+
 def run(
     cmdline: Sequence[PathString],
     check: bool = True,
@@ -143,7 +158,7 @@ def run(
     log: bool = True,
     success_exit_status: Sequence[int] = (0,),
     setup: Sequence[PathString] = (),
-    sandbox: AbstractContextManager[Sequence[PathString]] = contextlib.nullcontext([]),
+    sandbox: AbstractContextManager[Sequence[PathString]] = nosandbox(),
 ) -> CompletedProcess:
     if input is not None:
         assert stdin is None  # stdin and input cannot be specified together
@@ -181,7 +196,7 @@ def spawn(
     preexec: Optional[Callable[[], None]] = None,
     success_exit_status: Sequence[int] = (0,),
     setup: Sequence[PathString] = (),
-    sandbox: AbstractContextManager[Sequence[PathString]] = contextlib.nullcontext([]),
+    sandbox: AbstractContextManager[Sequence[PathString]] = nosandbox(),
 ) -> Iterator[Popen]:
     cmd = [os.fspath(x) for x in cmdline]
 
@@ -426,21 +441,6 @@ class AsyncioThread(threading.Thread, Generic[T]):
                 raise self.exc.get_nowait()
             except queue.Empty:
                 pass
-
-
-class SandboxProtocol(Protocol):
-    def __call__(
-        self,
-        *,
-        options: Sequence[PathString] = (),
-    ) -> AbstractContextManager[list[PathString]]: ...
-
-
-def nosandbox(
-    *,
-    options: Sequence[PathString] = (),
-) -> AbstractContextManager[list[PathString]]:
-    return contextlib.nullcontext([])
 
 
 def workdir(path: Path, sandbox: Optional[SandboxProtocol] = None) -> str:
@@ -734,7 +734,7 @@ def finalize_interpreter(tools: bool) -> str:
 
 def glob_in_sandbox(
     *globs: str,
-    sandbox: AbstractContextManager[Sequence[PathString]] = contextlib.nullcontext([]),
+    sandbox: AbstractContextManager[Sequence[PathString]] = nosandbox(),
 ) -> list[Path]:
     return [
         Path(s)
@@ -754,7 +754,7 @@ def glob_in_sandbox(
 
 def exists_in_sandbox(
     path: PathString,
-    sandbox: AbstractContextManager[Sequence[PathString]] = contextlib.nullcontext([]),
+    sandbox: AbstractContextManager[Sequence[PathString]] = nosandbox(),
 ) -> bool:
     return (
         run(
