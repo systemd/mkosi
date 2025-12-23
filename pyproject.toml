@@ -87,7 +87,13 @@ scripts_are_modules = true
 [tool.ruff]
 target-version = "py39"
 line-length = 109
-lint.select = ["E", "F", "I", "UP", "W291"]
+lint.select = [
+    "E",    # pycodestyle
+    "W291", # pycodestyle (trailing whitespace)
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pypgrade
+]
 
 [tool.pytest.ini_options]
 markers = [
