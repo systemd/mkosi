@@ -89,7 +89,7 @@ target-version = "py39"
 line-length = 109
 lint.select = [
     "E",    # pycodestyle
-    "W291", # pycodestyle (trailing whitespace)
+    "W",    # pycodestyle (trailing whitespace)
     "F",    # pyflakes
     "I",    # isort
     "UP",   # pypgrade
