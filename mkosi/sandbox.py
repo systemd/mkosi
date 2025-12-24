@@ -446,6 +446,79 @@ def join_new_session_keyring() -> None:
         oserror("keyctl")
 
 
+def open_tree(dirfd: int, path: str, flags: int = 0) -> int:
+    fd: int
+
+    try:
+        libc.open_tree.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_uint)
+        fd = libc.open_tree(dirfd, path.encode(), flags)
+    except AttributeError:
+        libc.syscall.argtypes = (ctypes.c_long, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint)
+        fd = libc.syscall(NR_open_tree, dirfd, path.encode(), flags)
+
+    if fd < 0:
+        oserror("open_tree", path)
+
+    return fd
+
+
+def mount_setattr(dirfd: int, path: str, flags: int, attr: mount_attr) -> None:
+    try:
+        libc.mount_setattr.argtypes = (
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_uint,
+            ctypes.c_void_p,
+            ctypes.c_size_t,
+        )
+        r = libc.mount_setattr(dirfd, path.encode(), flags, ctypes.addressof(attr), MOUNT_ATTR_SIZE_VER0)
+    except AttributeError:
+        libc.syscall.argtypes = (
+            ctypes.c_long,
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_uint,
+            ctypes.c_void_p,
+            ctypes.c_size_t,
+        )
+        r = libc.syscall(
+            NR_mount_setattr,
+            dirfd,
+            path.encode(),
+            flags,
+            ctypes.addressof(attr),
+            MOUNT_ATTR_SIZE_VER0,
+        )
+
+    if r < 0:
+        oserror("mount_setattr", path)
+
+
+def move_mount(from_dirfd: int, from_path: str, to_dirfd: int, to_path: str, flags: int) -> None:
+    try:
+        libc.move_mount.argtypes = (
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_uint,
+        )
+        r = libc.move_mount(from_dirfd, from_path.encode(), to_dirfd, to_path.encode(), flags)
+    except AttributeError:
+        libc.syscall.argtypes = (
+            ctypes.c_long,
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_uint,
+        )
+        r = libc.syscall(NR_move_mount, from_dirfd, from_path.encode(), to_dirfd, to_path.encode(), flags)
+
+    if r < 0:
+        oserror("move_mount", to_path)
+
+
 def mount_rbind(src: str, dst: str, attrs: int = 0) -> None:
     """
     When using the old mount syscall to do a recursive bind mount, mount options are not
@@ -455,67 +528,9 @@ def mount_rbind(src: str, dst: str, attrs: int = 0) -> None:
     """
     flags = AT_NO_AUTOMOUNT | AT_RECURSIVE | AT_SYMLINK_NOFOLLOW | OPEN_TREE_CLONE
 
-    try:
-        libc.open_tree.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_uint)
-        fd = libc.open_tree(AT_FDCWD, src.encode(), flags)
-    except AttributeError:
-        libc.syscall.argtypes = (ctypes.c_long, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint)
-        fd = libc.syscall(NR_open_tree, AT_FDCWD, src.encode(), flags)
-
-    if fd < 0:
-        oserror("open_tree", src)
-
-    with close(fd):
-        attr = mount_attr()
-        attr.attr_set = attrs
-
-        flags = AT_EMPTY_PATH | AT_RECURSIVE
-
-        try:
-            libc.mount_setattr.argtypes = (
-                ctypes.c_int,
-                ctypes.c_char_p,
-                ctypes.c_uint,
-                ctypes.c_void_p,
-                ctypes.c_size_t,
-            )
-            r = libc.mount_setattr(fd, b"", flags, ctypes.addressof(attr), MOUNT_ATTR_SIZE_VER0)
-        except AttributeError:
-            libc.syscall.argtypes = (
-                ctypes.c_long,
-                ctypes.c_int,
-                ctypes.c_char_p,
-                ctypes.c_uint,
-                ctypes.c_void_p,
-                ctypes.c_size_t,
-            )
-            r = libc.syscall(NR_mount_setattr, fd, b"", flags, ctypes.addressof(attr), MOUNT_ATTR_SIZE_VER0)
-
-        if r < 0:
-            oserror("mount_setattr", src)
-
-        try:
-            libc.move_mount.argtypes = (
-                ctypes.c_int,
-                ctypes.c_char_p,
-                ctypes.c_int,
-                ctypes.c_char_p,
-                ctypes.c_uint,
-            )
-            r = libc.move_mount(fd, b"", AT_FDCWD, dst.encode(), MOVE_MOUNT_F_EMPTY_PATH)
-        except AttributeError:
-            libc.syscall.argtypes = (
-                ctypes.c_long,
-                ctypes.c_int,
-                ctypes.c_char_p,
-                ctypes.c_int,
-                ctypes.c_char_p,
-                ctypes.c_uint,
-            )
-            r = libc.syscall(NR_move_mount, fd, b"", AT_FDCWD, dst.encode(), MOVE_MOUNT_F_EMPTY_PATH)
-
-        if r < 0:
-            oserror("move_mount", dst)
+    with close(open_tree(AT_FDCWD, src, flags)) as fd:
+        mount_setattr(fd, "", AT_EMPTY_PATH | AT_RECURSIVE, mount_attr(attr_set=attrs))
+        move_mount(fd, "", AT_FDCWD, dst, MOVE_MOUNT_F_EMPTY_PATH)
 
 
 class umask:

@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any, Callable, Generic, NoReturn, Optional, Pr
 
 import mkosi.sandbox
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SANDBOX, ARG_DEBUG_SHELL, die
-from mkosi.sandbox import SD_LISTEN_FDS_START, acquire_privileges, joinpath, umask
+from mkosi.sandbox import acquire_privileges, joinpath, umask
 from mkosi.util import _FILE, PathString, flatten, one_zero, resource_path, unique
 
 # These types are only generic during type checking and not at runtime, leading
@@ -283,14 +283,7 @@ def spawn(
                 text=True,
                 user=user,
                 group=group,
-                # Python closes file descriptors after calling the preexec function. Hence we need to tell it
-                # to keep the packed file descriptors intact instead of the original ones if --pack-fds is
-                # used.
-                pass_fds=(
-                    range(SD_LISTEN_FDS_START, SD_LISTEN_FDS_START + len(pass_fds))
-                    if apply_sandbox_in_preexec and "--pack-fds" in sbx
-                    else pass_fds
-                ),
+                pass_fds=pass_fds,
                 env=env if not sbx or not apply_sandbox_in_preexec else None,
                 preexec_fn=_preexec,
             )
