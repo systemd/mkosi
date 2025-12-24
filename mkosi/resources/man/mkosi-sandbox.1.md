@@ -45,9 +45,6 @@ from `mkosi.sandbox` is not supported and may break in future versions.
     contain the basic device nodes required for a functioning sandbox (e.g. `/dev/null`)
     and no actual devices.
 
-`--proc DST`
-:  Mounts `/proc` from the host at `DST` in the sandbox.
-
 `--dir DST`
 :   Creates a directory and all missing parent directories at `DST` in the sandbox.
     All directories are created with mode 755 unless the path ends with `/tmp` or
@@ -169,7 +166,7 @@ mkosi-sandbox \
     --symlink usr/lib64 /lib64 \
     --symlink usr/sbin /sbin \
     --dev /dev \
-    --proc /proc \
+    --bind /proc /proc \
     --tmpfs /tmp \
     --become-root \
     id

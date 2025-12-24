@@ -848,15 +848,6 @@ class BindOperation(FSOperation):
         mount_rbind(src, dst, attrs=MOUNT_ATTR_RDONLY if self.readonly else 0)
 
 
-class ProcOperation(FSOperation):
-    def execute(self, oldroot: str, newroot: str) -> None:
-        dst = chase(newroot, self.dst)
-        with umask(~0o755):
-            os.makedirs(dst, exist_ok=True)
-
-        mount_rbind(joinpath(oldroot, "proc"), dst)
-
-
 class DevOperation(FSOperation):
     def __init__(self, ttyname: str, dst: str) -> None:
         self.ttyname = ttyname
@@ -1046,7 +1037,6 @@ mkosi-sandbox [OPTIONS...] COMMAND [ARGUMENTS...]
      --version                    Show package version
      --tmpfs DST                  Mount a new tmpfs on DST
      --dev DST                    Mount dev on DST
-     --proc DST                   Mount procfs on DST
      --dir DST                    Create a new directory at DST
      --bind SRC DST               Bind mount the host path SRC to DST
      --bind-try SRC DST           Bind mount the host path SRC to DST if it exists
@@ -1116,8 +1106,6 @@ def main(argv: list[str] = sys.argv[1:]) -> None:
             fsops.append(TmpfsOperation(os.path.abspath(argv.pop())))
         elif arg == "--dev":
             fsops.append(DevOperation(ttyname, os.path.abspath(argv.pop())))
-        elif arg == "--proc":
-            fsops.append(ProcOperation(os.path.abspath(argv.pop())))
         elif arg == "--dir":
             fsops.append(DirOperation(os.path.abspath(argv.pop())))
         elif arg in ("--bind", "--ro-bind", "--bind-try", "--ro-bind-try"):
