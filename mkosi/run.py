@@ -529,7 +529,7 @@ def sandbox_cmd(
         module = stack.enter_context(resource_path(sys.modules[__package__ or __name__]))
 
         cmdline: list[PathString] = [
-            "--proc", "/proc",
+            "--bind", "/proc", "/proc",
             # We mounted a subdirectory of TMPDIR to /var/tmp so we unset TMPDIR so that /tmp or /var/tmp are
             # used instead.
             "--unsetenv", "TMPDIR",
@@ -679,7 +679,7 @@ def apivfs_options(*, root: Path = Path("/buildroot")) -> list[PathString]:
     return [
         "--tmpfs", root / "run",
         "--tmpfs", root / "tmp",
-        "--proc", root / "proc",
+        "--bind", "/proc", root / "proc",
         "--dev", root / "dev",
         # Nudge gpg to create its sockets in /run by making sure /run/user/0 exists.
         "--dir", root / "run/user/0",
