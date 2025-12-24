@@ -2,6 +2,7 @@
 
 import contextlib
 import errno
+import functools
 import logging
 import os
 import queue
@@ -181,6 +182,46 @@ def run(
     return CompletedProcess(cmdline, process.returncode, out, err)
 
 
+def _preexec(
+    cmd: list[str],
+    env: dict[str, Any],
+    sandbox: list[str],
+    preexec: Optional[Callable[[], None]],
+) -> None:
+    if preexec:
+        preexec()
+
+    if not sandbox:
+        return
+
+    # if we get here we should have neither a prefix nor a setup command to execute and so we can execute the
+    # command directly.
+
+    # mkosi.sandbox.main() updates os.environ but the environment passed to Popen() is not yet in
+    # effect by the time the preexec function is called. To get around that, we update the
+    # environment ourselves here.
+    os.environ.clear()
+    os.environ.update(env)
+    try:
+        mkosi.sandbox.main(sandbox)
+    except Exception:
+        sys.excepthook(*ensure_exc_info())
+        os._exit(1)
+
+    # Python does its own executable lookup in $PATH before executing the preexec function, and
+    # hence before we have set up the sandbox which influences the lookup results. To get around
+    # that, let's call execvp() ourselves inside the preexec() function, and not give Python the
+    # chance to do it itself. This ensures we can do the proper executable lookup after setting
+    # up the sandbox. If we can't find the executable, do nothing, and let Python do its own
+    # search logic so it can return a proper error, which we cannot do from the preexec function.
+    # Note that by doing this we also skip Python closing all open file descriptors except the
+    # ones specified by the user in pass_fds, but since Python opens all file descriptors with
+    # O_CLOEXEC anyway, we'll assume we're good and don't need to close open file descriptors
+    # explicitly.
+    if s := shutil.which(cmd[0]):
+        os.execvp(s, cmd)
+
+
 @contextlib.contextmanager
 def spawn(
     cmdline: Sequence[PathString],
@@ -232,39 +273,6 @@ def spawn(
         sbx = [os.fspath(x) for x in stack.enter_context(sandbox)]
         apply_sandbox_in_preexec = not setup and not ARG_DEBUG_SANDBOX.get()
 
-        def _preexec() -> None:
-            if preexec:
-                preexec()
-
-            if sbx and apply_sandbox_in_preexec:
-                # if we get here we should have neither a prefix nor a setup command to execute.
-                assert not prefix
-                assert not setup
-
-                # mkosi.sandbox.main() updates os.environ but the environment passed to Popen() is not yet in
-                # effect by the time the preexec function is called. To get around that, we update the
-                # environment ourselves here.
-                os.environ.clear()
-                os.environ.update(env)
-                try:
-                    mkosi.sandbox.main(sbx)
-                except Exception:
-                    sys.excepthook(*ensure_exc_info())
-                    os._exit(1)
-
-                # Python does its own executable lookup in $PATH before executing the preexec function, and
-                # hence before we have set up the sandbox which influences the lookup results. To get around
-                # that, let's call execvp() ourselves inside the preexec() function, and not give Python the
-                # chance to do it itself. This ensures we can do the proper executable lookup after setting
-                # up the sandbox. If we can't find the executable, do nothing, and let Python do its own
-                # search logic so it can return a proper error, which we cannot do from the preexec function.
-                # Note that by doing this we also skip Python closing all open file descriptors except the
-                # ones specified by the user in pass_fds, but since Python opens all file descriptors with
-                # O_CLOEXEC anyway, we'll assume we're good and don't need to close open file descriptors
-                # explicitly.
-                if s := shutil.which(cmd[0]):
-                    os.execvp(s, cmd)
-
         prefix = []
         if sbx and not apply_sandbox_in_preexec:
             module = stack.enter_context(resource_path(sys.modules[__package__ or __name__]))
@@ -285,7 +293,13 @@ def spawn(
                 group=group,
                 pass_fds=pass_fds,
                 env=env if not sbx or not apply_sandbox_in_preexec else None,
-                preexec_fn=_preexec,
+                preexec_fn=functools.partial(
+                    _preexec,
+                    cmd=cmd,
+                    env=env,
+                    sandbox=sbx if apply_sandbox_in_preexec else [],
+                    preexec=preexec,
+                ),
             )
         except FileNotFoundError as e:
             die(f"{e.filename} not found.")
@@ -310,10 +324,8 @@ def spawn(
             if ARG_DEBUG_SHELL.get():
                 # --suspend will freeze the debug shell with no way to unfreeze it so strip it from the
                 # sandbox if it's there.
-                if "--suspend" in prefix:
-                    prefix.remove("--suspend")
-                if "--suspend" in sbx:
-                    sbx.remove("--suspend")
+                prefix = [s for s in prefix if s != "--suspend"]
+                sbx = [s for s in sbx if s != "--suspend"]
                 subprocess.run(
                     [*setup, *prefix, "bash"],
                     check=False,
@@ -322,7 +334,13 @@ def spawn(
                     user=user,
                     group=group,
                     env=env if not sbx or not apply_sandbox_in_preexec else None,
-                    preexec_fn=_preexec,
+                    preexec_fn=functools.partial(
+                        _preexec,
+                        cmd=["bash"],
+                        env=env,
+                        sandbox=sbx if apply_sandbox_in_preexec else [],
+                        preexec=preexec,
+                    ),
                 )
             raise subprocess.CalledProcessError(returncode, cmdline)
 
