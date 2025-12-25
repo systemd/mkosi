@@ -24,6 +24,12 @@ def loaded_modules() -> list[str]:
     ]
 
 
+def all_modules(modulesd: Path) -> Iterator[Path]:
+    # The glob may match additional paths.
+    # Narrow this down to *.ko, *.ko.gz, *.ko.xz, *.ko.zst.
+    return (m for m in modulesd.rglob("*.ko*") if m.name.endswith((".ko", ".ko.gz", ".ko.xz", ".ko.zst")))
+
+
 def globs_match_filename(name: str, globs: Sequence[str], *, match_default: bool = False) -> bool:
     # Check whether the path matches any of the globs
 
@@ -81,11 +87,7 @@ def filter_kernel_modules(
 
     modulesd = Path("usr/lib/modules") / kver
     with chdir(root):
-        # The glob may match additional paths.
-        # Narrow this down to *.ko, *.ko.gz, *.ko.xz, *.ko.zst.
-        modules = {
-            m for m in modulesd.rglob("*.ko*") if m.name.endswith((".ko", ".ko.gz", ".ko.xz", ".ko.zst"))
-        }
+        modules = set(all_modules(modulesd))
 
     n_modules = len(modules)
 
@@ -279,8 +281,7 @@ def resolve_module_dependencies(
         builtin = set()
 
     with chdir(context.root):
-        allmodules = set(modulesd.rglob("*.ko*"))
-    nametofile = {module_path_to_name(m): m for m in allmodules}
+        nametofile = {module_path_to_name(m): m for m in all_modules(modulesd)}
 
     todo = [*builtin, *modules]
     mods = set()
@@ -343,7 +344,7 @@ def gen_required_kernel_modules(
             "No modules excluded and no firmware installed, using kernel modules generation fast path"
         )
         with chdir(context.root):
-            modules = set(modulesd.rglob("*.ko*"))
+            modules = set(all_modules(modulesd))
         firmware = set()
 
     # Include or exclude firmware explicitly configured
@@ -466,7 +467,7 @@ def process_kernel_modules(
 
     with complete_step("Applying kernel module filters"):
         with chdir(context.root):
-            modules = sorted(modulesd.rglob("*.ko*"), reverse=True)
+            modules = sorted(all_modules(modulesd), reverse=True)
             firmware = sorted(firmwared.rglob("*"), reverse=True)
 
         for m in modules:
