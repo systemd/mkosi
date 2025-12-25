@@ -1500,6 +1500,9 @@ def build_microcode_initrd(context: Context) -> list[Path]:
                     for p in intel.iterdir():
                         f.write(p.read_bytes())
 
+        # Normalize timestamps for reproducible builds before creating cpio
+        normalize_mtime(root, context.config.source_date_epoch)
+
         make_cpio(root, microcode, sandbox=context.sandbox)
 
     return [microcode]
@@ -2346,7 +2349,7 @@ def compressor_command(context: Context, compression: Compression) -> list[PathS
     """Returns a command suitable for compressing archives."""
 
     if compression == Compression.gz:
-        return [gzip_binary(context), f"-{context.config.compress_level}", "--stdout", "-"]
+        return [gzip_binary(context), "--no-name", f"-{context.config.compress_level}", "--stdout", "-"]
     elif compression == Compression.xz:
         return ["xz", "--check=crc32", f"-{context.config.compress_level}", "-T0", "--stdout", "-"]
     elif compression == Compression.zstd:
