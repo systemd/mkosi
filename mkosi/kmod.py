@@ -209,7 +209,7 @@ class ModuleDependencyInfo:
 
 
 def modinfo(context: Context, kver: str, modules: Sequence[str]) -> dict[str, ModuleDependencyInfo]:
-    cmdline = ["modinfo", "--set-version", kver, "--null"]
+    cmdline = ["modinfo", "--modname", "--set-version", kver, "--null"]
 
     if context.config.output_format.is_extension_image() and not context.config.overlay:
         cmdline += ["--basedir", "/buildroot"]
@@ -272,45 +272,42 @@ def resolve_module_dependencies(
     root directory.
     """
     modulesd = Path("usr/lib/modules") / kver
+
     if (p := context.root / modulesd / "modules.builtin").exists():
-        builtin = set(module_path_to_name(Path(m)) for m in p.read_text().splitlines())
+        builtin = {module_path_to_name(Path(m)) for m in p.read_text().splitlines()}
     else:
         builtin = set()
+
     with chdir(context.root):
         allmodules = set(modulesd.rglob("*.ko*"))
     nametofile = {module_path_to_name(m): m for m in allmodules}
-
-    moddep: dict[str, ModuleDependencyInfo] = {}
-
-    # We could run modinfo once for each module but that's slow. Luckily we can pass multiple modules to
-    # modinfo and it'll process them all in a single go. We get the modinfo for all modules to build
-    # a map that maps the module name to both its module dependencies and its firmware dependencies.
-    # Because there's more kernel modules than the max number of accepted CLI arguments, we split the
-    # modules list up into chunks if needed.
-    for i in range(0, len(nametofile.keys()), 8500):
-        chunk = list(nametofile.keys())[i : i + 8500]
-        moddep |= modinfo(context, kver, chunk)
 
     todo = [*builtin, *modules]
     mods = set()
     firmware = set()
 
     while todo:
-        m = todo.pop()
-        if m in mods:
-            continue
+        moddep: dict[str, ModuleDependencyInfo] = {}
 
-        depinfo = moddep.get(m)
-        if not depinfo:
-            continue
+        # We could run modinfo once for each module but that's slow. Luckily we can pass multiple modules
+        # to modinfo and it'll process them all in a single go. We get the modinfo for all modules to
+        # build a map that maps the module name to both its module dependencies and its firmware
+        # dependencies. Because there's more kernel modules than the max number of accepted CLI
+        # arguments, we split the modules list up into chunks if needed.
+        for i in range(0, len(todo), 8500):
+            chunk = todo[i : i + 8500]
+            moddep |= modinfo(context, kver, chunk)
 
-        for d in depinfo.modules:
-            if d not in nametofile and d not in builtin:
-                logging.warning(f"{d} is a dependency of {m} but is not installed, ignoring ")
+        todo = []
 
-        mods.add(m)
-        todo += depinfo.modules
-        firmware.update(depinfo.firmware)
+        for name, depinfo in moddep.items():
+            for d in depinfo.modules:
+                if d not in nametofile and d not in builtin:
+                    logging.warning(f"{d} is a dependency of {name} but is not installed, ignoring ")
+
+            mods.add(name)
+            firmware.update(depinfo.firmware)
+            todo += [m for m in depinfo.modules if m not in mods]
 
     return set(nametofile[m] for m in mods if m in nametofile), set(firmware)
 
