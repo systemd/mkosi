@@ -11,7 +11,7 @@ from collections.abc import Iterable, Iterator, Reversible
 from pathlib import Path
 
 from mkosi.context import Context
-from mkosi.log import complete_step, log_step
+from mkosi.log import complete_step
 from mkosi.run import chroot_cmd, run
 from mkosi.sandbox import chase
 from mkosi.util import chdir, parents_below
@@ -79,6 +79,7 @@ def globs_match_firmware(
     return globs_match_filename(name, globs, match_default=match_default)
 
 
+@complete_step("Applying kernel modules include/exclude configuration")
 def filter_kernel_modules(
     root: Path,
     kver: str,
@@ -86,7 +87,6 @@ def filter_kernel_modules(
     include: Iterable[str],
     exclude: Iterable[str],
 ) -> list[str]:
-    log_step("Applying kernel modules include/exclude configuration")
     if include:
         logging.debug(f"Kernel modules include directives: {' '.join(include)}")
     if exclude:
@@ -144,6 +144,7 @@ def filter_kernel_modules(
     return sorted(module_path_to_name(m) for m in modules)
 
 
+@complete_step("Applying firmware include/exclude configuration")
 def filter_firmware(
     root: Path,
     firmware: set[Path],
@@ -272,6 +273,7 @@ def modinfo(context: Context, kver: str, modules: Iterable[str]) -> dict[str, Mo
     return moddep
 
 
+@complete_step("Calculating required kernel modules and firmware")
 def resolve_module_dependencies(
     context: Context,
     kver: str,
@@ -293,17 +295,14 @@ def resolve_module_dependencies(
 
     moddep: dict[str, ModuleDependencyInfo] = {}
 
-    with complete_step("Running modinfo to fetch kernel module dependencies"):
-        # We could run modinfo once for each module but that's slow. Luckily we can pass multiple modules to
-        # modinfo and it'll process them all in a single go. We get the modinfo for all modules to build
-        # a map that maps the module name to both its module dependencies and its firmware dependencies.
-        # Because there's more kernel modules than the max number of accepted CLI arguments, we split the
-        # modules list up into chunks if needed.
-        for i in range(0, len(nametofile.keys()), 8500):
-            chunk = list(nametofile.keys())[i : i + 8500]
-            moddep |= modinfo(context, kver, chunk)
-
-    log_step("Calculating required kernel modules and firmware")
+    # We could run modinfo once for each module but that's slow. Luckily we can pass multiple modules to
+    # modinfo and it'll process them all in a single go. We get the modinfo for all modules to build
+    # a map that maps the module name to both its module dependencies and its firmware dependencies.
+    # Because there's more kernel modules than the max number of accepted CLI arguments, we split the
+    # modules list up into chunks if needed.
+    for i in range(0, len(nametofile.keys()), 8500):
+        chunk = list(nametofile.keys())[i : i + 8500]
+        moddep |= modinfo(context, kver, chunk)
 
     todo = [*builtin, *modules]
     mods = set()
@@ -364,10 +363,7 @@ def gen_required_kernel_modules(
         firmware = set()
 
     # Include or exclude firmware explicitly configured
-    with complete_step("Applying firmware include/exclude configuration"):
-        firmware = filter_firmware(
-            context.root, firmware, include=firmware_include, exclude=firmware_exclude
-        )
+    firmware = filter_firmware(context.root, firmware, include=firmware_include, exclude=firmware_exclude)
 
     # /usr/lib/firmware makes use of symbolic links so we have to make sure the symlinks and their targets
     # are all included.
