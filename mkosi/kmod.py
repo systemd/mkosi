@@ -27,7 +27,7 @@ def loaded_modules() -> list[str]:
 def all_modules(modulesd: Path) -> Iterator[Path]:
     # The glob may match additional paths.
     # Narrow this down to *.ko, *.ko.gz, *.ko.xz, *.ko.zst.
-    return (m for m in modulesd.rglob("*.ko*") if m.name.endswith((".ko", ".ko.gz", ".ko.xz", ".ko.zst")))
+    return (m for m in modulesd.rglob("*.ko*") if m.name.endswith((".ko.zst", ".ko.xz", ".ko.gz", ".ko")))
 
 
 def globs_match_filename(name: str, globs: Sequence[str], *, match_default: bool = False) -> bool:
