@@ -1500,6 +1500,9 @@ def build_microcode_initrd(context: Context) -> list[Path]:
                     for p in intel.iterdir():
                         f.write(p.read_bytes())
 
+        # Normalize timestamps for reproducible builds before creating cpio
+        normalize_mtime(root, context.config.source_date_epoch)
+
         make_cpio(root, microcode, sandbox=context.sandbox)
 
     return [microcode]
