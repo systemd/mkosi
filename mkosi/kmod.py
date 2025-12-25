@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
+import dataclasses
 import fnmatch
 import itertools
 import logging
@@ -213,7 +214,13 @@ def module_path_to_name(path: Path) -> str:
     return normalize_module_name(path.name.partition(".")[0])
 
 
-def modinfo(context: Context, kver: str, modules: Iterable[str]) -> str:
+@dataclasses.dataclass(frozen=True)
+class ModuleDependencyInfo:
+    modules: set[str]
+    firmware: set[Path]
+
+
+def modinfo(context: Context, kver: str, modules: Iterable[str]) -> dict[str, ModuleDependencyInfo]:
     cmdline = ["modinfo", "--set-version", kver, "--null"]
 
     if context.config.output_format.is_extension_image() and not context.config.overlay:
@@ -224,53 +231,14 @@ def modinfo(context: Context, kver: str, modules: Iterable[str]) -> str:
 
     cmdline += [*modules]
 
-    return run(
-        cmdline,
-        stdout=subprocess.PIPE,
-        sandbox=sandbox,
-    ).stdout.strip()
+    output = run(cmdline, stdout=subprocess.PIPE, sandbox=sandbox).stdout.strip()
 
-
-def resolve_module_dependencies(
-    context: Context,
-    kver: str,
-    modules: Iterable[str],
-) -> tuple[set[Path], set[Path]]:
-    """
-    Returns a tuple of lists containing the paths to the module and firmware dependencies of the given list
-    of module names (including the given module paths themselves). The paths are returned relative to the
-    root directory.
-    """
-    modulesd = Path("usr/lib/modules") / kver
-    if (p := context.root / modulesd / "modules.builtin").exists():
-        builtin = set(module_path_to_name(Path(m)) for m in p.read_text().splitlines())
-    else:
-        builtin = set()
-    with chdir(context.root):
-        allmodules = set(modulesd.rglob("*.ko*"))
-    nametofile = {module_path_to_name(m): m for m in allmodules}
-
-    with complete_step("Running modinfo to fetch kernel module dependencies"):
-        # We could run modinfo once for each module but that's slow. Luckily we can pass multiple modules to
-        # modinfo and it'll process them all in a single go. We get the modinfo for all modules to build
-        # two maps that map the path of the module to its module dependencies and its firmware dependencies
-        # respectively. Because there's more kernel modules than the max number of accepted CLI arguments, we
-        # split the modules list up into chunks.
-        info = ""
-        for i in range(0, len(nametofile.keys()), 8500):
-            chunk = list(nametofile.keys())[i : i + 8500]
-            info += modinfo(context, kver, chunk)
-
-    log_step("Calculating required kernel modules and firmware")
-
-    moddep = {}
-    firmwaredep = {}
-
+    moddep: dict[str, ModuleDependencyInfo] = {}
     depends: set[str] = set()
     firmware: set[Path] = set()
 
     with chdir(context.root):
-        for line in info.split("\0"):
+        for line in output.split("\0"):
             key, sep, value = line.partition(":")
             if not sep:
                 key, sep, value = line.partition("=")
@@ -297,12 +265,45 @@ def resolve_module_dependencies(
                 # The file names use dashes, but the module names use underscores. We track the names in
                 # terms of the file names, since the depends use dashes and therefore filenames as well.
                 name = normalize_module_name(value)
-
-                moddep[name] = depends
-                firmwaredep[name] = firmware
-
+                moddep[name] = ModuleDependencyInfo(modules=depends, firmware=firmware)
                 depends = set()
                 firmware = set()
+
+    return moddep
+
+
+def resolve_module_dependencies(
+    context: Context,
+    kver: str,
+    modules: Iterable[str],
+) -> tuple[set[Path], set[Path]]:
+    """
+    Returns a tuple of lists containing the paths to the module and firmware dependencies of the given list
+    of module names (including the given module paths themselves). The paths are returned relative to the
+    root directory.
+    """
+    modulesd = Path("usr/lib/modules") / kver
+    if (p := context.root / modulesd / "modules.builtin").exists():
+        builtin = set(module_path_to_name(Path(m)) for m in p.read_text().splitlines())
+    else:
+        builtin = set()
+    with chdir(context.root):
+        allmodules = set(modulesd.rglob("*.ko*"))
+    nametofile = {module_path_to_name(m): m for m in allmodules}
+
+    moddep: dict[str, ModuleDependencyInfo] = {}
+
+    with complete_step("Running modinfo to fetch kernel module dependencies"):
+        # We could run modinfo once for each module but that's slow. Luckily we can pass multiple modules to
+        # modinfo and it'll process them all in a single go. We get the modinfo for all modules to build
+        # a map that maps the module name to both its module dependencies and its firmware dependencies.
+        # Because there's more kernel modules than the max number of accepted CLI arguments, we split the
+        # modules list up into chunks if needed.
+        for i in range(0, len(nametofile.keys()), 8500):
+            chunk = list(nametofile.keys())[i : i + 8500]
+            moddep |= modinfo(context, kver, chunk)
+
+    log_step("Calculating required kernel modules and firmware")
 
     todo = [*builtin, *modules]
     mods = set()
@@ -313,14 +314,17 @@ def resolve_module_dependencies(
         if m in mods:
             continue
 
-        depends = moddep.get(m, set())
-        for d in depends:
+        depinfo = moddep.get(m)
+        if not depinfo:
+            continue
+
+        for d in depinfo.modules:
             if d not in nametofile and d not in builtin:
                 logging.warning(f"{d} is a dependency of {m} but is not installed, ignoring ")
 
         mods.add(m)
-        todo += depends
-        firmware.update(firmwaredep.get(m, set()))
+        todo += depinfo.modules
+        firmware.update(depinfo.firmware)
 
     return set(nametofile[m] for m in mods if m in nametofile), set(firmware)
 
