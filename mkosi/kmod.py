@@ -7,7 +7,7 @@ import logging
 import os
 import re
 import subprocess
-from collections.abc import Iterable, Iterator, Reversible
+from collections.abc import Iterator, Sequence
 from pathlib import Path
 
 from mkosi.context import Context
@@ -24,12 +24,7 @@ def loaded_modules() -> list[str]:
     ]
 
 
-def globs_match_filename(
-    name: str,
-    globs: Reversible[str],
-    *,
-    match_default: bool = False,
-) -> bool:
+def globs_match_filename(name: str, globs: Sequence[str], *, match_default: bool = False) -> bool:
     # Check whether the path matches any of the globs
 
     for glob in reversed(globs):
@@ -57,22 +52,14 @@ def globs_match_filename(
     return match_default
 
 
-def globs_match_module(
-    name: str,
-    globs: Reversible[str],
-) -> bool:
+def globs_match_module(name: str, globs: Sequence[str]) -> bool:
     # Strip '.ko' suffix and an optional compression suffix
     name = re.sub(r"\.ko(\.(gz|xz|zst))?$", "", name)
     # Check whether the suffixless-path matches any of the globs
     return globs_match_filename(name, globs)
 
 
-def globs_match_firmware(
-    name: str,
-    globs: Reversible[str],
-    *,
-    match_default: bool = False,
-) -> bool:
+def globs_match_firmware(name: str, globs: Sequence[str], *, match_default: bool = False) -> bool:
     # Strip any known compression suffixes
     name = re.sub(r"\.(gz|xz|zst)$", "", name)
     # Check whether the suffixless-path matches any of the globs
@@ -84,8 +71,8 @@ def filter_kernel_modules(
     root: Path,
     kver: str,
     *,
-    include: Iterable[str],
-    exclude: Iterable[str],
+    include: Sequence[str],
+    exclude: Sequence[str],
 ) -> list[str]:
     if include:
         logging.debug(f"Kernel modules include directives: {' '.join(include)}")
@@ -149,8 +136,8 @@ def filter_firmware(
     root: Path,
     firmware: set[Path],
     *,
-    include: Iterable[str],
-    exclude: Iterable[str],
+    include: Sequence[str],
+    exclude: Sequence[str],
 ) -> set[Path]:
     if include:
         logging.debug(f"Firmware include directives: {' '.join(include)}")
@@ -221,7 +208,7 @@ class ModuleDependencyInfo:
     firmware: set[Path]
 
 
-def modinfo(context: Context, kver: str, modules: Iterable[str]) -> dict[str, ModuleDependencyInfo]:
+def modinfo(context: Context, kver: str, modules: Sequence[str]) -> dict[str, ModuleDependencyInfo]:
     cmdline = ["modinfo", "--set-version", kver, "--null"]
 
     if context.config.output_format.is_extension_image() and not context.config.overlay:
@@ -277,7 +264,7 @@ def modinfo(context: Context, kver: str, modules: Iterable[str]) -> dict[str, Mo
 def resolve_module_dependencies(
     context: Context,
     kver: str,
-    modules: Iterable[str],
+    modules: Sequence[str],
 ) -> tuple[set[Path], set[Path]]:
     """
     Returns a tuple of lists containing the paths to the module and firmware dependencies of the given list
@@ -332,10 +319,10 @@ def gen_required_kernel_modules(
     context: Context,
     kver: str,
     *,
-    modules_include: Iterable[str],
-    modules_exclude: Iterable[str],
-    firmware_include: Iterable[str],
-    firmware_exclude: Iterable[str],
+    modules_include: Sequence[str],
+    modules_exclude: Sequence[str],
+    firmware_include: Sequence[str],
+    firmware_exclude: Sequence[str],
 ) -> Iterator[Path]:
     modulesd = Path("usr/lib/modules") / kver
     firmwared = Path("usr/lib/firmware")
@@ -458,10 +445,10 @@ def process_kernel_modules(
     context: Context,
     kver: str,
     *,
-    modules_include: Iterable[str],
-    modules_exclude: Iterable[str],
-    firmware_include: Iterable[str],
-    firmware_exclude: Iterable[str],
+    modules_include: Sequence[str],
+    modules_exclude: Sequence[str],
+    firmware_include: Sequence[str],
+    firmware_exclude: Sequence[str],
 ) -> None:
     if not (modules_include or modules_exclude or firmware_include or firmware_exclude):
         return
@@ -530,7 +517,7 @@ def filter_devicetrees(
     root: Path,
     kver: str,
     *,
-    include: Iterable[str],
+    include: Sequence[str],
 ) -> list[Path]:
     if not include:
         return []
