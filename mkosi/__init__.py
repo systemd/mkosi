@@ -4845,13 +4845,14 @@ def sync_repository_metadata(
             install_sandbox_trees(context.config, context.sandbox_tree)
             context.config.distribution.installer.setup(context)
 
-            context.config.distribution.installer.keyring(context)
-
             with complete_step("Syncing package manager metadata"):
                 context.config.distribution.installer.package_manager(context.config).sync(
                     context,
                     force=context.args.force > 1 or context.config.cacheonly == Cacheonly.never,
                 )
+
+            context.config.distribution.installer.keyring(context)
+
         src = metadata_dir / "cache" / subdir
         dst = last.package_cache_dir_or_default() / "cache" / subdir
 

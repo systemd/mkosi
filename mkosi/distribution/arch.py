@@ -1,9 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 import datetime
-import tempfile
 from collections.abc import Iterable
-from pathlib import Path
 
 from mkosi.archive import extract_tar
 from mkosi.config import Architecture, Config
@@ -38,21 +36,46 @@ class Installer(DistributionInstaller, distribution=Distribution.arch):
     @classmethod
     def keyring(cls, context: Context) -> None:
         if context.config.repository_key_fetch:
-            with (
-                complete_step(f"Downloading {cls.pretty_name()} keyring"),
-                tempfile.TemporaryDirectory() as d,
-            ):
-                curl(
-                    context.config,
-                    "https://archlinux.org/packages/core/any/archlinux-keyring/download",
-                    output_dir=Path(d),
+            with complete_step(f"Downloading {cls.pretty_name()} keyring"):
+                # We can't override pacman configuration options from the command line so we fall back to
+                # appending to the configuration file instead.
+                config = context.sandbox_tree / "etc/pacman.conf"
+                content = config.read_text()
+                with config.open("a") as f:
+                    f.write("\n[options]\n")
+                    f.write("SigLevel = Never\n")
+
+                # We can't download a package without a dependencies without listing them in
+                # --assume-installed. Luckily archlinux-keyring only depends on pacman.
+                Pacman.install(
+                    context,
+                    ["archlinux-keyring"],
+                    apivfs=False,
+                    options=["--downloadonly", "--assume-installed", "pacman"],
                 )
+
+                packages = sorted(
+                    p
+                    for p in (
+                        context.config.package_cache_dir_or_default()
+                        / "cache"
+                        / Pacman.subdir(context.config)
+                        / "pkg"
+                    ).glob("archlinux-keyring-*.pkg.tar*")
+                    if not p.name.endswith(".sig")
+                )
+                if not packages:
+                    die("Could not find archlinux-keyring package in cache directory after downloading it")
+
                 extract_tar(
-                    next(Path(d).iterdir()),
+                    packages[-1],
                     context.sandbox_tree,
                     dirs=["usr/share/pacman/keyrings"],
                     sandbox=context.sandbox,
                 )
+
+                # Restore the original configuration file.
+                config.write_text(content)
 
         Pacman.keyring(context)
 

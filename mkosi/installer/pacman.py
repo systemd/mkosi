@@ -65,7 +65,7 @@ class Pacman(PackageManager):
             "--ro-bind", context.repository, "/var/cache/pacman/mkosi",
         ]  # fmt: skip
 
-        if any(context.keyring_dir.iterdir()):
+        if context.keyring_dir.exists() and any(context.keyring_dir.iterdir()):
             mounts += ["--ro-bind", context.keyring_dir, "/etc/pacman.d/gnupg"]
 
         if (context.root / "var/lib/pacman/local").exists():
@@ -201,13 +201,14 @@ class Pacman(PackageManager):
         *,
         apivfs: bool = True,
         allow_downgrade: bool = False,
+        options: Sequence[str] = (),
     ) -> None:
         arguments = ["--needed", "--assume-installed", "initramfs"]
 
         if allow_downgrade:
             arguments += ["--sysupgrade", "--sysupgrade"]
 
-        arguments += [*packages]
+        arguments += [*options, *packages]
 
         cls.invoke(context, "--sync", arguments, apivfs=apivfs)
 
