@@ -8,13 +8,14 @@ import os
 import re
 import subprocess
 from collections.abc import Iterator, Sequence
+from contextlib import AbstractContextManager
 from pathlib import Path
 
 from mkosi.context import Context
 from mkosi.log import complete_step
 from mkosi.run import chroot_cmd, run
 from mkosi.sandbox import chase
-from mkosi.util import chdir, parents_below
+from mkosi.util import PathString, chdir, parents_below
 
 
 def loaded_modules() -> list[str]:
@@ -211,17 +212,25 @@ class ModuleDependencyInfo:
 
 
 def modinfo(context: Context, kver: str, modules: Sequence[str]) -> dict[str, ModuleDependencyInfo]:
-    cmdline = ["modinfo", "--modname", "--set-version", kver, "--null"]
+    cmdline = ["modinfo", "--set-version", kver, "--null"]
 
     if context.config.output_format.is_extension_image() and not context.config.overlay:
         cmdline += ["--basedir", "/buildroot"]
-        sandbox = context.sandbox(options=context.rootoptions(readonly=True))
+
+        def sandbox() -> AbstractContextManager[list[PathString]]:
+            return context.sandbox(options=context.rootoptions(readonly=True))
     else:
-        sandbox = chroot_cmd(root=context.rootoptions)
+
+        def sandbox() -> AbstractContextManager[list[PathString]]:
+            return chroot_cmd(root=context.rootoptions)
+
+    # TODO: Use --modname unconditionally when we drop support for CentOS Stream 9.
+    if "--modname" in run(["modinfo", "--help"], stdout=subprocess.PIPE, sandbox=sandbox()).stdout:
+        cmdline += ["--modname"]
 
     cmdline += [*modules]
 
-    output = run(cmdline, stdout=subprocess.PIPE, sandbox=sandbox).stdout.strip()
+    output = run(cmdline, stdout=subprocess.PIPE, sandbox=sandbox()).stdout.strip()
 
     moddep: dict[str, ModuleDependencyInfo] = {}
     depends: set[str] = set()
