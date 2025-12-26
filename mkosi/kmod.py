@@ -1,16 +1,17 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
+import dataclasses
 import fnmatch
 import itertools
 import logging
 import os
 import re
 import subprocess
-from collections.abc import Iterable, Iterator, Reversible
+from collections.abc import Iterator, Sequence
 from pathlib import Path
 
 from mkosi.context import Context
-from mkosi.log import complete_step, log_step
+from mkosi.log import complete_step
 from mkosi.run import chroot_cmd, run
 from mkosi.sandbox import chase
 from mkosi.util import chdir, parents_below
@@ -23,12 +24,13 @@ def loaded_modules() -> list[str]:
     ]
 
 
-def globs_match_filename(
-    name: str,
-    globs: Reversible[str],
-    *,
-    match_default: bool = False,
-) -> bool:
+def all_modules(modulesd: Path) -> Iterator[Path]:
+    # The glob may match additional paths.
+    # Narrow this down to *.ko, *.ko.gz, *.ko.xz, *.ko.zst.
+    return (m for m in modulesd.rglob("*.ko*") if m.name.endswith((".ko.zst", ".ko.xz", ".ko.gz", ".ko")))
+
+
+def globs_match_filename(name: str, globs: Sequence[str], *, match_default: bool = False) -> bool:
     # Check whether the path matches any of the globs
 
     for glob in reversed(globs):
@@ -56,36 +58,28 @@ def globs_match_filename(
     return match_default
 
 
-def globs_match_module(
-    name: str,
-    globs: Reversible[str],
-) -> bool:
+def globs_match_module(name: str, globs: Sequence[str]) -> bool:
     # Strip '.ko' suffix and an optional compression suffix
     name = re.sub(r"\.ko(\.(gz|xz|zst))?$", "", name)
     # Check whether the suffixless-path matches any of the globs
     return globs_match_filename(name, globs)
 
 
-def globs_match_firmware(
-    name: str,
-    globs: Reversible[str],
-    *,
-    match_default: bool = False,
-) -> bool:
+def globs_match_firmware(name: str, globs: Sequence[str], *, match_default: bool = False) -> bool:
     # Strip any known compression suffixes
     name = re.sub(r"\.(gz|xz|zst)$", "", name)
     # Check whether the suffixless-path matches any of the globs
     return globs_match_filename(name, globs, match_default=match_default)
 
 
+@complete_step("Applying kernel modules include/exclude configuration")
 def filter_kernel_modules(
     root: Path,
     kver: str,
     *,
-    include: Iterable[str],
-    exclude: Iterable[str],
+    include: Sequence[str],
+    exclude: Sequence[str],
 ) -> list[str]:
-    log_step("Applying kernel modules include/exclude configuration")
     if include:
         logging.debug(f"Kernel modules include directives: {' '.join(include)}")
     if exclude:
@@ -93,11 +87,7 @@ def filter_kernel_modules(
 
     modulesd = Path("usr/lib/modules") / kver
     with chdir(root):
-        # The glob may match additional paths.
-        # Narrow this down to *.ko, *.ko.gz, *.ko.xz, *.ko.zst.
-        modules = {
-            m for m in modulesd.rglob("*.ko*") if m.name.endswith((".ko", ".ko.gz", ".ko.xz", ".ko.zst"))
-        }
+        modules = set(all_modules(modulesd))
 
     n_modules = len(modules)
 
@@ -143,12 +133,13 @@ def filter_kernel_modules(
     return sorted(module_path_to_name(m) for m in modules)
 
 
+@complete_step("Applying firmware include/exclude configuration")
 def filter_firmware(
     root: Path,
     firmware: set[Path],
     *,
-    include: Iterable[str],
-    exclude: Iterable[str],
+    include: Sequence[str],
+    exclude: Sequence[str],
 ) -> set[Path]:
     if include:
         logging.debug(f"Firmware include directives: {' '.join(include)}")
@@ -213,8 +204,14 @@ def module_path_to_name(path: Path) -> str:
     return normalize_module_name(path.name.partition(".")[0])
 
 
-def modinfo(context: Context, kver: str, modules: Iterable[str]) -> str:
-    cmdline = ["modinfo", "--set-version", kver, "--null"]
+@dataclasses.dataclass(frozen=True)
+class ModuleDependencyInfo:
+    modules: set[str]
+    firmware: set[Path]
+
+
+def modinfo(context: Context, kver: str, modules: Sequence[str]) -> dict[str, ModuleDependencyInfo]:
+    cmdline = ["modinfo", "--modname", "--set-version", kver, "--null"]
 
     if context.config.output_format.is_extension_image() and not context.config.overlay:
         cmdline += ["--basedir", "/buildroot"]
@@ -224,53 +221,14 @@ def modinfo(context: Context, kver: str, modules: Iterable[str]) -> str:
 
     cmdline += [*modules]
 
-    return run(
-        cmdline,
-        stdout=subprocess.PIPE,
-        sandbox=sandbox,
-    ).stdout.strip()
+    output = run(cmdline, stdout=subprocess.PIPE, sandbox=sandbox).stdout.strip()
 
-
-def resolve_module_dependencies(
-    context: Context,
-    kver: str,
-    modules: Iterable[str],
-) -> tuple[set[Path], set[Path]]:
-    """
-    Returns a tuple of lists containing the paths to the module and firmware dependencies of the given list
-    of module names (including the given module paths themselves). The paths are returned relative to the
-    root directory.
-    """
-    modulesd = Path("usr/lib/modules") / kver
-    if (p := context.root / modulesd / "modules.builtin").exists():
-        builtin = set(module_path_to_name(Path(m)) for m in p.read_text().splitlines())
-    else:
-        builtin = set()
-    with chdir(context.root):
-        allmodules = set(modulesd.rglob("*.ko*"))
-    nametofile = {module_path_to_name(m): m for m in allmodules}
-
-    with complete_step("Running modinfo to fetch kernel module dependencies"):
-        # We could run modinfo once for each module but that's slow. Luckily we can pass multiple modules to
-        # modinfo and it'll process them all in a single go. We get the modinfo for all modules to build
-        # two maps that map the path of the module to its module dependencies and its firmware dependencies
-        # respectively. Because there's more kernel modules than the max number of accepted CLI arguments, we
-        # split the modules list up into chunks.
-        info = ""
-        for i in range(0, len(nametofile.keys()), 8500):
-            chunk = list(nametofile.keys())[i : i + 8500]
-            info += modinfo(context, kver, chunk)
-
-    log_step("Calculating required kernel modules and firmware")
-
-    moddep = {}
-    firmwaredep = {}
-
+    moddep: dict[str, ModuleDependencyInfo] = {}
     depends: set[str] = set()
     firmware: set[Path] = set()
 
     with chdir(context.root):
-        for line in info.split("\0"):
+        for line in output.split("\0"):
             key, sep, value = line.partition(":")
             if not sep:
                 key, sep, value = line.partition("=")
@@ -297,30 +255,60 @@ def resolve_module_dependencies(
                 # The file names use dashes, but the module names use underscores. We track the names in
                 # terms of the file names, since the depends use dashes and therefore filenames as well.
                 name = normalize_module_name(value)
-
-                moddep[name] = depends
-                firmwaredep[name] = firmware
-
+                moddep[name] = ModuleDependencyInfo(modules=depends, firmware=firmware)
                 depends = set()
                 firmware = set()
+
+    return moddep
+
+
+@complete_step("Calculating required kernel modules and firmware")
+def resolve_module_dependencies(
+    context: Context,
+    kver: str,
+    modules: Sequence[str],
+) -> tuple[set[Path], set[Path]]:
+    """
+    Returns a tuple of lists containing the paths to the module and firmware dependencies of the given list
+    of module names (including the given module paths themselves). The paths are returned relative to the
+    root directory.
+    """
+    modulesd = Path("usr/lib/modules") / kver
+
+    if (p := context.root / modulesd / "modules.builtin").exists():
+        builtin = {module_path_to_name(Path(m)) for m in p.read_text().splitlines()}
+    else:
+        builtin = set()
+
+    with chdir(context.root):
+        nametofile = {module_path_to_name(m): m for m in all_modules(modulesd)}
 
     todo = [*builtin, *modules]
     mods = set()
     firmware = set()
 
     while todo:
-        m = todo.pop()
-        if m in mods:
-            continue
+        moddep: dict[str, ModuleDependencyInfo] = {}
 
-        depends = moddep.get(m, set())
-        for d in depends:
-            if d not in nametofile and d not in builtin:
-                logging.warning(f"{d} is a dependency of {m} but is not installed, ignoring ")
+        # We could run modinfo once for each module but that's slow. Luckily we can pass multiple modules
+        # to modinfo and it'll process them all in a single go. We get the modinfo for all modules to
+        # build a map that maps the module name to both its module dependencies and its firmware
+        # dependencies. Because there's more kernel modules than the max number of accepted CLI
+        # arguments, we split the modules list up into chunks if needed.
+        for i in range(0, len(todo), 8500):
+            chunk = todo[i : i + 8500]
+            moddep |= modinfo(context, kver, chunk)
 
-        mods.add(m)
-        todo += depends
-        firmware.update(firmwaredep.get(m, set()))
+        todo = []
+
+        for name, depinfo in moddep.items():
+            for d in depinfo.modules:
+                if d not in nametofile and d not in builtin:
+                    logging.warning(f"{d} is a dependency of {name} but is not installed, ignoring ")
+
+            mods.add(name)
+            firmware.update(depinfo.firmware)
+            todo += [m for m in depinfo.modules if m not in mods]
 
     return set(nametofile[m] for m in mods if m in nametofile), set(firmware)
 
@@ -329,10 +317,10 @@ def gen_required_kernel_modules(
     context: Context,
     kver: str,
     *,
-    modules_include: Iterable[str],
-    modules_exclude: Iterable[str],
-    firmware_include: Iterable[str],
-    firmware_exclude: Iterable[str],
+    modules_include: Sequence[str],
+    modules_exclude: Sequence[str],
+    firmware_include: Sequence[str],
+    firmware_exclude: Sequence[str],
 ) -> Iterator[Path]:
     modulesd = Path("usr/lib/modules") / kver
     firmwared = Path("usr/lib/firmware")
@@ -356,14 +344,11 @@ def gen_required_kernel_modules(
             "No modules excluded and no firmware installed, using kernel modules generation fast path"
         )
         with chdir(context.root):
-            modules = set(modulesd.rglob("*.ko*"))
+            modules = set(all_modules(modulesd))
         firmware = set()
 
     # Include or exclude firmware explicitly configured
-    with complete_step("Applying firmware include/exclude configuration"):
-        firmware = filter_firmware(
-            context.root, firmware, include=firmware_include, exclude=firmware_exclude
-        )
+    firmware = filter_firmware(context.root, firmware, include=firmware_include, exclude=firmware_exclude)
 
     # /usr/lib/firmware makes use of symbolic links so we have to make sure the symlinks and their targets
     # are all included.
@@ -458,10 +443,10 @@ def process_kernel_modules(
     context: Context,
     kver: str,
     *,
-    modules_include: Iterable[str],
-    modules_exclude: Iterable[str],
-    firmware_include: Iterable[str],
-    firmware_exclude: Iterable[str],
+    modules_include: Sequence[str],
+    modules_exclude: Sequence[str],
+    firmware_include: Sequence[str],
+    firmware_exclude: Sequence[str],
 ) -> None:
     if not (modules_include or modules_exclude or firmware_include or firmware_exclude):
         return
@@ -482,7 +467,7 @@ def process_kernel_modules(
 
     with complete_step("Applying kernel module filters"):
         with chdir(context.root):
-            modules = sorted(modulesd.rglob("*.ko*"), reverse=True)
+            modules = sorted(all_modules(modulesd), reverse=True)
             firmware = sorted(firmwared.rglob("*"), reverse=True)
 
         for m in modules:
@@ -530,7 +515,7 @@ def filter_devicetrees(
     root: Path,
     kver: str,
     *,
-    include: Iterable[str],
+    include: Sequence[str],
 ) -> list[Path]:
     if not include:
         return []
