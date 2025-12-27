@@ -1,6 +1,9 @@
-% mkosi-initrd(1)
-%
-%
+---
+title: mkosi-initrd(1)
+category: Manuals
+layout: default
+SPDX-License-Identifier: LGPL-2.1-or-later
+---
 
 # NAME
 
