@@ -3278,16 +3278,16 @@ https://ubuntu.com/blog/ubuntu-23-10-restricted-unprivileged-user-namespaces. To
 unprivileged user namespaces on Ubuntu, run the following commands:
 
 ```sh
-sudo sysctl -w kernel.apparmor_restrict_unprivileged_unconfined=1
-sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=1
+sudo sysctl -w kernel.apparmor_restrict_unprivileged_unconfined=0
+sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 ```
 
 To persist these sysctl settings across reboots, create `/etc/sysctl.d/unprivileged-userns.conf`
 with the following contents:
 
 ```conf
-kernel.apparmor_restrict_unprivileged_unconfined=1
-kernel.apparmor_restrict_unprivileged_userns=1
+kernel.apparmor_restrict_unprivileged_unconfined=0
+kernel.apparmor_restrict_unprivileged_userns=0
 ```
 
 For other systems, try researching the `kernel.unprivileged_userns_clone` or
