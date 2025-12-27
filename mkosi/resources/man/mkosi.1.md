@@ -3257,10 +3257,11 @@ In this scenario, the kernel is loaded from the ESP in the image by **systemd-bo
 
 - mkosi requires a Linux kernel that provides `mount_setattr()` which was introduces in 5.12.
 - mkosi currently requires systemd 254 or newer to build bootable disk images.
-- mkosi requires various dependencies to be installed. The basic required dependencies
-  can be listed by running `mkosi dependencies`. Either install the required dependencies
-  on your system or use a tools tree (see the `ToolsTree=` documentation for more
-  information).
+- mkosi requires various dependencies to be installed. If a tools tree is used, (see the
+  `ToolsTree=` documentation for more information), then mkosi will download all of its
+  dependencies (except python and a package manager) itself. Otherwise, you'll need to install
+  the required dependencies on your system. You can run `mkosi dependencies` to get a list of the
+  basic required dependencies. For regular mkosi use, we strongly recommend using a tools tree.
 - On Debian/Kali/Ubuntu it might be necessary to install the `ubuntu-keyring`,
   `ubuntu-archive-keyring`, `kali-archive-keyring` and/or `debian-archive-keyring`
   packages explicitly, in addition to **apt**, depending on what kind of distribution
