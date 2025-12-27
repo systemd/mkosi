@@ -1066,8 +1066,8 @@ See the mkosi-sandbox(1) man page for details.\
 UNSHARE_EPERM_MSG = f"""\
 {ANSI_RED}mkosi was forbidden to unshare namespaces{ANSI_RESET}.
 This probably means your distribution has restricted unprivileged user namespaces.
-Please consult the REQUIREMENTS section of the mkosi man page, e.g. via "mkosi
-documentation", for workarounds.\
+Please consult the "Unprivileged User Namespaces" section of the mkosi man page,
+e.g. via "mkosi documentation", for workarounds.\
 """
 
 

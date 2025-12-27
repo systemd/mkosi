@@ -3255,52 +3255,43 @@ In this scenario, the kernel is loaded from the ESP in the image by **systemd-bo
 
 # REQUIREMENTS
 
-mkosi is packaged for various distributions: Debian, Kali, Ubuntu, Arch
-Linux, Fedora Linux, OpenMandriva, Gentoo, postmarketOS. Note that it has been a while
-since the last release and the packages shipped by distributions are
-very out of date. We currently recommend running **mkosi** from git until a
-new release happens.
+- mkosi requires a Linux kernel that provides `mount_setattr()` which was introduces in 5.12.
+- mkosi currently requires systemd 254 or newer to build bootable disk images.
+- mkosi requires various dependencies to be installed. The basic required dependencies
+  can be listed by running `mkosi dependencies`. Either install the required dependencies
+  on your system or use a tools tree (see the `ToolsTree=` documentation for more
+  information).
+- On Debian/Kali/Ubuntu it might be necessary to install the `ubuntu-keyring`,
+  `ubuntu-archive-keyring`, `kali-archive-keyring` and/or `debian-archive-keyring`
+  packages explicitly, in addition to **apt**, depending on what kind of distribution
+  images you want to build.
+- The minimum required Python version is 3.9.
 
-mkosi requires a Linux kernel that provides `mount_setattr()` which was introduces in 5.12.
+## Unprivileged User Namespaces
 
-mkosi currently requires systemd 254 to build bootable disk images.
-
-When not using distribution packages make sure to install the
-necessary dependencies. For example, on *Fedora Linux* you need:
-
-```bash
-# dnf install btrfs-progs apt dosfstools mtools edk2-ovmf e2fsprogs squashfs-tools gnupg python3 tar xfsprogs xz zypper sbsigntools
-```
-
-On Debian/Kali/Ubuntu it might be necessary to install the `ubuntu-keyring`,
-`ubuntu-archive-keyring`, `kali-archive-keyring` and/or `debian-archive-keyring`
-packages explicitly, in addition to **apt**, depending on what kind of distribution
-images you want to build.
-
-Note that the minimum required Python version is 3.9.
-
-mkosi needs unrestricted abilities to create and act within namespaces. Some
-distros restrict creation of, or capabilities within, user namespaces, which
+mkosi needs unrestricted abilities to create and act within Linux namespaces. Some
+distributions restrict the creation of, or capabilities within, user namespaces, which
 breaks mkosi.
 
-For information about Ubuntu, that implements such restrictions using AppArmor, see
-https://ubuntu.com/blog/ubuntu-23-10-restricted-unprivileged-user-namespaces.
+For information about Ubuntu, which implements such restrictions using AppArmor, see
+https://ubuntu.com/blog/ubuntu-23-10-restricted-unprivileged-user-namespaces. To enable
+unprivileged user namespaces on Ubuntu, run the following commands:
+
+```sh
+sudo sysctl -w kernel.apparmor_restrict_unprivileged_unconfined=1
+sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=1
+```
+
+To persist these sysctl settings across reboots, create `/etc/sysctl.d/unprivileged-userns.conf`
+with the following contents:
+
+```conf
+kernel.apparmor_restrict_unprivileged_unconfined=1
+kernel.apparmor_restrict_unprivileged_userns=1
+```
+
 For other systems, try researching the `kernel.unprivileged_userns_clone` or
 `user.max.user_namespace` sysctls.
-
-For Ubuntu systems, you can remove the restrictions for **mkosi** by
-adapting this snippet to point to your **mkosi** binary, copying it to
-`/etc/apparmor.d/resolved.path.to.mkosi`, and then running `systemctl reload apparmor`:
-
-```
-abi <abi/4.0>,
-
-include <tunables/global>
-
-/resolved/path/to/mkosi flags=(default_allow) {
-  userns,
-}
-```
 
 # FREQUENTLY ASKED QUESTIONS (FAQ)
 
