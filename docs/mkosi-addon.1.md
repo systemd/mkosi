@@ -1,0 +1,1 @@
+../mkosi/resources/man/mkosi-addon.1.md
