@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 BUILDDIR=$(mktemp -d -q)
 cleanup() {
