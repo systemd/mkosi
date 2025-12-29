@@ -9,7 +9,7 @@ from pathlib import Path
 
 from mkosi.config import Config
 from mkosi.context import Context
-from mkosi.distribution import detect_distribution
+from mkosi.distribution import Distribution, detect_distribution
 from mkosi.installer import PackageManager
 from mkosi.log import complete_step
 from mkosi.run import CompletedProcess, run, workdir
@@ -234,6 +234,7 @@ class Pacman(PackageManager):
 
         if (
             (d := detect_distribution(context.config.tools())[0])
+            and isinstance(d, Distribution)
             and d.is_apt_distribution()
             and (context.sandbox_tree / "usr/share/pacman/keyrings").exists()
         ):
