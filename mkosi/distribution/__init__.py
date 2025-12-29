@@ -5,7 +5,7 @@ import importlib
 import urllib.parse
 from collections.abc import Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Union
 
 from mkosi.log import die
 from mkosi.util import StrEnum, read_env_file
@@ -151,7 +151,7 @@ class DistributionInstaller:
         return False
 
 
-def detect_distribution(root: Path = Path("/")) -> tuple[Optional[Distribution], Optional[str]]:
+def detect_distribution(root: Path = Path("/")) -> tuple[Union[Distribution, str, None], Optional[str]]:
     try:
         os_release = read_env_file(root / "etc/os-release")
     except FileNotFoundError:
@@ -160,25 +160,28 @@ def detect_distribution(root: Path = Path("/")) -> tuple[Optional[Distribution],
         except FileNotFoundError:
             return None, None
 
-    dist_id = os_release.get("ID", "linux")
+    dist_id = os_release.get("ID")
     dist_id_like = os_release.get("ID_LIKE", "").split()
     version_id = os_release.get("VERSION_ID", None) if dist_id != "opensuse-tumbleweed" else "tumbleweed"
     version_codename = os_release.get("VERSION_CODENAME", None)
 
     quirks = {
-        "azurelinux": Distribution.azure,
+        "azurelinux": "azure",
     }
 
     d: Optional[Distribution] = None
     for the_id in [dist_id, *dist_id_like]:
-        d = Distribution.__members__.get(the_id, quirks.get(the_id))
-        if d is not None:
+        if not the_id:
+            continue
+
+        if the_id in Distribution.values() or the_id in quirks:
+            d = Distribution(quirks.get(the_id, the_id))
             break
 
     if d and d.is_apt_distribution() and version_codename:
         version_id = version_codename
 
-    return d, version_id
+    return d or dist_id, version_id
 
 
 def join_mirror(mirror: str, link: str) -> str:

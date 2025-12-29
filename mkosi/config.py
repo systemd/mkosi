@@ -1006,12 +1006,12 @@ def config_default_output(namespace: dict[str, Any]) -> str:
 
 
 def config_default_distribution(namespace: dict[str, Any]) -> Distribution:
-    if d := os.getenv("MKOSI_HOST_DISTRIBUTION"):
+    if (d := os.getenv("MKOSI_HOST_DISTRIBUTION")) and d in Distribution.values():
         return Distribution(d)
 
     detected = detect_distribution()[0]
 
-    if not detected:
+    if not isinstance(detected, Distribution):
         logging.info(
             "Distribution of your host can't be detected or isn't a supported target. "
             "Defaulting to Distribution=custom."
@@ -1022,10 +1022,14 @@ def config_default_distribution(namespace: dict[str, Any]) -> Distribution:
 
 
 def config_default_release(namespace: dict[str, Any]) -> str:
-    hd: Optional[Distribution]
+    hd: Union[Distribution, str, None]
     hr: Optional[str]
 
-    if (d := os.getenv("MKOSI_HOST_DISTRIBUTION")) and (r := os.getenv("MKOSI_HOST_RELEASE")):
+    if (
+        (d := os.getenv("MKOSI_HOST_DISTRIBUTION"))
+        and d in Distribution.values()
+        and (r := os.getenv("MKOSI_HOST_RELEASE"))
+    ):
         hd, hr = Distribution(d), r
     else:
         hd, hr = detect_distribution()
@@ -1038,12 +1042,12 @@ def config_default_release(namespace: dict[str, Any]) -> str:
 
 
 def config_default_tools_tree_distribution(namespace: dict[str, Any]) -> Distribution:
-    if d := os.getenv("MKOSI_HOST_DISTRIBUTION"):
+    if (d := os.getenv("MKOSI_HOST_DISTRIBUTION")) and d in Distribution.values():
         return Distribution(d).installer.default_tools_tree_distribution() or Distribution(d)
 
     detected = detect_distribution()[0]
 
-    if not detected:
+    if not isinstance(detected, Distribution):
         return Distribution.custom
 
     return detected.installer.default_tools_tree_distribution() or detected
@@ -1054,10 +1058,11 @@ def config_default_repository_key_fetch(namespace: dict[str, Any]) -> bool:
         return distribution == Distribution.arch or distribution.is_rpm_distribution()
 
     if namespace["tools_tree"] not in (Path("default"), Path("yes")):
-        return (
-            detect_distribution(namespace["tools_tree"] or Path("/"))[0] == Distribution.ubuntu
-            and needs_repository_key_fetch(namespace["distribution"])
-        )  # fmt: skip
+        d = detect_distribution(namespace["tools_tree"] or Path("/"))[0]
+        if d == "nixos":
+            return True
+
+        return d == Distribution.ubuntu and needs_repository_key_fetch(namespace["distribution"])
 
     return namespace["tools_tree_distribution"] == Distribution.ubuntu and needs_repository_key_fetch(
         namespace["distribution"]

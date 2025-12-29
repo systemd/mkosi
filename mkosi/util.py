@@ -185,7 +185,7 @@ class StrEnum(enum.Enum):
 
     @classmethod
     def values(cls) -> list[str]:
-        return list(s.replace("_", "-") for s in map(str, cls.__members__))
+        return [d.value for d in cls.__members__.values()]
 
     @classmethod
     def choices(cls) -> list[str]:

@@ -1514,7 +1514,7 @@ def test_tools(tmp_path: Path) -> None:
         _, tools, _ = parse_config(argv, resources=resources)
         assert tools
         host = detect_distribution()[0]
-        if host:
+        if isinstance(host, Distribution):
             assert tools.distribution == (
                 host.installer.default_tools_tree_distribution() or tools.distribution
             )

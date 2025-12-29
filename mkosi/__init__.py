@@ -3446,8 +3446,8 @@ def make_image(
         cmdline += ["--definitions", workdir(d)]
         opts += ["--ro-bind", d, workdir(d)]
 
-    def can_orphan_file(distribution: Optional[Distribution], release: Optional[str]) -> bool:
-        if distribution is None:
+    def can_orphan_file(distribution: Union[Distribution, str, None], release: Optional[str]) -> bool:
+        if not isinstance(distribution, Distribution):
             return True
 
         return not (
