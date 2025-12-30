@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Union
 from xml.etree import ElementTree
 
-from mkosi.config import Architecture, Config
+from mkosi.config import Architecture, Config, parse_ini
 from mkosi.context import Context
 from mkosi.curl import curl
 from mkosi.distribution import Distribution, DistributionInstaller, PackageType, join_mirror
@@ -52,6 +52,17 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
         setup_rpm(context, dbbackend="ndb")
         cls.package_manager(context.config).setup(context, list(cls.repositories(context)))
 
+        if cls.package_manager(context.config) is Zypper and (gpgkeys := fetch_gpgkeys(context)):
+            run(
+                ["rpm", "--root=/buildroot", "--import", *gpgkeys],
+                sandbox=context.sandbox(
+                    options=[
+                        *context.rootoptions(),
+                        *finalize_certificate_mounts(context.config),
+                    ],
+                ),
+            )
+
     @classmethod
     def install(cls, context: Context) -> None:
         packages = ["filesystem"]
@@ -86,22 +97,6 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
                     "openSUSE GPG keys not found in /usr/share/distribution-gpg-keys",
                     hint="Make sure the distribution-gpg-keys package is installed",
                 )
-
-            if zypper and gpgkeys:
-                run(
-                    [
-                        "rpm",
-                        "--root=/buildroot",
-                        "--import",
-                        *(key.removeprefix("file://") for key in gpgkeys),
-                    ],
-                    sandbox=context.sandbox(
-                        options=[
-                            *context.rootoptions(),
-                            *finalize_certificate_mounts(context.config),
-                        ],
-                    ),
-                )  # fmt: skip
 
             if context.config.snapshot:
                 if context.config.architecture != Architecture.x86_64:
@@ -259,6 +254,24 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
     @classmethod
     def is_kernel_package(cls, package: str) -> bool:
         return package in ("kernel-default", "kernel-kvmsmall")
+
+
+def fetch_gpgkeys(context: Context) -> list[Path]:
+    files = set()
+
+    for p in (context.sandbox_tree / "etc/zypp/repos.d").iterdir():
+        for _, name, value in parse_ini(p):
+            if name != "gpgkey":
+                continue
+
+            keys = value.splitlines()
+            for key in keys:
+                if not key.startswith("file://"):
+                    continue
+
+                files.add(Path(key.removeprefix("file://")))
+
+    return sorted(files)
 
 
 def fetch_gpgurls(context: Context, repourl: str) -> tuple[str, ...]:
