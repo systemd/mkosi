@@ -3123,6 +3123,20 @@ def run_tmpfiles(context: Context) -> None:
         )  # fmt: skip
 
 
+def run_locale_gen(context: Context) -> None:
+    if not (context.root / "etc/locale.gen").exists():
+        return
+
+    if all(
+        line.strip().startswith("#") or not line.strip()
+        for line in (context.root / "etc/locale.gen").read_text().splitlines()
+    ):
+        return
+
+    with complete_step("Generating locales"):
+        run(["locale-gen"], sandbox=chroot_cmd(root=context.rootoptions))
+
+
 def run_preset(context: Context) -> None:
     if (
         context.config.overlay
