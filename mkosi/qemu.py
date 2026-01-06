@@ -428,7 +428,7 @@ def start_virtiofsd(
             proc.terminate()
 
 
-async def notify(messages: queue.SimpleQueue[tuple[str, str]], *, sock: socket.socket) -> None:
+async def vsock_notify_handler(messages: queue.SimpleQueue[tuple[str, str]], *, sock: socket.socket) -> None:
     import asyncio
 
     loop = asyncio.get_running_loop()
@@ -458,20 +458,6 @@ async def notify(messages: queue.SimpleQueue[tuple[str, str]], *, sock: socket.s
                 messages.put((k, v))
     except asyncio.CancelledError:
         logging.debug(f"Received {num_messages} notify messages totalling {format_bytes(num_bytes)} bytes")
-
-
-@contextlib.contextmanager
-def vsock_notify_handler() -> Iterator[tuple[str, AsyncioThread[tuple[str, str]]]]:
-    """
-    This yields a vsock address and an object that will be filled in with the notifications from the VM.
-    """
-    with socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM) as vsock:
-        vsock.bind((socket.VMADDR_CID_ANY, socket.VMADDR_PORT_ANY))
-        vsock.listen()
-        vsock.setblocking(False)
-
-        with AsyncioThread(functools.partial(notify, sock=vsock)) as thread:
-            yield f"vsock-stream:{socket.VMADDR_CID_HOST}:{vsock.getsockname()[1]}", thread
 
 
 @contextlib.contextmanager
@@ -1226,6 +1212,7 @@ def run_qemu(args: Args, config: Config) -> None:
         assert ovmf
         cmdline += ["-drive", f"if=pflash,format={ovmf.format},readonly=on,file={ovmf.firmware}"]
 
+    vsock: Optional[socket.socket] = None
     notify: Optional[AsyncioThread[tuple[str, str]]] = None
 
     with contextlib.ExitStack() as stack:
@@ -1371,8 +1358,13 @@ def run_qemu(args: Args, config: Config) -> None:
                 cmdline += ["-device", "tpm-tis-device,tpmdev=tpm0"]
 
         if QemuDeviceNode.vhost_vsock in qemu_device_fds:
-            addr, notify = stack.enter_context(vsock_notify_handler())
-            (credentials / "vmm.notify_socket").write_text(addr)
+            vsock = stack.enter_context(socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM))
+            vsock.bind((socket.VMADDR_CID_ANY, socket.VMADDR_PORT_ANY))
+            vsock.listen()
+            vsock.setblocking(False)
+            (credentials / "vmm.notify_socket").write_text(
+                f"vsock-stream:{socket.VMADDR_CID_HOST}:{vsock.getsockname()[1]}"
+            )
 
         if config.forward_journal:
             (credentials / "journal.forward_to_socket").write_text(
@@ -1481,6 +1473,13 @@ def run_qemu(args: Args, config: Config) -> None:
             os.waitid(os.P_PID, proc.pid, os.WEXITED | os.WSTOPPED | os.WNOWAIT)
 
             register_machine(config, proc.pid, fname, cid)
+
+            # Fork and threads don't mix well when using preexec functions, so start the thread to handle
+            # vsock notifications only after we have started qemu.
+            if vsock:
+                notify = stack.enter_context(
+                    AsyncioThread(functools.partial(vsock_notify_handler, sock=vsock))
+                )
 
             proc.send_signal(signal.SIGCONT)
 
