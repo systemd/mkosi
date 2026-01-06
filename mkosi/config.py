@@ -2138,7 +2138,6 @@ class Config:
     runtime_network: Network
     runtime_build_sources: bool
     bind_user: bool
-    unit_properties: list[str]
     ssh_key: Optional[Path]
     ssh_certificate: Optional[Path]
     machine: Optional[str]
@@ -4060,15 +4059,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
         scope=SettingScope.main,
     ),
     ConfigSetting(
-        dest="unit_properties",
-        long="--unit-property",
-        metavar="PROPERTY",
-        section="Runtime",
-        parse=config_make_list_parser(delimiter=" ", unescape=True),
-        help="Set properties on the scopes spawned by systemd-nspawn or systemd-run",
-        scope=SettingScope.main,
-    ),
-    ConfigSetting(
         dest="ssh_key",
         metavar="PATH",
         section="Runtime",
@@ -5772,7 +5762,6 @@ def summary(config: Config) -> str:
                     Runtime Network: {config.runtime_network}
               Runtime Build Sources: {config.runtime_build_sources}
                           Bind User: {yes_no(config.bind_user)}
-                    Unit Properties: {line_join_list(config.unit_properties)}
                     SSH Signing Key: {none_to_none(config.ssh_key)}
                     SSH Certificate: {none_to_none(config.ssh_certificate)}
                             Machine: {config.machine_or_name()}
