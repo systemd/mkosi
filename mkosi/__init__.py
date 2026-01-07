@@ -4355,9 +4355,6 @@ def run_shell(args: Args, config: Config) -> None:
                     "--set-credential=journal.forward_to_socket:/run/host/journal/socket",
                 ]
 
-        for p in config.unit_properties:
-            cmdline += ["--property", p]
-
         if args.verb == Verb.boot:
             # Add nspawn options first since systemd-nspawn ignores all options after the first argument.
             argv = args.cmdline

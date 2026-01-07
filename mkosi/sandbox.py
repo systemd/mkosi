@@ -1057,7 +1057,6 @@ mkosi-sandbox [OPTIONS...] COMMAND [ARGUMENTS...]
      --suppress-sync              Make sync() syscalls in the sandbox a noop
      --unshare-net                Unshare the network namespace if possible
      --unshare-ipc                Unshare the IPC namespace if possible
-     --suspend                    Stop process before execve()
 
 See the mkosi-sandbox(1) man page for details.\
 """
@@ -1083,7 +1082,7 @@ def main(argv: list[str] = sys.argv[1:]) -> None:
     upperdir = ""
     workdir = ""
     chdir = None
-    become_root = suppress_chown = suppress_sync = unshare_net = unshare_ipc = suspend = pack_fds = False
+    become_root = suppress_chown = suppress_sync = unshare_net = unshare_ipc = pack_fds = False
 
     try:
         ttyname = os.ttyname(2) if os.isatty(2) else ""
@@ -1163,8 +1162,6 @@ def main(argv: list[str] = sys.argv[1:]) -> None:
             unshare_net = True
         elif arg == "--unshare-ipc":
             unshare_ipc = True
-        elif arg == "--suspend":
-            suspend = True
         elif arg == "--pack-fds":
             pack_fds = True
         elif arg.startswith("-"):
@@ -1287,9 +1284,6 @@ def main(argv: list[str] = sys.argv[1:]) -> None:
         if nfds > 0:
             os.environ["LISTEN_FDS"] = str(nfds)
             os.environ["LISTEN_PID"] = str(os.getpid())
-
-    if suspend:
-        os.kill(os.getpid(), SIGSTOP)
 
     if is_main():
         try:

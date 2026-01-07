@@ -16,7 +16,6 @@ import queue
 import random
 import resource
 import shutil
-import signal
 import socket
 import struct
 import subprocess
@@ -45,7 +44,6 @@ from mkosi.config import (
     format_bytes,
     swtpm_setup_version,
     systemd_pty_forward,
-    systemd_tool_version,
     want_selinux_relabel,
     yes_no,
 )
@@ -298,10 +296,6 @@ def start_swtpm(config: Config) -> Iterator[Path]:
                 cmdline,
                 pass_fds=(sock.fileno(),),
                 sandbox=config.sandbox(options=["--bind", state, workdir(Path(state))]),
-                setup=scope_cmd(
-                    name=f"mkosi-swtpm-{config.machine_or_name()}",
-                    description=f"swtpm for {config.machine_or_name()}",
-                ),
             ) as proc:
                 yield path
                 proc.terminate()
@@ -338,7 +332,6 @@ def start_virtiofsd(
     directory: Path,
     *,
     uidmap: bool = True,
-    name: Optional[str] = None,
     selinux: bool = False,
 ) -> Iterator[Path]:
     virtiofsd = find_virtiofsd(root=config.tools(), extra=config.extra_search_paths)
@@ -393,42 +386,38 @@ def start_virtiofsd(
         # We want RuntimeBuildSources= and RuntimeTrees= to do the right thing even when running mkosi vm
         # as root without the source directories necessarily being owned by root. We achieve this by running
         # virtiofsd as the owner of the source directory and then mapping that uid to root.
-        if not name:
-            name = f"{config.machine_or_name()}-{systemd_escape(config, directory, path=True)}"
-        else:
-            name = systemd_escape(config, name)
-
-        name = f"mkosi-virtiofsd-{name}"
-        description = f"virtiofsd for machine {config.machine_or_name()} for {directory}"
-        scope = []
-        if st:
-            scope = scope_cmd(name=name, description=description, user=st.st_uid, group=st.st_gid)
-        elif not uidmap and (os.getuid() == 0 or unshare_version() >= "2.38"):
-            scope = scope_cmd(name=name, description=description)
 
         with spawn(
             cmdline,
             pass_fds=(sock.fileno(),),
-            user=st.st_uid if st and not scope else None,
-            group=st.st_gid if st and not scope else None,
-            # If we're booting from virtiofs and unshare is too old, we don't set up a scope so we can use
-            # our own function to become root in the subuid range.
+            user=st.st_uid if st else None,
+            group=st.st_gid if st else None,
+            # If we're booting from virtiofs and unshare is too old, we use our own function to become root
+            # in the subuid range if needed.
             # TODO: Drop this as soon as we drop CentOS Stream 9 support and can rely on newer unshare
             # features.
-            preexec=become_root_in_subuid_range if not scope and not uidmap else None,
+            preexec=(
+                become_root_in_subuid_range
+                if not uidmap and os.getuid() != 0 and unshare_version() < "2.38"
+                else None
+            ),
             sandbox=config.sandbox(
                 options=[
                     "--bind", directory, workdir(directory),
                     *(["--become-root"] if uidmap else []),
                 ],
             ),
-            setup=scope + (become_root_in_subuid_range_cmd() if scope and not uidmap else []),
+            setup=(
+                become_root_in_subuid_range_cmd()
+                if not uidmap and os.getuid() != 0 and unshare_version() >= "2.38"
+                else []
+            ),
         ) as proc:  # fmt: skip
             yield path
             proc.terminate()
 
 
-async def notify(messages: queue.SimpleQueue[tuple[str, str]], *, sock: socket.socket) -> None:
+async def vsock_notify_handler(messages: queue.SimpleQueue[tuple[str, str]], *, sock: socket.socket) -> None:
     import asyncio
 
     loop = asyncio.get_running_loop()
@@ -458,20 +447,6 @@ async def notify(messages: queue.SimpleQueue[tuple[str, str]], *, sock: socket.s
                 messages.put((k, v))
     except asyncio.CancelledError:
         logging.debug(f"Received {num_messages} notify messages totalling {format_bytes(num_bytes)} bytes")
-
-
-@contextlib.contextmanager
-def vsock_notify_handler() -> Iterator[tuple[str, AsyncioThread[tuple[str, str]]]]:
-    """
-    This yields a vsock address and an object that will be filled in with the notifications from the VM.
-    """
-    with socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM) as vsock:
-        vsock.bind((socket.VMADDR_CID_ANY, socket.VMADDR_PORT_ANY))
-        vsock.listen()
-        vsock.setblocking(False)
-
-        with AsyncioThread(functools.partial(notify, sock=vsock)) as thread:
-            yield f"vsock-stream:{socket.VMADDR_CID_HOST}:{vsock.getsockname()[1]}", thread
 
 
 @contextlib.contextmanager
@@ -516,12 +491,6 @@ def start_journal_remote(config: Config, sockfd: int) -> Iterator[None]:
 
         user = d.stat().st_uid if os.getuid() == 0 else None
         group = d.stat().st_gid if os.getuid() == 0 else None
-        scope = scope_cmd(
-            name=f"mkosi-journal-remote-{config.machine_or_name()}",
-            description=f"mkosi systemd-journal-remote for {config.machine_or_name()}",
-            user=user,
-            group=group,
-        )
 
         with spawn(
             [
@@ -537,9 +506,8 @@ def start_journal_remote(config: Config, sockfd: int) -> Iterator[None]:
                     "--pack-fds",
                 ],
             ),
-            setup=scope,
-            user=user if not scope else None,
-            group=group if not scope else None,
+            user=user,
+            group=group,
         ) as proc:  # fmt: skip
             yield
             proc.terminate()
@@ -919,49 +887,6 @@ def finalize_credentials(config: Config, stack: contextlib.ExitStack) -> Path:
     return d
 
 
-def scope_cmd(
-    name: str,
-    description: str,
-    user: Optional[int] = None,
-    group: Optional[int] = None,
-    properties: Sequence[str] = (),
-    environment: bool = True,
-) -> list[str]:
-    if not find_binary("systemd-run"):
-        return []
-
-    if os.getuid() != 0 and "DBUS_SESSION_BUS_ADDRESS" in os.environ and "XDG_RUNTIME_DIR" in os.environ:
-        env = {
-            "DBUS_SESSION_BUS_ADDRESS": os.environ["DBUS_SESSION_BUS_ADDRESS"],
-            "XDG_RUNTIME_DIR": os.environ["XDG_RUNTIME_DIR"],
-        }
-    elif os.getuid() == 0:
-        if "DBUS_SYSTEM_ADDRESS" in os.environ:
-            env = {"DBUS_SYSTEM_ADDRESS": os.environ["DBUS_SYSTEM_ADDRESS"]}
-        elif Path("/run/dbus/system_bus_socket").exists():
-            env = {"DBUS_SYSTEM_ADDRESS": "/run/dbus/system_bus_socket"}
-        else:
-            return []
-    else:
-        return []
-
-    return [
-        "env",
-        *(f"{k}={v}" for k, v in env.items() if environment),
-        "systemd-run",
-        "--system" if os.getuid() == 0 else "--user",
-        *(["--quiet"] if not ARG_DEBUG.get() else []),
-        "--unit", name,
-        "--description", description,
-        "--scope",
-        "--collect",
-        *(["--expand-environment=no"] if systemd_tool_version("systemd-run") >= 254 else []),
-        *(["--uid", str(user)] if user is not None else []),
-        *(["--gid", str(group)] if group is not None else []),
-        *([f"--property={p}" for p in properties]),
-    ]  # fmt: skip
-
-
 def finalize_register(config: Config) -> bool:
     if config.register == ConfigFeature.disabled:
         return False
@@ -997,6 +922,7 @@ def register_machine(config: Config, pid: int, fname: Path, cid: Optional[int]) 
                     **({"vSockCid": cid} if cid is not None else {}),
                     **({"sshAddress": f"vsock/{cid}"} if cid is not None else {}),
                     **({"sshPrivateKeyPath": f"{config.ssh_key}"} if config.ssh_key else {}),
+                    **({"allocateUnit": True}),
                 }
             ),
         ],
@@ -1226,6 +1152,7 @@ def run_qemu(args: Args, config: Config) -> None:
         assert ovmf
         cmdline += ["-drive", f"if=pflash,format={ovmf.format},readonly=on,file={ovmf.firmware}"]
 
+    vsock: Optional[socket.socket] = None
     notify: Optional[AsyncioThread[tuple[str, str]]] = None
 
     with contextlib.ExitStack() as stack:
@@ -1266,7 +1193,6 @@ def run_qemu(args: Args, config: Config) -> None:
                     start_virtiofsd(
                         config,
                         fname,
-                        name=config.machine_or_name(),
                         uidmap=False,
                         selinux=bool(want_selinux_relabel(config, fname, fatal=False)),
                     ),
@@ -1371,8 +1297,13 @@ def run_qemu(args: Args, config: Config) -> None:
                 cmdline += ["-device", "tpm-tis-device,tpmdev=tpm0"]
 
         if QemuDeviceNode.vhost_vsock in qemu_device_fds:
-            addr, notify = stack.enter_context(vsock_notify_handler())
-            (credentials / "vmm.notify_socket").write_text(addr)
+            vsock = stack.enter_context(socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM))
+            vsock.bind((socket.VMADDR_CID_ANY, socket.VMADDR_PORT_ANY))
+            vsock.listen()
+            vsock.setblocking(False)
+            (credentials / "vmm.notify_socket").write_text(
+                f"vsock-stream:{socket.VMADDR_CID_HOST}:{vsock.getsockname()[1]}"
+            )
 
         if config.forward_journal:
             (credentials / "journal.forward_to_socket").write_text(
@@ -1464,13 +1395,7 @@ def run_qemu(args: Args, config: Config) -> None:
                 network=True,
                 devices=True,
                 relaxed=True,
-                options=["--same-dir", "--suspend"],
-            ),
-            setup=scope_cmd(
-                name=name,
-                description=f"mkosi Virtual Machine {name}",
-                properties=config.unit_properties,
-                environment=False,
+                options=["--same-dir"],
             ),
         ) as proc:
             # We have to close these before we wait for qemu otherwise we'll deadlock as qemu will never
@@ -1478,11 +1403,14 @@ def run_qemu(args: Args, config: Config) -> None:
             for fd in qemu_device_fds.values():
                 os.close(fd)
 
-            os.waitid(os.P_PID, proc.pid, os.WEXITED | os.WSTOPPED | os.WNOWAIT)
-
             register_machine(config, proc.pid, fname, cid)
 
-            proc.send_signal(signal.SIGCONT)
+            # Fork and threads don't mix well when using preexec functions, so start the thread to handle
+            # vsock notifications only after we have started qemu.
+            if vsock:
+                notify = stack.enter_context(
+                    AsyncioThread(functools.partial(vsock_notify_handler, sock=vsock))
+                )
 
         if notify and (status := int({k: v for k, v in notify.process()}.get("EXIT_STATUS", "0"))) != 0:
             raise subprocess.CalledProcessError(status, cmdline)

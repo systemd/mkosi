@@ -322,10 +322,6 @@ def spawn(
             if log:
                 log_process_failure(sbx, cmd, returncode)
             if ARG_DEBUG_SHELL.get():
-                # --suspend will freeze the debug shell with no way to unfreeze it so strip it from the
-                # sandbox if it's there.
-                prefix = [s for s in prefix if s != "--suspend"]
-                sbx = [s for s in sbx if s != "--suspend"]
                 subprocess.run(
                     [*setup, *prefix, "bash"],
                     check=False,

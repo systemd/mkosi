@@ -1992,12 +1992,6 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   Bind the home directory of the current user into the container/vm.
     Takes a boolean. Disabled by default.
 
-`UnitProperties=`, `--unit-property=`
-:   Configure systemd unit properties to add to the systemd scopes
-    allocated when using `mkosi boot` or `mkosi vm`. These are passed
-    directly to the `--property=` options of **systemd-nspawn** and
-    **systemd-run** respectively.
-
 `SshKey=`, `--ssh-key=`
 :   Path to the X.509 private key in PEM format to use to connect to a
     virtual machine started with `mkosi vm` and built with the `Ssh=`

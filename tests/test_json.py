@@ -404,9 +404,6 @@ def test_config() -> None:
                 }
             ],
             "UnifiedKernelImages": "auto",
-            "UnitProperties": [
-                "PROPERTY=VALUE"
-            ],
             "UseSubvolumes": "auto",
             "VSock": "enabled",
             "VSockCID": -2,
@@ -603,7 +600,6 @@ def test_config() -> None:
             )
         ],
         unified_kernel_images=UnifiedKernelImage.auto,
-        unit_properties=["PROPERTY=VALUE"],
         use_subvolumes=ConfigFeature.auto,
         verity_certificate_source=CertificateSource(type=CertificateSourceType.file),
         verity_certificate=Path("/path/to/cert"),

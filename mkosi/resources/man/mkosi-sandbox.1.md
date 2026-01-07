@@ -131,11 +131,6 @@ from `mkosi.sandbox` is not supported and may break in future versions.
 `--unshare-ipc`
 :   Specifying this option makes `mkosi-sandbox` unshare an IPC namespace if possible.
 
-`--suspend`
-:   Make the `mkosi-sandbox` process suspend itself with `SIGSTOP` just before it calls `execve()`.
-    This is useful to wait until all setup logic has completed before continuing execution in the parent
-    process invoking `mkosi-sandbox` by using `waitid()` with the `WNOWAIT` AND `WSTOPPED` flags.
-
 `--pack-fds`
 :   Pack inherited file descriptors together starting at file descriptor number 3 and set
     `$LISTEN_FDS` to the number of packed file descriptors and `$LISTEN_PID` to the current process
