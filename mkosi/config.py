@@ -5333,6 +5333,8 @@ def parse_config(
             context.parse_config_one(configdir, parse_profiles=True, parse_local=True)
 
     config = context.finalize()
+    # Keep a copy around for passing to finalize_default_initrd() later.
+    maincontext = copy.deepcopy(context)
 
     if config["history"] and want_new_history(args):
         Path(".mkosi-private/history").mkdir(parents=True, exist_ok=True)
@@ -5428,7 +5430,7 @@ def parse_config(
     subimages = [Config.from_dict(ns) for ns in images]
 
     if any(want_default_initrd(image) for image in subimages + [main]):
-        initrd = finalize_default_initrd(context, config, resources=resources)
+        initrd = finalize_default_initrd(maincontext, config, resources=resources)
 
         if want_default_initrd(main):
             main = dataclasses.replace(

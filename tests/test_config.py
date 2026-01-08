@@ -1652,3 +1652,34 @@ def test_assert(tmp_path: Path) -> None:
 
         parse_config(["--image-id", "abcde", "--environment", "ABC=QED"])
         parse_config(["--image-id", "abcde", "--environment", "DEF=QEE"])
+
+
+def test_initrd_packages(tmp_path: Path) -> None:
+    d = tmp_path
+
+    (d / "mkosi.conf").write_text(
+        """\
+        [Content]
+        InitrdPackages=package1
+        InitrdPackages=package2
+
+        [Content]
+        Bootable=yes
+        """
+    )
+
+    with chdir(d), resource_path(mkosi.resources) as resources:
+        _, _, [initrd, _] = parse_config(resources=resources)
+
+    assert "package1" in initrd.packages
+    assert "package2" in initrd.packages
+
+    # Make sure the InitrdPackages= are also picked up when a subimage is defined.
+    (d / "mkosi.images").mkdir()
+    (d / "mkosi.images/subimage.conf").touch()
+
+    with chdir(d), resource_path(mkosi.resources) as resources:
+        _, _, [_, initrd, _] = parse_config(resources=resources)
+
+    assert "package1" in initrd.packages
+    assert "package2" in initrd.packages
