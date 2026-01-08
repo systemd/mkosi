@@ -5149,10 +5149,10 @@ def finalize_default_initrd(
                 ns = context.cli
                 if f"{s.dest}_was_none" in main.cli:
                     ns[f"{dest}_was_none"] = main.cli[f"{s.dest}_was_none"]
-            elif s.dest in main.config:
-                ns = context.config
             else:
-                ns = context.defaults
+                # Always use context.config for non-CLI initrd settings to ensure they
+                # merge with mkosi-initrd config during parsing
+                ns = context.config
 
             ns[dest] = copy.deepcopy(finalized[s.dest])
 
