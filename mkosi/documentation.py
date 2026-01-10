@@ -29,7 +29,7 @@ def show_docs(
                 return
             elif form == DocFormat.pandoc:
                 if not find_binary("pandoc"):
-                    logging.warn("pandoc is not available")
+                    logging.warning("pandoc is not available")
                     continue
                 pandoc = run(
                     [
