@@ -30,8 +30,8 @@ class CompGen(StrEnum):
         # TODO: the type of action.type is Union[Callable[[str], Any], FileType]
         # the type of Path is type, but Path also works in this position,
         # because the constructor is a callable from str -> Path
-        elif action.type is not None and (isinstance(action.type, type) and issubclass(action.type, Path)):  # type: ignore
-            if isinstance(action.default, Path) and action.default.is_dir():  # type: ignore
+        elif action.type is not None and (isinstance(action.type, type) and issubclass(action.type, Path)):
+            if isinstance(action.default, Path) and action.default.is_dir():
                 return CompGen.dirs
             else:
                 return CompGen.files
