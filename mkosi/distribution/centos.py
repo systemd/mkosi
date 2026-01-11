@@ -308,6 +308,11 @@ class Installer(DistributionInstaller, distribution=Distribution.centos):
         else:
             url = "metalink=https://mirrors.fedoraproject.org/metalink?arch=$basearch"
 
+            if GenericVersion(context.config.release) >= 10:
+                repo_extra_part = "-z"
+            else:
+                repo_extra_part = ""
+
             # epel-next does not exist anymore since EPEL 10.
             repos = ["epel"]
             if GenericVersion(context.config.release) < 10:
@@ -316,38 +321,38 @@ class Installer(DistributionInstaller, distribution=Distribution.centos):
             for repo in repos:
                 yield RpmRepository(
                     repo,
-                    f"{url}&repo={repo}-{release}",
+                    f"{url}&repo={repo}{repo_extra_part}-{release}",
                     gpgurls,
                     enabled=False,
                 )
                 yield RpmRepository(
                     f"{repo}-debuginfo",
-                    f"{url}&repo={repo}-debug-{release}",
+                    f"{url}&repo={repo}{repo_extra_part}-debug-{release}",
                     gpgurls,
                     enabled=False,
                 )
                 yield RpmRepository(
                     f"{repo}-source",
-                    f"{url}&repo={repo}-source-{release}",
+                    f"{url}&repo={repo}{repo_extra_part}-source-{release}",
                     gpgurls,
                     enabled=False,
                 )
 
             yield RpmRepository(
                 "epel-testing",
-                f"{url}&repo=testing-epel{release}",
+                f"{url}&repo=epel{repo_extra_part}-testing-{release}",
                 gpgurls,
                 enabled=False,
             )
             yield RpmRepository(
                 "epel-testing-debuginfo",
-                f"{url}&repo=testing-debug-epel{release}",
+                f"{url}&repo=epel{repo_extra_part}-testing-debug-{release}",
                 gpgurls,
                 enabled=False,
             )
             yield RpmRepository(
                 "epel-testing-source",
-                f"{url}&repo=testing-source-epel{release}",
+                f"{url}&repo=epel{repo_extra_part}-testing-source-{release}",
                 gpgurls,
                 enabled=False,
             )
