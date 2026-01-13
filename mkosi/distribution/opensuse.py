@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
+import os
 import tempfile
 from collections.abc import Iterable
 from pathlib import Path
@@ -15,7 +16,8 @@ from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey, setup_rpm
 from mkosi.installer.zypper import Zypper
 from mkosi.log import die
 from mkosi.mounts import finalize_certificate_mounts
-from mkosi.run import run
+from mkosi.run import run, workdir
+from mkosi.util import flatten
 from mkosi.versioncomp import GenericVersion
 
 
@@ -54,11 +56,12 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
 
         if cls.package_manager(context.config) is Zypper and (gpgkeys := fetch_gpgkeys(context)):
             run(
-                ["rpm", "--root=/buildroot", "--import", *gpgkeys],
+                ["rpm", "--root=/buildroot", "--import", *(workdir(key) for key in gpgkeys)],
                 sandbox=context.sandbox(
                     options=[
                         *context.rootoptions(),
                         *finalize_certificate_mounts(context.config),
+                        *flatten(["--ro-bind", os.fspath(key), workdir(key)] for key in gpgkeys),
                     ],
                 ),
             )
@@ -266,10 +269,21 @@ def fetch_gpgkeys(context: Context) -> list[Path]:
 
             keys = value.splitlines()
             for key in keys:
-                if not key.startswith("file://"):
-                    continue
+                if key.startswith("file://"):
+                    path = key.removeprefix("file://").lstrip("/")
+                    if not (context.config.tools() / path).exists():
+                        die(f"Local repository GPG key specified ({key}) but not found at /{path}")
 
-                files.add(Path(key.removeprefix("file://")))
+                    files.add(context.config.tools() / path)
+                elif key.startswith("https://") and context.config.repository_key_fetch:
+                    (context.workspace / "keys").mkdir(parents=True, exist_ok=True)
+                    curl(context.config, key, output_dir=context.workspace / "keys")
+                    files.add(context.workspace / "keys" / Path(key).name)
+                else:
+                    die(
+                        f"Remote repository GPG key specified ({key}) but RepositoryKeyFetch= is disabled",
+                        hint="Enable RepositoryKeyFetch= or provide local keys",
+                    )
 
     return sorted(files)
 
