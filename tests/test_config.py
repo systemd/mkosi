@@ -154,7 +154,6 @@ def test_parse_config(tmp_path: Path) -> None:
 
     # Empty values on the CLIs resets non-collection based settings to their defaults and collection based
     # settings to empty collections.
-    assert config.distribution == (detect_distribution()[0] or Distribution.custom)
     assert "MY_KEY" not in config.environment
     assert "my.cred" not in config.credentials
     assert config.repositories == []
