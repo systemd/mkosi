@@ -266,7 +266,7 @@ def fetch_gpgkeys(context: Context) -> list[Path]:
                 if key.startswith("file://"):
                     path = key.removeprefix("file://").lstrip("/")
                     if not (context.config.tools() / path).exists():
-                        die(f"Local repository GPG key specified ({key}) but not found at /{path}")
+                        die(f"Local GPG key specified ({key}) but not found at /{path}")
 
                     files.add(context.config.tools() / path)
                 elif key.startswith("https://") and context.config.repository_key_fetch:
@@ -275,7 +275,7 @@ def fetch_gpgkeys(context: Context) -> list[Path]:
                     files.add(context.workspace / "keys" / Path(key).name)
                 else:
                     die(
-                        f"Remote repository GPG key specified ({key}) but RepositoryKeyFetch= is disabled",
+                        f"Remote GPG key specified ({key}) but RepositoryKeyFetch= is disabled",
                         hint="Enable RepositoryKeyFetch= or provide local keys",
                     )
 
