@@ -254,7 +254,7 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
 
 
 def fetch_gpgkeys(context: Context) -> list[Path]:
-    files = set()
+    files = set((context.metadata_dir / "cache/zypp/pubkeys").glob("*.asc"))
 
     for p in (context.sandbox_tree / "etc/zypp/repos.d").iterdir():
         for _, name, value in parse_ini(p):
