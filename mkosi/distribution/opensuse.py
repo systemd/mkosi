@@ -298,6 +298,6 @@ def fetch_gpgurls(context: Context, repourl: str) -> tuple[str, ...]:
     for child in tags.iter("{http://linux.duke.edu/metadata/repo}content"):
         if child.text and child.text.startswith("gpg-pubkey"):
             gpgkey = child.text.partition("?")[0]
-            gpgurls += [f"{repourl}{gpgkey}"]
+            gpgurls += [f"{repourl}/{gpgkey}"]
 
     return tuple(gpgurls)
