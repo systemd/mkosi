@@ -157,6 +157,23 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
                     enabled=False,
                 )
         else:
+            # OpenSUSE releases can't be reliably mapped to GPG keys, so we import all possible
+            # keys here.
+            gpgkeys = tuple(
+                p
+                for key in (
+                    "RPM-GPG-KEY-openSUSE",
+                    "RPM-GPG-KEY-openSUSE-16-Backports",
+                    "RPM-GPG-KEY-openSUSE-2022",
+                    "RPM-GPG-KEY-openSUSE-Backports",
+                    "RPM-GPG-KEY-openSUSE-Backports-2023",
+                    "RPM-GPG-KEY-SuSE-SLE-15",
+                    "RPM-GPG-KEY-SuSE-SLE-Main-2023",
+                    "RPM-GPG-KEY-SuSE-ALP-Main",
+                )
+                if (p := find_rpm_gpgkey(context, key, required=not context.config.repository_key_fetch))
+            )
+
             if context.config.snapshot:
                 die(f"Snapshot= is only supported for Tumbleweed on {cls.pretty_name()}")
 
@@ -197,7 +214,7 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
                 yield RpmRepository(
                     id=repo,
                     url=f"baseurl={url}",
-                    gpgurls=fetch_gpgurls(context, url) if not zypper else (),
+                    gpgurls=gpgkeys or (fetch_gpgurls(context, url) if not zypper else ()),
                     enabled=repo == "oss",
                 )
 
@@ -207,7 +224,7 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
                     yield RpmRepository(
                         id=f"{repo}-{d}",
                         url=f"baseurl={url}",
-                        gpgurls=fetch_gpgurls(context, url) if not zypper else (),
+                        gpgurls=gpgkeys or (fetch_gpgurls(context, url) if not zypper else ()),
                         enabled=False,
                     )
 
@@ -224,7 +241,7 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
                 yield RpmRepository(
                     id=f"{repo}-update",
                     url=f"baseurl={url}",
-                    gpgurls=fetch_gpgurls(context, url) if not zypper else (),
+                    gpgurls=gpgkeys or (fetch_gpgurls(context, url) if not zypper else ()),
                     enabled=repo == "oss",
                 )
 
