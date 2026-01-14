@@ -55,16 +55,17 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
         cls.package_manager(context.config).setup(context, list(cls.repositories(context)))
 
         if cls.package_manager(context.config) is Zypper and (gpgkeys := fetch_gpgkeys(context)):
-            run(
-                ["rpm", "--root=/buildroot", "--import", *(workdir(key) for key in gpgkeys)],
-                sandbox=context.sandbox(
-                    options=[
-                        *context.rootoptions(),
-                        *finalize_certificate_mounts(context.config),
-                        *flatten(["--ro-bind", os.fspath(key), workdir(key)] for key in gpgkeys),
-                    ],
-                ),
-            )
+            with complete_step("Importing GPG keys into RPM database"):
+                run(
+                    ["rpm", "--root=/buildroot", "--import", *(workdir(key) for key in gpgkeys)],
+                    sandbox=context.sandbox(
+                        options=[
+                            *context.rootoptions(),
+                            *finalize_certificate_mounts(context.config),
+                            *flatten(["--ro-bind", os.fspath(key), workdir(key)] for key in gpgkeys),
+                        ],
+                    ),
+                )
 
     @classmethod
     def install(cls, context: Context) -> None:
