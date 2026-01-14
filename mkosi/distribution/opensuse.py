@@ -92,14 +92,8 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
             gpgkeys = tuple(
                 p
                 for key in ("RPM-GPG-KEY-openSUSE-Tumbleweed", "RPM-GPG-KEY-openSUSE")
-                if (p := find_rpm_gpgkey(context, key, required=False))
+                if (p := find_rpm_gpgkey(context, key, required=not context.config.repository_key_fetch))
             )
-
-            if not gpgkeys and not context.config.repository_key_fetch:
-                die(
-                    "openSUSE GPG keys not found in /usr/share/distribution-gpg-keys",
-                    hint="Make sure the distribution-gpg-keys package is installed",
-                )
 
             if context.config.snapshot:
                 if context.config.architecture != Architecture.x86_64:
