@@ -14,7 +14,7 @@ from mkosi.distribution import Distribution, DistributionInstaller, PackageType,
 from mkosi.installer.dnf import Dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey, setup_rpm
 from mkosi.installer.zypper import Zypper
-from mkosi.log import die
+from mkosi.log import complete_step, die
 from mkosi.mounts import finalize_certificate_mounts
 from mkosi.run import run, workdir
 from mkosi.util import flatten
@@ -256,28 +256,29 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
 def fetch_gpgkeys(context: Context) -> list[Path]:
     files = set((context.metadata_dir / "cache/zypp/pubkeys").glob("*.asc"))
 
-    for p in (context.sandbox_tree / "etc/zypp/repos.d").iterdir():
-        for _, name, value in parse_ini(p):
-            if name != "gpgkey":
-                continue
+    with complete_step("Fetching GPG keys from configured repositories"):
+        for p in (context.sandbox_tree / "etc/zypp/repos.d").iterdir():
+            for _, name, value in parse_ini(p):
+                if name != "gpgkey":
+                    continue
 
-            keys = value.splitlines()
-            for key in keys:
-                if key.startswith("file://"):
-                    path = key.removeprefix("file://").lstrip("/")
-                    if not (context.config.tools() / path).exists():
-                        die(f"Local GPG key specified ({key}) but not found at /{path}")
+                keys = value.splitlines()
+                for key in keys:
+                    if key.startswith("file://"):
+                        path = key.removeprefix("file://").lstrip("/")
+                        if not (context.config.tools() / path).exists():
+                            die(f"Local GPG key specified ({key}) but not found at /{path}")
 
-                    files.add(context.config.tools() / path)
-                elif key.startswith("https://") and context.config.repository_key_fetch:
-                    (context.workspace / "keys").mkdir(parents=True, exist_ok=True)
-                    curl(context.config, key, output_dir=context.workspace / "keys")
-                    files.add(context.workspace / "keys" / Path(key).name)
-                else:
-                    die(
-                        f"Remote GPG key specified ({key}) but RepositoryKeyFetch= is disabled",
-                        hint="Enable RepositoryKeyFetch= or provide local keys",
-                    )
+                        files.add(context.config.tools() / path)
+                    elif key.startswith("https://") and context.config.repository_key_fetch:
+                        (context.workspace / "keys").mkdir(parents=True, exist_ok=True)
+                        curl(context.config, key, output_dir=context.workspace / "keys")
+                        files.add(context.workspace / "keys" / Path(key).name)
+                    else:
+                        die(
+                            f"Remote GPG key specified ({key}) but RepositoryKeyFetch= is disabled",
+                            hint="Enable RepositoryKeyFetch= or provide local keys",
+                        )
 
     return sorted(files)
 
@@ -285,7 +286,10 @@ def fetch_gpgkeys(context: Context) -> list[Path]:
 def fetch_gpgurls(context: Context, repourl: str) -> tuple[str, ...]:
     gpgurls = [f"{repourl}/repodata/repomd.xml.key"]
 
-    with tempfile.TemporaryDirectory() as d:
+    with (
+        complete_step(f"Fetching GPG key list from repository {repourl}"),
+        tempfile.TemporaryDirectory() as d,
+    ):
         curl(context.config, f"{repourl}/repodata/repomd.xml", output_dir=Path(d))
         xml = (Path(d) / "repomd.xml").read_text()
 
