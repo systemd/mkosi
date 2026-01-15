@@ -14,7 +14,7 @@ from mkosi.distribution import Distribution, DistributionInstaller, PackageType,
 from mkosi.installer.dnf import Dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey, setup_rpm
 from mkosi.installer.zypper import Zypper
-from mkosi.log import die
+from mkosi.log import complete_step, die
 from mkosi.mounts import finalize_certificate_mounts
 from mkosi.run import run, workdir
 from mkosi.util import flatten
@@ -55,16 +55,17 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
         cls.package_manager(context.config).setup(context, list(cls.repositories(context)))
 
         if cls.package_manager(context.config) is Zypper and (gpgkeys := fetch_gpgkeys(context)):
-            run(
-                ["rpm", "--root=/buildroot", "--import", *(workdir(key) for key in gpgkeys)],
-                sandbox=context.sandbox(
-                    options=[
-                        *context.rootoptions(),
-                        *finalize_certificate_mounts(context.config),
-                        *flatten(["--ro-bind", os.fspath(key), workdir(key)] for key in gpgkeys),
-                    ],
-                ),
-            )
+            with complete_step("Importing GPG keys into RPM database"):
+                run(
+                    ["rpm", "--root=/buildroot", "--import", *(workdir(key) for key in gpgkeys)],
+                    sandbox=context.sandbox(
+                        options=[
+                            *context.rootoptions(),
+                            *finalize_certificate_mounts(context.config),
+                            *flatten(["--ro-bind", os.fspath(key), workdir(key)] for key in gpgkeys),
+                        ],
+                    ),
+                )
 
     @classmethod
     def install(cls, context: Context) -> None:
@@ -92,14 +93,8 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
             gpgkeys = tuple(
                 p
                 for key in ("RPM-GPG-KEY-openSUSE-Tumbleweed", "RPM-GPG-KEY-openSUSE")
-                if (p := find_rpm_gpgkey(context, key, required=False))
+                if (p := find_rpm_gpgkey(context, key, required=not context.config.repository_key_fetch))
             )
-
-            if not gpgkeys and not context.config.repository_key_fetch:
-                die(
-                    "openSUSE GPG keys not found in /usr/share/distribution-gpg-keys",
-                    hint="Make sure the distribution-gpg-keys package is installed",
-                )
 
             if context.config.snapshot:
                 if context.config.architecture != Architecture.x86_64:
@@ -163,6 +158,23 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
                     enabled=False,
                 )
         else:
+            # OpenSUSE releases can't be reliably mapped to GPG keys, so we import all possible
+            # keys here.
+            gpgkeys = tuple(
+                p
+                for key in (
+                    "RPM-GPG-KEY-openSUSE",
+                    "RPM-GPG-KEY-openSUSE-16-Backports",
+                    "RPM-GPG-KEY-openSUSE-2022",
+                    "RPM-GPG-KEY-openSUSE-Backports",
+                    "RPM-GPG-KEY-openSUSE-Backports-2023",
+                    "RPM-GPG-KEY-SuSE-SLE-15",
+                    "RPM-GPG-KEY-SuSE-SLE-Main-2023",
+                    "RPM-GPG-KEY-SuSE-ALP-Main",
+                )
+                if (p := find_rpm_gpgkey(context, key, required=not context.config.repository_key_fetch))
+            )
+
             if context.config.snapshot:
                 die(f"Snapshot= is only supported for Tumbleweed on {cls.pretty_name()}")
 
@@ -203,7 +215,7 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
                 yield RpmRepository(
                     id=repo,
                     url=f"baseurl={url}",
-                    gpgurls=fetch_gpgurls(context, url) if not zypper else (),
+                    gpgurls=gpgkeys or (fetch_gpgurls(context, url) if not zypper else ()),
                     enabled=repo == "oss",
                 )
 
@@ -213,7 +225,7 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
                     yield RpmRepository(
                         id=f"{repo}-{d}",
                         url=f"baseurl={url}",
-                        gpgurls=fetch_gpgurls(context, url) if not zypper else (),
+                        gpgurls=gpgkeys or (fetch_gpgurls(context, url) if not zypper else ()),
                         enabled=False,
                     )
 
@@ -230,7 +242,7 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
                 yield RpmRepository(
                     id=f"{repo}-update",
                     url=f"baseurl={url}",
-                    gpgurls=fetch_gpgurls(context, url) if not zypper else (),
+                    gpgurls=gpgkeys or (fetch_gpgurls(context, url) if not zypper else ()),
                     enabled=repo == "oss",
                 )
 
@@ -260,30 +272,31 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
 
 
 def fetch_gpgkeys(context: Context) -> list[Path]:
-    files = set()
+    files = set((context.metadata_dir / "cache/zypp/pubkeys").glob("*.asc"))
 
-    for p in (context.sandbox_tree / "etc/zypp/repos.d").iterdir():
-        for _, name, value in parse_ini(p):
-            if name != "gpgkey":
-                continue
+    with complete_step("Fetching GPG keys from configured repositories"):
+        for p in (context.sandbox_tree / "etc/zypp/repos.d").iterdir():
+            for _, name, value in parse_ini(p):
+                if name != "gpgkey":
+                    continue
 
-            keys = value.splitlines()
-            for key in keys:
-                if key.startswith("file://"):
-                    path = key.removeprefix("file://").lstrip("/")
-                    if not (context.config.tools() / path).exists():
-                        die(f"Local repository GPG key specified ({key}) but not found at /{path}")
+                keys = value.splitlines()
+                for key in keys:
+                    if key.startswith("file://"):
+                        path = key.removeprefix("file://").lstrip("/")
+                        if not (context.config.tools() / path).exists():
+                            die(f"Local GPG key specified ({key}) but not found at /{path}")
 
-                    files.add(context.config.tools() / path)
-                elif key.startswith("https://") and context.config.repository_key_fetch:
-                    (context.workspace / "keys").mkdir(parents=True, exist_ok=True)
-                    curl(context.config, key, output_dir=context.workspace / "keys")
-                    files.add(context.workspace / "keys" / Path(key).name)
-                else:
-                    die(
-                        f"Remote repository GPG key specified ({key}) but RepositoryKeyFetch= is disabled",
-                        hint="Enable RepositoryKeyFetch= or provide local keys",
-                    )
+                        files.add(context.config.tools() / path)
+                    elif key.startswith("https://") and context.config.repository_key_fetch:
+                        (context.workspace / "keys").mkdir(parents=True, exist_ok=True)
+                        curl(context.config, key, output_dir=context.workspace / "keys")
+                        files.add(context.workspace / "keys" / Path(key).name)
+                    else:
+                        die(
+                            f"Remote GPG key specified ({key}) but RepositoryKeyFetch= is disabled",
+                            hint="Enable RepositoryKeyFetch= or provide local keys",
+                        )
 
     return sorted(files)
 
@@ -291,7 +304,10 @@ def fetch_gpgkeys(context: Context) -> list[Path]:
 def fetch_gpgurls(context: Context, repourl: str) -> tuple[str, ...]:
     gpgurls = [f"{repourl}/repodata/repomd.xml.key"]
 
-    with tempfile.TemporaryDirectory() as d:
+    with (
+        complete_step(f"Fetching GPG key list from repository {repourl}"),
+        tempfile.TemporaryDirectory() as d,
+    ):
         curl(context.config, f"{repourl}/repodata/repomd.xml", output_dir=Path(d))
         xml = (Path(d) / "repomd.xml").read_text()
 
@@ -304,6 +320,6 @@ def fetch_gpgurls(context: Context, repourl: str) -> tuple[str, ...]:
     for child in tags.iter("{http://linux.duke.edu/metadata/repo}content"):
         if child.text and child.text.startswith("gpg-pubkey"):
             gpgkey = child.text.partition("?")[0]
-            gpgurls += [f"{repourl}{gpgkey}"]
+            gpgurls += [f"{repourl}/{gpgkey}"]
 
     return tuple(gpgurls)
