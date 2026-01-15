@@ -391,13 +391,21 @@ def configure_os_release(context: Context) -> None:
         if not osrelease.is_file() or osrelease.is_symlink():
             continue
 
-        if context.config.image_id or context.config.image_version or context.config.hostname:
-            # at this point we know we will either change or add to the file
+        if (
+            context.config.image_id
+            or context.config.image_version
+            or context.config.hostname
+            or context.config.environment.get("PORTABLE_PREFIXES")
+        ):
+            # At this point we know we will either change or add to the file
             newosrelease = osrelease.with_suffix(".new")
+            image_id_written = False
+            image_version_written = False
+            default_hostname_written = False
+            portable_prefixes_written = False
 
-            image_id_written = image_version_written = default_hostname_written = False
             with osrelease.open("r") as old, newosrelease.open("w") as new:
-                # fix existing values
+                # Fix existing values
                 for line in old.readlines():
                     if context.config.image_id and line.startswith("IMAGE_ID="):
                         new.write(f'IMAGE_ID="{context.config.image_id}"\n')
@@ -408,16 +416,23 @@ def configure_os_release(context: Context) -> None:
                     elif context.config.hostname and line.startswith("DEFAULT_HOSTNAME="):
                         new.write(f'DEFAULT_HOSTNAME="{context.config.hostname}"\n')
                         default_hostname_written = True
+                    elif context.config.environment.get("PORTABLE_PREFIXES") and line.startswith(
+                        "PORTABLE_PREFIXES="
+                    ):
+                        new.write(f'PORTABLE_PREFIXES="{context.config.environment["PORTABLE_PREFIXES"]}"\n')
+                        portable_prefixes_written = True
                     else:
                         new.write(line)
 
-                # append if they were missing
+                # Append if they were missing
                 if context.config.image_id and not image_id_written:
                     new.write(f'IMAGE_ID="{context.config.image_id}"\n')
                 if context.config.image_version and not image_version_written:
                     new.write(f'IMAGE_VERSION="{context.config.image_version}"\n')
                 if context.config.hostname and not default_hostname_written:
                     new.write(f'DEFAULT_HOSTNAME="{context.config.hostname}"\n')
+                if context.config.environment.get("PORTABLE_PREFIXES") and not portable_prefixes_written:
+                    new.write(f'PORTABLE_PREFIXES="{context.config.environment["PORTABLE_PREFIXES"]}"\n')
 
             newosrelease.rename(osrelease)
 

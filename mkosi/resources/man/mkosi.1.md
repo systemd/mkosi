@@ -3358,7 +3358,7 @@ For other systems, try researching the `kernel.unprivileged_userns_clone` or
   Since there is no good default to set for this key and the generated portable service images will still
   attach properly, even when the key is not set, **mkosi** doesn't set one.
 
-  You can set `PORTABLE_PREFIXES=` in the `os-release` file yourself in a postinst script.
+  You can set `PORTABLE_PREFIXES=` by setting `Environment=PORTABLE_PREFIXES=XXX` in your mkosi config.
 
 # REFERENCES
 * [Primary mkosi git repository on GitHub](https://github.com/systemd/mkosi/)
