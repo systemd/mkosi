@@ -111,7 +111,6 @@ class Zypper(PackageManager):
             "--non-interactive",
             "--no-refresh",
             f"--releasever={context.config.release}",
-            *(["--gpg-auto-import-keys"] if context.config.repository_key_fetch else []),
             *(["--no-gpg-checks"] if not context.config.repository_key_check else []),
             *([f"--plus-content={repo}" for repo in context.config.repositories]),
             *(["-vv"] if ARG_DEBUG.get() else []),
@@ -163,7 +162,12 @@ class Zypper(PackageManager):
 
     @classmethod
     def sync(cls, context: Context, force: bool, arguments: Sequence[str] = ()) -> None:
-        cls.invoke(context, "refresh", [*(["--force"] if force else []), *arguments])
+        cls.invoke(
+            context,
+            "refresh",
+            [*(["--force"] if force else []), *arguments],
+            options=["--gpg-auto-import-keys"] if context.config.repository_key_fetch else [],
+        )
 
     @classmethod
     def createrepo(cls, context: Context) -> None:
