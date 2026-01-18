@@ -1682,3 +1682,220 @@ def test_initrd_packages(tmp_path: Path) -> None:
 
     assert "package1" in initrd.packages
     assert "package2" in initrd.packages
+
+
+def test_config_default_initrds(tmp_path: Path) -> None:
+    d = tmp_path
+
+    # Default initrd should be built when Bootable=yes and the image format supports it.
+    (d / "mkosi.conf").write_text(
+        """\
+        [Content]
+        Bootable=yes
+        """
+    )
+
+    with chdir(d), resource_path(mkosi.resources) as resources:
+        _, _, [initrd, main] = parse_config(resources=resources)
+
+    assert len(main.initrds) == 1
+    assert initrd.image == "default-initrd"
+
+    # Default initrd should not be built when Bootable=disabled.
+    (d / "mkosi.conf").write_text(
+        """\
+        [Content]
+        Bootable=disabled
+        """
+    )
+
+    with chdir(d), resource_path(mkosi.resources) as resources:
+        _, _, [config] = parse_config(resources=resources)
+
+    assert not config.initrds
+
+    # Default initrd should not be built for UKI output format.
+    (d / "mkosi.conf").write_text(
+        """\
+        [Output]
+        Format=uki
+
+        [Content]
+        Bootable=yes
+        """
+    )
+
+    with chdir(d), resource_path(mkosi.resources) as resources:
+        _, _, [config] = parse_config(resources=resources)
+
+    assert not config.initrds
+
+    # Default initrd should not be built for ESP output format.
+    (d / "mkosi.conf").write_text(
+        """\
+        [Output]
+        Format=esp
+
+        [Content]
+        Bootable=yes
+        """
+    )
+
+    with chdir(d), resource_path(mkosi.resources) as resources:
+        _, _, [config] = parse_config(resources=resources)
+
+    assert not config.initrds
+
+    # Default initrd should not be built when Bootable=auto and output is cpio.
+    (d / "mkosi.conf").write_text(
+        """\
+        [Output]
+        Format=cpio
+        """
+    )
+
+    with chdir(d), resource_path(mkosi.resources) as resources:
+        _, _, [config] = parse_config(resources=resources)
+
+    assert not config.initrds
+
+    # Default initrd should not be built when Bootable=auto and output is a sysext image.
+    (d / "mkosi.conf").write_text(
+        """\
+        [Output]
+        Format=sysext
+        """
+    )
+
+    with chdir(d), resource_path(mkosi.resources) as resources:
+        _, _, [config] = parse_config(resources=resources)
+
+    assert not config.initrds
+
+    # Default initrd should not be built when Overlay=yes.
+    (d / "mkosi.conf").write_text(
+        """\
+        [Output]
+        Overlay=yes
+        """
+    )
+
+    with chdir(d), resource_path(mkosi.resources) as resources:
+        _, _, [config] = parse_config(resources=resources)
+
+    assert not config.initrds
+
+
+def test_initrds_default_value(tmp_path: Path) -> None:
+    d = tmp_path
+
+    # The "default" special value should explicitly request the default initrd.
+    (d / "mkosi.conf").write_text(
+        """\
+        [Content]
+        Bootable=yes
+        """
+    )
+
+    with chdir(d), resource_path(mkosi.resources) as resources:
+        _, _, [initrd, main] = parse_config(resources=resources)
+
+    assert len(main.initrds) == 1
+    assert initrd.image == "default-initrd"
+
+    (d / "myinitrd.cpio").touch()
+
+    # When a custom initrd is specified along with "default", both should be included.
+    (d / "mkosi.conf").write_text(
+        f"""\
+        [Content]
+        Bootable=yes
+        Initrds={d / "myinitrd.cpio"}
+        Initrds=default
+        """
+    )
+
+    with chdir(d), resource_path(mkosi.resources) as resources:
+        _, _, [initrd, main] = parse_config(resources=resources)
+
+    # The main image should have two initrds: the custom one and the default one (resolved path).
+    assert len(main.initrds) == 2
+    assert main.initrds[0] == d / "myinitrd.cpio"
+    # Second initrd should be the resolved path from the default initrd image.
+    assert initrd.image == "default-initrd"
+
+    # When only "default" is specified, the default initrd should be built.
+    (d / "mkosi.conf").write_text(
+        """\
+        [Content]
+        Bootable=yes
+        Initrds=default
+        """
+    )
+
+    with chdir(d), resource_path(mkosi.resources) as resources:
+        _, _, [initrd, main] = parse_config(resources=resources)
+
+    assert len(main.initrds) == 1
+    assert initrd.image == "default-initrd"
+
+
+def test_initrds_empty_resets(tmp_path: Path) -> None:
+    d = tmp_path
+
+    # An empty value for Initrds= should disable the default initrd.
+    (d / "mkosi.conf").write_text(
+        """\
+        [Content]
+        Bootable=yes
+        Initrds=
+        """
+    )
+
+    with chdir(d), resource_path(mkosi.resources) as resources:
+        _, _, [config] = parse_config(resources=resources)
+
+    # Empty string should reset to empty, not to default.
+    assert not config.initrds
+
+    # Make sure dropin can override with empty to disable default initrd.
+    (d / "mkosi.conf").write_text(
+        """\
+        [Content]
+        Bootable=yes
+        """
+    )
+
+    (d / "mkosi.conf.d").mkdir()
+    (d / "mkosi.conf.d/no-initrd.conf").write_text(
+        """\
+        [Content]
+        Initrds=
+        """
+    )
+
+    with chdir(d), resource_path(mkosi.resources) as resources:
+        _, _, [config] = parse_config(resources=resources)
+
+    assert not config.initrds
+
+
+def test_initrds_custom_only(tmp_path: Path) -> None:
+    d = tmp_path
+
+    (d / "myinitrd.cpio").touch()
+
+    # When only a custom initrd is specified (no "default"), only that initrd should be used.
+    (d / "mkosi.conf").write_text(
+        f"""\
+        [Content]
+        Bootable=yes
+        Initrds={d / "myinitrd.cpio"}
+        """
+    )
+
+    with chdir(d), resource_path(mkosi.resources) as resources:
+        _, _, [config] = parse_config(resources=resources)
+
+    assert len(config.initrds) == 1
+    assert config.initrds[0] == d / "myinitrd.cpio"

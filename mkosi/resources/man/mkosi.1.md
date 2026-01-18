@@ -1096,8 +1096,11 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `Initrds=`, `--initrd=`
 :   Use user-provided initrd(s). Takes a comma-separated list of paths to initrd
     files. This option may be used multiple times in which case the initrd lists
-    are combined. If no initrds are specified and a bootable image is requested,
-    **mkosi** will automatically build a default initrd.
+    are combined. If this setting is not specified and a bootable image is requested,
+    **mkosi** will automatically build a default initrd. To disable building the default
+    initrd, assign the empty string to this setting. To build the default initrd even when
+    specifying this setting, the special value `default` can be assigned alongside the other
+    values.
 
     **mkosi** will also look for initrds in a subdirectory `io.mkosi.initrd` of
     the artifact directory (see `$ARTIFACTDIR` in the section **ENVIRONMENT

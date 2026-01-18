@@ -1116,6 +1116,31 @@ def config_default_proxy_peer_certificate(namespace: dict[str, Any]) -> Optional
     return None
 
 
+def config_default_initrds(namespace: dict[str, Any]) -> list[Path]:
+    if namespace["output_format"] in (OutputFormat.uki, OutputFormat.esp):
+        return []
+
+    if namespace["bootable"] == ConfigFeature.disabled:
+        return []
+
+    if namespace["bootable"] == ConfigFeature.auto and (
+        namespace["output_format"] == OutputFormat.cpio
+        or namespace["output_format"].is_extension_or_portable_image()
+        or namespace["overlay"]
+    ):
+        return []
+
+    # The above conditions should be kept in sync with want_kernel().
+
+    if namespace["bootable"] == ConfigFeature.auto and not any(
+        namespace["distribution"].installer.is_kernel_package(p)
+        for p in itertools.chain(namespace["packages"], namespace["volatile_packages"])
+    ):
+        return []
+
+    return [Path("default")]
+
+
 def make_enum_parser(type: type[SE]) -> Callable[[str], SE]:
     def parse_enum(value: str) -> SE:
         try:
@@ -3178,8 +3203,23 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--initrd",
         metavar="PATH",
         section="Content",
-        parse=config_make_list_parser(delimiter=",", parse=make_path_parser(required=False)),
+        parse=config_make_list_parser(
+            delimiter=",",
+            parse=make_path_parser(
+                constants=["default"],
+                required=False,
+            ),
+        ),
         help="Add a user-provided initrd to image",
+        default_factory=config_default_initrds,
+        default_factory_depends=(
+            "bootable",
+            "distribution",
+            "output_format",
+            "packages",
+            "volatile_packages",
+            "overlay",
+        ),
     ),
     ConfigSetting(
         dest="microcode_host",
@@ -5226,19 +5266,7 @@ def want_kernel(config: Config) -> bool:
 
 
 def want_default_initrd(config: Config) -> bool:
-    if not want_kernel(config):
-        return False
-
-    if config.initrds:
-        return False
-
-    if config.bootable == ConfigFeature.auto and not any(
-        config.distribution.installer.is_kernel_package(p)
-        for p in itertools.chain(config.packages, config.volatile_packages)
-    ):
-        return False
-
-    return True
+    return Path("default") in config.initrds
 
 
 def parse_config(
@@ -5435,7 +5463,10 @@ def parse_config(
         if want_default_initrd(main):
             main = dataclasses.replace(
                 main,
-                initrds=[*main.initrds, initrd.output_dir_or_cwd() / initrd.output],
+                initrds=[
+                    initrd.output_dir_or_cwd() / initrd.output if i == Path("default") else i
+                    for i in main.initrds
+                ],
                 dependencies=main.dependencies + [initrd.image],
             )
 
@@ -5443,7 +5474,10 @@ def parse_config(
             (
                 dataclasses.replace(
                     image,
-                    initrds=[*image.initrds, initrd.output_dir_or_cwd() / initrd.output],
+                    initrds=[
+                        initrd.output_dir_or_cwd() / initrd.output if i == Path("default") else i
+                        for i in image.initrds
+                    ],
                     dependencies=image.dependencies + [initrd.image],
                 )
                 if want_default_initrd(image)
