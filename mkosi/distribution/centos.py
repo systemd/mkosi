@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 from collections.abc import Iterable
+import re
 
 from mkosi.config import Architecture, Config
 from mkosi.context import Context
@@ -308,52 +309,47 @@ class Installer(DistributionInstaller, distribution=Distribution.centos):
         else:
             url = "metalink=https://mirrors.fedoraproject.org/metalink?arch=$basearch"
 
-            # epel-next does not exist anymore since EPEL 10.
-            repos = ["epel"]
             if GenericVersion(context.config.release) < 10:
-                repos += ["epel-next"]
+                repos = ["epel", "epel-next"]
+                for repo in repos:
+                    yield RpmRepository(
+                        repo,
+                        f"{url}&repo={repo}-{release}",
+                        gpgurls,
+                        enabled=False,
+                    )
+                    yield RpmRepository(
+                        f"{repo}-debuginfo",
+                        f"{url}&repo={repo}-debug-{release}",
+                        gpgurls,
+                        enabled=False,
+                    )
+                    yield RpmRepository(
+                        f"{repo}-source",
+                        f"{url}&repo={repo}-source-{release}",
+                        gpgurls,
+                        enabled=False,
+                    )
 
-            for repo in repos:
                 yield RpmRepository(
-                    repo,
-                    f"{url}&repo={repo}-{release}",
+                    "epel-testing",
+                    f"{url}&repo=testing-epel{release}",
                     gpgurls,
                     enabled=False,
                 )
                 yield RpmRepository(
-                    f"{repo}-debuginfo",
-                    f"{url}&repo={repo}-debug-{release}",
+                    "epel-testing-debuginfo",
+                    f"{url}&repo=testing-debug-epel{release}",
                     gpgurls,
                     enabled=False,
                 )
                 yield RpmRepository(
-                    f"{repo}-source",
-                    f"{url}&repo={repo}-source-{release}",
+                    "epel-testing-source",
+                    f"{url}&repo=testing-source-epel{release}",
                     gpgurls,
                     enabled=False,
                 )
 
-            yield RpmRepository(
-                "epel-testing",
-                f"{url}&repo=testing-epel{release}",
-                gpgurls,
-                enabled=False,
-            )
-            yield RpmRepository(
-                "epel-testing-debuginfo",
-                f"{url}&repo=testing-debug-epel{release}",
-                gpgurls,
-                enabled=False,
-            )
-            yield RpmRepository(
-                "epel-testing-source",
-                f"{url}&repo=testing-source-epel{release}",
-                gpgurls,
-                enabled=False,
-            )
-
-            # epel-next does not exist anymore since EPEL 10.
-            if GenericVersion(context.config.release) < 10:
                 yield RpmRepository(
                     "epel-next-testing",
                     f"{url}&repo=epel-testing-next-{release}",
@@ -369,6 +365,52 @@ class Installer(DistributionInstaller, distribution=Distribution.centos):
                 yield RpmRepository(
                     "epel-next-testing-source",
                     f"{url}&repo=epel-testing-next-source-{release}",
+                    gpgurls,
+                    enabled=False,
+                )
+            else:
+                # For versions since 10 the urls changed
+                # Check for minor version presence using a regex
+                # The compiled regex is not cached, since it is only used once at the moment
+                has_minor_version = re.match(r"^\d+\.", context.config.release)
+                # The urls for a version with a minor version specified (i.e. 10.1 instead of just 10)
+                # have a "-z" string in addition to the version number
+                minor_version_flag = "-z" if has_minor_version else ""
+
+                yield RpmRepository(
+                    "epel",
+                    f"{url}&repo=epel{minor_version_flag}-{release}",
+                    gpgurls,
+                    enabled=False,
+                )
+                yield RpmRepository(
+                    f"epel-debuginfo",
+                    f"{url}&repo=epel{minor_version_flag}-debug-{release}",
+                    gpgurls,
+                    enabled=False,
+                )
+                yield RpmRepository(
+                    f"epel-source",
+                    f"{url}&repo=epel{minor_version_flag}-source-{release}",
+                    gpgurls,
+                    enabled=False,
+                )
+
+                yield RpmRepository(
+                    "epel-testing",
+                    f"{url}&repo=epel{minor_version_flag}-testing-{release}",
+                    gpgurls,
+                    enabled=False,
+                )
+                yield RpmRepository(
+                    "epel-testing-debuginfo",
+                    f"{url}&repo=epel{minor_version_flag}-testing-debug-{release}",
+                    gpgurls,
+                    enabled=False,
+                )
+                yield RpmRepository(
+                    "epel-testing-source",
+                    f"{url}&repo=epel{minor_version_flag}-testing-source-{release}",
                     gpgurls,
                     enabled=False,
                 )
