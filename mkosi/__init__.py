@@ -3490,9 +3490,9 @@ def make_image(
     if (
         not can_orphan_file(context.config.distribution, context.config.release)
         and can_orphan_file(*detect_distribution(context.config.tools()))
-        and "SYSTEMD_REPART_MKFS_EXT4_OPTIONS" not in context.config.environment
+        and "SYSTEMD_REPART_MKFS_OPTIONS_EXT4" not in context.config.environment
     ):
-        env["SYSTEMD_REPART_MKFS_EXT4_OPTIONS"] = "-O ^orphan_file"
+        env["SYSTEMD_REPART_MKFS_OPTIONS_EXT4"] = "-O ^orphan_file"
 
     if ARG_DEBUG.get():
         for dir in definitions:
