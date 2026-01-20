@@ -3127,6 +3127,12 @@ repository.
 * `$MKOSI_DNF` can be used to override the executable used as **dnf**.
   This is particularly useful to select between **dnf** and **dnf5**.
 
+* `$MKOSI_DNF_DISABLE_PLUGINS` can be used to disable dnf plugins. The value
+  is forwarded to dnf's `--disableplugin=` option.
+
+* `$MKOSI_DNF_ENABLE_PLUGINS` can be used to enable dnf plugins. The value
+  is forwarded to dnf's `--enableplugin=` option.
+
 * `$EPEL_MIRROR` can be used to override the default mirror location
   used for the epel repositories when `Mirror=` is used. By default
   **mkosi** looks for the epel repositories in the `fedora` subdirectory of

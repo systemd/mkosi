@@ -169,6 +169,11 @@ class Dnf(PackageManager):
             "--setopt=persistdir=/buildroot/var/lib/dnf",
         ]
 
+        if plugins := context.config.environment.get("MKOSI_DNF_DISABLE_PLUGINS"):
+            cmdline += [f"--disableplugin={plugins}"]
+        if plugins := context.config.environment.get("MKOSI_DNF_ENABLE_PLUGINS"):
+            cmdline += [f"--enableplugin={plugins}"]
+
         if ARG_DEBUG.get():
             cmdline += ["--setopt=debuglevel=10"]
 
