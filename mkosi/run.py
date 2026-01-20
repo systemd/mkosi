@@ -111,10 +111,11 @@ def log_process_failure(sandbox: Sequence[str], cmdline: Sequence[str], returnco
     if -returncode in (signal.SIGINT, signal.SIGTERM):
         logging.error(f"Interrupted by {signal.Signals(-returncode).name} signal")
     elif returncode < 0:
-        logging.error(
-            f'"{shlex.join(["mkosi-sandbox", *sandbox, *cmdline] if ARG_DEBUG.get() else cmdline)}"'
-            f" was killed by {signal.Signals(-returncode).name} signal."
-        )
+        logging.error(f'"{shlex.join(cmdline)}" was killed by {signal.Signals(-returncode).name} signal.')
+        if ARG_DEBUG.get():
+            logging.info(f"Sandbox command: {shlex.join(['mkosi-sandbox', *sandbox])}")
+        else:
+            logging.info("(sandbox command omitted, rerun with --debug to see the full sandbox command.)")
     elif returncode == 127 and cmdline[0] != "mkosi":
         # Anything invoked beneath /work is a script that we mount into place (so we know it exists). If one
         # of these scripts fails with exit code 127, it's either because the script interpreter was not
@@ -127,10 +128,11 @@ def log_process_failure(sandbox: Sequence[str], cmdline: Sequence[str], returnco
         else:
             logging.error(f"{cmdline[0]} not found.")
     else:
-        logging.error(
-            f'"{shlex.join(["mkosi-sandbox", *sandbox, *cmdline] if ARG_DEBUG.get() else cmdline)}"'
-            f" returned non-zero exit code {returncode}."
-        )
+        logging.error(f'"{shlex.join(cmdline)}" returned non-zero exit code {returncode}.')
+        if ARG_DEBUG.get():
+            logging.info(f"Sandbox command: {shlex.join(['mkosi-sandbox', *sandbox])}")
+        else:
+            logging.info("(sandbox command omitted, rerun with --debug to see the full sandbox command.)")
 
 
 class SandboxProtocol(Protocol):
