@@ -91,6 +91,10 @@ def setup_rpm(
     if dbbackend:
         (confdir / "macros.db_backend").write_text(f"%_db_backend {dbbackend}")
 
+    # TODO: Drop when zypper and dnf5 correctly disable signature checks for gpgcheck=0 repositories.
+    if not (confdir / "macros.pkgverify_level").exists():
+        (confdir / "macros.pkgverify_level").write_text("%_pkgverify_level digest")
+
     if context.config.distribution == Distribution.opensuse or (
         context.config.distribution.is_centos_variant() and context.config.release == "9"
     ):
