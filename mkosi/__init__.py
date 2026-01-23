@@ -4129,6 +4129,17 @@ def build_image(context: Context) -> None:
     elif context.config.output_format == OutputFormat.directory:
         context.root.rename(context.staging / context.config.output_with_format)
 
+    if context.config.output_size and context.config.output_format == OutputFormat.disk:
+        output = context.staging / context.config.output_with_format
+        current_size = output.stat().st_size
+        if context.config.output_size > current_size:
+            with complete_step(f"Resizing output image to {format_bytes(context.config.output_size)}…"):
+                os.truncate(output, context.config.output_size)
+        else:
+            log_notice(
+                f"Can't change the output size because the image is already larger ({format_bytes(current_size)}) than requested"  # noqa: E501
+            )
+
     if context.config.output_format.use_outer_compression():
         maybe_compress(
             context,

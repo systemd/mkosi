@@ -2023,6 +2023,7 @@ class Config:
     manifest_format: list[ManifestFormat]
     output: str
     output_extension: str
+    output_size: Optional[int]
     compress_output: Compression
     compress_level: int
     output_dir: Optional[Path]
@@ -2831,6 +2832,13 @@ SETTINGS: list[ConfigSetting[Any]] = [
         help="Output extension",
         default_factory=lambda ns: ns["output_format"].extension(),
         default_factory_depends=("output_format",),
+    ),
+    ConfigSetting(
+        dest="output_size",
+        metavar="SIZE",
+        section="Output",
+        parse=config_parse_bytes,
+        help="Resize the output image to this size",
     ),
     ConfigSetting(
         dest="compress_output",
@@ -5627,6 +5635,7 @@ def summary(config: Config) -> str:
                       Output Format: {config.output_format}
                    Manifest Formats: {maniformats}
                              Output: {bold(config.output_with_compression)}
+                        Output Size: {format_bytes_or_none(config.output_size)}
                         Compression: {config.compress_output}
                   Compression Level: {config.compress_level}
                    Output Directory: {config.output_dir_or_cwd()}
