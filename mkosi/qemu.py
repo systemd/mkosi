@@ -1083,7 +1083,11 @@ def run_qemu(args: Args, config: Config) -> None:
     ]  # fmt: skip
 
     if config.runtime_network == Network.user:
-        cmdline += ["-nic", f"user,model={config.architecture.default_qemu_nic_model()}"]
+        nic = f"user,model={config.architecture.default_qemu_nic_model()}"
+        # Add SSH port forwarding so SSH works without VSock
+        if config.vsock == ConfigFeature.disabled and config.ssh in (Ssh.always, Ssh.runtime):
+            nic += ",hostfwd=tcp::2222-:22"
+        cmdline += ["-nic", nic]
     elif config.runtime_network == Network.interface:
         if os.getuid() != 0:
             die("RuntimeNetwork=interface requires root privileges")
