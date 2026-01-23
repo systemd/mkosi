@@ -809,7 +809,7 @@ def finalize_kernel_command_line_extra(config: Config) -> list[str]:
     ):
         cmdline += [f"systemd.hostname={config.machine}"]
 
-    if config.console != ConsoleMode.gui:
+    if config.console not in (ConsoleMode.gui, ConsoleMode.headless):
         cmdline += [
             f"systemd.tty.term.console={term}",
             f"systemd.tty.columns.console={columns}",
@@ -817,7 +817,7 @@ def finalize_kernel_command_line_extra(config: Config) -> list[str]:
             "console=hvc0",
             f"TERM={term}",
         ]
-    elif config.architecture.is_arm_variant():
+    elif config.console == ConsoleMode.gui and config.architecture.is_arm_variant():
         cmdline += ["console=tty0"]
 
     for s in config.kernel_command_line_extra:
@@ -993,9 +993,11 @@ def run_qemu(args: Args, config: Config) -> None:
     if config.vsock == ConfigFeature.enabled and QemuDeviceNode.vhost_vsock not in qemu_device_fds:
         die("VSock requested but cannot access /dev/vhost-vsock")
 
-    if config.console not in (ConsoleMode.native, ConsoleMode.gui) and not config.find_binary(
-        "systemd-pty-forward"
-    ):
+    if config.console not in (
+        ConsoleMode.native,
+        ConsoleMode.gui,
+        ConsoleMode.headless,
+    ) and not config.find_binary("systemd-pty-forward"):
         die(f"Console mode {config.console} requested but systemd-pty-forward not found")
 
     if config.linux:
@@ -1141,11 +1143,15 @@ def run_qemu(args: Args, config: Config) -> None:
         cmdline += [
             "-nographic",
             "-nodefaults",
-            "-chardev", "stdio,mux=on,id=console,signal=off",
-            "-device", "virtio-serial-pci,id=mkosi-virtio-serial-pci",
-            "-device", "virtconsole,chardev=console",
-            "-mon", "console",
         ]  # fmt: skip
+
+        if config.console != ConsoleMode.headless:
+            cmdline += [
+                "-chardev", "stdio,mux=on,id=console,signal=off",
+                "-device", "virtio-serial-pci,id=mkosi-virtio-serial-pci",
+                "-device", "virtconsole,chardev=console",
+                "-mon", "console",
+            ]  # fmt: skip
 
     # QEMU has built-in logic to look for the BIOS firmware so we don't need to do anything special for that.
     if firmware.is_uefi():

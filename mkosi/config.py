@@ -376,6 +376,7 @@ class ConsoleMode(StrEnum):
     read_only = enum.auto()
     native = enum.auto()
     gui = enum.auto()
+    headless = enum.auto()
 
 
 class Network(StrEnum):

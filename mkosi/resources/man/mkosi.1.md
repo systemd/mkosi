@@ -1818,11 +1818,13 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     kernel command line arguments.
 
 `Console=`, `--console=`
-:   Configures how to set up the console of the VM. Takes one of `interactive`, `read-only`, `native`, or
-    `gui`. Defaults to `interactive`. `interactive` provides an interactive terminal interface to the VM.
-    `read-only` is similar, but is strictly read-only, i.e. does not accept any input from the user.
-    `native` also provides a TTY-based interface, but uses **qemu**'s native implementation (which means the **qemu**
-    monitor is available). `gui` shows the **qemu** graphical UI.
+:   Configures how to set up the console of the VM. Takes one of `interactive`, `read-only`, `native`,
+    `gui`, or `headless`. Defaults to `interactive`. `interactive` provides an interactive terminal interface
+    to the VM. `read-only` is similar, but is strictly read-only, i.e. does not accept any input from the
+    user. `native` also provides a TTY-based interface, but uses **qemu**'s native implementation (which means
+    the **qemu** monitor is available). `gui` shows the **qemu** graphical UI. `headless` runs the VM without
+    any console attached, useful for fully automated or scripted VM usage. `headless` is only supported by
+    the `qemu` verb.
 
 `CPUs=`, `--cpus=`
 :   Configures the number of CPU cores to assign to the guest when booting a virtual machine.
