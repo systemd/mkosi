@@ -4,6 +4,10 @@
 
 # mkosi Changelog
 
+## v27
+
+- Generate locales configured in `/etc/locale.gen`.
+
 ## v26
 
 - Extra options to commands invoked by mkosi (e.g. when using `mkosi boot`

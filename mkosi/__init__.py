@@ -4059,6 +4059,7 @@ def build_image(context: Context) -> None:
         install_systemd_boot(context)
         install_grub(context)
         install_shim(context)
+        run_locale_gen(context)
         run_sysusers(context)
         run_tmpfiles(context)
         run_preset(context)
