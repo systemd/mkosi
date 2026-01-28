@@ -2266,6 +2266,13 @@ settings can be specified in the `UKIProfile` section:
     `.cmdline` section and the extra kernel command line arguments
     specified with this setting.
 
+`Packages=`
+:   Install the specified distribution packages (i.e. RPM, deb, …) in the
+    initrd, on top of the base profile's initrd. Takes a comma-separated list
+    of package specifications. This option may be used multiple times in which
+    case the specified package lists are combined. The types and syntax is the
+    same as the `Content` section's `Packages=` setting.
+
 `SignExpectedPcr=`
 :   Sign expected PCR measurements for this UKI profile. Takes a boolean.
     Enabled by default.
