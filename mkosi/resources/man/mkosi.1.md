@@ -644,6 +644,12 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     any compression extension which will be appended to this extension if compression
     is enabled.
 
+`OutputSize=`, `--output-size=`
+:   If set, the output disk image is resized to the given size. Takes a size in
+    bytes. The suffixes `K`, `M` and `G` can be used to specify the size in kilobytes,
+    megabytes and gigabytes. This setting only grows the disk and is limited to full
+    disk images and no other output format.
+
 `CompressOutput=`, `--compress-output=`
 :   Configure compression for the resulting image or archive. The argument can be
     either a boolean or a compression algorithm (**xz**, **zstd**). **zstd**
