@@ -24,8 +24,7 @@ jobs:
         run: |
           tee mkosi.local.conf <<EOF
           [Build]
-          ToolsTreeDistribution=fedora
-          ToolsTreeRelease=rawhide
+          ToolsTreeDistribution=arch
           EOF
 
           mkosi -f box -- true

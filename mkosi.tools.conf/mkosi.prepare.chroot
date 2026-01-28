@@ -2,5 +2,9 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 if ! command -v pyright &>/dev/null; then
-    npm install -g pyright
+    for npm in npm npm-24 npm-22; do
+        if command -v "$npm"; then
+            "$npm" install -g pyright
+        fi
+    done
 fi
