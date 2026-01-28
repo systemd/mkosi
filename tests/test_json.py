@@ -254,6 +254,7 @@ def test_config() -> None:
             "Machine": "machine",
             "MachineId": "b58253b0-cc92-4a34-8782-bcd99b20d07f",
             "MakeInitrd": false,
+            "MakeScriptsExecutable": false,
             "ManifestFormat": [
                 "json",
                 "changelog"
@@ -508,6 +509,7 @@ def test_config() -> None:
         locale="en_C.UTF-8",
         machine_id=uuid.UUID("b58253b0cc924a348782bcd99b20d07f"),
         machine="machine",
+        make_scripts_executable=False,
         make_initrd=False,
         manifest_format=[ManifestFormat.json, ManifestFormat.changelog],
         maxmem=123,

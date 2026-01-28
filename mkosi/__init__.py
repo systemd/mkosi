@@ -649,13 +649,21 @@ def finalize_config_json(config: Config) -> Iterator[Path]:
         yield Path(f.name)
 
 
+def check_script(config: Config, script: Path) -> None:
+    if not os.access(script, os.X_OK):
+        if config.make_scripts_executable:
+            logging.warning(f"{script} is not executable, attempting to chmod it")
+            os.chmod(script, os.stat(script).st_mode | stat.S_IXUSR)
+        else:
+            die(f"{script} is not executable")
+
+
 def run_configure_scripts(config: Config) -> Config:
     if not config.configure_scripts:
         return config
 
     for script in config.configure_scripts:
-        if not os.access(script, os.X_OK):
-            die(f"{script} is not executable")
+        check_script(config, script)
 
     env = dict(
         DISTRIBUTION=str(config.distribution),
@@ -703,8 +711,7 @@ def run_sync_scripts(config: Config) -> None:
         return
 
     for script in config.sync_scripts:
-        if not os.access(script, os.X_OK):
-            die(f"{script} is not executable")
+        check_script(config, script)
 
     env = dict(
         DISTRIBUTION=str(config.distribution),
@@ -2723,8 +2730,7 @@ def check_inputs(config: Config) -> None:
         config.finalize_scripts,
         config.postoutput_scripts,
     ):
-        if not os.access(script, os.X_OK):
-            die(f"{script} is not executable")
+        check_script(config, script)
 
     if config.secure_boot and not config.secure_boot_key:
         die(
@@ -4592,8 +4598,7 @@ def run_clean_scripts(config: Config) -> None:
         return
 
     for script in config.clean_scripts:
-        if not os.access(script, os.X_OK):
-            die(f"{script} is not executable")
+        check_script(config, script)
 
     env = dict(
         DISTRIBUTION=str(config.distribution),

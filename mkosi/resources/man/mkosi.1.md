@@ -1753,6 +1753,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     Currently, setting a proxy client key is only supported when **dnf** or
     **dnf5** is used to build the image.
 
+`MakeScriptsExecutable=`, `--make-scripts-executable=`
+:   If one of the hook scripts (see `SCRIPTS` section) is not marked as executable, attempt to chmod it
+    instead of failing outright. Defaults to `no`.
+
 ### [Runtime] Section (previously known as the [Host] section)
 
 `NSpawnSettings=`, `--settings=`
