@@ -655,7 +655,8 @@ def run_configure_scripts(config: Config) -> Config:
 
     for script in config.configure_scripts:
         if not os.access(script, os.X_OK):
-            die(f"{script} is not executable")
+            logging.warning(f"{script} is not executable, attempting to chmod it")
+            os.chmod(script, os.stat(script).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
     env = dict(
         DISTRIBUTION=str(config.distribution),
@@ -704,7 +705,8 @@ def run_sync_scripts(config: Config) -> None:
 
     for script in config.sync_scripts:
         if not os.access(script, os.X_OK):
-            die(f"{script} is not executable")
+            logging.warning(f"{script} is not executable, attempting to chmod it")
+            os.chmod(script, os.stat(script).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
     env = dict(
         DISTRIBUTION=str(config.distribution),
@@ -2724,7 +2726,8 @@ def check_inputs(config: Config) -> None:
         config.postoutput_scripts,
     ):
         if not os.access(script, os.X_OK):
-            die(f"{script} is not executable")
+            logging.warning(f"{script} is not executable, attempting to chmod it")
+            os.chmod(script, os.stat(script).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
     if config.secure_boot and not config.secure_boot_key:
         die(
@@ -4593,7 +4596,8 @@ def run_clean_scripts(config: Config) -> None:
 
     for script in config.clean_scripts:
         if not os.access(script, os.X_OK):
-            die(f"{script} is not executable")
+            logging.warning(f"{script} is not executable, attempting to chmod it")
+            os.chmod(script, os.stat(script).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
     env = dict(
         DISTRIBUTION=str(config.distribution),
