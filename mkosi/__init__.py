@@ -2136,7 +2136,6 @@ def install_uki(
     kimg: Path,
     token: str,
     partitions: Sequence[Partition],
-    profiles: Sequence[Path],
     cmdline: list[str],
 ) -> dict[str, Any]:
     boot_binary = context.root / finalize_uki_path(
@@ -2168,6 +2167,10 @@ def install_uki(
         initrds = finalize_initrds(context)
         if context.config.kernel_modules_initrd:
             initrds += [build_kernel_modules_initrd(context, kver)]
+
+        # UKI profiles sections are replacements, so an initrd section needs to have
+        # a full copy of the main initrd (plus profile-specific packages)
+        profiles = build_uki_profiles(context, cmdline, microcodes + initrds)
 
         pcrs = build_uki(
             context,
@@ -2211,7 +2214,41 @@ def systemd_addon_stub_binary(context: Context) -> Path:
     return stub
 
 
-def build_uki_profiles(context: Context, cmdline: Sequence[str]) -> list[Path]:
+def build_uki_profile_initrd(
+    context: Context,
+    profile_id: str,
+    packages: Sequence[str],
+    base_initrds: Sequence[Path],
+) -> Path:
+    initrd = context.workspace / f"uki-profiles/{profile_id}.initrd"
+    delta = context.workspace / f"uki-profiles/{profile_id}.delta"
+
+    with complete_step(f"Building initrd for UKI profile '{profile_id}'"):
+        with setup_build_overlay(context, volatile=True):
+            context.config.distribution.installer.install_packages(context, packages)
+            assert context.upperdir
+            make_cpio(Path(context.upperdir), delta, sandbox=context.sandbox)
+
+        # Join the base initrds with the delta from the profile, as each profile's initrd
+        # is a replacement of the base initrd. The delta comes last so its files take precedence.
+        join_initrds([*base_initrds, delta], initrd)
+        delta.unlink()
+
+        maybe_compress(
+            context,
+            context.config.compress_output,
+            initrd,
+            initrd,
+        )
+
+    return initrd
+
+
+def build_uki_profiles(
+    context: Context,
+    cmdline: Sequence[str],
+    base_initrds: Sequence[Path],
+) -> list[Path]:
     if not context.config.unified_kernel_image_profiles:
         return []
 
@@ -2219,13 +2256,22 @@ def build_uki_profiles(context: Context, cmdline: Sequence[str]) -> list[Path]:
     if not stub.exists():
         die(f"sd-stub not found at /{stub.relative_to(context.root)} in the image")
 
-    (context.workspace / "uki-profiles").mkdir()
+    (context.workspace / "uki-profiles").mkdir(exist_ok=True)
 
     profiles = []
 
     for profile in context.config.unified_kernel_image_profiles:
         id = profile.profile["ID"]
         output = context.workspace / f"uki-profiles/{id}.efi"
+
+        arguments: list[PathString] = []
+        options: list[PathString] = []
+
+        # Build an initrd from packages if specified for this profile
+        if profile.packages:
+            initrd = build_uki_profile_initrd(context, id, profile.packages, base_initrds)
+            arguments += ["--initrd", workdir(initrd)]
+            options += ["--ro-bind", initrd, workdir(initrd)]
 
         profile_section = context.workspace / f"uki-profiles/{id}.profile"
 
@@ -2242,8 +2288,8 @@ def build_uki_profiles(context: Context, cmdline: Sequence[str]) -> list[Path]:
                 stub,
                 output,
                 cmdline=[*cmdline, *profile.cmdline],
-                arguments=["--profile", f"@{profile_section}"],
-                options=["--ro-bind", profile_section, profile_section],
+                arguments=[*arguments, "--profile", f"@{profile_section}"],
+                options=[*options, "--ro-bind", profile_section, profile_section],
                 sign=False,
             )
 
@@ -2274,7 +2320,6 @@ def install_kernel(context: Context, partitions: Sequence[Partition]) -> None:
 
     token = find_entry_token(context)
     cmdline = finalize_cmdline(context, partitions, finalize_roothash(partitions))
-    profiles = build_uki_profiles(context, cmdline) if want_uki(context) else []
     # The first processed UKI is the one that will be used as split artifact, so take pcrs from
     # it and ignore the rest
     # TODO: we should probably support signing pcrs for all built UKIs
@@ -2282,7 +2327,7 @@ def install_kernel(context: Context, partitions: Sequence[Partition]) -> None:
 
     for kver, kimg in gen_kernel_images(context):
         if want_uki(context):
-            pcrs = pcrs or install_uki(context, kver, kimg, token, partitions, profiles, cmdline)
+            pcrs = pcrs or install_uki(context, kver, kimg, token, partitions, cmdline)
         if not want_uki(context) or want_grub_bios(context, partitions):
             install_type1(context, kver, kimg, token, partitions, cmdline)
 
@@ -2310,6 +2355,9 @@ def make_uki(
     )
 
     initrds = [context.workspace / "initrd"]
+    # UKI profiles sections are replacements, so an initrd section needs to have
+    # a full copy of the main initrd (plus profile-specific packages)
+    profiles = build_uki_profiles(context, context.config.kernel_command_line, microcode + initrds)
     pcrs = build_uki(
         context,
         stub,
@@ -2318,7 +2366,7 @@ def make_uki(
         microcode,
         initrds,
         context.config.kernel_command_line,
-        build_uki_profiles(context, context.config.kernel_command_line),
+        profiles,
         output,
     )
 
