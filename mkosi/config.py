@@ -2151,6 +2151,7 @@ class Config:
     proxy_peer_certificate: Optional[Path]
     proxy_client_certificate: Optional[Path]
     proxy_client_key: Optional[Path]
+    make_scripts_executable: bool
 
     nspawn_settings: Optional[Path]
     ephemeral: bool
@@ -4015,6 +4016,14 @@ SETTINGS: list[ConfigSetting[Any]] = [
         help="Set the proxy client key",
         scope=SettingScope.multiversal,
     ),
+    ConfigSetting(
+        dest="make_scripts_executable",
+        metavar="BOOL",
+        section="Build",
+        parse=config_parse_boolean,
+        default=False,
+        help="Whether mkosi will try to make build/postinst/finalize scripts executable if they are not",
+    ),
     # Runtime section
     ConfigSetting(
         dest="nspawn_settings",
@@ -5787,6 +5796,8 @@ def summary(config: Config) -> str:
              Proxy Peer Certificate: {none_to_none(config.proxy_peer_certificate)}
            Proxy Client Certificate: {none_to_none(config.proxy_client_certificate)}
                    Proxy Client Key: {none_to_none(config.proxy_client_key)}
+
+    Automatically set +x on scripts: {yes_no(config.make_scripts_executable)}
 
     {bold("HOST CONFIGURATION")}:
                     NSpawn Settings: {none_to_none(config.nspawn_settings)}
