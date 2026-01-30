@@ -143,7 +143,7 @@ from mkosi.sandbox import (
     have_effective_cap,
     join_new_session_keyring,
     mount,
-    mount_rbind,
+    mount_bind,
     umask,
     unshare,
     userns_has_single_user,
@@ -4957,7 +4957,7 @@ def run_build(
             if d in ("/boot", "/efi"):
                 attrs |= MOUNT_ATTR_NOSUID | MOUNT_ATTR_NODEV | MOUNT_ATTR_NOEXEC
 
-            mount_rbind(d, d, attrs)
+            mount_bind(d, d, attrs, recursive=True)
 
     with (
         complete_step(f"Building {config.image} image"),

@@ -519,17 +519,17 @@ def move_mount(from_dirfd: int, from_path: str, to_dirfd: int, to_path: str, fla
         oserror("move_mount", to_path)
 
 
-def mount_rbind(src: str, dst: str, attrs: int = 0) -> None:
+def mount_bind(src: str, dst: str, attrs: int = 0, recursive: bool = False) -> None:
     """
     When using the old mount syscall to do a recursive bind mount, mount options are not
     applied recursively. Because we want to do recursive read-only bind mounts in some cases, we
     use the new mount API for that which does allow recursively changing mount options when doing
     bind mounts.
     """
-    flags = AT_NO_AUTOMOUNT | AT_RECURSIVE | AT_SYMLINK_NOFOLLOW | OPEN_TREE_CLONE
+    flags = AT_NO_AUTOMOUNT | (AT_RECURSIVE if recursive else 0) | AT_SYMLINK_NOFOLLOW | OPEN_TREE_CLONE
 
     with close(open_tree(AT_FDCWD, src, flags)) as fd:
-        mount_setattr(fd, "", AT_EMPTY_PATH | AT_RECURSIVE, mount_attr(attr_set=attrs))
+        mount_setattr(fd, "", AT_EMPTY_PATH | (AT_RECURSIVE if recursive else 0), mount_attr(attr_set=attrs))
         move_mount(fd, "", AT_FDCWD, dst, MOVE_MOUNT_F_EMPTY_PATH)
 
 
@@ -837,7 +837,7 @@ class BindOperation(FSOperation):
         # resolving it.
         dst = joinpath(newroot, self.dst)
         if not os.path.isdir(src) and os.path.islink(dst):
-            return mount_rbind(src, dst, attrs=MOUNT_ATTR_RDONLY if self.readonly else 0)
+            return mount_bind(src, dst, attrs=MOUNT_ATTR_RDONLY if self.readonly else 0, recursive=True)
 
         dst = chase(newroot, self.dst)
         if not os.path.exists(dst):
@@ -852,7 +852,7 @@ class BindOperation(FSOperation):
                 else:
                     os.mkdir(dst)
 
-        mount_rbind(src, dst, attrs=MOUNT_ATTR_RDONLY if self.readonly else 0)
+        mount_bind(src, dst, attrs=MOUNT_ATTR_RDONLY if self.readonly else 0, recursive=True)
 
 
 class DevOperation(FSOperation):
@@ -942,7 +942,7 @@ class SymlinkOperation(FSOperation):
         # If the target already exists and is not a directory, create the symlink somewhere else and mount
         # it over the existing file or symlink.
         os.symlink(self.src, "/symlink")
-        mount_rbind("/symlink", dst)
+        mount_bind("/symlink", dst)
         os.unlink("/symlink")
 
 
