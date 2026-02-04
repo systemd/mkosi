@@ -582,24 +582,51 @@ def sandbox_cmd(
             elif p.is_dir():
                 cmdline += ["--ro-bind", p, Path("/") / p.relative_to(tools)]
 
+        # Always bind mount in everything that isn't a well-known directory. We assume that not mounting
+        # these in has a higher chance of causing issues than mounting these in.
+        for p in Path("/").iterdir():
+            if p not in (
+                Path("/bin"),
+                Path("/boot"),
+                Path("/dev"),
+                Path("/etc"),
+                Path("/home"),
+                Path("/lib"),
+                Path("/lib32"),
+                Path("/lib64"),
+                Path("/nix"),
+                Path("/opt"),
+                Path("/proc"),
+                Path("/root"),
+                Path("/run"),
+                Path("/sbin"),
+                Path("/srv"),
+                Path("/sys"),
+                Path("/tmp"),
+                Path("/usr"),
+                Path("/var"),
+            ):
+                if p.is_symlink():
+                    cmdline += ["--symlink", p.readlink(), p]
+                else:
+                    cmdline += ["--bind", p, p]
+
         if relaxed:
-            for p in Path("/").iterdir():
-                if p not in (
-                    Path("/proc"),
-                    Path("/usr"),
-                    Path("/opt"),
-                    Path("/nix"),
-                    Path("/bin"),
-                    Path("/sbin"),
-                    Path("/lib"),
-                    Path("/lib32"),
-                    Path("/lib64"),
-                    Path("/etc"),
-                ):
-                    if p.is_symlink():
-                        cmdline += ["--symlink", p.readlink(), p]
-                    else:
-                        cmdline += ["--bind", p, p]
+            for p in (
+                Path("/boot"),
+                Path("/dev"),
+                Path("/home"),
+                Path("/root"),
+                Path("/run"),
+                Path("/srv"),
+                Path("/sys"),
+                Path("/tmp"),
+                Path("/var"),
+            ):
+                if p.is_symlink():
+                    cmdline += ["--symlink", p.readlink(), p]
+                elif p.exists():
+                    cmdline += ["--bind", p, p]
 
             cmdline += ["--ro-bind", tools / "etc", "/etc"]
 
