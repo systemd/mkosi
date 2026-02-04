@@ -126,10 +126,10 @@ class PackageManager:
         return mounts
 
     @classmethod
-    def options(cls, *, root: PathString, apivfs: bool = True) -> list[PathString]:
+    def options(cls, *, root: PathString, apivfs: bool = True, become_root: bool = True) -> list[PathString]:
         return [
             *(apivfs_options() if apivfs else []),
-            "--become-root",
+            *(["--become-root"] if become_root else []),
             "--suppress-chown",
             "--suppress-sync",
             # Make sure /etc/machine-id is not overwritten by any package manager post install scripts.
@@ -158,6 +158,7 @@ class PackageManager:
         context: Context,
         *,
         apivfs: bool,
+        become_root: bool = True,
         options: Sequence[PathString] = (),
     ) -> AbstractContextManager[list[PathString]]:
         return context.sandbox(
@@ -165,7 +166,7 @@ class PackageManager:
             options=[
                 *context.rootoptions(),
                 *cls.mounts(context),
-                *cls.options(root=context.root, apivfs=apivfs),
+                *cls.options(root=context.root, apivfs=apivfs, become_root=become_root),
                 *options,
             ],
         )  # fmt: skip

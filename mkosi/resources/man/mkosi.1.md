@@ -488,9 +488,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   The distribution to install in the image. Takes one of the following
     arguments: `fedora`, `debian`, `kali`, `ubuntu`, `arch`, `opensuse`,
     `mageia`, `centos`, `rhel`, `rhel-ubi`, `openmandriva`, `rocky`, `alma`,
-    `azure` or `custom`. If not specified, defaults to the distribution of
-    the host or `custom` if the distribution of the host is not a supported
-    distribution.
+    `azure`, `buildstream` or `custom`. If not specified, defaults to the
+    distribution of the host or `custom` if the distribution of the host is
+    not a supported distribution.
 
 `Release=`, `--release=`, `-r`
 :   The release of the distribution to install in the image. The precise
@@ -536,6 +536,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     | `mageia`       | https://www.mageia.org             |                                |
     | `openmandriva` | http://mirrors.openmandriva.org    |                                |
     | `azure`        | https://packages.microsoft.com/    |                                |
+    | `buildstream`  |                                    |                                |
 
 `Snapshot=`
 :   Download packages from the given snapshot instead of downloading the latest
