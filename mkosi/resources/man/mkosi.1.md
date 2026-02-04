@@ -506,9 +506,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   The distribution to install in the image. Takes one of the following
     arguments: `fedora`, `debian`, `kali`, `ubuntu`, `arch`, `opensuse`,
     `mageia`, `centos`, `rhel`, `rhel-ubi`, `openmandriva`, `rocky`, `alma`,
-    `azure` or `custom`. If not specified, defaults to the distribution of
-    the host or `custom` if the distribution of the host is not a supported
-    distribution.
+    `azure`, `buildstream` or `custom`. If not specified, defaults to the
+    distribution of the host or `custom` if the distribution of the host is
+    not a supported distribution.
 
 `Release=`, `--release=`, `-r`
 :   The release of the distribution to install in the image. The precise
@@ -554,6 +554,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     | `mageia`       | https://www.mageia.org             |                                |
     | `openmandriva` | http://mirrors.openmandriva.org    |                                |
     | `azure`        | https://packages.microsoft.com/    |                                |
+    | `buildstream`  |                                    |                                |
 
 `Snapshot=`
 :   Download packages from the given snapshot instead of downloading the latest
@@ -3140,7 +3141,7 @@ tools trees:
 | `zstd`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
 | `zypper`                | ✓      |        | ✓      | ✓    | ✓      | ✓    | ✓        |              |
 
-# PACKAGE MANAGER-SPECIFC BEHAVIOUR
+# PACKAGE MANAGER-SPECIFIC BEHAVIOUR
 
 ## Arch and other pacman-based distributions
 
@@ -3161,6 +3162,11 @@ mkosi generates `/etc/yum.repos.d/mkosi.repo` in the sandbox tree if it does not
 ## Opensuse and other distributions using Zypper
 
 mkosi generates `/etc/zypp/repos.d/mkosi.repo` in the sandbox tree if it does not exist.
+
+## BuildStream
+
+mkosi expects a single "package" to be passed, which should be a compose element. If `UMask=` is unset, then
+it defaults to `0022`.
 
 # BUILDING MULTIPLE IMAGES
 
