@@ -399,6 +399,9 @@ def test_config() -> None:
                     "Cmdline": [
                         "key=value"
                     ],
+                    "Packages": [
+                        "mypackage"
+                    ],
                     "Profile": {
                         "key": "value"
                     },
@@ -600,6 +603,7 @@ def test_config() -> None:
             UKIProfile(
                 profile={"key": "value"},
                 cmdline=["key=value"],
+                packages=["mypackage"],
                 sign_expected_pcr=True,
             )
         ],

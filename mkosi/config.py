@@ -1935,6 +1935,7 @@ class UKIProfile:
     profile: dict[str, str]
     cmdline: list[str]
     sign_expected_pcr: bool
+    packages: list[str]
 
 
 def make_simple_config_parser(
@@ -2638,6 +2639,13 @@ UKI_PROFILE_SETTINGS: list[ConfigSetting[Any]] = [
         section="UKIProfile",
         parse=config_parse_boolean,
         default=True,
+    ),
+    ConfigSetting(
+        dest="packages",
+        metavar="PACKAGE",
+        section="UKIProfile",
+        parse=config_make_list_parser(delimiter=",", key=package_sort_key),
+        help="Add an additional package to the UKI Profile's initrd",
     ),
 ]
 
@@ -5970,6 +5978,7 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
             UKIProfile(
                 profile=profile["Profile"],
                 cmdline=profile["Cmdline"],
+                packages=profile["Packages"],
                 sign_expected_pcr=profile["SignExpectedPcr"],
             )
             for profile in profiles
