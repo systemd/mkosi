@@ -3720,9 +3720,11 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Build",
         default_factory_depends=("distribution", "mirror", "tools_tree_distribution"),
         default_factory=(
-            lambda ns: ns["mirror"]
-            if ns["mirror"] and ns["distribution"] == ns["tools_tree_distribution"]
-            else None
+            lambda ns: (
+                ns["mirror"]
+                if ns["mirror"] and ns["distribution"] == ns["tools_tree_distribution"]
+                else None
+            )
         ),
         help="Set the mirror to use for the default tools tree",
         scope=SettingScope.tools,
