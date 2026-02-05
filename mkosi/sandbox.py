@@ -212,7 +212,37 @@ def capability_mask(capabilities: list[int]) -> int:
     return mask
 
 
-def drop_capabilities(*, keep: list[int]) -> None:
+def fix_userns_capabilities(*, network: bool) -> None:
+    # When unsharing a user namespace, the process user has a full set of capabilities in the new user
+    # namespace. This allows the process to do mounts after unsharing a mount namespace for example. However,
+    # these capabilities are lost again when the user executes a subprocess. As we also want subprocesses
+    # invoked by the user to be able to mount stuff, we make sure the capabilities we are interested in are
+    # inherited across execve() by adding all these capabilities to the inherited and ambient capability
+    # sets, which makes sure that they are passed down to subprocesses, regardless if we're uid 0 in the user
+    # namespace or not.
+
+    keep = [
+        CAP_CHOWN,
+        CAP_DAC_OVERRIDE,
+        CAP_DAC_READ_SEARCH,
+        CAP_FOWNER,
+        CAP_FSETID,
+        CAP_SETGID,
+        CAP_SETUID,
+        CAP_SETPCAP,
+        CAP_SYS_CHROOT,
+        CAP_SYS_PTRACE,
+        CAP_SYS_ADMIN,
+        CAP_SYS_RESOURCE,
+        CAP_SETFCAP,
+    ]
+    if network:
+        # If we're unsharing the network namespace, we want CAP_NET_BIND_SERVICE and CAP_NET_ADMIN as well.
+        keep += [
+            CAP_NET_BIND_SERVICE,
+            CAP_NET_ADMIN,
+        ]
+
     # First, fetch the permitted capabilities and AND them
     # with the ones with we want to keep to get the final list
     # of capabilities.
@@ -619,37 +649,7 @@ def acquire_privileges(*, become_root: bool = False, network: bool = False) -> b
     else:
         become_user(os.getuid(), os.getgid())
 
-    # When unsharing a user namespace, the process user has a full set of capabilities in the new user
-    # namespace. This allows the process to do mounts after unsharing a mount namespace for example. However,
-    # these capabilities are lost again when the user executes a subprocess. As we also want subprocesses
-    # invoked by the user to be able to mount stuff, we make sure the capabilities we are interested in are
-    # inherited across execve() by adding all the these capabilities to the inherited and ambient capability
-    # sets, which makes sure that they are passed down to subprocesses, regardless if we're uid 0 in the user
-    # namespace or not.
-
-    caps = [
-        CAP_CHOWN,
-        CAP_DAC_OVERRIDE,
-        CAP_DAC_READ_SEARCH,
-        CAP_FOWNER,
-        CAP_FSETID,
-        CAP_SETGID,
-        CAP_SETUID,
-        CAP_SETPCAP,
-        CAP_SYS_CHROOT,
-        CAP_SYS_PTRACE,
-        CAP_SYS_ADMIN,
-        CAP_SYS_RESOURCE,
-        CAP_SETFCAP,
-    ]
-    if network:
-        # If we're unsharing the network namespace, we want CAP_NET_BIND_SERVICE and CAP_NET_ADMIN as well.
-        caps += [
-            CAP_NET_BIND_SERVICE,
-            CAP_NET_ADMIN,
-        ]
-
-    drop_capabilities(keep=caps)
+    fix_userns_capabilities(network=network)
 
     return True
 
