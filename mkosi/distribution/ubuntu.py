@@ -15,13 +15,35 @@ from mkosi.util import startswith
 
 
 class Installer(debian.Installer, distribution=Distribution.ubuntu):
+    _default_release = "devel"
+    _releasemap = {
+        "20.04": ("20.04", "focal"),
+        "focal": ("20.04", "focal"),
+        "focal fossa": ("20.04", "focal"),
+        "22.04": ("22.04", "jammy"),
+        "jammy": ("22.04", "jammy"),
+        "jammy jellyfish": ("22.04", "jammy"),
+        "24.04": ("24.04", "noble"),
+        "noble": ("24.04", "noble"),
+        "noble numbat": ("24.04", "noble"),
+        "24.10": ("24.10", "oracular"),
+        "oracular": ("24.10", "oracular"),
+        "oracular oriole": ("24.10", "oracular"),
+        "25.04": ("25.04", "plucky"),
+        "plucky": ("25.04", "plucky"),
+        "plucky puffin": ("25.04", "plucky"),
+        "25.10": ("25.10", "questing"),
+        "questing": ("25.10", "questing"),
+        "questing quokka": ("25.10", "questing"),
+        "26.04": ("26.04", "resolute"),
+        "resolute": ("26.04", "resolute"),
+        "resolute raccoon": ("26.04", "resolute"),
+        "devel": ("9999", "devel"),
+    }
+
     @classmethod
     def pretty_name(cls) -> str:
         return "Ubuntu"
-
-    @classmethod
-    def default_release(cls) -> str:
-        return "devel"
 
     @classmethod
     def default_tools_tree_distribution(cls) -> Distribution:

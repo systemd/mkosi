@@ -11,13 +11,11 @@ from mkosi.log import die
 
 
 class Installer(debian.Installer, distribution=Distribution.kali):
+    _default_release = "kali-rolling"
+
     @classmethod
     def pretty_name(cls) -> str:
         return "Kali Linux"
-
-    @classmethod
-    def default_release(cls) -> str:
-        return "kali-rolling"
 
     @classmethod
     def default_tools_tree_distribution(cls) -> Distribution:

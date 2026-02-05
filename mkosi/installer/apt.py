@@ -4,10 +4,11 @@ import dataclasses
 import textwrap
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Final, Optional
+from typing import Final, Optional, Union
 
 from mkosi.config import Config, ConfigFeature
 from mkosi.context import Context
+from mkosi.distribution import DistributionRelease
 from mkosi.installer import PackageManager
 from mkosi.log import die
 from mkosi.run import CompletedProcess, run, workdir
@@ -19,7 +20,7 @@ from mkosi.util import _FILE, PathString
 class AptRepository:
     types: tuple[str, ...]
     url: str
-    suite: str
+    suite: Union[str, DistributionRelease]
     components: tuple[str, ...]
     signedby: Optional[Path]
     snapshot: Optional[str] = None

@@ -87,7 +87,7 @@ from mkosi.config import (
     yes_no,
 )
 from mkosi.context import Context
-from mkosi.distribution import Distribution, detect_distribution
+from mkosi.distribution import Distribution, DistributionRelease, detect_distribution
 from mkosi.documentation import show_docs
 from mkosi.installer import clean_package_manager_metadata
 from mkosi.kmod import (
@@ -667,7 +667,7 @@ def run_configure_scripts(config: Config) -> Config:
 
     env = dict(
         DISTRIBUTION=str(config.distribution),
-        RELEASE=config.release,
+        RELEASE=str(config.release),
         ARCHITECTURE=str(config.architecture),
         QEMU_ARCHITECTURE=config.architecture.to_qemu(),
         DISTRIBUTION_ARCHITECTURE=config.distribution.installer.architecture(config.architecture),
@@ -715,7 +715,7 @@ def run_sync_scripts(config: Config) -> None:
 
     env = dict(
         DISTRIBUTION=str(config.distribution),
-        RELEASE=config.release,
+        RELEASE=str(config.release),
         ARCHITECTURE=str(config.architecture),
         DISTRIBUTION_ARCHITECTURE=config.distribution.installer.architecture(config.architecture),
         SRCDIR="/work/src",
@@ -831,7 +831,7 @@ def run_prepare_scripts(context: Context, build: bool) -> None:
 
     env = dict(
         DISTRIBUTION=str(context.config.distribution),
-        RELEASE=context.config.release,
+        RELEASE=str(context.config.release),
         ARCHITECTURE=str(context.config.architecture),
         DISTRIBUTION_ARCHITECTURE=context.config.distribution.installer.architecture(
             context.config.architecture
@@ -904,7 +904,7 @@ def run_build_scripts(context: Context) -> None:
 
     env = dict(
         DISTRIBUTION=str(context.config.distribution),
-        RELEASE=context.config.release,
+        RELEASE=str(context.config.release),
         ARCHITECTURE=str(context.config.architecture),
         DISTRIBUTION_ARCHITECTURE=context.config.distribution.installer.architecture(
             context.config.architecture
@@ -984,7 +984,7 @@ def run_postinst_scripts(context: Context) -> None:
 
     env = dict(
         DISTRIBUTION=str(context.config.distribution),
-        RELEASE=context.config.release,
+        RELEASE=str(context.config.release),
         ARCHITECTURE=str(context.config.architecture),
         DISTRIBUTION_ARCHITECTURE=context.config.distribution.installer.architecture(
             context.config.architecture
@@ -1058,7 +1058,7 @@ def run_finalize_scripts(context: Context) -> None:
 
     env = dict(
         DISTRIBUTION=str(context.config.distribution),
-        RELEASE=context.config.release,
+        RELEASE=str(context.config.release),
         ARCHITECTURE=str(context.config.architecture),
         DISTRIBUTION_ARCHITECTURE=context.config.distribution.installer.architecture(
             context.config.architecture
@@ -1132,7 +1132,7 @@ def run_postoutput_scripts(context: Context) -> None:
 
     env = dict(
         DISTRIBUTION=str(context.config.distribution),
-        RELEASE=context.config.release,
+        RELEASE=str(context.config.release),
         ARCHITECTURE=str(context.config.architecture),
         DISTRIBUTION_ARCHITECTURE=context.config.distribution.installer.architecture(
             context.config.architecture
@@ -3481,12 +3481,14 @@ def make_image(
         cmdline += ["--definitions", workdir(d)]
         opts += ["--ro-bind", d, workdir(d)]
 
-    def can_orphan_file(distribution: Union[Distribution, str, None], release: Optional[str]) -> bool:
+    def can_orphan_file(
+        distribution: Union[Distribution, str, None], release: Optional[DistributionRelease]
+    ) -> bool:
         if not isinstance(distribution, Distribution):
             return True
 
         return not (
-            (distribution == Distribution.centos and release and GenericVersion(release) == 9)
+            (distribution == Distribution.centos and release and release == 9)
             or (distribution == Distribution.ubuntu and release == "jammy")
         )
 
@@ -4198,7 +4200,7 @@ def run_box(args: Args, config: Config) -> None:
     if hd:
         env |= {"MKOSI_HOST_DISTRIBUTION": str(hd)}
     if hr:
-        env |= {"MKOSI_HOST_RELEASE": hr}
+        env |= {"MKOSI_HOST_RELEASE": str(hr)}
     if config.tools() != Path("/"):
         env |= {"MKOSI_DEFAULT_TOOLS_TREE_PATH": os.fspath(config.tools())}
 
@@ -4613,7 +4615,7 @@ def run_clean_scripts(config: Config) -> None:
 
     env = dict(
         DISTRIBUTION=str(config.distribution),
-        RELEASE=config.release,
+        RELEASE=str(config.release),
         ARCHITECTURE=str(config.architecture),
         DISTRIBUTION_ARCHITECTURE=config.distribution.installer.architecture(config.architecture),
         SRCDIR="/work/src",

@@ -10,6 +10,16 @@ from mkosi.log import die
 
 
 class Installer(fedora.Installer, distribution=Distribution.openmandriva):
+    _default_release = "cooker"
+    _releasemap = {
+        "lx 5.0": ("5.0", "lx 5.0"),
+        "stable": ("5.0", "stable"),
+        "rock": ("5.0", "rock"),
+        "rolling": ("98", "rolling"),
+        "rome": ("98", "rome"),
+        "cooker": ("99", "cooker"),
+    }
+
     @classmethod
     def pretty_name(cls) -> str:
         return "OpenMandriva"
@@ -17,10 +27,6 @@ class Installer(fedora.Installer, distribution=Distribution.openmandriva):
     @classmethod
     def filesystem(cls) -> str:
         return "ext4"
-
-    @classmethod
-    def default_release(cls) -> str:
-        return "cooker"
 
     @classmethod
     def install(cls, context: Context) -> None:

@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 import enum
+import functools
 import importlib
 import urllib.parse
 from collections.abc import Sequence
@@ -9,6 +10,7 @@ from typing import TYPE_CHECKING, Optional, Union
 
 from mkosi.log import die
 from mkosi.util import StrEnum, read_env_file
+from mkosi.versioncomp import GenericVersion
 
 if TYPE_CHECKING:
     from mkosi.config import Architecture, Config
@@ -22,6 +24,65 @@ class PackageType(StrEnum):
     deb = enum.auto()
     pkg = enum.auto()
     apk = enum.auto()
+
+
+@functools.total_ordering
+class DistributionRelease:
+    def __init__(self, release: str, *, releasemap: Optional[dict[str, tuple[str, str]]] = None) -> None:
+        self.releasemap = {} if releasemap is None else releasemap
+        self._release = release
+
+    def __str__(self) -> str:
+        return self.releasemap.get(self._release, (None, self._release))[1]
+
+    def __fspath__(self) -> str:
+        return str(self)
+
+    def __repr__(self) -> str:
+        return f"DistributionRelease('{self._release}')"
+
+    def major(self) -> str:
+        return self._release.partition(".")[0]
+
+    def minor(self) -> str:
+        return self._release.partition(".")[1]
+
+    def isnumeric(self) -> bool:
+        return self._release.isdigit()
+
+    def capitalize(self) -> str:
+        return str(self).capitalize()
+
+    def _construct_versions(self, other: object) -> tuple[GenericVersion, Optional[GenericVersion]]:
+        v1 = GenericVersion(self.releasemap.get(self._release.lower(), (self._release.lower(),))[0])
+
+        if isinstance(other, DistributionRelease):
+            if self.releasemap == other.releasemap:
+                v2 = GenericVersion(
+                    other.releasemap.get(other._release.lower(), (other._release.lower(),))[0]
+                )
+            else:
+                v2 = None
+        elif isinstance(other, GenericVersion):
+            v2 = GenericVersion(self.releasemap.get(str(other), (str(other),))[0])
+        elif isinstance(other, (str, int)):
+            v2 = GenericVersion(self.releasemap.get(str(other), (str(other),))[0])
+        else:
+            raise ValueError(f"{other} not a DistributionRelease, str or int")
+
+        return v1, v2
+
+    def __eq__(self, other: object) -> bool:
+        v1, v2 = self._construct_versions(other)
+        if v2 is None:
+            return False
+        return v1 == v2
+
+    def __lt__(self, other: object) -> bool:
+        v1, v2 = self._construct_versions(other)
+        if v2 is None:
+            return False
+        return v1 < v2
 
 
 class Distribution(StrEnum):
@@ -77,6 +138,8 @@ class Distribution(StrEnum):
 
 
 class DistributionInstaller:
+    _default_release = ""
+    _releasemap: dict[str, tuple[str, str]] = {}
     registry: dict[Distribution, "type[DistributionInstaller]"] = {}
 
     def __init_subclass__(cls, distribution: Distribution):
@@ -131,8 +194,12 @@ class DistributionInstaller:
         return PackageType.none
 
     @classmethod
-    def default_release(cls) -> str:
-        return ""
+    def default_release(cls) -> DistributionRelease:
+        return DistributionRelease(cls._default_release, releasemap=cls._releasemap)
+
+    @classmethod
+    def parse_release(cls, release: str) -> DistributionRelease:
+        return DistributionRelease(release, releasemap=cls._releasemap)
 
     @classmethod
     def default_tools_tree_distribution(cls) -> Optional[Distribution]:
@@ -151,7 +218,9 @@ class DistributionInstaller:
         return False
 
 
-def detect_distribution(root: Path = Path("/")) -> tuple[Union[Distribution, str, None], Optional[str]]:
+def detect_distribution(
+    root: Path = Path("/"),
+) -> tuple[Union[Distribution, str, None], Optional[DistributionRelease]]:
     try:
         os_release = read_env_file(root / "etc/os-release")
     except FileNotFoundError:
@@ -181,7 +250,10 @@ def detect_distribution(root: Path = Path("/")) -> tuple[Union[Distribution, str
     if d and d.is_apt_distribution() and version_codename:
         version_id = version_codename
 
-    return d or dist_id, version_id
+    if d and version_id:
+        return d, d.installer.parse_release(version_id)
+
+    return d, DistributionRelease(version_id) if version_id is not None else None
 
 
 def join_mirror(mirror: str, link: str) -> str:

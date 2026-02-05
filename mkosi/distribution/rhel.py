@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
+import os
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, Optional
@@ -21,7 +22,7 @@ class Installer(centos.Installer, distribution=Distribution.rhel):
         return (
             find_rpm_gpgkey(
                 context,
-                f"RPM-GPG-KEY-redhat{cls.major_release(context.config)}-release",
+                f"RPM-GPG-KEY-redhat{context.config.release.major()}-release",
                 "https://access.redhat.com/security/data/fd431d51.txt",
             ),
         )
@@ -90,22 +91,22 @@ class Installer(centos.Installer, distribution=Distribution.rhel):
             )
 
             v = context.config.release
-            major = cls.major_release(context.config)
+            major = v.major()
             yield RpmRepository(
-                f"rhel-{v}-{repo}-rpms",
-                f"baseurl={join_mirror(mirror, f'rhel{major}/{v}/$basearch/{repo}/os')}",
+                f"rhel-{os.fspath(v)}-{repo}-rpms",
+                f"baseurl={join_mirror(mirror, f'rhel{major}/{os.fspath(v)}/$basearch/{repo}/os')}",
                 enabled=True,
                 **common,
             )
             yield RpmRepository(
-                f"rhel-{v}-{repo}-debug-rpms",
-                f"baseurl={join_mirror(mirror, f'rhel{major}/{v}/$basearch/{repo}/debug')}",
+                f"rhel-{os.fspath(v)}-{repo}-debug-rpms",
+                f"baseurl={join_mirror(mirror, f'rhel{major}/{os.fspath(v)}/$basearch/{repo}/debug')}",
                 enabled=False,
                 **common,
             )
             yield RpmRepository(
-                f"rhel-{v}-{repo}-source",
-                f"baseurl={join_mirror(mirror, f'rhel{major}/{v}/$basearch/{repo}/source')}",
+                f"rhel-{os.fspath(v)}-{repo}-source",
+                f"baseurl={join_mirror(mirror, f'rhel{major}/{os.fspath(v)}/$basearch/{repo}/source')}",
                 enabled=False,
                 **common,
             )

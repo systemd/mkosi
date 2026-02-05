@@ -13,12 +13,11 @@ class Installer(centos.Installer, distribution=Distribution.alma):
 
     @classmethod
     def gpgurls(cls, context: Context) -> tuple[str, ...]:
-        major = cls.major_release(context.config)
         return (
             find_rpm_gpgkey(
                 context,
-                f"RPM-GPG-KEY-AlmaLinux-{major}",
-                f"https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux-{major}",
+                f"RPM-GPG-KEY-AlmaLinux-{context.config.release.major()}",
+                f"https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux-{context.config.release.major()}",
             ),
         )
 
