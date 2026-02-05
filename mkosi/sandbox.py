@@ -82,6 +82,7 @@ PR_CAP_AMBIENT_IS_SET = 1
 PR_CAP_AMBIENT_RAISE = 2
 PR_CAP_AMBIENT_LOWER = 3
 PR_CAPBSET_DROP = 24
+PR_SET_DUMPABLE = 4
 # These definitions are taken from the libseccomp headers
 SCMP_ACT_ALLOW = 0x7FFF0000
 SCMP_ACT_ERRNO = 0x00050000
@@ -563,6 +564,15 @@ def become_user(uid: int, gid: int) -> None:
     process, make it wait until the parent process has unshared a user namespace, and then writes
     the necessary uid and gid mappings.
     """
+    libc.prctl.argtypes = (ctypes.c_int, ctypes.c_long)
+
+    # If we're running after fork() but before execve() and change UIDs/GIDs earlier, the kernel might have
+    # made us non-dumpable, which means the user namespace uidmap files in /proc become owned by root and
+    # thus we won't have permission to write them. Make sure we're dumpable again so we have permission to
+    # write the files after we fork().
+    if libc.prctl(PR_SET_DUMPABLE, 1) < 0:
+        oserror("prctl")
+
     ppid = os.getpid()
 
     event = libc.eventfd(0, 0)
