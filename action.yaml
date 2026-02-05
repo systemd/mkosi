@@ -95,6 +95,7 @@ runs:
     - name: Dependencies
       shell: bash
       run: |
+        sudo apt-get update
         sudo apt-get install --assume-yes --no-install-recommends \
           debian-archive-keyring \
           dnf \
