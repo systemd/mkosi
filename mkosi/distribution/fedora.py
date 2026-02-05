@@ -57,6 +57,10 @@ def find_fedora_rpm_gpgkeys(context: Context) -> Iterable[str]:
         version = int(rawhide_will_be.group(1))
         yield f"{DISTRIBUTION_GPG_KEYS_UPSTREAM}/RPM-GPG-KEY-fedora-{version}-primary"
 
+        # Also use the N-1 key if it exists to avoid issues when distribution-gpg-keys has been moved to the
+        # next key but rawhide still uses the previous one.
+        yield f"{DISTRIBUTION_GPG_KEYS_UPSTREAM}/RPM-GPG-KEY-fedora-{version - 1}-primary"
+
         # Also use the N+1 key if it exists to avoid issues when rawhide has been moved to the next key but
         # the rawhide symlink in distribution-gpg-keys hasn't been updated yet.
         try:
@@ -83,13 +87,17 @@ def find_fedora_rpm_gpgkeys(context: Context) -> Iterable[str]:
     yield key
 
     if release == "rawhide" and (rawhide_will_be := versionre.match(Path(key).name)):
+        version = int(rawhide_will_be.group(1))
+
+        # To handle the scenario where distribution-gpg-keys adopts the new rawhide key before rawhide is
+        # rebuilt, we have to also add the N-1 key.
+        yield find_rpm_gpgkey(context, key=f"RPM-GPG-KEY-fedora-{version - 1}-primary")
+
         # When querying the rawhide version remotely, we add the N+1 key as the symlink might not have been
         # updated yet. We do expect the symlink update to happen in reasonable time so we only add the N+1
         # key. When using a locally installed distribution-gpg-keys package on older Fedora versions, there's
         # a non-zero chance that rawhide might already be using the N+2 key. So let's play it safe and add
         # all newer keys in this case.
-        version = int(rawhide_will_be.group(1))
-
         i = 1
         while newerkey := find_rpm_gpgkey(
             context,
