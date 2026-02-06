@@ -318,14 +318,6 @@ def unshare_version() -> str:
     return run(["unshare", "--version"], stdout=subprocess.PIPE).stdout.strip().split()[-1]
 
 
-def systemd_escape(config: Config, s: PathString, path: bool = False) -> str:
-    cmdline = ["systemd-escape", s]
-    if path:
-        cmdline += ["--path"]
-
-    return run(cmdline, stdout=subprocess.PIPE, sandbox=config.sandbox()).stdout.strip()
-
-
 @contextlib.contextmanager
 def start_virtiofsd(
     config: Config,
