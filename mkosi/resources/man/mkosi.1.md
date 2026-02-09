@@ -1459,9 +1459,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     See the **TOOLS TREE** section for further details.
 
 `ToolsTreeDistribution=`, `--tools-tree-distribution=`
-:   Set the distribution to use for the default tools tree. Defaults to the host distribution except for
-    Ubuntu, which defaults to Debian, and RHEL, CentOS, Alma and Rocky, which default to Fedora, or `custom`
-    if the distribution of the host is not a supported distribution.
+:   Set the distribution to use for the default tools tree. Defaults to the host distribution except if the
+    host (not target) distribution is Ubuntu, which defaults to Debian, and RHEL, CentOS, Alma and Rocky,
+    which default to Fedora, or `custom` if the distribution of the host is not a supported distribution.
 
 `ToolsTreeRelease=`, `--tools-tree-release=`
 :   Set the distribution release to use for the default tools tree. By
