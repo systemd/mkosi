@@ -2030,6 +2030,8 @@ class Config:
     output_mode: Optional[int]
     image_id: Optional[str]
     image_version: Optional[str]
+    oci_labels: dict[str, str]
+    oci_annotations: dict[str, str]
     split_artifacts: list[ArtifactOutput]
     repart_dirs: list[Path]
     sysupdate_dir: Optional[Path]
@@ -2899,6 +2901,20 @@ SETTINGS: list[ConfigSetting[Any]] = [
         specifier="i",
         help="Set ID for image",
         scope=SettingScope.inherit,
+    ),
+    ConfigSetting(
+        dest="oci_labels",
+        metavar="KEY=VALUE",
+        section="Output",
+        parse=config_make_dict_parser(delimiter=" ", parse=parse_key_value, unescape=True),
+        help="Set OCI config labels (visible in podman/docker inspect)",
+    ),
+    ConfigSetting(
+        dest="oci_annotations",
+        metavar="KEY=VALUE",
+        section="Output",
+        parse=config_make_dict_parser(delimiter=" ", parse=parse_key_value, unescape=True),
+        help="Set OCI manifest annotations",
     ),
     ConfigSetting(
         dest="split_artifacts",
