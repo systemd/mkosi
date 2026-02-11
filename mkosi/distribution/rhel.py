@@ -2,7 +2,7 @@
 
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from mkosi.context import Context
 from mkosi.distribution import Distribution, centos, join_mirror
@@ -27,7 +27,7 @@ class Installer(centos.Installer, distribution=Distribution.rhel):
         )
 
     @staticmethod
-    def sslcacert(context: Context) -> Optional[Path]:
+    def sslcacert(context: Context) -> Path | None:
         if context.config.mirror:
             return None
 
@@ -41,7 +41,7 @@ class Installer(centos.Installer, distribution=Distribution.rhel):
         return path
 
     @staticmethod
-    def sslclientkey(context: Context) -> Optional[Path]:
+    def sslclientkey(context: Context) -> Path | None:
         if context.config.mirror:
             return None
 
@@ -56,7 +56,7 @@ class Installer(centos.Installer, distribution=Distribution.rhel):
         return paths[0]
 
     @staticmethod
-    def sslclientcert(context: Context) -> Optional[Path]:
+    def sslclientcert(context: Context) -> Path | None:
         if context.config.mirror:
             return None
 

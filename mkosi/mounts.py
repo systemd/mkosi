@@ -6,7 +6,6 @@ import stat
 import tempfile
 from collections.abc import Iterator, Sequence
 from pathlib import Path
-from typing import Optional, Union
 
 from mkosi.config import BuildSourcesEphemeral, Config
 from mkosi.log import die
@@ -49,7 +48,7 @@ def mount_overlay(
     lowerdirs: Sequence[Path],
     dst: Path,
     *,
-    upperdir: Optional[Path] = None,
+    upperdir: Path | None = None,
 ) -> Iterator[Path]:
     with contextlib.ExitStack() as stack:
         if upperdir is None:
@@ -86,7 +85,7 @@ def mount_overlay(
 def finalize_source_mounts(
     config: Config,
     *,
-    ephemeral: Union[BuildSourcesEphemeral, bool],
+    ephemeral: BuildSourcesEphemeral | bool,
 ) -> Iterator[list[PathString]]:
     with contextlib.ExitStack() as stack:
         options: list[PathString] = []

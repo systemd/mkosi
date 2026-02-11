@@ -5,7 +5,7 @@ import json
 import subprocess
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Final, Optional
+from typing import Any, Final
 
 from mkosi.log import die
 from mkosi.run import SandboxProtocol, nosandbox, run, workdir
@@ -15,9 +15,9 @@ from mkosi.run import SandboxProtocol, nosandbox, run, workdir
 class Partition:
     type: str
     uuid: str
-    partno: Optional[int]
-    split_path: Optional[Path]
-    roothash: Optional[str]
+    partno: int | None
+    split_path: Path | None
+    roothash: str | None
 
     @classmethod
     def from_dict(cls, dict: Mapping[str, Any]) -> "Partition":
@@ -47,9 +47,9 @@ def find_partitions(image: Path, *, sandbox: SandboxProtocol = nosandbox) -> lis
     return [Partition.from_dict(d) for d in output]
 
 
-def finalize_roothash(partitions: Sequence[Partition]) -> Optional[str]:
-    roothash: Optional[str] = None
-    usrhash: Optional[str] = None
+def finalize_roothash(partitions: Sequence[Partition]) -> str | None:
+    roothash: str | None = None
+    usrhash: str | None = None
 
     for p in partitions:
         if (h := p.roothash) is None:
@@ -71,7 +71,7 @@ def finalize_roothash(partitions: Sequence[Partition]) -> Optional[str]:
     return f"roothash={roothash}" if roothash else f"usrhash={usrhash}" if usrhash else None
 
 
-def finalize_root(partitions: Sequence[Partition]) -> Optional[str]:
+def finalize_root(partitions: Sequence[Partition]) -> str | None:
     root = finalize_roothash(partitions)
     if not root:
         root = next((f"root=PARTUUID={p.uuid}" for p in partitions if p.type.startswith("root")), None)

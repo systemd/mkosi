@@ -4,7 +4,7 @@ import dataclasses
 import textwrap
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Final, Optional
+from typing import Final
 
 from mkosi.config import Config, ConfigFeature
 from mkosi.context import Context
@@ -21,8 +21,8 @@ class AptRepository:
     url: str
     suite: str
     components: tuple[str, ...]
-    signedby: Optional[Path]
-    snapshot: Optional[str] = None
+    signedby: Path | None
+    snapshot: str | None = None
 
     def __str__(self) -> str:
         return textwrap.dedent(

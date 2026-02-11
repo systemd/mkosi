@@ -5,7 +5,6 @@ import faulthandler
 import signal
 import sys
 from types import FrameType
-from typing import Optional
 
 import mkosi.resources
 from mkosi import run_verb
@@ -17,7 +16,7 @@ from mkosi.util import resource_path
 INTERRUPTED = False
 
 
-def onsignal(signal: int, frame: Optional[FrameType]) -> None:
+def onsignal(signal: int, frame: FrameType | None) -> None:
     global INTERRUPTED
     if INTERRUPTED:
         return
