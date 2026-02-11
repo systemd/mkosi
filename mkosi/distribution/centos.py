@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
+import os
 from collections.abc import Iterable
 
 from mkosi.config import Architecture, Config
@@ -15,12 +16,13 @@ from mkosi.installer.dnf import Dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey, setup_rpm
 from mkosi.log import die
 from mkosi.util import startswith
-from mkosi.versioncomp import GenericVersion
 
 CENTOS_SIG_REPO_PRIORITY = 50
 
 
 class Installer(DistributionInstaller, distribution=Distribution.centos):
+    _default_release = "10"
+
     @classmethod
     def pretty_name(cls) -> str:
         return "CentOS"
@@ -34,16 +36,8 @@ class Installer(DistributionInstaller, distribution=Distribution.centos):
         return PackageType.rpm
 
     @classmethod
-    def default_release(cls) -> str:
-        return "10"
-
-    @classmethod
     def default_tools_tree_distribution(cls) -> Distribution:
         return Distribution.fedora
-
-    @classmethod
-    def major_release(cls, config: "Config") -> str:
-        return config.release.partition(".")[0]
 
     @classmethod
     def package_manager(cls, config: "Config") -> type[Dnf]:
@@ -57,24 +51,21 @@ class Installer(DistributionInstaller, distribution=Distribution.centos):
     def dbpath(cls, context: Context) -> str:
         # The Hyperscale SIG uses /usr/lib/sysimage/rpm in its rebuild of rpm for C9S that's shipped in the
         # hyperscale-packages-experimental repository.
-        if (
-            GenericVersion(context.config.release) > 9
-            or "hyperscale-packages-experimental" in context.config.repositories
-        ):
+        if context.config.release > 9 or "hyperscale-packages-experimental" in context.config.repositories:
             return "/usr/lib/sysimage/rpm"
 
         return "/var/lib/rpm"
 
     @classmethod
     def setup(cls, context: Context) -> None:
-        if GenericVersion(context.config.release) <= 8:
+        if context.config.release <= 8:
             die(f"{cls.pretty_name()} Stream 8 or earlier variants are not supported")
 
         setup_rpm(context, dbpath=cls.dbpath(context))
 
         Dnf.setup(context, list(cls.repositories(context)))
         (context.sandbox_tree / "etc/dnf/vars/stream").write_text(
-            f"{cls.major_release(context.config)}-stream\n"
+            f"{context.config.release.major()}-stream\n"
         )
 
     @classmethod
@@ -99,7 +90,7 @@ class Installer(DistributionInstaller, distribution=Distribution.centos):
     def gpgurls(cls, context: Context) -> tuple[str, ...]:
         # First, start with the names of the appropriate keys in /etc/pki/rpm-gpg.
 
-        if GenericVersion(context.config.release) == 9:
+        if context.config.release == 9:
             rel = "RPM-GPG-KEY-centosofficial"
         else:
             rel = "RPM-GPG-KEY-centosofficial-SHA256"
@@ -108,7 +99,7 @@ class Installer(DistributionInstaller, distribution=Distribution.centos):
 
         # Next, follow up with the names of the appropriate keys in /usr/share/distribution-gpg-keys.
 
-        if GenericVersion(context.config.release) == 9:
+        if context.config.release == 9:
             rel = "RPM-GPG-KEY-CentOS-Official"
         else:
             rel = "RPM-GPG-KEY-CentOS-Official-SHA256"
@@ -159,7 +150,7 @@ class Installer(DistributionInstaller, distribution=Distribution.centos):
             if mirror == "https://composes.stream.centos.org":
                 subdir = f"stream-{context.config.release}/production"
             elif mirror == "https://mirror.facebook.net/centos-composes":
-                subdir = context.config.release
+                subdir = os.fspath(context.config.release)
             elif repo == "extras":
                 subdir = "SIGs/$stream"
             else:
@@ -252,16 +243,16 @@ class Installer(DistributionInstaller, distribution=Distribution.centos):
     @classmethod
     def epel_repositories(cls, context: Context) -> Iterable[RpmRepository]:
         # Since EPEL 10, there's an associated minor release for every RHEL minor release.
-        if GenericVersion(context.config.release) >= 10:
+        if context.config.release >= 10:
             release = context.config.release
         else:
-            release = cls.major_release(context.config)
+            release = cls.parse_release(context.config.release.major())
 
         gpgurls = (
             find_rpm_gpgkey(
                 context,
-                f"RPM-GPG-KEY-EPEL-{cls.major_release(context.config)}",
-                f"https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{cls.major_release(context.config)}",
+                f"RPM-GPG-KEY-EPEL-{context.config.release.major()}",
+                f"https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{context.config.release.major()}",
             ),
         )
 
@@ -274,7 +265,7 @@ class Installer(DistributionInstaller, distribution=Distribution.centos):
                 ("epel", "epel"),
                 ("epel-testing", "epel/testing"),
             ]
-            if GenericVersion(context.config.release) < 10:
+            if context.config.release < 10:
                 repodirs += [
                     ("epel-next", "epel/next"),
                     ("epel-next-testing", "epel/testing/next"),
@@ -310,7 +301,7 @@ class Installer(DistributionInstaller, distribution=Distribution.centos):
 
             # epel-next does not exist anymore since EPEL 10.
             repos = ["epel"]
-            if GenericVersion(context.config.release) < 10:
+            if context.config.release < 10:
                 repos += ["epel-next"]
 
             for repo in repos:
@@ -353,7 +344,7 @@ class Installer(DistributionInstaller, distribution=Distribution.centos):
             )
 
             # epel-next does not exist anymore since EPEL 10.
-            if GenericVersion(context.config.release) < 10:
+            if context.config.release < 10:
                 yield RpmRepository(
                     "epel-next-testing",
                     f"{url}&repo=epel-testing-next-{release}",
@@ -460,7 +451,7 @@ class Installer(DistributionInstaller, distribution=Distribution.centos):
         mirror = config.mirror or "https://composes.stream.centos.org"
 
         if mirror == "https://mirror.facebook.net/centos-composes":
-            subdir = config.release
+            subdir = os.fspath(config.release)
         else:
             subdir = f"stream-{config.release}/production"
 

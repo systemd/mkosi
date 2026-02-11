@@ -10,17 +10,30 @@ from xml.etree import ElementTree
 from mkosi.config import Architecture, Config, parse_ini
 from mkosi.context import Context
 from mkosi.curl import curl
-from mkosi.distribution import Distribution, DistributionInstaller, PackageType, join_mirror
+from mkosi.distribution import (
+    Distribution,
+    DistributionInstaller,
+    PackageType,
+    join_mirror,
+)
 from mkosi.installer.dnf import Dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey, setup_rpm
 from mkosi.installer.zypper import Zypper
 from mkosi.log import complete_step, die
 from mkosi.run import exists_in_sandbox, run, workdir
 from mkosi.util import PathString
-from mkosi.versioncomp import GenericVersion
 
 
 class Installer(DistributionInstaller, distribution=Distribution.opensuse):
+    _default_release = "tumbleweed"
+    _releasemap = {
+        "current": ("16.0", "current"),
+        "stable": ("16.0", "stable"),
+        "leap": ("16.0", "leap"),
+        "tumbleweed": ("9999", "tumbleweed"),
+        "rolling": ("9999", "rolling"),
+    }
+
     @classmethod
     def pretty_name(cls) -> str:
         return "openSUSE"
@@ -32,10 +45,6 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
     @classmethod
     def package_type(cls) -> PackageType:
         return PackageType.rpm
-
-    @classmethod
-    def default_release(cls) -> str:
-        return "tumbleweed"
 
     @classmethod
     def grub_prefix(cls) -> str:
@@ -89,8 +98,12 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
     def install(cls, context: Context) -> None:
         packages = ["filesystem"]
         if not any(p.endswith("-release") for p in context.config.packages):
-            if context.config.release in ("current", "stable", "leap") or (
-                context.config.release != "tumbleweed" and GenericVersion(context.config.release) >= 16
+            if context.config.release in (
+                cls.parse_release("current"),
+                cls.parse_release("stable"),
+                cls.parse_release("leap"),
+            ) or (
+                context.config.release != cls.parse_release("tumbleweed") and context.config.release >= 16
             ):
                 packages += ["Leap-release"]
             else:
@@ -107,7 +120,7 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
         zypper = cls.package_manager(context.config) is Zypper
         mirror = context.config.mirror or "https://download.opensuse.org"
 
-        if context.config.release == "tumbleweed":
+        if context.config.release == cls.parse_release("tumbleweed"):
             gpgkeys = tuple(
                 p
                 for key in ("RPM-GPG-KEY-openSUSE-Tumbleweed", "RPM-GPG-KEY-openSUSE")
@@ -197,7 +210,8 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
                 die(f"Snapshot= is only supported for Tumbleweed on {cls.pretty_name()}")
 
             if (
-                context.config.release in ("current", "stable", "leap")
+                context.config.release
+                in (cls.parse_release("current"), cls.parse_release("stable"), cls.parse_release("leap"))
                 and context.config.architecture != Architecture.x86_64
             ):
                 die(
@@ -206,7 +220,11 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
                     hint="Specify either tumbleweed or a specific leap release such as 15.6",
                 )
 
-            if context.config.release in ("current", "stable", "leap"):
+            if context.config.release in (
+                cls.parse_release("current"),
+                cls.parse_release("stable"),
+                cls.parse_release("leap"),
+            ):
                 release = "openSUSE-current"
             else:
                 release = f"leap/{context.config.release}"
@@ -248,8 +266,9 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
                     )
 
             if (
-                context.config.release in ("current", "stable", "leap")
-                or GenericVersion(context.config.release) >= 16
+                context.config.release
+                in (cls.parse_release("current"), cls.parse_release("stable"), cls.parse_release("leap"))
+                or context.config.release >= 16
             ):
                 subdir += f"distribution/{release}/repo"
             else:

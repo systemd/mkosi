@@ -7,12 +7,20 @@ from mkosi.archive import extract_tar
 from mkosi.config import Architecture, Config
 from mkosi.context import Context
 from mkosi.curl import curl
-from mkosi.distribution import Distribution, DistributionInstaller, PackageType, join_mirror
+from mkosi.distribution import (
+    Distribution,
+    DistributionInstaller,
+    DistributionRelease,
+    PackageType,
+    join_mirror,
+)
 from mkosi.installer.pacman import Pacman, PacmanRepository
 from mkosi.log import complete_step, die
 
 
 class Installer(DistributionInstaller, distribution=Distribution.arch):
+    _default_release = "rolling"
+
     @classmethod
     def pretty_name(cls) -> str:
         return "Arch Linux"
@@ -26,8 +34,8 @@ class Installer(DistributionInstaller, distribution=Distribution.arch):
         return PackageType.pkg
 
     @classmethod
-    def default_release(cls) -> str:
-        return "rolling"
+    def parse_release(cls, release: str) -> DistributionRelease:
+        return DistributionRelease("rolling")
 
     @classmethod
     def package_manager(cls, config: "Config") -> type[Pacman]:

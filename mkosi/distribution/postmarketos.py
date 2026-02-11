@@ -12,6 +12,9 @@ from mkosi.util import copyfile
 
 
 class Installer(DistributionInstaller, distribution=Distribution.postmarketos):
+    _default_release = "edge"
+    _releasemap = {"edge": ("9999", "edge")}
+
     @classmethod
     def pretty_name(cls) -> str:
         return "postmarketOS"
@@ -23,10 +26,6 @@ class Installer(DistributionInstaller, distribution=Distribution.postmarketos):
     @classmethod
     def package_type(cls) -> PackageType:
         return PackageType.apk
-
-    @classmethod
-    def default_release(cls) -> str:
-        return "edge"
 
     @classmethod
     def default_tools_tree_distribution(cls) -> Distribution:
