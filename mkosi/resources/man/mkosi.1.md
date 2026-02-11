@@ -694,6 +694,27 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     file will be named after it (possibly suffixed with the version). The
     identifier is also passed via the `$IMAGE_ID` to any build scripts
     invoked. The image ID is automatically added to `/usr/lib/os-release`.
+    When using `Format=oci`, the image ID is also set as the
+    `org.opencontainers.image.ref.name` annotation on the OCI index
+    descriptor.
+
+`OciLabels=`, `--oci-labels=`
+:   Set OCI config labels on images produced with `Format=oci`. Takes
+    a space-separated list of `KEY=VALUE` assignments. These labels are
+    stored in the OCI image config blob and are visible via
+    `podman inspect` or `docker inspect` (equivalent to `LABEL` in a
+    Containerfile). This option may be specified more than once, in
+    which case all listed labels will be set. If the same label is set
+    twice, the later setting overrides the earlier one.
+
+`OciAnnotations=`, `--oci-annotations=`
+:   Set OCI manifest annotations on images produced with `Format=oci`.
+    Takes a space-separated list of `KEY=VALUE` assignments. These
+    annotations are stored in the OCI image manifest. mkosi
+    automatically sets `io.systemd.mkosi.version` and, if `ImageVersion=`
+    is set, `org.opencontainers.image.version`. User-specified
+    annotations override these defaults. This option may be specified
+    more than once, in which case all listed annotations will be set.
 
 `SplitArtifacts=`, `--split-artifacts=`
 :   The artifact types to split out of the final image. A comma-delimited

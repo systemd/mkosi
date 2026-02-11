@@ -3678,6 +3678,7 @@ def make_oci(context: Context, root_layer: Path, dst: Path) -> None:
                 "/sbin/init",
                 *context.config.kernel_command_line,
             ],
+            **({"Labels": dict(context.config.oci_labels)} if context.config.oci_labels else {}),
         },
         "history": [
             {
@@ -3716,6 +3717,7 @@ def make_oci(context: Context, root_layer: Path, dst: Path) -> None:
                 if context.config.image_version
                 else {}
             ),
+            **context.config.oci_annotations,
         },
     }
     oci_manifest_blob = json.dumps(oci_manifest)
@@ -3733,6 +3735,15 @@ def make_oci(context: Context, root_layer: Path, dst: Path) -> None:
                             "mediaType": "application/vnd.oci.image.manifest.v1+json",
                             "digest": f"sha256:{oci_manifest_digest}",
                             "size": (ca_store / oci_manifest_digest).stat().st_size,
+                            **(
+                                {
+                                    "annotations": {
+                                        "org.opencontainers.image.ref.name": context.config.image_id,
+                                    },
+                                }
+                                if context.config.image_id
+                                else {}
+                            ),
                         }
                     ],
                 }
