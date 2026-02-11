@@ -8,12 +8,26 @@ command="$(basename "${BASH_SOURCE[0]//-/.}")"
 if [ -z "$MKOSI_INTERPRETER" ]; then
     # Note the check seems to be inverted here because the if branch is
     # executed when the exit status is 0 which is equal to False in Python.
-    if python3 -c "import sys; sys.exit(sys.version_info < (3, 9))"; then
+    if python3 -c 'import sys; sys.exit(sys.version_info < (3, 9))'; then
         MKOSI_INTERPRETER=python3
-    elif command -v python3.9 >/dev/null; then
-        MKOSI_INTERPRETER=python3.9
     else
-        echo "mkosi needs python 3.9 or newer (found $(python3 --version))"
+        # python3 is not found or too old, search $PATH for the newest interpreter.
+        candidate="$(
+            IFS=:
+            for dir in $PATH; do
+                for bin in "$dir"/python3*; do
+                    [ -x "$bin" ] && basename "$bin"
+                done
+            done | sort --unique --version-sort --reverse | head --lines=1
+        )"
+
+        if [ -n "$candidate" ] && "$candidate" -c 'import sys; sys.exit(sys.version_info < (3, 9))'; then
+            MKOSI_INTERPRETER="$candidate"
+        fi
+    fi
+
+    if [ -z "$MKOSI_INTERPRETER" ]; then
+        echo "mkosi needs python 3.10 or newer (found $(python3 --version 2>&1 || echo 'no python3'))"
         exit 1
     fi
 fi
