@@ -1792,6 +1792,13 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   If one of the hook scripts (see `SCRIPTS` section) is not marked as executable, attempt to chmod it
     instead of failing outright. Defaults to `no`.
 
+`ForeignUIDRange=`, `--foreign-uid-range=`
+:   If enabled, directory images will be owned by the foreign UID range on disk
+    instead of the user's UID.
+
+    Enabling this option is required to use directory images with `mkosi shell`,
+    `mkosi boot` and `mkosi vm`.
+
 ### [Runtime] Section (previously known as the [Host] section)
 
 `NSpawnSettings=`, `--settings=`

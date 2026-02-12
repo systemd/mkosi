@@ -23,6 +23,7 @@ from mkosi.qemu import (
     finalize_kernel_command_line_extra,
 )
 from mkosi.run import run
+from mkosi.tree import is_foreign_uid_tree
 from mkosi.util import PathString
 
 
@@ -95,14 +96,7 @@ def run_vmspawn(args: Args, config: Config) -> None:
             ):
                 cmdline += ["--initrd", initrd]
 
-        if config.output_format == OutputFormat.directory:
-            cmdline += ["--directory", fname]
-
-            owner = os.stat(fname).st_uid
-            if owner != 0:
-                cmdline += [f"--private-users={str(owner)}"]
-        else:
-            cmdline += ["--image", fname]
+        cmdline += ["--directory" if fname.is_dir() else "--image", fname]
 
         if config.forward_journal:
             cmdline += ["--forward-journal", config.forward_journal]
@@ -112,6 +106,10 @@ def run_vmspawn(args: Args, config: Config) -> None:
         env = os.environ.copy()
         if config.qemu_args:
             env["SYSTEMD_VMSPAWN_QEMU_EXTRA"] = " ".join(config.qemu_args)
+
+        options = ["--same-dir", "--map-delegate"]
+        if is_foreign_uid_tree(fname):
+            options += ["--map-foreign"]
 
         run(
             cmdline,
@@ -123,6 +121,6 @@ def run_vmspawn(args: Args, config: Config) -> None:
                 network=True,
                 devices=True,
                 relaxed=True,
-                options=["--same-dir"],
+                options=options,
             ),
         )

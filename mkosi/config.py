@@ -2156,6 +2156,7 @@ class Config:
     proxy_client_certificate: Optional[Path]
     proxy_client_key: Optional[Path]
     make_scripts_executable: bool
+    foreign_uid_range: bool
 
     nspawn_settings: Optional[Path]
     ephemeral: bool
@@ -4050,6 +4051,14 @@ SETTINGS: list[ConfigSetting[Any]] = [
         parse=config_parse_boolean,
         default=False,
         help="Whether mkosi will try to make build/postinst/finalize scripts executable if they are not",
+    ),
+    ConfigSetting(
+        dest="foreign_uid_range",
+        name="ForeignUIDRange",
+        section="Build",
+        parse=config_parse_boolean,
+        help="Use the foreign UID range",
+        scope=SettingScope.main,
     ),
     # Runtime section
     ConfigSetting(
