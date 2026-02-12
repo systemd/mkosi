@@ -261,12 +261,8 @@ def _preexec(
     cmd: list[str],
     env: dict[str, Any],
     sandbox: list[str],
-    preexec: Optional[Callable[[], None]],
 ) -> None:
     with uncaught_exception_handler(exit=os._exit, fork=True, proceed=True):
-        if preexec:
-            preexec()
-
         if not sandbox:
             return
 
@@ -306,7 +302,6 @@ def spawn(
     pass_fds: Collection[int] = (),
     env: Mapping[str, str] = {},
     log: bool = True,
-    preexec: Optional[Callable[[], None]] = None,
     success_exit_status: Sequence[int] = (0,),
     setup: Sequence[PathString] = (),
     sandbox: AbstractContextManager[Sequence[PathString]] = nosandbox(),
@@ -365,12 +360,15 @@ def spawn(
                 group=group,
                 pass_fds=pass_fds,
                 env=env if not sbx or not apply_sandbox_in_preexec else None,
-                preexec_fn=functools.partial(
-                    _preexec,
-                    cmd=cmd,
-                    env=env,
-                    sandbox=sbx if apply_sandbox_in_preexec else [],
-                    preexec=preexec,
+                preexec_fn=(
+                    functools.partial(
+                        _preexec,
+                        cmd=cmd,
+                        env=env,
+                        sandbox=sbx,
+                    )
+                    if apply_sandbox_in_preexec and sbx
+                    else None
                 ),
             )
         except FileNotFoundError as e:
@@ -402,12 +400,15 @@ def spawn(
                     user=user,
                     group=group,
                     env=env if not sbx or not apply_sandbox_in_preexec else None,
-                    preexec_fn=functools.partial(
-                        _preexec,
-                        cmd=["bash"],
-                        env=env,
-                        sandbox=sbx if apply_sandbox_in_preexec else [],
-                        preexec=preexec,
+                    preexec_fn=(
+                        functools.partial(
+                            _preexec,
+                            cmd=["bash"],
+                            env=env,
+                            sandbox=sbx,
+                        )
+                        if apply_sandbox_in_preexec and sbx
+                        else None
                     ),
                 )
             raise subprocess.CalledProcessError(returncode, cmdline)

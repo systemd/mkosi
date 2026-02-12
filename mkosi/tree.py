@@ -15,6 +15,7 @@ from mkosi.log import die
 from mkosi.run import SandboxProtocol, nosandbox, run, workdir
 from mkosi.sandbox import (
     BTRFS_SUPER_MAGIC,
+    FOREIGN_UID_MIN,
     FS_NOCOW_FL,
     OVERLAYFS_SUPER_MAGIC,
     btrfs_subvol_create,
@@ -30,6 +31,10 @@ from mkosi.versioncomp import GenericVersion
 
 def is_subvolume(path: Path) -> bool:
     return path.is_dir() and path.stat().st_ino == 256 and statfs(os.fspath(path)) == BTRFS_SUPER_MAGIC
+
+
+def is_foreign_uid_tree(path: Path) -> bool:
+    return path.is_dir() and path.stat().st_uid == FOREIGN_UID_MIN
 
 
 def cp_version(*, sandbox: SandboxProtocol = nosandbox) -> GenericVersion:

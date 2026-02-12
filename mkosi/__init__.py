@@ -2,6 +2,7 @@
 
 import contextlib
 import datetime
+import errno
 import functools
 import getpass
 import hashlib
@@ -124,32 +125,21 @@ from mkosi.run import (
     finalize_interpreter,
     finalize_passwd_symlinks,
     find_binary,
-    fork_and_wait,
     run,
     spawn,
     workdir,
 )
 from mkosi.sandbox import (
-    CAP_SYS_ADMIN,
     CLONE_NEWNS,
-    MOUNT_ATTR_NODEV,
-    MOUNT_ATTR_NOEXEC,
-    MOUNT_ATTR_NOSUID,
-    MOUNT_ATTR_RDONLY,
-    MS_REC,
-    MS_SLAVE,
     __version__,
     acquire_privileges,
-    have_effective_cap,
     join_new_session_keyring,
-    mount,
-    mount_bind,
     umask,
     unshare,
     userns_has_single_user,
 )
 from mkosi.sysupdate import run_sysupdate
-from mkosi.tree import copy_tree, make_tree, move_tree, rmtree
+from mkosi.tree import copy_tree, is_foreign_uid_tree, make_tree, move_tree, rmtree
 from mkosi.user import INVOKING_USER, become_root_cmd
 from mkosi.util import (
     PathString,
@@ -4137,6 +4127,28 @@ def build_image(context: Context) -> None:
     elif context.config.output_format == OutputFormat.directory:
         context.root.rename(context.staging / context.config.output_with_format)
 
+        if context.config.foreign_uid_range:
+            with complete_step("Changing ownership to the foreign UID range"):
+                run(
+                    [
+                        "systemd-dissect",
+                        "--shift",
+                        workdir(context.staging / context.config.output_with_format),
+                        "foreign",
+                    ],
+                    sandbox=context.sandbox(
+                        options=[
+                            # systemd-dissect --shift maps root to foreign uid root so we have to pretend the
+                            # files on disk are owned by root to get it to shift UIDs correctly.
+                            "--become-root",
+                            "--map-foreign",
+                            "--bind",
+                            context.staging / context.config.output_with_format,
+                            workdir(context.staging / context.config.output_with_format),
+                        ],
+                    ),
+                )
+
     if context.config.output_size and context.config.output_format == OutputFormat.disk:
         output = context.staging / context.config.output_with_format
         current_size = output.stat().st_size
@@ -4303,17 +4315,7 @@ def run_shell(args: Args, config: Config) -> None:
                 stack.callback((config.output_dir_or_cwd() / f"{name}.nspawn").unlink, missing_ok=True)
             copyfile2(config.nspawn_settings, config.output_dir_or_cwd() / f"{name}.nspawn")
 
-        # If we're booting a directory image that wasn't built by root, we always make an ephemeral
-        # copy to avoid ending up with files not owned by the directory image owner in the
-        # directory image.
-        if config.ephemeral or (
-            config.output_format == OutputFormat.directory
-            and args.verb == Verb.boot
-            and (config.output_dir_or_cwd() / config.output).stat().st_uid != 0
-        ):
-            fname = stack.enter_context(copy_ephemeral(config, config.output_dir_or_cwd() / config.output))
-        else:
-            fname = stack.enter_context(flock_or_die(config.output_dir_or_cwd() / config.output))
+        fname = stack.enter_context(copy_ephemeral(config, config.output_dir_or_cwd() / config.output))
 
         if config.output_format == OutputFormat.disk and args.verb == Verb.boot:
             run(
@@ -4337,26 +4339,7 @@ def run_shell(args: Args, config: Config) -> None:
                 setup=become_root_cmd(),
             )  # fmt: skip
 
-        if config.output_format == OutputFormat.directory:
-            cmdline += ["--directory", fname]
-
-            owner = os.stat(fname).st_uid
-            if owner != 0:
-                # Let's allow running a shell in a non-ephemeral image but in that case only map a
-                # single user into the image so it can't get polluted with files or directories
-                # owned by other users.
-                if (
-                    args.verb == Verb.shell
-                    and config.output_format == OutputFormat.directory
-                    and not config.ephemeral
-                ):
-                    range = 1
-                else:
-                    range = 65536
-
-                cmdline += [f"--private-users={owner}:{range}"]
-        else:
-            cmdline += ["--image", fname]
+        cmdline += ["--directory" if fname.is_dir() else "--image", fname]
 
         if config.runtime_build_sources:
             for t in config.build_sources:
@@ -4436,22 +4419,12 @@ def run_shell(args: Args, config: Config) -> None:
                 relaxed=True,
                 options=["--same-dir"],
             ),
-            setup=become_root_cmd(),
         )
 
 
 def run_systemd_tool(tool: str, args: Args, config: Config) -> None:
     if config.output_format not in (OutputFormat.disk, OutputFormat.directory):
         die(f"{config.output_format} images cannot be inspected with {tool}")
-
-    if (
-        args.verb in (Verb.journalctl, Verb.coredumpctl)
-        and config.output_format == OutputFormat.disk
-        and os.getuid() != 0
-    ):
-        need_root = True
-    else:
-        need_root = False
 
     if (tool_path := config.find_binary(tool)) is None:
         die(f"Failed to find {tool}")
@@ -4471,12 +4444,7 @@ def run_systemd_tool(tool: str, args: Args, config: Config) -> None:
         stdout=sys.stdout,
         env=os.environ | config.finalize_environment(),
         log=False,
-        sandbox=config.sandbox(
-            network=True,
-            devices=config.output_format == OutputFormat.disk,
-            relaxed=True,
-        ),
-        setup=become_root_cmd() if need_root else [],
+        sandbox=config.sandbox(network=True, relaxed=True),
     )
 
 
@@ -4731,17 +4699,6 @@ def needs_build(args: Args, config: Config, force: int = 1) -> bool:
     )
 
 
-def remove_cache_entries(config: Config) -> None:
-    if not config.cache_dir:
-        return
-
-    sandbox = functools.partial(config.sandbox, tools=False)
-
-    if any(p.exists() for p in cache_tree_paths(config)):
-        with complete_step(f"Removing cache entries of {config.image} image…"):
-            rmtree(*(p for p in cache_tree_paths(config) if p.exists()), sandbox=sandbox)
-
-
 def run_clean(args: Args, config: Config, repository_metadata_needs_sync: bool = False) -> None:
     # We remove any cached images if either the user used --force twice, or he/she called "clean"
     # with it passed once. Let's also remove the downloaded package cache if the user specified one
@@ -4801,8 +4758,9 @@ def run_clean(args: Args, config: Config, repository_metadata_needs_sync: bool =
         with complete_step(f"Clearing out build directory of {config.image} image…"):
             rmtree(*config.build_subdir.iterdir(), sandbox=sandbox)
 
-    if remove_image_cache and config.cache_dir:
-        remove_cache_entries(config)
+    if remove_image_cache and config.cache_dir and any(p.exists() for p in cache_tree_paths(config)):
+        with complete_step(f"Removing cache entries of {config.image} image…"):
+            rmtree(*(p for p in cache_tree_paths(config) if p.exists()), sandbox=sandbox)
 
     if remove_package_cache and config.cache_dir and config.image in ("main", "tools"):
         with complete_step(f"Clearing out metadata and keyring cache of {config.image} image…"):
@@ -4930,65 +4888,6 @@ def sync_repository_metadata(
     return keyring_dir, metadata_dir
 
 
-def run_build(
-    args: Args,
-    config: Config,
-    *,
-    resources: Path,
-    keyring_dir: Path,
-    metadata_dir: Path,
-    package_dir: Optional[Path] = None,
-) -> None:
-    if not have_effective_cap(CAP_SYS_ADMIN):
-        acquire_privileges()
-        unshare(CLONE_NEWNS)
-    else:
-        unshare(CLONE_NEWNS)
-        mount("", "/", "", MS_SLAVE | MS_REC, "")
-
-    # For extra safety when running as root, remount a bunch of directories read-only unless the output
-    # directory is located in it.
-    if os.getuid() == 0:
-        remount = ["/etc", "/opt", "/boot", "/efi", "/media", "/usr"]
-
-        for d in remount:
-            if not Path(d).exists():
-                continue
-
-            if any(
-                p and p.is_relative_to(d)
-                for p in (
-                    config.workspace_dir_or_default(),
-                    config.package_cache_dir_or_default(),
-                    config.cache_dir,
-                    config.output_dir_or_cwd(),
-                )
-            ):
-                continue
-
-            attrs = MOUNT_ATTR_RDONLY
-            if d in ("/boot", "/efi"):
-                attrs |= MOUNT_ATTR_NOSUID | MOUNT_ATTR_NODEV | MOUNT_ATTR_NOEXEC
-
-            mount_bind(d, d, attrs, recursive=True)
-
-    with (
-        complete_step(f"Building {config.image} image"),
-        setup_workspace(args, config) as workspace,
-    ):
-        build_image(
-            Context(
-                args,
-                config,
-                workspace=workspace,
-                resources=resources,
-                keyring_dir=keyring_dir,
-                metadata_dir=metadata_dir,
-                package_dir=package_dir,
-            )
-        )
-
-
 def ensure_tools_tree_has_etc_resolv_conf(config: Config) -> None:
     if not config.tools_tree:
         return
@@ -5083,6 +4982,28 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
         run_latest_snapshot(args, last)
         return
 
+    try:
+        # Try to get a user namespace with some delegated ranges and the foreign UID range via
+        # systemd-nsresourced if we can.
+        acquire_privileges(foreign=True, delegate=3)
+    except OSError as e:
+        # Don't fail if systemd-nsresourced is too old or not installed, use a regular unpriv user namespace
+        # instead.
+        if isinstance(e, OSError) and e.errno not in (errno.EINVAL, errno.ENOENT):
+            raise
+
+        logging.debug(
+            f"Could not provision user namespace via systemd-nsresourced ({e}), falling back to "
+            "unprivileged user namespace via unshare(CLONE_NEWUSER) and writing /proc/self/uid_map directly"
+        )
+
+        acquire_privileges()
+
+    # Most of our mounts happen in subprocesses these days but the overlay mounts for Overlay=yes still
+    # happen in process so we need to set up a private mount namespace. We don't have any reason to modify
+    # the current one anyway so this doesn't hurt even if it might not always be necessary.
+    unshare(CLONE_NEWNS)
+
     if args.verb == Verb.clean:
         if tools and args.force > 0:
             run_clean(args, tools)
@@ -5120,13 +5041,19 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
                 resources=resources,
                 stack=stack,
             )
-            fork_and_wait(
-                run_build,
-                args,
-                tools,
-                resources=resources,
-                keyring_dir=tkd,
-                metadata_dir=tmd,
+
+            stack.enter_context(complete_step(f"Building {tools.image} image"))
+            workspace = stack.enter_context(setup_workspace(args, tools))
+
+            build_image(
+                Context(
+                    args,
+                    tools,
+                    workspace=workspace,
+                    resources=resources,
+                    keyring_dir=tkd,
+                    metadata_dir=tmd,
+                )
             )
 
         resolv = tools.output_dir_or_cwd() / tools.output / "etc/resolv.conf"
@@ -5302,15 +5229,24 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
                         stack=stack,
                     )
 
-                fork_and_wait(
-                    run_build,
-                    args,
-                    config,
-                    resources=resources,
-                    keyring_dir=ikd,
-                    metadata_dir=imd,
-                    package_dir=package_dir,
-                )
+                assert ikd
+                assert imd
+
+                with (
+                    complete_step(f"Building {config.image} image"),
+                    setup_workspace(args, config) as workspace,
+                ):
+                    build_image(
+                        Context(
+                            args,
+                            config,
+                            workspace=workspace,
+                            resources=resources,
+                            keyring_dir=ikd,
+                            metadata_dir=imd,
+                            package_dir=package_dir,
+                        )
+                    )
 
             if not ikd and not imd:
                 logging.info("All images have already been built and do not have any build scripts")
@@ -5323,14 +5259,10 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
     if args.verb == Verb.build:
         return
 
-    if (
-        last.output_format == OutputFormat.directory
-        and (last.output_dir_or_cwd() / last.output).stat().st_uid == 0
-        and os.getuid() != 0
-    ):
+    if (output := last.output_dir_or_cwd() / last.output).is_dir() and not is_foreign_uid_tree(output):
         die(
-            "Cannot operate on directory images built as root when running unprivileged",
-            hint="Clean the root owned image by running mkosi -ff clean as root and then rebuild the image",
+            "Can only operate on foreign UID range owned directory images",
+            hint="Add ForeignUIDRange=yes to [Build] and rebuild the image to use the foreign UID range",
         )
 
     run_vm = {

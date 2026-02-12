@@ -202,6 +202,7 @@ def test_config() -> None:
                 "ath3k-1"
             ],
             "FirmwareVariables": "/foo/bar",
+            "ForeignUIDRange": false,
             "Format": "uki",
             "ForwardJournal": "/mkosi.journal",
             "History": true,
@@ -482,6 +483,7 @@ def test_config() -> None:
         firmware_include=["ath3k-1"],
         firmware_variables=Path("/foo/bar"),
         firmware=Firmware.linux,
+        foreign_uid_range=False,
         forward_journal=Path("/mkosi.journal"),
         history=True,
         hostname=None,

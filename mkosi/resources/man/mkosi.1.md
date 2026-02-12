@@ -92,12 +92,21 @@ The following command line verbs are known:
     shell in the container. To pass extra options to nspawn, separate them
     from regular options with `--`.
 
+    To use `directory` images with `shell`, the `ForeignUIDRange=` option has to
+    be enabled when building the image.
+
 `boot`
 :   Similar to `shell`, but instead of spawning a shell, it boots systemd in the
     image using **systemd-nspawn**. Extra arguments may be specified after
     the `boot` verb, which are passed as the *kernel command line* to the
     init system in the image. To pass extra options to nspawn, separate them
     from regular options with `--`.
+
+    To use `directory` images with `boot`, the `ForeignUIDRange=` option has to
+    be enabled when building the image.
+
+    To use `disk` images with `boot`, systemd-nsresourced and systemd-mountfsd
+    v260 or newer are required on the host.
 
 `vm`
 :   Similar to `boot`, but uses the configured virtual machine monitor (by
@@ -107,6 +116,9 @@ The following command line verbs are known:
     virtual machine monitor. See `VirtualMachineMonitor=` for more
     information. To pass extra options to the configured virtual machine
     monitor, separate them from regular options with `--`.
+
+    To use `directory` images with `vm`, the `ForeignUIDRange=` option has to
+    be enabled when building the image.
 
 `ssh`
 :   When the image is built with the `Ssh=always` option or if systemd's
@@ -1797,6 +1809,16 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `MakeScriptsExecutable=`, `--make-scripts-executable=`
 :   If one of the hook scripts (see `SCRIPTS` section) is not marked as executable, attempt to chmod it
     instead of failing outright. Defaults to `no`.
+
+`ForeignUIDRange=`, `--foreign-uid-range=`
+:   If enabled, directory images will be owned by the foreign UID range on disk
+    instead of the user's UID.
+
+    Enabling this option is required to use directory images with `mkosi shell`,
+    `mkosi boot` and `mkosi vm`.
+
+    systemd-nsresourced and systemd-mountfsd v260 or newer are required on the host
+    to make use of this option.
 
 ### [Runtime] Section (previously known as the [Host] section)
 

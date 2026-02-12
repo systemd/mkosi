@@ -14,8 +14,7 @@ from typing import Any, Optional
 import pytest
 
 from mkosi.distribution import Distribution
-from mkosi.run import CompletedProcess, fork_and_wait, run
-from mkosi.sandbox import acquire_privileges
+from mkosi.run import CompletedProcess, run
 from mkosi.tree import rmtree
 from mkosi.user import INVOKING_USER
 from mkosi.util import _FILE, PathString
@@ -48,11 +47,7 @@ class Image:
         value: Optional[BaseException],
         traceback: Optional[TracebackType],
     ) -> None:
-        def clean() -> None:
-            acquire_privileges()
-            rmtree(self.output_dir)
-
-        fork_and_wait(clean)
+        rmtree(self.output_dir)
 
     def mkosi(
         self,

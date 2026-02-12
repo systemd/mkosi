@@ -50,9 +50,9 @@ from mkosi.config import (
 )
 from mkosi.log import ARG_DEBUG, die
 from mkosi.partition import finalize_root, find_partitions
-from mkosi.run import AsyncioThread, find_binary, fork_and_wait, run, spawn, workdir
+from mkosi.run import AsyncioThread, find_binary, run, spawn, workdir
 from mkosi.tree import copy_tree, maybe_make_nocow, rmtree
-from mkosi.user import INVOKING_USER, become_root_in_subuid_range, become_root_in_subuid_range_cmd
+from mkosi.user import INVOKING_USER
 from mkosi.util import (
     PathString,
     StrEnum,
@@ -393,25 +393,11 @@ def start_virtiofsd(
             pass_fds=(sock.fileno(),),
             user=st.st_uid if st else None,
             group=st.st_gid if st else None,
-            # If we're booting from virtiofs and unshare is too old, we use our own function to become root
-            # in the subuid range if needed.
-            # TODO: Drop this as soon as we drop CentOS Stream 9 support and can rely on newer unshare
-            # features.
-            preexec=(
-                become_root_in_subuid_range
-                if not uidmap and os.getuid() != 0 and unshare_version() < "2.38"
-                else None
-            ),
             sandbox=config.sandbox(
                 options=[
-                    "--bind", directory, workdir(directory),
-                    *(["--become-root"] if uidmap else []),
+                    "--bind" if uidmap else "--bind-foreign", directory, workdir(directory),
+                    "--become-root",
                 ],
-            ),
-            setup=(
-                become_root_in_subuid_range_cmd()
-                if not uidmap and os.getuid() != 0 and unshare_version() >= "2.38"
-                else []
             ),
         ) as proc:  # fmt: skip
             yield path
@@ -530,12 +516,7 @@ def copy_ephemeral(config: Config, src: Path) -> Iterator[Path]:
         yield src
         return
 
-    # If we're booting a directory image that was not built as root, we have to make an ephemeral copy. If
-    # we're running as root, we have to make an ephemeral copy so that all the files in the directory tree
-    # are also owned by root. If we're not running as root, we'll be making use of a subuid/subgid user
-    # namespace and we don't want any leftover files from the subuid/subgid user namespace to remain after we
-    # shut down the container or virtual machine.
-    if not config.ephemeral and (config.output_format != OutputFormat.directory or src.stat().st_uid == 0):
+    if not config.ephemeral:
         with flock_or_die(src):
             yield src
 
@@ -548,31 +529,11 @@ def copy_ephemeral(config: Config, src: Path) -> Iterator[Path]:
     tmp = src.parent / f"{src.name}-{uuid.uuid4().hex[:16]}"
 
     try:
-
-        def copy() -> None:
-            copy_tree(
-                src,
-                tmp,
-                preserve=(
-                    config.output_format == OutputFormat.directory
-                    and (os.getuid() != 0 or src.stat().st_uid == 0)
-                ),
-                use_subvolumes=config.use_subvolumes,
-                sandbox=config.sandbox,
-            )
-
         with flock(src, flags=fcntl.LOCK_SH):
-            fork_and_wait(copy)
+            copy_tree(src, tmp, use_subvolumes=config.use_subvolumes, sandbox=config.sandbox)
         yield tmp
     finally:
-
-        def rm() -> None:
-            if config.output_format == OutputFormat.directory:
-                become_root_in_subuid_range()
-
-            rmtree(tmp, sandbox=config.sandbox)
-
-        fork_and_wait(rm)
+        rmtree(tmp, sandbox=config.sandbox)
 
 
 def join_initrds(initrds: Sequence[Path], output: Path) -> Path:
@@ -969,11 +930,8 @@ def run_qemu(args: Args, config: Config) -> None:
     if config.bind_user:
         die("mkosi qemu does not support --bind-user=")
 
-    # After we unshare the user namespace to sandbox qemu, we might not have access to /dev/kvm or related
-    # device nodes anymore as access to these might be gated behind the kvm group and we won't be part of the
-    # kvm group anymore after unsharing the user namespace. To get around this, open all those device nodes
-    # early can pass them as file descriptors to qemu later. Note that we can't pass the kvm file descriptor
-    # to qemu until version 9.0.
+    # Pass various /dev files as fds if we can. This allows us to provide better errors if we can't access
+    # these for whatever reason.
     qemu_device_fds = {
         d: d.open()
         for d in QemuDeviceNode
