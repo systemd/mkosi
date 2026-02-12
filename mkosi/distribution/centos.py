@@ -257,11 +257,17 @@ class Installer(DistributionInstaller, distribution=Distribution.centos):
         else:
             release = cls.major_release(context.config)
 
+        major = cls.major_release(context.config)
+
+        # Since EPEL 10, minor RHEL releases (e.g. 10.1) use a "-z" infix in repo names and a "z" suffix
+        # in mirror directory names to distinguish them from the base major release repos.
+        minor = "." in context.config.release and GenericVersion(context.config.release) >= 10
+
         gpgurls = (
             find_rpm_gpgkey(
                 context,
-                f"RPM-GPG-KEY-EPEL-{cls.major_release(context.config)}",
-                f"https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{cls.major_release(context.config)}",
+                f"RPM-GPG-KEY-EPEL-{major}",
+                f"https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{major}",
             ),
         )
 
@@ -287,73 +293,109 @@ class Installer(DistributionInstaller, distribution=Distribution.centos):
                 url = context.config.finalize_environment().get(
                     "EPEL_MIRROR", join_mirror(mirror, "../fedora")
                 )
+                reldir = f"{release}{'z' if minor else ''}"
                 yield RpmRepository(
                     repo,
-                    f"baseurl={url}/{dir}/{release}/Everything/$basearch",
+                    f"baseurl={url}/{dir}/{reldir}/Everything/$basearch",
                     gpgurls,
                     enabled=False,
                 )
                 yield RpmRepository(
                     f"{repo}-debuginfo",
-                    f"baseurl={url}/{dir}/{release}/Everything/$basearch/debug",
+                    f"baseurl={url}/{dir}/{reldir}/Everything/$basearch/debug",
                     gpgurls,
                     enabled=False,
                 )
                 yield RpmRepository(
                     f"{repo}-source",
-                    f"baseurl={url}/{dir}/{release}/Everything/source/tree",
+                    f"baseurl={url}/{dir}/{reldir}/Everything/source/tree",
                     gpgurls,
                     enabled=False,
                 )
         else:
-            url = "metalink=https://mirrors.fedoraproject.org/metalink?arch=$basearch"
+            if GenericVersion(context.config.release) >= 10:
+                url = "metalink=https://mirrors.fedoraproject.org/metalink"
+                z = "-z" if minor else ""
 
-            # epel-next does not exist anymore since EPEL 10.
-            repos = ["epel"]
-            if GenericVersion(context.config.release) < 10:
-                repos += ["epel-next"]
-
-            for repo in repos:
                 yield RpmRepository(
-                    repo,
-                    f"{url}&repo={repo}-{release}",
+                    "epel",
+                    f"{url}?repo=epel{z}-{release}&arch=$basearch",
                     gpgurls,
                     enabled=False,
                 )
                 yield RpmRepository(
-                    f"{repo}-debuginfo",
-                    f"{url}&repo={repo}-debug-{release}",
+                    "epel-debuginfo",
+                    f"{url}?repo=epel{z}-debug-{release}&arch=$basearch",
                     gpgurls,
                     enabled=False,
                 )
                 yield RpmRepository(
-                    f"{repo}-source",
-                    f"{url}&repo={repo}-source-{release}",
+                    "epel-source",
+                    f"{url}?repo=epel{z}-source-{release}&arch=source",
                     gpgurls,
                     enabled=False,
                 )
 
-            yield RpmRepository(
-                "epel-testing",
-                f"{url}&repo=testing-epel{release}",
-                gpgurls,
-                enabled=False,
-            )
-            yield RpmRepository(
-                "epel-testing-debuginfo",
-                f"{url}&repo=testing-debug-epel{release}",
-                gpgurls,
-                enabled=False,
-            )
-            yield RpmRepository(
-                "epel-testing-source",
-                f"{url}&repo=testing-source-epel{release}",
-                gpgurls,
-                enabled=False,
-            )
+                yield RpmRepository(
+                    "epel-testing",
+                    f"{url}?repo=epel{z}-testing-{release}&arch=$basearch",
+                    gpgurls,
+                    enabled=False,
+                )
+                yield RpmRepository(
+                    "epel-testing-debuginfo",
+                    f"{url}?repo=epel{z}-testing-debug-{release}&arch=$basearch",
+                    gpgurls,
+                    enabled=False,
+                )
+                yield RpmRepository(
+                    "epel-testing-source",
+                    f"{url}?repo=epel{z}-testing-source-{release}&arch=source",
+                    gpgurls,
+                    enabled=False,
+                )
+            else:
+                url = "metalink=https://mirrors.fedoraproject.org/metalink?arch=$basearch"
 
-            # epel-next does not exist anymore since EPEL 10.
-            if GenericVersion(context.config.release) < 10:
+                for repo in ("epel", "epel-next"):
+                    yield RpmRepository(
+                        repo,
+                        f"{url}&repo={repo}-{release}",
+                        gpgurls,
+                        enabled=False,
+                    )
+                    yield RpmRepository(
+                        f"{repo}-debuginfo",
+                        f"{url}&repo={repo}-debug-{release}",
+                        gpgurls,
+                        enabled=False,
+                    )
+                    yield RpmRepository(
+                        f"{repo}-source",
+                        f"{url}&repo={repo}-source-{release}",
+                        gpgurls,
+                        enabled=False,
+                    )
+
+                yield RpmRepository(
+                    "epel-testing",
+                    f"{url}&repo=testing-epel{release}",
+                    gpgurls,
+                    enabled=False,
+                )
+                yield RpmRepository(
+                    "epel-testing-debuginfo",
+                    f"{url}&repo=testing-debug-epel{release}",
+                    gpgurls,
+                    enabled=False,
+                )
+                yield RpmRepository(
+                    "epel-testing-source",
+                    f"{url}&repo=testing-source-epel{release}",
+                    gpgurls,
+                    enabled=False,
+                )
+
                 yield RpmRepository(
                     "epel-next-testing",
                     f"{url}&repo=epel-testing-next-{release}",
