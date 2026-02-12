@@ -2,10 +2,9 @@
 
 import os
 import pydoc
-from typing import Optional
 
 
-def page(text: str, enabled: Optional[bool]) -> None:
+def page(text: str, enabled: bool | None) -> None:
     if enabled:
         # Initialize less options from $MKOSI_LESS or provide a suitable fallback.
         # F: don't page if one screen

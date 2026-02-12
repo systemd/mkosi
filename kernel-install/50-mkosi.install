@@ -6,7 +6,6 @@ import os
 import sys
 import tempfile
 from pathlib import Path
-from typing import Optional
 
 from mkosi import identify_cpu
 from mkosi.archive import make_cpio
@@ -22,7 +21,7 @@ def we_are_wanted(context: KernelInstallContext) -> bool:
     return context.uki_generator == "mkosi" or context.initrd_generator in ("mkosi", "mkosi-initrd")
 
 
-def build_microcode_initrd(output: Path) -> Optional[Path]:
+def build_microcode_initrd(output: Path) -> Path | None:
     vendor, ucode = identify_cpu(Path("/"))
 
     if vendor is None:

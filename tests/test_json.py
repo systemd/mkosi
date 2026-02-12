@@ -4,7 +4,6 @@ import os
 import textwrap
 import uuid
 from pathlib import Path
-from typing import Optional
 
 import pytest
 
@@ -49,7 +48,7 @@ from mkosi.distribution import Distribution
 
 
 @pytest.mark.parametrize("path", [None, "/baz/qux"])
-def test_args(path: Optional[Path]) -> None:
+def test_args(path: Path | None) -> None:
     dump = textwrap.dedent(
         f"""\
         {{
@@ -264,6 +263,8 @@ def test_config() -> None:
             "MinimumVersion": "123",
             "Mirror": null,
             "NSpawnSettings": null,
+            "OciAnnotations": {},
+            "OciLabels": {},
             "OpenPGPTool": "gpg",
             "Output": "outfile",
             "OutputDirectory": "/your/output/here",
@@ -519,6 +520,8 @@ def test_config() -> None:
         minimum_version="123",
         mirror=None,
         nspawn_settings=None,
+        oci_annotations={},
+        oci_labels={},
         openpgp_tool="gpg",
         output_dir=Path("/your/output/here"),
         output_extension="raw",
