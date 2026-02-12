@@ -1,14 +1,9 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
-import fcntl
 import os
-import pwd
-import tempfile
 from pathlib import Path
 
-from mkosi.log import die
-from mkosi.run import find_binary, spawn
-from mkosi.sandbox import CLONE_NEWUSER, unshare
-from mkosi.util import flock, parents_below
+from mkosi.run import find_binary
+from mkosi.util import parents_below
 
 SUBRANGE = 65536
 
@@ -59,110 +54,6 @@ class INVOKING_USER:
 
             for parent in parents_below(path, q):
                 os.chown(parent, st.st_uid, st.st_gid)
-
-
-def read_subrange(path: Path) -> int:
-    if not path.exists():
-        die(f"{path} does not exist, cannot allocate subuid/subgid user namespace")
-
-    uid = str(os.getuid())
-    try:
-        user = pwd.getpwuid(os.getuid()).pw_name
-    except KeyError:
-        user = None
-
-    for line in path.read_text().splitlines():
-        name, start, count = line.split(":")
-
-        if name == uid or name == user:
-            break
-    else:
-        die(f"No mapping found for {user or uid} in {path}")
-
-    if int(count) < SUBRANGE:
-        die(
-            f"subuid/subgid range length must be at least {SUBRANGE}, "
-            f"got {count} for {user or uid} from line '{line}'"
-        )
-
-    return int(start)
-
-
-def become_root_in_subuid_range() -> None:
-    """
-    Set up a new user namespace mapping using /etc/subuid and /etc/subgid.
-
-    The current user is mapped to root and the current process becomes the root user in the new user
-    namespace. The other IDs will be mapped through.
-    """
-    if os.getuid() == 0:
-        return
-
-    subuid = read_subrange(Path("/etc/subuid"))
-    subgid = read_subrange(Path("/etc/subgid"))
-
-    pid = os.getpid()
-
-    with tempfile.NamedTemporaryFile(prefix="mkosi-uidmap-lock-") as lockfile:
-        lock = Path(lockfile.name)
-
-        # We map the private UID range configured in /etc/subuid and /etc/subgid into the user namespace
-        # using newuidmap and newgidmap. On top of that, we also make sure to map in the user running mkosi
-        # to root so that we can access files and directories from the current user from within the user
-        # namespace.
-        newuidmap = [
-            "flock", "--exclusive", "--close", lock, "newuidmap", pid,
-            0, os.getuid(), 1,
-            1, subuid + 1, SUBRANGE - 1,
-        ]  # fmt: skip
-
-        newgidmap = [
-            "flock", "--exclusive", "--close", lock, "newgidmap", pid,
-            0, os.getgid(), 1,
-            1, subgid + 1, SUBRANGE - 1,
-        ]  # fmt: skip
-
-        # newuidmap and newgidmap have to run from outside the user namespace to be able to assign a uid
-        # mapping to the process in the user namespace. The mapping can only be assigned after the user
-        # namespace has been unshared.  To make this work, we first lock a temporary file, then spawn the
-        # newuidmap and newgidmap processes, which we execute using flock so they don't execute before they
-        # can get a lock on the same temporary file, then we unshare the user namespace and finally we unlock
-        # the temporary file, which allows the newuidmap and newgidmap processes to execute. we then wait for
-        # the processes to finish before continuing.
-        with (
-            flock(lock) as fd,
-            spawn([str(x) for x in newuidmap]) as uidmap,
-            spawn([str(x) for x in newgidmap]) as gidmap,
-        ):
-            unshare(CLONE_NEWUSER)
-            fcntl.flock(fd, fcntl.LOCK_UN)
-            uidmap.wait()
-            gidmap.wait()
-
-    os.setresuid(0, 0, 0)
-    os.setresgid(0, 0, 0)
-    os.setgroups([0])
-
-
-def become_root_in_subuid_range_cmd() -> list[str]:
-    if os.getuid() == 0:
-        return []
-
-    subuid = read_subrange(Path("/etc/subuid"))
-    subgid = read_subrange(Path("/etc/subgid"))
-
-    cmd = [
-        "unshare",
-        "--setuid", "0",
-        "--setgid", "0",
-        "--map-users",  f"0:{os.getuid()}:1",
-        "--map-users",  f"1:{subuid + 1}:{SUBRANGE - 1}",
-        "--map-groups", f"0:{os.getgid()}:1",
-        "--map-groups", f"1:{subgid + 1}:{SUBRANGE - 1}",
-        "--keep-caps",
-    ]  # fmt: skip
-
-    return cmd
 
 
 def become_root_cmd() -> list[str]:

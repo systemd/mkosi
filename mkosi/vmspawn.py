@@ -100,14 +100,7 @@ def run_vmspawn(args: Args, config: Config) -> None:
             ):
                 cmdline += ["--initrd", initrd]
 
-        if config.output_format == OutputFormat.directory:
-            cmdline += ["--directory", fname]
-
-            owner = os.stat(fname).st_uid
-            if owner != 0:
-                cmdline += [f"--private-users={str(owner)}"]
-        else:
-            cmdline += ["--image", fname]
+        cmdline += ["--directory" if fname.is_dir() else "--image", fname]
 
         if config.forward_journal:
             cmdline += ["--forward-journal", config.forward_journal]
