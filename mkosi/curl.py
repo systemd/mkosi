@@ -3,7 +3,7 @@
 import os
 import subprocess
 from pathlib import Path
-from typing import Optional, overload
+from typing import overload
 
 from mkosi.config import Config
 from mkosi.mounts import finalize_certificate_mounts
@@ -15,7 +15,7 @@ def curl(
     config: Config,
     url: str,
     *,
-    output_dir: Optional[Path],
+    output_dir: Path | None,
     log: bool = True,
 ) -> None: ...
 
@@ -30,7 +30,7 @@ def curl(
 ) -> str: ...
 
 
-def curl(config: Config, url: str, *, output_dir: Optional[Path] = None, log: bool = True) -> Optional[str]:
+def curl(config: Config, url: str, *, output_dir: Path | None = None, log: bool = True) -> str | None:
     result = run(
         [
             "curl",

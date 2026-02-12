@@ -11,7 +11,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Optional, cast
+from typing import cast
 
 import mkosi.resources
 from mkosi.config import DocFormat, InitrdProfile, OutputFormat
@@ -33,8 +33,8 @@ class KernelInstallContext:
     staging_area: Path
     layout: str
     image_type: str
-    initrd_generator: Optional[str]
-    uki_generator: Optional[str]
+    initrd_generator: str | None
+    uki_generator: str | None
     verbose: bool
 
     @staticmethod
@@ -228,7 +228,7 @@ def vconsole_config() -> list[str]:
     ]
 
 
-def initrd_finalize(staging_dir: Path, output: str, output_dir: Optional[Path]) -> None:
+def initrd_finalize(staging_dir: Path, output: str, output_dir: Path | None) -> None:
     if output_dir:
         with umask(~0o700) if os.getuid() == 0 else cast(umask, contextlib.nullcontext()):
             Path(output_dir).mkdir(parents=True, exist_ok=True)

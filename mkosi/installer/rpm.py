@@ -3,7 +3,7 @@
 import dataclasses
 import textwrap
 from pathlib import Path
-from typing import Literal, Optional, overload
+from typing import Literal, overload
 
 from mkosi.context import Context
 from mkosi.distribution import Distribution
@@ -18,17 +18,17 @@ class RpmRepository:
     url: str
     gpgurls: tuple[str, ...]
     enabled: bool = True
-    sslcacert: Optional[Path] = None
-    sslclientkey: Optional[Path] = None
-    sslclientcert: Optional[Path] = None
-    priority: Optional[int] = None
+    sslcacert: Path | None = None
+    sslclientkey: Path | None = None
+    sslclientcert: Path | None = None
+    priority: int | None = None
 
 
 @overload
 def find_rpm_gpgkey(
     context: Context,
     key: str,
-    fallback: Optional[str] = None,
+    fallback: str | None = None,
     *,
     required: Literal[True] = True,
 ) -> str: ...
@@ -38,19 +38,19 @@ def find_rpm_gpgkey(
 def find_rpm_gpgkey(
     context: Context,
     key: str,
-    fallback: Optional[str] = None,
+    fallback: str | None = None,
     *,
     required: bool,
-) -> Optional[str]: ...
+) -> str | None: ...
 
 
 def find_rpm_gpgkey(
     context: Context,
     key: str,
-    fallback: Optional[str] = None,
+    fallback: str | None = None,
     *,
     required: bool = True,
-) -> Optional[str]:
+) -> str | None:
     # We assume here that GPG keys will only ever be relative symlinks and never absolute symlinks.
 
     paths = glob_in_sandbox(
@@ -78,7 +78,7 @@ def setup_rpm(
     context: Context,
     *,
     dbpath: str = "/usr/lib/sysimage/rpm",
-    dbbackend: Optional[str] = None,
+    dbbackend: str | None = None,
 ) -> None:
     confdir = context.sandbox_tree / "etc/rpm"
     confdir.mkdir(parents=True, exist_ok=True)
