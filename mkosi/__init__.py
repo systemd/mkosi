@@ -143,7 +143,7 @@ from mkosi.sandbox import (
     have_effective_cap,
     join_new_session_keyring,
     mount,
-    mount_rbind,
+    mount_bind,
     umask,
     unshare,
     userns_has_single_user,
@@ -1426,19 +1426,6 @@ def fixup_vmlinuz_location(context: Context) -> None:
                 copyfile2(d, vmlinuz)
 
 
-def want_initrd(context: Context) -> bool:
-    if context.config.bootable == ConfigFeature.disabled:
-        return False
-
-    if context.config.output_format not in (OutputFormat.disk, OutputFormat.directory):
-        return False
-
-    if not any((context.artifacts / "io.mkosi.initrd").glob("*")) and not any(gen_kernel_images(context)):
-        return False
-
-    return True
-
-
 def identify_cpu(root: Path) -> tuple[Path | None, Path | None]:
     for entry in Path("/proc/cpuinfo").read_text().split("\n\n"):
         vendor_id = family = model = stepping = None
@@ -2475,10 +2462,10 @@ def copy_initrd(context: Context) -> None:
     if ArtifactOutput.initrd not in context.config.split_artifacts:
         return
 
-    if not want_initrd(context):
+    if (context.staging / context.config.output_split_initrd).exists():
         return
 
-    if (context.staging / context.config.output_split_initrd).exists():
+    if not (initrds := finalize_initrds(context)):
         return
 
     # Extract the combined initrds from the UKI so we can use it to direct kernel boot with qemu if needed.
@@ -2487,12 +2474,13 @@ def copy_initrd(context: Context) -> None:
         return
 
     for kver, _ in gen_kernel_images(context):
-        initrds = finalize_initrds(context)
-
         if context.config.kernel_modules_initrd:
             kver = next(gen_kernel_images(context))[0]
-            initrds += [build_kernel_modules_initrd(context, kver)]
-        join_initrds(initrds, context.staging / context.config.output_split_initrd)
+            kmods = [build_kernel_modules_initrd(context, kver)]
+        else:
+            kmods = []
+
+        join_initrds(initrds + kmods, context.staging / context.config.output_split_initrd)
         break
 
 
@@ -4757,7 +4745,10 @@ def run_clean(args: Args, config: Config) -> None:
         remove_image_cache = args.force > 0
         remove_package_cache = args.force > 1
     else:
-        remove_outputs = args.force > 0 or (config.is_incremental() and not have_cache(config))
+        # Rely on the fact that True is 1 and False is 0 in numeric contexts.
+        remove_outputs = args.force > (config.incremental == Incremental.relaxed) or (
+            config.is_incremental() and not have_cache(config)
+        )
         remove_build_cache = args.force > 1 or args.wipe_build_dir
         remove_image_cache = args.force > 1 or not have_cache(config)
         remove_package_cache = args.force > 2
@@ -4957,7 +4948,7 @@ def run_build(
             if d in ("/boot", "/efi"):
                 attrs |= MOUNT_ATTR_NOSUID | MOUNT_ATTR_NODEV | MOUNT_ATTR_NOEXEC
 
-            mount_rbind(d, d, attrs)
+            mount_bind(d, d, attrs, recursive=True)
 
     with (
         complete_step(f"Building {config.image} image"),
@@ -5266,12 +5257,16 @@ def run_verb(args: Args, tools: Config | None, images: Sequence[Config], *, reso
             ikd = imd = None
 
             for config in images:
-                # If the output format is "none" or we're rebuilding and there are no build scripts, there's
-                # nothing to do so exit early.
-                if (
-                    config.output_format == OutputFormat.none
-                    or (args.rerun_build_scripts and (config.output_dir_or_cwd() / config.output).exists())
-                ) and not config.build_scripts:
+                # If the output format is "none" and there are no build scripts, there's nothing to do so
+                # exit early.
+                if config.output_format == OutputFormat.none and not config.build_scripts:
+                    continue
+
+                # If the image already exists and we're not rerunning build scripts, there's nothing to do so
+                # exit early.
+                if (config.output_dir_or_cwd() / config.output).exists() and (
+                    not args.rerun_build_scripts or not config.build_scripts
+                ):
                     continue
 
                 check_tools(config, Verb.build)

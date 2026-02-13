@@ -212,7 +212,37 @@ def capability_mask(capabilities: list[int]) -> int:
     return mask
 
 
-def drop_capabilities(*, keep: list[int]) -> None:
+def fix_userns_capabilities(*, network: bool) -> None:
+    # When unsharing a user namespace, the process user has a full set of capabilities in the new user
+    # namespace. This allows the process to do mounts after unsharing a mount namespace for example. However,
+    # these capabilities are lost again when the user executes a subprocess. As we also want subprocesses
+    # invoked by the user to be able to mount stuff, we make sure the capabilities we are interested in are
+    # inherited across execve() by adding all these capabilities to the inherited and ambient capability
+    # sets, which makes sure that they are passed down to subprocesses, regardless if we're uid 0 in the user
+    # namespace or not.
+
+    keep = [
+        CAP_CHOWN,
+        CAP_DAC_OVERRIDE,
+        CAP_DAC_READ_SEARCH,
+        CAP_FOWNER,
+        CAP_FSETID,
+        CAP_SETGID,
+        CAP_SETUID,
+        CAP_SETPCAP,
+        CAP_SYS_CHROOT,
+        CAP_SYS_PTRACE,
+        CAP_SYS_ADMIN,
+        CAP_SYS_RESOURCE,
+        CAP_SETFCAP,
+    ]
+    if network:
+        # If we're unsharing the network namespace, we want CAP_NET_BIND_SERVICE and CAP_NET_ADMIN as well.
+        keep += [
+            CAP_NET_BIND_SERVICE,
+            CAP_NET_ADMIN,
+        ]
+
     # First, fetch the permitted capabilities and AND them
     # with the ones with we want to keep to get the final list
     # of capabilities.
@@ -519,17 +549,17 @@ def move_mount(from_dirfd: int, from_path: str, to_dirfd: int, to_path: str, fla
         oserror("move_mount", to_path)
 
 
-def mount_rbind(src: str, dst: str, attrs: int = 0) -> None:
+def mount_bind(src: str, dst: str, attrs: int = 0, recursive: bool = False) -> None:
     """
     When using the old mount syscall to do a recursive bind mount, mount options are not
     applied recursively. Because we want to do recursive read-only bind mounts in some cases, we
     use the new mount API for that which does allow recursively changing mount options when doing
     bind mounts.
     """
-    flags = AT_NO_AUTOMOUNT | AT_RECURSIVE | AT_SYMLINK_NOFOLLOW | OPEN_TREE_CLONE
+    flags = AT_NO_AUTOMOUNT | (AT_RECURSIVE if recursive else 0) | AT_SYMLINK_NOFOLLOW | OPEN_TREE_CLONE
 
     with close(open_tree(AT_FDCWD, src, flags)) as fd:
-        mount_setattr(fd, "", AT_EMPTY_PATH | AT_RECURSIVE, mount_attr(attr_set=attrs))
+        mount_setattr(fd, "", AT_EMPTY_PATH | (AT_RECURSIVE if recursive else 0), mount_attr(attr_set=attrs))
         move_mount(fd, "", AT_FDCWD, dst, MOVE_MOUNT_F_EMPTY_PATH)
 
 
@@ -619,37 +649,7 @@ def acquire_privileges(*, become_root: bool = False, network: bool = False) -> b
     else:
         become_user(os.getuid(), os.getgid())
 
-    # When unsharing a user namespace, the process user has a full set of capabilities in the new user
-    # namespace. This allows the process to do mounts after unsharing a mount namespace for example. However,
-    # these capabilities are lost again when the user executes a subprocess. As we also want subprocesses
-    # invoked by the user to be able to mount stuff, we make sure the capabilities we are interested in are
-    # inherited across execve() by adding all the these capabilities to the inherited and ambient capability
-    # sets, which makes sure that they are passed down to subprocesses, regardless if we're uid 0 in the user
-    # namespace or not.
-
-    caps = [
-        CAP_CHOWN,
-        CAP_DAC_OVERRIDE,
-        CAP_DAC_READ_SEARCH,
-        CAP_FOWNER,
-        CAP_FSETID,
-        CAP_SETGID,
-        CAP_SETUID,
-        CAP_SETPCAP,
-        CAP_SYS_CHROOT,
-        CAP_SYS_PTRACE,
-        CAP_SYS_ADMIN,
-        CAP_SYS_RESOURCE,
-        CAP_SETFCAP,
-    ]
-    if network:
-        # If we're unsharing the network namespace, we want CAP_NET_BIND_SERVICE and CAP_NET_ADMIN as well.
-        caps += [
-            CAP_NET_BIND_SERVICE,
-            CAP_NET_ADMIN,
-        ]
-
-    drop_capabilities(keep=caps)
+    fix_userns_capabilities(network=network)
 
     return True
 
@@ -837,7 +837,7 @@ class BindOperation(FSOperation):
         # resolving it.
         dst = joinpath(newroot, self.dst)
         if not os.path.isdir(src) and os.path.islink(dst):
-            return mount_rbind(src, dst, attrs=MOUNT_ATTR_RDONLY if self.readonly else 0)
+            return mount_bind(src, dst, attrs=MOUNT_ATTR_RDONLY if self.readonly else 0, recursive=True)
 
         dst = chase(newroot, self.dst)
         if not os.path.exists(dst):
@@ -852,7 +852,7 @@ class BindOperation(FSOperation):
                 else:
                     os.mkdir(dst)
 
-        mount_rbind(src, dst, attrs=MOUNT_ATTR_RDONLY if self.readonly else 0)
+        mount_bind(src, dst, attrs=MOUNT_ATTR_RDONLY if self.readonly else 0, recursive=True)
 
 
 class DevOperation(FSOperation):
@@ -942,7 +942,7 @@ class SymlinkOperation(FSOperation):
         # If the target already exists and is not a directory, create the symlink somewhere else and mount
         # it over the existing file or symlink.
         os.symlink(self.src, "/symlink")
-        mount_rbind("/symlink", dst)
+        mount_bind("/symlink", dst)
         os.unlink("/symlink")
 
 

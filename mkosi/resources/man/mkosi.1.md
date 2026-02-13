@@ -377,9 +377,9 @@ Configuration is parsed in the following order:
 * `mkosi.conf.d/` is parsed in the same directory as `mkosi.conf` if it
   exists. Each directory and each file with the `.conf` extension in
   `mkosi.conf.d/` is parsed. Any directory in `mkosi.conf.d` is parsed
-  as if it were a regular top level directory, except for `mkosi.images/`
-  and `mkosi.tools.conf`, which are only picked up in the top level
-  directory.
+  as if it were a regular top level directory, except for `mkosi.images/`,
+  `mkosi.tools.conf` and `mkosi.initrd.conf`, which are only picked up in
+  the top level directory.
 * If any profiles are configured, their configuration is parsed from the
   `mkosi.profiles/` directory.
 * Subimages are parsed from the `mkosi.images/` directory if it exists.
@@ -1124,10 +1124,15 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   Use user-provided initrd(s). Takes a comma-separated list of paths to initrd
     files. This option may be used multiple times in which case the initrd lists
     are combined. If this setting is not specified and a bootable image is requested,
-    **mkosi** will automatically build a default initrd. To disable building the default
-    initrd, assign the empty string to this setting. To build the default initrd even when
-    specifying this setting, the special value `default` can be assigned alongside the other
-    values.
+    **mkosi** will automatically build a default initrd if the image looks like it might
+    be a bootable image based on a few factors (output format, is a kernel package installed, ...).
+    To disable building the default initrd, assign the empty string to this setting. To build the
+    default initrd even when specifying this setting, the special value `default` can be assigned
+    alongside the other values.
+
+    When the default initrd is used, it can be further configured using the settings below and
+    with `mkosi.initrd.conf` which can either be a file or directory containing extra configuration
+    for the default initrd.
 
     **mkosi** will also look for initrds in a subdirectory `io.mkosi.initrd` of
     the artifact directory (see `$ARTIFACTDIR` in the section **ENVIRONMENT
@@ -1474,7 +1479,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
     If set to `yes`, **mkosi** will automatically add an extra tools tree
     image and use it as the tools tree. This image can be further configured
-    using the settings below or with `mkosi.tools.conf` which can either be a
+    using the settings below and with `mkosi.tools.conf` which can either be a
     file or directory containing extra configuration for the default tools tree.
 
     See the **TOOLS TREE** section for further details.
@@ -1548,6 +1553,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
     If set to `strict`, the build fails if previously built cached image does
     not exist.
+
+    If set to `relaxed`, images are only rebuilt when `-ff` is specified or
+    if the cached imaged is out of date.
 
 `CacheOnly=`, `--cache-only=`
 :   Takes one of `auto`, `metadata`, `always` or `never`. Defaults to
