@@ -5371,6 +5371,9 @@ def parse_config(
                     f"Ignoring {s.long} from the CLI. Run with -f to rebuild the image with this setting"
                 )
 
+            if s.dest in history and isinstance(history[s.dest], (list, dict, set)) and not history[s.dest]:
+                history[f"{s.dest}_was_none"] = True
+
         context.cli |= history
 
     cli = copy.deepcopy(context.cli)
