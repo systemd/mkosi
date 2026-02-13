@@ -1124,10 +1124,11 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   Use user-provided initrd(s). Takes a comma-separated list of paths to initrd
     files. This option may be used multiple times in which case the initrd lists
     are combined. If this setting is not specified and a bootable image is requested,
-    **mkosi** will automatically build a default initrd. To disable building the default
-    initrd, assign the empty string to this setting. To build the default initrd even when
-    specifying this setting, the special value `default` can be assigned alongside the other
-    values.
+    **mkosi** will automatically build a default initrd if the image looks like it might
+    be a bootable image based on a few factors (output format, is a kernel package installed, ...).
+    To disable building the default initrd, assign the empty string to this setting. To build the
+    default initrd even when specifying this setting, the special value `default` can be assigned
+    alongside the other values.
 
     When the default initrd is used, it can be further configured using the settings below and
     with `mkosi.initrd.conf` which can either be a file or directory containing extra configuration

@@ -1125,7 +1125,7 @@ def config_default_initrds(namespace: dict[str, Any]) -> list[Path]:
         return []
 
     if namespace["bootable"] == ConfigFeature.auto and (
-        namespace["output_format"] == OutputFormat.cpio
+        namespace["output_format"] in (OutputFormat.cpio, OutputFormat.directory)
         or namespace["output_format"].is_extension_or_portable_image()
         or namespace["overlay"]
     ):
@@ -5298,7 +5298,7 @@ def want_kernel(config: Config) -> bool:
         return False
 
     if config.bootable == ConfigFeature.auto and (
-        config.output_format == OutputFormat.cpio
+        config.output_format in (OutputFormat.cpio, OutputFormat.directory)
         or config.output_format.is_extension_or_portable_image()
         or config.overlay
     ):
