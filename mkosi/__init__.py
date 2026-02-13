@@ -1426,19 +1426,6 @@ def fixup_vmlinuz_location(context: Context) -> None:
                 copyfile2(d, vmlinuz)
 
 
-def want_initrd(context: Context) -> bool:
-    if context.config.bootable == ConfigFeature.disabled:
-        return False
-
-    if context.config.output_format not in (OutputFormat.disk, OutputFormat.directory):
-        return False
-
-    if not any((context.artifacts / "io.mkosi.initrd").glob("*")) and not any(gen_kernel_images(context)):
-        return False
-
-    return True
-
-
 def identify_cpu(root: Path) -> tuple[Path | None, Path | None]:
     for entry in Path("/proc/cpuinfo").read_text().split("\n\n"):
         vendor_id = family = model = stepping = None
@@ -2475,10 +2462,10 @@ def copy_initrd(context: Context) -> None:
     if ArtifactOutput.initrd not in context.config.split_artifacts:
         return
 
-    if not want_initrd(context):
+    if (context.staging / context.config.output_split_initrd).exists():
         return
 
-    if (context.staging / context.config.output_split_initrd).exists():
+    if not (initrds := finalize_initrds(context)):
         return
 
     # Extract the combined initrds from the UKI so we can use it to direct kernel boot with qemu if needed.
@@ -2487,12 +2474,13 @@ def copy_initrd(context: Context) -> None:
         return
 
     for kver, _ in gen_kernel_images(context):
-        initrds = finalize_initrds(context)
-
         if context.config.kernel_modules_initrd:
             kver = next(gen_kernel_images(context))[0]
-            initrds += [build_kernel_modules_initrd(context, kver)]
-        join_initrds(initrds, context.staging / context.config.output_split_initrd)
+            kmods = [build_kernel_modules_initrd(context, kver)]
+        else:
+            kmods = []
+
+        join_initrds(initrds + kmods, context.staging / context.config.output_split_initrd)
         break
 
 
