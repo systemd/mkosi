@@ -5371,12 +5371,18 @@ def parse_config(
                     f"Ignoring {s.long} from the CLI. Run with -f to rebuild the image with this setting"
                 )
 
-        context.cli |= history
+            if s.dest in history and isinstance(history[s.dest], (list, dict, set)) and not history[s.dest]:
+                history[f"{s.dest}_was_none"] = True
 
-    cli = copy.deepcopy(context.cli)
+        context.cli |= history
 
     # One of the specifiers needs access to the directory, so make sure it is available.
     context.config["directory"] = args.directory
+
+    cli = copy.deepcopy(context.cli)
+    for dest in cli:
+        if dest in SETTINGS_LOOKUP_BY_DEST:
+            cli[dest] = context.finalize_value(SETTINGS_LOOKUP_BY_DEST[dest])
 
     context.parse_new_includes()
 
