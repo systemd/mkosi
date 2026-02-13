@@ -54,8 +54,8 @@ def find_rpm_gpgkey(
     # We assume here that GPG keys will only ever be relative symlinks and never absolute symlinks.
 
     paths = glob_in_sandbox(
-        f"/usr/share/distribution-gpg-keys/*/{key}*",
-        f"/etc/pki/rpm-gpg/{key}*",
+        f"usr/share/distribution-gpg-keys/*/{key}",
+        f"etc/pki/rpm-gpg/{key}",
         sandbox=context.sandbox(),
     )
 
