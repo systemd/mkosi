@@ -377,9 +377,9 @@ Configuration is parsed in the following order:
 * `mkosi.conf.d/` is parsed in the same directory as `mkosi.conf` if it
   exists. Each directory and each file with the `.conf` extension in
   `mkosi.conf.d/` is parsed. Any directory in `mkosi.conf.d` is parsed
-  as if it were a regular top level directory, except for `mkosi.images/`
-  and `mkosi.tools.conf`, which are only picked up in the top level
-  directory.
+  as if it were a regular top level directory, except for `mkosi.images/`,
+  `mkosi.tools.conf` and `mkosi.initrd.conf`, which are only picked up in
+  the top level directory.
 * If any profiles are configured, their configuration is parsed from the
   `mkosi.profiles/` directory.
 * Subimages are parsed from the `mkosi.images/` directory if it exists.
@@ -1129,6 +1129,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     specifying this setting, the special value `default` can be assigned alongside the other
     values.
 
+    When the default initrd is used, it can be further configured using the settings below and
+    with `mkosi.initrd.conf` which can either be a file or directory containing extra configuration
+    for the default initrd.
+
     **mkosi** will also look for initrds in a subdirectory `io.mkosi.initrd` of
     the artifact directory (see `$ARTIFACTDIR` in the section **ENVIRONMENT
     VARIABLES**). Any initrds found there are appended to the user-provided
@@ -1474,7 +1478,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
     If set to `yes`, **mkosi** will automatically add an extra tools tree
     image and use it as the tools tree. This image can be further configured
-    using the settings below or with `mkosi.tools.conf` which can either be a
+    using the settings below and with `mkosi.tools.conf` which can either be a
     file or directory containing extra configuration for the default tools tree.
 
     See the **TOOLS TREE** section for further details.

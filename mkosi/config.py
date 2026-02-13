@@ -5197,6 +5197,7 @@ def finalize_default_initrd(
     main: ParseContext,
     finalized: dict[str, Any],
     *,
+    configdir: Path | None,
     resources: Path,
 ) -> Config:
     context = ParseContext(resources)
@@ -5232,6 +5233,10 @@ def finalize_default_initrd(
         name: finalized["environment"][name]
         for name in finalized.get("environment", {}).keys() & finalized.get("pass_environment", [])
     }
+
+    if configdir and (p := configdir / "mkosi.initrd.conf").exists():
+        with chdir(p if p.is_dir() else Path.cwd()):
+            context.parse_config_one(p, parse_profiles=p.is_dir(), parse_local=p.is_dir())
 
     with chdir(resources / "mkosi-initrd"):
         context.parse_config_one(resources / "mkosi-initrd", parse_profiles=True)
@@ -5500,7 +5505,7 @@ def parse_config(
     subimages = [Config.from_dict(ns) for ns in images]
 
     if any(want_default_initrd(image) for image in subimages + [main]):
-        initrd = finalize_default_initrd(maincontext, config, resources=resources)
+        initrd = finalize_default_initrd(maincontext, config, configdir=configdir, resources=resources)
 
         if want_default_initrd(main):
             main = dataclasses.replace(
