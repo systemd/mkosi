@@ -1899,3 +1899,30 @@ def test_initrds_custom_only(tmp_path: Path) -> None:
 
     assert len(config.initrds) == 1
     assert config.initrds[0] == d / "myinitrd.cpio"
+
+
+def test_history_empty_list(tmp_path: Path) -> None:
+    d = tmp_path
+
+    (d / "packages").mkdir()
+
+    (d / "mkosi.conf").write_text(
+        """\
+        [Build]
+        History=yes
+
+        [Content]
+        PackageDirectories=packages
+        """
+    )
+
+    with chdir(d):
+        _, _, [main] = parse_config(["--package-directory=", "build"])
+
+    assert (d / ".mkosi-private/history/latest.json").exists()
+    assert main.package_directories == []
+
+    with chdir(d):
+        _, _, [main] = parse_config(["summary"])
+
+    assert main.package_directories == []
