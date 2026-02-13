@@ -31,7 +31,7 @@ class Installer(centos.Installer, distribution=Distribution.rhel):
         if context.config.mirror:
             return None
 
-        path = Path("/etc/rhsm/ca/redhat-uep.pem")
+        path = Path("etc/rhsm/ca/redhat-uep.pem")
         if not exists_in_sandbox(path, sandbox=context.sandbox()):
             die(
                 f"redhat-uep.pem certificate not found in sandbox at {path}",
@@ -45,7 +45,7 @@ class Installer(centos.Installer, distribution=Distribution.rhel):
         if context.config.mirror:
             return None
 
-        glob = "/etc/pki/entitlement/*-key.pem"
+        glob = "etc/pki/entitlement/*-key.pem"
         paths = glob_in_sandbox(glob, sandbox=context.sandbox())
         if not paths:
             die(
@@ -60,7 +60,7 @@ class Installer(centos.Installer, distribution=Distribution.rhel):
         if context.config.mirror:
             return None
 
-        glob = "/etc/pki/entitlement/*.pem"
+        glob = "etc/pki/entitlement/*.pem"
         paths = [p for p in glob_in_sandbox(glob, sandbox=context.sandbox()) if "-key.pem" not in p.name]
         if not paths:
             die(
