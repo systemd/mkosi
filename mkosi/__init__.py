@@ -4206,7 +4206,7 @@ def run_box(args: Args, config: Config) -> None:
 
     with contextlib.ExitStack() as stack:
         if config.tools() != Path("/"):
-            d = stack.enter_context(tempfile.TemporaryDirectory(prefix="mkosi-path-"))
+            path = stack.enter_context(tempfile.TemporaryDirectory(prefix="mkosi-path-"))
 
             # We have to point zipapp to a directory containing the mkosi module and set the entrypoint
             # manually instead of directly at the mkosi package, otherwise we get ModuleNotFoundError when
@@ -4218,15 +4218,17 @@ def run_box(args: Args, config: Config) -> None:
                 resource_path(sys.modules[__package__ or __name__]) as module,
             ):
                 copy_tree(module, Path(tmp) / module.name, sandbox=config.sandbox)
+                d, r = detect_distribution(config.tools())
+                interpreter = "python3.12" if d == Distribution.centos and r == "9" else "python3"
                 zipapp.create_archive(
                     source=tmp,
-                    target=Path(d) / "mkosi",
+                    target=Path(path) / "mkosi",
                     main="mkosi.__main__:main",
-                    interpreter="/usr/bin/env python3",
+                    interpreter=f"/usr/bin/env {interpreter}",
                 )
 
-            make_executable(Path(d) / "mkosi")
-            mounts += ["--ro-bind", d, "/mkosi"]
+            make_executable(Path(path) / "mkosi")
+            mounts += ["--ro-bind", path, "/mkosi"]
             stack.enter_context(scopedenv({"PATH": f"/mkosi:{os.environ['PATH']}"}))
 
         run(
