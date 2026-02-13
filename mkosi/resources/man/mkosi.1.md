@@ -1553,6 +1553,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     If set to `strict`, the build fails if previously built cached image does
     not exist.
 
+    If set to `relaxed`, images are only rebuilt when `-ff` is specified or
+    if the cached imaged is out of date.
+
 `CacheOnly=`, `--cache-only=`
 :   Takes one of `auto`, `metadata`, `always` or `never`. Defaults to
     `auto`. If `always`, the package manager is instructed not to contact

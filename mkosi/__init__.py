@@ -4745,7 +4745,10 @@ def run_clean(args: Args, config: Config) -> None:
         remove_image_cache = args.force > 0
         remove_package_cache = args.force > 1
     else:
-        remove_outputs = args.force > 0 or (config.is_incremental() and not have_cache(config))
+        # Rely on the fact that True is 1 and False is 0 in numeric contexts.
+        remove_outputs = args.force > (config.incremental == Incremental.relaxed) or (
+            config.is_incremental() and not have_cache(config)
+        )
         remove_build_cache = args.force > 1 or args.wipe_build_dir
         remove_image_cache = args.force > 1 or not have_cache(config)
         remove_package_cache = args.force > 2
@@ -5254,12 +5257,16 @@ def run_verb(args: Args, tools: Config | None, images: Sequence[Config], *, reso
             ikd = imd = None
 
             for config in images:
-                # If the output format is "none" or we're rebuilding and there are no build scripts, there's
-                # nothing to do so exit early.
-                if (
-                    config.output_format == OutputFormat.none
-                    or (args.rerun_build_scripts and (config.output_dir_or_cwd() / config.output).exists())
-                ) and not config.build_scripts:
+                # If the output format is "none" and there are no build scripts, there's nothing to do so
+                # exit early.
+                if config.output_format == OutputFormat.none and not config.build_scripts:
+                    continue
+
+                # If the image already exists and we're not rerunning build scripts, there's nothing to do so
+                # exit early.
+                if (config.output_dir_or_cwd() / config.output).exists() and (
+                    not args.rerun_build_scripts or not config.build_scripts
+                ):
                     continue
 
                 check_tools(config, Verb.build)

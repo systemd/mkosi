@@ -400,6 +400,7 @@ class Incremental(StrEnum):
     yes = enum.auto()
     no = enum.auto()
     strict = enum.auto()
+    relaxed = enum.auto()
 
     def __bool__(self) -> bool:
         return self != Incremental.no
@@ -3818,7 +3819,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         parse=config_make_enum_parser_with_boolean(Incremental, yes=Incremental.yes, no=Incremental.no),
         default=Incremental.no,
         help="Make use of and generate intermediary cache images",
-        scope=SettingScope.universal,
+        scope=SettingScope.inherit,
         choices=Incremental.values(),
     ),
     ConfigSetting(
