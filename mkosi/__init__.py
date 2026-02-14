@@ -5194,12 +5194,12 @@ def run_verb(args: Args, tools: Config | None, images: Sequence[Config], *, reso
         if any((c := config).is_incremental() and not have_cache(config) for config in images):
             if args.rerun_build_scripts:
                 die(
-                    f"Cannot use --rerun-build-scripts as the cache for image {c.image} is out-of-date",
+                    f"Cannot use --rerun-build-scripts as the cache for image {c.image} is out-of-date",  # ty: ignore[unresolved-reference]
                     hint="Rebuild the image to update the image cache",
                 )
             else:
                 die(
-                    f"Strict incremental mode is enabled and cache for image {c.image} is out-of-date",
+                    f"Strict incremental mode is enabled and cache for image {c.image} is out-of-date",  # ty: ignore[unresolved-reference]
                     hint="Build once with '-i yes' to update the image cache",
                 )
 
