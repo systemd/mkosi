@@ -786,8 +786,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `CleanScripts=`, `--clean-script=`
 :   Takes a comma-separated list of paths to executables that are used as
-    the clean scripts for this image. See the **SCRIPTS** section for
-    more information.
+    the clean scripts for this image. Glob patterns are supported and
+    matching paths are sorted alphabetically. See the **SCRIPTS** section
+    for more information.
 
 ### [Content] Section
 
@@ -965,33 +966,39 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `SyncScripts=`, `--sync-script=`
 :   Takes a comma-separated list of paths to executables that are used as
-    the sync scripts for this image. See the **SCRIPTS** section for
-    more information.
+    the sync scripts for this image. Glob patterns are supported and
+    matching paths are sorted alphabetically. See the **SCRIPTS** section
+    for more information.
 
 `PrepareScripts=`, `--prepare-script=`
 :   Takes a comma-separated list of paths to executables that are used as
-    the prepare scripts for this image. See the **SCRIPTS** section for
-    more information.
+    the prepare scripts for this image. Glob patterns are supported and
+    matching paths are sorted alphabetically. See the **SCRIPTS** section
+    for more information.
 
 `BuildScripts=`, `--build-script=`
 :   Takes a comma-separated list of paths to executables that are used as
-    the build scripts for this image. See the **SCRIPTS** section for more
-    information.
+    the build scripts for this image. Glob patterns are supported and
+    matching paths are sorted alphabetically. See the **SCRIPTS** section
+    for more information.
 
 `PostInstallationScripts=`, `--postinst-script=`
 :   Takes a comma-separated list of paths to executables that are used as
-    the post-installation scripts for this image. See the **SCRIPTS** section
+    the post-installation scripts for this image. Glob patterns are supported
+    and matching paths are sorted alphabetically. See the **SCRIPTS** section
     for more information.
 
 `FinalizeScripts=`, `--finalize-script=`
 :   Takes a comma-separated list of paths to executables that are used as
-    the finalize scripts for this image. See the **SCRIPTS** section for more
-    information.
+    the finalize scripts for this image. Glob patterns are supported and
+    matching paths are sorted alphabetically. See the **SCRIPTS** section
+    for more information.
 
 `PostOutputScripts=`, `--postoutput-script=`
 :   Takes a comma-separated list of paths to executables that are used as
-    the post output scripts for this image. See the **SCRIPTS** section for more
-    information.
+    the post output scripts for this image. Glob patterns are supported and
+    matching paths are sorted alphabetically. See the **SCRIPTS** section
+    for more information.
 
 `Bootable=`, `--bootable=`
 :   Takes a boolean or `auto`. Enables or disables generation of a
@@ -2277,8 +2284,9 @@ config file is read:
 
 `ConfigureScripts=`, `--configure-script=`
 :   Takes a comma-separated list of paths to executables that are used as
-    the configure scripts for this image. See the **SCRIPTS** section for
-    more information.
+    the configure scripts for this image. Glob patterns are supported and
+    matching paths are sorted alphabetically. See the **SCRIPTS** section
+    for more information.
 
 `PassEnvironment=`, `--pass-environment=`
 :   Takes a list of environment variable names separated by spaces. When

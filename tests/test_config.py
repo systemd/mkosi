@@ -1113,6 +1113,72 @@ def test_paths_with_default_factory(tmp_path: Path) -> None:
         ]
 
 
+def test_glob_expansion(tmp_path: Path) -> None:
+    d = tmp_path
+
+    (d / "script_a.sh").touch()
+    (d / "script_b.sh").touch()
+    (d / "script_c.sh").touch()
+    (d / "other.py").touch()
+
+    # Glob patterns should be expanded and results should be sorted.
+    (d / "mkosi.conf").write_text(
+        f"""\
+        [Content]
+        PrepareScripts={d}/script_*.sh
+        """
+    )
+
+    with chdir(d):
+        _, _, [config] = parse_config()
+
+    assert config.prepare_scripts == [d / "script_a.sh", d / "script_b.sh", d / "script_c.sh"]
+
+    # Glob patterns that match nothing should result in an empty list.
+    (d / "mkosi.conf").write_text(
+        f"""\
+        [Content]
+        PrepareScripts={d}/nonexistent_*.sh
+        """
+    )
+
+    with chdir(d):
+        _, _, [config] = parse_config()
+
+    assert config.prepare_scripts == []
+
+    # Non-glob paths should be ordered before glob results when listed first.
+    (d / "mkosi.conf").write_text(
+        f"""\
+        [Content]
+        PrepareScripts={d}/other.py,{d}/script_*.sh
+        """
+    )
+
+    with chdir(d):
+        _, _, [config] = parse_config()
+
+    assert config.prepare_scripts == [
+        d / "other.py",
+        d / "script_a.sh",
+        d / "script_b.sh",
+        d / "script_c.sh",
+    ]
+
+    # Glob expansion should work with other script options too.
+    (d / "mkosi.conf").write_text(
+        f"""\
+        [Content]
+        BuildScripts={d}/script_*.sh
+        """
+    )
+
+    with chdir(d):
+        _, _, [config] = parse_config()
+
+    assert config.build_scripts == [d / "script_a.sh", d / "script_b.sh", d / "script_c.sh"]
+
+
 @pytest.mark.parametrize(
     "sections,args,warning_count",
     [

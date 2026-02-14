@@ -8,6 +8,7 @@ import enum
 import fnmatch
 import functools
 import getpass
+import glob
 import graphlib
 import io
 import itertools
@@ -1203,6 +1204,7 @@ def config_make_list_parser(
     unescape: bool = False,
     reset: bool = True,
     key: Callable[[T], Any] | None = None,
+    expand_globs: bool = False,
 ) -> ConfigParseCallback[list[T]]:
     def config_parse_list(value: str | None, old: list[T] | None) -> list[T] | None:
         new = old.copy() if old else []
@@ -1226,6 +1228,9 @@ def config_make_list_parser(
             values = value.split("\n")
             if reset and len(values) == 1 and values[0] == "":
                 return None
+
+        if expand_globs:
+            values = flatten(sorted(glob.glob(v)) for v in values)
 
         new += [parse(v) for v in values if v]
 
@@ -2691,7 +2696,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--configure-script",
         metavar="PATH",
         section="Config",
-        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser(), expand_globs=True),
         path_suffixes=("configure",),
         help="Configure script to run before doing anything",
     ),
@@ -2965,7 +2970,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--clean-script",
         metavar="PATH",
         section="Output",
-        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser(), expand_globs=True),
         path_suffixes=("clean",),
         recursive_path_suffixes=("clean.d/*",),
         help="Clean script to run after cleanup",
@@ -3095,7 +3100,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--sync-script",
         metavar="PATH",
         section="Content",
-        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser(), expand_globs=True),
         path_suffixes=("sync",),
         recursive_path_suffixes=("sync.d/*",),
         help="Sync script to run before starting the build",
@@ -3106,7 +3111,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--prepare-script",
         metavar="PATH",
         section="Content",
-        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser(), expand_globs=True),
         path_suffixes=("prepare", "prepare.chroot"),
         recursive_path_suffixes=("prepare.d/*",),
         help="Prepare script to run inside the image before it is cached",
@@ -3118,7 +3123,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--build-script",
         metavar="PATH",
         section="Content",
-        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser(), expand_globs=True),
         path_suffixes=("build", "build.chroot"),
         recursive_path_suffixes=("build.d/*",),
         help="Build script to run inside image",
@@ -3130,7 +3135,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="PATH",
         name="PostInstallationScripts",
         section="Content",
-        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser(), expand_globs=True),
         path_suffixes=("postinst", "postinst.chroot"),
         recursive_path_suffixes=("postinst.d/*",),
         help="Postinstall script to run inside image",
@@ -3141,7 +3146,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--finalize-script",
         metavar="PATH",
         section="Content",
-        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser(), expand_globs=True),
         path_suffixes=("finalize", "finalize.chroot"),
         recursive_path_suffixes=("finalize.d/*",),
         help="Postinstall script to run outside image",
@@ -3153,7 +3158,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="PATH",
         name="PostOutputScripts",
         section="Content",
-        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser(), expand_globs=True),
         path_suffixes=("postoutput",),
         recursive_path_suffixes=("postoutput.d/*",),
         help="Output postprocessing script to run outside image",
