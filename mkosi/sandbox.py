@@ -46,6 +46,7 @@ CLONE_NEWNET = 0x40000000
 CLONE_NEWNS = 0x00020000
 CLONE_NEWUSER = 0x10000000
 EBADF = 9
+EFD_CLOEXEC = 0x80000
 ENAMETOOLONG = 36
 EPERM = 1
 ENOENT = 2
@@ -605,7 +606,7 @@ def become_user(uid: int, gid: int) -> None:
 
     ppid = os.getpid()
 
-    event = libc.eventfd(0, 0)
+    event = libc.eventfd(0, EFD_CLOEXEC)
     if event < 0:
         oserror("eventfd")
 
