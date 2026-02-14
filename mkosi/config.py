@@ -4051,6 +4051,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         parse=config_parse_boolean,
         default=False,
         help="Whether mkosi will try to make build/postinst/finalize scripts executable if they are not",
+        scope=SettingScope.multiversal,
     ),
     # Runtime section
     ConfigSetting(
