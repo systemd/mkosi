@@ -21,7 +21,7 @@ import tempfile
 from collections.abc import Hashable, Iterable, Iterator, Mapping, Sequence
 from pathlib import Path
 from types import ModuleType
-from typing import IO, Any, Callable, Protocol, TypeVar
+from typing import IO, Any, Callable, Optional, Protocol, TypeVar, Union
 
 from mkosi.log import die
 from mkosi.resources import as_file
@@ -32,8 +32,8 @@ V = TypeVar("V")
 S = TypeVar("S", bound=Hashable)
 
 # Borrowed from https://github.com/python/typeshed/blob/3d14016085aed8bcf0cf67e9e5a70790ce1ad8ea/stdlib/3/subprocess.pyi#L24
-_FILE = None | int | IO[Any]
-PathString = Path | str
+_FILE = Union[None, int, IO[Any]]
+PathString = Union[Path, str]
 
 # Borrowed from
 # https://github.com/python/typeshed/blob/ec52bf1adde1d3183d0595d2ba982589df48dff1/stdlib/_typeshed/__init__.pyi#L19
@@ -72,7 +72,7 @@ def round_up(x: int, blocksize: int = 4096) -> int:
     return (x + blocksize - 1) // blocksize * blocksize
 
 
-def startswith(s: str, prefix: str) -> str | None:
+def startswith(s: str, prefix: str) -> Optional[str]:
     if s.startswith(prefix):
         return s.removeprefix(prefix)
     return None

@@ -5,7 +5,7 @@ import datetime
 import json
 import subprocess
 import textwrap
-from typing import IO, Any
+from typing import IO, Any, Optional
 
 from mkosi.config import ManifestFormat, OutputFormat
 from mkosi.context import Context
@@ -43,7 +43,7 @@ class PackageManifest:
 @dataclasses.dataclass
 class SourcePackageManifest:
     name: str
-    changelog: str | None
+    changelog: Optional[str]
     packages: list[PackageManifest] = dataclasses.field(default_factory=list)
 
     def add(self, package: PackageManifest) -> None:

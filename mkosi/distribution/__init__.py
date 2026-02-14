@@ -5,7 +5,7 @@ import importlib
 import urllib.parse
 from collections.abc import Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Union
 
 from mkosi.log import die
 from mkosi.util import StrEnum, read_env_file
@@ -135,7 +135,7 @@ class DistributionInstaller:
         return ""
 
     @classmethod
-    def default_tools_tree_distribution(cls) -> Distribution | None:
+    def default_tools_tree_distribution(cls) -> Optional[Distribution]:
         return None
 
     @classmethod
@@ -151,7 +151,7 @@ class DistributionInstaller:
         return False
 
 
-def detect_distribution(root: Path = Path("/")) -> tuple[Distribution | str | None, str | None]:
+def detect_distribution(root: Path = Path("/")) -> tuple[Union[Distribution, str, None], Optional[str]]:
     try:
         os_release = read_env_file(root / "etc/os-release")
     except FileNotFoundError:
@@ -169,7 +169,7 @@ def detect_distribution(root: Path = Path("/")) -> tuple[Distribution | str | No
         "azurelinux": "azure",
     }
 
-    d: Distribution | None = None
+    d: Optional[Distribution] = None
     for the_id in [dist_id, *dist_id_like]:
         if not the_id:
             continue

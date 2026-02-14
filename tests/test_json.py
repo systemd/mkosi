@@ -4,6 +4,7 @@ import os
 import textwrap
 import uuid
 from pathlib import Path
+from typing import Optional
 
 import pytest
 
@@ -48,7 +49,7 @@ from mkosi.distribution import Distribution
 
 
 @pytest.mark.parametrize("path", [None, "/baz/qux"])
-def test_args(path: Path | None) -> None:
+def test_args(path: Optional[Path]) -> None:
     dump = textwrap.dedent(
         f"""\
         {{

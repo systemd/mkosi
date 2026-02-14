@@ -8,7 +8,7 @@ command="$(basename "${BASH_SOURCE[0]//-/.}")"
 if [ -z "$MKOSI_INTERPRETER" ]; then
     # Note the check seems to be inverted here because the if branch is
     # executed when the exit status is 0 which is equal to False in Python.
-    if python3 -c 'import sys; sys.exit(sys.version_info < (3, 10))'; then
+    if python3 -c 'import sys; sys.exit(sys.version_info < (3, 9))'; then
         MKOSI_INTERPRETER=python3
     else
         # python3 is not found or too old, search $PATH for the newest interpreter.
@@ -21,7 +21,7 @@ if [ -z "$MKOSI_INTERPRETER" ]; then
             done | sort --unique --version-sort --reverse | head --lines=1
         )"
 
-        if [ -n "$candidate" ] && "$candidate" -c 'import sys; sys.exit(sys.version_info < (3, 10))'; then
+        if [ -n "$candidate" ] && "$candidate" -c 'import sys; sys.exit(sys.version_info < (3, 9))'; then
             MKOSI_INTERPRETER="$candidate"
         fi
     fi

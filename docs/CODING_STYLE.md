@@ -9,7 +9,7 @@ SPDX-License-Identifier: LGPL-2.1-or-later
 
 ## Python Version
 
-- The lowest supported Python version is CPython 3.10.
+- The lowest supported Python version is CPython 3.9.
 
 ## Formatting
 

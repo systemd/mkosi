@@ -4,6 +4,7 @@ import os
 from collections.abc import Sequence
 from contextlib import AbstractContextManager
 from pathlib import Path
+from typing import Optional
 
 from mkosi.config import Args, Config
 from mkosi.util import PathString, flatten
@@ -21,7 +22,7 @@ class Context:
         resources: Path,
         keyring_dir: Path,
         metadata_dir: Path,
-        package_dir: Path | None = None,
+        package_dir: Optional[Path] = None,
     ) -> None:
         self.args = args
         self.config = config
@@ -31,8 +32,8 @@ class Context:
         self.metadata_dir = metadata_dir
         self.package_dir = package_dir or (self.workspace / "packages")
         self.lowerdirs: list[PathString] = []
-        self.upperdir: PathString | None = None
-        self.workdir: PathString | None = None
+        self.upperdir: Optional[PathString] = None
+        self.workdir: Optional[PathString] = None
 
         self.package_dir.mkdir(exist_ok=True)
         self.staging.mkdir()
@@ -86,7 +87,7 @@ class Context:
         *,
         network: bool = False,
         devices: bool = False,
-        scripts: Path | None = None,
+        scripts: Optional[Path] = None,
         options: Sequence[PathString] = (),
     ) -> AbstractContextManager[list[PathString]]:
         return self.config.sandbox(

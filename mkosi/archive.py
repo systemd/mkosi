@@ -3,6 +3,7 @@
 import os
 from collections.abc import Iterable, Sequence
 from pathlib import Path
+from typing import Optional
 
 from mkosi.log import complete_step, log_step
 from mkosi.run import SandboxProtocol, finalize_passwd_symlinks, nosandbox, run, workdir
@@ -108,7 +109,7 @@ def make_cpio(
     src: Path,
     dst: Path,
     *,
-    files: Iterable[Path] | None = None,
+    files: Optional[Iterable[Path]] = None,
     sandbox: SandboxProtocol = nosandbox,
 ) -> None:
     if not files:
