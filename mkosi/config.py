@@ -3830,7 +3830,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         default=Cacheonly.auto,
         help="Only use the package cache when installing packages",
         choices=Cacheonly.choices(),
-        scope=SettingScope.multiversal,
+        scope=SettingScope.inherit,
     ),
     ConfigSetting(
         dest="sandbox_trees",

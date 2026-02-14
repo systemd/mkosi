@@ -1564,10 +1564,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     as the package cache is already fully populated. If set to `metadata`,
     the package manager can still download packages, but we won't sync the
     repository metadata. If set to `auto`, the repository metadata is
-    synced unless we have a cached image (see `Incremental=`) and packages
-    can be downloaded during the build. If set to `never`, repository
-    metadata is always synced and packages can be downloaded during
-    the build.
+    synced unless the image is cached (see `Incremental=`) and packages can
+    be downloaded during the build. If set to `never`, repository metadata
+    is always synced and packages can be downloaded during the build.
 
 `SandboxTrees=`, `--sandbox-tree=`
 :   Takes a comma-separated list of colon-separated path pairs. The first
@@ -3063,7 +3062,6 @@ image:
 - `RepositoryKeyCheck=`
 - `RepositoryKeyFetch=`
 - `SourceDateEpoch=`
-- `CacheOnly=`
 - `WorkspaceDirectory=`
 - `PackageCacheDirectory=`
 - `BuildSources=`
@@ -3114,6 +3112,7 @@ the subimage will take priority over values configured on the CLI or
 in the main image config. Currently the following settings are passed
 down to subimages but can be overridden:
 
+- `CacheOnly=`
 - `Profiles=`
 - `ImageId=`
 - `ImageVersion=`

@@ -4872,10 +4872,14 @@ def sync_repository_metadata(
 
     (last.package_cache_dir_or_default() / "cache" / subdir).mkdir(parents=True, exist_ok=True)
 
+    def needs_sync(config: Config) -> bool:
+        if config.cacheonly != Cacheonly.auto:
+            return config.cacheonly == Cacheonly.never
+
+        return not have_cache(config)
+
     # Sync repository metadata unless explicitly disabled.
-    if last.cacheonly == Cacheonly.never or (
-        last.cacheonly == Cacheonly.auto and not any(have_cache(config) for config in images)
-    ):
+    if any(needs_sync(config) for config in images):
         with setup_workspace(args, last) as workspace:
             context = Context(
                 args,
