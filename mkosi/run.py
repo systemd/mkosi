@@ -20,7 +20,7 @@ from collections.abc import Awaitable, Collection, Iterator, Mapping, Sequence
 from contextlib import AbstractContextManager
 from pathlib import Path
 from types import FrameType, TracebackType
-from typing import TYPE_CHECKING, Any, Callable, Generic, NoReturn, Protocol, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Callable, Generic, NoReturn, Optional, Protocol, TypeVar, cast
 
 import mkosi
 import mkosi.sandbox
@@ -229,7 +229,7 @@ def run(
     stdin: _FILE = None,
     stdout: _FILE = None,
     stderr: _FILE = None,
-    input: str | None = None,
+    input: Optional[str] = None,
     env: Mapping[str, str] = {},
     log: bool = True,
     success_exit_status: Sequence[int] = (0,),
@@ -261,7 +261,7 @@ def _preexec(
     cmd: list[str],
     env: dict[str, Any],
     sandbox: list[str],
-    preexec: Callable[[], None] | None,
+    preexec: Optional[Callable[[], None]],
 ) -> None:
     with uncaught_exception_handler(exit=os._exit, fork=True, proceed=True):
         if preexec:
@@ -301,12 +301,12 @@ def spawn(
     stdin: _FILE = None,
     stdout: _FILE = None,
     stderr: _FILE = None,
-    user: int | None = None,
-    group: int | None = None,
+    user: Optional[int] = None,
+    group: Optional[int] = None,
     pass_fds: Collection[int] = (),
     env: Mapping[str, str] = {},
     log: bool = True,
-    preexec: Callable[[], None] | None = None,
+    preexec: Optional[Callable[[], None]] = None,
     success_exit_status: Sequence[int] = (0,),
     setup: Sequence[PathString] = (),
     sandbox: AbstractContextManager[Sequence[PathString]] = nosandbox(),
@@ -414,7 +414,7 @@ def spawn(
 
 
 def finalize_path(
-    root: Path | None = None,
+    root: Optional[Path] = None,
     extra: Sequence[Path] = (),
     prefix_usr: bool = False,
     relaxed: bool = False,
@@ -446,9 +446,9 @@ def finalize_path(
 
 def find_binary(
     *names: PathString,
-    root: Path | None = None,
+    root: Optional[Path] = None,
     extra: Sequence[Path] = (),
-) -> Path | None:
+) -> Optional[Path]:
     root = root or Path("/")
     path = finalize_path(root=root, extra=extra, prefix_usr=True)
 
@@ -528,9 +528,9 @@ class AsyncioThread(threading.Thread, Generic[T]):
 
     def __exit__(
         self,
-        type: type[BaseException] | None,
-        value: BaseException | None,
-        traceback: TracebackType | None,
+        type: Optional[type[BaseException]],
+        value: Optional[BaseException],
+        traceback: Optional[TracebackType],
     ) -> None:
         self.cancel()
         self.join()
@@ -543,7 +543,7 @@ class AsyncioThread(threading.Thread, Generic[T]):
                 pass
 
 
-def workdir(path: Path, sandbox: SandboxProtocol | None = None) -> str:
+def workdir(path: Path, sandbox: Optional[SandboxProtocol] = None) -> str:
     subdir = "/" if sandbox and sandbox == nosandbox else "/work"
     return joinpath(subdir, os.fspath(path))
 
@@ -606,10 +606,10 @@ def sandbox_cmd(
     *,
     network: bool = False,
     devices: bool = False,
-    scripts: Path | None = None,
+    scripts: Optional[Path] = None,
     tools: Path = Path("/"),
     relaxed: bool = False,
-    overlay: Path | None = None,
+    overlay: Optional[Path] = None,
     options: Sequence[PathString] = (),
     extra: Sequence[Path] = (),
 ) -> Iterator[list[PathString]]:
@@ -715,7 +715,7 @@ def sandbox_cmd(
         if scripts:
             cmdline += ["--ro-bind", scripts, "/scripts"]
 
-        tmp: Path | None
+        tmp: Optional[Path]
 
         if not overlay and not relaxed:
             tmp = stack.enter_context(vartmpdir())

@@ -7,7 +7,7 @@ import os
 import sys
 import time
 from collections.abc import Iterator
-from typing import Any, NoReturn
+from typing import Any, NoReturn, Optional
 
 from mkosi.sandbox import ANSI_BOLD, ANSI_GRAY, ANSI_RED, ANSI_RESET, ANSI_YELLOW, terminal_is_dumb
 
@@ -18,7 +18,7 @@ ARG_DEBUG_SANDBOX = contextvars.ContextVar("debug-sandbox", default=False)
 LEVEL = 0
 
 
-def die(message: str, *, hint: str | None = None) -> NoReturn:
+def die(message: str, *, hint: Optional[str] = None) -> NoReturn:
     logging.error(f"{message}")
     if hint:
         logging.info(f"({hint})")
@@ -95,7 +95,7 @@ def log_notice(text: str) -> None:
 
 
 @contextlib.contextmanager
-def complete_step(text: str, text2: str | None = None) -> Iterator[list[Any]]:
+def complete_step(text: str, text2: Optional[str] = None) -> Iterator[list[Any]]:
     global LEVEL
 
     log_step(text)
@@ -116,7 +116,7 @@ def complete_step(text: str, text2: str | None = None) -> Iterator[list[Any]]:
 
 
 class Formatter(logging.Formatter):
-    def __init__(self, fmt: str | None = None, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, fmt: Optional[str] = None, *args: Any, **kwargs: Any) -> None:
         fmt = fmt or "%(message)s"
 
         self.formatters = {

@@ -4,6 +4,7 @@ import os
 import tempfile
 from collections.abc import Iterable, Sequence
 from pathlib import Path
+from typing import Union
 from xml.etree import ElementTree
 
 from mkosi.config import Architecture, Config, parse_ini
@@ -41,7 +42,7 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
         return "grub2"
 
     @classmethod
-    def package_manager(cls, config: Config) -> type[Dnf] | type[Zypper]:
+    def package_manager(cls, config: Config) -> Union[type[Dnf], type[Zypper]]:
         if config.find_binary("zypper"):
             return Zypper
         else:

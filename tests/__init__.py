@@ -9,7 +9,7 @@ import uuid
 from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
 from types import TracebackType
-from typing import Any
+from typing import Any, Optional
 
 import pytest
 
@@ -44,9 +44,9 @@ class Image:
 
     def __exit__(
         self,
-        type: type[BaseException] | None,
-        value: BaseException | None,
-        traceback: TracebackType | None,
+        type: Optional[type[BaseException]],
+        value: Optional[BaseException],
+        traceback: Optional[TracebackType],
     ) -> None:
         def clean() -> None:
             acquire_privileges()

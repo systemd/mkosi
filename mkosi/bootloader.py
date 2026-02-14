@@ -10,6 +10,7 @@ import tempfile
 import textwrap
 from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
+from typing import Optional
 
 from mkosi.config import (
     BiosBootloader,
@@ -167,7 +168,7 @@ def want_grub_bios(context: Context, partitions: Sequence[Partition] = ()) -> bo
     return (have and bios and esp and root and installed) if partitions else have
 
 
-def find_grub_directory(context: Context, *, target: str) -> Path | None:
+def find_grub_directory(context: Context, *, target: str) -> Optional[Path]:
     for d in ("usr/lib/grub", "usr/share/grub2"):
         if (p := context.root / d / target).exists() and any(p.iterdir()):
             return p
@@ -175,7 +176,7 @@ def find_grub_directory(context: Context, *, target: str) -> Path | None:
     return None
 
 
-def find_grub_binary(config: Config, binary: str) -> Path | None:
+def find_grub_binary(config: Config, binary: str) -> Optional[Path]:
     assert "grub" not in binary
 
     # Debian has a bespoke setup where if only grub-pc-bin is installed, grub-bios-setup is installed in
@@ -184,7 +185,7 @@ def find_grub_binary(config: Config, binary: str) -> Path | None:
     return config.find_binary(f"grub-{binary}", f"grub2-{binary}", f"/usr/lib/grub/i386-pc/grub-{binary}")
 
 
-def prepare_grub_config(context: Context) -> Path | None:
+def prepare_grub_config(context: Context) -> Optional[Path]:
     config = context.root / "efi" / context.config.distribution.installer.grub_prefix() / "grub.cfg"
     with umask(~0o700):
         config.parent.mkdir(exist_ok=True)
@@ -222,8 +223,8 @@ def grub_mkimage(
     *,
     target: str,
     modules: Sequence[str] = (),
-    output: Path | None = None,
-    sbat: Path | None = None,
+    output: Optional[Path] = None,
+    sbat: Optional[Path] = None,
 ) -> None:
     mkimage = find_grub_binary(context.config, "mkimage")
     assert mkimage
@@ -292,7 +293,7 @@ def grub_mkimage(
         )  # fmt: skip
 
 
-def find_signed_grub_image(context: Context) -> Path | None:
+def find_signed_grub_image(context: Context) -> Optional[Path]:
     arch = context.config.architecture.to_efi()
 
     patterns = [
@@ -475,9 +476,9 @@ def run_systemd_sign_tool(
     *,
     cmdline: Sequence[PathString],
     options: Sequence[PathString],
-    certificate: Path | None,
+    certificate: Optional[Path],
     certificate_source: CertificateSource,
-    key: Path | None,
+    key: Optional[Path],
     key_source: KeySource,
     env: Mapping[str, str] = {},
     stdout: _FILE = None,

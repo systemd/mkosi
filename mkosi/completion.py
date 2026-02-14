@@ -8,6 +8,7 @@ import shlex
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 from textwrap import indent
+from typing import Optional, Union
 
 from mkosi import config
 from mkosi.log import die
@@ -26,7 +27,7 @@ class CompGen(StrEnum):
                 return CompGen.dirs
             else:
                 return CompGen.files
-        # TODO: the type of action.type is Callable[[str], Any] | FileType
+        # TODO: the type of action.type is Union[Callable[[str], Any], FileType]
         # the type of Path is type, but Path also works in this position,
         # because the constructor is a callable from str -> Path
         elif action.type is not None and (isinstance(action.type, type) and issubclass(action.type, Path)):
@@ -59,9 +60,9 @@ class CompGen(StrEnum):
 
 @dataclasses.dataclass(frozen=True)
 class CompletionItem:
-    short: str | None
-    long: str | None
-    help: str | None
+    short: Optional[str]
+    long: Optional[str]
+    help: Optional[str]
     choices: list[str]
     compgen: CompGen
 
@@ -103,7 +104,7 @@ def finalize_completion_bash(options: list[CompletionItem], resources: Path) -> 
     def to_bash_array(name: str, entries: Iterable[str]) -> str:
         return f"{name.replace('-', '_')}=(" + " ".join(shlex.quote(str(e)) for e in entries) + ")"
 
-    def to_bash_hasharray(name: str, entries: Mapping[str, str | int]) -> str:
+    def to_bash_hasharray(name: str, entries: Mapping[str, Union[str, int]]) -> str:
         return (
             f"{name.replace('-', '_')}=("
             + " ".join(f"[{shlex.quote(str(k))}]={shlex.quote(str(v))}" for k, v in entries.items())

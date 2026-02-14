@@ -25,7 +25,7 @@ import zipapp
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import AbstractContextManager
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Optional, Union, cast
 
 from mkosi.archive import can_extract_tar, extract_tar, make_cpio, make_tar
 from mkosi.bootloader import (
@@ -1186,7 +1186,7 @@ def install_tree(
     src: Path,
     dst: Path,
     *,
-    target: Path | None = None,
+    target: Optional[Path] = None,
     preserve: bool = True,
 ) -> None:
     src = src.resolve()
@@ -1366,7 +1366,7 @@ def gzip_binary(context: Context) -> str:
     return "pigz" if context.config.find_binary("pigz") else "gzip"
 
 
-def kernel_get_ver_from_modules(context: Context) -> str | None:
+def kernel_get_ver_from_modules(context: Context) -> Optional[str]:
     # Try to get version from the first dir under usr/lib/modules but fail if multiple versions are found
     versions = [
         p.name for p in (context.root / "usr/lib/modules").glob("*") if KERNEL_VERSION_PATTERN.match(p.name)
@@ -1403,7 +1403,7 @@ def fixup_vmlinuz_location(context: Context) -> None:
             filename = d.name.removeprefix(f"{type}-")
             match = KERNEL_VERSION_PATTERN.search(filename)
 
-            kver: str | None
+            kver: Optional[str]
             if match:
                 kver = match.group(0)
             else:
@@ -1426,7 +1426,7 @@ def fixup_vmlinuz_location(context: Context) -> None:
                 copyfile2(d, vmlinuz)
 
 
-def identify_cpu(root: Path) -> tuple[Path | None, Path | None]:
+def identify_cpu(root: Path) -> tuple[Optional[Path], Optional[Path]]:
     for entry in Path("/proc/cpuinfo").read_text().split("\n\n"):
         vendor_id = family = model = stepping = None
         for line in entry.splitlines():
@@ -1872,7 +1872,7 @@ def systemd_stub_binary(context: Context) -> Path:
     return stub
 
 
-def systemd_stub_version(context: Context, stub: Path) -> GenericVersion | None:
+def systemd_stub_version(context: Context, stub: Path) -> Optional[GenericVersion]:
     try:
         sdmagic = extract_pe_section(context, stub, ".sdmagic", context.workspace / "sdmagic")
     except KeyError:
@@ -1937,7 +1937,9 @@ def find_entry_token(context: Context) -> str:
     return cast(str, output["EntryToken"])
 
 
-def finalize_cmdline(context: Context, partitions: Sequence[Partition], roothash: str | None) -> list[str]:
+def finalize_cmdline(
+    context: Context, partitions: Sequence[Partition], roothash: Optional[str]
+) -> list[str]:
     if (context.root / "etc/kernel/cmdline").exists():
         cmdline = [(context.root / "etc/kernel/cmdline").read_text().strip()]
     elif (context.root / "usr/lib/kernel/cmdline").exists():
@@ -2369,7 +2371,7 @@ def maybe_compress(
     context: Context,
     compression: Compression,
     src: Path,
-    dst: Path | None = None,
+    dst: Optional[Path] = None,
 ) -> None:
     if not compression or src.is_dir():
         if dst:
@@ -2403,7 +2405,7 @@ def copy_nspawn_settings(context: Context) -> None:
         copyfile2(context.config.nspawn_settings, context.staging / context.config.output_nspawn_settings)
 
 
-def get_uki_path(context: Context) -> Path | None:
+def get_uki_path(context: Context) -> Optional[Path]:
     if not want_efi(context.config) or context.config.unified_kernel_images == UnifiedKernelImage.none:
         return None
 
@@ -2593,7 +2595,7 @@ def calculate_signature_sop(context: Context) -> None:
         )  # fmt: skip
 
 
-def dir_size(path: Path | os.DirEntry[str]) -> int:
+def dir_size(path: Union[Path, os.DirEntry[str]]) -> int:
     dir_sum = 0
     for entry in os.scandir(path):
         if entry.is_symlink():
@@ -2608,7 +2610,7 @@ def dir_size(path: Path | os.DirEntry[str]) -> int:
     return dir_sum
 
 
-def save_manifest(context: Context, manifest: Manifest | None) -> None:
+def save_manifest(context: Context, manifest: Optional[Manifest]) -> None:
     if not manifest:
         return
 
@@ -2787,7 +2789,7 @@ def check_inputs(config: Config) -> None:
         )
 
 
-def check_tool(config: Config, *tools: PathString, reason: str, hint: str | None = None) -> Path:
+def check_tool(config: Config, *tools: PathString, reason: str, hint: Optional[str] = None) -> Path:
     tool = config.find_binary(*tools)
     if not tool:
         die(f"Could not find '{tools[0]}' which is required to {reason}.", hint=hint)
@@ -2800,7 +2802,7 @@ def check_systemd_tool(
     *tools: PathString,
     version: str,
     reason: str,
-    hint: str | None = None,
+    hint: Optional[str] = None,
 ) -> None:
     tool = check_tool(config, *tools, reason=reason, hint=hint)
 
@@ -2816,7 +2818,7 @@ def check_ukify(
     config: Config,
     version: str,
     reason: str,
-    hint: str | None = None,
+    hint: Optional[str] = None,
 ) -> None:
     ukify = check_tool(config, "ukify", "/usr/lib/systemd/ukify", reason=reason, hint=hint)
 
@@ -3371,7 +3373,7 @@ def reuse_cache(context: Context) -> bool:
 
 def save_esp_components(
     context: Context,
-) -> tuple[Path | None, str | None, Path | None, list[Path]]:
+) -> tuple[Optional[Path], Optional[str], Optional[Path], list[Path]]:
     if context.config.output_format == OutputFormat.addon:
         stub = systemd_addon_stub_binary(context)
         if not stub.exists():
@@ -3467,7 +3469,7 @@ def make_image(
         cmdline += ["--definitions", workdir(d)]
         opts += ["--ro-bind", d, workdir(d)]
 
-    def can_orphan_file(distribution: Distribution | str | None, release: str | None) -> bool:
+    def can_orphan_file(distribution: Union[Distribution, str, None], release: Optional[str]) -> bool:
         if not isinstance(distribution, Distribution):
             return True
 
@@ -3741,9 +3743,9 @@ def make_oci(context: Context, root_layer: Path, dst: Path) -> None:
 
 def make_esp(
     context: Context,
-    stub: Path | None,
-    kver: str | None,
-    kimg: Path | None,
+    stub: Optional[Path],
+    kver: Optional[str],
+    kimg: Optional[Path],
     microcode: list[Path],
 ) -> list[Partition]:
     if not context.config.architecture.to_efi():
@@ -3930,7 +3932,7 @@ def clamp_mtime(path: Path, mtime: int) -> None:
         os.utime(path, ns=updated, follow_symlinks=False)
 
 
-def normalize_mtime(root: Path, mtime: int | None, directory: Path = Path("")) -> None:
+def normalize_mtime(root: Path, mtime: Optional[int], directory: Path = Path("")) -> None:
     if mtime is None:
         return
 
@@ -4475,7 +4477,7 @@ def run_coredumpctl(args: Args, config: Config) -> None:
     run_systemd_tool("coredumpctl", args, config)
 
 
-def start_storage_target_mode(config: Config) -> AbstractContextManager[Popen | None]:
+def start_storage_target_mode(config: Config) -> AbstractContextManager[Optional[Popen]]:
     if config.storage_target_mode == ConfigFeature.disabled:
         return contextlib.nullcontext()
 
@@ -4915,7 +4917,7 @@ def run_build(
     resources: Path,
     keyring_dir: Path,
     metadata_dir: Path,
-    package_dir: Path | None = None,
+    package_dir: Optional[Path] = None,
 ) -> None:
     if not have_effective_cap(CAP_SYS_ADMIN):
         acquire_privileges()
@@ -4983,7 +4985,7 @@ def ensure_tools_tree_has_etc_resolv_conf(config: Config) -> None:
         )
 
 
-def run_verb(args: Args, tools: Config | None, images: Sequence[Config], *, resources: Path) -> None:
+def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, resources: Path) -> None:
     images = list(images)
 
     if args.verb == Verb.init:

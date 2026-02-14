@@ -25,6 +25,7 @@ import textwrap
 import uuid
 from collections.abc import Iterator, Sequence
 from pathlib import Path
+from typing import Optional
 
 from mkosi.bootloader import KernelType
 from mkosi.config import (
@@ -183,7 +184,7 @@ class OvmfConfig:
     vars_format: str
 
 
-def find_ovmf_firmware(config: Config, firmware: Firmware) -> OvmfConfig | None:
+def find_ovmf_firmware(config: Config, firmware: Firmware) -> Optional[OvmfConfig]:
     if not firmware.is_uefi():
         return None
 
@@ -300,7 +301,7 @@ def start_swtpm(config: Config) -> Iterator[Path]:
                 proc.terminate()
 
 
-def find_virtiofsd(*, root: Path = Path("/"), extra: Sequence[Path] = ()) -> Path | None:
+def find_virtiofsd(*, root: Path = Path("/"), extra: Sequence[Path] = ()) -> Optional[Path]:
     if p := find_binary("virtiofsd", root=root, extra=extra):
         return p
 
@@ -604,8 +605,8 @@ def qemu_version(config: Config, binary: Path) -> GenericVersion:
 
 def finalize_firmware(
     config: Config,
-    kernel: Path | None,
-    kerneltype: KernelType | None = None,
+    kernel: Optional[Path],
+    kerneltype: Optional[KernelType] = None,
 ) -> Firmware:
     if config.firmware != Firmware.auto:
         return config.firmware
@@ -731,7 +732,7 @@ def finalize_drive(config: Config, drive: Drive) -> Iterator[Path]:
 
 
 @contextlib.contextmanager
-def finalize_initrd(config: Config) -> Iterator[Path | None]:
+def finalize_initrd(config: Config) -> Iterator[Optional[Path]]:
     with contextlib.ExitStack() as stack:
         if (config.output_dir_or_cwd() / config.output_split_initrd).exists():
             yield config.output_dir_or_cwd() / config.output_split_initrd
@@ -901,7 +902,7 @@ def finalize_register(config: Config) -> bool:
     return True
 
 
-def register_machine(config: Config, pid: int, fname: Path, cid: int | None) -> None:
+def register_machine(config: Config, pid: int, fname: Path, cid: Optional[int]) -> None:
     if not finalize_register(config):
         return
 
@@ -1103,7 +1104,7 @@ def run_qemu(args: Args, config: Config) -> None:
 
     cmdline += ["-accel", accel]
 
-    cid: int | None = None
+    cid: Optional[int] = None
     if QemuDeviceNode.vhost_vsock in qemu_device_fds:
         if config.vsock_cid == VsockCID.auto:
             cid = find_unused_vsock_cid(config, qemu_device_fds[QemuDeviceNode.vhost_vsock])
@@ -1151,8 +1152,8 @@ def run_qemu(args: Args, config: Config) -> None:
         assert ovmf
         cmdline += ["-drive", f"if=pflash,format={ovmf.format},readonly=on,file={ovmf.firmware}"]
 
-    vsock: socket.socket | None = None
-    notify: AsyncioThread[tuple[str, str]] | None = None
+    vsock: Optional[socket.socket] = None
+    notify: Optional[AsyncioThread[tuple[str, str]]] = None
 
     with contextlib.ExitStack() as stack:
         if firmware.is_uefi():

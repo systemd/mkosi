@@ -3309,7 +3309,7 @@ In this scenario, the kernel is loaded from the ESP in the image by **systemd-bo
   `ubuntu-archive-keyring`, `kali-archive-keyring` and/or `debian-archive-keyring`
   packages explicitly, in addition to **apt**, depending on what kind of distribution
   images you want to build.
-- The minimum required Python version is 3.10.
+- The minimum required Python version is 3.9.
 
 ## Unprivileged User Namespaces
 
