@@ -3071,6 +3071,7 @@ image:
 - `ProxyExclude=`
 - `ProxyPeerCertificate=`
 - `ProxyUrl=`
+- `MakeScriptsExecutable=`
 
 Several "universal" settings apply to the main image and all its
 subimages and cannot be configured separately in subimages. The
