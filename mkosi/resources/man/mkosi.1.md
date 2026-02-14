@@ -3082,7 +3082,6 @@ following settings are universal and cannot be configured in subimages:
 - `CacheDirectory=`
 - `Distribution=`
 - `ExtraSearchPaths=`
-- `Incremental=`
 - `LocalMirror=`
 - `Mirror=`
 - `OutputDirectory=`
@@ -3113,6 +3112,7 @@ the subimage will take priority over values configured on the CLI or
 in the main image config. Currently the following settings are passed
 down to subimages but can be overridden:
 
+- `Incremental=`
 - `CacheOnly=`
 - `Profiles=`
 - `ImageId=`
