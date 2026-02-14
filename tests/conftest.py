@@ -15,12 +15,13 @@ from . import ImageConfig, ci_group
 
 
 def pytest_addoption(parser: Any) -> None:
+    distribution = detect_distribution()[0]
     parser.addoption(
         "-D",
         "--distribution",
         metavar="DISTRIBUTION",
         help="Run the integration tests for the given distribution.",
-        default=detect_distribution()[0],
+        default=distribution if isinstance(distribution, Distribution) else None,
         type=Distribution,
         choices=[Distribution(d) for d in Distribution.values()],
     )
