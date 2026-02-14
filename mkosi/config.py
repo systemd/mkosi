@@ -1907,7 +1907,7 @@ class Args:
         if isinstance(s, str):
             j = json.loads(s)
         elif isinstance(s, dict):
-            j = s
+            j = s  # ty: ignore[invalid-assignment]
         elif hasattr(s, "read"):
             j = json.load(s)
         else:
@@ -2483,7 +2483,7 @@ class Config:
         if isinstance(s, str):
             j = json.loads(s)
         elif isinstance(s, dict):
-            j = s
+            j = s  # ty: ignore[invalid-assignment]
         elif hasattr(s, "read"):
             j = json.load(s)
         else:
@@ -4611,7 +4611,7 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
             last_section = s.section
 
         if s.short and s.const is not None:
-            group.add_argument(  # type: ignore  # needed by pyright
+            group.add_argument(  # type: ignore  # ty: ignore[unused-ignore-comment]  # needed by pyright
                 s.short,
                 metavar="",
                 dest=s.dest,
@@ -4624,7 +4624,7 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
         for long in [s.long, *s.compat_longs]:
             opts = [s.short, long] if s.short and long == s.long and s.const is None else [long]
 
-            group.add_argument(  # type: ignore  # needed by pyright
+            group.add_argument(  # type: ignore  # ty: ignore[unused-ignore-comment]  # needed by pyright
                 *opts,
                 dest=s.dest,
                 choices=s.choices,
@@ -4643,7 +4643,7 @@ def resolve_deps(images: Sequence[Config], include: Sequence[str]) -> list[Confi
     graph = {config.image: config.dependencies for config in images}
 
     if any((missing := i) not in graph for i in include):
-        die(f"No image found with name {missing}")
+        die(f"No image found with name {missing}")  # ty: ignore[unresolved-reference]
 
     deps = set()
     queue = [*include]
@@ -4823,13 +4823,13 @@ class ParseContext:
             # so we ignore the return-value error for it.
             if isinstance(v, list):
                 assert isinstance(cfg_value, type(v))
-                return cfg_value + v  # type: ignore[return-value]  # needed by mypy
+                return cfg_value + v  # type: ignore[return-value]  # ty: ignore[unused-ignore-comment]  # needed by mypy
             elif isinstance(v, dict):
                 assert isinstance(cfg_value, type(v))
-                return cfg_value | v  # type: ignore[return-value]  # needed by mypy
+                return cfg_value | v  # type: ignore[return-value]  # ty: ignore[unused-ignore-comment]  # needed by mypy
             elif isinstance(v, set):
                 assert isinstance(cfg_value, type(v))
-                return cfg_value | v  # type: ignore[return-value]  # needed by mypy
+                return cfg_value | v  # type: ignore[return-value]  # ty: ignore[unused-ignore-comment]  # needed by mypy
             else:
                 return v
 
