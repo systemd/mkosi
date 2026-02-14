@@ -132,6 +132,7 @@ libc = ctypes.CDLL(None, use_errno=True)
 libc.syscall.restype = ctypes.c_long
 libc.unshare.argtypes = (ctypes.c_int,)
 libc.statfs.argtypes = (ctypes.c_char_p, ctypes.c_void_p)
+libc.eventfd.argtypes = (ctypes.c_int, ctypes.c_int)
 libc.mount.argtypes = (ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_ulong, ctypes.c_char_p)
 libc.pivot_root.argtypes = (ctypes.c_char_p, ctypes.c_char_p)
 libc.umount2.argtypes = (ctypes.c_char_p, ctypes.c_int)
@@ -604,13 +605,15 @@ def become_user(uid: int, gid: int) -> None:
 
     ppid = os.getpid()
 
-    event = os.eventfd(0, os.EFD_CLOEXEC)
+    event = libc.eventfd(0, 0)
+    if event < 0:
+        oserror("eventfd")
 
     with close(event):
         pid = os.fork()
         if pid == 0:
             try:
-                os.eventfd_read(event)
+                os.read(event, ctypes.sizeof(ctypes.c_uint64))
                 os.close(event)
                 with open(f"/proc/{ppid}/setgroups", "wb") as f:
                     f.write(b"deny\n")
@@ -632,7 +635,7 @@ def become_user(uid: int, gid: int) -> None:
                 print(UNSHARE_EPERM_MSG, file=sys.stderr)
             raise
         finally:
-            os.eventfd_write(event, 1)
+            os.write(event, ctypes.c_uint64(1))
             _, status = os.waitpid(pid, 0)
 
     rc = os.waitstatus_to_exitcode(status)
