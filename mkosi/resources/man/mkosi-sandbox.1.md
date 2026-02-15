@@ -66,6 +66,17 @@ from `mkosi.sandbox` is not supported and may break in future versions.
 `--ro-bind-try SRC DST`
 :   Like `--bind-try`, but does a recursive readonly bind mount.
 
+`--bind-foreign SRC DST`
+:   Like `--bind`, but `mkosi-sandbox` will allocate a user namespace and provision it with a transient UID
+    range using `systemd-nsresourced` and then idmap the foreign UID range to this transient UID range using
+    `systemd-mountfsd` for each `--bind-foreign` mount. Finally, `mkosi-sandbox` will join the user namespace
+    just before executing the configure command in the sandbox.
+
+    Using this option requires `systemd-nsresourced` and `systemd-mountfsd` v260 or newer.
+
+`--ro-bind-foreign SRC DST`
+:   Like `--bind-foreign`, but does a readonly mount.
+
 `--symlink SRC DST`
 :   Creates a symlink at `DST` in the sandbox pointing to `SRC`. If `DST` already
     exists and is a file or symlink, a temporary symlink is created and mounted on
@@ -112,6 +123,21 @@ from `mkosi.sandbox` is not supported and may break in future versions.
     sandbox will be able to do bind mounts and other operations.
 
     If `mkosi-sandbox` is invoked as the root user, this option won't do anything.
+
+`--map-foreign`
+:   Map the foreign UID range in the sandbox. For more information on the foreign UID range,
+    see [Users, Groups, UIDs and GIDs on systemd Systems](https://systemd.io/UIDS-GIDS/).
+
+    When running `mkosi-sandbox` unprivileged, this option requires `systemd-nsresourced`
+    v260 or newer.
+
+`--map-delegate`
+:   Map a delegated transient UID range in the sandbox.
+
+    This is needed to execute `systemd-nspawn` or any program that tries to allocate a
+    transient UID range via `systemd-nsresourced` from within the `mkosi-sandbox` environment.
+
+    This option requires `systemd-nsresourced` v260 or newer.
 
 `--suppress-chown`
 :   Specifying this option causes all calls to `chown()` or similar system calls to become a

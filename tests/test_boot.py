@@ -7,9 +7,7 @@ import pytest
 
 from mkosi.config import Bootloader, Firmware, OutputFormat
 from mkosi.distribution import Distribution
-from mkosi.qemu import find_virtiofsd
 from mkosi.run import find_binary, run
-from mkosi.sandbox import userns_has_single_user
 from mkosi.versioncomp import GenericVersion
 
 from . import Image, ImageConfig
@@ -34,13 +32,12 @@ def test_format(config: ImageConfig, format: OutputFormat) -> None:
 
         image.build(options=["--format", str(format)])
 
-        if format in (OutputFormat.disk, OutputFormat.directory) and os.getuid() == 0:
-            # systemd-resolved is enabled by default in Arch/Debian/Ubuntu (systemd default preset) but fails
-            # to start in a systemd-nspawn container with --private-users so we mask it out here to avoid CI
-            # failures.
-            # FIXME: Remove when Arch/Debian/Ubuntu ship systemd v253
-            args = ["systemd.mask=systemd-resolved.service"] if format == OutputFormat.directory else []
-            image.boot(args=args)
+        # FIXME: Also boot directory images when the CI runs systemd v260 or newer.
+        if format == OutputFormat.directory:
+            return
+
+        if format == OutputFormat.disk and os.getuid() == 0:
+            image.boot()
 
         if format in (OutputFormat.cpio, OutputFormat.uki, OutputFormat.esp):
             pytest.skip("Default image is too large to be able to boot in CPIO/UKI/ESP format")
@@ -51,18 +48,9 @@ def test_format(config: ImageConfig, format: OutputFormat) -> None:
         if format in (OutputFormat.tar, OutputFormat.oci, OutputFormat.none, OutputFormat.portable):
             return
 
-        if format == OutputFormat.directory:
-            if not find_virtiofsd():
-                pytest.skip("virtiofsd is not installed, cannot boot from directory output")
-
-            if userns_has_single_user():
-                pytest.skip("Running in user namespace with single user, cannot boot from directory")
-
-            return
-
         image.vm()
 
-        if have_vmspawn() and format in (OutputFormat.disk, OutputFormat.directory):
+        if have_vmspawn() and format == OutputFormat.disk:
             image.vm(options=["--vmm=vmspawn"])
 
         if format != OutputFormat.disk:

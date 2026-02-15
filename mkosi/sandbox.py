@@ -58,6 +58,8 @@ FICLONE = 0x40049409
 FS_IOC_GETFLAGS = 0x80086601
 FS_IOC_SETFLAGS = 0x40086602
 FS_NOCOW_FL = 0x00800000
+FOREIGN_UID_MIN = 2147352576
+FOREIGN_UID_MAX = FOREIGN_UID_MIN + 0xFFFF
 LINUX_CAPABILITY_U32S_3 = 2
 LINUX_CAPABILITY_VERSION_3 = 0x20080522
 MNT_DETACH = 2
@@ -89,6 +91,7 @@ SCMP_ACT_ALLOW = 0x7FFF0000
 SCMP_ACT_ERRNO = 0x00050000
 SCMP_FLTATR_API_SYSRAWRC = 9
 SD_LISTEN_FDS_START = 3
+SIGCONT = 18
 SIGSTOP = 19
 
 
@@ -140,6 +143,7 @@ libc.umount2.argtypes = (ctypes.c_char_p, ctypes.c_int)
 libc.capget.argtypes = (ctypes.c_void_p, ctypes.c_void_p)
 libc.capset.argtypes = (ctypes.c_void_p, ctypes.c_void_p)
 libc.fcntl.argtypes = (ctypes.c_int, ctypes.c_int, ctypes.c_int)
+libc.setns.argtypes = (ctypes.c_int, ctypes.c_int)
 
 
 def terminal_is_dumb() -> bool:
@@ -587,7 +591,156 @@ class close:
         os.close(self.fd)
 
 
-def become_user(uid: int, gid: int) -> None:
+if sys.version_info >= (3, 10):
+    Json = dict[str, "Json"] | list["Json"] | tuple["Json"] | str | int | float | bool | None
+    FD = int | tuple[str, int]
+else:
+    from typing import Union
+
+    Json = Union[dict[str, "Json"], list["Json"], tuple["Json"], str, int, float, bool, None]
+    FD = Union[int, tuple[str, int]]
+
+
+class VarlinkError(Exception):
+    """Exception raised when a varlink call returns an error."""
+
+    def __init__(self, error: str, parameters: dict[str, Json]) -> None:
+        self.error = error
+        self.parameters = parameters
+        super().__init__(f"{error}: {parameters}")
+
+
+def varlink(
+    *,
+    path: str,
+    method: str,
+    parameters: dict[str, Json],
+    fds: tuple[FD, ...] = (),
+) -> tuple[dict[str, Json], list[int]]:
+    # To do varlink we need a few extra imports. We import these here to avoid slowing down invocations of
+    # mkosi-sandbox that don't need the varlink stuff.
+    import contextlib
+    import errno
+    import json
+    import socket
+
+    if fds is None:
+        fds = []
+
+    with contextlib.ExitStack() as stack:
+        sock = stack.enter_context(socket.socket(socket.AF_UNIX, socket.SOCK_STREAM))
+        sock.connect(os.fspath(path))
+
+        opened_fds = []
+
+        for fd in fds:
+            if isinstance(fd, int):
+                opened_fds += [fd]
+            else:
+                path, flags = fd
+                opened = os.open(path, flags | os.O_CLOEXEC)
+                opened_fds += [stack.enter_context(close(opened))]
+
+        message: dict[str, object] = {"method": method}
+        if parameters:
+            message["parameters"] = parameters
+
+        request = json.dumps(message).encode() + b"\x00"
+        socket.send_fds(sock, [request], opened_fds)
+        response, reply_fds, _, _ = socket.recv_fds(sock, bufsize=10 * 1024 * 1024, maxfds=10)
+        reply = json.loads(response.decode().rstrip("\0"))
+
+        if "error" in reply:
+            for fd in reply_fds:
+                os.close(fd)
+
+            if "errnoName" in reply.get("parameters", {}):
+                num = getattr(errno, reply["parameters"]["errnoName"])
+                raise OSError(num, os.strerror(num))
+
+            if "errno" in reply.get("parameters", {}):
+                raise OSError(reply["parameters"]["errno"], os.strerror(reply["parameters"]["errno"]))
+
+            raise VarlinkError(reply["error"], reply.get("parameters", {}))
+
+        return reply.get("parameters", {}), reply_fds
+
+
+def foreign_uid_range_available() -> bool:
+    """
+    Check if the foreign UID range (FOREIGN_UID_MIN, FOREIGN_UID_MAX) is mapped
+    in both /proc/self/uid_map and /proc/self/gid_map.
+    """
+
+    def range_is_mapped(path: str, start: int, end: int) -> bool:
+        with open(path) as f:
+            for line in f.readlines():
+                parts = line.split()
+                if len(parts) != 3:
+                    raise RuntimeError(f"Unexpected line {line} in {path}")
+
+                inside, _, count = int(parts[0]), int(parts[1]), int(parts[2])
+                map_start = inside
+                map_end = inside + count - 1
+
+                # Check if [start, end] is fully contained within [map_start, map_end]
+                if map_start <= start and end <= map_end:
+                    return True
+
+        return False
+
+    return range_is_mapped("/proc/self/uid_map", FOREIGN_UID_MIN, FOREIGN_UID_MAX) and range_is_mapped(
+        "/proc/self/gid_map", FOREIGN_UID_MIN, FOREIGN_UID_MAX
+    )
+
+
+def nsresource_allocate_user_range(
+    userns: FD,
+    identity: bool = False,
+    foreign: bool = False,
+    delegate: bool = False,
+    become_root: bool = False,
+) -> None:
+    import uuid
+
+    varlink(
+        path="/run/systemd/io.systemd.NamespaceResource",
+        method="io.systemd.NamespaceResource.AllocateUserRange",
+        parameters={
+            "name": f"mkosi-{uuid.uuid4().hex[:4]}",
+            "size": 1 if identity else 65536,
+            "userNamespaceFileDescriptor": 0,
+            "identity": identity,
+            **({"target": 0} if become_root or not identity else {}),
+            "mapForeign": foreign,
+            "delegateAmount": int(delegate),
+            "delegateSize": 65536,
+        },
+        fds=(userns,),
+    )
+
+
+def mountfsd_mount_directory(directory: str, userns: int, *, readonly: bool) -> int:
+    reply, fds = varlink(
+        path="/run/systemd/io.systemd.MountFileSystem",
+        method="io.systemd.MountFileSystem.MountDirectory",
+        parameters={
+            "directoryFileDescriptor": 0,
+            "userNamespaceFileDescriptor": 1,
+            "mode": "foreign",
+            "readOnly": readonly,
+        },
+        fds=(
+            (directory, os.O_DIRECTORY | os.O_PATH),
+            userns,
+        ),
+    )
+
+    assert isinstance(reply["mountFileDescriptor"], int)
+    return fds[reply["mountFileDescriptor"]]
+
+
+def unprivileged_userns(foreign: bool, become_root: bool) -> None:
     """
     This function implements the required dance to unshare a user namespace and map the current
     user to itself or to root within it. The kernel only allows a process running outside of the
@@ -605,6 +758,8 @@ def become_user(uid: int, gid: int) -> None:
         oserror("prctl")
 
     ppid = os.getpid()
+    uid = 0 if become_root else os.getuid()
+    gid = 0 if become_root else os.getgid()
 
     event = libc.eventfd(0, EFD_CLOEXEC)
     if event < 0:
@@ -618,10 +773,18 @@ def become_user(uid: int, gid: int) -> None:
                 os.close(event)
                 with open(f"/proc/{ppid}/setgroups", "wb") as f:
                     f.write(b"deny\n")
+
+                gidmap = f"{gid} {os.getgid()} 1\n"
+                if foreign:
+                    gidmap += f"{FOREIGN_UID_MIN} {FOREIGN_UID_MIN} 65536\n"
                 with open(f"/proc/{ppid}/gid_map", "wb") as f:
-                    f.write(f"{gid} {os.getgid()} 1\n".encode())
+                    f.write(gidmap.encode())
+
+                uidmap = f"{uid} {os.getuid()} 1\n"
+                if foreign:
+                    uidmap += f"{FOREIGN_UID_MIN} {FOREIGN_UID_MIN} 65536\n"
                 with open(f"/proc/{ppid}/uid_map", "wb") as f:
-                    f.write(f"{uid} {os.getuid()} 1\n".encode())
+                    f.write(uidmap.encode())
             except OSError as e:
                 os._exit(e.errno or 1)
             except BaseException:
@@ -644,14 +807,42 @@ def become_user(uid: int, gid: int) -> None:
         raise OSError(rc, os.strerror(rc))
 
 
-def acquire_privileges(*, become_root: bool = False, network: bool = False) -> bool:
-    if have_effective_cap(CAP_SYS_ADMIN) and (os.getuid() == 0 or not become_root):
+def acquire_privileges(
+    *,
+    identity: bool = True,
+    foreign: bool = False,
+    delegate: bool = False,
+    become_root: bool = False,
+    network: bool = False,
+) -> bool:
+    if (
+        have_effective_cap(CAP_SYS_ADMIN)
+        and identity
+        and (not foreign or foreign_uid_range_available() and have_effective_cap(CAP_CHOWN))
+        and not delegate
+        and not become_root
+        or (os.getuid() == 0 and os.getgid() == 0)
+    ):
         return False
 
-    if become_root:
-        become_user(0, 0)
+    if (
+        not identity
+        or (foreign and (not have_effective_cap(CAP_SETUID) or not have_effective_cap(CAP_SETGID)))
+        or delegate
+    ):
+        unshare(CLONE_NEWUSER)
+        nsresource_allocate_user_range(
+            ("/proc/self/ns/user", os.O_RDONLY),
+            identity,
+            foreign,
+            delegate,
+            become_root,
+        )
+        if become_root:
+            os.setresgid(0, 0, 0)
+            os.setresuid(0, 0, 0)
     else:
-        become_user(os.getuid(), os.getgid())
+        unprivileged_userns(foreign, become_root)
 
     fix_userns_capabilities(network=network)
 
@@ -666,6 +857,38 @@ def userns_has_single_user() -> bool:
         return False
 
     return len(lines) == 1 and int(lines[0].split()[-1]) == 1
+
+
+def userns_acquire_empty() -> int:
+    pid = os.fork()
+    if pid == 0:
+        try:
+            unshare(CLONE_NEWUSER)
+            os.kill(os.getpid(), SIGSTOP)
+        except OSError as e:
+            os._exit(e.errno or 1)
+        except BaseException:
+            os._exit(1)
+        else:
+            os._exit(0)
+
+    try:
+        result = os.waitid(os.P_PID, pid, os.WEXITED | os.WSTOPPED | os.WNOWAIT)
+        if result and result.si_code != os.CLD_STOPPED:
+            rc = os.waitstatus_to_exitcode(result.si_status)
+            raise OSError(rc, os.strerror(rc))
+
+        userns_fd = os.open(f"/proc/{pid}/ns/user", os.O_RDONLY | os.O_CLOEXEC)
+    finally:
+        os.kill(pid, SIGCONT)
+        _, status = os.waitpid(pid, 0)
+
+    rc = os.waitstatus_to_exitcode(status)
+    if rc != 0:
+        os.close(userns_fd)
+        raise OSError(rc, os.strerror(rc))
+
+    return userns_fd
 
 
 def chase(root: str, path: str) -> str:
@@ -819,10 +1042,14 @@ class FSOperation:
 
 
 class BindOperation(FSOperation):
-    def __init__(self, src: str, dst: str, *, readonly: bool, required: bool, relative: bool) -> None:
+    def __init__(
+        self, src: str, dst: str, *, readonly: bool, required: bool, foreign: bool, relative: bool
+    ) -> None:
         self.src = src
         self.readonly = readonly
         self.required = required
+        self.foreign = foreign
+        self.mappedfd = -EBADF
         super().__init__(dst, relative=relative)
 
     def __hash__(self) -> int:
@@ -856,7 +1083,11 @@ class BindOperation(FSOperation):
                 else:
                     os.mkdir(dst)
 
-        mount_bind(src, dst, attrs=MOUNT_ATTR_RDONLY if self.readonly else 0, recursive=True)
+        if self.mappedfd >= 0:
+            move_mount(self.mappedfd, "", AT_FDCWD, dst, MOVE_MOUNT_F_EMPTY_PATH)
+            os.close(self.mappedfd)
+        else:
+            mount_bind(src, dst, attrs=MOUNT_ATTR_RDONLY if self.readonly else 0, recursive=True)
 
 
 class DevOperation(FSOperation):
@@ -1053,6 +1284,8 @@ mkosi-sandbox [OPTIONS...] COMMAND [ARGUMENTS...]
      --bind-try SRC DST           Bind mount the host path SRC to DST if it exists
      --ro-bind SRC DST            Bind mount the host path SRC to DST read-only
      --ro-bind-try SRC DST        Bind mount the host path SRC to DST read-only if it exists
+     --bind-foreign SRC DST       Like --bind, but idmaps the foreign UID range to a transient UID range
+     --ro-bind-foreign SRC DST    Like --ro-bind, but idmaps the foreign UID range to a transient UID range
      --symlink SRC DST            Create a symlink at DST pointing to SRC
      --write DATA DST             Write DATA to DST
      --overlay-lowerdir DIR       Add a lower directory for the next overlayfs mount
@@ -1063,7 +1296,9 @@ mkosi-sandbox [OPTIONS...] COMMAND [ARGUMENTS...]
      --setenv NAME VALUE          Set the environment variable with name NAME to VALUE
      --chdir DIR                  Change the working directory in the sandbox to DIR
      --same-dir                   Change the working directory in the sandbox to $PWD
-     --become-root                Map the current user/group to root:root in the sandbox
+     --become-root                Become root:root in the sandbox
+     --map-foreign                Map the foreign UID range in the sandbox
+     --map-delegate               Map a delegated UID range in the sandbox
      --suppress-chown             Make chown() syscalls in the sandbox a noop
      --suppress-sync              Make sync() syscalls in the sandbox a noop
      --unshare-net                Unshare the network namespace if possible
@@ -1093,7 +1328,14 @@ def main(argv: list[str] = sys.argv[1:]) -> None:
     upperdir = ""
     workdir = ""
     chdir = None
-    become_root = suppress_chown = suppress_sync = unshare_net = unshare_ipc = pack_fds = False
+    become_root = False
+    suppress_chown = False
+    suppress_sync = False
+    unshare_net = False
+    unshare_ipc = False
+    pack_fds = False
+    map_foreign = False
+    map_delegate = False
 
     try:
         ttyname = os.ttyname(2) if os.isatty(2) else ""
@@ -1118,16 +1360,26 @@ def main(argv: list[str] = sys.argv[1:]) -> None:
             fsops.append(DevOperation(ttyname, os.path.abspath(argv.pop())))
         elif arg == "--dir":
             fsops.append(DirOperation(os.path.abspath(argv.pop())))
-        elif arg in ("--bind", "--ro-bind", "--bind-try", "--ro-bind-try"):
+        elif arg in (
+            "--bind",
+            "--ro-bind",
+            "--bind-try",
+            "--ro-bind-try",
+            "--bind-foreign",
+            "--ro-bind-foreign",
+        ):
             readonly = arg.startswith("--ro")
             required = not arg.endswith("-try")
+            foreign = arg.endswith("-foreign")
             src = argv.pop()
+
             fsops.append(
                 BindOperation(
                     os.path.abspath(src.removeprefix("+")),
                     os.path.abspath(argv.pop()),
                     readonly=readonly,
                     required=required,
+                    foreign=foreign,
                     relative=src.startswith("+"),
                 )
             )
@@ -1165,6 +1417,10 @@ def main(argv: list[str] = sys.argv[1:]) -> None:
             chdir = os.getcwd()
         elif arg == "--become-root":
             become_root = True
+        elif arg == "--map-foreign":
+            map_foreign = True
+        elif arg == "--map-delegate":
+            map_delegate = True
         elif arg == "--suppress-chown":
             suppress_chown = True
         elif arg == "--suppress-sync":
@@ -1209,7 +1465,26 @@ def main(argv: list[str] = sys.argv[1:]) -> None:
     if unshare_ipc:
         namespaces |= CLONE_NEWIPC
 
-    userns = acquire_privileges(become_root=become_root, network=bool(namespaces & CLONE_NEWNET))
+    network = bool(namespaces & CLONE_NEWNET)
+    foreign = any(fsop.foreign for fsop in fsops if isinstance(fsop, BindOperation))
+
+    userns = acquire_privileges(
+        identity=True,
+        foreign=map_foreign,
+        delegate=foreign or map_delegate,
+        become_root=not foreign and become_root,
+        network=network,
+    )
+
+    transient_userns_fd = -EBADF
+    if foreign:
+        transient_userns_fd = userns_acquire_empty()
+        nsresource_allocate_user_range(transient_userns_fd)
+
+        for op in fsops:
+            if isinstance(op, BindOperation) and op.foreign:
+                # Will be closed in BindOperation.execute().
+                op.mappedfd = mountfsd_mount_directory(op.src, transient_userns_fd, readonly=op.readonly)
 
     seccomp_suppress(
         # If we're root in a user namespace with a single user, we're still not going to be able to
@@ -1289,6 +1564,18 @@ def main(argv: list[str] = sys.argv[1:]) -> None:
 
     if chdir:
         os.chdir(chdir)
+
+    if transient_userns_fd >= 0:
+        if libc.setns(transient_userns_fd, CLONE_NEWUSER) < 0:
+            oserror("setns")
+
+        os.close(transient_userns_fd)
+
+        if become_root:
+            os.setresgid(0, 0, 0)
+            os.setresuid(0, 0, 0)
+
+        fix_userns_capabilities(network=network)
 
     if pack_fds:
         nfds = pack_file_descriptors()
