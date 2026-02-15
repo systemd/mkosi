@@ -317,7 +317,7 @@ def resolve_module_dependencies(
 
             mods.add(name)
             firmware.update(depinfo.firmware)
-            todo += [m for m in depinfo.modules if m not in mods]
+            todo += [m for m in depinfo.modules if m not in mods and m in nametofile]
 
     return set(nametofile[m] for m in mods if m in nametofile), set(firmware)
 

@@ -1395,7 +1395,11 @@ def fixup_vmlinuz_location(context: Context) -> None:
 
     # Some architectures ship an uncompressed vmlinux (ppc64el, riscv64)
     for type in ("vmlinuz", "vmlinux"):
-        for d in context.root.glob(f"boot/{type}-*"):
+        todo = [*context.root.glob(f"boot/{type}-*")]
+        if (p := context.root / "boot" / type).exists():
+            todo += [p]
+
+        for d in todo:
             if d.is_symlink():
                 continue
 
