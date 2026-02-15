@@ -203,13 +203,7 @@ class Pacman(PackageManager):
         allow_downgrade: bool = False,
         options: Sequence[str] = (),
     ) -> None:
-        arguments = ["--needed", "--assume-installed", "initramfs"]
-
-        if allow_downgrade:
-            arguments += ["--sysupgrade", "--sysupgrade"]
-
-        arguments += [*options, *packages]
-
+        arguments = ["--needed", "--assume-installed", "initramfs"] + [*options, *packages]
         cls.invoke(context, "--sync", arguments, apivfs=apivfs)
 
     @classmethod
