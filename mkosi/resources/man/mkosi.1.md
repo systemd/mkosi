@@ -1564,7 +1564,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     as the package cache is already fully populated. If set to `metadata`,
     the package manager can still download packages, but we won't sync the
     repository metadata. If set to `auto`, the repository metadata is
-    synced unless the image is cached (see `Incremental=`) and packages can
+    synced unless all images are cached (see `Incremental=`) and packages can
     be downloaded during the build. If set to `never`, repository metadata
     is always synced and packages can be downloaded during the build.
 
