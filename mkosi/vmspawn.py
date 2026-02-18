@@ -58,6 +58,7 @@ def run_vmspawn(args: Args, config: Config) -> None:
         "--kvm", config.kvm.to_tristate(),
         "--vsock", config.vsock.to_tristate(),
         "--tpm", config.tpm.to_tristate(),
+        "--tpm-state=off",
         "--secure-boot", yes_no(config.secure_boot),
         "--console", str(config.console),
     ]  # fmt: skip
