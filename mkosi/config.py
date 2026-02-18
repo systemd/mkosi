@@ -4177,6 +4177,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="NAME",
         section="Runtime",
         help="Set the machine name to use when booting the image",
+        default_factory=lambda ns: ns["directory"].name if ns["directory"] else None,
         scope=SettingScope.main,
     ),
     ConfigSetting(

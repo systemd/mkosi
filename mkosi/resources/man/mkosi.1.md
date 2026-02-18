@@ -2066,6 +2066,8 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     Note that `Ephemeral=` has to be enabled to start multiple instances
     of the same image.
 
+    Defaults to the current working directory name.
+
 `Register=`, `--register=`
 :   Takes a boolean value or `auto`. Specifies whether to register the
     vm/container with systemd-machined. If enabled, mkosi will fail if
