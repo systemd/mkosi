@@ -813,6 +813,7 @@ def finalize_kernel_command_line_extra(args: Args, config: Config) -> list[str]:
                 f"systemd.tty.term.console={term}",
                 f"systemd.tty.columns.console={columns}",
                 f"systemd.tty.rows.console={lines}",
+                "console=hvc0",
                 f"TERM={term}",
             ]
         elif config.console == ConsoleMode.gui and config.architecture.is_arm_variant():
