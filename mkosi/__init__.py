@@ -4260,7 +4260,7 @@ def run_shell(args: Args, config: Config) -> None:
     if config.output_format.use_outer_compression() and config.compress_output:
         die(f"Cannot {opname} compressed {config.output_format} images with systemd-nspawn")
 
-    cmdline: list[PathString] = ["systemd-nspawn", "--quiet", "--link-journal=no"]
+    cmdline: list[PathString] = ["systemd-nspawn", "--quiet", "--link-journal=no", "--suppress-sync=yes"]
 
     if config.runtime_network == Network.user:
         cmdline += ["--resolv-conf=auto"]
