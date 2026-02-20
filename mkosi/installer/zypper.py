@@ -150,7 +150,7 @@ class Zypper(PackageManager):
         ]  # fmt: skip
 
         if allow_downgrade:
-            arguments += ["--allow-downgrade"]
+            arguments += ["--allow-downgrade", "--oldpackage"]
 
         arguments += [*packages]
 
