@@ -683,7 +683,7 @@ def run_configure_scripts(config: Config) -> Config:
     if config.profiles:
         env["PROFILES"] = " ".join(config.profiles)
 
-    with finalize_source_mounts(config, ephemeral=False) as sources:
+    with finalize_source_mounts(config, ephemeral=config.build_sources_ephemeral) as sources:
         for script in config.configure_scripts:
             with complete_step(f"Running configure script {script}…"):
                 result = run(
