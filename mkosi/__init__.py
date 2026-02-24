@@ -4172,12 +4172,6 @@ def build_image(context: Context) -> None:
 
 
 def run_box(args: Args, config: Config) -> None:
-    if in_box():
-        die(
-            "mkosi box cannot be invoked from within another mkosi box environment",
-            hint="Exit the current mkosi box environment and try again",
-        )
-
     if not args.cmdline:
         die("Please specify a command to execute in the sandbox")
 
@@ -4197,6 +4191,16 @@ def run_box(args: Args, config: Config) -> None:
     hd, hr = detect_distribution()
 
     env = {"MKOSI_IN_BOX": "1"}
+
+    prefix = os.getenv("SHELL_PROMPT_PREFIX", "")
+    m = re.search(r"\(box(?::(?P<level>[1-9][0-9]*))?\)", prefix)
+    if in_box() and m:
+        level = int(m.group("level") or 1) + 1
+        prefix = prefix[: m.start()] + f"(box:{level})" + prefix[m.end() :]
+    else:
+        prefix = f"(box){prefix}"
+    env |= {"SHELL_PROMPT_PREFIX": prefix}
+
     if hd:
         env |= {"MKOSI_HOST_DISTRIBUTION": str(hd)}
     if hr:
