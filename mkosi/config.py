@@ -2251,7 +2251,7 @@ class Config:
         return self.machine or self.image
 
     def output_dir_or_cwd(self) -> Path:
-        return self.output_dir or Path.cwd()
+        return self.output_dir or finalize_configdir(Path.cwd()) or Path.cwd()
 
     def workspace_dir_or_default(self) -> Path:
         if self.workspace_dir:
@@ -5137,7 +5137,7 @@ def want_new_history(args: Args) -> bool:
     return True
 
 
-def have_history(args: Args) -> bool:
+def have_history(args: Args, historydir: Path) -> bool:
     if want_new_history(args):
         return False
 
@@ -5159,7 +5159,7 @@ def have_history(args: Args) -> bool:
     if args.verb == Verb.build and not args.rerun_build_scripts:
         return False
 
-    return Path(".mkosi-private/history/latest.json").exists()
+    return (historydir / "latest.json").exists()
 
 
 def finalize_default_tools(
@@ -5330,6 +5330,11 @@ def want_default_initrd(config: Config) -> bool:
     return Path("default") in config.initrds
 
 
+def finalize_historydir(args: Args) -> Path:
+    configdir = finalize_configdir(args.directory)
+    return (configdir or Path.cwd()) / ".mkosi-private/history"
+
+
 def parse_config(
     argv: Sequence[str] = (),
     *,
@@ -5379,8 +5384,11 @@ def parse_config(
     if not args.verb.needs_config():
         return args, None, ()
 
-    if have_history(args):
-        history = Config.from_partial_json(Path(".mkosi-private/history/latest.json").read_text())
+    configdir = finalize_configdir(args.directory)
+    historydir = finalize_historydir(args)
+
+    if have_history(args, historydir):
+        history = Config.from_partial_json((historydir / "latest.json").read_text())
 
         # If we're operating on a previously built image (vm, boot, shell, ...), we're not rebuilding the
         # image and the configuration of the latest build is available, we load the config that was used to
@@ -5413,8 +5421,6 @@ def parse_config(
 
     context.config["files"] = []
 
-    configdir = finalize_configdir(args.directory)
-
     if (
         ((args.auto_bump and args.verb.needs_build()) or args.verb == Verb.bump)
         and context.cli.get("image_version") is None
@@ -5432,8 +5438,8 @@ def parse_config(
     maincontext = copy.deepcopy(context)
 
     if config["history"] and want_new_history(args):
-        Path(".mkosi-private/history").mkdir(parents=True, exist_ok=True)
-        Path(".mkosi-private/history/latest.json").write_text(dump_json(Config.to_partial_dict(cli)))
+        historydir.mkdir(parents=True, exist_ok=True)
+        (historydir / "latest.json").write_text(dump_json(Config.to_partial_dict(cli)))
 
     tools = None
     if config.get("tools_tree") in (Path("default"), Path("yes")):
