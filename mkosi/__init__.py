@@ -75,6 +75,7 @@ from mkosi.config import (
     dump_json,
     expand_delayed_specifiers,
     finalize_configdir,
+    finalize_historydir,
     format_bytes,
     in_box,
     parse_boolean,
@@ -5011,7 +5012,7 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
         for config in images:
             run_clean(args, config)
 
-        rmtree(Path(".mkosi-private"))
+        rmtree(finalize_historydir(args))
 
         return
 
