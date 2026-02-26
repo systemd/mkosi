@@ -4203,6 +4203,10 @@ def run_box(args: Args, config: Config) -> None:
         env |= {"MKOSI_HOST_RELEASE": hr}
     if config.tools() != Path("/"):
         env |= {"MKOSI_DEFAULT_TOOLS_TREE_PATH": os.fspath(config.tools())}
+    if config.extra_search_paths:
+        extra = ":".join(os.fspath(p) for p in config.extra_search_paths)
+        existing = os.environ.get("PYTHONPATH", "")
+        env |= {"PYTHONPATH": f"{extra}:{existing}" if existing else extra}
 
     cmdline = [*args.cmdline]
 
