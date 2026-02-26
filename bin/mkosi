@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: LGPL-2.1-or-later
 set -e
-PYTHONPATH="$(dirname "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")")"
+PYTHONPATH="$(dirname "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")")${PYTHONPATH:+:${PYTHONPATH}}"
 export PYTHONPATH
 command="$(basename "${BASH_SOURCE[0]//-/.}")"
 
