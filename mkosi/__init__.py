@@ -112,6 +112,7 @@ from mkosi.qemu import (
     finalize_credentials,
     finalize_kernel_command_line_extra,
     join_initrds,
+    run_cmd,
     run_qemu,
     run_ssh,
     start_journal_remote,
@@ -5141,6 +5142,7 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
     if args.verb.needs_tools():
         return {
             Verb.ssh: run_ssh,
+            Verb.cmd: run_cmd,
             Verb.journalctl: run_journalctl,
             Verb.coredumpctl: run_coredumpctl,
             Verb.box: run_box,

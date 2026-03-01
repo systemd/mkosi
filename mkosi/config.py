@@ -78,6 +78,7 @@ class Verb(StrEnum):
     vm = enum.auto()
     qemu = enum.auto()
     ssh = enum.auto()
+    cmd = enum.auto()
     serve = enum.auto()
     bump = enum.auto()
     help = enum.auto()
@@ -102,6 +103,7 @@ class Verb(StrEnum):
             Verb.vm,
             Verb.qemu,
             Verb.ssh,
+            Verb.cmd,
             Verb.journalctl,
             Verb.coredumpctl,
             Verb.burn,
@@ -120,6 +122,7 @@ class Verb(StrEnum):
             Verb.journalctl,
             Verb.coredumpctl,
             Verb.ssh,
+            Verb.cmd,
             Verb.latest_snapshot,
         )
 
@@ -1879,6 +1882,7 @@ class Args:
     json: bool
     wipe_build_dir: bool
     rerun_build_scripts: bool
+    cmd_timeout: int
 
     @classmethod
     def default(cls) -> "Args":
@@ -4577,6 +4581,13 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
         help="Run build scripts even if the image is not rebuilt",
         action="store_true",
         default=False,
+    )
+    parser.add_argument(
+        "--cmd-timeout",
+        metavar="SECONDS",
+        help="Timeout in seconds for mkosi cmd (default: 30)",
+        type=int,
+        default=30,
     )
     # These can be removed once mkosi v15 is available in LTS distros and compatibility with <= v14
     # is no longer needed in build infrastructure (e.g.: OBS).

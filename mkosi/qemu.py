@@ -14,6 +14,7 @@ import logging
 import os
 import queue
 import random
+import re
 import resource
 import shutil
 import socket
@@ -747,7 +748,11 @@ def finalize_initrd(config: Config) -> Iterator[Optional[Path]]:
 
 
 @contextlib.contextmanager
-def finalize_state(config: Config, cid: int) -> Iterator[None]:
+def finalize_state(
+    config: Config,
+    cid: Optional[int] = None,
+    cmd_socket: Optional[str] = None,
+) -> Iterator[None]:
     statedir = INVOKING_USER.runtime_dir() / "mkosi/machine"
     statedir.mkdir(parents=True, exist_ok=True)
 
@@ -766,8 +771,9 @@ def finalize_state(config: Config, cid: int) -> Iterator[None]:
                 {
                     "Machine": config.machine_or_name(),
                     "Pid": os.getpid(),
-                    "ProxyCommand": f"socat - VSOCK-CONNECT:{cid}:%p",
+                    "ProxyCommand": f"socat - VSOCK-CONNECT:{cid}:%p" if cid is not None else None,
                     "SshKey": os.fspath(config.ssh_key) if config.ssh_key else None,
+                    "CmdSocket": cmd_socket,
                 },
                 sort_keys=True,
                 indent=4,
@@ -1125,6 +1131,8 @@ def run_qemu(args: Args, config: Config) -> None:
             "-device", f"vhost-vsock-pci,guest-cid={cid},vhostfd={qemu_device_fds[QemuDeviceNode.vhost_vsock]}",  # noqa: E501
         ]  # fmt: skip
 
+    cmd_sock_path: Optional[str] = None
+
     if config.console == ConsoleMode.gui:
         if config.architecture.is_arm_variant():
             cmdline += ["-device", "virtio-gpu-pci"]
@@ -1144,7 +1152,15 @@ def run_qemu(args: Args, config: Config) -> None:
             "-nodefaults",
         ]  # fmt: skip
 
-        if config.console != ConsoleMode.headless:
+        if config.console == ConsoleMode.headless:
+            cmd_sock_path = f"/tmp/mkosi-cmd-{config.machine_or_name()}.sock"
+            cmdline += [
+                "-chardev", "file,id=serial0,path=/tmp/mkosi-serial.log",
+                "-serial", "chardev:serial0",
+                "-chardev", f"socket,id=cmdchan,path={cmd_sock_path},server=on,wait=off",
+                "-serial", "chardev:cmdchan",
+            ]  # fmt: skip
+        else:
             cmdline += [
                 "-chardev", "stdio,mux=on,id=console,signal=off",
                 "-device", "virtio-serial-pci,id=mkosi-virtio-serial-pci",
@@ -1366,8 +1382,7 @@ def run_qemu(args: Args, config: Config) -> None:
         cmdline += config.qemu_args
         cmdline += args.cmdline
 
-        if cid is not None:
-            stack.enter_context(finalize_state(config, cid))
+        stack.enter_context(finalize_state(config, cid=cid, cmd_socket=cmd_sock_path))
 
         # Reopen stdin, stdout and stderr to give qemu a private copy of them.  This is a mitigation for the
         # case when running mkosi under meson and one or two of the three are redirected and their pipe might
@@ -1467,3 +1482,87 @@ def run_ssh(args: Args, config: Config) -> None:
             options=["--same-dir", "--become-root"],
         ),
     )
+
+
+def run_cmd(args: Args, config: Config) -> None:
+    statedir = INVOKING_USER.runtime_dir() / "mkosi/machine"
+    statedir.mkdir(parents=True, exist_ok=True)
+
+    with flock(statedir):
+        if not (p := statedir / f"{config.machine_or_name()}.json").exists():
+            die(
+                f"{p} not found, cannot execute command in virtual machine {config.machine_or_name()}",
+                hint="Is the machine running with Console=headless?",
+            )
+
+        state = json.loads(p.read_text())
+
+    cmd_socket = state.get("CmdSocket")
+    if not cmd_socket:
+        die(
+            "No command channel configured for this virtual machine",
+            hint="The command channel is only available when Console=headless",
+        )
+
+    if not args.cmdline:
+        die("No command specified", hint="Usage: mkosi cmd -- <command>")
+
+    command = " ".join(args.cmdline)
+    timeout = args.cmd_timeout
+    request_id = f"req_{os.getpid()}_{uuid.uuid4().hex[:8]}"
+    request = json.dumps({"id": request_id, "cmd": command}) + "\n"
+
+    try:
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.connect(cmd_socket)
+        sock.settimeout(timeout)
+    except (ConnectionRefusedError, FileNotFoundError) as e:
+        die(f"Cannot connect to command channel at {cmd_socket}: {e}")
+
+    try:
+        sock.sendall(request.encode())
+
+        # Read response lines until we find our request ID
+        buf = b""
+        response = None
+        while True:
+            try:
+                data = sock.recv(4096)
+            except socket.timeout:
+                die(f"Timed out waiting for response from VM (after {timeout}s)")
+
+            if not data:
+                die("Connection closed by VM before receiving a response")
+
+            buf += data
+            while b"\n" in buf:
+                line, buf = buf.split(b"\n", 1)
+                line_str = line.decode(errors="replace")
+                # Strip ANSI escape sequences
+                line_str = re.sub(r"\x1b\[[0-9;]*m", "", line_str)
+                try:
+                    parsed = json.loads(line_str)
+                except json.JSONDecodeError:
+                    continue
+                if parsed.get("id") == request_id:
+                    response = parsed
+                    break
+            if response is not None:
+                break
+    finally:
+        sock.close()
+
+    stdout = response.get("stdout", "")
+    stderr = response.get("stderr", "")
+    rc = response.get("rc", 1)
+
+    if stdout:
+        sys.stdout.write(stdout)
+        if not stdout.endswith("\n"):
+            sys.stdout.write("\n")
+    if stderr:
+        sys.stderr.write(stderr)
+        if not stderr.endswith("\n"):
+            sys.stderr.write("\n")
+
+    raise SystemExit(rc)
