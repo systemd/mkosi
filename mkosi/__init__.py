@@ -2,7 +2,6 @@
 
 import contextlib
 import datetime
-import errno
 import functools
 import getpass
 import hashlib
@@ -131,6 +130,7 @@ from mkosi.run import (
 )
 from mkosi.sandbox import (
     CLONE_NEWNS,
+    VarlinkError,
     __version__,
     acquire_privileges,
     join_new_session_keyring,
@@ -4986,10 +4986,10 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
         # Try to get a user namespace with some delegated ranges and the foreign UID range via
         # systemd-nsresourced if we can.
         acquire_privileges(foreign=True, delegate=3)
-    except OSError as e:
-        # Don't fail if systemd-nsresourced is too old or not installed, use a regular unpriv user namespace
-        # instead.
-        if isinstance(e, OSError) and e.errno not in (errno.EINVAL, errno.ENOENT):
+    # Don't fail if systemd-nsresourced is too old or not installed, use a regular unpriv user namespace
+    # instead.
+    except (FileNotFoundError, VarlinkError) as e:
+        if isinstance(e, VarlinkError) and e.error != "org.varlink.service.InvalidParameter":
             raise
 
         logging.debug(
