@@ -24,6 +24,8 @@ mkosi — Build Bespoke OS Images
 
 `mkosi [options…] ssh [-- command line…]`
 
+`mkosi [options…] cmd [-- command line…]`
+
 `mkosi [options…] journalctl [-- command line…]`
 
 `mkosi [options…] coredumpctl [-- command line…]`
@@ -138,6 +140,16 @@ The following command line verbs are known:
     hostname when booting it which can later be used to **ssh** into the image
     (e.g. `mkosi --machine=mymachine vm` followed by
     `mkosi --machine=mymachine ssh`).
+
+`cmd`
+:   Executes a command in a running virtual machine via the command channel.
+    The VM must have been started with `Console=headless`. Any arguments
+    specified after the `cmd` verb and separated by `--` from the regular
+    options are concatenated and executed in the VM. The exit code of
+    **mkosi** will match the exit code of the executed command.
+
+    The `Machine=` option can be used to select which running VM to
+    connect to when multiple VMs are running.
 
 `journalctl`
 :   Uses **journalctl** to inspect the journal inside the image.
@@ -327,6 +339,10 @@ Those settings cannot be configured in the configuration files.
     version you are using, depending on how you installed **mkosi**. `auto`, which is
     the default, will try all methods in the order `man`, `pandoc`, `markdown`,
     `system`.
+
+`--cmd-timeout=`
+:   Timeout in seconds when waiting for a response from the VM when using
+    the `cmd` verb. Defaults to 30 seconds.
 
 `--json`
 :   Show the summary output as JSON-SEQ.

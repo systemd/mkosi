@@ -54,6 +54,7 @@ def test_args(path: Optional[Path]) -> None:
         f"""\
         {{
             "AutoBump": false,
+            "CmdTimeout": 30,
             "Cmdline": [
                 "foo",
                 "bar"
@@ -93,6 +94,7 @@ def test_args(path: Optional[Path]) -> None:
         rerun_build_scripts=True,
         verb=Verb.build,
         wipe_build_dir=True,
+        cmd_timeout=30,
     )
 
     assert dump_json(args.to_dict()) == dump.rstrip()

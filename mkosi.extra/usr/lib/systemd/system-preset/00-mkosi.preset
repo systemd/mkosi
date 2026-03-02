@@ -23,3 +23,6 @@ disable auditd.service
 
 # systemd-timesyncd is not enabled by default in the default systemd preset so enable it here instead.
 enable systemd-timesyncd.service
+
+# Command channel daemon for host interaction via mkosi cmd
+enable mkosi-cmd-daemon.service

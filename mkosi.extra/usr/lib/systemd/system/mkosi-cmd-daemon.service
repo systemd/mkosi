@@ -1,0 +1,14 @@
+[Unit]
+Description=mkosi command channel daemon (ttyS1)
+After=basic.target
+
+[Service]
+Type=simple
+ExecStart=/bin/bash /usr/local/bin/mkosi-cmd-daemon.sh
+Restart=on-failure
+RestartSec=2
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=basic.target
