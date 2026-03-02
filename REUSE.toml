@@ -37,6 +37,7 @@ path = [
     "**.yaml",
     "**.yml",
     "**.zsh",
+    "mkosi.credentials/*",
     "mkosi/resources/pandoc/*.lua",
 ]
 precedence = "aggregate"

@@ -2,14 +2,4 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 set -ex
 
-mkosi-chroot \
-    useradd \
-    --user-group \
-    --create-home \
-    --password "$(openssl passwd -1 mkosi)" \
-    --groups systemd-journal \
-    --shell /bin/bash \
-    --uid 4711 \
-    mkosi
-
 systemctl --root="$BUILDROOT" mask lvm2-monitor.service
