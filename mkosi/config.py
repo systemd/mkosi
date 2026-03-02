@@ -33,7 +33,7 @@ from pathlib import Path
 from typing import Any, Callable, ClassVar, Generic, Optional, Protocol, TypeVar, Union, cast
 
 from mkosi.distribution import Distribution, detect_distribution
-from mkosi.log import ARG_DEBUG, ARG_DEBUG_SANDBOX, ARG_DEBUG_SHELL, complete_step, die
+from mkosi.log import ARG_DEBUG, ARG_DEBUG_SANDBOX, ARG_DEBUG_SHELL, ARG_DEBUG_TIMING, complete_step, die
 from mkosi.pager import page
 from mkosi.run import SandboxProtocol, find_binary, nosandbox, run, sandbox_cmd, workdir
 from mkosi.sandbox import ANSI_BLUE, ANSI_BOLD, ANSI_RESET, __version__
@@ -1917,6 +1917,7 @@ class Args:
     debug_shell: bool
     debug_workspace: bool
     debug_sandbox: bool
+    debug_timing: bool
     pager: bool
     genkey_valid_days: str
     genkey_common_name: str
@@ -4583,6 +4584,12 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
         default=False,
     )
     parser.add_argument(
+        "--debug-timing",
+        help="Log the duration of each build step",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
         "--no-pager",
         action="store_false",
         dest="pager",
@@ -5410,6 +5417,8 @@ def parse_config(
         ARG_DEBUG_SHELL.set(args.debug_shell)
     if args.debug_sandbox:
         ARG_DEBUG_SANDBOX.set(args.debug_sandbox)
+    if args.debug_timing:
+        ARG_DEBUG_TIMING.set(args.debug_timing)
 
     if args.rerun_build_scripts and not args.verb.needs_build():
         die(f"--rerun-build-scripts cannot be used with the '{args.verb}' command")

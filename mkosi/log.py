@@ -23,6 +23,7 @@ from mkosi.sandbox import (
 ARG_DEBUG = contextvars.ContextVar("debug", default=False)
 ARG_DEBUG_SHELL = contextvars.ContextVar("debug-shell", default=False)
 ARG_DEBUG_SANDBOX = contextvars.ContextVar("debug-sandbox", default=False)
+ARG_DEBUG_TIMING = contextvars.ContextVar("debug-timing", default=False)
 IMAGE = contextvars.ContextVar("image", default="")
 LEVEL = 0
 
@@ -121,7 +122,9 @@ def complete_step(text: str, text2: Optional[str] = None) -> Iterator[list[Any]]
     if text2 is not None:
         log_step(text2.format(*args))
 
-    logging.debug(f'{" " * (LEVEL)}{time.perf_counter() - start:.1f}s for step "{text}"')
+    elapsed = time.perf_counter() - start
+    level = logging.INFO if ARG_DEBUG_TIMING.get() else logging.DEBUG
+    logging.log(level, f'{" " * (LEVEL)}{elapsed:.1f}s for step "{text}"')
 
 
 class Formatter(logging.Formatter):

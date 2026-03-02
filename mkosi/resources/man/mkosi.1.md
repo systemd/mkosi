@@ -293,6 +293,9 @@ Those settings cannot be configured in the configuration files.
 `--debug-sandbox`
 :   Run **mkosi-sandbox** with **strace**.
 
+`--debug-timing`
+:   Log the duration of each build step.
+
 `--version`
 :   Show package version.
 
