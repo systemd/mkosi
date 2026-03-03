@@ -1,0 +1,10 @@
+{
+    "userName": "mkosi",
+    "uid": 4711,
+    "disposition": "regular",
+    "enforcePasswordPolicy": false,
+    "shell": "/bin/bash",
+    "privileged": {
+        "hashedPassword": ["$1$.iBhENSq$/a.G1fbNy4uPqvrVx36bl0"]
+    }
+}
