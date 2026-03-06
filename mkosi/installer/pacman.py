@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 import dataclasses
+import logging
 import shutil
+import tarfile
 import textwrap
 from collections.abc import Sequence
 from contextlib import AbstractContextManager
@@ -266,7 +268,11 @@ class Pacman(PackageManager):
                 "--quiet",
                 workdir(context.repository / "mkosi.db.tar"),
                 *sorted(
-                    (workdir(p) for p in context.repository.glob("*.pkg.tar*")),
+                    (
+                        workdir(p)
+                        for p in context.repository.glob("*.pkg.tar*")
+                        if cls.parse_pkg_pkginfo(p)[3] in ("any", cls.architecture(context))
+                    ),
                     key=lambda p: GenericVersion(Path(p).name),
                 ),
             ],
@@ -286,6 +292,39 @@ class Pacman(PackageManager):
 
         # pacman can't sync a single repository, so we go behind its back and do it ourselves.
         shutil.move(context.repository / "mkosi.db.tar", context.metadata_dir / "lib/pacman/sync/mkosi.db")
+
+    @classmethod
+    def parse_pkg_pkginfo(cls, path: Path) -> tuple[str, str, str, str]:
+        name = version = base = arch = ""
+        try:
+            with path.open("rb") as pkg:
+                with tarfile.open(fileobj=pkg) as tar:
+                    pkginfo = tar.extractfile(".PKGINFO")
+
+                    # non-file members are returned as None
+                    if pkginfo is not None:
+                        for line in pkginfo:
+                            line = line.split(b"#", 1)[0].strip()
+                            parts = line.split(b"=", 1)
+                            if len(parts) == 1:
+                                continue
+                            key, val = parts
+                            key = key.strip()
+                            val = val.strip()
+                            if key == b"pkgname":
+                                name = val.strip().decode("utf-8")
+                            elif key == b"pkgver":
+                                version = val.strip().decode("utf-8")
+                            elif key == b"pkgbase":
+                                base = val.strip().decode("utf-8")
+                            elif key == b"arch":
+                                arch = val.strip().decode("utf-8")
+
+        except (KeyError, UnicodeDecodeError, tarfile.TarError) as e:
+            logging.debug(f"{path} was not a valid package file: {e}")
+            name = version = base = arch = ""
+
+        return name, version, base, arch
 
     @classmethod
     def parse_pkg_desc(cls, path: Path) -> tuple[str, str, str, str]:
