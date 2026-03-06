@@ -82,6 +82,7 @@ class Installer(DistributionInstaller, distribution=Distribution.arch):
     @classmethod
     def setup(cls, context: Context) -> None:
         Pacman.setup(context, list(cls.repositories(context)))
+        Pacman.keyring(context)
 
     @classmethod
     def install(cls, context: Context) -> None:
