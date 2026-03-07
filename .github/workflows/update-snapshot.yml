@@ -1,0 +1,114 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+name: update-snapshot
+
+permissions:
+  contents: write
+  pull-requests: write
+
+on:
+  schedule:
+    # Update snapshots every three days at midnight
+    - cron: "0 0 */3 * *"
+  workflow_dispatch:
+
+jobs:
+  update-snapshot:
+    runs-on: ubuntu-24.04
+    if: github.repository == 'daandemeyer/mkosi'
+    strategy:
+      fail-fast: false
+      matrix:
+        distro:
+          - arch
+          - centos
+          - debian
+          - fedora
+          - opensuse
+          - ubuntu
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - uses: systemd/mkosi@main
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Update snapshot
+        id: update
+        run: |
+          branch="update-snapshot/${{ matrix.distro }}"
+          git checkout -B "$branch"
+
+          tools/update-snapshot.py -d ${{ matrix.distro }} -c
+
+          if git diff --quiet HEAD~1 HEAD 2>/dev/null; then
+            echo "updated=false" >>"$GITHUB_OUTPUT"
+          else
+            git push -f origin "$branch"
+            echo "updated=true" >>"$GITHUB_OUTPUT"
+            echo "branch=$branch" >>"$GITHUB_OUTPUT"
+            echo "title=$(git log -1 --format=%s)" >>"$GITHUB_OUTPUT"
+          fi
+
+      - name: Create or update pull request
+        if: steps.update.outputs.updated == 'true'
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea
+        with:
+          script: |
+            const branch = '${{ steps.update.outputs.branch }}';
+            const title = '${{ steps.update.outputs.title }}';
+            const distro = '${{ matrix.distro }}';
+            const body = `Automated snapshot update for ${distro}.`;
+
+            const { data: pulls } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              head: `${context.repo.owner}:${branch}`,
+            });
+
+            let number;
+
+            if (pulls.length > 0) {
+              const pull = pulls[0];
+              await github.rest.pulls.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pull.number,
+                title: title,
+                body: body,
+              });
+              console.log(`Updated existing pull request #${pull.number}`);
+              number = pull.number;
+            } else {
+              const { data: pr } = await github.rest.pulls.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                head: branch,
+                base: 'main',
+              });
+              console.log(`Created pull request #${pr.number}`);
+              number = pr.number;
+            }
+
+            // Enable auto-merge so the PR merges automatically once CI is green.
+            const { data: pullData } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: number,
+            });
+
+            await github.graphql(`
+              mutation($pullRequestId: ID!) {
+                enablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId, mergeMethod: MERGE }) {
+                  clientMutationId
+                }
+              }
+            `, { pullRequestId: pullData.node_id });
+
+            console.log(`Enabled auto-merge for pull request #${number}`);
