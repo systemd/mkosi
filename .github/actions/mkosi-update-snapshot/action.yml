@@ -1,0 +1,202 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+name: mkosi-update-snapshot
+description: Update distribution snapshot and create a pull request
+
+inputs:
+  token:
+    description: GitHub token for authentication
+    required: true
+  distribution:
+    description: Distribution to update the snapshot for
+    required: false
+    default: ""
+  config:
+    description: Path to the config file to update
+    required: true
+  release:
+    description: Distribution release to update the snapshot for
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      with:
+        token: ${{ inputs.token }}
+
+    - uses: ./
+
+    - name: Free disk space
+      shell: bash
+      run: |
+        sudo mv /usr/local /usr/local.trash
+        sudo mv /opt/hostedtoolcache /opt/hostedtoolcache.trash
+        sudo systemd-run rm -rf /usr/local.trash /opt/hostedtoolcache.trash
+
+    - name: Configure git
+      shell: bash
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+    - name: Update snapshot
+      id: update
+      shell: bash
+      env:
+        DISTRIBUTION: ${{ inputs.distribution }}
+        RELEASE: ${{ inputs.release }}
+        CONFIG: ${{ inputs.config }}
+      run: |
+        branch="update-snapshot/${DISTRIBUTION:-default}"
+        git checkout -B "$branch"
+
+        mkosi ${DISTRIBUTION:+-d "$DISTRIBUTION"} ${RELEASE:+-r "$RELEASE"} latest-snapshot -- --update "$CONFIG" --commit
+
+        if git diff --quiet HEAD~1 HEAD 2>/dev/null; then
+          echo "updated=false" >>"$GITHUB_OUTPUT"
+        else
+          echo "updated=true" >>"$GITHUB_OUTPUT"
+          echo "branch=$branch" >>"$GITHUB_OUTPUT"
+          echo "title=$(git log -1 --format=%s)" >>"$GITHUB_OUTPUT"
+        fi
+
+    - name: Build image and generate manifest diff
+      if: steps.update.outputs.updated == 'true'
+      shell: bash
+      env:
+        DISTRIBUTION: ${{ inputs.distribution }}
+        RELEASE: ${{ inputs.release }}
+      run: |
+        tee mkosi.local.conf <<EOF
+        [Distribution]
+        ${DISTRIBUTION:+Distribution=$DISTRIBUTION}
+        ${RELEASE:+Release=$RELEASE}
+
+        [Output]
+        Format=directory
+        ManifestFormat=json
+        EOF
+
+        # Build the image to generate a manifest. If the build fails, we still want to
+        # create the PR with just the snapshot update but include the build output so
+        # that it's easy to see what went wrong.
+        if ! mkosi -f 2>&1 | tee /tmp/mkosi-build.log; then
+          echo "::warning::Image build failed, skipping manifest diff"
+          cat >/tmp/pr-body.md <<BODY
+        :x: **Image build failed**
+
+        <details>
+        <summary>Build log</summary>
+
+        \`\`\`
+        $(cat /tmp/mkosi-build.log)
+        \`\`\`
+
+        </details>
+        BODY
+          mkosi -f clean
+          git push -f origin "${{ steps.update.outputs.branch }}"
+          exit 0
+        fi
+
+        manifest="mkosi.output/image.manifest"
+
+        if [[ -e mkosi/mkosi.conf ]] || [[ -e mkosi/mkosi.tools.conf ]]; then
+          manifests_dir="mkosi/manifests"
+        else
+          manifests_dir="manifests"
+        fi
+
+        old_manifest="$manifests_dir/${DISTRIBUTION:-default}.manifest.json"
+
+        if [[ -f "$old_manifest" && -f "$manifest" ]]; then
+          python3 tools/mkosi-manifest-diff.py "$old_manifest" "$manifest" >/tmp/pr-body.md
+        elif [[ -f "$manifest" ]]; then
+          echo "First manifest for this distribution, no previous manifest to diff against." >/tmp/pr-body.md
+        fi
+
+        if [[ -f "$manifest" ]]; then
+          mkdir -p "$manifests_dir"
+          cp "$manifest" "$old_manifest"
+          git add "$old_manifest"
+          git commit --amend --no-edit
+        fi
+
+        mkosi -f clean
+        rm mkosi.local.conf
+        git push -f origin "${{ steps.update.outputs.branch }}"
+
+    - name: Create or update pull request
+      if: steps.update.outputs.updated == 'true'
+      uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea
+      env:
+        BRANCH: ${{ steps.update.outputs.branch }}
+        TITLE: ${{ steps.update.outputs.title }}
+      with:
+        github-token: ${{ inputs.token }}
+        script: |
+          const fs = require('fs');
+          const branch = process.env.BRANCH;
+          const title = process.env.TITLE;
+
+          let body = '';
+          try {
+            body = fs.readFileSync('/tmp/pr-body.md', 'utf8').trim();
+          } catch (e) {
+            console.log('No PR body file found, continuing without body');
+          }
+
+          const { data: pulls } = await github.rest.pulls.list({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            state: 'open',
+            head: `${context.repo.owner}:${branch}`,
+          });
+
+          let number;
+
+          if (pulls.length > 0) {
+            const pull = pulls[0];
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pull.number,
+              title: title,
+              body: body,
+            });
+            console.log(`Updated existing pull request #${pull.number}`);
+            number = pull.number;
+          } else {
+            const { data: pr } = await github.rest.pulls.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              head: branch,
+              base: 'main',
+              body: body,
+            });
+            console.log(`Created pull request #${pr.number}`);
+            number = pr.number;
+          }
+
+          // Enable auto-merge so the PR merges automatically once CI is green.
+          try {
+            const { data: pullData } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: number,
+            });
+
+            await github.graphql(`
+              mutation($pullRequestId: ID!) {
+                enablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId, mergeMethod: MERGE }) {
+                  clientMutationId
+                }
+              }
+            `, { pullRequestId: pullData.node_id });
+
+            console.log(`Enabled auto-merge for pull request #${number}`);
+          } catch (e) {
+            console.log(`Could not enable auto-merge for pull request #${number}: ${e.message}`);
+          }

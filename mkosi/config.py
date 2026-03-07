@@ -111,6 +111,7 @@ class Verb(StrEnum):
             Verb.box,
             Verb.sandbox,
             Verb.dependencies,
+            Verb.latest_snapshot,
         )
 
     def needs_tools(self) -> bool:
