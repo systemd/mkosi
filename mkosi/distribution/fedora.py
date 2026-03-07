@@ -13,6 +13,7 @@ from mkosi.distribution import (
     PackageType,
     join_mirror,
 )
+from mkosi.fetch import fetch
 from mkosi.installer.dnf import Dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey, setup_rpm
 from mkosi.log import die

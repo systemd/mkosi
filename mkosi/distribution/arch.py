@@ -8,7 +8,6 @@ from mkosi.config import Architecture, Config
 from mkosi.context import Context
 from mkosi.distribution import Distribution, DistributionInstaller, PackageType, join_mirror
 from mkosi.fetch import fetch
-from mkosi.distribution import Distribution, DistributionInstaller, PackageType, join_mirror
 from mkosi.installer.pacman import Pacman, PacmanRepository
 from mkosi.log import complete_step, die
 

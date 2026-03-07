@@ -10,7 +10,6 @@ from mkosi.config import Architecture, Config, parse_ini
 from mkosi.context import Context
 from mkosi.distribution import Distribution, DistributionInstaller, PackageType, join_mirror
 from mkosi.fetch import fetch
-from mkosi.distribution import Distribution, DistributionInstaller, PackageType, join_mirror
 from mkosi.installer.dnf import Dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey, setup_rpm
 from mkosi.installer.zypper import Zypper

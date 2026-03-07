@@ -9,7 +9,6 @@ from mkosi.config import Config
 from mkosi.context import Context
 from mkosi.distribution import Distribution, debian, join_mirror
 from mkosi.fetch import fetch
-from mkosi.distribution import Distribution, debian, join_mirror
 from mkosi.installer.apt import AptRepository
 from mkosi.log import die
 from mkosi.util import startswith

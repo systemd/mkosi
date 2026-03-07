@@ -11,7 +11,6 @@ from mkosi.config import Architecture, Config
 from mkosi.context import Context
 from mkosi.distribution import Distribution, DistributionInstaller, PackageType, join_mirror
 from mkosi.fetch import fetch
-from mkosi.distribution import Distribution, DistributionInstaller, PackageType, join_mirror
 from mkosi.installer.apt import Apt, AptRepository
 from mkosi.log import die
 from mkosi.run import run, workdir
