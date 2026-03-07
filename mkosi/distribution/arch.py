@@ -6,7 +6,7 @@ from collections.abc import Iterable
 from mkosi.archive import extract_tar
 from mkosi.config import Architecture, Config
 from mkosi.context import Context
-from mkosi.curl import curl
+from mkosi.fetch import fetch
 from mkosi.distribution import Distribution, DistributionInstaller, PackageType, join_mirror
 from mkosi.installer.pacman import Pacman, PacmanRepository
 from mkosi.log import complete_step, die
@@ -150,7 +150,7 @@ class Installer(DistributionInstaller, distribution=Distribution.arch):
     @classmethod
     def latest_snapshot(cls, config: Config) -> str:
         url = join_mirror(config.mirror or "https://archive.archlinux.org", "repos/last/lastsync")
-        return datetime.datetime.fromtimestamp(int(curl(config, url)), datetime.timezone.utc).strftime(
+        return datetime.datetime.fromtimestamp(int(fetch(config, url)), datetime.timezone.utc).strftime(
             "%Y/%m/%d"
         )
 

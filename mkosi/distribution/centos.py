@@ -4,7 +4,7 @@ from collections.abc import Iterable
 
 from mkosi.config import Architecture, Config
 from mkosi.context import Context
-from mkosi.curl import curl
+from mkosi.fetch import fetch
 from mkosi.distribution import (
     Distribution,
     DistributionInstaller,
@@ -508,7 +508,7 @@ class Installer(DistributionInstaller, distribution=Distribution.centos):
 
         url = join_mirror(mirror, f"{subdir}/latest-CentOS-Stream/compose/.composeinfo")
 
-        for line in curl(config, url).splitlines():
+        for line in fetch(config, url).splitlines():
             if snapshot := startswith(line, f"id = CentOS-Stream-{config.release}-"):
                 return snapshot
 

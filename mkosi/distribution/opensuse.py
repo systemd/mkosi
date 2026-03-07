@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 import os
-import tempfile
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Union
@@ -9,7 +8,7 @@ from xml.etree import ElementTree
 
 from mkosi.config import Architecture, Config, parse_ini
 from mkosi.context import Context
-from mkosi.curl import curl
+from mkosi.fetch import fetch
 from mkosi.distribution import Distribution, DistributionInstaller, PackageType, join_mirror
 from mkosi.installer.dnf import Dnf
 from mkosi.installer.rpm import RpmRepository, find_rpm_gpgkey, setup_rpm
@@ -282,7 +281,7 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
     @classmethod
     def latest_snapshot(cls, config: Config) -> str:
         url = join_mirror(config.mirror or "https://download.opensuse.org", "history/latest")
-        return curl(config, url).strip()
+        return fetch(config, url).strip()
 
     @classmethod
     def is_kernel_package(cls, package: str) -> bool:
@@ -324,12 +323,8 @@ def fetch_gpgkeys(context: Context) -> list[Path]:
 def fetch_gpgurls(context: Context, repourl: str) -> tuple[str, ...]:
     gpgurls = [f"{repourl}/repodata/repomd.xml.key"]
 
-    with (
-        complete_step(f"Fetching GPG key list from repository {repourl}"),
-        tempfile.TemporaryDirectory() as d,
-    ):
-        curl(context.config, f"{repourl}/repodata/repomd.xml", output_dir=Path(d))
-        xml = (Path(d) / "repomd.xml").read_text()
+    with complete_step(f"Fetching GPG key list from repository {repourl}"):
+        xml = fetch(context.config, f"{repourl}/repodata/repomd.xml")
 
     root = ElementTree.fromstring(xml)
 

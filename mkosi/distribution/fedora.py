@@ -1,14 +1,13 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 import re
-import subprocess
-import tempfile
+import urllib.error
 from collections.abc import Iterable
 from pathlib import Path
 
 from mkosi.config import Architecture, Config
 from mkosi.context import Context
-from mkosi.curl import curl
+from mkosi.fetch import fetch
 from mkosi.distribution import (
     Distribution,
     DistributionInstaller,
@@ -28,14 +27,11 @@ DISTRIBUTION_GPG_KEYS_UPSTREAM = (
 def read_remote_rawhide_key_symlink(context: Context) -> str:
     # https://fedoraproject.org/fedora.gpg is always outdated when the rawhide key changes. Instead,
     # let's fetch it from distribution-gpg-keys on github if necessary, which is generally up-to-date.
-    with tempfile.TemporaryDirectory() as d:
-        # The rawhide key is a symlink and github doesn't redirect those to the actual file for some reason
-        curl(
-            context.config,
-            f"{DISTRIBUTION_GPG_KEYS_UPSTREAM}/RPM-GPG-KEY-fedora-rawhide-primary",
-            output_dir=Path(d),
-        )
-        return (Path(d) / "RPM-GPG-KEY-fedora-rawhide-primary").read_text()
+    # The rawhide key is a symlink and github doesn't redirect those to the actual file for some reason
+    return fetch(
+        context.config,
+        f"{DISTRIBUTION_GPG_KEYS_UPSTREAM}/RPM-GPG-KEY-fedora-rawhide-primary",
+    )
 
 
 @tuplify
@@ -64,16 +60,13 @@ def find_fedora_rpm_gpgkeys(context: Context) -> Iterable[str]:
         # Also use the N+1 key if it exists to avoid issues when rawhide has been moved to the next key but
         # the rawhide symlink in distribution-gpg-keys hasn't been updated yet.
         try:
-            with tempfile.TemporaryDirectory() as d:
-                curl(
-                    context.config,
-                    f"{DISTRIBUTION_GPG_KEYS_UPSTREAM}/RPM-GPG-KEY-fedora-{version + 1}-primary",
-                    output_dir=Path(d),
-                    log=False,
-                )
+            fetch(
+                context.config,
+                f"{DISTRIBUTION_GPG_KEYS_UPSTREAM}/RPM-GPG-KEY-fedora-{version + 1}-primary",
+            )
 
             yield f"{DISTRIBUTION_GPG_KEYS_UPSTREAM}/RPM-GPG-KEY-fedora-{version + 1}-primary"
-        except subprocess.CalledProcessError:
+        except urllib.error.URLError:
             pass
 
         return
@@ -275,7 +268,7 @@ class Installer(DistributionInstaller, distribution=Distribution.fedora):
             mirror, f"compose/{config.release}/latest-Fedora-{config.release.capitalize()}/COMPOSE_ID"
         )
 
-        return curl(config, url).removeprefix(f"Fedora-{config.release.capitalize()}-").strip()
+        return fetch(config, url).removeprefix(f"Fedora-{config.release.capitalize()}-").strip()
 
     @classmethod
     def is_kernel_package(cls, package: str) -> bool:
