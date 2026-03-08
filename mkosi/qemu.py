@@ -708,9 +708,16 @@ def finalize_initrd(config: Config) -> Iterator[Optional[Path]]:
 
 
 @contextlib.contextmanager
-def finalize_state(config: Config, cid: int) -> Iterator[None]:
+def finalize_state(
+    config: Config,
+    cid: Optional[int] = None,
+    proxy_command: Optional[str] = None,
+) -> Iterator[None]:
     statedir = INVOKING_USER.runtime_dir() / "mkosi/machine"
     statedir.mkdir(parents=True, exist_ok=True)
+
+    if proxy_command is None and cid is not None:
+        proxy_command = f"socat - VSOCK-CONNECT:{cid}:%p"
 
     with flock(statedir):
         if (p := statedir / f"{config.machine_or_name()}.json").exists():
@@ -727,7 +734,7 @@ def finalize_state(config: Config, cid: int) -> Iterator[None]:
                 {
                     "Machine": config.machine_or_name(),
                     "Pid": os.getpid(),
-                    "ProxyCommand": f"socat - VSOCK-CONNECT:{cid}:%p",
+                    "ProxyCommand": proxy_command,
                     "SshKey": os.fspath(config.ssh_key) if config.ssh_key else None,
                 },
                 sort_keys=True,
@@ -856,9 +863,18 @@ def finalize_register(config: Config) -> bool:
     return True
 
 
-def register_machine(config: Config, pid: int, fname: Path, cid: Optional[int]) -> None:
+def register_machine(
+    config: Config,
+    pid: int,
+    fname: Path,
+    cid: Optional[int],
+    ssh_address: Optional[str] = None,
+) -> None:
     if not finalize_register(config):
         return
+
+    if ssh_address is None and cid is not None:
+        ssh_address = f"vsock/{cid}"
 
     run(
         [
@@ -874,7 +890,7 @@ def register_machine(config: Config, pid: int, fname: Path, cid: Optional[int]) 
                     "leader": pid,
                     **({"rootDirectory": os.fspath(fname)} if fname.is_dir() else {}),
                     **({"vSockCid": cid} if cid is not None else {}),
-                    **({"sshAddress": f"vsock/{cid}"} if cid is not None else {}),
+                    **({"sshAddress": ssh_address} if ssh_address is not None else {}),
                     **({"sshPrivateKeyPath": f"{config.ssh_key}"} if config.ssh_key else {}),
                     **({"allocateUnit": True}),
                 }
@@ -1035,8 +1051,16 @@ def run_qemu(args: Args, config: Config) -> None:
         *shm,
     ]  # fmt: skip
 
+    ssh_hostfwd_port: Optional[int] = None
     if config.runtime_network == Network.user:
-        cmdline += ["-nic", f"user,model={config.architecture.default_qemu_nic_model()}"]
+        # Let the OS pick a free port for SSH host forwarding.
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(("127.0.0.1", 0))
+            ssh_hostfwd_port = s.getsockname()[1]
+        cmdline += [
+            "-nic",
+            f"user,model={config.architecture.default_qemu_nic_model()},hostfwd=tcp::{ssh_hostfwd_port}-:22",
+        ]
     elif config.runtime_network == Network.interface:
         if os.getuid() != 0:
             die("RuntimeNetwork=interface requires root privileges")
@@ -1318,8 +1342,11 @@ def run_qemu(args: Args, config: Config) -> None:
         cmdline += config.qemu_args
         cmdline += args.cmdline
 
-        if cid is not None:
-            stack.enter_context(finalize_state(config, cid))
+        proxy_command: Optional[str] = None
+        if cid is None and ssh_hostfwd_port is not None:
+            proxy_command = f"socat - TCP4:127.0.0.1:{ssh_hostfwd_port}"
+
+        stack.enter_context(finalize_state(config, cid=cid, proxy_command=proxy_command))
 
         # Reopen stdin, stdout and stderr to give qemu a private copy of them.  This is a mitigation for the
         # case when running mkosi under meson and one or two of the three are redirected and their pipe might
@@ -1379,7 +1406,7 @@ def run_ssh(args: Args, config: Config) -> None:
         if not (p := statedir / f"{config.machine_or_name()}.json").exists():
             die(
                 f"{p} not found, cannot SSH into virtual machine {config.machine_or_name()}",
-                hint="Is the machine running and was it built with Ssh=yes and Vsock=yes?",
+                hint="Is the machine running and was it built with Ssh=yes?",
             )
 
         state = json.loads(p.read_text())
