@@ -408,7 +408,7 @@
   manager tree or skeleton tree contained a `/usr` directory as we would
   not have permissions to run mount in the sandbox.
 - We now use qemu's official firmware descriptions to find EDK2/OVMF
-  UEFI firmware. Addititionally, `QemuFirmware=uefi` now boots without
+  UEFI firmware. Additionally, `QemuFirmware=uefi` now boots without
   SecureBoot support, and `QemuFirmware=uefi-secure-boot` was introduced
   to boot with SecureBoot support. By default we will still boot with
   SecureBoot support if `QemuFirmware=auto`.

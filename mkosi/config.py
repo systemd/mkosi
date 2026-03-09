@@ -160,6 +160,20 @@ class ConfigFeature(StrEnum):
 
 
 @dataclasses.dataclass(frozen=True)
+class Credential:
+    name: str
+    value: Optional[str] = None
+    path: Optional[Path] = None
+
+    def resolve(self) -> str:
+        if self.path is not None:
+            if os.access(self.path, os.X_OK):
+                return run([self.path], stdout=subprocess.PIPE, env=os.environ).stdout
+            return self.path.read_text()
+        return self.value or ""
+
+
+@dataclasses.dataclass(frozen=True)
 class ConfigTree:
     source: Path
     target: Optional[Path]
@@ -1275,7 +1289,6 @@ def config_make_dict_parser(
     delimiter: Optional[str] = None,
     parse: Callable[[str], tuple[str, PathString]],
     unescape: bool = False,
-    allow_paths: bool = False,
     reset: bool = True,
 ) -> ConfigParseCallback[dict[str, PathString]]:
     def config_parse_dict(
@@ -1286,16 +1299,6 @@ def config_make_dict_parser(
 
         if value is None:
             return {}
-
-        if allow_paths and value and "=" not in value:
-            if Path(value).is_dir():
-                new.update({p.name: p.absolute() for p in sorted(Path(value).iterdir()) if not p.is_dir()})
-            elif (p := Path(value)).exists():
-                new[p.name] = p.absolute()
-            else:
-                die(f"{p.absolute()} does not exist")
-
-            return new
 
         # Empty strings reset the dict.
 
@@ -1330,6 +1333,49 @@ def parse_key_value(value: str) -> tuple[str, str]:
     key, _, value = value.partition("=")
     key, value = key.strip(), value.strip()
     return (key, value)
+
+
+def config_make_credential_parser() -> ConfigParseCallback[list[Credential]]:
+    def config_parse_credentials(
+        value: Optional[str],
+        old: Optional[list[Credential]],
+    ) -> Optional[list[Credential]]:
+        new = list(old) if old else []
+
+        if value is None:
+            return []
+
+        if value and "=" not in value:
+            if Path(value).is_dir():
+                new += [
+                    Credential(name=p.name, path=p.absolute())
+                    for p in sorted(Path(value).iterdir())
+                    if not p.is_dir()
+                ]
+            elif (p := Path(value)).exists():
+                new.append(Credential(name=p.name, path=p.absolute()))
+            else:
+                die(f"{p.absolute()} does not exist")
+
+            return new
+
+        lex = shlex.shlex(value, posix=True)
+        lex.whitespace_split = True
+        lex.whitespace = "\n "
+        lex.commenters = ""
+        values = list(lex)
+        if not values:
+            return None
+
+        for v in values:
+            if v:
+                key, _, val = v.partition("=")
+                key, val = key.strip(), val.strip()
+                new.append(Credential(name=key, value=val))
+
+        return new
+
+    return config_parse_credentials
 
 
 def make_path_parser(
@@ -2167,7 +2213,7 @@ class Config:
 
     nspawn_settings: Optional[Path]
     ephemeral: bool
-    credentials: dict[str, PathString]
+    credentials: list[Credential]
     kernel_command_line_extra: list[str]
     register: ConfigFeature
     storage_target_mode: ConfigFeature
@@ -4098,7 +4144,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--credential",
         metavar="NAME=VALUE",
         section="Runtime",
-        parse=config_make_dict_parser(delimiter=" ", parse=parse_key_value, allow_paths=True, unescape=True),
+        parse=config_make_credential_parser(),
         help="Pass a systemd credential to a systemd-nspawn container or a virtual machine",
         path_suffixes=("credentials",),
         scope=SettingScope.main,
@@ -5867,7 +5913,7 @@ def summary(config: Config) -> str:
     {bold("HOST CONFIGURATION")}:
                     NSpawn Settings: {none_to_none(config.nspawn_settings)}
                           Ephemeral: {config.ephemeral}
-                        Credentials: {line_join_list(config.credentials.keys())}
+                        Credentials: {line_join_list(c.name for c in config.credentials)}
           Extra Kernel Command Line: {line_join_list(config.kernel_command_line_extra)}
                       Runtime Trees: {line_join_list(config.runtime_trees)}
                        Runtime Size: {format_bytes_or_none(config.runtime_size)}
@@ -6029,6 +6075,19 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
             for profile in profiles
         ]
 
+    def credential_transformer(
+        creds: list[dict[str, Any]],
+        fieldtype: type[list[Credential]],
+    ) -> list[Credential]:
+        return [
+            Credential(
+                name=d["Name"],
+                value=d.get("Value"),
+                path=Path(d["Path"]) if d.get("Path") else None,
+            )
+            for d in creds
+        ]
+
     # The type of this should be
     # dict[
     #     type,
@@ -6076,6 +6135,7 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         CertificateSource: certificate_source_transformer,
         ConsoleMode: enum_transformer,
         Verity: enum_transformer,
+        list[Credential]: credential_transformer,
     }
 
     def json_transformer(key: str, val: Any) -> Any:

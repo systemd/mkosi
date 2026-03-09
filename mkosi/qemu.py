@@ -794,14 +794,8 @@ def finalize_credentials(config: Config, stack: contextlib.ExitStack) -> Path:
 
     (d / "firstboot.locale").write_text("C.UTF-8")
 
-    for k, v in config.credentials.items():
-        with (d / k).open("w") as f:
-            if isinstance(v, str):
-                f.write(v)
-            elif os.access(v, os.X_OK):
-                run([v], stdout=f, env=os.environ)
-            else:
-                f.write(v.read_text())
+    for cred in config.credentials:
+        (d / cred.name).write_text(cred.resolve())
 
     if not (d / "firstboot.timezone").exists():
         if config.find_binary("timedatectl"):
