@@ -139,7 +139,7 @@ def test_parse_config(tmp_path: Path) -> None:
     # Values from the CLI should take priority.
     assert config.distribution == Distribution.fedora
     assert config.environment["MY_KEY"] == "CLI_VALUE"
-    assert config.credentials["my.cred"] == "cli.value"
+    assert any(c.name == "my.cred" and c.value == "cli.value" for c in config.credentials)
     assert config.repositories == ["epel", "epel-next", "universe"]
 
     with chdir(d):
@@ -155,7 +155,7 @@ def test_parse_config(tmp_path: Path) -> None:
     # Empty values on the CLIs resets non-collection based settings to their defaults and collection based
     # settings to empty collections.
     assert "MY_KEY" not in config.environment
-    assert "my.cred" not in config.credentials
+    assert not any(c.name == "my.cred" for c in config.credentials)
     assert config.repositories == []
 
     (d / "mkosi.conf.d").mkdir()

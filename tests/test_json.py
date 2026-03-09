@@ -23,6 +23,7 @@ from mkosi.config import (
     ConfigFeature,
     ConfigTree,
     ConsoleMode,
+    Credential,
     DocFormat,
     Drive,
     DriveFlag,
@@ -145,9 +146,18 @@ def test_config() -> None:
                 "/configure"
             ],
             "Console": "gui",
-            "Credentials": {
-                "credkey": "credval"
-            },
+            "Credentials": [
+                {
+                    "Name": "credkey",
+                    "Path": null,
+                    "Value": "credval"
+                },
+                {
+                    "Name": "pathcred",
+                    "Path": "/secret/file",
+                    "Value": null
+                }
+            ],
             "Dependencies": [
                 "dep1"
             ],
@@ -464,7 +474,10 @@ def test_config() -> None:
         configure_scripts=[Path("/configure")],
         console=ConsoleMode.gui,
         cpus=2,
-        credentials={"credkey": "credval"},
+        credentials=[
+            Credential(name="credkey", value="credval"),
+            Credential(name="pathcred", path=Path("/secret/file")),
+        ],
         dependencies=["dep1"],
         distribution=Distribution.fedora,
         drives=[
