@@ -4128,7 +4128,15 @@ def build_image(context: Context) -> None:
     elif context.config.output_format == OutputFormat.directory:
         context.root.rename(context.staging / context.config.output_with_format)
 
-        if context.config.foreign_uid_range:
+        if (
+            context.config.foreign_uid_range
+            and systemd_tool_version("systemctl", sandbox=context.sandbox) < "259"
+        ):
+            logging.warning(
+                "ForeignUIDRange=yes is set but systemd < 259 does not support foreign UID range mapping. "
+                "Skipping UID shift — virtiofsd will expose files as root-owned via --become-root."
+            )
+        elif context.config.foreign_uid_range:
             with complete_step("Changing ownership to the foreign UID range"):
                 run(
                     [
@@ -5261,9 +5269,11 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
         return
 
     if (output := last.output_dir_or_cwd() / last.output).is_dir() and not is_foreign_uid_tree(output):
-        die(
-            "Can only operate on foreign UID range owned directory images",
-            hint="Add ForeignUIDRange=yes to [Build] and rebuild the image to use the foreign UID range",
+        logging.warning(
+            "Directory image is not foreign UID range owned. "
+            "virtiofsd will expose files as root-owned via --become-root. "
+            "For proper UID isolation, add ForeignUIDRange=yes to [Build] "
+            "and use systemd >= 259 for foreign UID range support."
         )
 
     run_vm = {

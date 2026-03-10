@@ -51,7 +51,7 @@ from mkosi.config import (
 from mkosi.log import ARG_DEBUG, die
 from mkosi.partition import finalize_root, find_partitions
 from mkosi.run import AsyncioThread, find_binary, run, spawn, workdir
-from mkosi.tree import copy_tree, maybe_make_nocow, rmtree
+from mkosi.tree import copy_tree, is_foreign_uid_tree, maybe_make_nocow, rmtree
 from mkosi.user import INVOKING_USER
 from mkosi.util import (
     PathString,
@@ -395,7 +395,9 @@ def start_virtiofsd(
             group=st.st_gid if st else None,
             sandbox=config.sandbox(
                 options=[
-                    "--bind" if uidmap else "--bind-foreign", directory, workdir(directory),
+                    "--bind" if uidmap or not is_foreign_uid_tree(directory) else "--bind-foreign",
+                    directory,
+                    workdir(directory),
                     "--become-root",
                 ],
             ),
