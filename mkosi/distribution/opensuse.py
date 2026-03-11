@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 import os
-import tempfile
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Union
@@ -324,12 +323,8 @@ def fetch_gpgkeys(context: Context) -> list[Path]:
 def fetch_gpgurls(context: Context, repourl: str) -> tuple[str, ...]:
     gpgurls = [f"{repourl}/repodata/repomd.xml.key"]
 
-    with (
-        complete_step(f"Fetching GPG key list from repository {repourl}"),
-        tempfile.TemporaryDirectory() as d,
-    ):
-        curl(context.config, f"{repourl}/repodata/repomd.xml", output_dir=Path(d))
-        xml = (Path(d) / "repomd.xml").read_text()
+    with complete_step(f"Fetching GPG key list from repository {repourl}"):
+        xml = curl(context.config, f"{repourl}/repodata/repomd.xml")
 
     root = ElementTree.fromstring(xml)
 
