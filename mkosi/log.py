@@ -9,12 +9,22 @@ import time
 from collections.abc import Iterator
 from typing import Any, NoReturn, Optional
 
-from mkosi.sandbox import ANSI_BOLD, ANSI_GRAY, ANSI_RED, ANSI_RESET, ANSI_YELLOW, terminal_is_dumb
+from mkosi.sandbox import (
+    ANSI_BLUE,
+    ANSI_BOLD,
+    ANSI_GRAY,
+    ANSI_RED,
+    ANSI_RESET,
+    ANSI_YELLOW,
+    terminal_is_dumb,
+)
 
 # This global should be initialized after parsing arguments
 ARG_DEBUG = contextvars.ContextVar("debug", default=False)
 ARG_DEBUG_SHELL = contextvars.ContextVar("debug-shell", default=False)
 ARG_DEBUG_SANDBOX = contextvars.ContextVar("debug-sandbox", default=False)
+ARG_LOG_TIMING = contextvars.ContextVar("log-timing", default=False)
+IMAGE = contextvars.ContextVar("image", default="")
 LEVEL = 0
 
 
@@ -112,7 +122,9 @@ def complete_step(text: str, text2: Optional[str] = None) -> Iterator[list[Any]]
     if text2 is not None:
         log_step(text2.format(*args))
 
-    logging.debug(f'{" " * (LEVEL)}{time.perf_counter() - start:.1f}s for step "{text}"')
+    elapsed = time.perf_counter() - start
+    level = logging.INFO if ARG_LOG_TIMING.get() else logging.DEBUG
+    logging.log(level, f'{" " * (LEVEL)}{elapsed:.1f}s for step "{text}"')
 
 
 class Formatter(logging.Formatter):
@@ -120,16 +132,17 @@ class Formatter(logging.Formatter):
         fmt = fmt or "%(message)s"
 
         self.formatters = {
-            logging.DEBUG:    logging.Formatter(f"‣ {ANSI_GRAY}{fmt}{ANSI_RESET}"),
-            logging.INFO:     logging.Formatter(f"‣ {fmt}"),
-            logging.WARNING:  logging.Formatter(f"‣ {ANSI_YELLOW}{fmt}{ANSI_RESET}"),
-            logging.ERROR:    logging.Formatter(f"‣ {ANSI_RED}{fmt}{ANSI_RESET}"),
-            logging.CRITICAL: logging.Formatter(f"‣ {ANSI_RED}{ANSI_BOLD}{fmt}{ANSI_RESET}"),
+            logging.DEBUG:    logging.Formatter(f"‣ %(image_prefix)s{ANSI_GRAY}{fmt}{ANSI_RESET}"),
+            logging.INFO:     logging.Formatter(f"‣ %(image_prefix)s{fmt}"),
+            logging.WARNING:  logging.Formatter(f"‣ %(image_prefix)s{ANSI_YELLOW}{fmt}{ANSI_RESET}"),
+            logging.ERROR:    logging.Formatter(f"‣ %(image_prefix)s{ANSI_RED}{fmt}{ANSI_RESET}"),
+            logging.CRITICAL: logging.Formatter(f"‣ %(image_prefix)s{ANSI_RED}{ANSI_BOLD}{fmt}{ANSI_RESET}"),
         }  # fmt: skip
 
         super().__init__(fmt, *args, **kwargs)
 
     def format(self, record: logging.LogRecord) -> str:
+        record.image_prefix = f"{ANSI_BLUE}[{IMAGE.get()}]{ANSI_RESET} " if IMAGE.get() else ""
         return self.formatters[record.levelno].format(record)
 
 
