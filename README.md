@@ -33,7 +33,7 @@ might have to add `~/.local/bin` to your user's `PATH`.
 
 ```shell
 git clone https://github.com/systemd/mkosi
-ln -s $PWD/mkosi/bin/mkosi ~/.local/bin/mkosi
+ln -s $PWD/bin/mkosi ~/.local/bin/mkosi
 mkosi --version
 ```
 
