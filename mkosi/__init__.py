@@ -351,6 +351,23 @@ def remove_packages(context: Context) -> None:
             die(f"Removing packages is not supported for {context.config.distribution}")
 
 
+def force_remove_packages(context: Context) -> None:
+    """Force remove packages listed in config.force_remove_packages without dependency checks"""
+
+    if not context.config.force_remove_packages:
+        return
+
+    with complete_step(
+        f"Removing {len(context.config.force_remove_packages)} packages (WITHOUT DEPENDENCY CHECKS)…"
+    ):
+        try:
+            context.config.distribution.installer.package_manager(context.config).force_remove(
+                context, context.config.force_remove_packages
+            )
+        except NotImplementedError:
+            die(f"Force removing packages is not supported for {context.config.distribution}")
+
+
 def check_root_populated(context: Context) -> None:
     if (
         context.config.output_format == OutputFormat.none
@@ -4070,6 +4087,7 @@ def build_image(context: Context) -> None:
         stub, kver, kimg, microcode = save_esp_components(context)
 
         remove_packages(context)
+        force_remove_packages(context)
 
         if manifest:
             manifest.record_packages()

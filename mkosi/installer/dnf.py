@@ -266,6 +266,28 @@ class Dnf(PackageManager):
         cls.invoke(context, "remove", packages, apivfs=True)
 
     @classmethod
+    def force_remove(cls, context: Context, packages: Sequence[str]) -> None:
+        # we need to handle shells as a special case as scriptlets may need /bin/sh
+        shell_packages = {"bash", "dash"}
+        normal_pkgs = [p for p in packages if p not in shell_packages]
+        sh_pkgs = [p for p in packages if p in shell_packages]
+
+        if normal_pkgs:
+            run(
+                [*rpm_cmd(), "-e", "--nodeps", *normal_pkgs],
+                sandbox=cls.sandbox(context, apivfs=True),
+                env=cls.finalize_environment(context),
+            )
+        # this *must* run after the normal packages removal as the normal pkgs may need /bin/sh for their
+        # scriptlets and rpm does not guarantee order
+        if sh_pkgs:
+            run(
+                [*rpm_cmd(), "-e", "--nodeps", *sh_pkgs],
+                sandbox=cls.sandbox(context, apivfs=True),
+                env=cls.finalize_environment(context),
+            )
+
+    @classmethod
     def sync(cls, context: Context, force: bool, arguments: Sequence[str] = ()) -> None:
         cls.invoke(
             context,

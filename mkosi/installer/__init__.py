@@ -186,6 +186,10 @@ class PackageManager:
         pass
 
     @classmethod
+    def force_remove(cls, context: Context, packages: Sequence[str]) -> None:
+        pass
+
+    @classmethod
     def sync(cls, context: Context, force: bool) -> None:
         pass
 

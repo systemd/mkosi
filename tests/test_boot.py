@@ -59,6 +59,28 @@ def test_format(config: ImageConfig, format: OutputFormat) -> None:
         image.vm(["--firmware=bios"])
 
 
+def test_force_remove_packages(config: ImageConfig) -> None:
+    if config.distribution not in (
+        Distribution.fedora,
+        Distribution.centos,
+        Distribution.opensuse,
+    ):
+        pytest.skip("ForceRemovePackages is only supported on RPM-based distributions")
+
+    with Image(config) as image:
+        image.build(
+            options=[
+                "--format=directory",
+                "--force-remove-package=authselect",
+                "--force-remove-package=bash",
+            ],
+        )
+
+        image_root = image.output_dir / "image"
+        assert not (image_root / "usr/bin/authselect").exists()
+        assert not (image_root / "usr/bin/bash").exists()
+
+
 @pytest.mark.parametrize("bootloader", Bootloader)
 def test_bootloader(config: ImageConfig, bootloader: Bootloader) -> None:
     if config.distribution == Distribution.rhel_ubi or bootloader.is_signed():

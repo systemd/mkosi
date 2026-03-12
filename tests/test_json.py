@@ -214,6 +214,9 @@ def test_config() -> None:
                 "ath3k-1"
             ],
             "FirmwareVariables": "/foo/bar",
+            "ForceRemovePackages": [
+                "force-remove-pkg1"
+            ],
             "ForeignUIDRange": false,
             "Format": "uki",
             "ForwardJournal": "/mkosi.journal",
@@ -499,6 +502,7 @@ def test_config() -> None:
         firmware_variables=Path("/foo/bar"),
         firmware=Firmware.linux,
         foreign_uid_range=False,
+        force_remove_packages=["force-remove-pkg1"],
         forward_journal=Path("/mkosi.journal"),
         history=True,
         hostname=None,

@@ -1992,3 +1992,27 @@ def test_history_empty_list(tmp_path: Path) -> None:
         _, _, [main] = parse_config(["summary"])
 
     assert main.package_directories == []
+
+
+def test_force_remove_packages(tmp_path: Path) -> None:
+    d = tmp_path
+
+    (d / "mkosi.conf").write_text(
+        """\
+        [Distribution]
+        Distribution=fedora
+
+        [Content]
+        ForceRemovePackages=foo,bar
+        """
+    )
+
+    with chdir(d):
+        _, _, [config] = parse_config()
+
+    assert config.force_remove_packages == ["foo", "bar"]
+
+    with chdir(d):
+        _, _, [config] = parse_config(["--force-remove-package=baz"])
+
+    assert config.force_remove_packages == ["foo", "bar", "baz"]
