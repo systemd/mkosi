@@ -2458,6 +2458,7 @@ class Config:
             "distribution": self.distribution,
             "release": self.release,
             "mirror": self.mirror,
+            "local_mirror": self.local_mirror,
             "snapshot": self.snapshot,
             "architecture": self.architecture,
             # Caching the package manager used does not matter for the default tools tree because we don't
