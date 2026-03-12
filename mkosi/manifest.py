@@ -31,12 +31,13 @@ class PackageManifest:
     architecture: str
     size: int
 
-    def as_dict(self) -> dict[str, str]:
+    def as_dict(self) -> dict[str, Any]:
         return {
             "type": self.type,
             "name": self.name,
             "version": self.version,
             "architecture": self.architecture,
+            "size": self.size,
         }
 
 
