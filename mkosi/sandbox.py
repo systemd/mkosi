@@ -634,10 +634,7 @@ def varlink(
 
     with contextlib.ExitStack() as stack:
         sock = stack.enter_context(socket.socket(socket.AF_UNIX, socket.SOCK_STREAM))
-        try:
-            sock.connect(os.fspath(path))
-        except:
-            raise VarlinkError("org.varlink.service.InvalidParameter", {})
+        sock.connect(os.fspath(path))
 
         opened_fds = []
 
