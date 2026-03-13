@@ -2458,6 +2458,7 @@ class Config:
             "distribution": self.distribution,
             "release": self.release,
             "mirror": self.mirror,
+            "local_mirror": self.local_mirror,
             "snapshot": self.snapshot,
             "architecture": self.architecture,
             # Caching the package manager used does not matter for the default tools tree because we don't
@@ -2815,6 +2816,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Distribution",
         help="Use a single local, flat and plain mirror to build the image",
         scope=SettingScope.universal,
+        tools=True,
     ),
     ConfigSetting(
         dest="repository_key_check",
