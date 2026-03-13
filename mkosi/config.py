@@ -2816,6 +2816,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Distribution",
         help="Use a single local, flat and plain mirror to build the image",
         scope=SettingScope.universal,
+        tools=True,
     ),
     ConfigSetting(
         dest="repository_key_check",
