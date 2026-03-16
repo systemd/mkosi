@@ -4993,9 +4993,10 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
         if isinstance(e, VarlinkError) and e.error != "org.varlink.service.InvalidParameter":
             raise
 
-        logging.debug(
+        logging.log(
+            logging.WARNING if last.foreign_uid_range else logging.DEBUG,
             f"Could not provision user namespace via systemd-nsresourced ({e}), falling back to "
-            "unprivileged user namespace via unshare(CLONE_NEWUSER) and writing /proc/self/uid_map directly"
+            "unprivileged user namespace via unshare(CLONE_NEWUSER) and writing /proc/self/uid_map directly",
         )
 
         acquire_privileges()
