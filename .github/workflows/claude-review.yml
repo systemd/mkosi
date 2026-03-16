@@ -2,9 +2,10 @@
 # Mention @claude in any PR comment to request a review. Claude authenticates
 # via AWS Bedrock using OIDC — no long-lived API keys required.
 #
-# Architecture: The workflow is split into two jobs for least-privilege:
-#   1. "review" — runs Claude with read-only permissions, produces structured JSON
-#   2. "post"   — reads the JSON and posts comments to the PR with write permissions
+# Architecture: The workflow is split into three jobs for least-privilege:
+#   1. "setup" — posts/updates a "reviewing…" tracking comment (write permissions)
+#   2. "review" — runs Claude with read-only permissions, produces structured JSON
+#   3. "post"   — reads the JSON and posts comments to the PR (write permissions)
 
 name: Claude Review
 
@@ -22,7 +23,7 @@ concurrency:
   group: claude-review-${{ github.event.pull_request.number || github.event.issue.number }}
 
 jobs:
-  review:
+  setup:
     runs-on: ubuntu-latest
     env:
       PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
@@ -30,36 +31,94 @@ jobs:
     if: |
       github.repository_owner == 'systemd' &&
       ((github.event_name == 'issue_comment' &&
-        contains(github.event.comment.body, '@claude') &&
+        github.event.issue.pull_request &&
+        contains(github.event.comment.body, '@claude review') &&
         contains(fromJSON('["MEMBER","OWNER","COLLABORATOR"]'), github.event.comment.author_association)) ||
        (github.event_name == 'pull_request_review_comment' &&
-        contains(github.event.comment.body, '@claude') &&
+        contains(github.event.comment.body, '@claude review') &&
         contains(fromJSON('["MEMBER","OWNER","COLLABORATOR"]'), github.event.comment.author_association)) ||
        (github.event_name == 'pull_request_review' &&
-        contains(github.event.review.body, '@claude') &&
+        contains(github.event.review.body, '@claude review') &&
         contains(fromJSON('["MEMBER","OWNER","COLLABORATOR"]'), github.event.review.author_association)))
 
     permissions:
       contents: read
-      id-token: write      # Authenticate with AWS via OIDC
-      actions: read
+      pull-requests: write
 
     outputs:
-      structured_output: ${{ steps.claude.outputs.structured_output }}
       pr_number: ${{ steps.pr.outputs.number }}
       head_sha: ${{ steps.pr.outputs.head_sha }}
+      comment_id: ${{ steps.tracking.outputs.comment_id }}
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
-
       - name: Resolve PR metadata
         id: pr
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
-          gh pr view "$PR_NUMBER" --json headRefOid --jq '.headRefOid' | \
+          gh pr view --repo "${{ github.repository }}" "$PR_NUMBER" --json headRefOid --jq '.headRefOid' | \
             xargs -I{} echo "head_sha={}" >> "$GITHUB_OUTPUT"
+
+      - name: Create or update tracking comment
+        id: tracking
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const prNumber = parseInt(process.env.PR_NUMBER, 10);
+            const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+            const MARKER = "<!-- claude-pr-review -->";
+
+            const issueComments = await github.paginate(
+              github.rest.issues.listComments,
+              { owner, repo, issue_number: prNumber, per_page: 100 },
+            );
+
+            const existing = issueComments.find((c) => c.body && c.body.includes(MARKER));
+
+            let commentId;
+            if (existing) {
+              console.log(`Updating existing tracking comment ${existing.id}.`);
+              /* Prepend a re-reviewing banner but keep the previous review visible. */
+              const prevBody = existing.body.replace(/\n\n\[Workflow run\]\([^)]*\)$/, "");
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body: `> **Claude is re-reviewing this PR…** ([workflow run](${runUrl}))\n\n${prevBody}`,
+              });
+              commentId = existing.id;
+            } else {
+              console.log("Creating new tracking comment.");
+              const {data: created} = await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: prNumber,
+                body: `Claude is reviewing this PR… ([workflow run](${runUrl}))\n\n${MARKER}`,
+              });
+              commentId = created.id;
+            }
+
+            core.setOutput("comment_id", commentId);
+
+  review:
+    runs-on: ubuntu-latest
+    needs: setup
+
+    permissions:
+      contents: read
+      pull-requests: read   # Fetch PR comments and reviews
+      issues: read          # Fetch issue comments
+      id-token: write       # Authenticate with AWS via OIDC
+      actions: read
+
+    outputs:
+      structured_output: ${{ steps.claude.outputs.structured_output }}
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7
@@ -85,7 +144,7 @@ jobs:
                   "type": "array",
                   "items": {
                     "type": "object",
-                    "required": ["file", "line", "severity", "body"],
+                    "required": ["file", "severity", "body"],
                     "properties": {
                       "file": {
                         "type": "string",
@@ -115,6 +174,7 @@ jobs:
           # so it cannot post comments or modify the PR.
           github_token: ${{ secrets.GITHUB_TOKEN }}
           track_progress: false
+          show_full_output: "true"
           additional_permissions: |
             actions: read
           claude_args: |
@@ -130,6 +190,7 @@ jobs:
                 mcp__github__get_pull_request_files,
                 mcp__github__get_pull_request_reviews,
                 mcp__github__get_pull_request_comments,
+                mcp__github__get_pull_request_review_comments,
                 mcp__github__get_pull_request_status,
                 mcp__github__get_issue_comments,
                 mcp__github_ci__get_ci_status,
@@ -139,8 +200,8 @@ jobs:
             --json-schema '${{ env.REVIEW_SCHEMA }}'
           prompt: |
               REPO: ${{ github.repository }}
-              PR NUMBER: ${{ steps.pr.outputs.number }}
-              HEAD SHA: ${{ steps.pr.outputs.head_sha }}
+              PR NUMBER: ${{ needs.setup.outputs.pr_number }}
+              HEAD SHA: ${{ needs.setup.outputs.head_sha }}
 
               You are a code reviewer for the ${{ github.repository }} project. Review this pull request and
               produce a structured JSON result containing your review comments. Do NOT attempt
@@ -151,14 +212,14 @@ jobs:
 
               Use the GitHub MCP server tools to fetch PR data. For all tools, pass
               owner `${{ github.repository_owner }}`, repo `${{ github.event.repository.name }}`,
-              and pullNumber/issue_number ${{ steps.pr.outputs.number }}:
+              and pullNumber/issue_number ${{ needs.setup.outputs.pr_number }}:
               - `mcp__github__get_pull_request_diff` to get the PR diff
               - `mcp__github__get_pull_request` to get the PR title, body, and metadata
               - `mcp__github__get_pull_request_comments` to get top-level PR comments
               - `mcp__github__get_pull_request_reviews` to get PR reviews
 
               Also fetch issue comments using `mcp__github__get_issue_comments` with
-              issue_number ${{ steps.pr.outputs.number }}.
+              issue_number ${{ needs.setup.outputs.pr_number }}.
 
               Look for an existing tracking comment (containing `<!-- claude-pr-review -->`)
               in the issue comments. If one exists, you will use it as the basis for
@@ -187,8 +248,10 @@ jobs:
               Each subagent must return a JSON array of issues:
               `[{"file": "path", "line": <number>, "severity": "must-fix|suggestion|nit", "body": "..."}]`
 
-              `line` must be a line number from the NEW side of the diff (i.e. where the comment
-              should appear in the changed file after the patch is applied).
+              `line` must be a line number from the NEW side of the diff **that appears inside
+              a diff hunk** (i.e. a line that is shown in the patch output). GitHub's review
+              comment API rejects lines outside the diff context, so never reference lines
+              that are not visible in the patch.
 
               Each subagent MUST verify its findings before returning them:
               - For style/convention claims, check at least 3 existing examples in the codebase to confirm
@@ -230,6 +293,13 @@ jobs:
                  Omit empty sections. Each checkbox item must correspond to an entry in `comments`.
                  If there are no issues at all, write a short message saying the PR looks good.
 
+                 Throughout all phases, track any errors that prevented you from doing
+                 your job fully: permission denials (403, "Resource not accessible by
+                 integration"), tools that were not available, rate limits, or any other
+                 failures that degraded the review quality. If there were any, append a
+                 `### Errors` section listing each failed tool/action and the error
+                 message, so maintainers can fix the workflow configuration.
+
                  **If an existing tracking comment was found (subsequent run):**
                  Use the existing comment as the starting point. Preserve the order and wording
                  of all existing items. Then apply these updates:
@@ -248,8 +318,8 @@ jobs:
 
   post:
     runs-on: ubuntu-latest
-    needs: review
-    if: always() && needs.review.result == 'success'
+    needs: [setup, review]
+    if: always() && needs.setup.result == 'success'
 
     permissions:
       pull-requests: write
@@ -259,14 +329,32 @@ jobs:
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea
         env:
           STRUCTURED_OUTPUT: ${{ needs.review.outputs.structured_output }}
-          PR_NUMBER: ${{ needs.review.outputs.pr_number }}
-          HEAD_SHA: ${{ needs.review.outputs.head_sha }}
+          REVIEW_RESULT: ${{ needs.review.result }}
+          PR_NUMBER: ${{ needs.setup.outputs.pr_number }}
+          HEAD_SHA: ${{ needs.setup.outputs.head_sha }}
+          COMMENT_ID: ${{ needs.setup.outputs.comment_id }}
         with:
           script: |
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             const prNumber = parseInt(process.env.PR_NUMBER, 10);
             const headSha = process.env.HEAD_SHA;
+            const commentId = parseInt(process.env.COMMENT_ID, 10);
+            const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+            const MARKER = "<!-- claude-pr-review -->";
+
+            /* If the review job failed or was cancelled, update the tracking
+             * comment to reflect that and bail out. */
+            if (process.env.REVIEW_RESULT !== "success") {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: commentId,
+                body: `Claude review failed — see [workflow run](${runUrl}) for details.\n\n${MARKER}`,
+              });
+              core.setFailed("Review job did not succeed.");
+              return;
+            }
 
             /* Parse Claude's structured output. */
             const raw = process.env.STRUCTURED_OUTPUT;
@@ -283,7 +371,7 @@ jobs:
                 if (typeof review.summary === "string")
                   summary = review.summary;
               } catch (e) {
-                console.log(`Failed to parse structured output: ${e.message}`);
+                core.warning(`Failed to parse structured output: ${e.message}`);
               }
             }
 
@@ -293,68 +381,56 @@ jobs:
              * comments is handled by Claude in the prompt, so we just post whatever
              * it returns. Using individual comments (rather than a review) means
              * re-runs only add new comments instead of creating a whole new review. */
-            for (const c of comments) {
+            const inlineComments = comments.filter((c) => c.line);
+            const skipped = comments.length - inlineComments.length;
+            if (skipped > 0)
+              console.log(`Skipping ${skipped} file-level comment(s) (no line number).`);
+
+            let posted = 0;
+            for (const c of inlineComments) {
               console.log(`  Posting comment on ${c.file}:${c.line}`);
-              await github.rest.pulls.createReviewComment({
-                owner,
-                repo,
-                pull_number: prNumber,
-                commit_id: headSha,
-                path: c.file,
-                line: c.line,
-                body: `Claude: ${c.body}`,
-              });
+              try {
+                await github.rest.pulls.createReviewComment({
+                  owner,
+                  repo,
+                  pull_number: prNumber,
+                  commit_id: headSha,
+                  path: c.file,
+                  line: c.line,
+                  body: `Claude: ${c.body}`,
+                });
+                posted++;
+              } catch (e) {
+                /* GitHub rejects comments on lines outside the diff context. Log
+                 * and continue — the tracking comment still contains all findings. */
+                console.log(`  Warning: failed to post comment on ${c.file}:${c.line}: ${e.message}`);
+              }
             }
 
-            if (comments.length > 0)
-              console.log(`Posted ${comments.length} inline comment(s).`);
+            if (posted > 0)
+              console.log(`Posted ${posted}/${inlineComments.length} inline comment(s).`);
+            else if (inlineComments.length > 0)
+              console.log(`Could not post any of ${inlineComments.length} inline comment(s) — see warnings above.`);
             else
               console.log("No inline comments to post.");
 
-            /* Create or update the tracking comment. */
-            const MARKER = "<!-- claude-pr-review -->";
+            const failed = inlineComments.length > 0 && posted < inlineComments.length;
+
+            /* Update the tracking comment with Claude's summary. */
             if (!summary)
               summary = "Claude review: no issues found :tada:\n\n" + MARKER;
             else if (!summary.includes(MARKER))
-              summary = summary.replace(/\n/, `\n${MARKER}\n`);
+              summary += "\n\n" + MARKER;
+            summary += `\n\n[Workflow run](${runUrl})`;
 
-            /* Find an existing tracking comment. */
-            const {data: issueComments} = await github.rest.issues.listComments({
+            await github.rest.issues.updateComment({
               owner,
               repo,
-              issue_number: prNumber,
-              per_page: 100,
+              comment_id: commentId,
+              body: summary,
             });
 
-            const existing = issueComments.find((c) => c.body && c.body.includes(MARKER));
+            console.log("Tracking comment updated successfully.");
 
-            if (existing) {
-              const commentUrl = existing.html_url;
-              if (existing.body === summary) {
-                console.log(`Tracking comment ${existing.id} is unchanged.`);
-                await github.rest.issues.createComment({
-                  owner,
-                  repo,
-                  issue_number: prNumber,
-                  body: `Claude re-reviewed this PR — no changes to the [tracking comment](${commentUrl}).`,
-                });
-              } else {
-                console.log(`Updating existing tracking comment ${existing.id}.`);
-                await github.rest.issues.updateComment({
-                  owner,
-                  repo,
-                  comment_id: existing.id,
-                  body: summary,
-                });
-              }
-            } else {
-              console.log("Creating new tracking comment.");
-              await github.rest.issues.createComment({
-                owner,
-                repo,
-                issue_number: prNumber,
-                body: summary,
-              });
-            }
-
-            console.log("Tracking comment posted successfully.");
+            if (failed)
+              core.setFailed(`Failed to post ${comments.length - posted}/${comments.length} inline comment(s).`);
