@@ -98,7 +98,7 @@ from mkosi.kmod import (
     loaded_modules,
     process_kernel_modules,
 )
-from mkosi.log import ARG_DEBUG, complete_step, die, log_notice, log_step, ring_terminal_bell
+from mkosi.log import ARG_DEBUG, IMAGE, complete_step, die, log_notice, log_step, ring_terminal_bell
 from mkosi.manifest import Manifest
 from mkosi.mounts import (
     finalize_certificate_mounts,
@@ -3984,6 +3984,7 @@ def make_rootdir(context: Context) -> None:
 
 
 def build_image(context: Context) -> None:
+    IMAGE.set(context.config.image)
     manifest = Manifest(context) if context.config.manifest_format else None
 
     install_sandbox_trees(context.config, context.sandbox_tree)
