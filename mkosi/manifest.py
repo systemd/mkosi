@@ -32,13 +32,7 @@ class PackageManifest:
     size: int
 
     def as_dict(self) -> dict[str, Any]:
-        return {
-            "type": self.type,
-            "name": self.name,
-            "version": self.version,
-            "architecture": self.architecture,
-            "size": self.size,
-        }
+        return dataclasses.asdict(self)
 
 
 @dataclasses.dataclass
