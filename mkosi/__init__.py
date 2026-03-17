@@ -740,7 +740,7 @@ def run_sync_scripts(config: Config) -> None:
                 "--ro-bind", json, "/work/config.json",
                 # We need to make sure SSH keys and such can be accessed when git is used so bind in /home to
                 # make sure that works.
-                "--ro-bind", "/home", "/home",
+                "--ro-bind-try", "/home", "/home",
                 # e.g. the ssh-agent socket and such will be in /run and might be used by git so make sure
                 # those are available as well.
                 "--ro-bind", "/run", "/run",
