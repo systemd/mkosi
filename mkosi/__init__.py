@@ -4988,14 +4988,16 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
         # Try to get a user namespace with some delegated ranges and the foreign UID range via
         # systemd-nsresourced if we can.
         acquire_privileges(foreign=True, delegate=3)
-    # Don't fail if systemd-nsresourced is too old or not installed, use a regular unpriv user namespace
-    # instead.
+    # Don't fail if systemd-nsresourced is too old or not installed unless the foreign UID range was
+    # explicitly requested, use a regular unpriv user namespace instead.
     except (FileNotFoundError, VarlinkError, ConnectionRefusedError) as e:
         if isinstance(e, VarlinkError) and e.error != "org.varlink.service.InvalidParameter":
             raise
 
-        logging.log(
-            logging.WARNING if last.foreign_uid_range else logging.DEBUG,
+        if last.foreign_uid_range:
+            die(f"Could not provision user namespace via systemd-nsresourced ({e})")
+
+        logging.debug(
             f"Could not provision user namespace via systemd-nsresourced ({e}), falling back to "
             "unprivileged user namespace via unshare(CLONE_NEWUSER) and writing /proc/self/uid_map directly",
         )
