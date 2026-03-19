@@ -3,13 +3,15 @@
 # via AWS Bedrock using OIDC — no long-lived API keys required.
 #
 # Architecture: The workflow is split into three jobs for least-privilege:
-#   1. "setup" — posts/updates a "reviewing…" tracking comment (write permissions)
+#   1. "setup" — fetches PR context, posts/updates tracking comment (write permissions)
 #   2. "review" — runs Claude with read-only permissions, produces structured JSON
 #   3. "post"   — reads the JSON and posts comments to the PR (write permissions)
 
 name: Claude Review
 
 on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, labeled]
   # Strangely enough you have to use issue_comment to react to regular comments on PRs.
   # See https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request_comment-use-issue_comment.
   issue_comment:
@@ -30,7 +32,13 @@ jobs:
 
     if: |
       github.repository_owner == 'systemd' &&
-      ((github.event_name == 'issue_comment' &&
+      ((github.event_name == 'pull_request_target' &&
+        (github.event.action == 'labeled' && github.event.label.name == 'claude-review' && github.event.sender.login != 'github-actions[bot]' ||
+         github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'claude-review') ||
+         github.event.action == 'opened' &&
+         contains(fromJSON('["MEMBER","OWNER","COLLABORATOR"]'), github.event.pull_request.author_association) &&
+         github.event.pull_request.user.login != 'YHNdnzj')) ||
+       (github.event_name == 'issue_comment' &&
         github.event.issue.pull_request &&
         contains(github.event.comment.body, '@claude review') &&
         contains(fromJSON('["MEMBER","OWNER","COLLABORATOR"]'), github.event.comment.author_association)) ||
@@ -46,23 +54,19 @@ jobs:
       pull-requests: write
 
     outputs:
-      pr_number: ${{ steps.pr.outputs.number }}
-      head_sha: ${{ steps.pr.outputs.head_sha }}
-      comment_id: ${{ steps.tracking.outputs.comment_id }}
+      pr_number: ${{ steps.context.outputs.pr_number }}
+      comment_id: ${{ steps.context.outputs.comment_id }}
 
     steps:
-      - name: Resolve PR metadata
-        id: pr
+      - name: Auto-add claude-review label for trusted contributors
+        if: github.event_name == 'pull_request_target' && github.event.action == 'opened'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          echo "number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
-          gh pr view --repo "${{ github.repository }}" "$PR_NUMBER" --json headRefOid --jq '.headRefOid' | \
-            xargs -I{} echo "head_sha={}" >> "$GITHUB_OUTPUT"
+        run: gh pr edit --repo "${{ github.repository }}" "$PR_NUMBER" --add-label claude-review
 
-      - name: Create or update tracking comment
-        id: tracking
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea
+      - name: Fetch PR context and create tracking comment
+        id: context
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd
         with:
           script: |
             const owner = context.repo.owner;
@@ -71,14 +75,19 @@ jobs:
             const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
             const MARKER = "<!-- claude-pr-review -->";
 
-            const issueComments = await github.paginate(
-              github.rest.issues.listComments,
-              { owner, repo, issue_number: prNumber, per_page: 100 },
-            );
+            /* Fetch all PR data in parallel. */
+            const [pr, reviews, issueComments, reviewComments] = await Promise.all([
+              github.rest.pulls.get({ owner, repo, pull_number: prNumber }),
+              github.paginate(github.rest.pulls.listReviews, { owner, repo, pull_number: prNumber, per_page: 100 }),
+              github.paginate(github.rest.issues.listComments, { owner, repo, issue_number: prNumber, per_page: 100 }),
+              github.paginate(github.rest.pulls.listReviewComments, { owner, repo, pull_number: prNumber, per_page: 100 }),
+            ]);
 
+            /* Find or create tracking comment. */
             const existing = issueComments.find((c) => c.body && c.body.includes(MARKER));
-
             let commentId;
+            let trackingCommentBody = null;
+
             if (existing) {
               console.log(`Updating existing tracking comment ${existing.id}.`);
               /* Prepend a re-reviewing banner but keep the previous review visible. */
@@ -90,6 +99,7 @@ jobs:
                 body: `> **Claude is re-reviewing this PR…** ([workflow run](${runUrl}))\n\n${prevBody}`,
               });
               commentId = existing.id;
+              trackingCommentBody = prevBody;
             } else {
               console.log("Creating new tracking comment.");
               const {data: created} = await github.rest.issues.createComment({
@@ -101,7 +111,29 @@ jobs:
               commentId = created.id;
             }
 
+            /* Build context JSON for Claude. */
+            const prContext = {
+              pr: pr.data,
+              reviews,
+              issue_comments: issueComments,
+              tracking_comment: trackingCommentBody,
+              review_comments: reviewComments,
+            };
+
+            core.setOutput("pr_number", prNumber);
             core.setOutput("comment_id", commentId);
+
+            const fs = require("fs");
+            fs.writeFileSync("pr-context.json", JSON.stringify(prContext));
+
+      # archive: false makes upload-artifact use the file's basename
+      # (pr-context.json) as the artifact name, ignoring the name input.
+      - name: Upload PR context
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
+        with:
+          path: pr-context.json
+          archive: false
+          retention-days: 7
 
   review:
     runs-on: ubuntu-latest
@@ -109,16 +141,31 @@ jobs:
 
     permissions:
       contents: read
-      pull-requests: read   # Fetch PR comments and reviews
-      issues: read          # Fetch issue comments
       id-token: write       # Authenticate with AWS via OIDC
-      actions: read
-
-    outputs:
-      structured_output: ${{ steps.claude.outputs.structured_output }}
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          # Need full history so git diff <sha>~1..<sha> works for all PR commits.
+          fetch-depth: 0
+
+      - name: Fetch PR branch
+        env:
+          PR_NUMBER: ${{ needs.setup.outputs.pr_number }}
+        run: git fetch origin "pull/${PR_NUMBER}/head:pr-review"
+
+      - name: Download PR context
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: pr-context.json
+
+      - name: Prettify PR context
+        run: python3 -m json.tool pr-context.json > pr-context-pretty.json && mv pr-context-pretty.json pr-context.json
+
+      - name: Install sandbox dependencies
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          sudo apt-get update && sudo apt-get install -y bubblewrap socat
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7
@@ -130,146 +177,138 @@ jobs:
       - name: Run Claude Code
         id: claude
         uses: anthropics/claude-code-action@26ec041249acb0a944c0a47b6c0c13f05dbc5b44
-        env:
-          REVIEW_SCHEMA: >-
+        with:
+          use_bedrock: "true"
+          # Required by claude-code-action even though Claude itself doesn't
+          # call the GitHub API — the action uses it for permission checks.
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # Safe because the workflow's `if` condition already restricts
+          # execution to trusted actors (MEMBER/OWNER/COLLABORATOR) or PRs
+          # that a trusted actor explicitly labeled, and this job only has
+          # read-only permissions.
+          allowed_non_write_users: "*"
+          track_progress: false
+          show_full_output: "true"
+          # Sandbox Bash commands to prevent network access and restrict
+          # filesystem writes to the working directory.
+          settings: |
             {
-              "type": "object",
-              "required": ["comments", "summary"],
-              "properties": {
-                "summary": {
-                  "type": "string",
-                  "description": "A markdown summary of the review to post as a top-level tracking comment"
-                },
-                "comments": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "required": ["file", "severity", "body"],
-                    "properties": {
-                      "file": {
-                        "type": "string",
-                        "description": "Path to the file relative to the repo root"
-                      },
-                      "line": {
-                        "type": "integer",
-                        "description": "Line number in the diff (new file side) to attach the comment to"
-                      },
-                      "severity": {
-                        "type": "string",
-                        "enum": ["must-fix", "suggestion", "nit"]
-                      },
-                      "body": {
-                        "type": "string",
-                        "description": "The review comment body in markdown"
-                      }
-                    }
-                  }
+              "permissions": {
+                "allow": ["*"]
+              },
+              "sandbox": {
+                "enabled": true,
+                "autoAllowBashIfSandboxed": true,
+                "allowUnsandboxedCommands": false,
+                "filesystem": {
+                  "allowWrite": ["//tmp", "//var/tmp"]
                 }
               }
             }
-        with:
-          use_bedrock: "true"
-          # We still have to pass GITHUB_TOKEN here because claude-code-action
-          # requires it, but we restrict Claude's tools to read-only operations
-          # so it cannot post comments or modify the PR.
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          track_progress: false
-          show_full_output: "true"
-          additional_permissions: |
-            actions: read
           claude_args: |
             --model us.anthropic.claude-opus-4-6-v1
-            --max-turns 100
-            --allowedTools "
-                Read,LS,Grep,Glob,Task,
-                Bash(cat:*),Bash(test:*),Bash(printf:*),Bash(jq:*),Bash(head:*),Bash(tail:*),
-                Bash(git:*),Bash(grep:*),Bash(find:*),Bash(ls:*),Bash(wc:*),
-                Bash(diff:*),Bash(sed:*),Bash(awk:*),Bash(sort:*),Bash(uniq:*),
-                mcp__github__get_pull_request,
-                mcp__github__get_pull_request_diff,
-                mcp__github__get_pull_request_files,
-                mcp__github__get_pull_request_reviews,
-                mcp__github__get_pull_request_comments,
-                mcp__github__get_pull_request_review_comments,
-                mcp__github__get_pull_request_status,
-                mcp__github__get_issue_comments,
-                mcp__github_ci__get_ci_status,
-                mcp__github_ci__get_workflow_run_details,
-                mcp__github_ci__download_job_log,
-                "
-            --json-schema '${{ env.REVIEW_SCHEMA }}'
+            --effort max
+            --max-turns 200
+            --disallowedTools "WebFetch,WebSearch"
+            --setting-sources user
           prompt: |
               REPO: ${{ github.repository }}
               PR NUMBER: ${{ needs.setup.outputs.pr_number }}
-              HEAD SHA: ${{ needs.setup.outputs.head_sha }}
 
               You are a code reviewer for the ${{ github.repository }} project. Review this pull request and
-              produce a structured JSON result containing your review comments. Do NOT attempt
-              to post comments yourself — just return the JSON. You are in the upstream repo
-              without the patch applied. Do not apply it.
+              produce a JSON result containing your review and write it to
+              `review-result.json` in the repo root. Do NOT attempt to post
+              comments yourself. You are in the upstream repo with the PR branch
+              available as `pr-review`. Do not apply or merge the patch.
+              You have no network access — all required context has been
+              pre-fetched locally.
 
-              ## Phase 1: Gather context
+              ## Phase 1: Read context
 
-              Use the GitHub MCP server tools to fetch PR data. For all tools, pass
-              owner `${{ github.repository_owner }}`, repo `${{ github.event.repository.name }}`,
-              and pullNumber/issue_number ${{ needs.setup.outputs.pr_number }}:
-              - `mcp__github__get_pull_request_diff` to get the PR diff
-              - `mcp__github__get_pull_request` to get the PR title, body, and metadata
-              - `mcp__github__get_pull_request_comments` to get top-level PR comments
-              - `mcp__github__get_pull_request_reviews` to get PR reviews
+              All PR data has been pre-fetched. Read `pr-context.json` from the repo root.
+              It contains a JSON object with:
+              - `pr` — full GitHub PR object (title, body, user, head SHA, etc.)
+              - `reviews` — array of PR reviews from the GitHub API
+              - `issue_comments` — array of issue comments on the PR from the GitHub API
+              - `tracking_comment` — body of the existing tracking comment (null on first run);
+                if present, use it as the basis for your `summary` in Phase 3
+              - `review_comments` — array of ALL inline review comments on the PR from the
+                GitHub API. Use these as context, but observe the following rules:
+                - Only re-check your own comments (user.login == "github-actions[bot]" and
+                  body starts with "Claude: "). Do NOT validate, re-raise, respond to, or
+                  duplicate comments from other authors.
+                - Items checked off in the tracking comment (`- [x]`) are resolved. Do NOT
+                  re-check or re-raise review comments that correspond to resolved items.
+                - You will need the `id` fields of your own unresolved comments in Phase 3
+                  to populate the `resolve` array.
 
-              Also fetch issue comments using `mcp__github__get_issue_comments` with
-              issue_number ${{ needs.setup.outputs.pr_number }}.
+              The PR branch has been fetched locally as `pr-review`. Use
+              `git log --reverse --format=%H HEAD..pr-review` to list the PR commits, and
+              `git show <sha>` or `git diff <sha>~1..<sha>` to access commit diffs.
 
-              Look for an existing tracking comment (containing `<!-- claude-pr-review -->`)
-              in the issue comments. If one exists, you will use it as the basis for
-              your `summary` in Phase 3.
+              ## Phase 2: Review commits
 
-              Check CI status for the PR head commit using `mcp__github_ci__get_ci_status`.
-              If any workflow runs have failed, use `mcp__github_ci__get_workflow_run_details`
-              and `mcp__github_ci__download_job_log` to fetch the failure logs. Pass these
-              logs to the review subagents in Phase 2 so they can identify whether the PR
-              changes caused the failures.
+              Review every commit in the PR. Use subagents to parallelize the
+              work — decide how many subagents to spawn and how to divide commits
+              between them and the main conversation based on the number and size
+              of commits. Very large commits can be assigned to multiple subagents
+              for extra thoroughness. Always review some commits yourself so you
+              have useful work to do while subagents run in the background. For
+              single-commit PRs with small diffs, just review directly without
+              subagents. For large single-commit PRs, have multiple subagents
+              review it independently to maximize coverage.
 
-              ## Phase 2: Parallel review subagents
+              IMPORTANT: Always spawn subagents with `isolation: "worktree"` so
+              each gets its own git worktree. This prevents concurrent git
+              operations from interfering with each other. Because worktrees
+              do not include untracked files, first `git add pr-context.json`
+              so it is available in worktrees.
 
-              Review:
-              - Code quality, style, and best practices
-              - Potential bugs, issues, incorrect logic
-              - Security implications
-              - CLAUDE.md compliance
-              - CI failures (if any logs were fetched in Phase 1)
+              Each reviewer (you or a subagent) uses `git show <sha>` or
+              `git diff <sha>~1..<sha>` to fetch diffs, reads `pr-context.json`
+              for PR context, and reads the codebase to verify findings.
 
-              For every category, launch subagents to review them in parallel. Group related sections
-              as needed — use 2-4 subagents based on PR size and scope.
+              Each reviewer reviews code quality, style, potential bugs, and security
+              implications. It must return a JSON array of issues:
+              `[{"file": "path", "line": <number> (optional), "severity": "must-fix|suggestion|nit", "body": "...", "commit": "<sha>"}]`
 
-              Give each subagent the PR title, description, full patch, and the list of changed files.
+              The `commit` field MUST be the SHA of the commit being reviewed. Only
+              comment on changes in that commit — not preceding commits.
 
-              Each subagent must return a JSON array of issues:
-              `[{"file": "path", "line": <number>, "severity": "must-fix|suggestion|nit", "body": "..."}]`
+              Do NOT escape characters in `body`. Write plain markdown — no backslash
+              escaping of `!` or other characters.
 
-              `line` must be a line number from the NEW side of the diff **that appears inside
-              a diff hunk** (i.e. a line that is shown in the patch output). GitHub's review
-              comment API rejects lines outside the diff context, so never reference lines
-              that are not visible in the patch.
+              `line` should be a line number from the NEW side of the diff **that appears
+              inside a diff hunk**. GitHub rejects lines outside the diff context. If you
+              cannot determine a valid diff line, omit `line`.
 
-              Each subagent MUST verify its findings before returning them:
-              - For style/convention claims, check at least 3 existing examples in the codebase to confirm
-                the pattern actually exists before flagging a violation.
-              - For "use X instead of Y" suggestions, confirm X actually exists and works for this case.
+              Each reviewer MUST verify findings before returning them:
+              - For style/convention claims, check at least 3 existing examples in the
+                codebase to confirm the pattern actually exists before flagging a violation.
+              - For "use X instead of Y" suggestions, confirm X actually exists and works.
               - If unsure, don't include the issue.
 
               ## Phase 3: Collect, deduplicate, and summarize
 
-              After ALL subagents complete:
+              After all reviews (yours and any subagents') are done:
               1. Collect all issues. Merge duplicates (same file, lines within 3 of each other, same problem).
               2. Drop low-confidence findings.
               3. Check the existing inline review comments fetched in Phase 1. Do NOT include a
                  comment if one already exists on the same file and line about the same problem.
                  Also check for author replies that dismiss or reject a previous comment — do NOT
                  re-raise an issue the PR author has already responded to disagreeing with.
-              4. Prefix ALL comment bodies with a severity tag: `**must-fix**: `, `**suggestion**: `,
-                 or `**nit**: `.
+                 Populate the `resolve` array with the REST API `id` (integer) of existing
+                 review comments whose threads should be resolved. A thread should be resolved if:
+                 - The issue it raised has been addressed in the current PR (i.e. your review
+                   no longer flags it), OR
+                 - The PR author (or another reviewer) left a reply disagreeing with or
+                   dismissing the comment.
+                 Only include the `id` of the **first** comment in each thread (the one that
+                 started the conversation). Do NOT resolve threads for issues that are still
+                 present and unaddressed.
+              4. Do NOT prefix `body` with a severity tag — the severity is already
+                 captured in the `severity` field and will be added automatically when
+                 posting inline comments.
               5. Write a `summary` field in markdown for a top-level tracking comment.
 
                  **If no existing tracking comment was found (first run):**
@@ -293,13 +332,6 @@ jobs:
                  Omit empty sections. Each checkbox item must correspond to an entry in `comments`.
                  If there are no issues at all, write a short message saying the PR looks good.
 
-                 Throughout all phases, track any errors that prevented you from doing
-                 your job fully: permission denials (403, "Resource not accessible by
-                 integration"), tools that were not available, rate limits, or any other
-                 failures that degraded the review quality. If there were any, append a
-                 `### Errors` section listing each failed tool/action and the error
-                 message, so maintainers can fix the workflow configuration.
-
                  **If an existing tracking comment was found (subsequent run):**
                  Use the existing comment as the starting point. Preserve the order and wording
                  of all existing items. Then apply these updates:
@@ -313,8 +345,47 @@ jobs:
                    in the appropriate severity section, after the existing items.
                  - Do NOT reorder, reword, or remove existing items.
 
-              Return the final JSON object with your `comments` array and `summary` string.
+              ## Error tracking
+
+              If any errors prevented you from doing your job fully (tools that were
+              not available, git commands that failed, etc.), append a `### Errors`
+              section to the summary listing each failed action and the error message.
+
+              ## CRITICAL: Write review result to file
+
+              Your FINAL action must be to write `review-result.json` in the repo
+              root. The file must contain a JSON object with the following schema:
+
+              ```json
+              {
+                "summary": "...",
+                "comments": [
+                  {
+                    "file": "path/to/file",
+                    "line": 42,
+                    "severity": "must-fix|suggestion|nit",
+                    "body": "review comment in markdown",
+                    "commit": "abc123"
+                  }
+                ],
+                "resolve": [12345]
+              }
+              ```
+
+              - `summary` (required): markdown summary for the tracking comment
+              - `comments` (required): array of review comments; `line` is optional
+              - `resolve` (optional): REST API IDs of review comment threads to resolve
+
               Do NOT attempt to post comments or use any MCP tools to modify the PR.
+
+      - name: Upload review result
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
+        with:
+          path: review-result.json
+          if-no-files-found: ignore
+          archive: false
+          retention-days: 7
 
   post:
     runs-on: ubuntu-latest
@@ -325,20 +396,25 @@ jobs:
       pull-requests: write
 
     steps:
+      - name: Download review result
+        if: needs.review.result == 'success'
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: review-result.json
+
       - name: Post review comments
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd
         env:
-          STRUCTURED_OUTPUT: ${{ needs.review.outputs.structured_output }}
           REVIEW_RESULT: ${{ needs.review.result }}
           PR_NUMBER: ${{ needs.setup.outputs.pr_number }}
-          HEAD_SHA: ${{ needs.setup.outputs.head_sha }}
           COMMENT_ID: ${{ needs.setup.outputs.comment_id }}
         with:
           script: |
+            const fs = require("fs");
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             const prNumber = parseInt(process.env.PR_NUMBER, 10);
-            const headSha = process.env.HEAD_SHA;
             const commentId = parseInt(process.env.COMMENT_ID, 10);
             const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
             const MARKER = "<!-- claude-pr-review -->";
@@ -346,28 +422,37 @@ jobs:
             /* If the review job failed or was cancelled, update the tracking
              * comment to reflect that and bail out. */
             if (process.env.REVIEW_RESULT !== "success") {
+              const verb = process.env.REVIEW_RESULT === "cancelled" ? "was cancelled" : "failed";
               await github.rest.issues.updateComment({
                 owner,
                 repo,
                 comment_id: commentId,
-                body: `Claude review failed — see [workflow run](${runUrl}) for details.\n\n${MARKER}`,
+                body: `Claude review ${verb} — see [workflow run](${runUrl}) for details.\n\n${MARKER}`,
               });
               core.setFailed("Review job did not succeed.");
               return;
             }
 
-            /* Parse Claude's structured output. */
-            const raw = process.env.STRUCTURED_OUTPUT;
-            console.log("Structured output from Claude:");
+            /* Parse Claude's review result from the downloaded artifact. */
+            let raw = "";
+            try {
+              raw = fs.readFileSync("review-result.json", "utf8");
+            } catch (e) {
+              console.log(`Failed to read review-result.json: ${e.message}`);
+            }
+            console.log("Review result from Claude:");
             console.log(raw || "(empty)");
 
             let comments = [];
+            let resolveIds = [];
             let summary = "";
             if (raw) {
               try {
                 const review = JSON.parse(raw);
                 if (Array.isArray(review.comments))
                   comments = review.comments;
+                if (Array.isArray(review.resolve))
+                  resolveIds = review.resolve;
                 if (typeof review.summary === "string")
                   summary = review.summary;
               } catch (e) {
@@ -394,10 +479,10 @@ jobs:
                   owner,
                   repo,
                   pull_number: prNumber,
-                  commit_id: headSha,
+                  commit_id: c.commit,
                   path: c.file,
                   line: c.line,
-                  body: `Claude: ${c.body}`,
+                  body: `Claude: **${c.severity}**: ${c.body}`,
                 });
                 posted++;
               } catch (e) {
@@ -414,7 +499,90 @@ jobs:
             else
               console.log("No inline comments to post.");
 
-            const failed = inlineComments.length > 0 && posted < inlineComments.length;
+            /* Resolve review threads that Claude identified as addressed or dismissed. */
+            if (resolveIds.length > 0) {
+              const resolveSet = new Set(resolveIds);
+
+              /* Fetch all review threads and map first-comment database IDs to thread IDs. */
+              let threads = [];
+              try {
+                let threadCursor = null;
+                do {
+                  const threadQuery = `
+                    query($owner: String!, $repo: String!, $number: Int!, $cursor: String) {
+                      repository(owner: $owner, name: $repo) {
+                        pullRequest(number: $number) {
+                          reviewThreads(first: 100, after: $cursor) {
+                            pageInfo { hasNextPage endCursor }
+                            nodes {
+                              id
+                              isResolved
+                              comments(first: 1) {
+                                nodes {
+                                  databaseId
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  `;
+
+                  const threadResult = await github.graphql(threadQuery, { owner, repo, number: prNumber, cursor: threadCursor });
+                  const page = threadResult.repository.pullRequest.reviewThreads;
+                  threads.push(...page.nodes);
+                  threadCursor = page.pageInfo.hasNextPage ? page.pageInfo.endCursor : null;
+                } while (threadCursor);
+              } catch (e) {
+                console.log(`Warning: failed to fetch review threads, skipping resolution: ${e.message}`);
+                threads = [];
+              }
+
+              let resolved = 0;
+              let alreadyResolved = 0;
+              const matchedIds = new Set();
+              for (const thread of threads) {
+                const firstCommentId = thread.comments.nodes[0]?.databaseId;
+                if (!firstCommentId || !resolveSet.has(firstCommentId)) continue;
+
+                matchedIds.add(firstCommentId);
+
+                if (thread.isResolved) {
+                  alreadyResolved++;
+                  continue;
+                }
+
+                try {
+                  await github.graphql(`
+                    mutation($threadId: ID!) {
+                      resolveReviewThread(input: { threadId: $threadId }) {
+                        thread { id }
+                      }
+                    }
+                  `, { threadId: thread.id });
+                  resolved++;
+                  console.log(`  Resolved thread for comment ${firstCommentId}`);
+                } catch (e) {
+                  console.log(`  Warning: failed to resolve thread for comment ${firstCommentId}: ${e.message}`);
+                }
+              }
+
+              const requested = resolveSet.size;
+              const unmatched = [...resolveSet].filter(id => !matchedIds.has(id));
+              if (resolved > 0)
+                console.log(`Resolved ${resolved}/${requested} review thread(s)${alreadyResolved > 0 ? ` (${alreadyResolved} already resolved)` : ""}.`);
+              else if (alreadyResolved === requested)
+                console.log(`All ${requested} review thread(s) were already resolved.`);
+              else if (alreadyResolved > 0)
+                console.log(`${alreadyResolved}/${requested} review thread(s) were already resolved; could not resolve the rest — see warnings above.`);
+              else if (threads.length > 0)
+                console.log(`Could not resolve any of ${requested} review thread(s) — see warnings above.`);
+              if (unmatched.length > 0)
+                console.log(`  ${unmatched.length} comment ID(s) not found in any thread: ${unmatched.join(", ")}`);
+            } else {
+              console.log("No review threads to resolve.");
+            }
 
             /* Update the tracking comment with Claude's summary. */
             if (!summary)
@@ -432,5 +600,7 @@ jobs:
 
             console.log("Tracking comment updated successfully.");
 
-            if (failed)
-              core.setFailed(`Failed to post ${comments.length - posted}/${comments.length} inline comment(s).`);
+            if (inlineComments.length > 0 && posted === 0)
+              core.setFailed(`Could not post any of ${inlineComments.length} inline comment(s) — see warnings above.`);
+            else if (posted < inlineComments.length)
+              core.warning(`${inlineComments.length - posted}/${inlineComments.length} inline comment(s) could not be posted.`);
