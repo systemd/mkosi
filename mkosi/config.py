@@ -328,9 +328,15 @@ class Bootloader(StrEnum):
     uki_signed = enum.auto()
     systemd_boot_signed = enum.auto()
     grub_signed = enum.auto()
+    # Install a distro-shipped pre-built UKI (e.g. Fedora's kernel-uki-virt) directly
+    # to the ESP without invoking ukify or requiring systemd-stub.
+    uki_prebuilt = enum.auto()
 
     def is_uki(self) -> bool:
         return self in (Bootloader.uki, Bootloader.uki_signed)
+
+    def is_prebuilt_uki(self) -> bool:
+        return self == Bootloader.uki_prebuilt
 
     def is_systemd_boot(self) -> bool:
         return self in (Bootloader.systemd_boot, Bootloader.systemd_boot_signed)

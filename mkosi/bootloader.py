@@ -667,7 +667,34 @@ def find_and_install_shim_binary(
             die(f"Couldn't find unsigned {name} EFI binary installed in the image")
 
 
+def gen_prebuilt_uki_images(context: Context) -> Iterator[tuple[str, Path]]:
+    """Yield pre-built distro UKIs from /usr/lib/modules/<kver>/*.efi.
+
+    Used by Bootloader=uki-prebuilt where the distro ships a finished UKI
+    (e.g. Fedora's kernel-uki-virt) and mkosi should install it directly
+    without invoking ukify or requiring systemd-stub.
+    """
+    if not (context.root / "usr/lib/modules").exists():
+        return
+
+    for kver in sorted(
+        (k for k in (context.root / "usr/lib/modules").iterdir() if k.is_dir()),
+        key=lambda k: GenericVersion(k.name),
+        reverse=True,
+    ):
+        for kimg in kver.glob("*.efi"):
+            if KernelType.identify(context.config, kimg) == KernelType.uki:
+                yield kver.name, kimg
+                break
+
+
 def gen_kernel_images(context: Context) -> Iterator[tuple[str, Path]]:
+    if context.config.bootloader.is_prebuilt_uki():
+        # e.g. yields ("6.13.8-200.fc43.x86_64",
+        #              context.root / "usr/lib/modules/6.13.8-200.fc43.x86_64/vmlinuz-virt.efi")
+        yield from gen_prebuilt_uki_images(context)
+        return
+
     if not (context.root / "usr/lib/modules").exists():
         return
 
