@@ -50,4 +50,4 @@ the running hardware can be included if a local configuration with the option
 :   Show brief usage information.
 
 # SEE ALSO
-`mkosi(1)`
+**mkosi**(1)

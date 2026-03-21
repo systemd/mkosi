@@ -68,5 +68,19 @@ initrds and Unified Kernel Images for the current running system.
 `--help`, `-h`
 :   Show brief usage information.
 
+# CONFIGURATION
+
+Configuration for `mkosi-initrd` is read from
+`/usr/lib`, `/usr/local/lib`, `/run`, `/etc`,
+in increasing order of priority.
+Under any of those directories,
+`mkosi.conf.d/` can be used for config files,
+`mkosi.extra/` can be used for extra files to include in the initrd,
+and so on.
+See the **Configuration Settings** and **FILES** sections in **mkosi**(1) for full details.
+
+For configuration files, use drop-ins,
+e.g. `/etc/mkosi-initrd/mkosi.conf.d/local.conf`.
+
 # SEE ALSO
-`mkosi(1)`
+**mkosi**(1)
