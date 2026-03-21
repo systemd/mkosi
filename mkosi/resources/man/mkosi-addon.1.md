@@ -43,6 +43,9 @@ the running hardware can be included if a local configuration with the option
 `--debug-sandbox`
 :   Run **mkosi-sandbox** with **strace**.
 
+`--show-documentation`, `-D`
+:   Show the man page for mkosi-addon.
+
 `--version`
 :   Show package version.
 
