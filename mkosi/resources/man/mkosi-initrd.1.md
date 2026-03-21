@@ -62,6 +62,9 @@ initrds and Unified Kernel Images for the current running system.
 `--debug-sandbox`
 :   Run **mkosi-sandbox** with **strace**.
 
+`--show-documentation`, `-D`
+:   Show the man page for mkosi-initrd.
+
 `--version`
 :   Show package version.
 

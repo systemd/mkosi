@@ -319,8 +319,7 @@ def main() -> None:
 
     if args.show_documentation:
         with resource_path(mkosi.resources) as r:
-            show_docs("mkosi-initrd", DocFormat.all(), resources=r)
-        return
+            return show_docs("mkosi-initrd", DocFormat.all(), resources=r)
 
     modulesd = Path("/usr/lib/modules") / args.kernel_version
     if not is_valid_modulesd(modulesd):
