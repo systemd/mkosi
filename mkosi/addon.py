@@ -74,9 +74,13 @@ def main() -> None:
         if Path("/etc/kernel/cmdline").exists():
             cmdline += ["--kernel-command-line", Path("/etc/kernel/cmdline").read_text()]
 
+        if args.show_summary:
+            cmdline += ["summary"]
+
         run(cmdline, stdin=sys.stdin, stdout=sys.stdout)
 
-        initrd_finalize(Path(staging_dir), args.output, args.output_dir)
+        if not args.show_summary:
+            initrd_finalize(Path(staging_dir), args.output, args.output_dir)
 
 
 if __name__ == "__main__":

@@ -65,6 +65,9 @@ initrds and Unified Kernel Images for the current running system.
 `--show-documentation`, `-D`
 :   Show the man page for mkosi-initrd.
 
+`--show-summary`, `-S`
+:   Show the summary of configuration.
+
 `--version`
 :   Show package version.
 

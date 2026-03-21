@@ -294,6 +294,13 @@ def initrd_common_args(parser: argparse.ArgumentParser) -> None:
         default=False,
     )
     parser.add_argument(
+        "-S",
+        "--show-summary",
+        help="Show the summary of configuration",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
         "--version",
         action="version",
         version=f"mkosi {__version__}",
@@ -428,6 +435,9 @@ def main() -> None:
 
         cmdline += vconsole_config()
 
+        if args.show_summary:
+            cmdline += ["summary"]
+
         # Resolve dnf binary to determine which version the host uses by default
         # (to avoid preferring dnf5 if the host uses dnf4)
         # as there's a much bigger chance that it has a populated dnf cache directory.
@@ -438,7 +448,8 @@ def main() -> None:
             env=os.environ | ({"MKOSI_DNF": dnf.resolve().name} if (dnf := find_binary("dnf")) else {}),
         )
 
-        initrd_finalize(Path(staging_dir), args.output, args.output_dir)
+        if not args.show_summary:
+            initrd_finalize(Path(staging_dir), args.output, args.output_dir)
 
 
 if __name__ == "__main__":
