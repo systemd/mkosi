@@ -35,6 +35,7 @@ from mkosi.config import (
     ManifestFormat,
     Network,
     OutputFormat,
+    QemuDiskType,
     SecureBootSignTool,
     ShimBootloader,
     Ssh,
@@ -166,6 +167,7 @@ def test_config() -> None:
             "Devicetrees": [
                 "freescale/imx8mm-verdin-nonwifi-dev.dtb"
             ],
+            "DiskType": "virtio-blk",
             "Distribution": "fedora",
             "Drives": [
                 {
@@ -482,6 +484,7 @@ def test_config() -> None:
         ],
         dependencies=["dep1"],
         distribution=Distribution.fedora,
+        disk_type=QemuDiskType.virtio_blk,
         drives=[
             Drive("abc", 200, Path("/foo/bar"), "abc,qed", "red", []),
             Drive("abc", 200, None, "", "wcd", []),
