@@ -1238,10 +1238,14 @@ def config_make_list_parser(
             if reset and not values:
                 return None
         else:
-            if delimiter:
-                value = value.replace(delimiter, "\n")
-            values = value.split("\n")
-            if reset and len(values) == 1 and values[0] == "":
+            if delimiter is None:
+                # by default, split on commas and any whitespace
+                values = value.replace(",", " ").split()
+            else:
+                # split on the delimiter and newlines
+                values = value.replace(delimiter, "\n").split("\n")
+
+            if reset and values in ([], [""]):
                 return None
 
         if expand_globs:
@@ -1735,7 +1739,7 @@ def config_parse_artifact_output_list(
     if boolean_value is not None:
         return ArtifactOutput.compat_yes() if boolean_value else ArtifactOutput.compat_no()
 
-    list_parser = config_make_list_parser(delimiter=",", parse=make_enum_parser(ArtifactOutput))
+    list_parser = config_make_list_parser(parse=make_enum_parser(ArtifactOutput))
     return list_parser(value, old)
 
 
@@ -2710,7 +2714,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
         short="-I",
         section="Include",
         parse=config_make_list_parser(
-            delimiter=",",
             reset=False,
             parse=make_path_parser(constants=BUILTIN_CONFIGS),
         ),
@@ -2723,7 +2726,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--profile",
         section="Config",
         help="Build the specified profiles",
-        parse=config_make_list_parser(delimiter=",", parse=parse_profile),
+        parse=config_make_list_parser(parse=parse_profile),
         match=config_make_list_matcher(parse=parse_profile),
         scope=SettingScope.inherit,
         compat_names=("Profile",),
@@ -2733,7 +2736,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         dest="dependencies",
         long="--dependency",
         section="Config",
-        parse=config_make_list_parser(delimiter=","),
+        parse=config_make_list_parser(),
         help="Specify other images that this image depends on",
     ),
     ConfigSetting(
@@ -2748,7 +2751,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--configure-script",
         metavar="PATH",
         section="Config",
-        parse=config_make_list_parser(delimiter=",", parse=make_path_parser(), expand_globs=True),
+        parse=config_make_list_parser(parse=make_path_parser(), expand_globs=True),
         path_suffixes=("configure",),
         help="Configure script to run before doing anything",
     ),
@@ -2843,7 +2846,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         dest="repositories",
         metavar="REPOS",
         section="Distribution",
-        parse=config_make_list_parser(delimiter=","),
+        parse=config_make_list_parser(),
         match=config_make_list_matcher(parse=str),
         help="Repositories to use",
         scope=SettingScope.universal,
@@ -2867,7 +2870,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         dest="manifest_format",
         metavar="FORMAT",
         section="Output",
-        parse=config_make_list_parser(delimiter=",", parse=make_enum_parser(ManifestFormat)),
+        parse=config_make_list_parser(parse=make_enum_parser(ManifestFormat)),
         help="Manifest Format",
     ),
     ConfigSetting(
@@ -2990,7 +2993,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="PATH",
         name="RepartDirectories",
         section="Output",
-        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        parse=config_make_list_parser(parse=make_path_parser()),
         path_suffixes=("repart",),
         help="Directory containing systemd-repart partition definitions",
     ),
@@ -3023,7 +3026,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--clean-script",
         metavar="PATH",
         section="Output",
-        parse=config_make_list_parser(delimiter=",", parse=make_path_parser(), expand_globs=True),
+        parse=config_make_list_parser(parse=make_path_parser(), expand_globs=True),
         path_suffixes=("clean",),
         recursive_path_suffixes=("clean.d/*",),
         help="Clean script to run after cleanup",
@@ -3035,7 +3038,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--package",
         metavar="PACKAGE",
         section="Content",
-        parse=config_make_list_parser(delimiter=",", key=package_sort_key),
+        parse=config_make_list_parser(key=package_sort_key),
         help="Add an additional package to the OS image",
         tools=True,
     ),
@@ -3044,7 +3047,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--build-package",
         metavar="PACKAGE",
         section="Content",
-        parse=config_make_list_parser(delimiter=",", key=package_sort_key),
+        parse=config_make_list_parser(key=package_sort_key),
         help="Additional packages needed for build scripts",
     ),
     ConfigSetting(
@@ -3052,7 +3055,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--volatile-package",
         metavar="PACKAGE",
         section="Content",
-        parse=config_make_list_parser(delimiter=",", key=package_sort_key),
+        parse=config_make_list_parser(key=package_sort_key),
         help="Packages to install after executing build scripts",
     ),
     ConfigSetting(
@@ -3060,7 +3063,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--package-directory",
         metavar="PATH",
         section="Content",
-        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        parse=config_make_list_parser(parse=make_path_parser()),
         path_suffixes=("packages",),
         help="Specify a directory containing extra packages",
         scope=SettingScope.universal,
@@ -3071,7 +3074,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--volatile-package-directory",
         metavar="PATH",
         section="Content",
-        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        parse=config_make_list_parser(parse=make_path_parser()),
         help="Specify a directory containing extra volatile packages",
         scope=SettingScope.universal,
     ),
@@ -3095,7 +3098,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--base-tree",
         metavar="PATH",
         section="Content",
-        parse=config_make_list_parser(delimiter=",", parse=make_path_parser(required=False)),
+        parse=config_make_list_parser(parse=make_path_parser(required=False)),
         help="Use the given tree as base tree (e.g. lower sysext layer)",
     ),
     ConfigSetting(
@@ -3103,7 +3106,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--skeleton-tree",
         metavar="PATH",
         section="Content",
-        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(required=True)),
+        parse=config_make_list_parser(parse=make_tree_parser(required=True)),
         path_suffixes=("skeleton", "skeleton.tar"),
         help="Use a skeleton tree to bootstrap the image before installing anything",
     ),
@@ -3112,7 +3115,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--extra-tree",
         metavar="PATH",
         section="Content",
-        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser()),
+        parse=config_make_list_parser(parse=make_tree_parser()),
         path_suffixes=("extra", "extra.tar"),
         help="Copy an extra tree on top of image",
     ),
@@ -3121,14 +3124,14 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--remove-package",
         metavar="PACKAGE",
         section="Content",
-        parse=config_make_list_parser(delimiter=","),
+        parse=config_make_list_parser(),
         help="Remove package from the image OS image after installation",
     ),
     ConfigSetting(
         dest="remove_files",
         metavar="GLOB",
         section="Content",
-        parse=config_make_list_parser(delimiter=","),
+        parse=config_make_list_parser(),
         help="Remove files from built image",
     ),
     ConfigSetting(
@@ -3153,7 +3156,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--sync-script",
         metavar="PATH",
         section="Content",
-        parse=config_make_list_parser(delimiter=",", parse=make_path_parser(), expand_globs=True),
+        parse=config_make_list_parser(parse=make_path_parser(), expand_globs=True),
         path_suffixes=("sync",),
         recursive_path_suffixes=("sync.d/*",),
         help="Sync script to run before starting the build",
@@ -3164,7 +3167,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--prepare-script",
         metavar="PATH",
         section="Content",
-        parse=config_make_list_parser(delimiter=",", parse=make_path_parser(), expand_globs=True),
+        parse=config_make_list_parser(parse=make_path_parser(), expand_globs=True),
         path_suffixes=("prepare", "prepare.chroot"),
         recursive_path_suffixes=("prepare.d/*",),
         help="Prepare script to run inside the image before it is cached",
@@ -3176,7 +3179,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--build-script",
         metavar="PATH",
         section="Content",
-        parse=config_make_list_parser(delimiter=",", parse=make_path_parser(), expand_globs=True),
+        parse=config_make_list_parser(parse=make_path_parser(), expand_globs=True),
         path_suffixes=("build", "build.chroot"),
         recursive_path_suffixes=("build.d/*",),
         help="Build script to run inside image",
@@ -3188,7 +3191,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="PATH",
         name="PostInstallationScripts",
         section="Content",
-        parse=config_make_list_parser(delimiter=",", parse=make_path_parser(), expand_globs=True),
+        parse=config_make_list_parser(parse=make_path_parser(), expand_globs=True),
         path_suffixes=("postinst", "postinst.chroot"),
         recursive_path_suffixes=("postinst.d/*",),
         help="Postinstall script to run inside image",
@@ -3199,7 +3202,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--finalize-script",
         metavar="PATH",
         section="Content",
-        parse=config_make_list_parser(delimiter=",", parse=make_path_parser(), expand_globs=True),
+        parse=config_make_list_parser(parse=make_path_parser(), expand_globs=True),
         path_suffixes=("finalize", "finalize.chroot"),
         recursive_path_suffixes=("finalize.d/*",),
         help="Postinstall script to run outside image",
@@ -3211,7 +3214,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="PATH",
         name="PostOutputScripts",
         section="Content",
-        parse=config_make_list_parser(delimiter=",", parse=make_path_parser(), expand_globs=True),
+        parse=config_make_list_parser(parse=make_path_parser(), expand_globs=True),
         path_suffixes=("postoutput",),
         recursive_path_suffixes=("postoutput.d/*",),
         help="Output postprocessing script to run outside image",
@@ -3277,7 +3280,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="PATH",
         section="Content",
         parse=config_make_list_parser(
-            delimiter=",",
             parse=make_simple_config_parser(UKI_PROFILE_SETTINGS, UKIProfile),
         ),
         recursive_path_suffixes=("uki-profiles/*.conf",),
@@ -3289,7 +3291,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="PATH",
         section="Content",
         parse=config_make_list_parser(
-            delimiter=",",
             parse=make_path_parser(
                 constants=["default"],
                 required=False,
@@ -3319,7 +3320,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--initrd-profile",
         metavar="PROFILE",
         section="Content",
-        parse=config_make_list_parser(delimiter=","),
+        parse=config_make_list_parser(),
         choices=InitrdProfile.values(),
         default=[],
         help="Which profiles to enable for the default initrd",
@@ -3330,7 +3331,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--initrd-package",
         metavar="PACKAGE",
         section="Content",
-        parse=config_make_list_parser(delimiter=","),
+        parse=config_make_list_parser(),
         help="Add additional packages to the default initrd",
         scope=SettingScope.initrd,
     ),
@@ -3339,14 +3340,14 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--initrd-volatile-package",
         metavar="PACKAGE",
         section="Content",
-        parse=config_make_list_parser(delimiter=","),
+        parse=config_make_list_parser(),
         help="Packages to install in the initrd that are not cached",
         scope=SettingScope.initrd,
     ),
     ConfigSetting(
         dest="devicetrees",
         section="Content",
-        parse=config_make_list_parser(delimiter=","),
+        parse=config_make_list_parser(),
         help="Devicetree(s) to be used by the booting kernel",
         compat_names=("Devicetree",),
     ),
@@ -3367,20 +3368,14 @@ SETTINGS: list[ConfigSetting[Any]] = [
         dest="kernel_modules_include",
         metavar="REGEX",
         section="Content",
-        parse=config_make_list_parser(
-            delimiter=",",
-            parse=parse_kernel_module_filter_regexp,
-        ),
+        parse=config_make_list_parser(parse=parse_kernel_module_filter_regexp),
         help="Include the specified kernel modules in the image",
     ),
     ConfigSetting(
         dest="kernel_modules_exclude",
         metavar="REGEX",
         section="Content",
-        parse=config_make_list_parser(
-            delimiter=",",
-            parse=parse_kernel_module_filter_regexp,
-        ),
+        parse=config_make_list_parser(parse=parse_kernel_module_filter_regexp),
         help="Exclude the specified kernel modules from the image",
     ),
     ConfigSetting(
@@ -3389,7 +3384,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--kernel-modules",
         metavar="GLOB",
         section="Content",
-        parse=config_make_list_parser(delimiter=","),
+        parse=config_make_list_parser(),
         help="Include/exclude the specified kernel modules in the image",
     ),
     ConfigSetting(
@@ -3411,20 +3406,14 @@ SETTINGS: list[ConfigSetting[Any]] = [
         dest="kernel_modules_initrd_include",
         metavar="REGEX",
         section="Content",
-        parse=config_make_list_parser(
-            delimiter=",",
-            parse=parse_kernel_module_filter_regexp,
-        ),
+        parse=config_make_list_parser(parse=parse_kernel_module_filter_regexp),
         help="When building a kernel modules initrd, include the specified kernel modules",
     ),
     ConfigSetting(
         dest="kernel_modules_initrd_exclude",
         metavar="REGEX",
         section="Content",
-        parse=config_make_list_parser(
-            delimiter=",",
-            parse=parse_kernel_module_filter_regexp,
-        ),
+        parse=config_make_list_parser(parse=parse_kernel_module_filter_regexp),
         help="When building a kernel modules initrd, exclude the specified kernel modules",
     ),
     ConfigSetting(
@@ -3433,7 +3422,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--kernel-initrd-modules",
         metavar="GLOB",
         section="Content",
-        parse=config_make_list_parser(delimiter=","),
+        parse=config_make_list_parser(),
         help="Include/exclude modules in the initrd",
     ),
     ConfigSetting(
@@ -3448,20 +3437,14 @@ SETTINGS: list[ConfigSetting[Any]] = [
         dest="firmware_include",
         metavar="REGEX",
         section="Content",
-        parse=config_make_list_parser(
-            delimiter=",",
-            parse=parse_kernel_module_filter_regexp,
-        ),
+        parse=config_make_list_parser(parse=parse_kernel_module_filter_regexp),
         help="Include the specified firmware in the image",
     ),
     ConfigSetting(
         dest="firmware_exclude",
         metavar="REGEX",
         section="Content",
-        parse=config_make_list_parser(
-            delimiter=",",
-            parse=parse_kernel_module_filter_regexp,
-        ),
+        parse=config_make_list_parser(parse=parse_kernel_module_filter_regexp),
         help="Exclude the specified firmware from the image",
     ),
     ConfigSetting(
@@ -3470,7 +3453,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--firmware-files",
         metavar="GLOB",
         section="Content",
-        parse=config_make_list_parser(delimiter=","),
+        parse=config_make_list_parser(),
         help="Include/exclude the specified firmware in the image",
     ),
     ConfigSetting(
@@ -3792,7 +3775,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--tools-tree-profile",
         metavar="PROFILE",
         section="Build",
-        parse=config_make_list_parser(delimiter=","),
+        parse=config_make_list_parser(),
         choices=ToolsTreeProfile.values(),
         default=[str(s) for s in ToolsTreeProfile.default()],
         help="Which profiles to enable for the default tools tree",
@@ -3818,7 +3801,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--tools-tree-repository",
         metavar="REPOS",
         section="Build",
-        parse=config_make_list_parser(delimiter=","),
+        parse=config_make_list_parser(),
         help="Repositories to use for the default tools tree",
         scope=SettingScope.tools,
     ),
@@ -3829,7 +3812,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         compat_longs=("--tools-tree-package-manager-tree",),
         metavar="PATH",
         section="Build",
-        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(required=True)),
+        parse=config_make_list_parser(parse=make_tree_parser(required=True)),
         help="Sandbox trees for the default tools tree",
         scope=SettingScope.tools,
     ),
@@ -3838,7 +3821,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--tools-tree-package",
         metavar="PACKAGE",
         section="Build",
-        parse=config_make_list_parser(delimiter=","),
+        parse=config_make_list_parser(),
         help="Add additional packages to the default tools tree",
         scope=SettingScope.tools,
     ),
@@ -3847,7 +3830,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--tools-tree-package-directory",
         metavar="PATH",
         section="Build",
-        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        parse=config_make_list_parser(parse=make_path_parser()),
         help="Specify a directory containing extra tools tree packages",
         scope=SettingScope.tools,
     ),
@@ -3865,8 +3848,8 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--extra-search-path",
         metavar="PATH",
         section="Build",
-        parse=config_make_list_parser(delimiter=",", parse=make_path_parser(exclude=["/usr"])),
-        help="List of comma-separated paths to look for programs before looking in PATH",
+        parse=config_make_list_parser(parse=make_path_parser(exclude=["/usr"])),
+        help="List of paths to look for programs before looking in PATH",
         scope=SettingScope.universal,
     ),
     ConfigSetting(
@@ -3898,7 +3881,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         compat_longs=("--package-manager-tree",),
         metavar="PATH",
         section="Build",
-        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(required=True)),
+        parse=config_make_list_parser(parse=make_tree_parser(required=True)),
         help="Use a sandbox tree to configure the various tools that mkosi executes",
         path_suffixes=("sandbox", "sandbox.tar", "pkgmngr", "pkgmngr.tar"),
         scope=SettingScope.universal,
@@ -3998,7 +3981,6 @@ SETTINGS: list[ConfigSetting[Any]] = [
         metavar="PATH",
         section="Build",
         parse=config_make_list_parser(
-            delimiter=",",
             parse=make_tree_parser(
                 absolute=False,
                 required=True,
@@ -4036,7 +4018,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--env-file",
         metavar="PATH",
         section="Build",
-        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        parse=config_make_list_parser(parse=make_path_parser()),
         path_suffixes=("env",),
         help="Environment files to set when running scripts",
         tools=True,
@@ -4074,7 +4056,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         default_factory=config_default_proxy_exclude,
         default_factory_depends=("environment",),
         metavar="HOST",
-        parse=config_make_list_parser(delimiter=","),
+        parse=config_make_list_parser(),
         help="Don't use the configured proxy for the specified host(s)",
         scope=SettingScope.multiversal,
     ),
@@ -4165,7 +4147,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         long="--runtime-tree",
         metavar="SOURCE:[TARGET]",
         section="Runtime",
-        parse=config_make_list_parser(delimiter=",", parse=make_tree_parser(absolute=False)),
+        parse=config_make_list_parser(parse=make_tree_parser(absolute=False)),
         help="Additional mounts to add when booting the image",
         scope=SettingScope.main,
     ),
