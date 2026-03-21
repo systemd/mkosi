@@ -112,7 +112,7 @@ def make_cpio(
     files: Optional[Iterable[Path]] = None,
     sandbox: SandboxProtocol = nosandbox,
 ) -> None:
-    if not files:
+    if files is None:
         with chdir(src):
             files = sorted(Path(".").rglob("*"))
     else:
