@@ -93,10 +93,10 @@ from mkosi.documentation import show_docs
 from mkosi.installer import clean_package_manager_metadata
 from mkosi.kmod import (
     filter_devicetrees,
-    gen_required_kernel_modules,
     is_valid_kdir,
     loaded_modules,
     process_kernel_modules,
+    required_kernel_modules,
 )
 from mkosi.log import ARG_DEBUG, IMAGE, complete_step, die, log_notice, log_step, ring_terminal_bell
 from mkosi.manifest import Manifest
@@ -1544,7 +1544,7 @@ def build_kernel_modules_initrd(context: Context, kver: str) -> Path:
         make_cpio(
             context.root,
             kmods,
-            files=gen_required_kernel_modules(
+            files=required_kernel_modules(
                 context,
                 kver,
                 modules_include=finalize_kernel_modules_include(

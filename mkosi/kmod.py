@@ -15,7 +15,7 @@ from mkosi.context import Context
 from mkosi.log import complete_step
 from mkosi.run import chroot_cmd, run
 from mkosi.sandbox import chase
-from mkosi.util import PathString, chdir, parents_below
+from mkosi.util import PathString, chdir, parents_below, settify
 
 
 def loaded_modules() -> list[str]:
@@ -25,10 +25,10 @@ def loaded_modules() -> list[str]:
     ]
 
 
-def all_modules(modulesd: Path) -> Iterator[Path]:
+def all_modules(modulesd: Path) -> set[Path]:
     # The glob may match additional paths.
     # Narrow this down to *.ko, *.ko.gz, *.ko.xz, *.ko.zst.
-    return (m for m in modulesd.rglob("*.ko*") if m.name.endswith((".ko.zst", ".ko.xz", ".ko.gz", ".ko")))
+    return {m for m in modulesd.rglob("*.ko*") if m.name.endswith((".ko.zst", ".ko.xz", ".ko.gz", ".ko"))}
 
 
 def globs_match_filename(name: str, globs: Sequence[str], *, match_default: bool = False) -> bool:
@@ -88,7 +88,7 @@ def filter_kernel_modules(
 
     modulesd = Path("usr/lib/modules") / kver
     with chdir(root):
-        modules = set(all_modules(modulesd))
+        modules = all_modules(modulesd)
 
     n_modules = len(modules)
 
@@ -322,7 +322,8 @@ def resolve_module_dependencies(
     return set(nametofile[m] for m in mods if m in nametofile), set(firmware)
 
 
-def gen_required_kernel_modules(
+@settify
+def required_kernel_modules(
     context: Context,
     kver: str,
     *,
@@ -353,7 +354,7 @@ def gen_required_kernel_modules(
             "No modules excluded and no firmware installed, using kernel modules generation fast path"
         )
         with chdir(context.root):
-            modules = set(all_modules(modulesd))
+            modules = all_modules(modulesd)
         firmware = set()
 
     # Include or exclude firmware explicitly configured
@@ -463,15 +464,13 @@ def process_kernel_modules(
     modulesd = Path("usr/lib/modules") / kver
     firmwared = Path("usr/lib/firmware")
 
-    required = set(
-        gen_required_kernel_modules(
-            context,
-            kver,
-            modules_include=modules_include,
-            modules_exclude=modules_exclude,
-            firmware_include=firmware_include,
-            firmware_exclude=firmware_exclude,
-        )
+    required = required_kernel_modules(
+        context,
+        kver,
+        modules_include=modules_include,
+        modules_exclude=modules_exclude,
+        firmware_include=firmware_include,
+        firmware_exclude=firmware_exclude,
     )
 
     with complete_step("Applying kernel module filters"):
