@@ -38,6 +38,7 @@ from mkosi.config import (
     Firmware,
     Network,
     OutputFormat,
+    QemuDiskType,
     Ssh,
     Verb,
     VsockCID,
@@ -1202,9 +1203,6 @@ def run_qemu(args: Args, config: Config) -> None:
             sock = stack.enter_context(start_virtiofsd(config, tree.source))
             add_virtiofs_mount(sock, Path("/root/src") / (tree.target or ""), cmdline, credentials)
 
-        if config.output_format in (OutputFormat.disk, OutputFormat.esp):
-            cmdline += ["-device", "virtio-scsi-pci,id=mkosi"]
-
         if config.output_format == OutputFormat.cpio:
             cmdline += ["-initrd", fname]
         elif (
@@ -1217,6 +1215,13 @@ def run_qemu(args: Args, config: Config) -> None:
             cmdline += ["-initrd", initrd]
 
         if config.output_format in (OutputFormat.disk, OutputFormat.esp):
+            disk_type = config.disk_type
+            if config.removable:
+                disk_type = QemuDiskType.virtio_scsi
+
+            if disk_type == QemuDiskType.virtio_scsi:
+                cmdline += ["-device", "virtio-scsi-pci,id=mkosi"]
+
             blockdev = [
                 "driver=raw",
                 "node-name=mkosi",
@@ -1228,13 +1233,23 @@ def run_qemu(args: Args, config: Config) -> None:
                 f"cache.no-flush={yes_no(config.ephemeral)}",
             ]
 
-            device_type = "virtio-blk-pci"
-            if config.removable:
-                device_type = "scsi-hd,device_id=mkosi,removable=on"
+            if disk_type == QemuDiskType.virtio_blk:
+                device = "virtio-blk-pci"
+            elif disk_type == QemuDiskType.virtio_scsi:
+                device = "scsi-hd"
+                if config.removable:
+                    device += ",device_id=mkosi,removable=on"
+            elif disk_type == QemuDiskType.nvme:
+                device = "nvme,serial=mkosi"
+            else:
+                # pyright doesn't do exhaustiveness checking so we need this branch explicitly.
+                die(f"Unexpected disk type: {disk_type}")
+
+            device += ",drive=mkosi,bootindex=1"
 
             cmdline += [
                 "-blockdev", ",".join(blockdev),
-                "-device", f"{device_type},drive=mkosi,bootindex=1",
+                "-device", device,
             ]  # fmt: skip
 
         if config.tpm == ConfigFeature.enabled or (

@@ -1897,7 +1897,14 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `Removable=`, `--removable=`
 :   Configures whether to attach the image as a removable device when booting
-    a virtual machine. Takes a boolean value. Defaults to `no`.
+    a virtual machine. Takes a boolean value. Defaults to `no`. When enabled,
+    the root disk is always attached as a SCSI device regardless of the
+    `DiskType=` setting.
+
+`DiskType=`, `--disk-type=`
+:   Configures the disk type to use for the root disk when booting a virtual
+    machine. Takes one of `virtio-blk`, `virtio-scsi`, or `nvme`. Defaults to
+    `virtio-blk`.
 
 `Firmware=`, `--firmware=`
 :   Configures the virtual machine firmware to use. Takes one of `uefi`,

@@ -405,6 +405,12 @@ class Vmm(StrEnum):
     vmspawn = enum.auto()
 
 
+class QemuDiskType(StrEnum):
+    virtio_blk = enum.auto()
+    virtio_scsi = enum.auto()
+    nvme = enum.auto()
+
+
 class Ssh(StrEnum):
     always = enum.auto()
     auto = enum.auto()
@@ -2239,6 +2245,7 @@ class Config:
     vsock_cid: int
     tpm: ConfigFeature
     removable: bool
+    disk_type: QemuDiskType
     firmware: Firmware
     firmware_variables: Optional[Path]
     linux: Optional[str]
@@ -4366,6 +4373,16 @@ SETTINGS: list[ConfigSetting[Any]] = [
         scope=SettingScope.main,
     ),
     ConfigSetting(
+        dest="disk_type",
+        name="DiskType",
+        section="Runtime",
+        parse=config_make_enum_parser(QemuDiskType),
+        default=QemuDiskType.virtio_blk,
+        choices=QemuDiskType.choices(),
+        help="Set the disk type for the root disk in the virtual machine",
+        scope=SettingScope.main,
+    ),
+    ConfigSetting(
         dest="firmware",
         section="Runtime",
         parse=config_make_enum_parser(Firmware),
@@ -6140,6 +6157,7 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         Network: enum_transformer,
         KeySource: key_source_transformer,
         Vmm: enum_transformer,
+        QemuDiskType: enum_transformer,
         list[UKIProfile]: uki_profile_transformer,
         UnifiedKernelImage: enum_transformer,
         list[ArtifactOutput]: enum_list_transformer,
