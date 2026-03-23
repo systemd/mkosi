@@ -32,9 +32,6 @@ def run_vmspawn(args: Args, config: Config) -> None:
     if config.output_format not in (OutputFormat.disk, OutputFormat.esp, OutputFormat.directory):
         die(f"{config.output_format} images cannot be booted in systemd-vmspawn")
 
-    if config.firmware == Firmware.bios:
-        die("systemd-vmspawn cannot boot BIOS firmware images")
-
     if config.firmware_variables and config.firmware_variables != Path("microsoft"):
         die("mkosi vmspawn does not support FirmwareVariables=")
 

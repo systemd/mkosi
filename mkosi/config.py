@@ -377,7 +377,6 @@ class Firmware(StrEnum):
     linux_noinitrd = enum.auto()
     uefi = enum.auto()
     uefi_secure_boot = enum.auto()
-    bios = enum.auto()
 
     def is_uefi(self) -> bool:
         return self in (Firmware.uefi, Firmware.uefi_secure_boot)

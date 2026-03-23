@@ -906,9 +906,6 @@ def run_qemu(args: Args, config: Config) -> None:
     ):
         die(f"{config.output_format} images cannot be booted with the '{config.firmware}' firmware")
 
-    if config.runtime_trees and config.firmware == Firmware.bios:
-        die("RuntimeTrees= cannot be used when booting in BIOS firmware")
-
     if config.kvm == ConfigFeature.enabled and not config.architecture.is_native():
         die(
             f"KVM acceleration requested but {config.architecture} does not match "
@@ -1104,7 +1101,6 @@ def run_qemu(args: Args, config: Config) -> None:
                 "-mon", "console",
             ]  # fmt: skip
 
-    # QEMU has built-in logic to look for the BIOS firmware so we don't need to do anything special for that.
     if firmware.is_uefi():
         assert ovmf
         cmdline += ["-drive", f"if=pflash,format={ovmf.format},readonly=on,file={ovmf.firmware}"]

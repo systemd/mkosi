@@ -56,8 +56,6 @@ def test_format(config: ImageConfig, format: OutputFormat) -> None:
         if format != OutputFormat.disk:
             return
 
-        image.vm(["--firmware=bios"])
-
 
 @pytest.mark.parametrize("bootloader", Bootloader)
 def test_bootloader(config: ImageConfig, bootloader: Bootloader) -> None:
