@@ -1901,11 +1901,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `Firmware=`, `--firmware=`
 :   Configures the virtual machine firmware to use. Takes one of `uefi`,
-    `uefi-secure-boot`, `bios`, `linux`, `linux-noinitrd` or `auto`.
+    `uefi-secure-boot`, `linux`, `linux-noinitrd` or `auto`.
     Defaults to `auto`. When set to `uefi`, the OVMF firmware without
     secure boot support is used. When set to `uefi-secure-boot`, the
-    OVMF firmware with secure boot support is used. When set to `bios`,
-    the default SeaBIOS firmware is used. When set to `linux`, direct
+    OVMF firmware with secure boot support is used. When set to `linux`, direct
     kernel boot is used. See the `Linux=` option for more details on
     which kernel image is used with direct kernel boot.
     `linux-noinitrd` is identical to `linux` except that no initrd is
