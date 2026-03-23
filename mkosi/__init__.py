@@ -5263,10 +5263,14 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
         return
 
     if (output := last.output_dir_or_cwd() / last.output).is_dir() and not is_foreign_uid_tree(output):
-        die(
-            "Can only operate on foreign UID range owned directory images",
-            hint="Add ForeignUIDRange=yes to [Build] and rebuild the image to use the foreign UID range",
-        )
+        if output.stat().st_uid != 0:
+            die(
+                "Can only operate on foreign UID range or root owned directory images",
+                hint="Add ForeignUIDRange=yes to [Build] and rebuild the image to use the foreign UID range",
+            )
+
+        if os.getuid() != 0:
+            die("Must be root to operate on root owned directory images")
 
     run_vm = {
         Vmm.qemu: run_qemu,
