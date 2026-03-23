@@ -19,12 +19,13 @@ from mkosi.log import die
 from mkosi.qemu import (
     copy_ephemeral,
     finalize_credentials,
+    finalize_drive,
     finalize_firmware,
     finalize_initrd,
     finalize_kernel_command_line_extra,
 )
 from mkosi.run import run
-from mkosi.util import PathString
+from mkosi.util import PathString, groupby
 
 
 def run_vmspawn(args: Args, config: Config) -> None:
@@ -92,6 +93,27 @@ def run_vmspawn(args: Args, config: Config) -> None:
             target = Path("/root/src") / (tree.target or "")
             cmdline += ["--bind", f"{tree.source}:{target}"]
 
+        qemu_args = list(config.qemu_args)
+
+        for _, drives in groupby(config.drives, key=lambda d: d.file_id):
+            file = stack.enter_context(finalize_drive(config, drives[0]))
+
+            for drive in drives:
+                arg = [
+                    "driver=raw",
+                    f"node-name={drive.id}",
+                    "file.driver=file",
+                    f"file.filename={file}",
+                    "file.aio=io_uring",
+                    "file.locking=off",
+                    "cache.direct=on",
+                    "cache.no-flush=yes",
+                ]
+                if drive.options:
+                    arg += [drive.options]
+
+                qemu_args += ["-blockdev", ",".join(arg)]
+
         if kernel:
             cmdline += ["--linux", kernel]
 
@@ -108,8 +130,8 @@ def run_vmspawn(args: Args, config: Config) -> None:
         cmdline += [*args.cmdline, *finalize_kernel_command_line_extra(args, config)]
 
         env = os.environ.copy()
-        if config.qemu_args:
-            env["SYSTEMD_VMSPAWN_QEMU_EXTRA"] = " ".join(config.qemu_args)
+        if qemu_args:
+            env["SYSTEMD_VMSPAWN_QEMU_EXTRA"] = " ".join(str(a) for a in qemu_args)
 
         run(
             cmdline,
