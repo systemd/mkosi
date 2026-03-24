@@ -9,6 +9,7 @@ from pathlib import Path
 from mkosi.config import (
     Args,
     Config,
+    ConfigFeature,
     ConsoleMode,
     Firmware,
     Network,
@@ -59,6 +60,7 @@ def run_vmspawn(args: Args, config: Config) -> None:
         "--tpm-state=off",
         "--secure-boot", yes_no(config.secure_boot),
         "--console", str(config.console),
+        "--register", yes_no(config.register != ConfigFeature.disabled),
     ]  # fmt: skip
 
     if config.runtime_size:
