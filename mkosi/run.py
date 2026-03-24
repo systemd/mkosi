@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING, Any, Callable, Generic, NoReturn, Optional, Pr
 
 import mkosi
 import mkosi.sandbox
-from mkosi.log import ARG_DEBUG, ARG_DEBUG_SANDBOX, ARG_DEBUG_SHELL, die, get_log_prefix
+from mkosi.log import ARG_DEBUG, ARG_DEBUG_SANDBOX, ARG_DEBUG_SHELL, die
 from mkosi.sandbox import acquire_privileges, joinpath, umask
 from mkosi.util import _FILE, PathString, flatten, one_zero, resource_path, unique
 
@@ -308,7 +308,8 @@ def spawn(
 ) -> Iterator[Popen]:
     cmd = [os.fspath(x) for x in cmdline]
 
-    logging.info(f"{get_log_prefix()}+ {shlex.join(cmd)}")
+    if ARG_DEBUG.get():
+        logging.info(f"+ {shlex.join(cmd)}")
 
     if not stdout and not stderr:
         # Unless explicit redirection is done, print all subprocess output on stderr, since we do so as well
