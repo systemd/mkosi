@@ -3135,6 +3135,10 @@ def run_tmpfiles(context: Context) -> None:
 
 
 def run_locale_gen(context: Context) -> None:
+    # locale should be generated for the base root tree, makes no sense to generate it for extensions
+    if context.config.overlay or context.config.output_format.is_extension_image():
+        return
+
     if not (context.root / "etc/locale.gen").exists():
         return
 
