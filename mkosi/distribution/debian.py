@@ -130,6 +130,8 @@ class Installer(DistributionInstaller, distribution=Distribution.debian):
         # unpacked yet, causing the script to fail. To avoid these issues, we have to extract all the
         # essential debs first, and only then run the maintainer scripts for them.
 
+        debian_architecture = context.config.distribution.installer.architecture(context.config.architecture)
+
         # First, we set up merged usr.  This list is taken from
         # https://salsa.debian.org/installer-team/debootstrap/-/blob/master/functions#L1369.
         subdirs = ["bin", "sbin", "lib"] + {
@@ -147,7 +149,7 @@ class Installer(DistributionInstaller, distribution=Distribution.debian):
             "sparc64"     : ["lib32", "lib64"],
             "x32"         : ["lib32", "lib64", "libx32"],
         }.get(
-            context.config.distribution.installer.architecture(context.config.architecture), []
+            debian_architecture, []
         )  # fmt: skip
 
         with umask(~0o755):
@@ -167,7 +169,7 @@ class Installer(DistributionInstaller, distribution=Distribution.debian):
                 [
                     "-oDebug::pkgDPkgPm=1",
                     f"-oDPkg::Pre-Install-Pkgs::=cat >{workdir(Path(f.name))}",
-                    "?essential",
+                    f"?essential ?architecture({debian_architecture})",
                     "base-files",
                 ],
                 options=["--bind", f.name, workdir(Path(f.name))],
