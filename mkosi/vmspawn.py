@@ -3,6 +3,7 @@
 import contextlib
 import getpass
 import os
+import shlex
 import sys
 from pathlib import Path
 
@@ -134,7 +135,7 @@ def run_vmspawn(args: Args, config: Config) -> None:
 
         env = os.environ.copy()
         if qemu_args:
-            env["SYSTEMD_VMSPAWN_QEMU_EXTRA"] = " ".join(str(a) for a in qemu_args)
+            env["SYSTEMD_VMSPAWN_QEMU_EXTRA"] = " ".join(shlex.quote(str(a)) for a in qemu_args)
 
         run(
             cmdline,
