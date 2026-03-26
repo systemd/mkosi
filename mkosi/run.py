@@ -430,12 +430,13 @@ def finalize_path(
             if s in ("/usr/bin", "/usr/sbin") or not s.startswith("/usr")
         ]
 
-        # Make sure that /usr/bin and /usr/sbin are always in $PATH.
-        path += [s for s in ("/usr/bin", "/usr/sbin") if s not in path]
+        # Make sure that /usr/bin, /usr/sbin and /usr/local/bin are always in $PATH.
+        path += [s for s in ("/usr/bin", "/usr/sbin", "/usr/local/bin") if s not in path]
     else:
         path += [
             "/usr/bin",
             "/usr/sbin",
+            "/usr/local/bin",
             *(el for el in os.environ.get("PATH", "").split(":") if el.startswith("/nix/store")),
         ]
 
