@@ -2,8 +2,10 @@
 
 import contextlib
 import getpass
+import json
 import os
 import shlex
+import subprocess
 import sys
 from pathlib import Path
 
@@ -23,6 +25,7 @@ from mkosi.qemu import (
     finalize_credentials,
     finalize_drive,
     finalize_firmware,
+    finalize_firmware_variables,
     finalize_initrd,
     finalize_kernel_command_line_extra,
 )
@@ -33,9 +36,6 @@ from mkosi.util import PathString, groupby
 def run_vmspawn(args: Args, config: Config) -> None:
     if config.output_format not in (OutputFormat.disk, OutputFormat.esp, OutputFormat.directory):
         die(f"{config.output_format} images cannot be booted in systemd-vmspawn")
-
-    if config.firmware_variables and config.firmware_variables != Path("microsoft"):
-        die("mkosi vmspawn does not support FirmwareVariables=")
 
     if config.console == ConsoleMode.headless:
         die("Console=headless is not supported by vmspawn")
@@ -51,6 +51,25 @@ def run_vmspawn(args: Args, config: Config) -> None:
                 hint="Please install a kernel in the image or provide a --linux argument to mkosi vmspawn",
             )
 
+    features: list[str] = []
+    if firmware == Firmware.uefi_secure_boot:
+        features += ["secure-boot"]
+    if config.firmware_variables in (Path("microsoft"), Path("microsoft-mok")):
+        features += ["enrolled-keys"]
+
+    vars = None
+    if firmware.is_uefi():
+        describe: list[PathString] = [
+            "systemd-vmspawn",
+            "--firmware=describe",
+        ]
+        if features:
+            describe += ["--firmware-features", ",".join(features)]
+
+        result = run(describe, stdout=subprocess.PIPE, sandbox=config.sandbox())
+        j = json.loads(result.stdout)
+        vars = Path(j["mapping"]["nvram-template"]["filename"])
+
     cmdline: list[PathString] = [
         "systemd-vmspawn",
         "--cpus", str(config.cpus or os.cpu_count()),
@@ -59,10 +78,12 @@ def run_vmspawn(args: Args, config: Config) -> None:
         "--vsock", config.vsock.to_tristate(),
         "--tpm", config.tpm.to_tristate(),
         "--tpm-state=off",
-        "--secure-boot", yes_no(config.secure_boot),
         "--console", str(config.console),
         "--register", yes_no(config.register != ConfigFeature.disabled),
     ]  # fmt: skip
+
+    if features:
+        cmdline += ["--firmware-features", ",".join(features)]
 
     if config.runtime_size:
         cmdline += ["--grow-image", str(config.runtime_size)]
@@ -76,6 +97,10 @@ def run_vmspawn(args: Args, config: Config) -> None:
         cmdline += ["--network-tap"]
 
     with contextlib.ExitStack() as stack:
+        if vars:
+            ovmf_vars = finalize_firmware_variables(config, vars, stack)
+            cmdline += ["--efi-nvram-template", ovmf_vars]
+
         for f in finalize_credentials(config, stack).iterdir():
             cmdline += [f"--load-credential={f.name}:{f}"]
 
