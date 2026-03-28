@@ -41,6 +41,7 @@ from mkosi.config import (
     QemuDiskType,
     Ssh,
     Verb,
+    Vmm,
     VsockCID,
     finalize_term,
     format_bytes,
@@ -757,10 +758,14 @@ def finalize_kernel_command_line_extra(args: Args, config: Config) -> list[str]:
             "rw",
             # Make sure we don't load vmw_vmci which messes with virtio vsock.
             "module_blacklist=vmw_vmci",
-            f"systemd.tty.term.hvc0={term}",
-            f"systemd.tty.columns.hvc0={columns}",
-            f"systemd.tty.rows.hvc0={lines}",
         ]
+
+        if config.vmm != Vmm.vmspawn:
+            cmdline += [
+                f"systemd.tty.columns.hvc0={columns}",
+                f"systemd.tty.rows.hvc0={lines}",
+                f"systemd.tty.term.hvc0={term}",
+            ]
 
         if not any(s.startswith("ip=") for s in config.kernel_command_line_extra):
             cmdline += ["ip=enc0:any", "ip=enp0s1:any", "ip=enp0s2:any", "ip=host0:any", "ip=none"]
@@ -768,14 +773,15 @@ def finalize_kernel_command_line_extra(args: Args, config: Config) -> list[str]:
         if not any(s.startswith("loglevel=") for s in config.kernel_command_line_extra):
             cmdline += ["loglevel=4"]
 
-        if config.console not in (ConsoleMode.gui, ConsoleMode.headless):
+        if config.console not in (ConsoleMode.gui, ConsoleMode.headless) and config.vmm != Vmm.vmspawn:
             cmdline += [
                 f"systemd.tty.term.console={term}",
                 f"systemd.tty.columns.console={columns}",
                 f"systemd.tty.rows.console={lines}",
-                # "console=hvc0",
+                "console=hvc0",
                 f"TERM={term}",
             ]
+
         elif config.console == ConsoleMode.gui and config.architecture.is_arm_variant():
             cmdline += ["console=tty0"]
 
