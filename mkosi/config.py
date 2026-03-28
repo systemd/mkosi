@@ -1051,7 +1051,7 @@ def config_default_release(namespace: dict[str, Any]) -> str:
         hd, hr = detect_distribution()
 
     # If the configured distribution matches the host distribution, use the same release as the host.
-    if namespace["distribution"] == hd and hr is not None:
+    if namespace["distribution"] == hd and hr:
         return hr
 
     return cast(str, namespace["distribution"].installer.default_release())
