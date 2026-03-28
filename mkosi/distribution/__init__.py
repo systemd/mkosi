@@ -181,6 +181,9 @@ def detect_distribution(root: Path = Path("/")) -> tuple[Union[Distribution, str
     if d and d.is_apt_distribution() and version_codename:
         version_id = version_codename
 
+    if d and not version_id:
+        version_id = d.installer.default_release() or None
+
     return d or dist_id, version_id
 
 
