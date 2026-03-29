@@ -14,7 +14,7 @@ installed through `pacman`. This section describes how to install AUR packages a
 
 ## Overview:
 
-The approach involes using three `mkosi` hook scripts that run in sequence:
+The approach involves using three `mkosi` hook scripts that run in sequence:
 
 1. `mkosi.prepare.chroot`: Initialises the pacman keyring, uses `reflector` to fetch and rank mirrors, bootstraps `aurutils` from the AUR (since it is an AUR package itself and therefore cannot be listed in
    the `BuildPackages=` section of an `mkosi.conf` file), and then sets up a local pacman repository backed by
