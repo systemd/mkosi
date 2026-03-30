@@ -7,7 +7,7 @@ from pathlib import Path
 
 from mkosi.config import Config
 from mkosi.context import Context
-from mkosi.curl import curl
+from mkosi.fetch import fetch
 from mkosi.distribution import Distribution, debian, join_mirror
 from mkosi.installer.apt import AptRepository
 from mkosi.log import die
@@ -93,7 +93,7 @@ class Installer(debian.Installer, distribution=Distribution.ubuntu):
     @classmethod
     def latest_snapshot(cls, config: Config) -> str:
         mirror = config.mirror or "http://snapshot.ubuntu.com"
-        release = curl(config, join_mirror(mirror, f"ubuntu/dists/{config.release}-updates/Release"))
+        release = fetch(config, join_mirror(mirror, f"ubuntu/dists/{config.release}-updates/Release"))
 
         for line in release.splitlines():
             if date := startswith(line, "Date: "):

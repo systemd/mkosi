@@ -9,7 +9,7 @@ from typing import cast
 from mkosi.archive import extract_tar
 from mkosi.config import Architecture, Config
 from mkosi.context import Context
-from mkosi.curl import curl
+from mkosi.fetch import fetch
 from mkosi.distribution import Distribution, DistributionInstaller, PackageType, join_mirror
 from mkosi.installer.apt import Apt, AptRepository
 from mkosi.log import die
@@ -261,7 +261,7 @@ class Installer(DistributionInstaller, distribution=Distribution.debian):
     @classmethod
     def latest_snapshot(cls, config: Config) -> str:
         url = join_mirror(config.mirror or "https://snapshot.debian.org", "mr/timestamp")
-        return cast(str, json.loads(curl(config, url))["result"]["debian"][-1])
+        return cast(str, json.loads(fetch(config, url))["result"]["debian"][-1])
 
     @classmethod
     def is_kernel_package(cls, package: str) -> bool:

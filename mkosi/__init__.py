@@ -139,6 +139,7 @@ from mkosi.sandbox import (
     unshare,
     userns_has_single_user,
 )
+from mkosi.snapshot import run_latest_snapshot
 from mkosi.sysupdate import run_sysupdate
 from mkosi.tree import copy_tree, is_foreign_uid_tree, make_tree, move_tree, rmtree
 from mkosi.user import INVOKING_USER, become_root_cmd
@@ -4269,10 +4270,6 @@ def run_box(args: Args, config: Config) -> None:
                 options=["--same-dir", *mounts],
             ),
         )
-
-
-def run_latest_snapshot(args: Args, config: Config) -> None:
-    print(config.distribution.installer.latest_snapshot(config))
 
 
 def run_shell(args: Args, config: Config) -> None:
