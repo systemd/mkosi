@@ -8,7 +8,7 @@ SPDX-License-Identifier: LGPL-2.1-or-later
 # Installing AUR Packages in Arch Linux Images:
 
 `mkosi` does not natively support installing packages from the [Arch User Repository
-(AUR)](https://aur.archlinux.org/) since AUR packages must be built from source using `mkpkg` rather than
+(AUR)](https://aur.archlinux.org/) since AUR packages must be built from source using `makepkg` rather than
 installed through `pacman`. This section describes how to install AUR packages at image build time using
 [`aurutils`](https://aur.archlinux.org/packages/aurutils) and a local pacman repository.
 
@@ -29,7 +29,7 @@ The approach involves using three `mkosi` hook scripts that run in sequence:
 
 ### Why `nobody`?
 
-Given that `makepkg` refuses to run as root as a safety measure, inside mkosi's build sandbox there is no persistent user database, so the existing `nobody` system user (`uid 65534`) is a convenient unprivileged identity that is always available.
+Since `makepkg` checks `EUID` (Effective User ID) rather than strictly requiring non-root, the `nobody` user (`uid` 65534) works as a convenient unprivileged identity, as it is always available in the build sandbox without requiring a persistent user database.
 
 ### Why `aur depends` and `tsort`?
 
@@ -64,8 +64,6 @@ Packages=
     base
     linux
     linux-firmware
-    systemd
-    bash
     reflector
 ```
 
