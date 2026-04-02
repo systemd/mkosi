@@ -2438,6 +2438,14 @@ class Config:
         return output
 
     @property
+    def output_efinvramstate(self) -> str:
+        return f"{self.output}.efinvramstate"
+
+    @property
+    def output_tpmstate(self) -> str:
+        return f"{self.output}.tpmstate"
+
+    @property
     def outputs(self) -> list[str]:
         return [
             self.output,
@@ -2457,6 +2465,8 @@ class Config:
             self.output_manifest,
             self.output_changelog,
             self.output_tar,
+            self.output_efinvramstate,
+            self.output_tpmstate,
         ]
 
     @property
