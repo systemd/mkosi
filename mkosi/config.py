@@ -5402,7 +5402,7 @@ def want_kernel(config: Config) -> bool:
         return False
 
     if config.bootable == ConfigFeature.auto and (
-        config.output_format in (OutputFormat.cpio, OutputFormat.directory)
+        config.output_format == OutputFormat.cpio
         or config.output_format.is_extension_or_portable_image()
         or config.overlay
     ):
