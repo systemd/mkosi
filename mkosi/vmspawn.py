@@ -13,7 +13,6 @@ from mkosi.config import (
     Args,
     Config,
     ConfigFeature,
-    ConsoleMode,
     Firmware,
     Network,
     OutputFormat,
@@ -36,9 +35,6 @@ from mkosi.util import PathString, groupby
 def run_vmspawn(args: Args, config: Config) -> None:
     if config.output_format not in (OutputFormat.disk, OutputFormat.esp, OutputFormat.directory):
         die(f"{config.output_format} images cannot be booted in systemd-vmspawn")
-
-    if config.console == ConsoleMode.headless:
-        die("Console=headless is not supported by vmspawn")
 
     kernel = config.expand_linux_specifiers() if config.linux else None
     firmware = finalize_firmware(config, kernel)
