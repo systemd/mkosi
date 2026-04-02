@@ -17,6 +17,7 @@ from mkosi.config import (
     Firmware,
     Network,
     OutputFormat,
+    QemuDiskType,
     yes_no,
 )
 from mkosi.log import die
@@ -148,6 +149,9 @@ def run_vmspawn(args: Args, config: Config) -> None:
                 cmdline += ["--initrd", initrd]
 
         cmdline += ["--directory" if fname.is_dir() else "--image", fname]
+
+        if config.disk_type != QemuDiskType.virtio_blk:
+            cmdline += ["--image-disk-type", str(config.disk_type)]
 
         if config.forward_journal:
             cmdline += ["--forward-journal", config.forward_journal]
