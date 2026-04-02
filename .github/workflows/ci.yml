@@ -63,7 +63,8 @@ jobs:
       - name: Type Checking (mypy)
         run: |
           mkosi box -- mypy --version
-          mkosi box -- mypy mkosi/ tests/ kernel-install/*.install
+          mkosi box -- mypy mkosi/ kernel-install/*.install
+          mkosi box -- mypy --python-version 3.10 mkosi/ tests/ kernel-install/*.install
 
       - name: Type Checking (pyright)
         run: |
