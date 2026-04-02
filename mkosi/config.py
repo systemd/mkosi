@@ -2102,6 +2102,10 @@ class Config:
     sector_size: Optional[int]
     overlay: bool
     seed: uuid.UUID
+    el_torito: ConfigFeature
+    el_torito_system: Optional[str]
+    el_torito_volume: Optional[str]
+    el_torito_publisher: Optional[str]
 
     packages: list[str]
     build_packages: list[str]
@@ -3026,6 +3030,34 @@ SETTINGS: list[ConfigSetting[Any]] = [
         path_suffixes=("seed",),
         path_read_text=True,
         help="Set the seed for systemd-repart",
+    ),
+    ConfigSetting(
+        dest="el_torito",
+        metavar="FEATURE",
+        section="Output",
+        parse=config_parse_feature,
+        help="Whether to add a boot catalog to boot the ESP",
+    ),
+    ConfigSetting(
+        dest="el_torito_system",
+        metavar="STRING",
+        section="Output",
+        parse=config_parse_string,
+        help="Set the system identifier in the ISO9660 descriptor",
+    ),
+    ConfigSetting(
+        dest="el_torito_volume",
+        metavar="STRING",
+        section="Output",
+        parse=config_parse_string,
+        help="Set the volume identifier in the ISO9660 descriptor",
+    ),
+    ConfigSetting(
+        dest="el_torito_publisher",
+        metavar="STRING",
+        section="Output",
+        parse=config_parse_string,
+        help="Set the publisher identifier in the ISO9660 descriptor",
     ),
     ConfigSetting(
         dest="clean_scripts",
@@ -5767,6 +5799,10 @@ def summary(config: Config) -> str:
                         Sector Size: {none_to_default(config.sector_size)}
                             Overlay: {yes_no(config.overlay)}
                                Seed: {none_to_random(config.seed)}
+                          El Torito: {config.el_torito}
+                   El Torito System: {none_to_none(config.el_torito_system)}
+                   El Torito Volume: {none_to_none(config.el_torito_volume)}
+                El Torito Publisher: {none_to_none(config.el_torito_publisher)}
                       Clean Scripts: {line_join_list(config.clean_scripts)}
 
     {bold("CONTENT")}:
