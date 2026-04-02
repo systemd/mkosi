@@ -176,7 +176,7 @@ jobs:
 
       - name: Run Claude Code
         id: claude
-        uses: anthropics/claude-code-action@26ec041249acb0a944c0a47b6c0c13f05dbc5b44
+        uses: anthropics/claude-code-action@58dbe8ed6879f0d3b02ac295b20d5fdfe7733e0c
         with:
           use_bedrock: "true"
           # Required by claude-code-action even though Claude itself doesn't
