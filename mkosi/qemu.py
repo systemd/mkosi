@@ -1215,10 +1215,10 @@ def run_qemu(args: Args, config: Config) -> None:
 
         if config.output_format in (OutputFormat.disk, OutputFormat.esp):
             disk_type = config.disk_type
-            if config.removable:
+            if config.removable and disk_type not in (QemuDiskType.virtio_scsi, QemuDiskType.scsi_cd):
                 disk_type = QemuDiskType.virtio_scsi
 
-            if disk_type == QemuDiskType.virtio_scsi:
+            if disk_type in (QemuDiskType.virtio_scsi, QemuDiskType.scsi_cd):
                 cmdline += ["-device", "virtio-scsi-pci,id=mkosi"]
 
             blockdev = [
@@ -1240,6 +1240,10 @@ def run_qemu(args: Args, config: Config) -> None:
                     device += ",device_id=mkosi,removable=on"
             elif disk_type == QemuDiskType.nvme:
                 device = "nvme,serial=mkosi"
+            elif disk_type == QemuDiskType.scsi_cd:
+                device = "scsi-cd"
+                if config.removable:
+                    device += ",device_id=mkosi,removable=on"
             else:
                 # pyright doesn't do exhaustiveness checking so we need this branch explicitly.
                 die(f"Unexpected disk type: {disk_type}")

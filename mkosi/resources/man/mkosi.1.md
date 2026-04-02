@@ -1916,8 +1916,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `DiskType=`, `--disk-type=`
 :   Configures the disk type to use for the root disk when booting a virtual
-    machine. Takes one of `virtio-blk`, `virtio-scsi`, or `nvme`. Defaults to
-    `virtio-blk`.
+    machine. Takes one of `virtio-blk`, `virtio-scsi`, `nvme`, or `scsi-cd`.
+    Defaults to `virtio-blk`. Use `scsi-cd` to attach the image as a CD-ROM
+    drive, which is useful for booting El Torito ISO images.
 
 `Firmware=`, `--firmware=`
 :   Configures the virtual machine firmware to use. Takes one of `uefi`,

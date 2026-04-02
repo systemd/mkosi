@@ -408,6 +408,7 @@ class QemuDiskType(StrEnum):
     virtio_blk = enum.auto()
     virtio_scsi = enum.auto()
     nvme = enum.auto()
+    scsi_cd = enum.auto()
 
 
 class Ssh(StrEnum):
@@ -5982,6 +5983,7 @@ def summary(config: Config) -> str:
                               VSock: {config.vsock}
                 VSock Connection ID: {VsockCID.format(config.vsock_cid)}
                                 TPM: {config.tpm}
+                          Disk Type: {config.disk_type}
                            Firmware: {config.firmware}
                  Firmware Variables: {none_to_none(config.firmware_variables)}
                               Linux: {none_to_none(config.linux)}
