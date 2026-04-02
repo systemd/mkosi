@@ -35,7 +35,12 @@ from mkosi.util import PathString, groupby
 
 
 def run_vmspawn(args: Args, config: Config) -> None:
-    if config.output_format not in (OutputFormat.disk, OutputFormat.esp, OutputFormat.directory):
+    if config.output_format not in (
+        OutputFormat.disk,
+        OutputFormat.esp,
+        OutputFormat.directory,
+        OutputFormat.uki,
+    ):
         die(f"{config.output_format} images cannot be booted in systemd-vmspawn")
 
     if config.console == ConsoleMode.headless:
@@ -44,8 +49,17 @@ def run_vmspawn(args: Args, config: Config) -> None:
     kernel = config.expand_linux_specifiers() if config.linux else None
     firmware = finalize_firmware(config, kernel)
 
-    if not kernel and firmware.is_linux():
-        kernel = config.output_dir_or_cwd() / config.output_split_kernel
+    if kernel and not kernel.exists():
+        die(f"Kernel not found at {kernel}")
+
+    if not kernel and (
+        firmware.is_linux() or config.output_format in (OutputFormat.directory, OutputFormat.uki)
+    ):
+        if firmware.is_uefi():
+            name = config.output if config.output_format == OutputFormat.uki else config.output_split_uki
+            kernel = config.output_dir_or_cwd() / name
+        else:
+            kernel = config.output_dir_or_cwd() / config.output_split_kernel
         if not kernel.exists():
             die(
                 f"Kernel or UKI not found at {kernel}",
@@ -148,7 +162,10 @@ def run_vmspawn(args: Args, config: Config) -> None:
             ):
                 cmdline += ["--initrd", initrd]
 
-        cmdline += ["--directory" if fname.is_dir() else "--image", fname]
+        if config.output_format == OutputFormat.directory:
+            cmdline += ["--directory", fname]
+        elif config.output_format != OutputFormat.uki:
+            cmdline += ["--image", fname]
 
         if config.disk_type != QemuDiskType.virtio_blk:
             cmdline += ["--image-disk-type", str(config.disk_type)]
