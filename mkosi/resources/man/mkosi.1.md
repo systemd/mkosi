@@ -3439,7 +3439,7 @@ For other systems, try researching the `kernel.unprivileged_userns_clone` or
   If this behavior causes applications running in your image to misbehave, you
   can consider running **mkosi** as root which avoids this problem. Alternatively,
   if running **mkosi** as root is not desired, you can use
-  `unshare --map-auto --map-current-user --setuid 0 --setgid 0` to become root in
+  `unshare --map-auto --map-root-user` to become root in
   a user namespace with more than one user assuming the UID/GID mappings in
   `/etc/subuid` and `/etc/subgid` are configured correctly. Note that running mkosi
   as root or with `unshare` means that all output files produced by **mkosi** will not
