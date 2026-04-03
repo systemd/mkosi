@@ -4342,29 +4342,6 @@ def run_shell(args: Args, config: Config) -> None:
             copyfile2(config.nspawn_settings, config.output_dir_or_cwd() / f"{name}.nspawn")
 
         fname = stack.enter_context(copy_ephemeral(config, config.output_dir_or_cwd() / config.output))
-
-        if config.output_format == OutputFormat.disk and args.verb == Verb.boot:
-            run(
-                [
-                    "systemd-repart",
-                    "--image", workdir(fname),
-                    *([f"--size={config.runtime_size}"] if config.runtime_size else []),
-                    "--no-pager",
-                    "--dry-run=no",
-                    "--offline=no",
-                    "--pretty=no",
-                    workdir(fname),
-                ],
-                stdin=sys.stdin,
-                env=config.finalize_environment(),
-                sandbox=config.sandbox(
-                    network=True,
-                    devices=True,
-                    options=["--bind", fname, workdir(fname)],
-                ),
-                setup=become_root_cmd(),
-            )  # fmt: skip
-
         cmdline += ["--directory" if fname.is_dir() else "--image", fname]
 
         if config.runtime_build_sources:
