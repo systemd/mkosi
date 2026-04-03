@@ -5015,7 +5015,10 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
     # Don't fail if systemd-nsresourced is too old or not installed unless the foreign UID range was
     # explicitly requested, use a regular unpriv user namespace instead.
     except (FileNotFoundError, VarlinkError, ConnectionRefusedError) as e:
-        if isinstance(e, VarlinkError) and e.error != "org.varlink.service.InvalidParameter":
+        if isinstance(e, VarlinkError) and e.error not in (
+            "org.varlink.service.InvalidParameter",
+            "io.systemd.NamespaceResource.UserNamespaceInterfaceNotSupported",
+        ):
             raise
 
         if last.foreign_uid_range:
