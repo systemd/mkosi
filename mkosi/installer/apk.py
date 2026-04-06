@@ -38,7 +38,7 @@ class Apk(PackageManager):
     def scripts(cls, context: Context) -> dict[str, list[PathString]]:
         return {
             "apk": cls.apivfs_script_cmd(context) + cls.env_cmd(context) + cls.cmd(context),
-            "mkosi-install":   ["apk", "add", "--upgrade", "--cache-max-age", "999999999"],
+            "mkosi-install":   ["apk", "add", "--upgrade"],
             "mkosi-upgrade":   ["apk", "upgrade"],
             "mkosi-remove":    ["apk", "--remove", "del"],
             "mkosi-reinstall": ["apk", "fix", "--reinstall"],
@@ -64,7 +64,11 @@ class Apk(PackageManager):
         }
 
     @classmethod
-    def cmd(cls, context: Context) -> list[PathString]:
+    def cmd(
+        cls,
+        context: Context,
+        cached_metadata: bool = True,
+    ) -> list[PathString]:
         return [
             "apk",
             "--root", "/buildroot",
@@ -77,6 +81,7 @@ class Apk(PackageManager):
             "--keys-dir", "/etc/apk/keys",
             "--repositories-file", "/etc/apk/repositories",
             *(["--allow-untrusted"] if not context.config.repository_key_check else []),
+            *(["--cache-max-age", "999999999"] if cached_metadata else []),
         ]  # fmt: skip
 
     @classmethod
@@ -88,9 +93,10 @@ class Apk(PackageManager):
         *,
         apivfs: bool = False,
         stdout: _FILE = None,
+        cached_metadata: bool = True,
     ) -> CompletedProcess:
         return run(
-            cls.cmd(context) + [operation, *arguments],
+            cls.cmd(context, cached_metadata=cached_metadata) + [operation, *arguments],
             sandbox=cls.sandbox(context, apivfs=apivfs),
             env=cls.finalize_environment(context),
             stdout=stdout,
@@ -111,8 +117,6 @@ class Apk(PackageManager):
             [
                 "--initdb",
                 "--upgrade",
-                # effectively disable refreshing the cache in this situation
-                "--cache-max-age", "999999999",
                 *packages,
             ],
             apivfs=apivfs,
@@ -129,7 +133,7 @@ class Apk(PackageManager):
         saved = context.root.rename(context.workspace / "saved-root")
         context.root.mkdir()
         cls.invoke(context, "add", ["--initdb"])
-        cls.invoke(context, "update", ["--update-cache"] if force else [])
+        cls.invoke(context, "update", ["--update-cache"] if force else [], cached_metadata=False)
         rmtree(context.root)
         saved.rename(context.root)
 
