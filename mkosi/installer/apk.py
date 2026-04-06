@@ -4,7 +4,7 @@ import dataclasses
 from collections.abc import Sequence
 from pathlib import Path
 
-from mkosi.config import Config
+from mkosi.config import Cacheonly, Config
 from mkosi.context import Context
 from mkosi.installer import PackageManager
 from mkosi.run import CompletedProcess, run, workdir
@@ -82,6 +82,7 @@ class Apk(PackageManager):
             "--repositories-file", "/etc/apk/repositories",
             *(["--allow-untrusted"] if not context.config.repository_key_check else []),
             *(["--cache-max-age", "999999999"] if cached_metadata else []),
+            *(["--no-network"] if context.config.cacheonly == Cacheonly.always else []),
         ]  # fmt: skip
 
     @classmethod
