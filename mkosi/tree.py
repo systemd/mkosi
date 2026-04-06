@@ -103,6 +103,12 @@ def tree_has_selinux_xattr(path: Path) -> bool:
     )
 
 
+def tree_has_ima_xattr(path: Path) -> bool:
+    return any(
+        "security.ima" in os.listxattr(p, follow_symlinks=False) for p in (path, *path.rglob("*"))
+    )
+
+
 def copy_tree(
     src: Path,
     dst: Path,
@@ -125,7 +131,10 @@ def copy_tree(
         attrs += ",timestamps,ownership"
 
         # Trying to copy selinux xattrs to overlayfs fails with "Operation not supported" in containers.
-        if statfs(os.fspath(dst.parent)) != OVERLAYFS_SUPER_MAGIC or not tree_has_selinux_xattr(src):
+        # Trying to copy security.ima xattrs fails with "Operation not permitted" when non-root.
+        if (statfs(os.fspath(dst.parent)) != OVERLAYFS_SUPER_MAGIC or not tree_has_selinux_xattr(src)) and (
+            os.getuid() == 0 or not tree_has_ima_xattr(src)
+        ):
             attrs += ",xattr"
 
     def copy() -> None:
