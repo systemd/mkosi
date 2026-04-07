@@ -197,6 +197,10 @@ def test_config() -> None:
                     "Size": 200
                 }
             ],
+            "ElTorito": "auto",
+            "ElToritoPublisher": null,
+            "ElToritoSystem": null,
+            "ElToritoVolume": null,
             "Environment": {
                 "BAR": "BAR",
                 "Qux": "Qux",
@@ -490,6 +494,10 @@ def test_config() -> None:
             Drive("abc", 200, None, "", "wcd", []),
             Drive("abc", 200, None, "", "bla", [DriveFlag.persist]),
         ],
+        el_torito=ConfigFeature.auto,
+        el_torito_system=None,
+        el_torito_volume=None,
+        el_torito_publisher=None,
         environment_files=[],
         environment={"foo": "foo", "BAR": "BAR", "Qux": "Qux"},
         ephemeral=True,

@@ -799,6 +799,19 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     exists in the local directory, the UUID to use is read from it. Otherwise,
     a random UUID is used.
 
+`ElTorito=`, `--el-torito=`
+:   Whether to add an El Torito boot catalog to boot the ESP when building a
+    disk image. Takes a boolean value or `auto`. Defaults to `auto`.
+
+`ElToritoSystem=`, `--el-torito-system=`
+:   Set the system identifier in the ISO 9660 descriptor.
+
+`ElToritoVolume=`, `--el-torito-volume=`
+:   Set the volume identifier in the ISO 9660 descriptor.
+
+`ElToritoPublisher=`, `--el-torito-publisher=`
+:   Set the publisher identifier in the ISO 9660 descriptor.
+
 `CleanScripts=`, `--clean-script=`
 :   Takes a comma-separated list of paths to executables that are used as
     the clean scripts for this image. Glob patterns are supported and
@@ -1903,8 +1916,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `DiskType=`, `--disk-type=`
 :   Configures the disk type to use for the root disk when booting a virtual
-    machine. Takes one of `virtio-blk`, `virtio-scsi`, or `nvme`. Defaults to
-    `virtio-blk`.
+    machine. Takes one of `virtio-blk`, `virtio-scsi`, `nvme`, or `scsi-cd`.
+    Defaults to `virtio-blk`. Use `scsi-cd` to attach the image as a CD-ROM
+    drive, which is useful for booting El Torito ISO images.
 
 `Firmware=`, `--firmware=`
 :   Configures the virtual machine firmware to use. Takes one of `uefi`,

@@ -408,6 +408,7 @@ class QemuDiskType(StrEnum):
     virtio_blk = enum.auto()
     virtio_scsi = enum.auto()
     nvme = enum.auto()
+    scsi_cd = enum.auto()
 
 
 class Ssh(StrEnum):
@@ -2102,6 +2103,10 @@ class Config:
     sector_size: Optional[int]
     overlay: bool
     seed: uuid.UUID
+    el_torito: ConfigFeature
+    el_torito_system: Optional[str]
+    el_torito_volume: Optional[str]
+    el_torito_publisher: Optional[str]
 
     packages: list[str]
     build_packages: list[str]
@@ -2433,6 +2438,14 @@ class Config:
         return output
 
     @property
+    def output_efinvramstate(self) -> str:
+        return f"{self.output}.efinvramstate"
+
+    @property
+    def output_tpmstate(self) -> str:
+        return f"{self.output}.tpmstate"
+
+    @property
     def outputs(self) -> list[str]:
         return [
             self.output,
@@ -2452,6 +2465,8 @@ class Config:
             self.output_manifest,
             self.output_changelog,
             self.output_tar,
+            self.output_efinvramstate,
+            self.output_tpmstate,
         ]
 
     @property
@@ -3026,6 +3041,34 @@ SETTINGS: list[ConfigSetting[Any]] = [
         path_suffixes=("seed",),
         path_read_text=True,
         help="Set the seed for systemd-repart",
+    ),
+    ConfigSetting(
+        dest="el_torito",
+        metavar="FEATURE",
+        section="Output",
+        parse=config_parse_feature,
+        help="Whether to add a boot catalog to boot the ESP",
+    ),
+    ConfigSetting(
+        dest="el_torito_system",
+        metavar="STRING",
+        section="Output",
+        parse=config_parse_string,
+        help="Set the system identifier in the ISO9660 descriptor",
+    ),
+    ConfigSetting(
+        dest="el_torito_volume",
+        metavar="STRING",
+        section="Output",
+        parse=config_parse_string,
+        help="Set the volume identifier in the ISO9660 descriptor",
+    ),
+    ConfigSetting(
+        dest="el_torito_publisher",
+        metavar="STRING",
+        section="Output",
+        parse=config_parse_string,
+        help="Set the publisher identifier in the ISO9660 descriptor",
     ),
     ConfigSetting(
         dest="clean_scripts",
@@ -5370,7 +5413,7 @@ def want_kernel(config: Config) -> bool:
         return False
 
     if config.bootable == ConfigFeature.auto and (
-        config.output_format in (OutputFormat.cpio, OutputFormat.directory)
+        config.output_format == OutputFormat.cpio
         or config.output_format.is_extension_or_portable_image()
         or config.overlay
     ):
@@ -5767,6 +5810,10 @@ def summary(config: Config) -> str:
                         Sector Size: {none_to_default(config.sector_size)}
                             Overlay: {yes_no(config.overlay)}
                                Seed: {none_to_random(config.seed)}
+                          El Torito: {config.el_torito}
+                   El Torito System: {none_to_none(config.el_torito_system)}
+                   El Torito Volume: {none_to_none(config.el_torito_volume)}
+                El Torito Publisher: {none_to_none(config.el_torito_publisher)}
                       Clean Scripts: {line_join_list(config.clean_scripts)}
 
     {bold("CONTENT")}:
@@ -5946,6 +5993,7 @@ def summary(config: Config) -> str:
                               VSock: {config.vsock}
                 VSock Connection ID: {VsockCID.format(config.vsock_cid)}
                                 TPM: {config.tpm}
+                          Disk Type: {config.disk_type}
                            Firmware: {config.firmware}
                  Firmware Variables: {none_to_none(config.firmware_variables)}
                               Linux: {none_to_none(config.linux)}

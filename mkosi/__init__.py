@@ -2782,6 +2782,14 @@ def check_inputs(config: Config) -> None:
     if config.is_incremental() and config.cacheonly == Cacheonly.never:
         die("Incremental=yes cannot be used with CacheOnly=never")
 
+    if config.el_torito == ConfigFeature.enabled:
+        check_systemd_tool(
+            config,
+            "systemd-repart",
+            version="261~devel",
+            reason="use El Torito options",
+        )
+
 
 def check_tool(config: Config, *tools: PathString, reason: str, hint: Optional[str] = None) -> Path:
     tool = config.find_binary(*tools)
@@ -3413,6 +3421,7 @@ def make_image(
     skip: Sequence[str] = [],
     split: bool = False,
     tabs: bool = False,
+    el_torito: bool = False,
     verity: Verity = Verity.disabled,
     definitions: Sequence[Path] = [],
     options: Sequence[PathString] = (),
@@ -3458,6 +3467,19 @@ def make_image(
         ]
     if tabs and systemd_tool_version("systemd-repart", sandbox=context.sandbox) >= 258:
         cmdline += ["--append-fstab=auto"]
+
+    if (
+        el_torito
+        and context.config.el_torito != ConfigFeature.disabled
+        and systemd_tool_version("systemd-repart", sandbox=context.sandbox) >= "261~devel"
+    ):
+        cmdline += ["--el-torito=yes"]
+        if context.config.el_torito_system:
+            cmdline += ["--el-torito-system", context.config.el_torito_system]
+        if context.config.el_torito_volume:
+            cmdline += ["--el-torito-volume", context.config.el_torito_volume]
+        if context.config.el_torito_publisher:
+            cmdline += ["--el-torito-publisher", context.config.el_torito_publisher]
 
     for d in definitions:
         cmdline += ["--definitions", workdir(d)]
@@ -3539,6 +3561,7 @@ def make_disk(
     skip: Sequence[str] = [],
     split: bool = False,
     tabs: bool = False,
+    el_torito: bool = False,
 ) -> list[Partition]:
     if context.config.output_format != OutputFormat.disk:
         return []
@@ -3618,6 +3641,7 @@ def make_disk(
         skip=skip,
         split=split,
         tabs=tabs,
+        el_torito=el_torito,
         verity=context.config.verity,
         definitions=definitions,
     )
@@ -4087,7 +4111,7 @@ def build_image(context: Context) -> None:
     install_kernel(context, partitions)
     normalize_mtime(context.root, context.config.source_date_epoch, directory=Path("boot"))
     normalize_mtime(context.root, context.config.source_date_epoch, directory=Path("efi"))
-    partitions = make_disk(context, msg="Formatting ESP/XBOOTLDR partitions")
+    partitions = make_disk(context, el_torito=True, msg="Formatting ESP/XBOOTLDR partitions")
     grub_bios_setup(context, partitions)
 
     if ArtifactOutput.partitions in context.config.split_artifacts:
@@ -4318,29 +4342,6 @@ def run_shell(args: Args, config: Config) -> None:
             copyfile2(config.nspawn_settings, config.output_dir_or_cwd() / f"{name}.nspawn")
 
         fname = stack.enter_context(copy_ephemeral(config, config.output_dir_or_cwd() / config.output))
-
-        if config.output_format == OutputFormat.disk and args.verb == Verb.boot:
-            run(
-                [
-                    "systemd-repart",
-                    "--image", workdir(fname),
-                    *([f"--size={config.runtime_size}"] if config.runtime_size else []),
-                    "--no-pager",
-                    "--dry-run=no",
-                    "--offline=no",
-                    "--pretty=no",
-                    workdir(fname),
-                ],
-                stdin=sys.stdin,
-                env=config.finalize_environment(),
-                sandbox=config.sandbox(
-                    network=True,
-                    devices=True,
-                    options=["--bind", fname, workdir(fname)],
-                ),
-                setup=become_root_cmd(),
-            )  # fmt: skip
-
         cmdline += ["--directory" if fname.is_dir() else "--image", fname]
 
         if config.runtime_build_sources:
@@ -4991,7 +4992,10 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
     # Don't fail if systemd-nsresourced is too old or not installed unless the foreign UID range was
     # explicitly requested, use a regular unpriv user namespace instead.
     except (FileNotFoundError, VarlinkError, ConnectionRefusedError) as e:
-        if isinstance(e, VarlinkError) and e.error != "org.varlink.service.InvalidParameter":
+        if isinstance(e, VarlinkError) and e.error not in (
+            "org.varlink.service.InvalidParameter",
+            "io.systemd.NamespaceResource.UserNamespaceInterfaceNotSupported",
+        ):
             raise
 
         if last.foreign_uid_range:

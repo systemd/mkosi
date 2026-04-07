@@ -41,6 +41,7 @@ from mkosi.config import (
     QemuDiskType,
     Ssh,
     Verb,
+    Vmm,
     VsockCID,
     finalize_term,
     format_bytes,
@@ -757,10 +758,14 @@ def finalize_kernel_command_line_extra(args: Args, config: Config) -> list[str]:
             "rw",
             # Make sure we don't load vmw_vmci which messes with virtio vsock.
             "module_blacklist=vmw_vmci",
-            f"systemd.tty.term.hvc0={term}",
-            f"systemd.tty.columns.hvc0={columns}",
-            f"systemd.tty.rows.hvc0={lines}",
         ]
+
+        if config.vmm != Vmm.vmspawn:
+            cmdline += [
+                f"systemd.tty.columns.hvc0={columns}",
+                f"systemd.tty.rows.hvc0={lines}",
+                f"systemd.tty.term.hvc0={term}",
+            ]
 
         if not any(s.startswith("ip=") for s in config.kernel_command_line_extra):
             cmdline += ["ip=enc0:any", "ip=enp0s1:any", "ip=enp0s2:any", "ip=host0:any", "ip=none"]
@@ -768,7 +773,7 @@ def finalize_kernel_command_line_extra(args: Args, config: Config) -> list[str]:
         if not any(s.startswith("loglevel=") for s in config.kernel_command_line_extra):
             cmdline += ["loglevel=4"]
 
-        if config.console not in (ConsoleMode.gui, ConsoleMode.headless):
+        if config.console not in (ConsoleMode.gui, ConsoleMode.headless) and config.vmm != Vmm.vmspawn:
             cmdline += [
                 f"systemd.tty.term.console={term}",
                 f"systemd.tty.columns.console={columns}",
@@ -776,6 +781,7 @@ def finalize_kernel_command_line_extra(args: Args, config: Config) -> list[str]:
                 "console=hvc0",
                 f"TERM={term}",
             ]
+
         elif config.console == ConsoleMode.gui and config.architecture.is_arm_variant():
             cmdline += ["console=tty0"]
 
@@ -1215,10 +1221,10 @@ def run_qemu(args: Args, config: Config) -> None:
 
         if config.output_format in (OutputFormat.disk, OutputFormat.esp):
             disk_type = config.disk_type
-            if config.removable:
+            if config.removable and disk_type not in (QemuDiskType.virtio_scsi, QemuDiskType.scsi_cd):
                 disk_type = QemuDiskType.virtio_scsi
 
-            if disk_type == QemuDiskType.virtio_scsi:
+            if disk_type in (QemuDiskType.virtio_scsi, QemuDiskType.scsi_cd):
                 cmdline += ["-device", "virtio-scsi-pci,id=mkosi"]
 
             blockdev = [
@@ -1240,6 +1246,10 @@ def run_qemu(args: Args, config: Config) -> None:
                     device += ",device_id=mkosi,removable=on"
             elif disk_type == QemuDiskType.nvme:
                 device = "nvme,serial=mkosi"
+            elif disk_type == QemuDiskType.scsi_cd:
+                device = "scsi-cd"
+                if config.removable:
+                    device += ",device_id=mkosi,removable=on"
             else:
                 # pyright doesn't do exhaustiveness checking so we need this branch explicitly.
                 die(f"Unexpected disk type: {disk_type}")
