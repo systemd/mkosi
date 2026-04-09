@@ -65,11 +65,8 @@ def test_bootloader(config: ImageConfig, bootloader: Bootloader) -> None:
     if bootloader.is_prebuilt_uki() and config.distribution != Distribution.fedora:
         return
 
-    # uki-prebuilt requires a distro-shipped prebuilt UKI. Fedora ships one via
-    # kernel-uki-virt, so we inject that package to exercise this path.
-    extra = ["--package=kernel-uki-virt"] if bootloader.is_prebuilt_uki() else []
     firmware = Firmware.linux if bootloader == Bootloader.none else Firmware.auto
 
     with Image(config) as image:
-        image.build(["--format=disk", "--bootloader", str(bootloader), *extra])
+        image.build(["--format=disk", "--bootloader", str(bootloader)])
         image.vm(["--firmware", str(firmware)])
