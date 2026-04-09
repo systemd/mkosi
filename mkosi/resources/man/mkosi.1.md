@@ -1599,9 +1599,12 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     as the package cache is already fully populated. If set to `metadata`,
     the package manager can still download packages, but we won't sync the
     repository metadata. If set to `auto`, the repository metadata is
-    synced unless all images are cached (see `Incremental=`) and packages can
-    be downloaded during the build. If set to `never`, repository metadata
-    is always synced and packages can be downloaded during the build.
+    synced when no image has ever been built before, or (and all cached
+    images are invalidated in this case) when every image was previously
+    cached (see `Incremental=`) and at least one of those caches is now
+    out of date. Packages can be downloaded during the build. If set to
+    `never`, repository metadata is always synced and packages can be
+    downloaded during the build.
 
 `SandboxTrees=`, `--sandbox-tree=`
 :   Takes a comma-separated list of colon-separated path pairs. The first
