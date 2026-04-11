@@ -4718,10 +4718,7 @@ def run_clean(args: Args, config: Config, repository_metadata_needs_sync: bool =
         remove_image_cache = args.force > 0
         remove_package_cache = args.force > 1
     else:
-        # Rely on the fact that True is 1 and False is 0 in numeric contexts.
-        remove_outputs = args.force > (config.incremental == Incremental.relaxed) or (
-            config.is_incremental() and not have_cache(config)
-        )
+        remove_outputs = args.force > 0 or (config.is_incremental() and not have_cache(config))
         remove_build_cache = args.force > 1 or args.wipe_build_dir
         remove_image_cache = args.force > 1 or not have_cache(config) or repository_metadata_needs_sync
         remove_package_cache = args.force > 2
@@ -4798,14 +4795,38 @@ def ensure_directories_exist(config: Config) -> None:
 
 
 def repository_metadata_needs_sync(images: Sequence[Config]) -> bool:
-    for config in images:
-        if config.cacheonly == Cacheonly.never:
-            return True
+    if any(c.cacheonly == Cacheonly.never for c in images):
+        return True
 
-        if config.cacheonly == Cacheonly.auto and not have_cache(config):
-            return True
+    if not (auto := [c for c in images if c.cacheonly == Cacheonly.auto]):
+        return False
 
-    return False
+    # If there are no incremental images at all, we have no caches to preserve, so
+    # always sync to avoid failures from stale metadata. In a mixed setup, ignore
+    # the non-incremental images and apply the heuristic to the incremental ones only.
+    # Non-incremental images in a mixed setup may eventually fail because of stale
+    # metadata, but that's the cost of mixing them with incremental images we want
+    # to preserve.
+    if not (incremental := [c for c in auto if c.is_incremental()]):
+        return True
+
+    # Use the manifest file as the "previously cached" marker: it's written when an
+    # image builds successfully and survives even after the image cache content goes
+    # stale. If no incremental image has a manifest, no image has ever been built
+    # before, so there's nothing to be consistent with and we have to sync to get
+    # any metadata at all. If every incremental image has a manifest and at least
+    # one of those caches is now out of date, the user is incrementally rebuilding
+    # from a fully-coherent state, so re-sync metadata and let run_clean() wipe
+    # everything to avoid partial upgrades. Otherwise, some images have manifests
+    # and some don't (e.g. recovering from a mid-build failure), and the existing
+    # metadata is by construction consistent with the caches that do exist, so we
+    # don't need to re-sync.
+    if all(not cache_tree_paths(c)[2].exists() for c in incremental):
+        return True
+
+    return all(cache_tree_paths(c)[2].exists() for c in incremental) and not all(
+        have_cache(c) for c in incremental
+    )
 
 
 def sync_repository_metadata(
@@ -5215,16 +5236,12 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
             ikd = imd = None
 
             for config in images:
-                # If the output format is "none" and there are no build scripts, there's nothing to do so
-                # exit early.
-                if config.output_format == OutputFormat.none and not config.build_scripts:
-                    continue
-
-                # If the image already exists and we're not rerunning build scripts, there's nothing to do so
-                # exit early.
-                if (config.output_dir_or_cwd() / config.output).exists() and (
-                    not args.rerun_build_scripts or not config.build_scripts
-                ):
+                # If the output format is "none" or we're rebuilding and there are no build scripts, there's
+                # nothing to do so exit early.
+                if (
+                    config.output_format == OutputFormat.none
+                    or (args.rerun_build_scripts and (config.output_dir_or_cwd() / config.output).exists())
+                ) and not config.build_scripts:
                     continue
 
                 check_tools(config, Verb.build)

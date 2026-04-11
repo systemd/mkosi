@@ -1589,9 +1589,6 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     If set to `strict`, the build fails if previously built cached image does
     not exist.
 
-    If set to `relaxed`, images are only rebuilt when `-ff` is specified or
-    if the cached imaged is out of date.
-
 `CacheOnly=`, `--cache-only=`
 :   Takes one of `auto`, `metadata`, `always` or `never`. Defaults to
     `auto`. If `always`, the package manager is instructed not to contact
@@ -1599,9 +1596,12 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     as the package cache is already fully populated. If set to `metadata`,
     the package manager can still download packages, but we won't sync the
     repository metadata. If set to `auto`, the repository metadata is
-    synced unless all images are cached (see `Incremental=`) and packages can
-    be downloaded during the build. If set to `never`, repository metadata
-    is always synced and packages can be downloaded during the build.
+    synced when no image has ever been built before, or (and all cached
+    images are invalidated in this case) when every image was previously
+    cached (see `Incremental=`) and at least one of those caches is now
+    out of date. Packages can be downloaded during the build. If set to
+    `never`, repository metadata is always synced and packages can be
+    downloaded during the build.
 
 `SandboxTrees=`, `--sandbox-tree=`
 :   Takes a comma-separated list of colon-separated path pairs. The first
