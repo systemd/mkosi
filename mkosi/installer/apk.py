@@ -130,13 +130,19 @@ class Apk(PackageManager):
     @classmethod
     def sync(cls, context: Context, force: bool) -> None:
         # Updating the cache requires an initialized apk database but we don't want to touch the image root
-        # directory so temporarily replace it with an empty directory to make apk happy.
-        saved = context.root.rename(context.workspace / "saved-root")
-        context.root.mkdir()
-        cls.invoke(context, "add", ["--initdb"])
-        cls.invoke(context, "update", ["--update-cache"] if force else [], cached_metadata=False)
-        rmtree(context.root)
-        saved.rename(context.root)
+        # directory as it may be a mount point. Use a throwaway directory instead.
+        tmp = context.workspace / "apk-sync-root"
+        tmp.mkdir(exist_ok=True)
+        cmd = cls.cmd(context)
+        options = ["--bind", tmp, "/buildroot", *cls.mounts(context), *cls.options(root=tmp, apivfs=False)]
+        env = cls.finalize_environment(context)
+        run(cmd + ["add", "--initdb"], sandbox=context.sandbox(network=True, options=options), env=env)
+        run(
+            cls.cmd(context, cached_metadata=False) + ["update", *(["--update-cache"] if force else [])],
+            sandbox=context.sandbox(network=True, options=options),
+            env=env,
+        )
+        rmtree(tmp)
 
     @classmethod
     def createrepo(cls, context: Context) -> None:
