@@ -10,19 +10,18 @@ SPDX-License-Identifier: LGPL-2.1-or-later
 `mkosi` does not natively support installing packages from the [Arch User Repository
 (AUR)](https://aur.archlinux.org/), since AUR packages must be built from source using `makepkg` rather than
 installed through `pacman`. This section describes how to install AUR packages at image build time using
-[`aurutils`](https://aur.archlinux.org/packages/aurutils) and a local pacman repository.
+[`aurutils`](https://aur.archlinux.org/packages/aurutils).
 
 ## Overview:
 
-The approach involves using three `mkosi` hook scripts that run in sequence:
+The approach involves using two `mkosi` hook scripts and a stub `build` script:
 
-1. `mkosi.prepare.chroot`: Initialises the pacman keyring, bootstraps `aurutils` from the AUR (since it is an AUR package itself and therefore cannot be listed in
-   the `BuildPackages=` section of an `mkosi.conf` file), and then sets up a local pacman repository backed by
-   `$PACKAGEDIR`.
+1. `mkosi.prepare.chroot`: Bootstraps `aurutils` from AUR, resolves its dependency graph, builds all
+   requested packages as the unprivileged [`nobody`](https://wiki.ubuntu.com/nobody) user, and places the resulting packages in `$PACKAGEDIR`.
 
-2. `mkosi.build.chroot`: Resolves the full AUR dependency graph, installs official-repo makedepends, fetches `PKGBUILD`s, builds packages as the unprivileged [nobody](https://wiki.ubuntu.com/nobody) user, and registers the results in the local repository inside `$PACKAGEDIR`.
+2. `mkosi.build.chroot`: A stub script that exists solely to trigger mkosi's build phase, which causes mkosi.prepare.chroot to be called with the build argument.
 
-3. `mkosi.postinst.chroot`: Configures pacman in the final image to read from `$PACKAGEDIR` and installs all built AUR packages.
+3. `mkosi.postinst.chroot`:  Installs the built packages from `$PACKAGEDIR` into the final image using `pacman -U`.
 
 `BuildSourcesEphemeral=yes` ensures that build tools (`base-devel`, `git`, etc.) installed via
 `BuildPackages=` are present during the build phase but [are not included in the final image](/mkosi/resources/man/mkosi.1.md#build-section). `$PACKAGEDIR` is a mkosi-managed directory that persists between the build phase and the postinst phase.
@@ -35,6 +34,11 @@ Since `makepkg` checks `EUID` (Effective User ID) rather than strictly requiring
 
 AUR packages can depend on other AUR packages. Using `aur depends -r` emits the full
 transitive dependency graph. `tsort` linearises the dependencies into a build order that guarantees each package is built after the packages it depends on. For neovim-git, the AUR package used in this example, this means any AUR dependencies are built and registered before neovim-git itself attempts to build against them.
+
+### Why `aurutils` is bootstrapped manually?
+`aurutils` cannot be listed in `BuildPackages=` because it is itself an AUR package. Its dependencies are
+installed explicitly as root before `makepkg` runs, since `makepkg --syncdeps` calls `pacman` via `sudo`
+internally, which `nobody` does not have access to in the build sandbox.
 
 # Example installing `neovim-git`:
 
@@ -72,11 +76,14 @@ Packages=
 
 set -eux
 
-if [[ "${1}" != "build" ]]; then
+if [[ "$1" != "build" ]]; then
     exit 0
 fi
 
-# Pacman initialization operations:
+# The prepare script runs in a fresh build overlay where the keyring has
+# not been initialised and no package databases exist. Both steps are
+# required, omitting them causes "keyring is not writable" and
+# "database file does not exist" errors respectively.
 pacman-key --init
 pacman-key --populate archlinux
 
@@ -86,9 +93,7 @@ EOF
 
 pacman -Sy
 
-# Bootstrap aurutils from AUR, with user nobody into /tmp, then install with pacman.
 install -d /tmp/aurutils-build -o nobody
-
 cd /tmp/aurutils-build
 sudo -u nobody git clone https://aur.archlinux.org/aurutils.git
 cd aurutils
@@ -105,46 +110,14 @@ pacman -U --noconfirm /tmp/aurutils-*.pkg.tar
 
 cd /
 
-# Initialize the local pacman repo inside $PACKAGEDIR.
-install -d "$PACKAGEDIR" -o nobody
-sudo -u nobody tar -ca -f "$PACKAGEDIR/aur.db.tar.xz" -T /dev/null
-sudo -u nobody ln -sf "$PACKAGEDIR/aur.db.tar.xz" "$PACKAGEDIR/aur.db"
-
-mkdir -p /etc/pacman.d
-
-cat > /etc/pacman.d/aur.conf << EOF
-[aur]
-SigLevel = Optional TrustAll
-Server = file://$PACKAGEDIR
-EOF
-
-if ! grep -q 'Include = /etc/pacman.d/\*.conf' /etc/pacman.conf; then
-    echo -e '\nInclude = /etc/pacman.d/*.conf' >> /etc/pacman.conf
-fi
-
-pacman -Sy
-```
-
-## `mkosi.build.chroot`:
-
-```sh
-#!/usr/bin/env bash
-
-# This runs after mkosi.prepare.chroot "build" phase.
-# Still inside the BUILD overlay, so base-devel, aurutils, git, are all available here.
-
-set -eux
-
+# Add any AUR packages you want to build here,
 PACKAGES=(
     neovim-git
-    # foo
-    # bar
-    # and any other AUR packages you want to build here
 )
 
-# /var/tmp/aurutils-65534 is aurutils' own working directory (65534 = nobody uid).
 install -d /tmp/aurbuild -o nobody
 install -d /var/tmp/aurutils-65534 -o nobody
+install -d "$PACKAGEDIR" -o nobody
 cd /tmp/aurbuild
 
 # Resolve full AUR dependency graph and linearise into build order.
@@ -171,15 +144,19 @@ for pkg in ${aur_deps[@]}; do
         BUILDDIR="/tmp/aurbuild" \
         SRCDEST="/tmp/aurbuild" \
         PKGDEST="$PACKAGEDIR" \
-        aur build --no-sync
-
-    sudo -u nobody repo-add "$PACKAGEDIR/aur.db.tar.xz" \
-        "$PACKAGEDIR/${pkg}"-*.pkg.tar*
+        makepkg --noconfirm --noprogressbar
 
     popd
 done
+```
 
-pacman -Sy
+## `mkosi.build.chroot`:
+
+```sh
+#!/usr/bin/env bash
+# This script exists solely to trigger mkosi's build phase, which causes
+# mkosi.prepare.chroot to be called with the "build" argument. All actual
+# AUR package building happens in mkosi.prepare.chroot.
 ```
 
 ## `mkosi.postinst.chroot`:
@@ -187,26 +164,11 @@ pacman -Sy
 ```sh
 #!/usr/bin/env bash
 
-# Installs built AUR packages into the final image.
-
 set -eux
 
-mkdir -p /etc/pacman.d
-
-cat > /etc/pacman.d/aur.conf << EOF
-[aur]
-SigLevel = Optional TrustAll
-Server = file://$PACKAGEDIR
-EOF
-
-cat > /etc/pacman.d/mirrorlist << 'EOF'
-Server = https://geo.mirror.pkgbuild.com/$repo/os/$arch
-EOF
-
-if ! grep -q 'Include = /etc/pacman.d/\*.conf' /etc/pacman.conf; then
-    echo -e '\nInclude = /etc/pacman.d/*.conf' >> /etc/pacman.conf
-fi
-
+# The final image context also starts with no keyring, mirrorlist, or
+# synced databases. pacman -U needs all three to verify package signatures
+# and resolve official-repo dependencies of the AUR packages.
 pacman-key --init
 pacman-key --populate archlinux
 
@@ -216,8 +178,7 @@ EOF
 
 pacman -Sy
 
-# Install every package registered in the [aur] repo.
-pacman -S --noconfirm $(pacman -Sql aur)
+pacman -U --noconfirm $PACKAGEDIR/*.pkg.tar.zst
 ```
 
 # Building and Executing the Scripts:
