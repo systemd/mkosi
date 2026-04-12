@@ -25,21 +25,19 @@ def run_burn(args: Args, config: Config) -> None:
     device = args.cmdline[0]
     lsblk_command = [
         "lsblk",
-        "-o",
-        "PATH,LABEL,PARTLABEL,FSTYPE,SIZE,HOTPLUG,MOUNTPOINTS",
+        "-o", "PATH,LABEL,PARTLABEL,FSTYPE,SIZE,HOTPLUG,MOUNTPOINTS",
         "--paths",
         device,
-    ]
+    ]  # fmt: skip
 
     logging.info(f"About to burn image to device: {device}")
     logging.info("The following block device layout will be overwritten:")
     run(lsblk_command)
 
-    sys.stderr.write("Do you want to continue? [y/N] ")
-    sys.stderr.flush()
-    reply = sys.stdin.readline().strip().lower()
-    if reply not in ("y", "yes"):
-        die("Aborting burning image to device.")
+    if args.interactive:
+        reply = input("Do you want to continue? [y/N] ").strip().lower()
+        if reply not in ("y", "yes"):
+            die("Aborting burning image to device.")
 
     cmd = [
         "systemd-repart",

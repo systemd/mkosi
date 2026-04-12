@@ -1935,6 +1935,7 @@ class Args:
     json: bool
     wipe_build_dir: bool
     rerun_build_scripts: bool
+    interactive: bool
 
     @classmethod
     def default(cls) -> "Args":
@@ -4682,6 +4683,12 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
         action="store_true",
         default=False,
     )
+    parser.add_argument(
+        "--interactive",
+        help="Prompt for confirmation before burning the image to a device.",
+        action="store_true",
+        default=False,
+    )
     # These can be removed once mkosi v15 is available in LTS distros and compatibility with <= v14
     # is no longer needed in build infrastructure (e.g.: OBS).
     parser.add_argument(
@@ -5465,6 +5472,9 @@ def parse_config(
 
     if args.rerun_build_scripts and args.force:
         die("--force cannot be used together with --rerun-build-scripts")
+
+    if args.interactive and args.verb != Verb.burn:
+        die("--interactive can only be used with the 'burn' command")
 
     if args.cmdline and not args.verb.supports_cmdline():
         die(f"Arguments after verb are not supported for the '{args.verb}' command")
