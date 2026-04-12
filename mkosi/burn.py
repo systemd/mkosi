@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
+import logging
 import os
 import sys
 
@@ -20,6 +21,25 @@ def run_burn(args: Args, config: Config) -> None:
 
     if len(args.cmdline) != 1:
         die("Expected device argument.")
+
+    device = args.cmdline[0]
+    lsblk_command = [
+        "lsblk",
+        "-o",
+        "PATH,LABEL,PARTLABEL,FSTYPE,SIZE,HOTPLUG,MOUNTPOINTS",
+        "--paths",
+        device,
+    ]
+
+    logging.info(f"About to burn image to device: {device}")
+    logging.info("The following block device layout will be overwritten:")
+    run(lsblk_command)
+
+    sys.stderr.write("Do you want to continue? [y/N] ")
+    sys.stderr.flush()
+    reply = sys.stdin.readline().strip().lower()
+    if reply not in ("y", "yes"):
+        die("Aborting burning image to device.")
 
     cmd = [
         "systemd-repart",
