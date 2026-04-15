@@ -92,7 +92,7 @@ class Installer(DistributionInstaller, distribution=Distribution.postmarketos):
 
         # postmarketOS repos
         mirror = context.config.mirror or "https://mirror.postmarketos.org/postmarketos"
-        subdir = "master" if context.config.release == "edge" else f"v{context.config.release}"
+        subdir = "main" if context.config.release == "edge" else f"v{context.config.release}"
 
         yield ApkRepository(url=f"{mirror}/extra-repos/systemd/{subdir}")
         yield ApkRepository(url=f"{mirror}/{subdir}")
