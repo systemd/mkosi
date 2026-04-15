@@ -1313,9 +1313,24 @@ def run_qemu(args: Args, config: Config) -> None:
         if kernel and (kerneltype != KernelType.uki or not config.architecture.supports_smbios(firmware)):
             cmdline += ["-append", " ".join(config.kernel_command_line + kcl)]
         elif config.architecture.supports_smbios(firmware):
+            # Need: the CI test framework passes params like systemd.unit= and
+            # systemd.firstboot=no via config.kernel_command_line to control VM boot
+            # behaviour (e.g. run mkosi-check-and-shutdown.service instead of booting normally).
+            # Obstacle: for uki-prebuilt, the UKI is already built by the distro so
+            # these cannot be baked in at build time.
+            # Chosen solution: inject them at runtime via SMBIOS type-11, which
+            # systemd-stub reads. stub_kcl includes config.kernel_command_line for
+            # uki-prebuilt so it gets passed to systemd-stub via this mechanism.
+            # We can safely assume stub_kcl will be invoked for all uki-prebuilt use
+            # cases because: (1) uki-prebuilt always boots via UEFI so supports_smbios()
+            # is always true for it, and (2) systemd-stub is guaranteed to be present
+            # in the prebuilt UKI since .sdmagic — a PE section that systemd-stub
+            # adds when wrapping a kernel into a UKI — is required by mkosi to qualify
+            # the .efi as a UKI and therefore be copied into the ESP as a uki-prebuilt image.
+            stub_kcl = (config.kernel_command_line if config.bootloader.is_prebuilt_uki() else []) + kcl
             cmdline += [
                 "-smbios",
-                f"type=11,value=io.systemd.stub.kernel-cmdline-extra={' '.join(kcl).replace(',', ',,')}",
+                f"type=11,value=io.systemd.stub.kernel-cmdline-extra={' '.join(stub_kcl).replace(',', ',,')}",  # noqa: E501
                 "-smbios",
                 f"type=11,value=io.systemd.boot.kernel-cmdline-extra={' '.join(kcl).replace(',', ',,')}",
             ]
