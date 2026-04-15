@@ -5,7 +5,7 @@ import subprocess
 
 import pytest
 
-from mkosi.config import Bootloader, Firmware, OutputFormat
+from mkosi.config import Architecture, Bootloader, Firmware, OutputFormat
 from mkosi.distribution import Distribution
 from mkosi.run import find_binary, run
 from mkosi.versioncomp import GenericVersion
@@ -62,7 +62,15 @@ def test_bootloader(config: ImageConfig, bootloader: Bootloader) -> None:
     if config.distribution == Distribution.rhel_ubi or bootloader.is_signed():
         return
 
-    if bootloader.is_prebuilt_uki() and config.distribution != Distribution.fedora:
+    # uki-prebuilt test matrix:
+    #   x86-64 Fedora  → supports_smbios(uefi)=True,  kernel-uki-virt available → runs
+    #   arm64  Fedora  → supports_smbios(uefi)=True,  kernel-uki-virt available → runs
+    #   ppc64le Fedora → supports_smbios(uefi)=False                             → skipped
+    #   non-Fedora     → no kernel-uki-virt equivalent                           → skipped
+    if bootloader.is_prebuilt_uki() and (
+        config.distribution != Distribution.fedora
+        or not Architecture.native().supports_smbios(Firmware.uefi)
+    ):
         return
 
     firmware = Firmware.linux if bootloader == Bootloader.none else Firmware.auto
