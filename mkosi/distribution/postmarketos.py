@@ -100,9 +100,13 @@ class Installer(DistributionInstaller, distribution=Distribution.postmarketos):
     @classmethod
     def architecture(cls, arch: Architecture) -> str:
         a = {
-            Architecture.x86_64: "x86_64",
-            Architecture.arm64:  "aarch64",
-            Architecture.arm:    "armv7",
+            Architecture.arm64:       "aarch64",
+            Architecture.arm:         "armv7",
+            Architecture.loongarch64: "loongarch64",
+            Architecture.ppc64_le:    "ppc64le",
+            Architecture.riscv64:     "riscv64",
+            Architecture.x86:         "x86",
+            Architecture.x86_64:      "x86_64",
         }.get(arch)  # fmt: skip
 
         if not a:
