@@ -4,7 +4,7 @@ import dataclasses
 from collections.abc import Sequence
 from pathlib import Path
 
-from mkosi.config import Config
+from mkosi.config import Cacheonly, Config
 from mkosi.context import Context
 from mkosi.installer import PackageManager
 from mkosi.run import CompletedProcess, run, workdir
@@ -38,7 +38,7 @@ class Apk(PackageManager):
     def scripts(cls, context: Context) -> dict[str, list[PathString]]:
         return {
             "apk": cls.apivfs_script_cmd(context) + cls.env_cmd(context) + cls.cmd(context),
-            "mkosi-install":   ["apk", "add", "--upgrade", "--cache-max-age", "999999999"],
+            "mkosi-install":   ["apk", "add", "--upgrade"],
             "mkosi-upgrade":   ["apk", "upgrade"],
             "mkosi-remove":    ["apk", "--remove", "del"],
             "mkosi-reinstall": ["apk", "fix", "--reinstall"],
@@ -64,7 +64,11 @@ class Apk(PackageManager):
         }
 
     @classmethod
-    def cmd(cls, context: Context) -> list[PathString]:
+    def cmd(
+        cls,
+        context: Context,
+        cached_metadata: bool = True,
+    ) -> list[PathString]:
         return [
             "apk",
             "--root", "/buildroot",
@@ -77,6 +81,8 @@ class Apk(PackageManager):
             "--keys-dir", "/etc/apk/keys",
             "--repositories-file", "/etc/apk/repositories",
             *(["--allow-untrusted"] if not context.config.repository_key_check else []),
+            *(["--cache-max-age", "999999999"] if cached_metadata else []),
+            *(["--no-network"] if context.config.cacheonly == Cacheonly.always else []),
         ]  # fmt: skip
 
     @classmethod
@@ -88,9 +94,10 @@ class Apk(PackageManager):
         *,
         apivfs: bool = False,
         stdout: _FILE = None,
+        cached_metadata: bool = True,
     ) -> CompletedProcess:
         return run(
-            cls.cmd(context) + [operation, *arguments],
+            cls.cmd(context, cached_metadata=cached_metadata) + [operation, *arguments],
             sandbox=cls.sandbox(context, apivfs=apivfs),
             env=cls.finalize_environment(context),
             stdout=stdout,
@@ -111,8 +118,6 @@ class Apk(PackageManager):
             [
                 "--initdb",
                 "--upgrade",
-                # effectively disable refreshing the cache in this situation
-                "--cache-max-age", "999999999",
                 *packages,
             ],
             apivfs=apivfs,
@@ -125,13 +130,19 @@ class Apk(PackageManager):
     @classmethod
     def sync(cls, context: Context, force: bool) -> None:
         # Updating the cache requires an initialized apk database but we don't want to touch the image root
-        # directory so temporarily replace it with an empty directory to make apk happy.
-        saved = context.root.rename(context.workspace / "saved-root")
-        context.root.mkdir()
-        cls.invoke(context, "add", ["--initdb"])
-        cls.invoke(context, "update", ["--update-cache"] if force else [])
-        rmtree(context.root)
-        saved.rename(context.root)
+        # directory as it may be a mount point. Use a throwaway directory instead.
+        tmp = context.workspace / "apk-sync-root"
+        tmp.mkdir(exist_ok=True)
+        cmd = cls.cmd(context)
+        options = ["--bind", tmp, "/buildroot", *cls.mounts(context), *cls.options(root=tmp, apivfs=False)]
+        env = cls.finalize_environment(context)
+        run(cmd + ["add", "--initdb"], sandbox=context.sandbox(network=True, options=options), env=env)
+        run(
+            cls.cmd(context, cached_metadata=False) + ["update", *(["--update-cache"] if force else [])],
+            sandbox=context.sandbox(network=True, options=options),
+            env=env,
+        )
+        rmtree(tmp)
 
     @classmethod
     def createrepo(cls, context: Context) -> None:
