@@ -2,6 +2,7 @@
 
 import contextlib
 import datetime
+import filecmp
 import functools
 import getpass
 import hashlib
@@ -225,8 +226,17 @@ def mount_base_trees(context: Context) -> Iterator[None]:
                     die(f"/{rel} is a directory in the overlay but not in the base tree")
                 shutil.copystat(q, p)
             else:
-                logging.info(f"Removing duplicate path /{rel} from overlay")
-                p.unlink()
+                # Only remove files from the overlay that are truly identical to the base tree.
+                # Symlinks must have the same target and regular files must have the same contents.
+                if p.is_symlink() != q.is_symlink():
+                    continue
+                if p.is_symlink():
+                    same = os.readlink(p) == os.readlink(q)
+                else:
+                    same = filecmp.cmp(p, q, shallow=False)
+                if same:
+                    logging.info(f"Removing duplicate path /{rel} from overlay")
+                    p.unlink()
 
 
 def remove_files(context: Context) -> None:
