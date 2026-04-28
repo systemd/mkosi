@@ -4712,6 +4712,7 @@ def run_clean(args: Args, config: Config, repository_metadata_needs_sync: bool =
     # be able to remove various files from the rootfs.
     sandbox = functools.partial(config.sandbox, tools=False)
 
+    remove_image_cache_reason: Optional[str] = None
     if args.verb == Verb.clean:
         remove_outputs = True
         remove_build_cache = args.force > 0 or args.wipe_build_dir
@@ -4720,7 +4721,13 @@ def run_clean(args: Args, config: Config, repository_metadata_needs_sync: bool =
     else:
         remove_outputs = args.force > 0 or (config.is_incremental() and not have_cache(config))
         remove_build_cache = args.force > 1 or args.wipe_build_dir
-        remove_image_cache = args.force > 1 or not have_cache(config) or repository_metadata_needs_sync
+        if args.force > 1:
+            remove_image_cache_reason = "'--force' was passed at least twice"
+        elif not have_cache(config):
+            remove_image_cache_reason = "the cached image is out of date"
+        elif repository_metadata_needs_sync:
+            remove_image_cache_reason = "package manager metadata is being re-synced"
+        remove_image_cache = remove_image_cache_reason is not None
         remove_package_cache = args.force > 2
 
     if remove_outputs:
@@ -4759,6 +4766,8 @@ def run_clean(args: Args, config: Config, repository_metadata_needs_sync: bool =
             rmtree(*config.build_subdir.iterdir(), sandbox=sandbox)
 
     if remove_image_cache and config.cache_dir and any(p.exists() for p in cache_tree_paths(config)):
+        if remove_image_cache_reason is not None:
+            logging.info(f"Removing cache entries of {config.image} image: {remove_image_cache_reason}")
         with complete_step(f"Removing cache entries of {config.image} image…"):
             rmtree(*(p for p in cache_tree_paths(config) if p.exists()), sandbox=sandbox)
 
@@ -4794,11 +4803,18 @@ def ensure_directories_exist(config: Config) -> None:
             config.build_subdir.chmod(stat.S_IMODE(st.st_mode) & ~(stat.S_ISGID | stat.S_ISUID))
 
 
-def repository_metadata_needs_sync(images: Sequence[Config]) -> bool:
-    if any(c.cacheonly == Cacheonly.never for c in images):
+def repository_metadata_needs_sync(images: Sequence[Config], log: bool = False) -> bool:
+    if never := [c.image for c in images if c.cacheonly == Cacheonly.never]:
+        if log:
+            logging.info(
+                "Syncing package manager metadata: images with 'Cacheonly=never' present "
+                f"({', '.join(sorted(never))})"
+            )
         return True
 
     if not (auto := [c for c in images if c.cacheonly == Cacheonly.auto]):
+        if log:
+            logging.info("Skipping package manager metadata sync: no images with 'Cacheonly=auto'")
         return False
 
     # If there are no incremental images at all, we have no caches to preserve, so
@@ -4808,6 +4824,8 @@ def repository_metadata_needs_sync(images: Sequence[Config]) -> bool:
     # metadata, but that's the cost of mixing them with incremental images we want
     # to preserve.
     if not (incremental := [c for c in auto if c.is_incremental()]):
+        if log:
+            logging.info("Syncing package manager metadata: no incremental images, no caches to preserve")
         return True
 
     # Use the manifest file as the "previously cached" marker: it's written when an
@@ -4822,11 +4840,35 @@ def repository_metadata_needs_sync(images: Sequence[Config]) -> bool:
     # metadata is by construction consistent with the caches that do exist, so we
     # don't need to re-sync.
     if all(not cache_tree_paths(c)[2].exists() for c in incremental):
+        if log:
+            logging.info("Syncing package manager metadata: no incremental image has a cache manifest")
         return True
 
-    return all(cache_tree_paths(c)[2].exists() for c in incremental) and not all(
-        have_cache(c) for c in incremental
-    )
+    if all(cache_tree_paths(c)[2].exists() for c in incremental):
+        if all(have_cache(c) for c in incremental):
+            if log:
+                logging.info(
+                    "Skipping package manager metadata sync: all incremental image caches are up to date"
+                )
+            return False
+        if log:
+            stale = sorted(c.image for c in incremental if not have_cache(c))
+            logging.info(
+                f"Syncing package manager metadata: cached images are out of date: ({', '.join(stale)})"
+            )
+        return True
+
+    if log:
+        with_manifest = sorted(c.image for c in incremental if cache_tree_paths(c)[2].exists())
+        without_manifest = sorted(c.image for c in incremental if not cache_tree_paths(c)[2].exists())
+        logging.info(
+            "Skipping package manager metadata sync: assuming mid-build-failure recovery "
+            f"(images with cache manifest: {', '.join(with_manifest)}; "
+            f"without: {', '.join(without_manifest)})"
+        )
+        logging.info("If package installation fails because of stale metadata, re-run with '-ff'")
+
+    return False
 
 
 def sync_repository_metadata(
@@ -4877,7 +4919,7 @@ def sync_repository_metadata(
     (last.package_cache_dir_or_default() / "cache" / subdir).mkdir(parents=True, exist_ok=True)
 
     # Sync repository metadata unless explicitly disabled.
-    if repository_metadata_needs_sync(images):
+    if repository_metadata_needs_sync(images, log=True):
         with setup_workspace(args, last) as workspace:
             context = Context(
                 args,
