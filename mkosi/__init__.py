@@ -2247,6 +2247,27 @@ def install_kernel(context: Context, partitions: Sequence[Partition]) -> None:
     if not want_kernel(context.config):
         return
 
+    # uki_prebuilt: find the distro-shipped pre-built UKI and copy it to the ESP.
+    if context.config.bootloader.is_prebuilt_uki():
+        # With shim, place the UKI at shim's second-stage slot (e.g. grubx64.EFI) so the
+        # boot chain is: shim (BOOTX64.EFI) → UKI (grubx64.EFI). Without shim, place it
+        # at the UEFI fallback path (BOOTX64.EFI) for direct firmware boot.
+        if context.config.shim_bootloader != ShimBootloader.none:
+            boot_binary = context.root / shim_second_stage_binary(context)
+        else:
+            boot_binary = context.root / efi_boot_binary(context)
+
+        with umask(~0o700):
+            boot_binary.parent.mkdir(parents=True, exist_ok=True)
+
+        for _, kimg in gen_kernel_images(context):
+            log_step(f"Installing prebuilt distro UKI {kimg} to {boot_binary}")
+            copyfile2(kimg, boot_binary)
+            return
+
+        if context.config.bootable == ConfigFeature.enabled:
+            die("Bootloader=uki-prebuilt was set but no pre-built UKI was found in /usr/lib/modules")
+
     stub = systemd_stub_binary(context)
     if want_uki(context) and not stub.exists():
         die(
