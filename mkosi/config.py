@@ -2290,7 +2290,7 @@ class Config:
             env["GIT_PROXY_SSL_CERT"] = "/proxy.clientcert"
         if self.proxy_client_key:
             env["GIT_PROXY_SSL_KEY"] = "/proxy.clientkey"
-        if dnf := os.getenv("MKOSI_DNF"):
+        if (dnf := os.getenv("MKOSI_DNF")) and not self.tools_tree:
             env["MKOSI_DNF"] = dnf
         if gnupghome := os.getenv("GNUPGHOME"):
             env["GNUPGHOME"] = os.fspath(Path(gnupghome).absolute())
