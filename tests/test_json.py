@@ -35,6 +35,7 @@ from mkosi.config import (
     ManifestFormat,
     Network,
     OutputFormat,
+    PcrSigner,
     QemuDiskType,
     SecureBootSignTool,
     ShimBootloader,
@@ -385,6 +386,40 @@ def test_config() -> None:
                 "Source": "",
                 "Type": "file"
             },
+            "SignExpectedPcrUKIPublicKey": "/keys/initrd.crt",
+            "SignExpectedPcrWithPhases": [
+                {
+                    "Certificate": "/keys/initrd.crt",
+                    "CertificateSource": {
+                        "Source": "",
+                        "Type": "file"
+                    },
+                    "Key": "/keys/initrd.key",
+                    "KeySource": {
+                        "Source": "",
+                        "Type": "file"
+                    },
+                    "Phases": [
+                        "enter-initrd"
+                    ]
+                },
+                {
+                    "Certificate": "/keys/system.crt",
+                    "CertificateSource": {
+                        "Source": "",
+                        "Type": "file"
+                    },
+                    "Key": "pkcs11:token=PCRPolicyDevel;object=system;type=private",
+                    "KeySource": {
+                        "Source": "pkcs11",
+                        "Type": "engine"
+                    },
+                    "Phases": [
+                        "enter-initrd:leave-initrd",
+                        "enter-initrd:leave-initrd:sysinit"
+                    ]
+                }
+            ],
             "SkeletonTrees": [
                 {
                     "Source": "/foo/bar",
@@ -610,6 +645,20 @@ def test_config() -> None:
         sign_expected_pcr_certificate=Path("/my/cert"),
         sign_expected_pcr_key_source=KeySource(type=KeySourceType.file),
         sign_expected_pcr_key=Path("/my/key"),
+        sign_expected_pcr_uki_public_key=Path("/keys/initrd.crt"),
+        sign_expected_pcr_with_phases=[
+            PcrSigner(
+                key=Path("/keys/initrd.key"),
+                certificate=Path("/keys/initrd.crt"),
+                phases=["enter-initrd"],
+            ),
+            PcrSigner(
+                key=Path("pkcs11:token=PCRPolicyDevel;object=system;type=private"),
+                certificate=Path("/keys/system.crt"),
+                phases=["enter-initrd:leave-initrd", "enter-initrd:leave-initrd:sysinit"],
+                key_source=KeySource(type=KeySourceType.engine, source="pkcs11"),
+            ),
+        ],
         sign_expected_pcr=ConfigFeature.disabled,
         sign=False,
         skeleton_trees=[ConfigTree(Path("/foo/bar"), Path("/")), ConfigTree(Path("/bar/baz"), Path("/qux"))],

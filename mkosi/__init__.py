@@ -63,6 +63,7 @@ from mkosi.config import (
     ManifestFormat,
     Network,
     OutputFormat,
+    PcrSigner,
     SecureBootSignTool,
     ShimBootloader,
     Ssh,
@@ -1583,8 +1584,10 @@ def want_signed_pcrs(config: Config) -> bool:
     return config.sign_expected_pcr == ConfigFeature.enabled or (
         config.sign_expected_pcr == ConfigFeature.auto
         and config.find_binary("systemd-measure", "/usr/lib/systemd/systemd-measure") is not None
-        and bool(config.sign_expected_pcr_key)
-        and bool(config.sign_expected_pcr_certificate)
+        and (
+            (bool(config.sign_expected_pcr_key) and bool(config.sign_expected_pcr_certificate))
+            or bool(config.sign_expected_pcr_with_phases)
+        )
     )
 
 
@@ -1755,73 +1758,98 @@ def build_uki(
 
         arguments += ["--sign-kernel"]
 
-    if want_signed_pcrs(context.config):
-        assert context.config.sign_expected_pcr_key
-        assert context.config.sign_expected_pcr_certificate
+    seen_bind_paths: set[Path] = set()
 
+    if want_signed_pcrs(context.config):
         arguments += [
             # SHA1 might be disabled in OpenSSL depending on the distro so we opt to not sign
             # for SHA1 to avoid having to manage a bunch of configuration to re-enable SHA1.
             "--pcr-banks", "sha256",
         ]  # fmt: skip
 
-        if (
-            systemd_tool_version(
-                python_binary(context.config),
-                ukify,
-                sandbox=context.sandbox,
-            )
-            >= "258"
-        ):
+        ukify_version = systemd_tool_version(
+            python_binary(context.config),
+            ukify,
+            sandbox=context.sandbox,
+        )
+
+        if ukify_version >= "258":
             cert_parameter = "--pcr-certificate"
         else:
             cert_parameter = "--pcr-public-key"
 
-        # If we're providing the private key via an engine or provider, we have to pass in a X.509
-        # certificate via --pcr-certificate as well.
-        if context.config.sign_expected_pcr_key_source.type != KeySourceType.file:
-            if context.config.sign_expected_pcr_certificate_source.type == CertificateSourceType.provider:
-                arguments += [
-                    "--certificate-provider",
-                    f"provider:{context.config.sign_expected_pcr_certificate_source.source}",
-                ]
-
-            options += ["--bind", "/run", "/run"]
-
-            if context.config.sign_expected_pcr_certificate.exists():
-                arguments += [
-                    cert_parameter, workdir(context.config.sign_expected_pcr_certificate),
-                ]  # fmt: skip
-                options += [
-                    "--ro-bind", context.config.sign_expected_pcr_certificate, workdir(context.config.sign_expected_pcr_certificate),  # noqa: E501
-                ]  # fmt: skip
-            else:
-                arguments += [cert_parameter, context.config.sign_expected_pcr_certificate]
-
-        if context.config.sign_expected_pcr_key_source.type == KeySourceType.engine:
-            arguments += ["--signing-engine", context.config.sign_expected_pcr_key_source.source]
-        elif context.config.sign_expected_pcr_key_source.type == KeySourceType.provider:
-            arguments += ["--signing-provider", context.config.sign_expected_pcr_key_source.source]
-
-        if context.config.sign_expected_pcr_key.exists():
-            arguments += ["--pcr-private-key", workdir(context.config.sign_expected_pcr_key)]
-            options += [
-                "--ro-bind", context.config.sign_expected_pcr_key, workdir(context.config.sign_expected_pcr_key),  # noqa: E501
-            ]  # fmt: skip
+        if context.config.sign_expected_pcr_with_phases:
+            signers = context.config.sign_expected_pcr_with_phases
+            if ukify_version < "253":
+                die(f"ukify {ukify_version} does not support --phases (need >= 253)")
         else:
-            arguments += ["--pcr-private-key", context.config.sign_expected_pcr_key]
+            assert context.config.sign_expected_pcr_key
+            assert context.config.sign_expected_pcr_certificate
+            signers = [
+                PcrSigner(
+                    key=context.config.sign_expected_pcr_key,
+                    certificate=context.config.sign_expected_pcr_certificate,
+                    phases=[],
+                    key_source=context.config.sign_expected_pcr_key_source,
+                    certificate_source=context.config.sign_expected_pcr_certificate_source,
+                )
+            ]
+
+        need_run_bind = False
+
+        for signer in signers:
+            # If we're providing the private key via an engine or provider, we have to pass in
+            # a X.509 certificate via --pcr-certificate as well.
+            if signer.key_source.type != KeySourceType.file:
+                if signer.certificate_source.type == CertificateSourceType.provider:
+                    arguments += [
+                        "--certificate-provider", f"provider:{signer.certificate_source.source}",
+                    ]  # fmt: skip
+
+                need_run_bind = True
+
+                if signer.certificate.exists():
+                    arguments += [cert_parameter, workdir(signer.certificate)]
+                    seen_bind_paths.add(signer.certificate)
+                else:
+                    arguments += [cert_parameter, signer.certificate]
+
+            if signer.key_source.type == KeySourceType.engine:
+                arguments += ["--signing-engine", signer.key_source.source]
+            elif signer.key_source.type == KeySourceType.provider:
+                arguments += ["--signing-provider", signer.key_source.source]
+
+            if signer.key.exists():
+                arguments += ["--pcr-private-key", workdir(signer.key)]
+                seen_bind_paths.add(signer.key)
+            else:
+                arguments += ["--pcr-private-key", signer.key]
+
+            if signer.phases:
+                arguments += ["--phases", " ".join(signer.phases)]
+
+        if need_run_bind:
+            options += ["--bind", "/run", "/run"]
     elif ArtifactOutput.pcrs in context.config.split_artifacts:
         assert context.config.sign_expected_pcr_certificate
 
         json_out = True
+        cert = context.config.sign_expected_pcr_certificate
         arguments += [
             "--policy-digest",
             "--pcr-banks", "sha256",
-            "--pcr-certificate", workdir(context.config.sign_expected_pcr_certificate),
+            "--pcr-certificate", workdir(cert),
         ]  # fmt: skip
-        options += [
-            "--ro-bind", context.config.sign_expected_pcr_certificate, workdir(context.config.sign_expected_pcr_certificate),  # noqa: E501
-        ]  # fmt: skip
+        seen_bind_paths.add(cert)
+
+    if (pcrpkey := context.config.sign_expected_pcr_uki_public_key) is not None:
+        if not pcrpkey.exists():
+            die(f"SignExpectedPcrUKIPublicKey={pcrpkey} does not exist")
+        arguments += ["--pcrpkey", workdir(pcrpkey)]
+        seen_bind_paths.add(pcrpkey)
+
+    for file in seen_bind_paths:
+        options += ["--ro-bind", file, workdir(file)]
 
     if microcodes:
         # new .ucode section support?
@@ -2723,25 +2751,39 @@ def check_inputs(config: Config) -> None:
             hint="Run mkosi genkey to generate a key/certificate pair",
         )
 
-    if config.sign_expected_pcr == ConfigFeature.enabled and not config.sign_expected_pcr_key:
+    if (
+        config.sign_expected_pcr == ConfigFeature.enabled
+        and not config.sign_expected_pcr_with_phases
+        and not config.sign_expected_pcr_key
+    ):
         die(
             "SignExpectedPcr= is enabled but no private key is configured",
             hint="Run mkosi genkey to generate a key/certificate pair",
         )
 
-    if config.sign_expected_pcr == ConfigFeature.enabled and not config.sign_expected_pcr_certificate:
+    if (
+        config.sign_expected_pcr == ConfigFeature.enabled
+        and not config.sign_expected_pcr_with_phases
+        and not config.sign_expected_pcr_certificate
+    ):
         die(
             "SignExpectedPcr= is enabled but no certificate is configured",
             hint="Run mkosi genkey to generate a key/certificate pair",
         )
 
-    if config.secure_boot_key_source != config.sign_expected_pcr_key_source:
-        die("Secure boot key source and expected PCR signatures key source have to be the same")
+    # When SignExpectedPcrWithPhases= is used the key/certificate sources live per-entry, so the
+    # scalar sign_expected_pcr_{key,certificate}_source fields default to "file" regardless of
+    # what the per-signer sources are. Comparing those scalars against secure boot's sources
+    # would be meaningless, so skip the check in that case and rely on ukify to reject
+    # inconsistent sources at invocation time.
+    if not config.sign_expected_pcr_with_phases:
+        if config.secure_boot_key_source != config.sign_expected_pcr_key_source:
+            die("Secure boot key source and expected PCR signatures key source have to be the same")
 
-    if config.secure_boot_certificate_source != config.sign_expected_pcr_certificate_source:
-        die(
-            "Secure boot certificate source and expected PCR signatures certificate source have to be the same"  # noqa: E501
-        )  # fmt: skip
+        if config.secure_boot_certificate_source != config.sign_expected_pcr_certificate_source:
+            die(
+                "Secure boot certificate source and expected PCR signatures certificate source have to be the same"  # noqa: E501
+            )  # fmt: skip
 
     if config.verity == Verity.signed and not config.verity_key:
         die(
