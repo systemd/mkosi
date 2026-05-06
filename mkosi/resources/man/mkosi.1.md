@@ -790,6 +790,12 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
     This option may be used to create [systemd *system extensions*](https://uapi-group.org/specifications/specs/extension_image).
 
+`SparseOutput=`, `--sparse-output=`
+:   Takes a boolean value. If enabled, the output disk image is converted
+    to Android sparse format using **img2simg**. This is useful for flashing
+    images via **fastboot**. Can only be used with `Format=disk`. Defaults
+    to `no`.
+
 `Seed=`, `--seed=`
 :   Takes a UUID as argument or the special value `random`.
     Overrides the seed that **systemd-repart**

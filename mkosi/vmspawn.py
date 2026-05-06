@@ -41,6 +41,8 @@ def run_vmspawn(args: Args, config: Config) -> None:
         OutputFormat.uki,
     ):
         die(f"{config.output_format} images cannot be booted in systemd-vmspawn")
+    if config.sparse_output:
+        die("Sparse images cannot be booted in systemd-vmspawn")
 
     kernel = config.expand_linux_specifiers() if config.linux else None
     firmware = finalize_firmware(config, kernel)

@@ -2779,6 +2779,9 @@ def check_inputs(config: Config) -> None:
             ),
         )
 
+    if config.sparse_output and config.output_format != OutputFormat.disk:
+        die("SparseOutput=yes can only be used with Format=disk")
+
     if config.is_incremental() and config.cacheonly == Cacheonly.never:
         die("Incremental=yes cannot be used with CacheOnly=never")
 
@@ -4186,6 +4189,24 @@ def build_image(context: Context) -> None:
                 f"Can't change the output size because the image is already larger ({format_bytes(current_size)}) than requested"  # noqa: E501
             )
 
+    if context.config.sparse_output:
+        if not context.config.find_binary("img2simg"):
+            die("SparseOutput=yes was requested but img2simg was not found")
+
+        output = context.staging / context.config.output_with_format
+
+        with complete_step("Converting disk image to Android sparse image…"):
+            tmp = output.parent / f"{output.name}.tmp"
+            run(
+                ["img2simg", workdir(output), workdir(tmp)],
+                sandbox=context.sandbox(
+                    options=[
+                        "--bind", context.staging, workdir(context.staging),
+                    ],
+                ),
+            )
+            tmp.rename(output)
+
     if context.config.output_format.use_outer_compression():
         maybe_compress(
             context,
@@ -4305,6 +4326,8 @@ def run_shell(args: Args, config: Config) -> None:
         die(f"Cannot {opname} {config.output_format} images with systemd-nspawn")
     if config.output_format.use_outer_compression() and config.compress_output:
         die(f"Cannot {opname} compressed {config.output_format} images with systemd-nspawn")
+    if config.sparse_output:
+        die(f"Cannot {opname} sparse images with systemd-nspawn")
 
     cmdline: list[PathString] = ["systemd-nspawn", "--quiet", "--link-journal=no", "--suppress-sync=yes"]
 
