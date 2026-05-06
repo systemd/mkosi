@@ -1,7 +1,10 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 import dataclasses
+import logging
+import os
 import shutil
+import subprocess
 import textwrap
 from collections.abc import Sequence
 from contextlib import AbstractContextManager
@@ -266,7 +269,11 @@ class Pacman(PackageManager):
                 "--quiet",
                 workdir(context.repository / "mkosi.db.tar"),
                 *sorted(
-                    (workdir(p) for p in context.repository.glob("*.pkg.tar*")),
+                    (
+                        workdir(p)
+                        for p in context.repository.glob("*.pkg.tar*")
+                        if cls.parse_pkg_pkginfo(p)[3] in ("any", cls.architecture(context))
+                    ),
                     key=lambda p: GenericVersion(Path(p).name),
                 ),
             ],
@@ -286,6 +293,32 @@ class Pacman(PackageManager):
 
         # pacman can't sync a single repository, so we go behind its back and do it ourselves.
         shutil.move(context.repository / "mkosi.db.tar", context.metadata_dir / "lib/pacman/sync/mkosi.db")
+
+    @classmethod
+    def parse_pkg_pkginfo(cls, path: Path) -> tuple[str, str, str, str]:
+        name = version = base = arch = ""
+        pkginfo = run(["bsdtar", "-xOqf", os.fspath(path), ".PKGINFO"], check=False, stdout=subprocess.PIPE)
+        if pkginfo.returncode != 0:
+            logging.debug(f"{path} was not a valid package file")
+        else:
+            for line in pkginfo.stdout.splitlines():
+                line = line.split("#", 1)[0].strip()
+                parts = line.split("=", 1)
+                if len(parts) == 1:
+                    continue
+                key, val = parts
+                key = key.strip()
+                val = val.strip()
+                if key == "pkgname":
+                    name = val
+                elif key == "pkgver":
+                    version = val
+                elif key == "pkgbase":
+                    base = val
+                elif key == "arch":
+                    arch = val
+
+        return name, version, base, arch
 
     @classmethod
     def parse_pkg_desc(cls, path: Path) -> tuple[str, str, str, str]:
