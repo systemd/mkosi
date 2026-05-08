@@ -127,6 +127,7 @@ jobs:
           - debian
           - fedora
           - opensuse
+          - postmarketos
           - ubuntu
         tools:
           - arch
@@ -141,11 +142,17 @@ jobs:
           # pacman is not packaged in EPEL.
           - distro: arch
             tools: centos
+          # apk-tools is not packaged in EPEL.
+          - distro: postmarketos
+            tools: centos
           # apt and debian-keyring are not packaged in EPEL.
           - distro: debian
             tools: centos
           - distro: ubuntu
             tools: centos
+          # apk-tools is not packaged in Debian.
+          - distro: postmarketos
+            tools: debian
           # pacman is not packaged in openSUSE.
           - distro: arch
             tools: opensuse
@@ -154,6 +161,9 @@ jobs:
             tools: opensuse
           - distro: ubuntu
             tools: opensuse
+          # apk-tools not packaged in Ubuntu
+          - distro: postmarketos
+            tools: ubuntu
         include:
           # low rate limit on s390x/ppc64le/arm64 workers
           - distro: debian
