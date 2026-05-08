@@ -1130,6 +1130,7 @@ def run_postoutput_scripts(context: Context) -> None:
         ),
         SRCDIR="/work/src",
         OUTPUTDIR="/work/out",
+        OUTPUT=context.config.output,
         MKOSI_UID=str(os.getuid()),
         MKOSI_GID=str(os.getgid()),
         MKOSI_CONFIG="/work/config.json",
