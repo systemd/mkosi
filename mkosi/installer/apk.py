@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 import dataclasses
+import json
+import subprocess
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -125,7 +127,34 @@ class Apk(PackageManager):
 
     @classmethod
     def remove(cls, context: Context, packages: Sequence[str]) -> None:
-        cls.invoke(context, "del", packages, apivfs=True)
+        # Match against both name and provides so that packages specified
+        # by a provider name are also found.
+        # apk query --format json outputs a JSON array of package objects,
+        # or an empty array if nothing matches.
+        result = cls.invoke(
+            context,
+            "query",
+            [
+                "--installed",
+                "--format", "json",
+                "--match", "name,provides",
+                "--fields", "name,provides",
+                *packages,
+            ],
+            apivfs=True,
+            stdout=subprocess.PIPE,
+        )  # fmt: skip
+
+        # Build a lookup set from both real package names and their provides entries
+        # (stripped of version suffixes) so we can match against the original input names.
+        installed: set[str] = set()
+        for pkg in json.loads(result.stdout or "[]"):
+            installed.add(pkg["name"])
+            installed.update(p.split("=", 1)[0] for p in pkg.get("provides", []))
+
+        remove = [p for p in packages if p in installed]
+        if remove:
+            cls.invoke(context, "del", remove, apivfs=True)
 
     @classmethod
     def sync(cls, context: Context, force: bool) -> None:
