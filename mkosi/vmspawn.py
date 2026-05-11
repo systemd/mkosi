@@ -167,7 +167,13 @@ def run_vmspawn(args: Args, config: Config) -> None:
             cmdline += ["--image-disk-type", str(config.disk_type)]
 
         if config.forward_journal:
-            cmdline += ["--forward-journal", config.forward_journal]
+            cmdline += [
+                "--forward-journal", config.forward_journal,
+                "--forward-journal-max-use=1T",
+                "--forward-journal-keep-free=1G",
+                "--forward-journal-max-file-size=4G",
+                f"--forward-journal-max-files={1 if config.forward_journal.suffix == '.journal' else 100}",
+            ]  # fmt: skip
 
         cmdline += [
             *args.cmdline,
