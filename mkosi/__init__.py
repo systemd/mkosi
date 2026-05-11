@@ -14,7 +14,6 @@ import resource
 import shlex
 import shutil
 import signal
-import socket
 import stat
 import subprocess
 import sys
@@ -115,7 +114,6 @@ from mkosi.qemu import (
     join_initrds,
     run_qemu,
     run_ssh,
-    start_journal_remote,
 )
 from mkosi.run import (
     Popen,
@@ -4369,20 +4367,13 @@ def run_shell(args: Args, config: Config) -> None:
             cmdline += ["--bind-user", getpass.getuser(), "--bind-user-group=wheel"]
 
         if args.verb == Verb.boot and config.forward_journal:
-            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
-                addr = (
-                    Path(os.getenv("TMPDIR", "/tmp")) / f"mkosi-journal-remote-unix-{uuid.uuid4().hex[:16]}"
-                )
-                sock.bind(os.fspath(addr))
-                sock.listen()
-                if config.output_format == OutputFormat.directory and (stat := os.stat(fname)).st_uid != 0:
-                    os.chown(addr, stat.st_uid, stat.st_gid)
-                stack.enter_context(start_journal_remote(config, sock.fileno()))
-                uidmap = "rootidmap" if addr.stat().st_uid != 0 else "noidmap"
-                cmdline += [
-                    f"--bind={addr}:/run/host/journal/socket:{uidmap}",
-                    "--set-credential=journal.forward_to_socket:/run/host/journal/socket",
-                ]
+            cmdline += [
+                "--forward-journal", config.forward_journal,
+                "--forward-journal-max-use=1T",
+                "--forward-journal-keep-free=1G",
+                "--forward-journal-max-file-size=4G",
+                f"--forward-journal-max-files={1 if config.forward_journal.suffix == '.journal' else 100}",
+            ]  # fmt: skip
 
         if args.verb == Verb.boot:
             # Add nspawn options first since systemd-nspawn ignores all options after the first argument.
