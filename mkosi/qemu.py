@@ -987,6 +987,7 @@ def run_qemu(args: Args, config: Config) -> None:
                 f"Kernel or UKI not found at {kernel}, please install a kernel in the image "
                 "or provide a -kernel argument to mkosi vm"
             )
+        kerneltype = KernelType.identify(config, kernel)
 
     ovmf = find_ovmf_firmware(config, firmware)
 
