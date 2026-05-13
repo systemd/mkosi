@@ -151,18 +151,14 @@ class Installer(DistributionInstaller, distribution=Distribution.fedora):
     def repositories(cls, context: Context) -> Iterable[RpmRepository]:
         gpgurls = find_fedora_rpm_gpgkeys(context)
 
-        if context.config.snapshot and context.config.release != "rawhide":
-            die(f"Snapshot= is only supported for rawhide on {cls.pretty_name()}")
-
         mirror = context.config.mirror
         if not mirror and context.config.snapshot:
             mirror = "https://kojipkgs.fedoraproject.org"
 
-        if context.config.snapshot and mirror != "https://kojipkgs.fedoraproject.org":
-            die(
-                f"Snapshot= is only supported for {cls.pretty_name()} if Mirror=https://kojipkgs.fedoraproject.org"
-            )
-
+        # Snapshot= and the koji compose URL layout work for any release and
+        # against any mirror that mimics the kojipkgs.fedoraproject.org tree.
+        # The inverse (kojipkgs without Snapshot=) is still rejected because
+        # that mirror has no usable non-snapshot URL surface.
         if mirror == "https://kojipkgs.fedoraproject.org" and not context.config.snapshot:
             die(
                 f"Snapshot= must be used on {cls.pretty_name()} if Mirror=https://kojipkgs.fedoraproject.org"
@@ -183,22 +179,28 @@ class Installer(DistributionInstaller, distribution=Distribution.fedora):
                 )
                 yield RpmRepository(f"{repo.lower()}-source", f"{url}/source/tree", gpgurls, enabled=False)
         elif mirror:
-            if mirror == "https://kojipkgs.fedoraproject.org":
-                subdir = f"compose/{context.config.release}"
+            # Snapshot= implies the koji compose URL layout (compose/<release>/
+            # Fedora-<Release>-<snapshot>/compose/Everything/...), regardless
+            # of the actual mirror host, so any kojipkgs-compatible mirror
+            # (including our internal rpmrepo gateway) works.
+            if context.config.snapshot:
+                subdir = (
+                    f"compose/{context.config.release}/"
+                    f"Fedora-{context.config.release.capitalize()}-{context.config.snapshot}/compose"
+                )
             else:
                 subdir = "linux/"
                 subdir += "development" if context.config.release == "rawhide" else "releases"
                 subdir += "/$releasever"
-
-            if context.config.snapshot:
-                subdir += f"/Fedora-{context.config.release.capitalize()}-{context.config.snapshot}/compose"
 
             url = f"baseurl={join_mirror(mirror, f'{subdir}/Everything')}"
             yield RpmRepository("fedora", f"{url}/$basearch/os", gpgurls)
             yield RpmRepository("fedora-debuginfo", f"{url}/$basearch/debug/tree", gpgurls, enabled=False)
             yield RpmRepository("fedora-source", f"{url}/source/tree", gpgurls, enabled=False)
 
-            if context.config.release != "rawhide":
+            # Snapshot= pins to a frozen koji compose, which has no separate
+            # linux/updates/ tree, so skip the updates repos in that case.
+            if context.config.release != "rawhide" and not context.config.snapshot:
                 url = f"baseurl={join_mirror(mirror, 'linux/updates/$releasever/Everything')}"
                 yield RpmRepository("updates", f"{url}/$basearch", gpgurls)
                 yield RpmRepository("updates-debuginfo", f"{url}/$basearch/debug", gpgurls, enabled=False)
