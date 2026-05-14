@@ -4251,7 +4251,7 @@ def run_box(args: Args, config: Config) -> None:
     cmdline = [*args.cmdline]
 
     if sys.stdin.isatty() and sys.stdout.isatty():
-        cmdline = systemd_pty_forward(config, background="48;2;12;51;51", title="mkosi-sandbox") + cmdline
+        cmdline = systemd_pty_forward(config, background="48;2;12;51;51;38;5;15", title="mkosi-sandbox") + cmdline
 
     with contextlib.ExitStack() as stack:
         if config.tools() != Path("/"):

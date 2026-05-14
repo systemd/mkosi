@@ -1015,7 +1015,7 @@ def run_qemu(args: Args, config: Config) -> None:
     if config.console in (ConsoleMode.interactive, ConsoleMode.read_only):
         cmdline += systemd_pty_forward(
             config,
-            background="48;2;12;51;19",
+            background="48;2;12;51;19;38;5;15",
             title=f"Virtual Machine {config.machine_or_name()}",
         )
 
