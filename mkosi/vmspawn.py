@@ -21,7 +21,6 @@ from mkosi.config import (
 )
 from mkosi.log import die
 from mkosi.qemu import (
-    copy_ephemeral,
     finalize_credentials,
     finalize_drive,
     finalize_firmware,
@@ -30,7 +29,7 @@ from mkosi.qemu import (
     finalize_kernel_command_line_extra,
 )
 from mkosi.run import run
-from mkosi.util import PathString, groupby
+from mkosi.util import PathString, flock_or_die, groupby
 
 
 def run_vmspawn(args: Args, config: Config) -> None:
@@ -115,7 +114,11 @@ def run_vmspawn(args: Args, config: Config) -> None:
         for f in finalize_credentials(config, stack).iterdir():
             cmdline += [f"--load-credential={f.name}:{f}"]
 
-        fname = stack.enter_context(copy_ephemeral(config, config.output_dir_or_cwd() / config.output))
+        fname = config.output_dir_or_cwd() / config.output
+        if config.ephemeral:
+            cmdline += ["--ephemeral"]
+        elif config.output_format != OutputFormat.uki:
+            stack.enter_context(flock_or_die(fname))
 
         if config.runtime_build_sources:
             for t in config.build_sources:
