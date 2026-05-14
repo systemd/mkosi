@@ -80,7 +80,6 @@ from mkosi.config import (
     parse_config,
     resolve_deps,
     summary,
-    systemd_pty_forward,
     systemd_tool_version,
     want_kernel,
     want_selinux_relabel,
@@ -4249,9 +4248,6 @@ def run_box(args: Args, config: Config) -> None:
         env |= {"PYTHONPATH": f"{extra}:{existing}" if existing else extra}
 
     cmdline = [*args.cmdline]
-
-    if sys.stdin.isatty() and sys.stdout.isatty():
-        cmdline = systemd_pty_forward(config, background="48;2;12;51;51", title="mkosi-sandbox") + cmdline
 
     with contextlib.ExitStack() as stack:
         if config.tools() != Path("/"):
