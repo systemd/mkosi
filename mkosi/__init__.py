@@ -272,7 +272,7 @@ def install_distribution(context: Context) -> None:
                 with umask(~0o755):
                     (context.root / "etc").mkdir(exist_ok=True)
                 with umask(~0o444):
-                    (context.root / "etc/machine-id").write_text(context.config.machine_id.hex)
+                    (context.root / "etc/machine-id").write_text(f"{context.config.machine_id.hex}\n")
             elif (context.root / "etc").exists() and not (context.root / "etc/machine-id").exists():
                 # Uninitialized means we want it to get initialized on first boot.
                 with umask(~0o444):
