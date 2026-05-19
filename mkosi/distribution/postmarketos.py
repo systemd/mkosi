@@ -46,11 +46,12 @@ class Installer(DistributionInstaller, distribution=Distribution.postmarketos):
             download = context.workspace / "apk-keyring-download"
             download.mkdir(exist_ok=True)
             Apk.fetch(context, ["alpine-keys", "postmarketos-keys"], download)
+            Apk.extract(context, sorted(download.glob("*.apk")), context.keyring_dir)
+            rmtree(download)
 
-            extract = context.workspace / "apk-keyring-extract"
-            extract.mkdir(exist_ok=True)
-            Apk.extract(context, sorted(download.glob("*.apk")), extract)
-
+    @classmethod
+    def setup(cls, context: Context) -> None:
+        with complete_step("Setting up postmarketOS keyring"):
             keys = context.sandbox_tree / "etc/apk/keys"
             keys.mkdir(parents=True, exist_ok=True)
             arch = Apk.architecture(context)
@@ -59,28 +60,11 @@ class Installer(DistributionInstaller, distribution=Distribution.postmarketos):
             # /usr/share/apk/keys/<arch>/, and their post-install script copies the arch-specific
             # subset into /etc/apk/keys/. We do the same copy ourselves since post-install scripts
             # don't run for extracted (uninstalled) packages.
-            for search in (extract / "usr/share/apk/keys" / arch, extract / "etc/apk/keys"):
-                if not search.is_dir():
-                    continue
-                for key in search.glob("*.rsa.pub"):
-                    dest = keys / key.name
-                    if dest.exists():
-                        continue
-                    copyfile(key, dest)
-
-            rmtree(extract)
-            rmtree(download)
-
-    @classmethod
-    def setup(cls, context: Context) -> None:
-        with complete_step("Setting up postmarketOS keyring"):
-            keys = context.sandbox_tree / "etc/apk/keys"
-            keys.mkdir(parents=True, exist_ok=True)
-
             for d in [
-                context.config.tools() / "usr/lib/apk/keys",
+                context.config.tools() / "usr/share/apk/keys" / arch,
                 context.config.tools() / "usr/share/distribution-gpg-keys/alpine-linux",
                 context.config.tools() / "usr/share/distribution-gpg-keys/postmarketos",
+                context.keyring_dir / "usr/share/apk/keys" / arch,
             ]:
                 if not d.exists():
                     continue
