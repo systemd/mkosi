@@ -9,7 +9,7 @@ import time
 from collections.abc import Iterator
 from typing import Any, NoReturn, Optional
 
-from mkosi.sandbox import (
+from mkosi.ansi import (
     ANSI_BLUE,
     ANSI_BOLD,
     ANSI_GRAY,

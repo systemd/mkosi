@@ -13,6 +13,8 @@ import os
 import sys
 import warnings  # noqa: F401 (loaded lazily by os.execvp() which happens too late)
 
+from mkosi.ansi import ANSI_BOLD, ANSI_RED, ANSI_RESET
+
 __version__ = "27~devel"
 
 # The following constants are taken from the Linux kernel headers.
@@ -145,20 +147,6 @@ libc.capget.argtypes = (ctypes.c_void_p, ctypes.c_void_p)
 libc.capset.argtypes = (ctypes.c_void_p, ctypes.c_void_p)
 libc.fcntl.argtypes = (ctypes.c_int, ctypes.c_int, ctypes.c_int)
 libc.setns.argtypes = (ctypes.c_int, ctypes.c_int)
-
-
-def terminal_is_dumb() -> bool:
-    return not sys.stdout.isatty() or not sys.stderr.isatty() or os.getenv("TERM", "") == "dumb"
-
-
-# fmt: off
-ANSI_BOLD   = "\033[0;1;39m"     if not terminal_is_dumb() else ""
-ANSI_BLUE   = "\033[0;1;34m"     if not terminal_is_dumb() else ""
-ANSI_GRAY   = "\033[0;38;5;245m" if not terminal_is_dumb() else ""
-ANSI_RED    = "\033[31;1m"       if not terminal_is_dumb() else ""
-ANSI_YELLOW = "\033[33;1m"       if not terminal_is_dumb() else ""
-ANSI_RESET  = "\033[0m"          if not terminal_is_dumb() else ""
-# fmt: on
 
 
 ENOSYS_MSG = f"""\
@@ -1247,13 +1235,10 @@ class OverlayOperation(FSOperation):
         mount("overlayfs", dst, "overlay", 0, ",".join(options))
 
 
-ANSI_HIGHLIGHT = "\x1b[0;1;39m" if os.isatty(2) else ""
-ANSI_NORMAL = "\x1b[0m" if os.isatty(2) else ""
-
 HELP = f"""\
 mkosi-sandbox [OPTIONS...] COMMAND [ARGUMENTS...]
 
-{ANSI_HIGHLIGHT}Run the specified command in a custom sandbox.{ANSI_NORMAL}
+{ANSI_BOLD}Run the specified command in a custom sandbox.{ANSI_RESET}
 
   -h --help                       Show this help
      --version                    Show package version

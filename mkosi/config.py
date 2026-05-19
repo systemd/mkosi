@@ -32,11 +32,12 @@ from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Any, Callable, ClassVar, Generic, Optional, Protocol, TypeVar, Union, cast
 
+from mkosi.ansi import ANSI_BLUE, ANSI_BOLD, ANSI_RESET
 from mkosi.distribution import Distribution, detect_distribution
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SANDBOX, ARG_DEBUG_SHELL, ARG_DEBUG_TIMING, complete_step, die
 from mkosi.pager import page
 from mkosi.run import SandboxProtocol, find_binary, nosandbox, run, sandbox_cmd, workdir
-from mkosi.sandbox import ANSI_BLUE, ANSI_BOLD, ANSI_RESET, __version__
+from mkosi.sandbox import __version__
 from mkosi.user import INVOKING_USER
 from mkosi.util import (
     PathString,
