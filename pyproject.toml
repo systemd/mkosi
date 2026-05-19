@@ -21,7 +21,7 @@ bootable = [
 [project.scripts]
 mkosi = "mkosi.__main__:main"
 mkosi-initrd = "mkosi.initrd:main"
-mkosi-sandbox = "mkosi.sandbox:main"
+mkosi-sandbox = "mkosi.sandbox:entrypoint"
 mkosi-addon = "mkosi.addon:main"
 
 [tool.setuptools]

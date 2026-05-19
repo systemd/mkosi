@@ -167,9 +167,11 @@ This probably means either the system call is not implemented by the running ker
 system call is prohibited via seccomp if mkosi is being executed inside a containerized environment.\
 """
 
+_entrypoint: bool = False
+
 
 def is_main() -> bool:
-    return __name__ == "__main__"
+    return __name__ == "__main__" or _entrypoint
 
 
 def oserror(syscall: str, filename: str = "", errno: int = 0) -> None:
@@ -1573,6 +1575,12 @@ def main(argv: list[str] = sys.argv[1:]) -> None:
                 sys.exit(127)
 
             raise
+
+
+def entrypoint() -> None:
+    global _entrypoint
+    _entrypoint = True
+    main()
 
 
 if is_main():
