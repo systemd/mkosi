@@ -799,7 +799,7 @@ def acquire_privileges(
         have_effective_cap(CAP_SYS_ADMIN)
         and identity
         and (not foreign or have_effective_cap(CAP_CHOWN))
-        and not delegate
+        and (not delegate or (os.getuid() == 0 and os.getgid() == 0))
         and (not become_root or (os.getuid() == 0 and os.getgid() == 0))
     ):
         return False
