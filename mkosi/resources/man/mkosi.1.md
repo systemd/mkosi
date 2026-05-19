@@ -3221,7 +3221,10 @@ repository.
   **mkosi** to page output.
 
 * `$MKOSI_DNF` can be used to override the executable used as **dnf**.
-  This is particularly useful to select between **dnf** and **dnf5**.
+  This is particularly useful to select between **dnf** and **dnf5**. Note that
+  this variable is only honoured when no tools tree is in use; when a
+  tools tree is active, the dnf executable is autodetected from within
+  the tools tree.
 
 * `$MKOSI_DNF_DISABLE_PLUGINS` can be used to disable dnf plugins. The value
   is forwarded to dnf's `--disableplugin=` option.
