@@ -423,7 +423,7 @@ def finalize_path(
     root = root or Path("/")
     path = [os.fspath(p) for p in extra]
 
-    if relaxed:
+    if relaxed or root == Path("/"):
         path += [
             s
             for s in os.environ["PATH"].split(":")
@@ -688,6 +688,7 @@ def sandbox_cmd(
                 # still use sandbox.py, so we make sure it is available inside the sandbox so it can be
                 # executed there as well.
                 "--ro-bind", module / "sandbox.py", "/sandbox.py",
+                "--ro-bind", "/home", "/home",
             ]  # fmt: skip
 
             if devices:
