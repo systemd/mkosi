@@ -2,6 +2,7 @@
 
 import dataclasses
 import json
+import os
 import subprocess
 from collections.abc import Sequence
 from pathlib import Path
@@ -11,7 +12,7 @@ from mkosi.context import Context
 from mkosi.installer import PackageManager
 from mkosi.run import CompletedProcess, run, workdir
 from mkosi.tree import rmtree
-from mkosi.util import _FILE, PathString, copyfile
+from mkosi.util import _FILE, PathString, copyfile, flatten
 
 
 @dataclasses.dataclass(frozen=True)
@@ -70,6 +71,7 @@ class Apk(PackageManager):
         cls,
         context: Context,
         cached_metadata: bool = True,
+        allow_untrusted: bool = False,
     ) -> list[PathString]:
         return [
             "apk",
@@ -82,7 +84,7 @@ class Apk(PackageManager):
             "--preserve-env",
             "--keys-dir", "/etc/apk/keys",
             "--repositories-file", "/etc/apk/repositories",
-            *(["--allow-untrusted"] if not context.config.repository_key_check else []),
+            *(["--allow-untrusted"] if allow_untrusted or not context.config.repository_key_check else []),
             *(["--cache-max-age", "999999999"] if cached_metadata else []),
             *(["--no-network"] if context.config.cacheonly == Cacheonly.always else []),
         ]  # fmt: skip
@@ -97,9 +99,15 @@ class Apk(PackageManager):
         apivfs: bool = False,
         stdout: _FILE = None,
         cached_metadata: bool = True,
+        allow_untrusted: bool = False,
     ) -> CompletedProcess:
         return run(
-            cls.cmd(context, cached_metadata=cached_metadata) + [operation, *arguments],
+            cls.cmd(
+                context,
+                cached_metadata=cached_metadata,
+                allow_untrusted=allow_untrusted,
+            )
+            + [operation, *arguments],
             sandbox=cls.sandbox(context, apivfs=apivfs),
             env=cls.finalize_environment(context),
             stdout=stdout,
@@ -162,16 +170,74 @@ class Apk(PackageManager):
         # directory as it may be a mount point. Use a throwaway directory instead.
         tmp = context.workspace / "apk-sync-root"
         tmp.mkdir(exist_ok=True)
-        cmd = cls.cmd(context)
-        options = ["--bind", tmp, "/buildroot", *cls.mounts(context), *cls.options(root=tmp, apivfs=False)]
+        # When repository_key_fetch is enabled the trusted keys aren't installed yet, so we have to allow
+        # untrusted indexes during sync. The keys are fetched and trusted by the distribution's keyring()
+        # afterwards, before any actual package install.
+        cmd = cls.cmd(context, allow_untrusted=context.config.repository_key_fetch)
+        options = [
+            "--bind", tmp, "/buildroot",
+            *cls.mounts(context),
+            *cls.options(root=tmp, apivfs=False)
+        ]  # fmt: skip
         env = cls.finalize_environment(context)
         run(cmd + ["add", "--initdb"], sandbox=context.sandbox(network=True, options=options), env=env)
         run(
-            cls.cmd(context, cached_metadata=False) + ["update", *(["--update-cache"] if force else [])],
+            cls.cmd(context, cached_metadata=False, allow_untrusted=context.config.repository_key_fetch)
+            + ["update", *(["--update-cache"] if force else [])],
             sandbox=context.sandbox(network=True, options=options),
             env=env,
         )
         rmtree(tmp)
+
+    @classmethod
+    def fetch(cls, context: Context, packages: Sequence[str], output: Path) -> None:
+        """Download apk package files for the given packages to output without installing them."""
+        output.mkdir(parents=True, exist_ok=True)
+        # apk fetch needs an initialized apk database, so use a throwaway root like sync() does.
+        tmp = context.workspace / "apk-fetch-root"
+        tmp.mkdir(exist_ok=True)
+        cmd = cls.cmd(context, allow_untrusted=True)
+        options = [
+            "--bind", tmp, "/buildroot",
+            "--bind", output, workdir(output),
+            *cls.mounts(context),
+            *cls.options(root=tmp, apivfs=False),
+        ]  # fmt: skip
+        run(
+            cmd + ["add", "--initdb"],
+            sandbox=context.sandbox(network=True, options=options),
+            env=cls.finalize_environment(context),
+        )
+        run(
+            cmd + ["fetch", "-o", workdir(output), *packages],
+            sandbox=context.sandbox(network=True, options=options),
+            env=cls.finalize_environment(context),
+        )
+        rmtree(tmp)
+
+    @classmethod
+    def extract(cls, context: Context, srcs: Sequence[Path], dest: Path) -> None:
+        """Extract the contents of the given apk files into dest."""
+        if not srcs:
+            return
+
+        dest.mkdir(parents=True, exist_ok=True)
+        run(
+            [
+                "apk", "extract",
+                "--allow-untrusted",
+                "--no-chown",
+                "--destination", workdir(dest),
+                *(workdir(src) for src in srcs),
+            ],
+            sandbox=context.sandbox(
+                options=[
+                    "--bind", dest, workdir(dest),
+                    *flatten(("--ro-bind", os.fspath(src), workdir(src)) for src in srcs),
+                ]
+            ),
+            env=cls.finalize_environment(context),
+        )  # fmt: skip
 
     @classmethod
     def createrepo(cls, context: Context) -> None:

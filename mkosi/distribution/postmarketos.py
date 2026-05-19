@@ -8,6 +8,7 @@ from mkosi.distribution import Distribution, DistributionInstaller, PackageType
 from mkosi.installer import PackageManager
 from mkosi.installer.apk import Apk, ApkRepository
 from mkosi.log import complete_step, die
+from mkosi.tree import rmtree
 from mkosi.util import copyfile
 
 
@@ -35,6 +36,40 @@ class Installer(DistributionInstaller, distribution=Distribution.postmarketos):
     @classmethod
     def package_manager(cls, config: Config) -> type[PackageManager]:
         return Apk
+
+    @classmethod
+    def keyring(cls, context: Context) -> None:
+        if not context.config.repository_key_fetch:
+            return
+
+        with complete_step(f"Downloading {cls.pretty_name()} keyring"):
+            download = context.workspace / "apk-keyring-download"
+            download.mkdir(exist_ok=True)
+            Apk.fetch(context, ["alpine-keys", "postmarketos-keys"], download)
+
+            extract = context.workspace / "apk-keyring-extract"
+            extract.mkdir(exist_ok=True)
+            Apk.extract(context, sorted(download.glob("*.apk")), extract)
+
+            keys = context.sandbox_tree / "etc/apk/keys"
+            keys.mkdir(parents=True, exist_ok=True)
+            arch = Apk.architecture(context)
+
+            # The alpine-keys/postmarketos-keys packages ship the trusted keys under
+            # /usr/share/apk/keys/<arch>/, and their post-install script copies the arch-specific
+            # subset into /etc/apk/keys/. We do the same copy ourselves since post-install scripts
+            # don't run for extracted (uninstalled) packages.
+            for search in (extract / "usr/share/apk/keys" / arch, extract / "etc/apk/keys"):
+                if not search.is_dir():
+                    continue
+                for key in search.glob("*.rsa.pub"):
+                    dest = keys / key.name
+                    if dest.exists():
+                        continue
+                    copyfile(key, dest)
+
+            rmtree(extract)
+            rmtree(download)
 
     @classmethod
     def setup(cls, context: Context) -> None:
