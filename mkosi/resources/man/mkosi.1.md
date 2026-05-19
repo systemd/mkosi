@@ -1045,7 +1045,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     added to the ESP partition or not.
 
 `Bootloader=`, `--bootloader=`
-:   Takes one of `none`, `systemd-boot`, `uki`, `grub`,
+:   Takes one of `none`, `systemd-boot`, `uki`, `uki-prebuilt`, `grub`,
     `systemd-boot-signed`, `uki-signed` or `grub-signed`. Defaults to
     `systemd-boot`. If set to `none`, no EFI bootloader will be installed
     into the image. If set to `systemd-boot`, **systemd-boot** will be
@@ -1063,6 +1063,12 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
     The `signed` variants will only install pre-signed EFI binaries
     shipped by the distribution.
+
+    If set to `uki-prebuilt`, **mkosi** copies a unified kernel image already
+    shipped by the distribution from `/usr/lib/modules/<version>/` (as `*.efi`)
+    to `EFI/BOOT/BOOT*.EFI` in the ESP and does not invoke `ukify` or require
+    systemd-stub. The highest kernel version is chosen; the first PE file in that
+    directory that is identified as a UKI is used.
 
     Kernels need to be placed into the root filesystem (for example using
     `ExtraTrees=`) under `/usr/lib/modules/$version`, named `vmlinux` or
