@@ -1077,7 +1077,10 @@ def config_default_tools_tree_distribution(namespace: dict[str, Any]) -> Distrib
 
 def config_default_repository_key_fetch(namespace: dict[str, Any]) -> bool:
     def needs_repository_key_fetch(distribution: Distribution) -> bool:
-        return distribution == Distribution.arch or distribution.is_rpm_distribution()
+        return (
+            distribution in (Distribution.arch, Distribution.postmarketos)
+            or distribution.is_rpm_distribution()
+        )
 
     if namespace["tools_tree"] not in (Path("default"), Path("yes")):
         d = detect_distribution(namespace["tools_tree"] or Path("/"))[0]
