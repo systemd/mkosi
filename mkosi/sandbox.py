@@ -46,6 +46,8 @@ CLONE_NEWNET = 0x40000000
 CLONE_NEWNS = 0x00020000
 CLONE_NEWUSER = 0x10000000
 EBADF = 9
+EDOM = 33
+EEXIST = 17
 EFD_CLOEXEC = 0x80000
 ENAMETOOLONG = 36
 EPERM = 1
@@ -89,7 +91,30 @@ PR_SET_DUMPABLE = 4
 # These definitions are taken from the libseccomp headers
 SCMP_ACT_ALLOW = 0x7FFF0000
 SCMP_ACT_ERRNO = 0x00050000
+SCMP_ARCH_X86 = 0x40000003
+SCMP_ARCH_X86_64 = 0xC000003E
+SCMP_ARCH_X32 = 0x4000003E
+SCMP_ARCH_ARM = 0x40000028
+SCMP_ARCH_AARCH64 = 0xC00000B7
+SCMP_ARCH_PPC = 0x14
+SCMP_ARCH_PPC64 = 0x80000015
+SCMP_ARCH_PPC64LE = 0xC0000015
+SCMP_ARCH_S390 = 0x16
+SCMP_ARCH_S390X = 0x80000016
+SCMP_FLTATR_ACT_BADARCH = 2
 SCMP_FLTATR_API_SYSRAWRC = 9
+
+# Compat architectures whose binaries may run against a sandbox built for the
+# given native architecture (e.g. i386 binaries on x86_64). Without registering
+# these on the filter, syscalls from a compat arch hit SCMP_FLTATR_ACT_BADARCH
+# whose libseccomp default is SCMP_ACT_KILL — see seccomp_suppress().
+SECCOMP_COMPAT_ARCHS = {
+    SCMP_ARCH_X86_64: (SCMP_ARCH_X86, SCMP_ARCH_X32),
+    SCMP_ARCH_AARCH64: (SCMP_ARCH_ARM,),
+    SCMP_ARCH_PPC64: (SCMP_ARCH_PPC,),
+    SCMP_ARCH_PPC64LE: (SCMP_ARCH_PPC,),
+    SCMP_ARCH_S390X: (SCMP_ARCH_S390,),
+}
 SD_LISTEN_FDS_START = 3
 SIGCONT = 18
 SIGSTOP = 19
@@ -356,18 +381,43 @@ def seccomp_suppress(*, chown: bool = False, sync: bool = False) -> None:
         ctypes.c_int,
         ctypes.c_uint32,
     )
+    libseccomp.seccomp_arch_native.argtypes = ()
+    libseccomp.seccomp_arch_native.restype = ctypes.c_uint32
+    libseccomp.seccomp_arch_add.argtypes = (ctypes.c_void_p, ctypes.c_uint32)
+    libseccomp.seccomp_arch_add.restype = ctypes.c_int
     libseccomp.seccomp_syscall_resolve_name.argtypes = (ctypes.c_char_p,)
-    libseccomp.seccomp_rule_add_exact.argtypes = (
+    libseccomp.seccomp_syscall_resolve_name.restype = ctypes.c_int
+    libseccomp.seccomp_rule_add.argtypes = (
         ctypes.c_void_p,
         ctypes.c_uint32,
         ctypes.c_int,
         ctypes.c_uint,
     )
+    libseccomp.seccomp_rule_add.restype = ctypes.c_int
     libseccomp.seccomp_load.argtypes = (ctypes.c_void_p,)
 
     seccomp = libseccomp.seccomp_init(SCMP_ACT_ALLOW)
 
     r = libseccomp.seccomp_attr_set(seccomp, SCMP_FLTATR_API_SYSRAWRC, 1)
+    if r < 0:
+        oserror("seccomp_attr_set", errno=r)
+
+    # libseccomp's default for syscalls from architectures not registered on the
+    # filter is SCMP_ACT_KILL, which would SIGSYS any compat-arch binary the
+    # package manager invokes (e.g. an i386 helper from libc6:i386 on x86_64).
+    # Register the known compat archs so the suppress rules apply there too, and
+    # fall back to ALLOW for any compat arch we don't know about or can't add.
+    # -EDOM is libseccomp's catch-all "architecture specific failure" — returned
+    # e.g. when the build of libseccomp on the host doesn't have support for the
+    # compat arch compiled in. The SCMP_FLTATR_ACT_BADARCH = SCMP_ACT_ALLOW set
+    # below makes that case safe (syscalls from the unregistered compat arch are
+    # let through), so treat -EDOM the same as -EEXIST and continue.
+    for arch in SECCOMP_COMPAT_ARCHS.get(libseccomp.seccomp_arch_native(), ()):
+        r = libseccomp.seccomp_arch_add(seccomp, arch)
+        if r < 0 and r not in (-EEXIST, -EDOM):
+            oserror("seccomp_arch_add", errno=r)
+
+    r = libseccomp.seccomp_attr_set(seccomp, SCMP_FLTATR_ACT_BADARCH, SCMP_ACT_ALLOW)
     if r < 0:
         oserror("seccomp_attr_set", errno=r)
 
@@ -396,12 +446,18 @@ def seccomp_suppress(*, chown: bool = False, sync: bool = False) -> None:
     try:
         for syscall in suppress:
             id = libseccomp.seccomp_syscall_resolve_name(syscall)
-            if id < 0:
+            # __NR_SCMP_ERROR (-1) means libseccomp doesn't know the name. Negative values
+            # other than -1 are libseccomp's pseudo-syscall numbers (__PNR_*) used for
+            # syscalls that don't exist on the native arch but do exist on a registered
+            # compat arch (e.g. i386 chown32/lchown32/fchown32 when native is x86_64).
+            # seccomp_rule_add() translates the PNR via the compat arch's syscall table,
+            # so passing it through is correct and necessary to filter compat-only syscalls.
+            if id == -1:
                 continue
 
-            r = libseccomp.seccomp_rule_add_exact(seccomp, SCMP_ACT_ERRNO, id, 0)
+            r = libseccomp.seccomp_rule_add(seccomp, SCMP_ACT_ERRNO, id, 0)
             if r < 0:
-                oserror("seccomp_rule_add_exact", errno=r)
+                oserror("seccomp_rule_add", errno=r)
 
         r = libseccomp.seccomp_load(seccomp)
         if r < 0:
