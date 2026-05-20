@@ -57,14 +57,18 @@ class Installer(DistributionInstaller, distribution=Distribution.postmarketos):
             arch = Apk.architecture(context)
 
             # The alpine-keys/postmarketos-keys packages ship the trusted keys under
-            # /usr/share/apk/keys/<arch>/, and their post-install script copies the arch-specific
-            # subset into /etc/apk/keys/. We do the same copy ourselves since post-install scripts
-            # don't run for extracted (uninstalled) packages.
+            # /usr/share/apk/keys/, with alpine-keys also keeping arch-specific extras in
+            # /usr/share/apk/keys/<arch>/. Their post-install scripts copy the arch-specific subset
+            # into /etc/apk/keys/. We do the same copy ourselves since post-install scripts don't
+            # run for extracted (uninstalled) packages. iterdir() skips the arch subdirectories
+            # because is_dir() entries are filtered below.
             for d in [
                 context.config.tools() / "usr/share/apk/keys" / arch,
+                context.config.tools() / "usr/share/apk/keys",
                 context.config.tools() / "usr/share/distribution-gpg-keys/alpine-linux",
                 context.config.tools() / "usr/share/distribution-gpg-keys/postmarketos",
                 context.keyring_dir / "usr/share/apk/keys" / arch,
+                context.keyring_dir / "usr/share/apk/keys",
             ]:
                 if not d.exists():
                     continue
