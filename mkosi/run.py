@@ -196,7 +196,7 @@ def fork_and_wait(
                 parent.close()
 
                 if sbx:
-                    mkosi.sandbox.main([os.fspath(s) for s in sbx])
+                    mkosi.sandbox.enter([os.fspath(s) for s in sbx])
 
                 child.send(target(*args, **kwargs))
 
@@ -269,12 +269,12 @@ def _preexec(
         # if we get here we should have neither a prefix nor a setup command to execute and so we can
         # execute the command directly.
 
-        # mkosi.sandbox.main() updates os.environ but the environment passed to Popen() is not yet in
+        # mkosi.sandbox.enter() updates os.environ but the environment passed to Popen() is not yet in
         # effect by the time the preexec function is called. To get around that, we update the
         # environment ourselves here.
         os.environ.clear()
         os.environ.update(env)
-        mkosi.sandbox.main(sandbox)
+        mkosi.sandbox.enter(sandbox)
 
         # Python does its own executable lookup in $PATH before executing the preexec function, and
         # hence before we have set up the sandbox which influences the lookup results. To get around
@@ -423,7 +423,7 @@ def finalize_path(
     root = root or Path("/")
     path = [os.fspath(p) for p in extra]
 
-    if relaxed:
+    if relaxed or root == Path("/"):
         path += [
             s
             for s in os.environ["PATH"].split(":")
@@ -688,6 +688,7 @@ def sandbox_cmd(
                 # still use sandbox.py, so we make sure it is available inside the sandbox so it can be
                 # executed there as well.
                 "--ro-bind", module / "sandbox.py", "/sandbox.py",
+                "--ro-bind", "/home", "/home",
             ]  # fmt: skip
 
             if devices:

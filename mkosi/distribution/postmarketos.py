@@ -8,6 +8,7 @@ from mkosi.distribution import Distribution, DistributionInstaller, PackageType
 from mkosi.installer import PackageManager
 from mkosi.installer.apk import Apk, ApkRepository
 from mkosi.log import complete_step, die
+from mkosi.tree import rmtree
 from mkosi.util import copyfile
 
 
@@ -37,15 +38,37 @@ class Installer(DistributionInstaller, distribution=Distribution.postmarketos):
         return Apk
 
     @classmethod
+    def keyring(cls, context: Context) -> None:
+        if not context.config.repository_key_fetch:
+            return
+
+        with complete_step(f"Downloading {cls.pretty_name()} keyring"):
+            download = context.workspace / "apk-keyring-download"
+            download.mkdir(exist_ok=True)
+            Apk.fetch(context, ["alpine-keys", "postmarketos-keys"], download)
+            Apk.extract(context, sorted(download.glob("*.apk")), context.keyring_dir)
+            rmtree(download)
+
+    @classmethod
     def setup(cls, context: Context) -> None:
         with complete_step("Setting up postmarketOS keyring"):
             keys = context.sandbox_tree / "etc/apk/keys"
             keys.mkdir(parents=True, exist_ok=True)
+            arch = Apk.architecture(context)
 
+            # The alpine-keys/postmarketos-keys packages ship the trusted keys under
+            # /usr/share/apk/keys/, with alpine-keys also keeping arch-specific extras in
+            # /usr/share/apk/keys/<arch>/. Their post-install scripts copy the arch-specific subset
+            # into /etc/apk/keys/. We do the same copy ourselves since post-install scripts don't
+            # run for extracted (uninstalled) packages. iterdir() skips the arch subdirectories
+            # because is_dir() entries are filtered below.
             for d in [
-                context.config.tools() / "usr/lib/apk/keys",
+                context.config.tools() / "usr/share/apk/keys" / arch,
+                context.config.tools() / "usr/share/apk/keys",
                 context.config.tools() / "usr/share/distribution-gpg-keys/alpine-linux",
                 context.config.tools() / "usr/share/distribution-gpg-keys/postmarketos",
+                context.keyring_dir / "usr/share/apk/keys" / arch,
+                context.keyring_dir / "usr/share/apk/keys",
             ]:
                 if not d.exists():
                     continue
@@ -100,9 +123,13 @@ class Installer(DistributionInstaller, distribution=Distribution.postmarketos):
     @classmethod
     def architecture(cls, arch: Architecture) -> str:
         a = {
-            Architecture.x86_64: "x86_64",
-            Architecture.arm64:  "aarch64",
-            Architecture.arm:    "armv7",
+            Architecture.arm64:       "aarch64",
+            Architecture.arm:         "armv7",
+            Architecture.loongarch64: "loongarch64",
+            Architecture.ppc64_le:    "ppc64le",
+            Architecture.riscv64:     "riscv64",
+            Architecture.x86:         "x86",
+            Architecture.x86_64:      "x86_64",
         }.get(arch)  # fmt: skip
 
         if not a:

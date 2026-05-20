@@ -168,14 +168,22 @@ system call is prohibited via seccomp if mkosi is being executed inside a contai
 """
 
 
-def is_main() -> bool:
-    return __name__ == "__main__"
+class SandboxOSError(OSError):
+    # OSError carrying a human-readable message that the CLI prints to stderr. Library callers can
+    # catch OSError as usual; only the CLI wrapper inspects .message.
+    def __init__(self, errno: int, message: str, filename: str = "") -> None:
+        super().__init__(errno, os.strerror(errno), filename or None)
+        self.message = message
 
 
 def oserror(syscall: str, filename: str = "", errno: int = 0) -> None:
     errno = abs(errno) or ctypes.get_errno()
-    if errno == ENOSYS and is_main():
-        print(ENOSYS_MSG.format(syscall=syscall, kver=os.uname().version), file=sys.stderr)
+    if errno == ENOSYS:
+        raise SandboxOSError(
+            errno,
+            ENOSYS_MSG.format(syscall=syscall, kver=os.uname().version),
+            filename,
+        )
 
     raise OSError(errno, os.strerror(errno), filename or None)
 
@@ -775,8 +783,8 @@ def unprivileged_userns(foreign: bool, become_root: bool) -> None:
         try:
             unshare(CLONE_NEWUSER)
         except OSError as e:
-            if e.errno == EPERM and is_main():
-                print(UNSHARE_EPERM_MSG, file=sys.stderr)
+            if e.errno == EPERM:
+                raise SandboxOSError(EPERM, UNSHARE_EPERM_MSG) from e
             raise
         finally:
             os.write(event, ctypes.c_uint64(1))
@@ -1296,7 +1304,7 @@ e.g. via "mkosi documentation", for workarounds.\
 """
 
 
-def main(argv: list[str] = sys.argv[1:]) -> None:
+def enter(argv: list[str]) -> list[str]:
     # We don't use argparse as it takes +- 10ms to import and since this is primarily for internal
     # use, it's not necessary to have amazing UX for this CLI interface so it's trivial to write
     # ourselves.
@@ -1418,12 +1426,7 @@ def main(argv: list[str] = sys.argv[1:]) -> None:
             break
 
     if argv:
-        if not is_main():
-            raise ValueError(f"A command line to execute can only be provided if {__name__} is executed")
-
         argv.reverse()
-    else:
-        argv = ["bash"] if is_main() else []
 
     # Make sure all destination paths are absolute.
     for fsop in fsops:
@@ -1478,8 +1481,8 @@ def main(argv: list[str] = sys.argv[1:]) -> None:
     except OSError as e:
         # This can happen here as well as in become_user, it depends on exactly
         # how the userns restrictions are implemented.
-        if e.errno == EPERM and is_main():
-            print(UNSHARE_EPERM_MSG, file=sys.stderr)
+        if e.errno == EPERM:
+            raise SandboxOSError(EPERM, UNSHARE_EPERM_MSG) from e
         raise
 
     # If we unshared the user namespace the mount propagation of root is changed to slave automatically.
@@ -1563,17 +1566,28 @@ def main(argv: list[str] = sys.argv[1:]) -> None:
             os.environ["LISTEN_FDS"] = str(nfds)
             os.environ["LISTEN_PID"] = str(os.getpid())
 
-    if is_main():
-        try:
-            os.execvp(argv[0], argv)
-        except OSError as e:
-            # Let's return a recognizable error when the binary we're going to execute is not found.
-            # We use 127 as that's the exit code used by shells when a program to execute is not found.
-            if e.errno == ENOENT:
-                sys.exit(127)
-
-            raise
+    return argv
 
 
-if is_main():
+def main(argv: list[str] = sys.argv[1:]) -> None:
+    try:
+        argv = enter(argv)
+    except SandboxOSError as e:
+        print(e.message, file=sys.stderr)
+        raise
+
+    argv = argv or ["bash"]
+
+    try:
+        os.execvp(argv[0], argv)
+    except OSError as e:
+        # Let's return a recognizable error when the binary we're going to execute is not found.
+        # We use 127 as that's the exit code used by shells when a program to execute is not found.
+        if e.errno == ENOENT:
+            sys.exit(127)
+
+        raise
+
+
+if __name__ == "__main__":
     main()
