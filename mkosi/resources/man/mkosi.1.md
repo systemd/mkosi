@@ -1456,9 +1456,92 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   The source of the corresponding private key, to support OpenSSL engines and providers,
     e.g. `--secure-boot-key-source=engine:pkcs11` or `--secure-boot-key-source=provider:pkcs11`.
 
+    `SecureBootKeySource=` and `SignExpectedPcrKeySource=` must use the same
+    mechanism when both Secure Boot signing and PCR signing are enabled because
+    **ukify** relies on a single global `--signing-engine`/`--signing-provider`
+    that applies to all signing operations in one invocation. Mixing sources
+    thus would not work. When `SignExpectedPcrWithPhases=` is used this
+    check is skipped because each signer carries its own source. In that
+    case it is the user's responsibility to keep sources consistent across
+    signers and with `SecureBootKeySource=`.
+
 `SecureBootCertificateSource=`, `--secure-boot-certificate-source=`, `VerityCertificateSource=`, `--verity-certificate-source=`, `SignExpectedPcrCertificateSource=`, `--sign-expected-certificate-source=`
 :   The source of the corresponding certificate, to support OpenSSL providers,
     e.g. `--secure-boot-certificate-source=provider:pkcs11`. Note that engines are not supported.
+
+    The key source mechanism constraint to be the same for all keys from
+    `*KeySource=` also applies to `SecureBootCertificateSource=` and
+    `SignExpectedPcrCertificateSource=`.
+
+`SignExpectedPcrWithPhases=`, `--sign-expected-pcr-with-phases=`
+:   Sign the expected PCR values with multiple keys, each signing only a specific
+    set of UKI boot phases. This option is an alternative to `SignExpectedPcrKey=`
+    and cannot be combined with `SignExpectedPcrKey=`, `SignExpectedPcrCertificate=`,
+    `SignExpectedPcrKeySource=` or `SignExpectedPcrCertificateSource=`.
+
+    Accepts one entry per logical line, with each entry containing
+    3 to 5 whitespace-separated fields:
+
+    `KEY CERTIFICATE PHASES [KEYSOURCE [CERTIFICATESOURCE]]`
+
+    - `KEY`: path to the PEM-encoded private key, or a PKCS#11 URI when
+      `KEYSOURCE` is `engine:…` or `provider:…`.
+    - `CERTIFICATE`: path to the X.509 certificate.
+    - `PHASES`: comma-separated list of colon-separated phase paths
+      (e.g. `enter-initrd:leave-initrd,enter-initrd:leave-initrd:sysinit`).
+      Use the special value `-` to omit `--phases` entirely, letting
+      **ukify** apply its default phase path list.
+    - `KEYSOURCE` (optional): same as `SignExpectedPcrKeySource=`,
+      defaults to `file`.
+    - `CERTIFICATESOURCE` (optional): same as `SignExpectedPcrCertificateSource=`,
+      defaults to `file`.
+
+    Entries are separated by newlines. Fields within an entry are
+    whitespace-separated with shell-style quoting, so values
+    containing spaces can be quoted with `"` or `'`. A trailing `\`
+    continues the entry on the next line.
+
+    Requires **ukify** version 253 or newer.
+
+    When multiple entries are configured, **ukify** will not embed a
+    `.pcrpkey` PE section in the UKI by default. It only does so when
+    exactly one signing key is supplied. Set `SignExpectedPcrUKIPublicKey=`
+    to explicitly control what goes into the `.pcrpkey` section.
+
+    Because **ukify** relies on a single global `--signing-engine`/
+    `--signing-provider` per invocation, all signer entries must use the
+    same mechanism for their `KEYSOURCE` (and `CERTIFICATESOURCE`) fields,
+    and the same mechanism as `SecureBootKeySource=`/`SecureBootCertificateSource=`
+    when Secure Boot signing is also enabled.
+
+    Note that `mkosi.key` and `mkosi.crt` in the config directory are
+    automatically picked up by `SignExpectedPcrKey=` and `SignExpectedPcrCertificate=`
+    respectively. When switching to `SignExpectedPcrWithPhases=`, either
+    delete/rename those files or explicitly clear the legacy scalars by
+    adding `SignExpectedPcrKey=` and `SignExpectedPcrCertificate=` (with
+    empty values) to your config. Otherwise the mutual-exclusion check
+    will reject the configuration.
+
+    Example reproducing the "Example 3" invocation from the **ukify**(1)
+    manual page (using X.509 certificates, as expected by **ukify** ≥ 258):
+
+    ```
+    [Validation]
+    SignExpectedPcrWithPhases=
+        /keys/tpm2-pcr-initrd-private-key.pem /keys/tpm2-pcr-initrd.crt enter-initrd
+        /keys/tpm2-pcr-system-private-key.pem /keys/tpm2-pcr-system.crt enter-initrd:leave-initrd,enter-initrd:leave-initrd:sysinit,enter-initrd:leave-initrd:sysinit:ready
+    SignExpectedPcrUKIPublicKey=/keys/tpm2-pcr-initrd-public-key.pem
+    ```
+
+`SignExpectedPcrUKIPublicKey=`, `--sign-expected-pcr-uki-public-key=`
+:   Path to a PEM-encoded public key to embed in the UKI's `.pcrpkey` PE
+    section, forwarded to **ukify** as `--pcrpkey=`. The file is embedded
+    verbatim by **ukify**. An X.509 certificate is *not* accepted here and
+    you have to convert it with `openssl x509 -in mkosi.crt -pubkey -noout`.
+    When not set, **ukify** derives the section contents from the
+    sole signing key if exactly one is provided. When multiple signing
+    keys are configured via `SignExpectedPcrWithPhases=`, **ukify** omits
+    the section entirely unless this setting is used.
 
 `Passphrase=`, `--passphrase=`
 :   Specify the path to a file containing the passphrase to use for LUKS
@@ -3181,6 +3264,8 @@ down to subimages but can be overridden:
 - `SignExpectedPcrKeySource=`
 - `SignExpectedPcrCertificate=`
 - `SignExpectedPcrCertificateSource=`
+- `SignExpectedPcrWithPhases=`
+- `SignExpectedPcrUKIPublicKey=`
 
 Additionally, there are various settings that can only be configured in
 the main image but which are not passed down to subimages:

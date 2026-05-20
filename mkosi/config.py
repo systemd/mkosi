@@ -1733,6 +1733,88 @@ def config_parse_certificate_source(
     return CertificateSource(type=type, source=source)
 
 
+@dataclasses.dataclass(frozen=True)
+class PcrSigner:
+    key: Path
+    certificate: Path
+    phases: list[str]
+    key_source: KeySource = KeySource(type=KeySourceType.file)
+    certificate_source: CertificateSource = CertificateSource(type=CertificateSourceType.file)
+
+
+def parse_pcr_signer(value: str) -> PcrSigner:
+    # Fields are whitespace-separated with shell-style quoting (values containing spaces can be
+    # quoted with " or '). Line continuation with trailing backslash is folded by the list parser
+    # before we see the value, so each invocation sees exactly one logical entry.
+    try:
+        parts = shlex.split(value)
+    except ValueError as e:
+        die(f"Failed to parse SignExpectedPcrWithPhases= entry '{value}': {e}")
+
+    if not 3 <= len(parts) <= 5:
+        die(
+            "SignExpectedPcrWithPhases= entry must have 3 to 5 whitespace-separated fields "
+            f"(KEY CERT PHASES [KEYSOURCE [CERTSOURCE]]), got: '{value}'"
+        )
+
+    key_str, cert_str, phases_str, *rest = parts
+
+    if not key_str:
+        die(f"SignExpectedPcrWithPhases= entry has empty KEY field: '{value}'")
+    if not cert_str:
+        die(f"SignExpectedPcrWithPhases= entry has empty CERT field: '{value}'")
+
+    key = config_parse_key(key_str, None)
+    cert = config_parse_certificate(cert_str, None)
+    assert key is not None
+    assert cert is not None
+
+    # "-" means "no --phases argument emitted" (ukify uses its default phase paths).
+    phases = [] if phases_str == "-" else [p for p in phases_str.split(",") if p]
+
+    key_source = (
+        config_parse_key_source(rest[0], None) if len(rest) > 0 else KeySource(type=KeySourceType.file)
+    )
+    cert_source = (
+        config_parse_certificate_source(rest[1], None)
+        if len(rest) > 1
+        else CertificateSource(type=CertificateSourceType.file)
+    )
+    assert key_source is not None
+    assert cert_source is not None
+
+    return PcrSigner(
+        key=key,
+        certificate=cert,
+        phases=phases,
+        key_source=key_source,
+        certificate_source=cert_source,
+    )
+
+
+def config_parse_pcr_signers(
+    value: Optional[str],
+    old: Optional[list[PcrSigner]],
+) -> Optional[list[PcrSigner]]:
+    new = old.copy() if old else []
+
+    if value is None:
+        return []
+
+    # Fold shell-style backslash line continuations so entries formatted to span multiple
+    # lines (for readability of long PKCS#11 URIs and phase path lists) are treated as one.
+    folded = re.sub(r"\\\n[ \t]*", " ", value)
+
+    values = folded.split("\n")
+
+    # Empty value resets the list
+    if values in ([], [""]):
+        return None
+
+    new += [parse_pcr_signer(v) for v in values if v.strip()]
+    return new
+
+
 def config_parse_artifact_output_list(
     value: Optional[str], old: Optional[list[ArtifactOutput]]
 ) -> Optional[list[ArtifactOutput]]:
@@ -2190,6 +2272,8 @@ class Config:
     sign_expected_pcr_key_source: KeySource
     sign_expected_pcr_certificate: Optional[Path]
     sign_expected_pcr_certificate_source: CertificateSource
+    sign_expected_pcr_with_phases: list[PcrSigner]
+    sign_expected_pcr_uki_public_key: Optional[Path]
     passphrase: Optional[Path]
     checksum: bool
     sign: bool
@@ -3747,6 +3831,23 @@ SETTINGS: list[ConfigSetting[Any]] = [
         parse=config_parse_certificate_source,
         default=CertificateSource(type=CertificateSourceType.file),
         help="The source to use to retrieve the expected PCR signing certificate",
+        scope=SettingScope.inherit,
+    ),
+    ConfigSetting(
+        dest="sign_expected_pcr_with_phases",
+        metavar="KEY CERT PHASES [KEYSRC [CERTSRC]]",
+        section="Validation",
+        parse=config_parse_pcr_signers,
+        help="Sign expected PCR values with multiple keys bound to specific UKI phase paths",
+        scope=SettingScope.inherit,
+    ),
+    ConfigSetting(
+        dest="sign_expected_pcr_uki_public_key",
+        name="SignExpectedPcrUKIPublicKey",
+        metavar="PATH",
+        section="Validation",
+        parse=config_parse_certificate,
+        help="PEM-encoded public key to embed in the UKI's .pcrpkey section",
         scope=SettingScope.inherit,
     ),
     ConfigSetting(
@@ -5430,6 +5531,63 @@ def finalize_historydir(args: Args) -> Path:
     return (configdir or Path.cwd()) / ".mkosi-private/history"
 
 
+def validate_pcr_signing(config: Config) -> None:
+    if config.sign_expected_pcr_with_phases:
+        # Only flag the scalar settings whose corresponding key/certificate is actually set.
+        # SignExpectedPcrKeySource=/SignExpectedPcrCertificateSource= are scope=inherit, so a
+        # main image that sets them (for use with the legacy scalars) would otherwise trip the
+        # check in a subimage that only uses SignExpectedPcrWithPhases=; those sources are
+        # harmless without a paired key/certificate, so skip them in that case.
+        conflicts = []
+        if config.sign_expected_pcr_key is not None:
+            conflicts.append("SignExpectedPcrKey=")
+            if config.sign_expected_pcr_key_source.type != KeySourceType.file:
+                conflicts.append("SignExpectedPcrKeySource=")
+        if config.sign_expected_pcr_certificate is not None:
+            conflicts.append("SignExpectedPcrCertificate=")
+            if config.sign_expected_pcr_certificate_source.type != CertificateSourceType.file:
+                conflicts.append("SignExpectedPcrCertificateSource=")
+
+        if conflicts:
+            msg = (
+                "SignExpectedPcrWithPhases= cannot be combined with "
+                + ", ".join(conflicts)
+                + "; specify per-signer key, certificate and sources in each "
+                "SignExpectedPcrWithPhases= entry instead"
+            )
+            # mkosi.key/mkosi.crt in the config directory are auto-picked-up by
+            # SignExpectedPcrKey=/SignExpectedPcrCertificate= and easy to overlook. Detection
+            # works for both top-level and mkosi/ subfolder layouts because Path.name only
+            # looks at the basename.
+            clears = []
+            if config.sign_expected_pcr_key is not None and config.sign_expected_pcr_key.name == "mkosi.key":
+                clears.append("SignExpectedPcrKey=")
+            if (
+                config.sign_expected_pcr_certificate is not None
+                and config.sign_expected_pcr_certificate.name == "mkosi.crt"
+            ):
+                clears.append("SignExpectedPcrCertificate=")
+            hint = None
+            if clears:
+                hint = (
+                    "mkosi.key/mkosi.crt in the config directory are picked up automatically; "
+                    "delete the file(s) or clear the pickup by adding to [Validation]: " + ", ".join(clears)
+                )
+            die(msg, hint=hint)
+
+    # When SignExpectedPcr=enabled is set explicitly, either the legacy scalars or the new
+    # list-valued setting must be configured; otherwise we'd hit an assertion failure later
+    # when running ukify.
+    if config.sign_expected_pcr == ConfigFeature.enabled and not (
+        config.sign_expected_pcr_with_phases
+        or (config.sign_expected_pcr_key and config.sign_expected_pcr_certificate)
+    ):
+        die(
+            "SignExpectedPcr=yes requires either SignExpectedPcrKey= and "
+            "SignExpectedPcrCertificate=, or SignExpectedPcrWithPhases= to be set"
+        )
+
+
 def parse_config(
     argv: Sequence[str] = (),
     *,
@@ -5627,6 +5785,9 @@ def parse_config(
     main = Config.from_dict(config)
     subimages = [Config.from_dict(ns) for ns in images]
 
+    for image in [main, *subimages]:
+        validate_pcr_signing(image)
+
     if any(want_default_initrd(image) for image in subimages + [main]):
         initrd = finalize_default_initrd(maincontext, config, configdir=configdir, resources=resources)
 
@@ -5714,6 +5875,10 @@ def none_to_default(s: Optional[object]) -> str:
 
 def line_join_list(array: Iterable[object]) -> str:
     return "\n                                     ".join(str(item) for item in array) if array else "none"
+
+
+def format_pcr_signers(signers: list[PcrSigner]) -> str:
+    return line_join_list([f"{s.key} -> {','.join(s.phases) if s.phases else '-'}" for s in signers])
 
 
 def format_bytes(num_bytes: int) -> str:
@@ -5924,6 +6089,8 @@ def summary(config: Config) -> str:
            Expected PCRs Key Source: {config.sign_expected_pcr_key_source}
           Expected PCRs Certificate: {none_to_none(config.sign_expected_pcr_certificate)}
    Expected PCRs Certificate Source: {config.sign_expected_pcr_certificate_source}
+     Sign Expected PCRs With Phases: {format_pcr_signers(config.sign_expected_pcr_with_phases)}
+       Expected PCRs UKI Public Key: {none_to_none(config.sign_expected_pcr_uki_public_key)}
                          Passphrase: {none_to_none(config.passphrase)}
                            Checksum: {yes_no(config.checksum)}
                                Sign: {yes_no(config.sign)}
@@ -6144,6 +6311,27 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
             for d in creds
         ]
 
+    def pcr_signer_transformer(
+        signers: list[dict[str, Any]],
+        fieldtype: type[list[PcrSigner]],
+    ) -> list[PcrSigner]:
+        return [
+            PcrSigner(
+                key=Path(d["Key"]),
+                certificate=Path(d["Certificate"]),
+                phases=d.get("Phases", []),
+                key_source=KeySource(
+                    type=KeySourceType(d["KeySource"]["Type"]),
+                    source=d["KeySource"].get("Source", ""),
+                ),
+                certificate_source=CertificateSource(
+                    type=CertificateSourceType(d["CertificateSource"]["Type"]),
+                    source=d["CertificateSource"].get("Source", ""),
+                ),
+            )
+            for d in signers
+        ]
+
     # The type of this should be
     # dict[
     #     type,
@@ -6193,6 +6381,7 @@ def json_type_transformer(refcls: Union[type[Args], type[Config]]) -> Callable[[
         ConsoleMode: enum_transformer,
         Verity: enum_transformer,
         list[Credential]: credential_transformer,
+        list[PcrSigner]: pcr_signer_transformer,
     }
 
     def json_transformer(key: str, val: Any) -> Any:

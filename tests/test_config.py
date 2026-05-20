@@ -14,16 +14,20 @@ from mkosi import expand_kernel_specifiers
 from mkosi.config import (
     Architecture,
     ArtifactOutput,
+    CertificateSourceType,
     Compression,
     Config,
     ConfigFeature,
     ConfigTree,
+    KeySourceType,
     OutputFormat,
     Verb,
     config_parse_bytes,
+    config_parse_pcr_signers,
     in_box,
     parse_config,
     parse_ini,
+    parse_pcr_signer,
 )
 from mkosi.distribution import Distribution, detect_distribution
 from mkosi.util import chdir, resource_path
@@ -1992,3 +1996,105 @@ def test_history_empty_list(tmp_path: Path) -> None:
         _, _, [main] = parse_config(["summary"])
 
     assert main.package_directories == []
+
+
+def test_parse_pcr_signer_minimal() -> None:
+    s = parse_pcr_signer("/keys/a.key /keys/a.crt enter-initrd")
+    assert s.key == Path("/keys/a.key")
+    assert s.certificate == Path("/keys/a.crt")
+    assert s.phases == ["enter-initrd"]
+    assert s.key_source.type == KeySourceType.file
+    assert s.certificate_source.type == CertificateSourceType.file
+
+
+def test_parse_pcr_signer_multiple_phase_paths() -> None:
+    s = parse_pcr_signer(
+        "/keys/a.key /keys/a.crt "
+        "enter-initrd:leave-initrd,enter-initrd:leave-initrd:sysinit,enter-initrd:leave-initrd:sysinit:ready"
+    )
+    assert s.phases == [
+        "enter-initrd:leave-initrd",
+        "enter-initrd:leave-initrd:sysinit",
+        "enter-initrd:leave-initrd:sysinit:ready",
+    ]
+
+
+def test_parse_pcr_signer_phases_sentinel() -> None:
+    s = parse_pcr_signer("/keys/a.key /keys/a.crt -")
+    assert s.phases == []
+
+
+def test_parse_pcr_signer_with_sources() -> None:
+    s = parse_pcr_signer(
+        "pkcs11:token=foo;object=bar;type=private /keys/a.crt enter-initrd engine:pkcs11 file"
+    )
+    assert str(s.key) == "pkcs11:token=foo;object=bar;type=private"
+    assert s.key_source.type == KeySourceType.engine
+    assert s.key_source.source == "pkcs11"
+    assert s.certificate_source.type == CertificateSourceType.file
+
+
+def test_parse_pcr_signer_quoting() -> None:
+    s = parse_pcr_signer('"/path with space/a.key" /keys/a.crt enter-initrd')
+    assert s.key == Path("/path with space/a.key")
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "",
+        "/keys/a.key",
+        "/keys/a.key /keys/a.crt",
+        "/keys/a.key /keys/a.crt - file file extra",
+    ],
+)
+def test_parse_pcr_signer_wrong_field_count(value: str) -> None:
+    with pytest.raises(SystemExit):
+        parse_pcr_signer(value)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        '"" /keys/a.crt -',
+        '/keys/a.key "" -',
+    ],
+)
+def test_parse_pcr_signer_empty_field(value: str) -> None:
+    with pytest.raises(SystemExit):
+        parse_pcr_signer(value)
+
+
+def test_config_parse_pcr_signers_backslash_newline() -> None:
+    value = "/keys/a.key \\\n    /keys/a.crt \\\n    enter-initrd"
+    result = config_parse_pcr_signers(value, None)
+    assert result is not None
+    assert len(result) == 1
+    assert result[0].key == Path("/keys/a.key")
+    assert result[0].certificate == Path("/keys/a.crt")
+    assert result[0].phases == ["enter-initrd"]
+
+
+def test_config_parse_pcr_signers_multiple_entries() -> None:
+    value = (
+        "/keys/initrd.key /keys/initrd.crt enter-initrd\n"
+        "/keys/system.key /keys/system.crt enter-initrd:leave-initrd"
+    )
+    result = config_parse_pcr_signers(value, None)
+    assert result is not None
+    assert len(result) == 2
+    assert result[0].phases == ["enter-initrd"]
+    assert result[1].phases == ["enter-initrd:leave-initrd"]
+
+
+def test_config_parse_pcr_signers_accumulates() -> None:
+    initial = config_parse_pcr_signers("/keys/a.key /keys/a.crt enter-initrd", None)
+    result = config_parse_pcr_signers("/keys/b.key /keys/b.crt -", initial)
+    assert result is not None
+    assert len(result) == 2
+
+
+def test_config_parse_pcr_signers_empty_resets() -> None:
+    initial = config_parse_pcr_signers("/keys/a.key /keys/a.crt enter-initrd", None)
+    assert initial
+    assert config_parse_pcr_signers("", initial) is None
