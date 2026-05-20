@@ -4728,7 +4728,7 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
             last_section = s.section
 
         if s.short and s.const is not None:
-            group.add_argument(  # type: ignore  # needed by pyright
+            group.add_argument(  # pyright: ignore
                 s.short,
                 metavar="",
                 dest=s.dest,
@@ -4741,7 +4741,7 @@ def create_argument_parser(chdir: bool = True) -> argparse.ArgumentParser:
         for long in [s.long, *s.compat_longs]:
             opts = [s.short, long] if s.short and long == s.long and s.const is None else [long]
 
-            group.add_argument(  # type: ignore  # needed by pyright
+            group.add_argument(  # pyright: ignore
                 *opts,
                 dest=s.dest,
                 choices=s.choices,
