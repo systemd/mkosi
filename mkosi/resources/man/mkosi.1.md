@@ -2524,7 +2524,7 @@ Then, for each image, we execute the following steps:
 1. Run **systemd-firstboot**
 1. Run **systemd-hwdb**
 1. Remove packages and files (`RemovePackages=`, `RemoveFiles=`)
-1. Run SELinux relabel is a SELinux policy is installed
+1. Run SELinux relabel if a SELinux policy is installed
 1. Run finalize scripts (`mkosi.finalize`)
 1. Generate unified kernel image if configured to do so
 1. Generate final output format
