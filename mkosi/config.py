@@ -1142,10 +1142,17 @@ def config_default_proxy_peer_certificate(namespace: dict[str, Any]) -> Optional
 
 
 def config_default_initrds(namespace: dict[str, Any]) -> list[Path]:
+    image = namespace.get("image", "?")
+
     if namespace["output_format"] in (OutputFormat.uki, OutputFormat.esp):
+        logging.debug(
+            f"Not building default initrd for image '{image}': "
+            f"output format {namespace['output_format']} does not use an initrd"
+        )
         return []
 
     if namespace["bootable"] == ConfigFeature.disabled:
+        logging.debug(f"Not building default initrd for image '{image}': Bootable=no")
         return []
 
     if namespace["bootable"] == ConfigFeature.auto and (
@@ -1153,6 +1160,10 @@ def config_default_initrds(namespace: dict[str, Any]) -> list[Path]:
         or namespace["output_format"].is_extension_or_portable_image()
         or namespace["overlay"]
     ):
+        logging.debug(
+            f"Not building default initrd for image '{image}': Bootable=auto and "
+            f"output format {namespace['output_format']} is not bootable by default"
+        )
         return []
 
     # The above conditions should be kept in sync with want_kernel().
@@ -1161,8 +1172,14 @@ def config_default_initrds(namespace: dict[str, Any]) -> list[Path]:
         namespace["distribution"].installer.is_kernel_package(p)
         for p in itertools.chain(namespace["packages"], namespace["volatile_packages"])
     ):
+        logging.debug(
+            f"Not building default initrd for image '{image}': Bootable=auto and no kernel "
+            f"package found in Packages= or VolatilePackages= for distribution "
+            f"{namespace['distribution']}"
+        )
         return []
 
+    logging.debug(f"Building default initrd for image '{image}'")
     return [Path("default")]
 
 
