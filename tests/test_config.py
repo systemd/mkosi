@@ -544,6 +544,21 @@ def test_parse_load_verb(tmp_path: Path) -> None:
             parse_config(["invalid"])
 
 
+def test_interactive_flag(tmp_path: Path) -> None:
+    with chdir(tmp_path):
+        args, _, _ = parse_config(["burn"])
+        assert not args.interactive
+
+        args, _, _ = parse_config(["burn", "--interactive"])
+        assert args.interactive
+
+
+def test_interactive_only_with_burn(tmp_path: Path) -> None:
+    with chdir(tmp_path):
+        with pytest.raises(SystemExit):
+            parse_config(["build", "--interactive"])
+
+
 def test_os_distribution(tmp_path: Path) -> None:
     with chdir(tmp_path):
         for dist in Distribution:
