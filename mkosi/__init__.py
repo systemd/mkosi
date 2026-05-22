@@ -594,10 +594,21 @@ def finalize_scripts(config: Config, scripts: Mapping[str, Sequence[PathString]]
         for name, script in scripts.items():
             # Make sure we don't end up in a recursive loop when we name a script after the binary
             # it execs by removing the scripts directory from the PATH when we execute a script.
+            #
+            # Recursion is only possible when some unqualified token in the exec'd command line is
+            # exactly "name" -- in that case the shell would resolve it back to "/scripts/<name>"
+            # via PATH. Checking "config.find_binary(name)" instead is a broader condition: it
+            # triggers PATH-strip whenever the script name happens to exist somewhere in the
+            # search path, including for scripts that exec a different binary entirely. For
+            # example, "mkosi-install" execs "dnf install", but the strip causes the wrapped
+            # "/scripts/dnf" to be hidden from PATH, so the raw system dnf runs without the
+            # wrapper's "--installroot", "--use-host-config", and "--setopt=" flags.
+            same_name_recursion = any("/" not in (s := os.fspath(arg)) and s == name for arg in script)
+
             with (Path(d) / name).open("w") as f:
                 f.write("#!/bin/sh\n")
 
-                if config.find_binary(name):
+                if same_name_recursion:
                     f.write(
                         textwrap.dedent(
                             """\
