@@ -77,6 +77,13 @@ from `mkosi.sandbox` is not supported and may break in future versions.
 `--ro-bind-foreign SRC DST`
 :   Like `--bind-foreign`, but does a readonly mount.
 
+`--bind-nofollow SRC DST`
+:   Like `--bind`, but does not follow symlinks for `SRC`. If `SRC` is itself a symlink, the
+    symlink is bind mounted as-is rather than its target.
+
+`--ro-bind-nofollow SRC DST`
+:   Like `--bind-nofollow`, but does a readonly mount.
+
 `--symlink SRC DST`
 :   Creates a symlink at `DST` in the sandbox pointing to `SRC`. If `DST` already
     exists and is a file or symlink, a temporary symlink is created and mounted on
