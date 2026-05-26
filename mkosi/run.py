@@ -338,6 +338,8 @@ def spawn(
 
     with contextlib.ExitStack() as stack:
         sbx = [os.fspath(x) for x in stack.enter_context(sandbox)]
+        if sbx and ARG_DEBUG.get():
+            sbx = ["--debug", *sbx]
         apply_sandbox_in_preexec = not setup and not ARG_DEBUG_SANDBOX.get()
 
         prefix = []

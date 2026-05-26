@@ -1003,6 +1003,9 @@ class FSOperation:
     def execute(self, oldroot: str, newroot: str) -> None:
         raise NotImplementedError()
 
+    def describe(self) -> str:
+        raise NotImplementedError()
+
     @classmethod
     def optimize(cls, fsops: list["FSOperation"]) -> list["FSOperation"]:
         binds: dict[BindOperation, None] = {}
@@ -1064,6 +1067,21 @@ class BindOperation(FSOperation):
     def __eq__(self, other: object) -> bool:
         return isinstance(other, BindOperation) and self.__hash__() == other.__hash__()
 
+    def describe(self) -> str:
+        flags = []
+        if self.readonly:
+            flags.append("readonly")
+        if not self.required:
+            flags.append("optional")
+        if self.foreign:
+            flags.append("foreign")
+        if self.relative:
+            flags.append("relative")
+        if self.nofollow:
+            flags.append("nofollow")
+        suffix = f" [{', '.join(flags)}]" if flags else ""
+        return f"bind {self.src} -> {self.dst}{suffix}"
+
     def execute(self, oldroot: str, newroot: str) -> None:
         src = chase(newroot if self.relative else oldroot, self.src, nofollow=self.nofollow)
 
@@ -1107,6 +1125,9 @@ class DevOperation(FSOperation):
         self.ttyname = ttyname
         super().__init__(dst)
 
+    def describe(self) -> str:
+        return f"dev at {self.dst}" + (f" (tty={self.ttyname})" if self.ttyname else "")
+
     def execute(self, oldroot: str, newroot: str) -> None:
         # We don't put actual devices in /dev, just the API stuff in there that all manner of
         # things depend on, like /dev/null.
@@ -1149,6 +1170,9 @@ class DevOperation(FSOperation):
 
 
 class TmpfsOperation(FSOperation):
+    def describe(self) -> str:
+        return f"tmpfs at {self.dst}"
+
     def execute(self, oldroot: str, newroot: str) -> None:
         dst = chase(newroot, self.dst)
         with umask(~0o755):
@@ -1159,6 +1183,9 @@ class TmpfsOperation(FSOperation):
 
 
 class DirOperation(FSOperation):
+    def describe(self) -> str:
+        return f"mkdir {self.dst}"
+
     def execute(self, oldroot: str, newroot: str) -> None:
         dst = chase(newroot, self.dst)
         with umask(~0o755):
@@ -1174,6 +1201,9 @@ class SymlinkOperation(FSOperation):
     def __init__(self, src: str, dst: str) -> None:
         self.src = src
         super().__init__(dst)
+
+    def describe(self) -> str:
+        return f"symlink {self.dst} -> {self.src}"
 
     def execute(self, oldroot: str, newroot: str) -> None:
         dst = joinpath(newroot, self.dst)
@@ -1198,6 +1228,9 @@ class WriteOperation(FSOperation):
         self.data = data
         super().__init__(dst)
 
+    def describe(self) -> str:
+        return f"write {len(self.data)} bytes to {self.dst}"
+
     def execute(self, oldroot: str, newroot: str) -> None:
         dst = chase(newroot, self.dst)
         with umask(~0o755):
@@ -1212,6 +1245,9 @@ class OverlayOperation(FSOperation):
         self.upperdir = upperdir
         self.workdir = workdir
         super().__init__(dst)
+
+    def describe(self) -> str:
+        return f"overlay at {self.dst} (lowers=[{', '.join(self.lowerdirs)}], upper={self.upperdir or '-'})"
 
     # This supports being used as a context manager so we can reuse the logic for mount_overlay()
     # in mounts.py.
@@ -1317,6 +1353,7 @@ mkosi-sandbox [OPTIONS...] COMMAND [ARGUMENTS...]
      --suppress-sync              Make sync() syscalls in the sandbox a noop
      --unshare-net                Unshare the network namespace if possible
      --unshare-ipc                Unshare the IPC namespace if possible
+     --debug                      Log each filesystem operation before executing it
 
 See the mkosi-sandbox(1) man page for details.\
 """
@@ -1350,6 +1387,7 @@ def enter(argv: list[str]) -> list[str]:
     pack_fds = False
     map_foreign = False
     map_delegate = 0
+    debug = False
 
     try:
         ttyname = os.ttyname(2) if os.isatty(2) else ""
@@ -1449,6 +1487,8 @@ def enter(argv: list[str]) -> list[str]:
             unshare_ipc = True
         elif arg == "--pack-fds":
             pack_fds = True
+        elif arg == "--debug":
+            debug = True
         elif arg.startswith("-"):
             raise ValueError(f"Unrecognized option {arg}")
         else:
@@ -1555,6 +1595,8 @@ def enter(argv: list[str]) -> list[str]:
         umount2("oldroot/tmp", MNT_DETACH)
 
     for fsop in fsops:
+        if debug:
+            print(f"{ANSI_GRAY}+ {fsop.describe()}{ANSI_RESET}", file=sys.stderr)
         fsop.execute("oldroot", "newroot")
 
     # Now that we're done setting up the sandbox let's pivot root into newroot to make it the new
