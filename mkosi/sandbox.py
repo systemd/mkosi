@@ -879,8 +879,14 @@ def userns_acquire_empty() -> int:
     return userns_fd
 
 
-def chase(root: str, path: str) -> str:
+def chase(root: str, path: str, *, nofollow: bool = False) -> str:
+    if nofollow:
+        parent = os.path.dirname(path) or "/"
+        base = os.path.basename(path)
+
     if root == "/":
+        if nofollow:
+            return os.path.join(os.path.realpath(parent), base)
         return os.path.realpath(path)
 
     cwd = os.getcwd()
@@ -889,6 +895,8 @@ def chase(root: str, path: str) -> str:
     try:
         os.chroot(root)
         os.chdir("/")
+        if nofollow:
+            return joinpath(root, os.path.realpath(parent), base)
         return joinpath(root, os.path.realpath(path))
     finally:
         os.fchdir(fd)
@@ -1016,6 +1024,7 @@ class FSOperation:
                 and m.readonly == n.readonly
                 and m.required == n.required
                 and m.relative == n.relative
+                and m.nofollow == n.nofollow
                 and is_relative_to(m.src, n.src)
                 and is_relative_to(m.dst, n.dst)
                 and os.path.relpath(m.src, n.src) == os.path.relpath(m.dst, n.dst)
@@ -1031,36 +1040,51 @@ class FSOperation:
 
 class BindOperation(FSOperation):
     def __init__(
-        self, src: str, dst: str, *, readonly: bool, required: bool, foreign: bool, relative: bool
+        self,
+        src: str,
+        dst: str,
+        *,
+        readonly: bool,
+        required: bool,
+        foreign: bool,
+        relative: bool,
+        nofollow: bool,
     ) -> None:
         self.src = src
         self.readonly = readonly
         self.required = required
         self.foreign = foreign
+        self.nofollow = nofollow
         self.mappedfd = -EBADF
         super().__init__(dst, relative=relative)
 
     def __hash__(self) -> int:
-        return hash((splitpath(self.src), splitpath(self.dst), self.readonly, self.required))
+        return hash((splitpath(self.src), splitpath(self.dst), self.readonly, self.required, self.nofollow))
 
     def __eq__(self, other: object) -> bool:
         return isinstance(other, BindOperation) and self.__hash__() == other.__hash__()
 
     def execute(self, oldroot: str, newroot: str) -> None:
-        src = chase(newroot if self.relative else oldroot, self.src)
+        src = chase(newroot if self.relative else oldroot, self.src, nofollow=self.nofollow)
 
-        if not os.path.exists(src) and not self.required:
+        exists = os.path.lexists if self.nofollow else os.path.exists
+        if not exists(src) and not self.required:
             return
+
+        # A nofollow source that is itself a symlink must be treated as a non-directory file so we
+        # bind mount the symlink as-is rather than creating a directory on top of it.
+        src_is_link = self.nofollow and os.path.islink(src)
+        src_is_dir = os.path.isdir(src) and not src_is_link
 
         # If we're mounting a file on top of a symlink, mount directly on top of the symlink instead of
         # resolving it.
         dst = joinpath(newroot, self.dst)
-        if not os.path.isdir(src) and os.path.islink(dst):
+        if not src_is_dir and os.path.islink(dst):
             return mount_bind(src, dst, attrs=MOUNT_ATTR_RDONLY if self.readonly else 0, recursive=True)
 
         dst = chase(newroot, self.dst)
         if not os.path.exists(dst):
-            isfile = os.path.isfile(src)
+            isfile = src_is_link or os.path.isfile(src)
 
             with umask(~0o755):
                 os.makedirs(os.path.dirname(dst), exist_ok=True)
@@ -1274,6 +1298,8 @@ mkosi-sandbox [OPTIONS...] COMMAND [ARGUMENTS...]
      --ro-bind-try SRC DST        Bind mount the host path SRC to DST read-only if it exists
      --bind-foreign SRC DST       Like --bind, but idmaps the foreign UID range to a transient UID range
      --ro-bind-foreign SRC DST    Like --ro-bind, but idmaps the foreign UID range to a transient UID range
+     --bind-nofollow SRC DST      Like --bind, but does not follow symlinks for SRC
+     --ro-bind-nofollow SRC DST   Like --ro-bind, but does not follow symlinks for SRC
      --symlink SRC DST            Create a symlink at DST pointing to SRC
      --write DATA DST             Write DATA to DST
      --overlay-lowerdir DIR       Add a lower directory for the next overlayfs mount
@@ -1355,10 +1381,13 @@ def enter(argv: list[str]) -> list[str]:
             "--ro-bind-try",
             "--bind-foreign",
             "--ro-bind-foreign",
+            "--bind-nofollow",
+            "--ro-bind-nofollow",
         ):
             readonly = arg.startswith("--ro")
             required = not arg.endswith("-try")
             foreign = arg.endswith("-foreign")
+            nofollow = arg.endswith("-nofollow")
             src = argv.pop()
 
             fsops.append(
@@ -1369,6 +1398,7 @@ def enter(argv: list[str]) -> list[str]:
                     required=required,
                     foreign=foreign,
                     relative=src.startswith("+"),
+                    nofollow=nofollow,
                 )
             )
         elif arg == "--symlink":

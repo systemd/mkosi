@@ -706,7 +706,7 @@ def sandbox_cmd(
                 cmdline += ["--ro-bind", p, p]
 
         if network and (p := Path("/etc/resolv.conf")).exists():
-            cmdline += ["--ro-bind", p, p]
+            cmdline += ["--ro-bind-nofollow", p, p]
 
         path = finalize_path(
             root=tools,
