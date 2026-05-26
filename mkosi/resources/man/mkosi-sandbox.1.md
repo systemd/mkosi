@@ -162,6 +162,9 @@ from `mkosi.sandbox` is not supported and may break in future versions.
     `$LISTEN_FDS` to the number of packed file descriptors and `$LISTEN_PID` to the current process
     pid.
 
+`--debug`
+:   Log various messages describing how the sandbox is set up.
+
 `--version`
 :   Show package version.
 
