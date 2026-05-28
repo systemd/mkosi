@@ -880,6 +880,10 @@ def userns_acquire_empty() -> int:
 
 
 def chase(root: str, path: str, *, nofollow: bool = False) -> str:
+    # pyright hack around `reportPossiblyUnboundVariable`; it doesn't understand
+    # that it's defined/used only if `nofollow` is True
+    parent = ""
+    base = ""
     if nofollow:
         parent = os.path.dirname(path) or "/"
         base = os.path.basename(path)
