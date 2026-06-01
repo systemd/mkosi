@@ -63,3 +63,16 @@ def ci_sections(request: Any) -> Iterator[None]:
 @pytest.fixture(scope="session", autouse=True)
 def logging() -> None:
     log_setup()
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item: Any, call: Any) -> Iterator[None]:
+    """Suppress tracebacks for test_linters.py tests.
+
+    These are not helpful and just noise.
+    """
+    outcome = yield
+    report = outcome.get_result()  # type: ignore
+
+    if item.parent.name == "test_linters.py" and report.failed and call.excinfo is not None:
+        report.longrepr = str(call.excinfo.value)

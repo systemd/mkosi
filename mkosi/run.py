@@ -235,6 +235,7 @@ def run(
     success_exit_status: Sequence[int] = (0,),
     setup: Sequence[PathString] = (),
     sandbox: AbstractContextManager[Sequence[PathString]] = nosandbox(),
+    cwd: Optional[PathString] = None,
 ) -> CompletedProcess:
     if input is not None:
         assert stdin is None  # stdin and input cannot be specified together
@@ -251,6 +252,7 @@ def run(
         success_exit_status=success_exit_status,
         setup=setup,
         sandbox=sandbox,
+        cwd=cwd,
     ) as process:
         out, err = process.communicate(input)
 
@@ -305,6 +307,7 @@ def spawn(
     success_exit_status: Sequence[int] = (0,),
     setup: Sequence[PathString] = (),
     sandbox: AbstractContextManager[Sequence[PathString]] = nosandbox(),
+    cwd: Optional[PathString] = None,
 ) -> Iterator[Popen]:
     cmd = [os.fspath(x) for x in cmdline]
 
@@ -362,6 +365,7 @@ def spawn(
                 group=group,
                 pass_fds=pass_fds,
                 env=env if not sbx or not apply_sandbox_in_preexec else None,
+                cwd=os.fspath(cwd) if cwd is not None else None,
                 preexec_fn=(
                     functools.partial(
                         _preexec,

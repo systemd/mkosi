@@ -123,11 +123,29 @@ modifications.
 
 # Hacking on mkosi
 
-To hack on mkosi itself you will also need
-[mypy](https://github.com/python/mypy), for type checking, and
-[pytest](https://github.com/pytest-dev/pytest), to run tests. We check
-tests and typing in CI (see `.github/workflows`), but you can run the
-tests locally as well.
+To hack on mkosi itself, you can run the full test suite locally, just
+like CI does. The tests include linting, type checking, and unit tests,
+all runnable via [pytest](https://github.com/pytest-dev/pytest).
+
+All linters such as `ruff` or `mypy` are run inside `mkosi box`
+(i.e. from inside `mkosi.tools/`) for a consistent environment. Build that with:
+
+```sh
+bin/mkosi -f box -- true
+```
+
+Then run the full test suite inside the tools tree:
+
+```bash
+bin/mkosi box -- pytest
+```
+
+You can use [pytest options](https://docs.pytest.org/en/stable/how-to/usage.html) to only run a subset, for
+example only run the linters:
+
+```sh
+bin/mkosi box -- pytest -k test_linters
+```
 
 # References
 

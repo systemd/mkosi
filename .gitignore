@@ -2,10 +2,6 @@
 *.cache-pre-dev
 *.cache-pre-inst
 .cache
-.mkosi.1
-.mkosi-addon.1
-.mkosi-initrd.1
-.mkosi-sandbox.1
 .mypy_cache/
 .project
 .pydevproject
@@ -14,6 +10,8 @@
 /SHA256SUMS
 /SHA256SUMS.gpg
 /build
+# Generated zipapp
+/builddir/
 /dist
 /mkosi.build
 /mkosi.egg-info
@@ -23,6 +21,7 @@
 /mkosi.rootpw
 mkosi.local
 mkosi.local.conf
+mkosi/resources/man/*.[17]
 mkosi.tools
 mkosi.tools.manifest
 /mkosi.key
