@@ -801,7 +801,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `ElTorito=`, `--el-torito=`
 :   Whether to add an El Torito boot catalog to boot the ESP when building a
-    disk image. Takes a boolean value or `auto`. Defaults to `auto`.
+    disk image. Takes a boolean value or `auto`. Defaults to `auto`. When set to
+    `auto`, an El Torito boot catalog is added unless grub is installed as the
+    BIOS bootloader (as that is incompatible). Requires systemd-repart ≥ v261.
 
 `ElToritoSystem=`, `--el-torito-system=`
 :   Set the system identifier in the ISO 9660 descriptor.
