@@ -40,6 +40,7 @@ def test_ruff_check() -> None:
     )
 
 
+@pytest.mark.skipif(_skip_if_missing("git"), reason="git not found")
 def test_no_tabs_in_code() -> None:
     result = run(["git", "grep", "-P", r"\t", "*.py"], check=False, cwd=REPO_ROOT)
     assert result.returncode != 0, "Found tabs in Python code"
@@ -86,5 +87,9 @@ def test_shellcheck() -> None:
 
 
 @pytest.mark.skipif(_skip_if_missing("pandoc"), reason="pandoc not found")
+@pytest.mark.skipif(
+    SKIP_MISSING_TOOLS and not (REPO_ROOT / "tools/make-man-page.sh").exists(),
+    reason="tools/make-man-page.sh not found",
+)
 def test_man_page_generation() -> None:
     run(["tools/make-man-page.sh"], cwd=REPO_ROOT)
