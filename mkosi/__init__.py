@@ -3478,9 +3478,16 @@ def make_image(
     if tabs and systemd_tool_version("systemd-repart", sandbox=context.sandbox) >= 258:
         cmdline += ["--append-fstab=auto"]
 
+    # grub-bios-setup interprets El Torito/ISO9660 header as a filesystem on the bare
+    # disk and then refuses to embed itself. So only enable it by default when we are
+    # not installing grub for BIOS.
+    el_torito_wanted = context.config.el_torito == ConfigFeature.enabled or (
+        context.config.el_torito == ConfigFeature.auto and not want_grub_bios(context)
+    )
+
     if (
         el_torito
-        and context.config.el_torito != ConfigFeature.disabled
+        and el_torito_wanted
         and systemd_tool_version("systemd-repart", sandbox=context.sandbox) >= "261~devel"
     ):
         cmdline += ["--el-torito=yes"]
