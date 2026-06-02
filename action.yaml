@@ -105,9 +105,21 @@ runs:
       shell: bash
       run: |
         sudo apt-get update
+
+        # makepkg and pacman-package-manager were only added in noble (24.04).
+        # Probe for each and skip the ones the host's apt repos don't have.
+        # Callers running this action on older releases (e.g. ubuntu-22.04) otherwise fail with "Unable to locate package".
+        arch_pkgs=()
+        for pkg in makepkg pacman-package-manager; do
+          if apt-cache show "$pkg" 2>/dev/null | grep -q '^Package: '; then
+            arch_pkgs+=("$pkg")
+          else
+            echo "Skipping $pkg: not available in apt repositories on this host."
+          fi
+        done
+
         sudo apt-get install --assume-yes --no-install-recommends \
           debian-archive-keyring \
           dnf \
-          makepkg \
-          pacman-package-manager \
-          zypper
+          zypper \
+          "${arch_pkgs[@]}"
