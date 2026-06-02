@@ -101,7 +101,8 @@ extend-immutable-calls = ["mkosi.run.nosandbox"]
 
 [tool.pytest.ini_options]
 markers = [
-    "integration: mark a test as an integration test."
+    "integration: mark a test as an integration test.",
+    "install: mark a test as an installation test (venv/pip/zipapp).",
 ]
-addopts = "-m \"not integration\""
+addopts = "-m \"not integration and not install\""
 testpaths = ["tests"]

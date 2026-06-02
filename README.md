@@ -147,6 +147,14 @@ example only run the linters:
 bin/mkosi box -- pytest -k test_linters
 ```
 
+Installation tests (venv, editable and zipapp installs) are marked with the
+`install` marker and are skipped by default, as they create virtual
+environments and install packages from the network. Run them explicitly with:
+
+```sh
+bin/mkosi box -- pytest -m install
+```
+
 When a tool that mkosi runs inside its sandbox fails, see
 [Debugging failing sandboxed commands](docs/debugging.md) for how to replay the command by hand.
 

@@ -20,18 +20,18 @@ def kernel_install_files() -> list[str]:
     return [os.fspath(p) for p in (REPO_ROOT / "kernel-install").glob("*.install")]
 
 
-def _skip_if_missing(tool: str) -> bool:
+def skip_if_missing(tool: str) -> bool:
     """Return True if we should skip the test because tool is missing."""
     return SKIP_MISSING_TOOLS and shutil.which(tool) is None
 
 
-@pytest.mark.skipif(_skip_if_missing("ruff"), reason="ruff not found")
+@pytest.mark.skipif(skip_if_missing("ruff"), reason="ruff not found")
 def test_ruff_format_check() -> None:
     """Check that code is formatted with ruff format."""
     run(["ruff", "format", "--check", "--diff", "mkosi/", "tests/", *kernel_install_files()], cwd=REPO_ROOT)
 
 
-@pytest.mark.skipif(_skip_if_missing("ruff"), reason="ruff not found")
+@pytest.mark.skipif(skip_if_missing("ruff"), reason="ruff not found")
 def test_ruff_check() -> None:
     """Check code quality with ruff."""
     run(
@@ -40,12 +40,13 @@ def test_ruff_check() -> None:
     )
 
 
+@pytest.mark.skipif(skip_if_missing("git"), reason="git not found")
 def test_no_tabs_in_code() -> None:
     result = run(["git", "grep", "-P", r"\t", "*.py"], check=False, cwd=REPO_ROOT)
     assert result.returncode != 0, "Found tabs in Python code"
 
 
-@pytest.mark.skipif(_skip_if_missing("codespell"), reason="codespell not found")
+@pytest.mark.skipif(skip_if_missing("codespell"), reason="codespell not found")
 def test_codespell() -> None:
     run(["codespell", "--version"], cwd=REPO_ROOT)
     files = run(["git", "ls-files"], stdout=subprocess.PIPE, cwd=REPO_ROOT).stdout.strip().split("\n")
@@ -54,27 +55,27 @@ def test_codespell() -> None:
     run(["codespell", *files_to_check], cwd=REPO_ROOT)
 
 
-@pytest.mark.skipif(_skip_if_missing("reuse"), reason="reuse not found")
+@pytest.mark.skipif(skip_if_missing("reuse"), reason="reuse not found")
 def test_reuse_lint() -> None:
     run(["reuse", "lint"], cwd=REPO_ROOT)
 
 
-@pytest.mark.skipif(_skip_if_missing("mypy"), reason="mypy not found")
+@pytest.mark.skipif(skip_if_missing("mypy"), reason="mypy not found")
 def test_mypy() -> None:
     run(["mypy", "mkosi/", *kernel_install_files()], cwd=REPO_ROOT)
 
 
-@pytest.mark.skipif(_skip_if_missing("mypy"), reason="mypy not found")
+@pytest.mark.skipif(skip_if_missing("mypy"), reason="mypy not found")
 def test_mypy_python310() -> None:
     run(["mypy", "--python-version", "3.10", "mkosi/", "tests/", *kernel_install_files()], cwd=REPO_ROOT)
 
 
-@pytest.mark.skipif(_skip_if_missing("pyright"), reason="pyright not found")
+@pytest.mark.skipif(skip_if_missing("pyright"), reason="pyright not found")
 def test_pyright() -> None:
     run(["pyright", "mkosi/", "tests/", *kernel_install_files()], cwd=REPO_ROOT)
 
 
-@pytest.mark.skipif(_skip_if_missing("shellcheck"), reason="shellcheck not found")
+@pytest.mark.skipif(skip_if_missing("shellcheck"), reason="shellcheck not found")
 def test_shellcheck() -> None:
     # Check bin/mkosi and tools/*.sh
     tools_scripts = [os.fspath(p) for p in (REPO_ROOT / "tools").glob("*.sh")]
@@ -85,6 +86,10 @@ def test_shellcheck() -> None:
     run(["shellcheck", "-"], input=completion, cwd=REPO_ROOT)
 
 
-@pytest.mark.skipif(_skip_if_missing("pandoc"), reason="pandoc not found")
+@pytest.mark.skipif(skip_if_missing("pandoc"), reason="pandoc not found")
+@pytest.mark.skipif(
+    SKIP_MISSING_TOOLS and not (REPO_ROOT / "tools/make-man-page.sh").exists(),
+    reason="tools/make-man-page.sh not found",
+)
 def test_man_page_generation() -> None:
     run(["tools/make-man-page.sh"], cwd=REPO_ROOT)
