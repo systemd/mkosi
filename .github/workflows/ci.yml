@@ -32,6 +32,9 @@ jobs:
       - name: Run unit tests
         run: mkosi box -- python3 -m pytest -sv
 
+      - name: Run installation tests
+        run: mkosi box -- python3 -m pytest -sv -m install
+
       - name: Test execution from current working directory (sudo call)
         run: sudo python3 -m mkosi -h
 

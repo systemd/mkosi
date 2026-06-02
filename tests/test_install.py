@@ -4,9 +4,13 @@ import os
 import tempfile
 from pathlib import Path
 
+import pytest
+
 from mkosi.run import run
 
 REPO_ROOT = Path(__file__).parent.parent
+
+pytestmark = pytest.mark.install
 
 
 def test_mkosi_help_direct() -> None:

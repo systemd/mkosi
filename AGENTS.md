@@ -18,6 +18,7 @@ Always consult these files as needed:
 - `bin/mkosi box -- ruff format mkosi tests kernel-install/*.install` to format code
 - `bin/mkosi box -- ruff check --fix mkosi tests kernel-install/*.install` to fix ruff issues
 - `python3 -m pytest -m integration ...` to run integration tests. No need to run these by default.
+- `bin/mkosi box -- pytest -m install` to run installation tests (venv/pip/zipapp). Skipped by default as they install from the network. No need to run these by default.
 
 - Never invent your own build commands or try to optimize the build process.
 - Never use `head`, `tail`, or pipe (`|`) the output of build or test commands. Always let the full output
