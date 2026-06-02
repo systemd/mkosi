@@ -147,6 +147,9 @@ example only run the linters:
 bin/mkosi box -- pytest -k test_linters
 ```
 
+When a tool that mkosi runs inside its sandbox fails, see
+[Debugging failing sandboxed commands](docs/debugging.md) for how to replay the command by hand.
+
 # References
 
 * [Primary mkosi git repository on GitHub](https://github.com/systemd/mkosi/)
