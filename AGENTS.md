@@ -8,6 +8,7 @@ instructions to this file if you've seen an AI agent mess up that particular bit
 Always consult these files as needed:
 
 - `docs/CODING_STYLE.md` — full style guide (must-read before writing code)
+- `docs/debugging.md` — how to replay a command that failed inside mkosi's sandbox
 
 ## Build and Test Commands
 
