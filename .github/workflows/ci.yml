@@ -81,6 +81,12 @@ jobs:
           - distro: ubuntu
             tools: opensuse
         include:
+          # Fedora rawhide's pacman 7.1.0 deadlocks with curl 8.20 when installing packages
+          # (https://github.com/curl/curl/issues/21466, https://gitlab.archlinux.org/pacman/pacman/-/merge_requests/360)
+          # use the latest stable release instead, until https://src.fedoraproject.org/rpms/pacman/pull-request/5# lands
+          - distro: arch
+            tools: fedora
+            tools_release: "44"
           # low rate limit on s390x/ppc64le/arm64 workers
           - distro: debian
             tools: debian
@@ -136,6 +142,7 @@ jobs:
 
           [Build]
           ToolsTreeDistribution=${{ matrix.tools }}
+          ToolsTreeRelease=${{ matrix.tools_release }}
           Environment=SYSTEMD_REPART_MKFS_OPTIONS_EROFS="--quiet"
 
           [Runtime]
