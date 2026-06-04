@@ -1087,11 +1087,14 @@ def config_default_repository_key_fetch(namespace: dict[str, Any]) -> bool:
         if d == "nixos":
             return True
 
-        return d == Distribution.ubuntu and needs_repository_key_fetch(namespace["distribution"])
+        return d in (Distribution.ubuntu, Distribution.debian) and needs_repository_key_fetch(
+            namespace["distribution"]
+        )
 
-    return namespace["tools_tree_distribution"] == Distribution.ubuntu and needs_repository_key_fetch(
-        namespace["distribution"]
-    )
+    return namespace["tools_tree_distribution"] in (
+        Distribution.ubuntu,
+        Distribution.debian,
+    ) and needs_repository_key_fetch(namespace["distribution"])
 
 
 def config_default_source_date_epoch(namespace: dict[str, Any]) -> Optional[int]:

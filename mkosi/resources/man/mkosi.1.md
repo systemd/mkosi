@@ -588,8 +588,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `RepositoryKeyFetch=`, `--repository-key-fetch=`
 :   Controls whether **mkosi** will fetch distribution GPG keys remotely. Enabled by
-    default on Ubuntu when not using a tools tree or when using Ubuntu tools trees to build
-    Arch Linux or RPM-based distributions. Disabled by default on all other distributions.
+    default on Debian and Ubuntu when not using a tools tree or when using Debian or Ubuntu
+    tools trees to build Arch Linux or RPM-based distributions. Disabled by default on all
+    other distributions.
     When disabled, the distribution GPG keys for the target distribution have to be installed
     locally on the host system alongside the package manager for that distribution.
 
