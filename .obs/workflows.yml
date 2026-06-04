@@ -14,6 +14,16 @@ ci:
         source_project: system:systemd
         source_package: mkosi
         target_project: system:systemd:ci
+    - set_flags:
+        flags:
+          - type: build
+            status: disable
+            project: system:systemd:ci
+            architecture: aarch64
+          - type: build
+            status: disable
+            project: system:systemd:ci
+            architecture: i586
   filters:
     event: pull_request
     branches:
