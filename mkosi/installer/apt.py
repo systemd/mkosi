@@ -227,6 +227,7 @@ class Apt(PackageManager):
         apivfs: bool = False,
         options: Sequence[PathString] = (),
         stdout: _FILE = None,
+        retry: bool = False,
     ) -> CompletedProcess:
         with umask(~0o755):
             # TODO: Drop once apt 2.5.4 is widely available.
@@ -240,6 +241,8 @@ class Apt(PackageManager):
             sandbox=cls.sandbox(context, apivfs=apivfs, options=options),
             env=cls.finalize_environment(context),
             stdout=stdout,
+            # Downloading repository metadata often fails with transient network errors
+            num_retries=3 if retry else 0,
         )
 
     @classmethod
@@ -284,7 +287,7 @@ class Apt(PackageManager):
 
     @classmethod
     def sync(cls, context: Context, force: bool) -> None:
-        cls.invoke(context, "update")
+        cls.invoke(context, "update", retry=True)
 
     @classmethod
     def createrepo(cls, context: Context) -> None:

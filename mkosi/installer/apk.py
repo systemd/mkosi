@@ -186,6 +186,8 @@ class Apk(PackageManager):
             + ["update", *(["--update-cache"] if force else [])],
             sandbox=context.sandbox(network=True, options=options),
             env=env,
+            # Downloading repository metadata often fails with transient network errors
+            num_retries=3,
         )
         rmtree(tmp)
 

@@ -126,12 +126,15 @@ class Zypper(PackageManager):
         options: Sequence[str] = (),
         apivfs: bool = False,
         stdout: _FILE = None,
+        retry: bool = False,
     ) -> CompletedProcess:
         return run(
             cls.cmd(context) + [*options, operation, *arguments],
             sandbox=cls.sandbox(context, apivfs=apivfs),
             env=cls.finalize_environment(context),
             stdout=stdout,
+            # Downloading repository metadata often fails with transient network errors
+            num_retries=3 if retry else 0,
         )
 
     @classmethod
@@ -161,12 +164,13 @@ class Zypper(PackageManager):
         cls.invoke(context, "remove", ["--clean-deps", *packages], apivfs=True, options=["--ignore-unknown"])
 
     @classmethod
-    def sync(cls, context: Context, force: bool, arguments: Sequence[str] = ()) -> None:
+    def sync(cls, context: Context, force: bool, arguments: Sequence[str] = (), retry: bool = True) -> None:
         cls.invoke(
             context,
             "refresh",
             [*(["--force"] if force else []), *arguments],
             options=["--gpg-auto-import-keys"] if context.config.repository_key_fetch else [],
+            retry=retry,
         )
 
     @classmethod
@@ -190,4 +194,5 @@ class Zypper(PackageManager):
             )
         )
 
-        cls.sync(context, force=True, arguments=["mkosi"])
+        # The local repository never fails transiently, so don't retry.
+        cls.sync(context, force=True, arguments=["mkosi"], retry=False)
