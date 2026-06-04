@@ -113,4 +113,4 @@ class Installer(debian.Installer, distribution=Distribution.ubuntu):
 
     @classmethod
     def is_kernel_package(cls, package: str) -> bool:
-        return package.startswith("linux-")
+        return package.startswith("linux-") and not package.startswith("linux-tools-")
