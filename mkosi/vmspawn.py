@@ -64,6 +64,8 @@ def run_vmspawn(args: Args, config: Config) -> None:
     features: list[str] = []
     if firmware == Firmware.uefi_secure_boot:
         features += ["secure-boot"]
+    elif firmware.is_uefi():
+        features += ["~secure-boot"]
     if config.firmware_variables in (Path("microsoft"), Path("microsoft-mok")):
         features += ["enrolled-keys"]
 
