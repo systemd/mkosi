@@ -2565,11 +2565,34 @@ def calculate_signature_gpg(context: Context) -> None:
     ]  # fmt: skip
 
     with complete_step("Signing SHA256SUMS…"):
+        # gpg autostarts a gpg-agent to sign and, as the sandbox has no PID namespace, that agent is
+        # leaked when the sandbox goes away. If we started it (no agent was running yet), shut it down
+        # again afterwards; leave an agent the user already had running (e.g. for ~/.gnupg) alone.
+        # gpg-connect-agent exits 0 even with no agent, so detect one via its GETINFO output: a running
+        # agent prints "D <version>\nOK" on stdout, otherwise stdout stays empty.
+        agent_running = bool(
+            run(
+                ["gpg-connect-agent", "--no-autostart", "GETINFO version", "/bye"],
+                env=env,
+                sandbox=context.sandbox(options=options),
+                stdout=subprocess.PIPE,
+                check=False,
+            ).stdout.strip()
+        )
+
         run(
             cmdline,
             env=env,
             sandbox=context.sandbox(options=options),
         )
+
+        if not agent_running:
+            run(
+                ["gpgconf", "--kill", "gpg-agent"],
+                env=env,
+                sandbox=context.sandbox(options=options),
+                check=False,
+            )
 
 
 def calculate_signature_sop(context: Context) -> None:

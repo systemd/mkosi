@@ -66,6 +66,11 @@ def test_signing_checksums_with_gpg(config: ImageConfig) -> None:
                 stdout=o,
             )
 
+        # gpg --quick-gen-key started a gpg-agent that we're done with now (the build manages its own).
+        # Shut it down so it doesn't linger past the test. GNUPGHOME is a throwaway directory, so this
+        # only affects this test's agent, never one running for the user's real GNUPGHOME.
+        run(cmdline=["gpgconf", "--kill", "gpg-agent"], env=env, check=False)
+
         image.build(options=["--checksum=true", "--sign=true", f"--key={signing_key}"], env=env)
 
         signed_file = image.output_dir / "image.SHA256SUMS"
