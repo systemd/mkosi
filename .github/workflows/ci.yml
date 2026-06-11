@@ -122,67 +122,12 @@ jobs:
         run: sudo ln -svf $PWD/bin/mkosi /usr/bin/mkosi
         working-directory: ./
 
-      - name: Configure
-        run: |
-          tee mkosi.local.conf <<EOF
-          [Distribution]
-          Distribution=${{ matrix.distro }}
+      # TODO: Use $SYSTEMD_REPART_OVERRIDE_FSTYPE_ROOT once we drop support for Ubuntu Noble.
+      - name: Add hack for missing $SYSTEMD_REPART_OVERRIDE_FSTYPE_ROOT
+        run: sed -i 's/return "btrfs"/return "ext4"/' mkosi/distribution/*.py
 
-          [Output]
-          ManifestFormat=json
-
-          [Content]
-          KernelCommandLine=systemd.default_device_timeout_sec=180
-
-          [Build]
-          ToolsTreeDistribution=${{ matrix.tools }}
-          Environment=SYSTEMD_REPART_MKFS_OPTIONS_EROFS="--quiet"
-
-          [Runtime]
-          KVM=yes
-          EOF
-
-          # TODO: Remove once all distros have recent enough systemd that knows systemd.default_device_timeout_sec.
-          mkdir -p mkosi-initrd/mkosi.extra/usr/lib/systemd/system.conf.d
-          tee mkosi-initrd/mkosi.extra/usr/lib/systemd/system.conf.d/device-timeout.conf <<EOF
-          [Manager]
-          DefaultDeviceTimeoutSec=180
-          EOF
-
-          # TODO: Use $SYSTEMD_REPART_OVERRIDE_FSTYPE_ROOT once we drop support for Ubuntu Noble.
-          sed -i 's/return "btrfs"/return "ext4"/' mkosi/distribution/*.py
-
-          # fail if the script already exists, to avoid hard to debug CI errors
-          [[ -f mkosi.configure ]] && exit 1
-          tee mkosi.configure <<EOF
-          #!/bin/bash
-          echo "Hello from inside mkosi.configure!" >&2
-          cat
-          EOF
-          chmod +x mkosi.configure
-
-          # prepare and postinst are already used in CI
-          for script in sync build finalize postoutput clean
-          do
-              [[ -f "mkosi.${script}" ]] && exit 1
-              tee "mkosi.${script}" <<TOK
-          #!/bin/bash
-          echo "Hello from inside mkosi.${script}" >&2
-          TOK
-              chmod +x "mkosi.${script}"
-          done
-
-      - name: Generate key
-        run: sudo mkosi genkey
-
-      - name: Summary
-        run: sudo mkosi summary
-
-      - name: Build tools tree
-        run: sudo mkosi -f box -- true
-
-      - name: Build image
-        run: sudo mkosi -f
+      - name: Configure and build
+        run: sudo tools/integration-test-setup.sh ${{ matrix.distro }} ${{ matrix.tools }}
 
       - name: Run integration tests
         run: |
