@@ -8,3 +8,5 @@ if ! command -v pyright &>/dev/null; then
         fi
     done
 fi
+
+python3 -m pip install --break-system-packages -r "$SRCDIR/mkosi.tools.conf/test-requirements.txt"

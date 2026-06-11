@@ -39,6 +39,7 @@ path = [
     "**.zsh",
     "mkosi.credentials/*",
     "mkosi/resources/pandoc/*.lua",
+    "mkosi.tools.conf/test-requirements.txt",
 ]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "Mkosi Contributors"

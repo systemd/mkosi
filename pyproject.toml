@@ -84,6 +84,18 @@ warn_unreachable = true
 strict_equality = true
 scripts_are_modules = true
 
+# barrage (the async test runner used by tests/) requires Python 3.12+ syntax, which mypy cannot parse
+# when checking under our supported floor (3.9/3.10). Skip following it and don't flag the test classes
+# that subclass its (now Any-typed) AsyncTestCase. pyright still type-checks tests/ fully.
+[[tool.mypy.overrides]]
+module = "barrage.*"
+ignore_missing_imports = true
+follow_imports = "skip"
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_subclassing_any = false
+
 [tool.ruff]
 target-version = "py39"
 line-length = 109
