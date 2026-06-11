@@ -6,7 +6,7 @@ import uuid
 from pathlib import Path
 from typing import Optional
 
-import pytest
+import barrage.assertions as Assert
 
 from mkosi.config import (
     Architecture,
@@ -50,8 +50,7 @@ from mkosi.config import (
 from mkosi.distribution import Distribution
 
 
-@pytest.mark.parametrize("path", [None, "/baz/qux"])
-def test_args(path: Optional[Path]) -> None:
+def check_args(path: Optional[Path]) -> None:
     dump = textwrap.dedent(
         f"""\
         {{
@@ -99,11 +98,19 @@ def test_args(path: Optional[Path]) -> None:
         wipe_build_dir=True,
     )
 
-    assert dump_json(args.to_dict()) == dump.rstrip()
-    assert Args.from_json(dump) == args
+    Assert.eq(dump_json(args.to_dict()), dump.rstrip())
+    Assert.eq(Args.from_json(dump), args)
 
 
-def test_config() -> None:
+async def test_args_no_directory() -> None:
+    check_args(None)
+
+
+async def test_args_directory() -> None:
+    check_args(Path("/baz/qux"))
+
+
+async def test_config() -> None:
     dump = textwrap.dedent(
         """\
         {
@@ -654,5 +661,5 @@ def test_config() -> None:
         workspace_dir=Path("/cwd"),
     )
 
-    assert dump_json(args.to_dict()) == dump.rstrip()
-    assert Config.from_json(dump) == args
+    Assert.eq(dump_json(args.to_dict()), dump.rstrip())
+    Assert.eq(Config.from_json(dump), args)
