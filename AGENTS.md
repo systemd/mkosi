@@ -17,9 +17,8 @@ Always consult these files as needed:
 - select a subset by name, e.g. `bin/mkosi box -- python3 -m barrage test_mypy` to run a specific check
 - `bin/mkosi box -- ruff format mkosi tests kernel-install/*.install` to format code
 - `bin/mkosi box -- ruff check --fix mkosi tests kernel-install/*.install` to fix ruff issues
-- `python3 -m pytest -m integration ...` to run integration tests. No need to run these by default.
+- `bin/mkosi box -- python3 -m barrage --pattern 'integration_*.py' tests/` to run integration tests (after `tools/integration-test-setup.sh`). No need to run these by default.
 - `bin/mkosi box -- python3 -m barrage --pattern 'install_*.py'` to run installation tests (venv/pip/zipapp). Skipped by default as they install from the network. No need to run these by default.
-
 - Never invent your own build commands or try to optimize the build process.
 - Never use `head`, `tail`, or pipe (`|`) the output of build or test commands. Always let the full output
 display. This is critical for diagnosing build and test failures.

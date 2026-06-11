@@ -132,14 +132,14 @@ jobs:
       - name: Run integration tests
         run: |
           # Without KVM the tests are way too slow and time out
+          # barrage currently has no dynamic runtime throttling to resources
+          # each test runs a ~ 1.5 GiB VM, and GitHub runners have 4 GiB
           if [[ -e /dev/kvm ]]; then
             sudo mkosi box -- \
               timeout -k 30 1h \
-              python3 -m pytest \
-              --tb=no \
-              --capture=no \
+              python3 -m barrage \
               --verbose \
-              -m integration \
-              --distribution ${{ matrix.distro }} \
+              --max-concurrency=2 \
+              --pattern 'integration_*.py' \
               tests/
           fi

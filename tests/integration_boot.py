@@ -3,16 +3,14 @@
 import os
 import subprocess
 
-import pytest
+import barrage.assertions as Assert
 
 from mkosi.config import Bootloader, Firmware, OutputFormat
 from mkosi.distribution import Distribution
 from mkosi.run import find_binary, run
 from mkosi.versioncomp import GenericVersion
 
-from . import Image, ImageConfig
-
-pytestmark = pytest.mark.integration
+from . import Image, ImageConfigManager
 
 
 def have_vmspawn() -> bool:
@@ -21,26 +19,25 @@ def have_vmspawn() -> bool:
     )
 
 
-@pytest.mark.parametrize("format", [f for f in OutputFormat if not f.is_extension_image()])
-def test_format(config: ImageConfig, format: OutputFormat) -> None:
-    with Image(config) as image:
+async def do_test_format(image_config: ImageConfigManager, format: OutputFormat) -> None:
+    with Image(image_config.config) as image:
         if image.config.distribution == Distribution.rhel_ubi and format in (
             OutputFormat.esp,
             OutputFormat.uki,
         ):
-            pytest.skip("Cannot build RHEL-UBI images with format 'esp' or 'uki'")
+            Assert.skip("Cannot build RHEL-UBI images with format 'esp' or 'uki'")
 
-        image.build(options=["--format", str(format)])
+        await image.build(options=["--format", str(format)])
 
         # FIXME: Also boot directory images when the CI runs systemd v260 or newer.
         if format == OutputFormat.directory:
             return
 
         if format == OutputFormat.disk and os.getuid() == 0:
-            image.boot()
+            await image.boot()
 
         if format in (OutputFormat.cpio, OutputFormat.uki, OutputFormat.esp):
-            pytest.skip("Default image is too large to be able to boot in CPIO/UKI/ESP format")
+            Assert.skip("Default image is too large to be able to boot in CPIO/UKI/ESP format")
 
         if image.config.distribution == Distribution.rhel_ubi:
             return
@@ -48,22 +45,85 @@ def test_format(config: ImageConfig, format: OutputFormat) -> None:
         if format in (OutputFormat.tar, OutputFormat.oci, OutputFormat.none, OutputFormat.portable):
             return
 
-        image.vm()
+        await image.vm()
 
         if have_vmspawn() and format == OutputFormat.disk:
-            image.vm(options=["--vmm=vmspawn"])
+            await image.vm(options=["--vmm=vmspawn"])
 
         if format != OutputFormat.disk:
             return
 
 
-@pytest.mark.parametrize("bootloader", Bootloader)
-def test_bootloader(config: ImageConfig, bootloader: Bootloader) -> None:
-    if config.distribution == Distribution.rhel_ubi or bootloader.is_signed():
+async def test_format_cpio(image_config: ImageConfigManager) -> None:
+    await do_test_format(image_config, OutputFormat.cpio)
+
+
+async def test_format_directory(image_config: ImageConfigManager) -> None:
+    await do_test_format(image_config, OutputFormat.directory)
+
+
+async def test_format_disk(image_config: ImageConfigManager) -> None:
+    await do_test_format(image_config, OutputFormat.disk)
+
+
+async def test_format_esp(image_config: ImageConfigManager) -> None:
+    await do_test_format(image_config, OutputFormat.esp)
+
+
+async def test_format_none(image_config: ImageConfigManager) -> None:
+    await do_test_format(image_config, OutputFormat.none)
+
+
+async def test_format_portable(image_config: ImageConfigManager) -> None:
+    await do_test_format(image_config, OutputFormat.portable)
+
+
+async def test_format_tar(image_config: ImageConfigManager) -> None:
+    await do_test_format(image_config, OutputFormat.tar)
+
+
+async def test_format_uki(image_config: ImageConfigManager) -> None:
+    await do_test_format(image_config, OutputFormat.uki)
+
+
+async def test_format_oci(image_config: ImageConfigManager) -> None:
+    await do_test_format(image_config, OutputFormat.oci)
+
+
+async def do_test_bootloader(image_config: ImageConfigManager, bootloader: Bootloader) -> None:
+    if image_config.config.distribution == Distribution.rhel_ubi or bootloader.is_signed():
         return
 
     firmware = Firmware.linux if bootloader == Bootloader.none else Firmware.auto
 
-    with Image(config) as image:
-        image.build(["--format=disk", "--bootloader", str(bootloader)])
-        image.vm(["--firmware", str(firmware)])
+    with Image(image_config.config) as image:
+        await image.build(["--format=disk", "--bootloader", str(bootloader)])
+        await image.vm(["--firmware", str(firmware)])
+
+
+async def test_bootloader_none(image_config: ImageConfigManager) -> None:
+    await do_test_bootloader(image_config, Bootloader.none)
+
+
+async def test_bootloader_uki(image_config: ImageConfigManager) -> None:
+    await do_test_bootloader(image_config, Bootloader.uki)
+
+
+async def test_bootloader_systemd_boot(image_config: ImageConfigManager) -> None:
+    await do_test_bootloader(image_config, Bootloader.systemd_boot)
+
+
+async def test_bootloader_grub(image_config: ImageConfigManager) -> None:
+    await do_test_bootloader(image_config, Bootloader.grub)
+
+
+async def test_bootloader_uki_signed(image_config: ImageConfigManager) -> None:
+    await do_test_bootloader(image_config, Bootloader.uki_signed)
+
+
+async def test_bootloader_systemd_boot_signed(image_config: ImageConfigManager) -> None:
+    await do_test_bootloader(image_config, Bootloader.systemd_boot_signed)
+
+
+async def test_bootloader_grub_signed(image_config: ImageConfigManager) -> None:
+    await do_test_bootloader(image_config, Bootloader.grub_signed)
