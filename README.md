@@ -158,6 +158,30 @@ bin/mkosi box -- pytest -m install
 When a tool that mkosi runs inside its sandbox fails, see
 [Debugging failing sandboxed commands](docs/debugging.md) for how to replay the command by hand.
 
+# Integration tests
+
+Integration tests build and boot full images. They are marked with the
+`integration` marker, and are skipped by default. They need a tools tree and an
+image to be built first. `tools/integration-test-setup.sh` writes a local
+configuration for the given image and tools tree distribution and builds both:
+
+```sh
+tools/integration-test-setup.sh $DISTRIBUTION $TOOLS_TREE_DISTRIBUTION
+```
+
+For example, to test an Arch image built with a Fedora tools tree, then run a
+single integration test:
+
+```sh
+tools/integration-test-setup.sh arch fedora
+
+bin/mkosi box -- pytest -m integration --distribution arch --capture=no --verbose \
+    'tests/test_boot.py::test_bootloader[systemd-boot]'
+```
+
+The integration tests require KVM and are skipped (or very slow) without
+`/dev/kvm`.
+
 # References
 
 * [Primary mkosi git repository on GitHub](https://github.com/systemd/mkosi/)
