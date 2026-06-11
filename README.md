@@ -125,7 +125,7 @@ modifications.
 
 To hack on mkosi itself, you can run the full test suite locally, just
 like CI does. The tests include linting, type checking, and unit tests,
-all runnable via [pytest](https://github.com/pytest-dev/pytest).
+all runnable via [barrage](https://github.com/amutable-systems/barrage).
 
 All linters such as `ruff` or `mypy` are run inside `mkosi box`
 (i.e. from inside `mkosi.tools/`) for a consistent environment. Build that with:
@@ -134,25 +134,26 @@ All linters such as `ruff` or `mypy` are run inside `mkosi box`
 bin/mkosi -f box -- true
 ```
 
-Then run the full test suite inside the tools tree:
+Then run the full unit test suite inside the tools tree:
 
 ```bash
-bin/mkosi box -- pytest
+bin/mkosi box -- python3 -m barrage
 ```
 
-You can use [pytest options](https://docs.pytest.org/en/stable/how-to/usage.html) to only run a subset, for
-example only run the linters:
+You can select a subset, for example only run the linters or only a single test:
 
 ```sh
-bin/mkosi box -- pytest -k test_linters
+bin/mkosi box -- python3 -m barrage tests/test_linters.py
+
+bin/mkosi box -- python3 -m barrage test_conversion
 ```
 
-Installation tests (venv, editable and zipapp installs) are marked with the
-`install` marker and are skipped by default, as they create virtual
-environments and install packages from the network. Run them explicitly with:
+Installation tests (venv, editable and zipapp installs) live in `install_*.py`
+files and are skipped by default, as they create virtual environments and
+install packages from the network. Run them explicitly with:
 
 ```sh
-bin/mkosi box -- pytest -m install
+bin/mkosi box -- python3 -m barrage --pattern 'install_*.py'
 ```
 
 When a tool that mkosi runs inside its sandbox fails, see

@@ -1,13 +1,16 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 import argparse
+import contextlib
 import itertools
 import logging
 import operator
 import os
+import tempfile
 from pathlib import Path
+from typing import cast
 
-import pytest
+import barrage.assertions as Assert
 
 import mkosi.resources
 from mkosi import expand_kernel_specifiers
@@ -29,39 +32,53 @@ from mkosi.distribution import Distribution, detect_distribution
 from mkosi.util import chdir, resource_path
 
 
-def test_compression_enum_creation() -> None:
-    assert Compression["none"] == Compression.none
-    assert Compression["zstd"] == Compression.zstd
-    assert Compression["zst"] == Compression.zstd
-    assert Compression["xz"] == Compression.xz
-    assert Compression["bz2"] == Compression.bz2
-    assert Compression["gz"] == Compression.gz
-    assert Compression["lz4"] == Compression.lz4
-    assert Compression["lzma"] == Compression.lzma
+class _ListHandler(logging.Handler):
+    def __init__(self) -> None:
+        super().__init__()
+        self.records: list[logging.LogRecord] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.records.append(record)
 
 
-def test_compression_enum_bool() -> None:
-    assert not bool(Compression.none)
-    assert bool(Compression.zstd)
-    assert bool(Compression.xz)
-    assert bool(Compression.bz2)
-    assert bool(Compression.gz)
-    assert bool(Compression.lz4)
-    assert bool(Compression.lzma)
+def tmp_dir(stack: contextlib.AsyncExitStack) -> Path:
+    return Path(stack.enter_context(tempfile.TemporaryDirectory()))
 
 
-def test_compression_enum_str() -> None:
-    assert str(Compression.none) == "none"
-    assert str(Compression.zstd) == "zstd"
-    assert str(Compression.zst) == "zstd"
-    assert str(Compression.xz) == "xz"
-    assert str(Compression.bz2) == "bz2"
-    assert str(Compression.gz) == "gz"
-    assert str(Compression.lz4) == "lz4"
-    assert str(Compression.lzma) == "lzma"
+async def test_compression_enum_creation() -> None:
+    Assert.eq(Compression["none"], Compression.none)
+    Assert.eq(Compression["zstd"], Compression.zstd)
+    Assert.eq(Compression["zst"], Compression.zstd)
+    Assert.eq(Compression["xz"], Compression.xz)
+    Assert.eq(Compression["bz2"], Compression.bz2)
+    Assert.eq(Compression["gz"], Compression.gz)
+    Assert.eq(Compression["lz4"], Compression.lz4)
+    Assert.eq(Compression["lzma"], Compression.lzma)
 
 
-def test_parse_ini(tmp_path: Path) -> None:
+async def test_compression_enum_bool() -> None:
+    Assert.false(bool(Compression.none))
+    Assert.true(bool(Compression.zstd))
+    Assert.true(bool(Compression.xz))
+    Assert.true(bool(Compression.bz2))
+    Assert.true(bool(Compression.gz))
+    Assert.true(bool(Compression.lz4))
+    Assert.true(bool(Compression.lzma))
+
+
+async def test_compression_enum_str() -> None:
+    Assert.eq(str(Compression.none), "none")
+    Assert.eq(str(Compression.zstd), "zstd")
+    Assert.eq(str(Compression.zst), "zstd")
+    Assert.eq(str(Compression.xz), "xz")
+    Assert.eq(str(Compression.bz2), "bz2")
+    Assert.eq(str(Compression.gz), "gz")
+    Assert.eq(str(Compression.lz4), "lz4")
+    Assert.eq(str(Compression.lzma), "lzma")
+
+
+async def test_parse_ini(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
     p = tmp_path / "ini"
     p.write_text(
         """\
@@ -83,16 +100,17 @@ def test_parse_ini(tmp_path: Path) -> None:
 
     g = parse_ini(p)
 
-    assert next(g) == ("MySection", "Value", "abc")
-    assert next(g) == ("MySection", "Other", "def")
-    assert next(g) == ("MySection", "ALLCAPS", "txt")
-    assert next(g) == ("MySection", "", "")
-    assert next(g) == ("EmptySection", "", "")
-    assert next(g) == ("AnotherSection", "EmptyValue", "")
-    assert next(g) == ("AnotherSection", "Multiline", "abc\ndef\nqed\nord")
+    Assert.eq(next(g), ("MySection", "Value", "abc"))
+    Assert.eq(next(g), ("MySection", "Other", "def"))
+    Assert.eq(next(g), ("MySection", "ALLCAPS", "txt"))
+    Assert.eq(next(g), ("MySection", "", ""))
+    Assert.eq(next(g), ("EmptySection", "", ""))
+    Assert.eq(next(g), ("AnotherSection", "EmptyValue", ""))
+    Assert.eq(next(g), ("AnotherSection", "Multiline", "abc\ndef\nqed\nord"))
 
 
-def test_parse_config(tmp_path: Path) -> None:
+async def test_parse_config(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
     d = tmp_path
 
     (d / "mkosi.conf").write_text(
@@ -120,11 +138,11 @@ def test_parse_config(tmp_path: Path) -> None:
     with chdir(d):
         _, _, [config] = parse_config()
 
-    assert config.distribution == Distribution.ubuntu
-    assert config.architecture == Architecture.arm64
-    assert config.profiles == ["abc"]
-    assert config.output_format == OutputFormat.cpio
-    assert config.image_id == "base"
+    Assert.eq(config.distribution, Distribution.ubuntu)
+    Assert.eq(config.architecture, Architecture.arm64)
+    Assert.eq(config.profiles, ["abc"])
+    Assert.eq(config.output_format, OutputFormat.cpio)
+    Assert.eq(config.image_id, "base")
 
     with chdir(d):
         _, _, [config] = parse_config(
@@ -137,10 +155,10 @@ def test_parse_config(tmp_path: Path) -> None:
         )  # fmt: skip
 
     # Values from the CLI should take priority.
-    assert config.distribution == Distribution.fedora
-    assert config.environment["MY_KEY"] == "CLI_VALUE"
-    assert any(c.name == "my.cred" and c.value == "cli.value" for c in config.credentials)
-    assert config.repositories == ["epel", "epel-next", "universe"]
+    Assert.eq(config.distribution, Distribution.fedora)
+    Assert.eq(config.environment["MY_KEY"], "CLI_VALUE")
+    Assert.true(any(c.name == "my.cred" and c.value == "cli.value" for c in config.credentials))
+    Assert.eq(config.repositories, ["epel", "epel-next", "universe"])
 
     with chdir(d):
         _, _, [config] = parse_config(
@@ -152,11 +170,11 @@ def test_parse_config(tmp_path: Path) -> None:
             ]
         )  # fmt: skip
 
-    # Empty values on the CLIs resets non-collection based settings to their defaults and collection based
-    # settings to empty collections.
-    assert "MY_KEY" not in config.environment
-    assert not any(c.name == "my.cred" for c in config.credentials)
-    assert config.repositories == []
+    # Empty values on the CLIs resets non-collection based settings to their defaults and collection
+    # based settings to empty collections.
+    Assert.not_in("MY_KEY", config.environment)
+    Assert.false(any(c.name == "my.cred" for c in config.credentials))
+    Assert.eq(config.repositories, [])
 
     (d / "mkosi.conf.d").mkdir()
     (d / "mkosi.conf.d/d1.conf").write_text(
@@ -179,15 +197,15 @@ def test_parse_config(tmp_path: Path) -> None:
         _, _, [config] = parse_config(["--profile", "last"])
 
     # Setting a value explicitly in a dropin should override the default from mkosi.conf.
-    assert config.distribution == Distribution.debian
+    Assert.eq(config.distribution, Distribution.debian)
     # Lists should be merged by appending the new values to the existing values. Any values from the CLI
     # should be appended to the values from the configuration files.
-    assert config.profiles == ["abc", "qed", "def", "last"]
-    assert config.output_format == OutputFormat.cpio
-    assert config.image_id == "00-dropin"
-    assert config.image_version == "0"
+    Assert.eq(config.profiles, ["abc", "qed", "def", "last"])
+    Assert.eq(config.output_format, OutputFormat.cpio)
+    Assert.eq(config.image_id, "00-dropin")
+    Assert.eq(config.image_version, "0")
     # '@' specifier should be automatically dropped.
-    assert config.output == "abc"
+    Assert.eq(config.output, "abc")
 
     (d / "mkosi.version").write_text("1.2.3")
 
@@ -205,10 +223,10 @@ def test_parse_config(tmp_path: Path) -> None:
         _, _, [config] = parse_config()
 
     # Test that empty assignment resets settings.
-    assert config.packages == []
-    assert config.image_id is None
+    Assert.eq(config.packages, [])
+    Assert.none(config.image_id)
     # mkosi.version should only be used if no version is set explicitly.
-    assert config.image_version == "0"
+    Assert.eq(config.image_version, "0")
 
     (d / "mkosi.conf.d/d1.conf").unlink()
 
@@ -216,7 +234,7 @@ def test_parse_config(tmp_path: Path) -> None:
         _, _, [config] = parse_config()
 
     # ImageVersion= is not set explicitly anymore, so now the version from mkosi.version should be used.
-    assert config.image_version == "1.2.3"
+    Assert.eq(config.image_version, "1.2.3")
 
     (d / "abc").mkdir()
     (d / "abc/mkosi.conf").write_text(
@@ -238,20 +256,20 @@ def test_parse_config(tmp_path: Path) -> None:
 
     with chdir(d):
         _, _, [config] = parse_config()
-        assert not config.cxl
-        assert config.split_artifacts == ArtifactOutput.compat_no()
+        Assert.false(config.cxl)
+        Assert.eq(config.split_artifacts, ArtifactOutput.compat_no())
 
         # Passing the directory should include both the main config file and the dropin.
         _, _, [config] = parse_config(["--include", os.fspath(d / "abc")] * 2)
-        assert config.cxl
-        assert config.split_artifacts == ArtifactOutput.compat_yes()
+        Assert.true(config.cxl)
+        Assert.eq(config.split_artifacts, ArtifactOutput.compat_yes())
         # The same extra config should not be parsed more than once.
-        assert config.build_packages == ["abc"]
+        Assert.eq(config.build_packages, ["abc"])
 
         # Passing the main config file should not include the dropin.
         _, _, [config] = parse_config(["--include", os.fspath(d / "abc/mkosi.conf")])
-        assert config.cxl
-        assert config.split_artifacts == ArtifactOutput.compat_no()
+        Assert.true(config.cxl)
+        Assert.eq(config.split_artifacts, ArtifactOutput.compat_no())
 
     (d / "mkosi.images").mkdir()
 
@@ -280,40 +298,41 @@ def test_parse_config(tmp_path: Path) -> None:
         )
 
     # Universal settings should always come from the main image.
-    assert one.distribution == config.distribution
-    assert two.distribution == config.distribution
-    assert one.release == config.release
-    assert two.release == config.release
+    Assert.eq(one.distribution, config.distribution)
+    Assert.eq(two.distribution, config.distribution)
+    Assert.eq(one.release, config.release)
+    Assert.eq(two.release, config.release)
 
     # Non-universal settings should not be passed to the subimages.
-    assert one.packages == ["one"]
-    assert two.packages == ["two"]
-    assert one.build_packages == []
-    assert two.build_packages == []
+    Assert.eq(one.packages, ["one"])
+    Assert.eq(two.packages, ["two"])
+    Assert.eq(one.build_packages, [])
+    Assert.eq(two.build_packages, [])
 
     # But should apply to the main image of course.
-    assert config.packages == ["qed"]
-    assert config.build_packages == ["def"]
+    Assert.eq(config.packages, ["qed"])
+    Assert.eq(config.build_packages, ["def"])
 
     # Inherited settings should be passed down to subimages but overridable by subimages.
-    assert one.image_version == "1.2.3"
-    assert two.image_version == "4.5.6"
+    Assert.eq(one.image_version, "1.2.3")
+    Assert.eq(two.image_version, "4.5.6")
 
     # Default values from subimages for universal settings should not be picked up.
-    assert len(one.sandbox_trees) == 0
-    assert len(two.sandbox_trees) == 0
+    Assert.eq(len(one.sandbox_trees), 0)
+    Assert.eq(len(two.sandbox_trees), 0)
 
     with chdir(d):
         _, _, [one, two, config] = parse_config(["--image-version", "7.8.9"])
 
     # Inherited settings specified on the CLI should not override subimages that configure the setting
     # explicitly.
-    assert config.image_version == "7.8.9"
-    assert one.image_version == "7.8.9"
-    assert two.image_version == "4.5.6"
+    Assert.eq(config.image_version, "7.8.9")
+    Assert.eq(one.image_version, "7.8.9")
+    Assert.eq(two.image_version, "4.5.6")
 
 
-def test_parse_includes_once(tmp_path: Path) -> None:
+async def test_parse_includes_once(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
     d = tmp_path
 
     (d / "mkosi.conf").write_text(
@@ -331,7 +350,7 @@ def test_parse_includes_once(tmp_path: Path) -> None:
 
     with chdir(d):
         _, _, [config] = parse_config(["--include", "abc.conf", "--include", "abc.conf"])
-        assert config.build_packages == ["abc", "def"]
+        Assert.eq(config.build_packages, ["abc", "def"])
 
     (d / "mkosi.images").mkdir()
 
@@ -345,11 +364,12 @@ def test_parse_includes_once(tmp_path: Path) -> None:
 
     with chdir(d):
         _, _, [one, two, config] = parse_config([])
-        assert one.build_packages == ["def"]
-        assert two.build_packages == ["def"]
+        Assert.eq(one.build_packages, ["def"])
+        Assert.eq(two.build_packages, ["def"])
 
 
-def test_profiles(tmp_path: Path) -> None:
+async def test_profiles(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
     d = tmp_path
 
     (d / "mkosi.profiles").mkdir()
@@ -381,20 +401,20 @@ def test_profiles(tmp_path: Path) -> None:
     with chdir(d):
         _, _, [config] = parse_config()
 
-    assert config.profiles == ["profile"]
+    Assert.eq(config.profiles, ["profile"])
     # The profile should override mkosi.conf.d/
-    assert config.distribution == Distribution.fedora
-    assert config.kvm == ConfigFeature.enabled
+    Assert.eq(config.distribution, Distribution.fedora)
+    Assert.eq(config.kvm, ConfigFeature.enabled)
 
     (d / "mkosi.conf").unlink()
 
     with chdir(d):
         _, _, [config] = parse_config(["--profile", "profile"])
 
-    assert config.profiles == ["profile"]
+    Assert.eq(config.profiles, ["profile"])
     # The profile should override mkosi.conf.d/
-    assert config.distribution == Distribution.fedora
-    assert config.kvm == ConfigFeature.enabled
+    Assert.eq(config.distribution, Distribution.fedora)
+    Assert.eq(config.kvm, ConfigFeature.enabled)
 
     (d / "mkosi.conf").write_text(
         """\
@@ -416,8 +436,8 @@ def test_profiles(tmp_path: Path) -> None:
     with chdir(d):
         _, _, [config] = parse_config()
 
-    assert config.profiles == ["profile", "abc"]
-    assert config.distribution == Distribution.opensuse
+    Assert.eq(config.profiles, ["profile", "abc"])
+    Assert.eq(config.distribution, Distribution.opensuse)
 
     # Check that mkosi.profiles/ is parsed in subimages as well.
     (d / "mkosi.images/subimage/mkosi.profiles").mkdir(parents=True)
@@ -431,10 +451,11 @@ def test_profiles(tmp_path: Path) -> None:
     with chdir(d):
         _, _, [subimage, config] = parse_config()
 
-    assert subimage.environment["Image"] == "subimage"
+    Assert.eq(subimage.environment["Image"], "subimage")
 
 
-def test_override_default(tmp_path: Path) -> None:
+async def test_override_default(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
     d = tmp_path
 
     (d / "mkosi.conf").write_text(
@@ -448,8 +469,8 @@ def test_override_default(tmp_path: Path) -> None:
     with chdir(d):
         _, _, [config] = parse_config(["--tools-tree", "", "--environment", ""])
 
-    assert config.tools_tree is None
-    assert "MY_KEY" not in config.environment
+    Assert.none(config.tools_tree)
+    Assert.not_in("MY_KEY", config.environment)
 
     (d / "mkosi.tools.conf").touch()
 
@@ -463,10 +484,11 @@ def test_override_default(tmp_path: Path) -> None:
     with chdir(d):
         _, _, [config] = parse_config([])
 
-    assert config.tools_tree is None
+    Assert.none(config.tools_tree)
 
 
-def test_local_config(tmp_path: Path) -> None:
+async def test_local_config(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
     d = tmp_path
 
     (d / "mkosi.local.conf").write_text(
@@ -484,7 +506,7 @@ def test_local_config(tmp_path: Path) -> None:
     with chdir(d):
         _, _, [config] = parse_config()
 
-    assert config.distribution == Distribution.debian
+    Assert.eq(config.distribution, Distribution.debian)
 
     (d / "mkosi.conf").write_text(
         """\
@@ -502,14 +524,14 @@ def test_local_config(tmp_path: Path) -> None:
         _, _, [config] = parse_config()
 
     # Local config should take precedence over non-local config.
-    assert config.distribution == Distribution.debian
-    assert config.with_tests
+    Assert.eq(config.distribution, Distribution.debian)
+    Assert.true(config.with_tests)
 
     with chdir(d):
         _, _, [config] = parse_config(["--distribution", "fedora", "-T"])
 
-    assert config.distribution == Distribution.fedora
-    assert not config.with_tests
+    Assert.eq(config.distribution, Distribution.fedora)
+    Assert.false(config.with_tests)
 
     (d / "mkosi.local/mkosi.conf.d").mkdir(parents=True)
     (d / "mkosi.local/mkosi.conf.d/10-test.conf").write_text(
@@ -523,45 +545,48 @@ def test_local_config(tmp_path: Path) -> None:
     with chdir(d):
         _, _, [config] = parse_config()
 
-    assert config.environment == {"FOO": "override", "BAR": "override", "BAZ": "override"}
+    Assert.eq(config.environment, {"FOO": "override", "BAR": "override", "BAZ": "override"})
 
 
-def test_parse_load_verb(tmp_path: Path) -> None:
+async def test_parse_load_verb(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
     with chdir(tmp_path):
-        assert parse_config(["build"])[0].verb == Verb.build
-        assert parse_config(["clean"])[0].verb == Verb.clean
-        assert parse_config(["genkey"])[0].verb == Verb.genkey
-        assert parse_config(["bump"])[0].verb == Verb.bump
-        assert parse_config(["serve"])[0].verb == Verb.serve
-        assert parse_config(["build"])[0].verb == Verb.build
-        assert parse_config(["shell"])[0].verb == Verb.shell
-        assert parse_config(["boot"])[0].verb == Verb.boot
-        assert parse_config(["qemu"])[0].verb == Verb.qemu
-        assert parse_config(["vm"])[0].verb == Verb.vm
-        assert parse_config(["journalctl"])[0].verb == Verb.journalctl
-        assert parse_config(["coredumpctl"])[0].verb == Verb.coredumpctl
-        with pytest.raises(SystemExit):
+        Assert.eq(parse_config(["build"])[0].verb, Verb.build)
+        Assert.eq(parse_config(["clean"])[0].verb, Verb.clean)
+        Assert.eq(parse_config(["genkey"])[0].verb, Verb.genkey)
+        Assert.eq(parse_config(["bump"])[0].verb, Verb.bump)
+        Assert.eq(parse_config(["serve"])[0].verb, Verb.serve)
+        Assert.eq(parse_config(["build"])[0].verb, Verb.build)
+        Assert.eq(parse_config(["shell"])[0].verb, Verb.shell)
+        Assert.eq(parse_config(["boot"])[0].verb, Verb.boot)
+        Assert.eq(parse_config(["qemu"])[0].verb, Verb.qemu)
+        Assert.eq(parse_config(["vm"])[0].verb, Verb.vm)
+        Assert.eq(parse_config(["journalctl"])[0].verb, Verb.journalctl)
+        Assert.eq(parse_config(["coredumpctl"])[0].verb, Verb.coredumpctl)
+        with Assert.raises(SystemExit):
             parse_config(["invalid"])
 
 
-def test_os_distribution(tmp_path: Path) -> None:
+async def test_os_distribution(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
     with chdir(tmp_path):
         for dist in Distribution:
             _, _, [config] = parse_config(["-d", dist.value])
-            assert config.distribution == dist
+            Assert.eq(config.distribution, dist)
 
-        with pytest.raises(tuple((argparse.ArgumentError, SystemExit))):
+        with Assert.raises((argparse.ArgumentError, SystemExit)):  # type: ignore[arg-type]
             parse_config(["-d", "invalidDistro"])
-        with pytest.raises(tuple((argparse.ArgumentError, SystemExit))):
+        with Assert.raises((argparse.ArgumentError, SystemExit)):  # type: ignore[arg-type]
             parse_config(["-d"])
 
         for dist in Distribution:
             Path("mkosi.conf").write_text(f"[Distribution]\nDistribution={dist}")
             _, _, [config] = parse_config()
-            assert config.distribution == dist
+            Assert.eq(config.distribution, dist)
 
 
-def test_parse_config_files_filter(tmp_path: Path) -> None:
+async def test_parse_config_files_filter(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
     with chdir(tmp_path):
         confd = Path("mkosi.conf.d")
         confd.mkdir()
@@ -570,16 +595,18 @@ def test_parse_config_files_filter(tmp_path: Path) -> None:
         (confd / "20-file.noconf").write_text("[Content]\nPackages=nope")
 
         _, _, [config] = parse_config()
-        assert config.packages == ["yes"]
+        Assert.eq(config.packages, ["yes"])
 
 
-def test_compression(tmp_path: Path) -> None:
+async def test_compression(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
     with chdir(tmp_path):
         _, _, [config] = parse_config(["--format", "disk", "--compress-output", "False"])
-        assert config.compress_output == Compression.none
+        Assert.eq(config.compress_output, Compression.none)
 
 
-def test_match_only(tmp_path: Path) -> None:
+async def test_match_only(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
     with chdir(tmp_path):
         Path("mkosi.conf").write_text(
             """\
@@ -598,10 +625,11 @@ def test_match_only(tmp_path: Path) -> None:
         )
 
         _, _, [config] = parse_config(["--format", "tar"])
-        assert config.image_id != "abcde"
+        Assert.ne(config.image_id, "abcde")
 
 
-def test_match_multiple(tmp_path: Path) -> None:
+async def test_match_multiple(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
     with chdir(tmp_path):
         Path("mkosi.conf").write_text(
             """\
@@ -620,15 +648,15 @@ def test_match_multiple(tmp_path: Path) -> None:
 
         # Both sections are not matched, so image ID should not be "abcde".
         _, _, [config] = parse_config(["--format", "tar", "--architecture", "s390x"])
-        assert config.image_id != "abcde"
+        Assert.ne(config.image_id, "abcde")
 
         # Only a single section is matched, so image ID should not be "abcde".
         _, _, [config] = parse_config(["--format", "disk", "--architecture", "s390x"])
-        assert config.image_id != "abcde"
+        Assert.ne(config.image_id, "abcde")
 
         # Both sections are matched, so image ID should be "abcde".
         _, _, [config] = parse_config(["--format", "disk", "--architecture", "x86-64"])
-        assert config.image_id == "abcde"
+        Assert.eq(config.image_id, "abcde")
 
         Path("mkosi.conf").write_text(
             """\
@@ -647,19 +675,19 @@ def test_match_multiple(tmp_path: Path) -> None:
 
         # Both sections are not matched, so image ID should not be "abcde".
         _, _, [config] = parse_config(["--format", "tar", "--architecture", "s390x"])
-        assert config.image_id != "abcde"
+        Assert.ne(config.image_id, "abcde")
 
         # The first section is matched, so image ID should be "abcde".
         _, _, [config] = parse_config(["--format", "disk", "--architecture", "x86-64"])
-        assert config.image_id == "abcde"
+        Assert.eq(config.image_id, "abcde")
 
         # The second section is matched, so image ID should be "abcde".
         _, _, [config] = parse_config(["--format", "directory", "--architecture", "arm64"])
-        assert config.image_id == "abcde"
+        Assert.eq(config.image_id, "abcde")
 
         # Parts of all section are matched, but none is matched fully, so image ID should not be "abcde".
         _, _, [config] = parse_config(["--format", "disk", "--architecture", "arm64"])
-        assert config.image_id != "abcde"
+        Assert.ne(config.image_id, "abcde")
 
         Path("mkosi.conf").write_text(
             """\
@@ -678,7 +706,7 @@ def test_match_multiple(tmp_path: Path) -> None:
 
         # The first section is matched, so image ID should be "abcde".
         _, _, [config] = parse_config(["--format", "disk"])
-        assert config.image_id == "abcde"
+        Assert.eq(config.image_id, "abcde")
 
         Path("mkosi.conf").write_text(
             """\
@@ -698,7 +726,7 @@ def test_match_multiple(tmp_path: Path) -> None:
 
         # No sections are matched, so image ID should be not "abcde".
         _, _, [config] = parse_config(["--format", "disk", "--architecture=arm64"])
-        assert config.image_id != "abcde"
+        Assert.ne(config.image_id, "abcde")
 
         # Mixing both [Match] and [TriggerMatch]
         Path("mkosi.conf").write_text(
@@ -719,18 +747,19 @@ def test_match_multiple(tmp_path: Path) -> None:
 
         # Match and first TriggerMatch sections match
         _, _, [config] = parse_config(["--format", "disk", "--architecture=arm64"])
-        assert config.image_id == "abcde"
+        Assert.eq(config.image_id, "abcde")
 
         # Match section matches, but no TriggerMatch section matches
         _, _, [config] = parse_config(["--format", "disk", "--architecture=s390x"])
-        assert config.image_id != "abcde"
+        Assert.ne(config.image_id, "abcde")
 
         # Second TriggerMatch section matches, but the Match section does not
         _, _, [config] = parse_config(["--format", "tar", "--architecture=x86-64"])
-        assert config.image_id != "abcde"
+        Assert.ne(config.image_id, "abcde")
 
 
-def test_match_empty(tmp_path: Path) -> None:
+async def test_match_empty(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
     with chdir(tmp_path):
         Path("mkosi.conf").write_text(
             """\
@@ -744,126 +773,132 @@ def test_match_empty(tmp_path: Path) -> None:
 
         _, _, [config] = parse_config([])
 
-        assert config.environment.get("ABC") == "QED"
+        Assert.eq(config.environment.get("ABC"), "QED")
 
         _, _, [config] = parse_config(["--profile", "profile"])
 
-        assert config.environment.get("ABC") is None
+        Assert.none(config.environment.get("ABC"))
 
 
-@pytest.mark.parametrize(
-    "dist1,dist2",
-    itertools.combinations_with_replacement([Distribution.debian, Distribution.opensuse], 2),
-)
-def test_match_distribution(tmp_path: Path, dist1: Distribution, dist2: Distribution) -> None:
-    with chdir(tmp_path):
-        parent = Path("mkosi.conf")
-        parent.write_text(
-            f"""\
-            [Distribution]
-            Distribution={dist1}
-            """
-        )
+async def test_match_distribution(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
+    for dist1, dist2 in itertools.combinations_with_replacement(
+        [Distribution.debian, Distribution.opensuse], 2
+    ):
+        with chdir(tmp_path):
+            parent = Path("mkosi.conf")
+            parent.write_text(
+                f"""\
+                [Distribution]
+                Distribution={dist1}
+                """
+            )
 
-        Path("mkosi.conf.d").mkdir()
+            confd = Path("mkosi.conf.d")
+            if not confd.exists():
+                confd.mkdir()
 
-        child1 = Path("mkosi.conf.d/child1.conf")
-        child1.write_text(
-            f"""\
-            [Match]
-            Distribution={dist1}
+            child1 = Path("mkosi.conf.d/child1.conf")
+            child1.write_text(
+                f"""\
+                [Match]
+                Distribution={dist1}
 
-            [Content]
-            Packages=testpkg1
-            """
-        )
-        child2 = Path("mkosi.conf.d/child2.conf")
-        child2.write_text(
-            f"""\
-            [Match]
-            Distribution={dist2}
+                [Content]
+                Packages=testpkg1
+                """
+            )
+            child2 = Path("mkosi.conf.d/child2.conf")
+            child2.write_text(
+                f"""\
+                [Match]
+                Distribution={dist2}
 
-            [Content]
-            Packages=testpkg2
-            """
-        )
-        child3 = Path("mkosi.conf.d/child3.conf")
-        child3.write_text(
-            f"""\
-            [Match]
-            Distribution=|{dist1}
-            Distribution=|{dist2}
+                [Content]
+                Packages=testpkg2
+                """
+            )
+            child3 = Path("mkosi.conf.d/child3.conf")
+            child3.write_text(
+                f"""\
+                [Match]
+                Distribution=|{dist1}
+                Distribution=|{dist2}
 
-            [Content]
-            Packages=testpkg3
-            """
-        )
+                [Content]
+                Packages=testpkg3
+                """
+            )
 
-        _, _, [conf] = parse_config()
-        assert "testpkg1" in conf.packages
-        if dist1 == dist2:
-            assert "testpkg2" in conf.packages
-        else:
-            assert "testpkg2" not in conf.packages
-        assert "testpkg3" in conf.packages
-
-
-@pytest.mark.parametrize("release1,release2", itertools.combinations_with_replacement([36, 37], 2))
-def test_match_release(tmp_path: Path, release1: int, release2: int) -> None:
-    with chdir(tmp_path):
-        parent = Path("mkosi.conf")
-        parent.write_text(
-            f"""\
-            [Distribution]
-            Distribution=fedora
-            Release={release1}
-            """
-        )
-
-        Path("mkosi.conf.d").mkdir()
-
-        child1 = Path("mkosi.conf.d/child1.conf")
-        child1.write_text(
-            f"""\
-            [Match]
-            Release={release1}
-
-            [Content]
-            Packages=testpkg1
-            """
-        )
-        child2 = Path("mkosi.conf.d/child2.conf")
-        child2.write_text(
-            f"""\
-            [Match]
-            Release={release2}
-
-            [Content]
-            Packages=testpkg2
-            """
-        )
-        child3 = Path("mkosi.conf.d/child3.conf")
-        child3.write_text(
-            f"""\
-            [Match]
-            Release=|{release1}
-            Release=|{release2}
-
-            [Content]
-            Packages=testpkg3
-            """
-        )
-
-        _, _, [conf] = parse_config()
-        assert "testpkg1" in conf.packages
-        if release1 == release2:
-            assert "testpkg2" in conf.packages
-        else:
-            assert "testpkg2" not in conf.packages
-        assert "testpkg3" in conf.packages
+            _, _, [conf] = parse_config()
+            Assert.in_("testpkg1", conf.packages)
+            if dist1 == dist2:
+                Assert.in_("testpkg2", conf.packages)
+            else:
+                Assert.not_in("testpkg2", conf.packages)
+            Assert.in_("testpkg3", conf.packages)
 
 
-def test_match_build_sources(tmp_path: Path) -> None:
+async def test_match_release(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
+    for release1, release2 in itertools.combinations_with_replacement([36, 37], 2):
+        with chdir(tmp_path):
+            parent = Path("mkosi.conf")
+            parent.write_text(
+                f"""\
+                [Distribution]
+                Distribution=fedora
+                Release={release1}
+                """
+            )
+
+            confd = Path("mkosi.conf.d")
+            if not confd.exists():
+                confd.mkdir()
+
+            child1 = Path("mkosi.conf.d/child1.conf")
+            child1.write_text(
+                f"""\
+                [Match]
+                Release={release1}
+
+                [Content]
+                Packages=testpkg1
+                """
+            )
+            child2 = Path("mkosi.conf.d/child2.conf")
+            child2.write_text(
+                f"""\
+                [Match]
+                Release={release2}
+
+                [Content]
+                Packages=testpkg2
+                """
+            )
+            child3 = Path("mkosi.conf.d/child3.conf")
+            child3.write_text(
+                f"""\
+                [Match]
+                Release=|{release1}
+                Release=|{release2}
+
+                [Content]
+                Packages=testpkg3
+                """
+            )
+
+            _, _, [conf] = parse_config()
+            Assert.in_("testpkg1", conf.packages)
+            if release1 == release2:
+                Assert.in_("testpkg2", conf.packages)
+            else:
+                Assert.not_in("testpkg2", conf.packages)
+            Assert.in_("testpkg3", conf.packages)
+
+
+async def test_match_build_sources(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
     d = tmp_path
 
     (d / "mkosi.conf").write_text(
@@ -880,10 +915,11 @@ def test_match_build_sources(tmp_path: Path) -> None:
     with chdir(d):
         _, _, [config] = parse_config(["--build-sources", ".:kernel"])
 
-    assert config.output == "abc"
+    Assert.eq(config.output, "abc")
 
 
-def test_match_repositories(tmp_path: Path) -> None:
+async def test_match_repositories(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
     d = tmp_path
 
     (d / "mkosi.conf").write_text(
@@ -899,10 +935,11 @@ def test_match_repositories(tmp_path: Path) -> None:
     with chdir(d):
         _, _, [config] = parse_config(["--repositories", "epel,epel-next"])
 
-    assert config.output == "qed"
+    Assert.eq(config.output, "qed")
 
 
-def test_match_architecture(tmp_path: Path) -> None:
+async def test_match_architecture(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
     d = tmp_path
 
     (d / "mkosi.conf").write_text(
@@ -918,145 +955,149 @@ def test_match_architecture(tmp_path: Path) -> None:
     with chdir(d):
         _, _, [config] = parse_config(["--architecture", "arm64"])
 
-    assert config.output == "qed"
+    Assert.eq(config.output, "qed")
 
 
-@pytest.mark.parametrize("image1,image2", itertools.combinations_with_replacement(["image_a", "image_b"], 2))
-def test_match_imageid(tmp_path: Path, image1: str, image2: str) -> None:
-    with chdir(tmp_path):
-        parent = Path("mkosi.conf")
-        parent.write_text(
-            f"""\
-            [Distribution]
-            Distribution=fedora
+async def test_match_imageid(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
+    for image1, image2 in itertools.combinations_with_replacement(["image_a", "image_b"], 2):
+        with chdir(tmp_path):
+            parent = Path("mkosi.conf")
+            parent.write_text(
+                f"""\
+                [Distribution]
+                Distribution=fedora
 
-            [Output]
-            ImageId={image1}
-            """
-        )
+                [Output]
+                ImageId={image1}
+                """
+            )
 
-        Path("mkosi.conf.d").mkdir()
+            confd = Path("mkosi.conf.d")
+            if not confd.exists():
+                confd.mkdir()
 
-        child1 = Path("mkosi.conf.d/child1.conf")
-        child1.write_text(
-            f"""\
-            [Match]
-            ImageId={image1}
+            child1 = Path("mkosi.conf.d/child1.conf")
+            child1.write_text(
+                f"""\
+                [Match]
+                ImageId={image1}
 
-            [Content]
-            Packages=testpkg1
-            """
-        )
-        child2 = Path("mkosi.conf.d/child2.conf")
-        child2.write_text(
-            f"""\
-            [Match]
-            ImageId={image2}
+                [Content]
+                Packages=testpkg1
+                """
+            )
+            child2 = Path("mkosi.conf.d/child2.conf")
+            child2.write_text(
+                f"""\
+                [Match]
+                ImageId={image2}
 
-            [Content]
-            Packages=testpkg2
-            """
-        )
-        child3 = Path("mkosi.conf.d/child3.conf")
-        child3.write_text(
-            f"""\
-            [Match]
-            ImageId=|{image1}
-            ImageId=|{image2}
+                [Content]
+                Packages=testpkg2
+                """
+            )
+            child3 = Path("mkosi.conf.d/child3.conf")
+            child3.write_text(
+                f"""\
+                [Match]
+                ImageId=|{image1}
+                ImageId=|{image2}
 
-            [Content]
-            Packages=testpkg3
-            """
-        )
-        child4 = Path("mkosi.conf.d/child4.conf")
-        child4.write_text(
-            """\
-            [Match]
-            ImageId=image*
+                [Content]
+                Packages=testpkg3
+                """
+            )
+            child4 = Path("mkosi.conf.d/child4.conf")
+            child4.write_text(
+                """\
+                [Match]
+                ImageId=image*
 
-            [Content]
-            Packages=testpkg4
-            """
-        )
+                [Content]
+                Packages=testpkg4
+                """
+            )
 
-        _, _, [conf] = parse_config()
-        assert "testpkg1" in conf.packages
-        if image1 == image2:
-            assert "testpkg2" in conf.packages
-        else:
-            assert "testpkg2" not in conf.packages
-        assert "testpkg3" in conf.packages
-        assert "testpkg4" in conf.packages
+            _, _, [conf] = parse_config()
+            Assert.in_("testpkg1", conf.packages)
+            if image1 == image2:
+                Assert.in_("testpkg2", conf.packages)
+            else:
+                Assert.not_in("testpkg2", conf.packages)
+            Assert.in_("testpkg3", conf.packages)
+            Assert.in_("testpkg4", conf.packages)
 
 
-@pytest.mark.parametrize(
-    "op,version",
-    itertools.product(
+async def test_match_imageversion(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
+    for op, version in itertools.product(
         ["", "==", "<", ">", "<=", ">="],
         [122, 123],
-    ),
-)
-def test_match_imageversion(tmp_path: Path, op: str, version: str) -> None:
-    opfunc = {
-        "==": operator.eq,
-        "!=": operator.ne,
-        "<": operator.lt,
-        "<=": operator.le,
-        ">": operator.gt,
-        ">=": operator.ge,
-    }.get(op, operator.eq)
+    ):
+        opfunc = {
+            "==": operator.eq,
+            "!=": operator.ne,
+            "<": operator.lt,
+            "<=": operator.le,
+            ">": operator.gt,
+            ">=": operator.ge,
+        }.get(op, operator.eq)
 
-    with chdir(tmp_path):
-        parent = Path("mkosi.conf")
-        parent.write_text(
-            """\
-            [Output]
-            ImageId=testimage
-            ImageVersion=123
-            """
-        )
+        with chdir(tmp_path):
+            parent = Path("mkosi.conf")
+            parent.write_text(
+                """\
+                [Output]
+                ImageId=testimage
+                ImageVersion=123
+                """
+            )
 
-        Path("mkosi.conf.d").mkdir()
-        child1 = Path("mkosi.conf.d/child1.conf")
-        child1.write_text(
-            f"""\
-            [Match]
-            ImageVersion={op}{version}
+            confd = Path("mkosi.conf.d")
+            if not confd.exists():
+                confd.mkdir()
+            child1 = Path("mkosi.conf.d/child1.conf")
+            child1.write_text(
+                f"""\
+                [Match]
+                ImageVersion={op}{version}
 
-            [Content]
-            Packages=testpkg1
-            """
-        )
-        child2 = Path("mkosi.conf.d/child2.conf")
-        child2.write_text(
-            f"""\
-            [Match]
-            ImageVersion=<200
-            ImageVersion={op}{version}
+                [Content]
+                Packages=testpkg1
+                """
+            )
+            child2 = Path("mkosi.conf.d/child2.conf")
+            child2.write_text(
+                f"""\
+                [Match]
+                ImageVersion=<200
+                ImageVersion={op}{version}
 
-            [Content]
-            Packages=testpkg2
-            """
-        )
-        child3 = Path("mkosi.conf.d/child3.conf")
-        child3.write_text(
-            f"""\
-            [Match]
-            ImageVersion=>9000
-            ImageVersion={op}{version}
+                [Content]
+                Packages=testpkg2
+                """
+            )
+            child3 = Path("mkosi.conf.d/child3.conf")
+            child3.write_text(
+                f"""\
+                [Match]
+                ImageVersion=>9000
+                ImageVersion={op}{version}
 
-            [Content]
-            Packages=testpkg3
-            """
-        )
+                [Content]
+                Packages=testpkg3
+                """
+            )
 
-        _, _, [conf] = parse_config()
-        assert ("testpkg1" in conf.packages) == opfunc(123, version)
-        assert ("testpkg2" in conf.packages) == opfunc(123, version)
-        assert "testpkg3" not in conf.packages
+            _, _, [conf] = parse_config()
+            Assert.eq(("testpkg1" in conf.packages), opfunc(123, version))
+            Assert.eq(("testpkg2" in conf.packages), opfunc(123, version))
+            Assert.not_in("testpkg3", conf.packages)
 
 
-def test_match_environment(tmp_path: Path) -> None:
+async def test_match_environment(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
     d = tmp_path
 
     (d / "mkosi.conf").write_text(
@@ -1071,13 +1112,13 @@ def test_match_environment(tmp_path: Path) -> None:
 
     with chdir(d):
         _, _, [conf] = parse_config(["--environment", "MYENV=abc"])
-        assert conf.image_id == "matched"
+        Assert.eq(conf.image_id, "matched")
         _, _, [conf] = parse_config(["--environment", "MYENV=bad"])
-        assert conf.image_id != "matched"
+        Assert.ne(conf.image_id, "matched")
         _, _, [conf] = parse_config(["--environment", "MYEN=abc"])
-        assert conf.image_id != "matched"
+        Assert.ne(conf.image_id, "matched")
         _, _, [conf] = parse_config(["--environment", "MYEN=bad"])
-        assert conf.image_id != "matched"
+        Assert.ne(conf.image_id, "matched")
 
     (d / "mkosi.conf").write_text(
         """\
@@ -1091,29 +1132,34 @@ def test_match_environment(tmp_path: Path) -> None:
 
     with chdir(d):
         _, _, [conf] = parse_config(["--environment", "MYENV=abc"])
-        assert conf.image_id == "matched"
+        Assert.eq(conf.image_id, "matched")
         _, _, [conf] = parse_config(["--environment", "MYENV=bad"])
-        assert conf.image_id == "matched"
+        Assert.eq(conf.image_id, "matched")
         _, _, [conf] = parse_config(["--environment", "MYEN=abc"])
-        assert conf.image_id != "matched"
+        Assert.ne(conf.image_id, "matched")
 
 
-def test_paths_with_default_factory(tmp_path: Path) -> None:
+async def test_paths_with_default_factory(stack: contextlib.AsyncExitStack) -> None:
     """
     If both paths= and default_factory= are defined, default_factory= should not
     be used when at least one of the files/directories from paths= has been found.
     """
 
+    tmp_path = tmp_dir(stack)
     with chdir(tmp_path):
         Path("mkosi.sandbox.tar").touch()
         _, _, [config] = parse_config()
 
-        assert config.sandbox_trees == [
-            ConfigTree(Path.cwd() / "mkosi.sandbox.tar", None),
-        ]
+        Assert.eq(
+            config.sandbox_trees,
+            [
+                ConfigTree(Path.cwd() / "mkosi.sandbox.tar", None),
+            ],
+        )
 
 
-def test_glob_expansion(tmp_path: Path) -> None:
+async def test_glob_expansion(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
     d = tmp_path
 
     (d / "script_a.sh").touch()
@@ -1132,7 +1178,7 @@ def test_glob_expansion(tmp_path: Path) -> None:
     with chdir(d):
         _, _, [config] = parse_config()
 
-    assert config.prepare_scripts == [d / "script_a.sh", d / "script_b.sh", d / "script_c.sh"]
+    Assert.eq(config.prepare_scripts, [d / "script_a.sh", d / "script_b.sh", d / "script_c.sh"])
 
     # Glob patterns that match nothing should result in an empty list.
     (d / "mkosi.conf").write_text(
@@ -1145,7 +1191,7 @@ def test_glob_expansion(tmp_path: Path) -> None:
     with chdir(d):
         _, _, [config] = parse_config()
 
-    assert config.prepare_scripts == []
+    Assert.eq(config.prepare_scripts, [])
 
     # Non-glob paths should be ordered before glob results when listed first.
     (d / "mkosi.conf").write_text(
@@ -1158,12 +1204,15 @@ def test_glob_expansion(tmp_path: Path) -> None:
     with chdir(d):
         _, _, [config] = parse_config()
 
-    assert config.prepare_scripts == [
-        d / "other.py",
-        d / "script_a.sh",
-        d / "script_b.sh",
-        d / "script_c.sh",
-    ]
+    Assert.eq(
+        config.prepare_scripts,
+        [
+            d / "other.py",
+            d / "script_a.sh",
+            d / "script_b.sh",
+            d / "script_c.sh",
+        ],
+    )
 
     # Glob expansion should work with other script options too.
     (d / "mkosi.conf").write_text(
@@ -1176,69 +1225,70 @@ def test_glob_expansion(tmp_path: Path) -> None:
     with chdir(d):
         _, _, [config] = parse_config()
 
-    assert config.build_scripts == [d / "script_a.sh", d / "script_b.sh", d / "script_c.sh"]
+    Assert.eq(config.build_scripts, [d / "script_a.sh", d / "script_b.sh", d / "script_c.sh"])
 
 
-@pytest.mark.parametrize(
-    "sections,args,warning_count",
-    [
+async def test_wrong_section_warning(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
+    for sections, args, warning_count in [
         (["Output"], [], 0),
         (["Content"], [], 1),
         (["Content", "Output"], [], 1),
         (["Output", "Content"], [], 1),
         (["Output", "Content", "Distribution"], [], 2),
         (["Content"], ["--image-id=testimage"], 1),
-    ],
-)
-def test_wrong_section_warning(
-    tmp_path: Path,
-    caplog: pytest.LogCaptureFixture,
-    sections: list[str],
-    args: list[str],
-    warning_count: int,
-) -> None:
-    with chdir(tmp_path):
-        # Create a config with ImageId in the wrong section,
-        # and sometimes in the correct section
-        Path("mkosi.conf").write_text(
-            "\n".join(
-                f"""\
-                [{section}]
-                ImageId=testimage
-                """
-                for section in sections
+    ]:
+        with chdir(tmp_path):
+            # Create a config with ImageId in the wrong section,
+            # and sometimes in the correct section
+            Path("mkosi.conf").write_text(
+                "\n".join(
+                    f"""\
+                    [{section}]
+                    ImageId=testimage
+                    """
+                    for section in sections
+                )
             )
-        )
 
-        with caplog.at_level(logging.WARNING):
-            # Parse the config, with --image-id sometimes given on the command line
-            parse_config(args)
+            handler = _ListHandler()
+            logger = logging.getLogger()
+            prev_level = logger.level
+            logger.addHandler(handler)
+            logger.setLevel(logging.WARNING)
+            try:
+                # Parse the config, with --image-id sometimes given on the command line
+                parse_config(args)
+            finally:
+                logger.removeHandler(handler)
+                logger.setLevel(prev_level)
 
-        assert len(caplog.records) == warning_count
+            Assert.eq(len(handler.records), warning_count)
 
 
-def test_config_parse_bytes() -> None:
-    assert config_parse_bytes(None) is None
-    assert config_parse_bytes("1") == 4096
-    assert config_parse_bytes("8000") == 8192
-    assert config_parse_bytes("8K") == 8192
-    assert config_parse_bytes("4097") == 8192
-    assert config_parse_bytes("1M") == 1024**2
-    assert config_parse_bytes("1.9M") == 1994752
-    assert config_parse_bytes("1G") == 1024**3
-    assert config_parse_bytes("7.3G") == 7838318592
+async def test_config_parse_bytes() -> None:
+    Assert.none(config_parse_bytes(None))
+    Assert.eq(config_parse_bytes("1"), 4096)
+    Assert.eq(config_parse_bytes("8000"), 8192)
+    Assert.eq(config_parse_bytes("8K"), 8192)
+    Assert.eq(config_parse_bytes("4097"), 8192)
+    Assert.eq(config_parse_bytes("1M"), 1024**2)
+    Assert.eq(config_parse_bytes("1.9M"), 1994752)
+    Assert.eq(config_parse_bytes("1G"), 1024**3)
+    Assert.eq(config_parse_bytes("7.3G"), 7838318592)
 
-    with pytest.raises(SystemExit):
+    with Assert.raises(SystemExit):
         config_parse_bytes("-1")
-    with pytest.raises(SystemExit):
+    with Assert.raises(SystemExit):
         config_parse_bytes("-2K")
-    with pytest.raises(SystemExit):
+    with Assert.raises(SystemExit):
         config_parse_bytes("-3M")
-    with pytest.raises(SystemExit):
+    with Assert.raises(SystemExit):
         config_parse_bytes("-4G")
 
 
-def test_specifiers(tmp_path: Path) -> None:
+async def test_specifiers(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
     d = tmp_path
 
     (d / "mkosi.conf").write_text(
@@ -1321,12 +1371,12 @@ def test_specifiers(tmp_path: Path) -> None:
             "Filesystem": "ext4",
         }
 
-        assert {k: v for k, v in config.environment.items() if k in expected} == expected
+        Assert.eq({k: v for k, v in config.environment.items() if k in expected}, expected)
 
-        assert subimage.environment["Image"] == "subimage"
+        Assert.eq(subimage.environment["Image"], "subimage")
 
 
-def test_kernel_specifiers(tmp_path: Path) -> None:
+async def test_kernel_specifiers() -> None:
     kver = "13.0.8-5.10.0-1057-oem"  # taken from reporter of #1638
     token = "MySystemImage"
     roothash = "67e893261799236dcf20529115ba9fae4fd7c2269e1e658d42269503e5760d38"
@@ -1339,16 +1389,17 @@ def test_kernel_specifiers(tmp_path: Path) -> None:
             roothash=roothash,
         )
 
-    assert test_expand_kernel_specifiers("&&") == "&"
-    assert test_expand_kernel_specifiers("&k") == kver
-    assert test_expand_kernel_specifiers("&e") == token
-    assert test_expand_kernel_specifiers("&h") == roothash
+    Assert.eq(test_expand_kernel_specifiers("&&"), "&")
+    Assert.eq(test_expand_kernel_specifiers("&k"), kver)
+    Assert.eq(test_expand_kernel_specifiers("&e"), token)
+    Assert.eq(test_expand_kernel_specifiers("&h"), roothash)
 
-    assert test_expand_kernel_specifiers("Image_1.0.3") == "Image_1.0.3"
-    assert test_expand_kernel_specifiers("Image+&h-&k-&e") == f"Image+{roothash}-{kver}-{token}"
+    Assert.eq(test_expand_kernel_specifiers("Image_1.0.3"), "Image_1.0.3")
+    Assert.eq(test_expand_kernel_specifiers("Image+&h-&k-&e"), f"Image+{roothash}-{kver}-{token}")
 
 
-def test_output_id_version(tmp_path: Path) -> None:
+async def test_output_id_version(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
     d = tmp_path
 
     (d / "mkosi.conf").write_text(
@@ -1362,14 +1413,15 @@ def test_output_id_version(tmp_path: Path) -> None:
     with chdir(d):
         _, _, [config] = parse_config()
 
-    assert config.output == "output_1.2.3"
+    Assert.eq(config.output, "output_1.2.3")
 
 
-def test_deterministic() -> None:
-    assert Config.default() == Config.default()
+async def test_deterministic() -> None:
+    Assert.eq(Config.default(), Config.default())
 
 
-def test_environment(tmp_path: Path) -> None:
+async def test_environment(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
     d = tmp_path
 
     (d / "mkosi.conf").write_text(
@@ -1413,15 +1465,16 @@ def test_environment(tmp_path: Path) -> None:
         }
 
         # Only check values for keys from expected, as config.environment contains other items as well
-        assert {k: config.finalize_environment()[k] for k in expected.keys()} == expected
+        Assert.eq({k: config.finalize_environment()[k] for k in expected.keys()}, expected)
 
-        assert config.environment_files == [Path.cwd() / "mkosi.env", Path.cwd() / "other.env"]
+        Assert.eq(config.environment_files, [Path.cwd() / "mkosi.env", Path.cwd() / "other.env"])
 
-        assert sub.environment["PassThisEnv"] == "abc"
-        assert "TestValue2" not in sub.environment
+        Assert.eq(sub.environment["PassThisEnv"], "abc")
+        Assert.not_in("TestValue2", sub.environment)
 
 
-def test_proxy(tmp_path: Path) -> None:
+async def test_proxy(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
     d = tmp_path
 
     # Verify environment variables are set correctly when GIT_CONFIG_COUNT is not set
@@ -1444,7 +1497,7 @@ def test_proxy(tmp_path: Path) -> None:
         }
 
         # Only check values for keys from expected, as config.environment contains other items as well
-        assert {k: config.finalize_environment()[k] for k in expected.keys()} == expected
+        Assert.eq({k: config.finalize_environment()[k] for k in expected.keys()}, expected)
 
     (d / "mkosi.conf").write_text(
         """\
@@ -1470,30 +1523,32 @@ def test_proxy(tmp_path: Path) -> None:
         }
 
         # Only check values for keys from expected, as config.environment contains other items as well
-        assert {k: config.finalize_environment()[k] for k in expected.keys()} == expected
+        Assert.eq({k: config.finalize_environment()[k] for k in expected.keys()}, expected)
 
 
-def test_mkosi_version_executable(tmp_path: Path) -> None:
+async def test_mkosi_version_executable(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
     d = tmp_path
 
     version = d / "mkosi.version"
     version.write_text("#!/bin/sh\necho '1.2.3'\n")
 
     with chdir(d):
-        with pytest.raises(SystemExit) as error:
+        with Assert.raises(SystemExit) as error:
             _, _, [config] = parse_config()
 
-        assert error.type is SystemExit
-        assert error.value.code != 0
+        Assert.is_(error.exception.__class__, SystemExit)
+        Assert.ne(error.exception.code, 0)
 
     version.chmod(0o755)
 
     with chdir(d):
         _, _, [config] = parse_config()
-        assert config.image_version == "1.2.3"
+        Assert.eq(config.image_version, "1.2.3")
 
 
-def test_split_artifacts(tmp_path: Path) -> None:
+async def test_split_artifacts(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
     d = tmp_path
 
     (d / "mkosi.conf").write_text(
@@ -1505,7 +1560,7 @@ def test_split_artifacts(tmp_path: Path) -> None:
 
     with chdir(d):
         _, _, [config] = parse_config()
-        assert config.split_artifacts == [ArtifactOutput.uki]
+        Assert.eq(config.split_artifacts, [ArtifactOutput.uki])
 
     (d / "mkosi.conf").write_text(
         """
@@ -1518,19 +1573,23 @@ def test_split_artifacts(tmp_path: Path) -> None:
 
     with chdir(d):
         _, _, [config] = parse_config()
-        assert config.split_artifacts == [
-            ArtifactOutput.uki,
-            ArtifactOutput.kernel,
-            ArtifactOutput.initrd,
-        ]
+        Assert.eq(
+            config.split_artifacts,
+            [
+                ArtifactOutput.uki,
+                ArtifactOutput.kernel,
+                ArtifactOutput.initrd,
+            ],
+        )
 
 
-def test_split_artifacts_compat(tmp_path: Path) -> None:
+async def test_split_artifacts_compat(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
     d = tmp_path
 
     with chdir(d):
         _, _, [config] = parse_config()
-        assert config.split_artifacts == ArtifactOutput.compat_no()
+        Assert.eq(config.split_artifacts, ArtifactOutput.compat_no())
 
     (d / "mkosi.conf").write_text(
         """
@@ -1541,10 +1600,11 @@ def test_split_artifacts_compat(tmp_path: Path) -> None:
 
     with chdir(d):
         _, _, [config] = parse_config()
-        assert config.split_artifacts == ArtifactOutput.compat_yes()
+        Assert.eq(config.split_artifacts, ArtifactOutput.compat_yes())
 
 
-def test_cli_collection_reset(tmp_path: Path) -> None:
+async def test_cli_collection_reset(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
     d = tmp_path
 
     (d / "mkosi.conf").write_text(
@@ -1556,32 +1616,35 @@ def test_cli_collection_reset(tmp_path: Path) -> None:
 
     with chdir(d):
         _, _, [config] = parse_config(["--package", ""])
-        assert config.packages == []
+        Assert.eq(config.packages, [])
 
         _, _, [config] = parse_config(["--package", "", "--package", "foo"])
-        assert config.packages == ["foo"]
+        Assert.eq(config.packages, ["foo"])
 
         _, _, [config] = parse_config(["--package", "foo", "--package", "", "--package", "bar"])
-        assert config.packages == ["bar"]
+        Assert.eq(config.packages, ["bar"])
 
         _, _, [config] = parse_config(["--package", "foo", "--package", ""])
-        assert config.packages == []
+        Assert.eq(config.packages, [])
 
 
-def test_tools(tmp_path: Path) -> None:
+async def test_tools(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
     d = tmp_path
     argv = ["--tools-tree=default"]
 
     if in_box():
-        pytest.skip("Cannot run test_tools() test within mkosi box environment")
+        Assert.skip("Cannot run test_tools() test within mkosi box environment")
 
     with resource_path(mkosi.resources) as resources, chdir(d):
         _, tools, _ = parse_config(argv, resources=resources)
-        assert tools
+        Assert.not_none(tools)
+        tools = cast(Config, tools)
         host = detect_distribution()[0]
         if isinstance(host, Distribution):
-            assert tools.distribution == (
-                host.installer.default_tools_tree_distribution() or tools.distribution
+            Assert.eq(
+                tools.distribution,
+                (host.installer.default_tools_tree_distribution() or tools.distribution),
             )
 
         (d / "mkosi.tools.conf").write_text(
@@ -1592,20 +1655,23 @@ def test_tools(tmp_path: Path) -> None:
         )
 
         _, tools, _ = parse_config(argv, resources=resources)
-        assert tools
-        assert tools.package_directories == [Path(d)]
+        Assert.not_none(tools)
+        tools = cast(Config, tools)
+        Assert.eq(tools.package_directories, [Path(d)])
 
         _, tools, _ = parse_config(
             argv + ["--tools-tree-distribution=arch", "--tools-tree-package-directory=/tmp"],
             resources=resources,
         )
-        assert tools
-        assert tools.distribution == Distribution.arch
-        assert tools.package_directories == [Path(d), Path("/tmp")]
+        Assert.not_none(tools)
+        tools = cast(Config, tools)
+        Assert.eq(tools.distribution, Distribution.arch)
+        Assert.eq(tools.package_directories, [Path(d), Path("/tmp")])
 
         _, tools, _ = parse_config(argv + ["--tools-tree-package-directory="], resources=resources)
-        assert tools
-        assert tools.package_directories == []
+        Assert.not_none(tools)
+        tools = cast(Config, tools)
+        Assert.eq(tools.package_directories, [])
 
         (d / "mkosi.conf").write_text(
             """
@@ -1615,11 +1681,13 @@ def test_tools(tmp_path: Path) -> None:
         )
 
         _, tools, _ = parse_config(argv, resources=resources)
-        assert tools
-        assert tools.distribution == Distribution.arch
+        Assert.not_none(tools)
+        tools = cast(Config, tools)
+        Assert.eq(tools.distribution, Distribution.arch)
 
 
-def test_subdir(tmp_path: Path) -> None:
+async def test_subdir(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
     d = tmp_path
 
     with chdir(d):
@@ -1632,7 +1700,7 @@ def test_subdir(tmp_path: Path) -> None:
         )
 
         _, _, [config] = parse_config()
-        assert config.output == "qed"
+        Assert.eq(config.output, "qed")
 
         os.chdir(d)
 
@@ -1644,10 +1712,11 @@ def test_subdir(tmp_path: Path) -> None:
         )
 
         _, _, [config] = parse_config()
-        assert config.output == "abc"
+        Assert.eq(config.output, "abc")
 
 
-def test_assert(tmp_path: Path) -> None:
+async def test_assert(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
     d = tmp_path
 
     with chdir(d):
@@ -1658,7 +1727,7 @@ def test_assert(tmp_path: Path) -> None:
             """
         )
 
-        with pytest.raises(SystemExit):
+        with Assert.raises(SystemExit):
             parse_config()
 
         # Does not raise, i.e. parses successfully, but we don't care for the content.
@@ -1674,11 +1743,11 @@ def test_assert(tmp_path: Path) -> None:
             """
         )
 
-        with pytest.raises(SystemExit):
+        with Assert.raises(SystemExit):
             parse_config([])
-        with pytest.raises(SystemExit):
+        with Assert.raises(SystemExit):
             parse_config(["--image-id", "abcde"])
-        with pytest.raises(SystemExit):
+        with Assert.raises(SystemExit):
             parse_config(["--environment", "ABC=QED"])
 
         parse_config(["--image-id", "abcde", "--environment", "ABC=QED"])
@@ -1693,7 +1762,7 @@ def test_assert(tmp_path: Path) -> None:
             """
         )
 
-        with pytest.raises(SystemExit):
+        with Assert.raises(SystemExit):
             parse_config()
 
         parse_config(["--image-id", "abcde"])
@@ -1712,14 +1781,15 @@ def test_assert(tmp_path: Path) -> None:
             """
         )
 
-        with pytest.raises(SystemExit):
+        with Assert.raises(SystemExit):
             parse_config()
 
         parse_config(["--image-id", "abcde", "--environment", "ABC=QED"])
         parse_config(["--image-id", "abcde", "--environment", "DEF=QEE"])
 
 
-def test_initrd_packages(tmp_path: Path) -> None:
+async def test_initrd_packages(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
     d = tmp_path
 
     (d / "mkosi.conf").write_text(
@@ -1736,8 +1806,8 @@ def test_initrd_packages(tmp_path: Path) -> None:
     with chdir(d), resource_path(mkosi.resources) as resources:
         _, _, [initrd, _] = parse_config(resources=resources)
 
-    assert "package1" in initrd.packages
-    assert "package2" in initrd.packages
+    Assert.in_("package1", initrd.packages)
+    Assert.in_("package2", initrd.packages)
 
     # Make sure the InitrdPackages= are also picked up when a subimage is defined.
     (d / "mkosi.images").mkdir()
@@ -1746,11 +1816,12 @@ def test_initrd_packages(tmp_path: Path) -> None:
     with chdir(d), resource_path(mkosi.resources) as resources:
         _, _, [_, initrd, _] = parse_config(resources=resources)
 
-    assert "package1" in initrd.packages
-    assert "package2" in initrd.packages
+    Assert.in_("package1", initrd.packages)
+    Assert.in_("package2", initrd.packages)
 
 
-def test_config_default_initrds(tmp_path: Path) -> None:
+async def test_config_default_initrds(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
     d = tmp_path
 
     # Default initrd should be built when Bootable=yes and the image format supports it.
@@ -1764,8 +1835,8 @@ def test_config_default_initrds(tmp_path: Path) -> None:
     with chdir(d), resource_path(mkosi.resources) as resources:
         _, _, [initrd, main] = parse_config(resources=resources)
 
-    assert len(main.initrds) == 1
-    assert initrd.image == "default-initrd"
+    Assert.eq(len(main.initrds), 1)
+    Assert.eq(initrd.image, "default-initrd")
 
     # Default initrd should not be built when Bootable=disabled.
     (d / "mkosi.conf").write_text(
@@ -1778,7 +1849,7 @@ def test_config_default_initrds(tmp_path: Path) -> None:
     with chdir(d), resource_path(mkosi.resources) as resources:
         _, _, [config] = parse_config(resources=resources)
 
-    assert not config.initrds
+    Assert.false(config.initrds)
 
     # Default initrd should not be built for UKI output format.
     (d / "mkosi.conf").write_text(
@@ -1794,7 +1865,7 @@ def test_config_default_initrds(tmp_path: Path) -> None:
     with chdir(d), resource_path(mkosi.resources) as resources:
         _, _, [config] = parse_config(resources=resources)
 
-    assert not config.initrds
+    Assert.false(config.initrds)
 
     # Default initrd should not be built for ESP output format.
     (d / "mkosi.conf").write_text(
@@ -1810,7 +1881,7 @@ def test_config_default_initrds(tmp_path: Path) -> None:
     with chdir(d), resource_path(mkosi.resources) as resources:
         _, _, [config] = parse_config(resources=resources)
 
-    assert not config.initrds
+    Assert.false(config.initrds)
 
     # Default initrd should not be built when Bootable=auto and output is cpio.
     (d / "mkosi.conf").write_text(
@@ -1823,7 +1894,7 @@ def test_config_default_initrds(tmp_path: Path) -> None:
     with chdir(d), resource_path(mkosi.resources) as resources:
         _, _, [config] = parse_config(resources=resources)
 
-    assert not config.initrds
+    Assert.false(config.initrds)
 
     # Default initrd should not be built when Bootable=auto and output is a sysext image.
     (d / "mkosi.conf").write_text(
@@ -1836,7 +1907,7 @@ def test_config_default_initrds(tmp_path: Path) -> None:
     with chdir(d), resource_path(mkosi.resources) as resources:
         _, _, [config] = parse_config(resources=resources)
 
-    assert not config.initrds
+    Assert.false(config.initrds)
 
     # Default initrd should not be built when Overlay=yes.
     (d / "mkosi.conf").write_text(
@@ -1849,10 +1920,11 @@ def test_config_default_initrds(tmp_path: Path) -> None:
     with chdir(d), resource_path(mkosi.resources) as resources:
         _, _, [config] = parse_config(resources=resources)
 
-    assert not config.initrds
+    Assert.false(config.initrds)
 
 
-def test_initrds_default_value(tmp_path: Path) -> None:
+async def test_initrds_default_value(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
     d = tmp_path
 
     # The "default" special value should explicitly request the default initrd.
@@ -1866,8 +1938,8 @@ def test_initrds_default_value(tmp_path: Path) -> None:
     with chdir(d), resource_path(mkosi.resources) as resources:
         _, _, [initrd, main] = parse_config(resources=resources)
 
-    assert len(main.initrds) == 1
-    assert initrd.image == "default-initrd"
+    Assert.eq(len(main.initrds), 1)
+    Assert.eq(initrd.image, "default-initrd")
 
     (d / "myinitrd.cpio").touch()
 
@@ -1885,10 +1957,10 @@ def test_initrds_default_value(tmp_path: Path) -> None:
         _, _, [initrd, main] = parse_config(resources=resources)
 
     # The main image should have two initrds: the custom one and the default one (resolved path).
-    assert len(main.initrds) == 2
-    assert main.initrds[0] == d / "myinitrd.cpio"
+    Assert.eq(len(main.initrds), 2)
+    Assert.eq(main.initrds[0], d / "myinitrd.cpio")
     # Second initrd should be the resolved path from the default initrd image.
-    assert initrd.image == "default-initrd"
+    Assert.eq(initrd.image, "default-initrd")
 
     # When only "default" is specified, the default initrd should be built.
     (d / "mkosi.conf").write_text(
@@ -1902,11 +1974,12 @@ def test_initrds_default_value(tmp_path: Path) -> None:
     with chdir(d), resource_path(mkosi.resources) as resources:
         _, _, [initrd, main] = parse_config(resources=resources)
 
-    assert len(main.initrds) == 1
-    assert initrd.image == "default-initrd"
+    Assert.eq(len(main.initrds), 1)
+    Assert.eq(initrd.image, "default-initrd")
 
 
-def test_initrds_empty_resets(tmp_path: Path) -> None:
+async def test_initrds_empty_resets(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
     d = tmp_path
 
     # An empty value for Initrds= should disable the default initrd.
@@ -1922,7 +1995,7 @@ def test_initrds_empty_resets(tmp_path: Path) -> None:
         _, _, [config] = parse_config(resources=resources)
 
     # Empty string should reset to empty, not to default.
-    assert not config.initrds
+    Assert.false(config.initrds)
 
     # Make sure dropin can override with empty to disable default initrd.
     (d / "mkosi.conf").write_text(
@@ -1943,10 +2016,11 @@ def test_initrds_empty_resets(tmp_path: Path) -> None:
     with chdir(d), resource_path(mkosi.resources) as resources:
         _, _, [config] = parse_config(resources=resources)
 
-    assert not config.initrds
+    Assert.false(config.initrds)
 
 
-def test_initrds_custom_only(tmp_path: Path) -> None:
+async def test_initrds_custom_only(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
     d = tmp_path
 
     (d / "myinitrd.cpio").touch()
@@ -1963,11 +2037,12 @@ def test_initrds_custom_only(tmp_path: Path) -> None:
     with chdir(d), resource_path(mkosi.resources) as resources:
         _, _, [config] = parse_config(resources=resources)
 
-    assert len(config.initrds) == 1
-    assert config.initrds[0] == d / "myinitrd.cpio"
+    Assert.eq(len(config.initrds), 1)
+    Assert.eq(config.initrds[0], d / "myinitrd.cpio")
 
 
-def test_history_empty_list(tmp_path: Path) -> None:
+async def test_history_empty_list(stack: contextlib.AsyncExitStack) -> None:
+    tmp_path = tmp_dir(stack)
     d = tmp_path
 
     (d / "packages").mkdir()
@@ -1985,10 +2060,10 @@ def test_history_empty_list(tmp_path: Path) -> None:
     with chdir(d):
         _, _, [main] = parse_config(["--package-directory=", "build"])
 
-    assert (d / ".mkosi-private/history/latest.json").exists()
-    assert main.package_directories == []
+    Assert.true((d / ".mkosi-private/history/latest.json").exists())
+    Assert.eq(main.package_directories, [])
 
     with chdir(d):
         _, _, [main] = parse_config(["summary"])
 
-    assert main.package_directories == []
+    Assert.eq(main.package_directories, [])
