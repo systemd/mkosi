@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+# Test runner installed into the tools tree.
+# FIXME: move to version pin once published on pypi, to get dependabot coverage
+barrage @ git+https://github.com/amutable-systems/barrage.git@8361c35b7ad7c00e6a446f16d5a269f07a35393b
