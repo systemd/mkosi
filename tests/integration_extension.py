@@ -2,22 +2,17 @@
 
 from pathlib import Path
 
-import pytest
-
 from mkosi.config import OutputFormat
 
-from . import Image, ImageConfig
-
-pytestmark = pytest.mark.integration
+from . import Image, ImageConfigManager
 
 
-@pytest.mark.parametrize("format", [f for f in OutputFormat if f.is_extension_image()])
-def test_extension(config: ImageConfig, format: OutputFormat) -> None:
-    with Image(config) as image:
-        image.build(["--clean-package-metadata=no", "--format=directory"])
+async def do_test(image_config: ImageConfigManager, format: OutputFormat) -> None:
+    with Image(image_config.config) as image:
+        await image.build(["--clean-package-metadata=no", "--format=directory"])
 
         with Image(image.config) as sysext:
-            sysext.build(
+            await sysext.build(
                 [
                     "--directory",
                     "",
@@ -29,3 +24,15 @@ def test_extension(config: ImageConfig, format: OutputFormat) -> None:
                     f"--format={format}",
                 ]
             )  # fmt: skip
+
+
+async def test_confext(image_config: ImageConfigManager) -> None:
+    await do_test(image_config, OutputFormat.confext)
+
+
+async def test_sysext(image_config: ImageConfigManager) -> None:
+    await do_test(image_config, OutputFormat.sysext)
+
+
+async def test_addon(image_config: ImageConfigManager) -> None:
+    await do_test(image_config, OutputFormat.addon)
