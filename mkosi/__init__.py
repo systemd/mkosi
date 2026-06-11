@@ -2565,11 +2565,22 @@ def calculate_signature_gpg(context: Context) -> None:
     ]  # fmt: skip
 
     with complete_step("Signing SHA256SUMS…"):
-        run(
-            cmdline,
-            env=env,
-            sandbox=context.sandbox(options=options),
-        )
+        try:
+            run(
+                cmdline,
+                env=env,
+                sandbox=context.sandbox(options=options),
+            )
+        finally:
+            # gpg autostarts a gpg-agent to sign and, as the sandbox has no PID namespace, that agent is
+            # leaked when the sandbox goes away. Note this will also kill a "real" user agent, but
+            # gpg auto-starts a new one.
+            run(
+                ["gpgconf", "--kill", "gpg-agent"],
+                env=env,
+                sandbox=context.sandbox(options=options),
+                check=False,
+            )
 
 
 def calculate_signature_sop(context: Context) -> None:
