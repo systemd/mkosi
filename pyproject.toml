@@ -116,5 +116,7 @@ markers = [
     "integration: mark a test as an integration test.",
     "install: mark a test as an installation test (venv/pip/zipapp).",
 ]
-addopts = "-m \"not integration and not install\""
 testpaths = ["tests"]
+# The unit and install tests run under barrage now; pytest only runs the integration tests, which live
+# in integration_*.py files (not pytest's default test_*.py pattern).
+python_files = ["integration_*.py"]
