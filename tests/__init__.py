@@ -37,7 +37,10 @@ class Image:
         else:
             tmpdir = Path("/var/tmp")
 
-        self.output_dir = Path(os.getenv("TMPDIR", tmpdir)) / uuid.uuid4().hex[:16]
+        token = uuid.uuid4().hex[:16]
+        self.output_dir = Path(os.getenv("TMPDIR", tmpdir)) / token
+        # Unique VM name to support parallel runs; CID name is derived from machine name
+        self.machine = f"mkosi-{token}"
 
         return self
 
@@ -117,6 +120,8 @@ class Image:
                 "--runtime-build-sources=no",
                 "--ephemeral=yes",
                 "--register=no",
+                "--machine",
+                self.machine,
                 *options,
             ],
             args,
@@ -147,6 +152,8 @@ class Image:
                 f"--ram={ram}",
                 "--ephemeral=yes",
                 "--register=no",
+                "--machine",
+                self.machine,
                 *options,
             ],
             args,
