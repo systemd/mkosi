@@ -130,8 +130,11 @@ def copy_tree(
 
         # Trying to copy selinux xattrs to overlayfs fails with "Operation not supported" in containers.
         # Trying to copy security.ima xattrs fails with "Operation not permitted" when non-root.
-        if (statfs(os.fspath(dst.parent)) != OVERLAYFS_SUPER_MAGIC or not tree_has_selinux_xattr(src)) and (
-            os.getuid() == 0 or not tree_has_ima_xattr(src)
+        # Copying SELinux attributes also needs root and it seems unlikely, that copying IMA attributes to
+        # overlayfs should work when SELinux does not.
+        if not (
+            (statfs(os.fspath(dst.parent)) == OVERLAYFS_SUPER_MAGIC or os.getuid() != 0)
+            and (tree_has_selinux_xattr(src) or tree_has_ima_xattr(src))
         ):
             attrs += ",xattr"
 
