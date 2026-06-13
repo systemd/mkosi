@@ -5445,7 +5445,12 @@ def want_default_initrd(config: Config) -> bool:
     return Path("default") in config.initrds
 
 
-def finalize_historydir(args: Args) -> Path:
+def finalize_historydir(args: Args, output_dir: Optional[Path] = None) -> Path:
+    # When an explicit output dir is given, store the build history there, so that multiple
+    # output dirs don't clobber each other.
+    if output_dir is not None:
+        return output_dir / ".mkosi-private/history"
+
     configdir = finalize_configdir(args.directory)
     return (configdir or Path.cwd()) / ".mkosi-private/history"
 
@@ -5502,7 +5507,7 @@ def parse_config(
         return args, None, ()
 
     configdir = finalize_configdir(args.directory)
-    historydir = finalize_historydir(args)
+    historydir = finalize_historydir(args, context.cli.get("output_dir"))
 
     if have_history(args, historydir):
         history = Config.from_partial_json((historydir / "latest.json").read_text())
