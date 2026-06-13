@@ -122,12 +122,13 @@ class Image:
                 "--register=no",
                 "--machine",
                 self.machine,
+                "--output-directory", self.output_dir,
                 *options,
             ],
             args,
             stdin=sys.stdin if sys.stdin.isatty() else None,
             check=False,
-        )
+        )  # fmt: skip
 
         if result.returncode != 123:
             raise subprocess.CalledProcessError(result.returncode, result.args, result.stdout, result.stderr)
@@ -154,12 +155,13 @@ class Image:
                 "--register=no",
                 "--machine",
                 self.machine,
+                "--output-directory", self.output_dir,
                 *options,
             ],
             args,
             stdin=sys.stdin if sys.stdin.isatty() else None,
             check=False,
-        )
+        )  # fmt: skip
 
         if result.returncode != 123:
             raise subprocess.CalledProcessError(result.returncode, result.args, result.stdout, result.stderr)
