@@ -150,7 +150,9 @@ def test_initrd_luks(config: ImageConfig, passphrase: Path) -> None:
 
         with Image(config) as image:
             image.build(["--repart-directory", repartd, "--passphrase", passphrase, "--format=disk"])
-            image.vm(["--credential=cryptsetup.passphrase=mkosi"])
+            # repart's default LUKS2 KDF (Argon2id) is memory-hard and needs ~1 GiB of RAM just to derive
+            # the key, so the default VM RAM isn't enough to unlock the root.
+            image.vm(["--credential=cryptsetup.passphrase=mkosi"], ram="2G")
 
 
 @pytest.mark.skipif(os.getuid() != 0, reason="mkosi-initrd LUKS+LVM test can only be executed as root")
