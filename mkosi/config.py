@@ -5445,7 +5445,15 @@ def want_default_initrd(config: Config) -> bool:
     return Path("default") in config.initrds
 
 
-def finalize_historydir(args: Args) -> Path:
+def finalize_historydir(args: Args, output_dir: Optional[Path] = None) -> Path:
+    # When an output dir is given on the CLI, store the build history there so that concurrent builds with
+    # different output dirs don't clobber a shared history. Don't check the finalized OutputDirectory=
+    # config, only the CLI value: the former isn't known yet here (config files and includes are
+    # parsed later) and vm/boot can't see it anyway since they recover the config from the history instead of
+    # parsing it. An output dir set only in config files keeps the history in the config dir.
+    if output_dir is not None:
+        return output_dir / ".mkosi-private/history"
+
     configdir = finalize_configdir(args.directory)
     return (configdir or Path.cwd()) / ".mkosi-private/history"
 
@@ -5502,7 +5510,7 @@ def parse_config(
         return args, None, ()
 
     configdir = finalize_configdir(args.directory)
-    historydir = finalize_historydir(args)
+    historydir = finalize_historydir(args, context.cli.get("output_dir"))
 
     if have_history(args, historydir):
         history = Config.from_partial_json((historydir / "latest.json").read_text())
