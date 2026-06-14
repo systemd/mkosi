@@ -8,16 +8,14 @@ import textwrap
 from collections.abc import Iterator
 from pathlib import Path
 
-import pytest
+import barrage.assertions as Assert
 
 from mkosi.run import run
 from mkosi.sandbox import umask
 from mkosi.tree import copy_tree
 from mkosi.util import PathString
 
-from . import Image, ImageConfig
-
-pytestmark = pytest.mark.integration
+from . import Image, ImageConfigManager
 
 
 @contextlib.contextmanager
@@ -35,10 +33,10 @@ def mount(what: PathString, where: PathString) -> Iterator[Path]:
         run(["umount", "--no-mtab", where])
 
 
-@pytest.fixture(scope="module")
+@contextlib.contextmanager
 def passphrase() -> Iterator[Path]:
-    # We can't use tmp_path fixture because pytest creates it in a nested directory we can't access using our
-    # unprivileged user.
+    # We use a NamedTemporaryFile in /tmp rather than a per-test temporary directory because the latter is
+    # created in a nested directory we can't access using our unprivileged user.
     # TODO: Use delete_on_close=False and close() instead of flush() when we require Python 3.12 or newer.
     with tempfile.NamedTemporaryFile(prefix="mkosi.passphrase", mode="w") as passphrase:
         passphrase.write("mkosi")
@@ -49,16 +47,18 @@ def passphrase() -> Iterator[Path]:
         yield Path(passphrase.name)
 
 
-def test_initrd(config: ImageConfig) -> None:
-    with Image(config) as image:
-        image.build(options=["--format=disk"])
-        image.vm()
+async def test_initrd(image_config: ImageConfigManager) -> None:
+    with Image(image_config.config) as image:
+        await image.build(options=["--format=disk"])
+        await image.vm()
 
 
-@pytest.mark.skipif(os.getuid() != 0, reason="mkosi-initrd LVM test can only be executed as root")
-def test_initrd_lvm(config: ImageConfig) -> None:
-    with Image(config) as image, contextlib.ExitStack() as stack:
-        image.build(["--format=disk"])
+async def test_initrd_lvm(image_config: ImageConfigManager) -> None:
+    if os.getuid() != 0:
+        Assert.skip("mkosi-initrd LVM test can only be executed as root")
+
+    with Image(image_config.config) as image, contextlib.ExitStack() as stack:
+        await image.build(["--format=disk"])
 
         lvm = Path(image.output_dir) / "lvm.raw"
         lvm.touch()
@@ -68,7 +68,10 @@ def test_initrd_lvm(config: ImageConfig) -> None:
             ["losetup", "--show", "--find", "--partscan", lvm], stdout=subprocess.PIPE
         ).stdout.strip()
         stack.callback(run, ["losetup", "--detach", lodev])
-        run(["sfdisk", "--label", "gpt", lodev], input="type=E6D6D379-F507-44C2-A23C-238F2A3DF928 bootable")
+        run(
+            ["sfdisk", "--label", "gpt", lodev],
+            input="type=E6D6D379-F507-44C2-A23C-238F2A3DF928 bootable",
+        )
         run(["lvm", "pvcreate", "--devicesfile", "", f"{lodev}p1"])
         run(["lvm", "pvs", "--devicesfile", ""])
         run(["lvm", "vgcreate", "--devicesfile", "", "-An", "vg_mkosi", f"{lodev}p1"])
@@ -78,7 +81,14 @@ def test_initrd_lvm(config: ImageConfig) -> None:
         run(["lvm", "lvcreate", "--devicesfile", "", "-An", "-l", "100%FREE", "-n", "lv0", "vg_mkosi"])
         run(["lvm", "lvs", "--devicesfile", ""])
         run(["udevadm", "wait", "--timeout=30", "/dev/vg_mkosi/lv0"])
-        run([f"mkfs.{image.config.distribution.installer.filesystem()}", "-L", "root", "/dev/vg_mkosi/lv0"])
+        run(
+            [
+                f"mkfs.{image.config.distribution.installer.filesystem()}",
+                "-L",
+                "root",
+                "/dev/vg_mkosi/lv0",
+            ]
+        )
 
         src = Path(stack.enter_context(tempfile.TemporaryDirectory()))
         run(["systemd-dissect", "--mount", "--mkdir", Path(image.output_dir) / "image.raw", src])
@@ -93,7 +103,7 @@ def test_initrd_lvm(config: ImageConfig) -> None:
 
         lvm.rename(Path(image.output_dir) / "image.raw")
 
-        image.vm(
+        await image.vm(
             [
                 "--firmware=linux",
                 # LVM confuses systemd-repart so we mask it for this test.
@@ -103,8 +113,8 @@ def test_initrd_lvm(config: ImageConfig) -> None:
         )
 
 
-def test_initrd_luks(config: ImageConfig, passphrase: Path) -> None:
-    with tempfile.TemporaryDirectory() as repartd:
+async def test_initrd_luks(image_config: ImageConfigManager) -> None:
+    with passphrase() as pp, tempfile.TemporaryDirectory() as repartd:
         st = Path.cwd().stat()
         os.chown(repartd, st.st_uid, st.st_gid)
 
@@ -140,7 +150,7 @@ def test_initrd_luks(config: ImageConfig, passphrase: Path) -> None:
                 f"""\
                 [Partition]
                 Type=root
-                Format={config.distribution.installer.filesystem()}
+                Format={image_config.config.distribution.installer.filesystem()}
                 Minimize=guess
                 Encrypt=key-file
                 CopyFiles=/
@@ -148,15 +158,19 @@ def test_initrd_luks(config: ImageConfig, passphrase: Path) -> None:
             )
         )
 
-        with Image(config) as image:
-            image.build(["--repart-directory", repartd, "--passphrase", passphrase, "--format=disk"])
-            image.vm(["--credential=cryptsetup.passphrase=mkosi"])
+        with Image(image_config.config) as image:
+            await image.build(["--repart-directory", repartd, "--passphrase", pp, "--format=disk"])
+            # repart's default LUKS2 KDF (Argon2id) is memory-hard and needs ~1 GiB of RAM just to derive
+            # the key, so the default VM RAM isn't enough to unlock the root.
+            await image.vm(["--credential=cryptsetup.passphrase=mkosi"], ram="2G")
 
 
-@pytest.mark.skipif(os.getuid() != 0, reason="mkosi-initrd LUKS+LVM test can only be executed as root")
-def test_initrd_luks_lvm(config: ImageConfig, passphrase: Path) -> None:
-    with Image(config) as image, contextlib.ExitStack() as stack:
-        image.build(["--format=disk"])
+async def test_initrd_luks_lvm(image_config: ImageConfigManager) -> None:
+    if os.getuid() != 0:
+        Assert.skip("mkosi-initrd LUKS+LVM test can only be executed as root")
+
+    with passphrase() as pp, Image(image_config.config) as image, contextlib.ExitStack() as stack:
+        await image.build(["--format=disk"])
 
         lvm = Path(image.output_dir) / "lvm.raw"
         lvm.touch()
@@ -166,11 +180,14 @@ def test_initrd_luks_lvm(config: ImageConfig, passphrase: Path) -> None:
             ["losetup", "--show", "--find", "--partscan", lvm], stdout=subprocess.PIPE
         ).stdout.strip()
         stack.callback(run, ["losetup", "--detach", lodev])
-        run(["sfdisk", "--label", "gpt", lodev], input="type=E6D6D379-F507-44C2-A23C-238F2A3DF928 bootable")
+        run(
+            ["sfdisk", "--label", "gpt", lodev],
+            input="type=E6D6D379-F507-44C2-A23C-238F2A3DF928 bootable",
+        )
         run(
             [
                 "cryptsetup",
-                "--key-file", passphrase,
+                "--key-file", pp,
                 "--use-random",
                 "--pbkdf", "pbkdf2",
                 "--pbkdf-force-iterations", "1000",
@@ -178,7 +195,7 @@ def test_initrd_luks_lvm(config: ImageConfig, passphrase: Path) -> None:
                 f"{lodev}p1",
             ]
         )  # fmt: skip
-        run(["cryptsetup", "--key-file", passphrase, "luksOpen", f"{lodev}p1", "lvm_root"])
+        run(["cryptsetup", "--key-file", pp, "luksOpen", f"{lodev}p1", "lvm_root"])
         stack.callback(run, ["cryptsetup", "close", "lvm_root"])
         luks_uuid = run(["cryptsetup", "luksUUID", f"{lodev}p1"], stdout=subprocess.PIPE).stdout.strip()
         run(["lvm", "pvcreate", "--devicesfile", "", "/dev/mapper/lvm_root"])
@@ -190,7 +207,14 @@ def test_initrd_luks_lvm(config: ImageConfig, passphrase: Path) -> None:
         run(["lvm", "lvcreate", "--devicesfile", "", "-An", "-l", "100%FREE", "-n", "lv0", "vg_mkosi"])
         run(["lvm", "lvs", "--devicesfile", ""])
         run(["udevadm", "wait", "--timeout=30", "/dev/vg_mkosi/lv0"])
-        run([f"mkfs.{image.config.distribution.installer.filesystem()}", "-L", "root", "/dev/vg_mkosi/lv0"])
+        run(
+            [
+                f"mkfs.{image.config.distribution.installer.filesystem()}",
+                "-L",
+                "root",
+                "/dev/vg_mkosi/lv0",
+            ]
+        )
 
         src = Path(stack.enter_context(tempfile.TemporaryDirectory()))
         run(["systemd-dissect", "--mount", "--mkdir", Path(image.output_dir) / "image.raw", src])
@@ -205,7 +229,7 @@ def test_initrd_luks_lvm(config: ImageConfig, passphrase: Path) -> None:
 
         lvm.rename(Path(image.output_dir) / "image.raw")
 
-        image.vm(
+        await image.vm(
             [
                 "--format=disk",
                 "--credential=cryptsetup.passphrase=mkosi",
@@ -216,12 +240,12 @@ def test_initrd_luks_lvm(config: ImageConfig, passphrase: Path) -> None:
         )
 
 
-def test_initrd_size(config: ImageConfig) -> None:
-    with Image(config) as image:
-        image.build()
+async def test_initrd_size(image_config: ImageConfigManager) -> None:
+    with Image(image_config.config) as image:
+        await image.build()
 
         # Set a reasonably high limit to avoid having to bump it every single time by
         # small amounts. 100M should do.
         maxsize = 1024**2 * 100
 
-        assert (Path(image.output_dir) / "image.initrd").stat().st_size <= maxsize
+        Assert.le((Path(image.output_dir) / "image.initrd").stat().st_size, maxsize)

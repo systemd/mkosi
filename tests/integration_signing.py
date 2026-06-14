@@ -4,20 +4,18 @@ import os
 import tempfile
 from pathlib import Path
 
-import pytest
+import barrage.assertions as Assert
 
 from mkosi.run import find_binary, run
 
-from . import Image, ImageConfig
-
-pytestmark = pytest.mark.integration
+from . import Image, ImageConfigManager
 
 
-def test_signing_checksums_with_sop(config: ImageConfig) -> None:
+async def test_signing_checksums_with_sop(image_config: ImageConfigManager) -> None:
     if find_binary("sqop") is None:
-        pytest.skip("Need 'sqop' binary to perform sop tests.")
+        Assert.skip("Need 'sqop' binary to perform sop tests.")
 
-    with tempfile.TemporaryDirectory() as path, Image(config) as image:
+    with tempfile.TemporaryDirectory() as path, Image(image_config.config) as image:
         tmp_path = Path(path)
 
         signing_key = tmp_path / "signing-key.pgp"
@@ -31,7 +29,7 @@ def test_signing_checksums_with_sop(config: ImageConfig) -> None:
         with open(signing_key, "rb") as i, open(signing_cert, "wb") as o:
             run(cmdline=["sqop", "extract-cert"], stdin=i, stdout=o)
 
-        image.build(
+        await image.build(
             options=["--checksum=true", "--openpgp-tool=sqop", "--sign=true", f"--key={signing_key}"]
         )
 
@@ -42,8 +40,8 @@ def test_signing_checksums_with_sop(config: ImageConfig) -> None:
             run(cmdline=["sqop", "verify", signature, signing_cert], stdin=i)
 
 
-def test_signing_checksums_with_gpg(config: ImageConfig) -> None:
-    with tempfile.TemporaryDirectory() as path, Image(config) as image:
+async def test_signing_checksums_with_gpg(image_config: ImageConfigManager) -> None:
+    with tempfile.TemporaryDirectory() as path, Image(image_config.config) as image:
         tmp_path = Path(path)
 
         signing_key = "mkosi-test@example.org"
@@ -66,7 +64,12 @@ def test_signing_checksums_with_gpg(config: ImageConfig) -> None:
                 stdout=o,
             )
 
-        image.build(options=["--checksum=true", "--sign=true", f"--key={signing_key}"], env=env)
+        # gpg --quick-gen-key started a gpg-agent that we're done with now (the build manages its own).
+        # Shut it down so it doesn't linger past the test. GNUPGHOME is a throwaway directory, so this
+        # only affects this test's agent, never one running for the user's real GNUPGHOME.
+        run(cmdline=["gpgconf", "--kill", "gpg-agent"], env=env, check=False)
+
+        await image.build(options=["--checksum=true", "--sign=true", f"--key={signing_key}"], env=env)
 
         signed_file = image.output_dir / "image.SHA256SUMS"
         signature = image.output_dir / "image.SHA256SUMS.gpg"

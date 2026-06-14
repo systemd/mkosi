@@ -1,23 +1,25 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
-import contextlib
+import asyncio
 import dataclasses
 import os
 import subprocess
 import sys
 import uuid
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from types import TracebackType
-from typing import Any, Optional
+from typing import Optional
 
-import pytest
+from barrage import Singleton
 
+import mkosi.resources
+from mkosi.config import parse_config
 from mkosi.distribution import Distribution
 from mkosi.run import CompletedProcess, run
 from mkosi.tree import rmtree
 from mkosi.user import INVOKING_USER
-from mkosi.util import _FILE, PathString
+from mkosi.util import _FILE, PathString, resource_path
 
 
 @dataclasses.dataclass(frozen=True)
@@ -25,6 +27,33 @@ class ImageConfig:
     distribution: Distribution
     release: str
     debug_shell: bool
+
+
+class ImageConfigManager(Singleton):
+    """Provide the integration test ImageConfig
+
+    The distribution and release are read from mkosi.local.conf as written by
+    tools/integration-test-setup.sh.
+    """
+
+    config: ImageConfig
+
+    async def __aenter__(self) -> "ImageConfigManager":
+        if not Path("mkosi.local.conf").exists():
+            raise RuntimeError(
+                "mkosi.local.conf not found: run 'tools/integration-test-setup.sh "
+                "<distribution> <tools-tree-distribution>' to configure and build the image before "
+                "running the integration tests."
+            )
+
+        with resource_path(mkosi.resources) as resources:
+            config = parse_config(resources=resources)[2][0]
+        self.config = ImageConfig(
+            distribution=config.distribution,
+            release=config.release,
+            debug_shell=bool(os.getenv("TEST_DEBUG_SHELL")),
+        )
+        return self
 
 
 class Image:
@@ -37,7 +66,10 @@ class Image:
         else:
             tmpdir = Path("/var/tmp")
 
-        self.output_dir = Path(os.getenv("TMPDIR", tmpdir)) / uuid.uuid4().hex[:16]
+        token = uuid.uuid4().hex[:16]
+        self.output_dir = Path(os.getenv("TMPDIR", tmpdir)) / token
+        # Unique VM name to support parallel runs; CID name is derived from machine name
+        self.machine = f"mkosi-{token}"
 
         return self
 
@@ -49,7 +81,7 @@ class Image:
     ) -> None:
         rmtree(self.output_dir)
 
-    def mkosi(
+    async def mkosi(
         self,
         verb: str,
         options: Sequence[PathString] = (),
@@ -58,7 +90,11 @@ class Image:
         check: bool = True,
         env: Mapping[str, str] = {},
     ) -> CompletedProcess:
-        return run(
+        # mkosi.run.run() is synchronous, so run it in a worker thread.
+        # Safe because the test-level invocation uses no sandbox (and thus no preexec_fn) and installs no
+        # signal handlers; all sandboxing happens inside the spawned mkosi subprocess.
+        return await asyncio.to_thread(
+            run,
             [
                 "python3", "-m", "mkosi",
                 "--debug",
@@ -69,10 +105,10 @@ class Image:
             check=check,
             stdin=stdin,
             stdout=sys.stdout,
-            env=os.environ | env,
+            env={**os.environ, **env},
         )  # fmt: skip
 
-    def build(
+    async def build(
         self,
         options: Sequence[PathString] = (),
         args: Sequence[str] = (),
@@ -100,9 +136,9 @@ class Image:
             *options,
         ]  # fmt: skip
 
-        self.mkosi("summary", opt, env=env)
+        await self.mkosi("summary", opt, env=env)
 
-        return self.mkosi(
+        return await self.mkosi(
             "build",
             opt,
             args,
@@ -110,13 +146,17 @@ class Image:
             env=env,
         )
 
-    def boot(self, options: Sequence[str] = (), args: Sequence[str] = ()) -> CompletedProcess:
-        result = self.mkosi(
+    async def boot(self, options: Sequence[str] = (), args: Sequence[str] = ()) -> CompletedProcess:
+        result = await self.mkosi(
             "boot",
             [
                 "--runtime-build-sources=no",
                 "--ephemeral=yes",
                 "--register=no",
+                "--machine",
+                self.machine,
+                "--output-directory",
+                self.output_dir,
                 *options,
             ],
             args,
@@ -129,19 +169,25 @@ class Image:
 
         return result
 
-    def vm(self, options: Sequence[str] = (), args: Sequence[str] = ()) -> CompletedProcess:
+    async def vm(
+        self, options: Sequence[str] = (), args: Sequence[str] = (), ram: str = "1536M"
+    ) -> CompletedProcess:
         need_hyperv_workaround = os.uname().machine == "x86_64"
 
-        result = self.mkosi(
+        result = await self.mkosi(
             "vm",
             [
                 "--runtime-build-sources=no",
                 "--vsock=yes",
                 # TODO: Drop once both Hyper-V bugs are fixed in Github Actions.
                 *(["--qemu-args=-cpu max,pcid=off"] if need_hyperv_workaround else []),
-                "--ram=2G",
+                f"--ram={ram}",
                 "--ephemeral=yes",
                 "--register=no",
+                "--machine",
+                self.machine,
+                "--output-directory",
+                self.output_dir,
                 *options,
             ],
             args,
@@ -153,35 +199,3 @@ class Image:
             raise subprocess.CalledProcessError(result.returncode, result.args, result.stdout, result.stderr)
 
         return result
-
-
-@pytest.fixture(scope="session", autouse=True)
-def suspend_capture_stdin(pytestconfig: Any) -> Iterator[None]:
-    """
-    When --capture=no (or -s) is specified, pytest will still intercept
-    stdin. Let's explicitly make it not capture stdin when --capture=no is
-    specified so we can debug image boot failures by logging into the emergency
-    shell.
-    """
-
-    capmanager: Any = pytestconfig.pluginmanager.getplugin("capturemanager")
-
-    if pytestconfig.getoption("capture") == "no":
-        capmanager.suspend_global_capture(in_=True)
-
-    yield
-
-    if pytestconfig.getoption("capture") == "no":
-        capmanager.resume_global_capture()
-
-
-@contextlib.contextmanager
-def ci_group(s: str) -> Iterator[None]:
-    github_actions = os.getenv("GITHUB_ACTIONS")
-    if github_actions:
-        print(f"\n::group::{s}", flush=True)
-    try:
-        yield
-    finally:
-        if github_actions:
-            print("\n::endgroup::", flush=True)
