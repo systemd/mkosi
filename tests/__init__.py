@@ -37,7 +37,10 @@ class Image:
         else:
             tmpdir = Path("/var/tmp")
 
-        self.output_dir = Path(os.getenv("TMPDIR", tmpdir)) / uuid.uuid4().hex[:16]
+        token = uuid.uuid4().hex[:16]
+        self.output_dir = Path(os.getenv("TMPDIR", tmpdir)) / token
+        # Unique VM name to support parallel runs; CID name is derived from machine name
+        self.machine = f"mkosi-{token}"
 
         return self
 
@@ -117,6 +120,10 @@ class Image:
                 "--runtime-build-sources=no",
                 "--ephemeral=yes",
                 "--register=no",
+                "--machine",
+                self.machine,
+                "--output-directory",
+                self.output_dir,
                 *options,
             ],
             args,
@@ -129,7 +136,9 @@ class Image:
 
         return result
 
-    def vm(self, options: Sequence[str] = (), args: Sequence[str] = ()) -> CompletedProcess:
+    def vm(
+        self, options: Sequence[str] = (), args: Sequence[str] = (), ram: str = "1536M"
+    ) -> CompletedProcess:
         need_hyperv_workaround = os.uname().machine == "x86_64"
 
         result = self.mkosi(
@@ -139,9 +148,13 @@ class Image:
                 "--vsock=yes",
                 # TODO: Drop once both Hyper-V bugs are fixed in Github Actions.
                 *(["--qemu-args=-cpu max,pcid=off"] if need_hyperv_workaround else []),
-                "--ram=2G",
+                f"--ram={ram}",
                 "--ephemeral=yes",
                 "--register=no",
+                "--machine",
+                self.machine,
+                "--output-directory",
+                self.output_dir,
                 *options,
             ],
             args,
