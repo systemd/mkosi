@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
-from collections.abc import Sequence
-from contextlib import AbstractContextManager
+import contextlib
+from collections.abc import Iterator, Sequence
 from pathlib import Path
 
 from mkosi.config import Config, ConfigFeature, OutputFormat
@@ -9,7 +9,7 @@ from mkosi.context import Context
 from mkosi.mounts import finalize_certificate_mounts
 from mkosi.run import apivfs_options, finalize_interpreter, finalize_passwd_symlinks, find_binary
 from mkosi.tree import rmtree
-from mkosi.util import PathString, flatten, startswith
+from mkosi.util import PathString, flatten, flock, startswith
 
 
 class PackageManager:
@@ -153,22 +153,32 @@ class PackageManager:
         ]  # fmt: skip
 
     @classmethod
+    @contextlib.contextmanager
     def sandbox(
         cls,
         context: Context,
         *,
         apivfs: bool,
         options: Sequence[PathString] = (),
-    ) -> AbstractContextManager[list[PathString]]:
-        return context.sandbox(
-            network=True,
-            options=[
-                *context.rootoptions(),
-                *cls.mounts(context),
-                *cls.options(root=context.root, apivfs=apivfs),
-                *options,
-            ],
-        )  # fmt: skip
+    ) -> Iterator[list[PathString]]:
+        # The package cache directory is shared between all mkosi builds of the same distribution (see
+        # Config.package_cache_dir_or_default()) and is bind mounted read-write into every package manager
+        # sandbox by mounts(). Avoid concurrent downloads, as those result in corruption/truncation and
+        # unnecessary duplicate fetches. Builds of different distributions use different cache directories
+        # and so don't contend.
+        with (
+            flock(context.config.package_cache_dir_or_default()),
+            context.sandbox(
+                network=True,
+                options=[
+                    *context.rootoptions(),
+                    *cls.mounts(context),
+                    *cls.options(root=context.root, apivfs=apivfs),
+                    *options,
+                ],
+            ) as sandbox,
+        ):
+            yield sandbox
 
     @classmethod
     def install(
