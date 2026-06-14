@@ -7,6 +7,9 @@
 ## v27
 
 - Generate locales configured in `/etc/locale.gen`.
+- Added `Bootloader=uki-prebuilt` to install a distribution-shipped unified
+  kernel image from `/usr/lib/modules/<version>/` (as `*.efi`) to
+  `EFI/BOOT/BOOT*.EFI` without invoking `ukify` or requiring systemd-stub.
 
 ## v26
 
