@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
+import logging
 import textwrap
 from collections.abc import Sequence
 from pathlib import Path
@@ -7,6 +8,7 @@ from typing import Optional
 
 from mkosi.config import Cacheonly, Config
 from mkosi.context import Context
+from mkosi.distribution import detect_distribution
 from mkosi.installer import PackageManager
 from mkosi.installer.rpm import RpmRepository, rpm_cmd
 from mkosi.log import ARG_DEBUG
@@ -107,6 +109,20 @@ class Dnf(PackageManager):
                 )
             )
 
+        # TODO: librepo rejects valid repository metadata GPG signatures with gpgme 2.1 ("Bad GPG
+        # signature"): https://github.com/rpm-software-management/librepo/issues/376
+        # This happens a lot when building a distro which signs its repos (CentOS) on newer distros like
+        # Arch, Debian testing, or openSUSE Tumbleweed, with their newer gpgme.
+        # Thus until this is fixed, only validate repo GPG signatures when the distributions match. We can
+        # assume that distros test their own dnf repos :-)
+        # Revert once librepo gets fixed and into the distros.
+        repo_gpgcheck_broken = detect_distribution(context.config.tools())[0] != context.config.distribution
+        if repo_gpgcheck_broken:
+            logging.info(
+                "Disabling repository metadata GPG signature check: "
+                "https://github.com/rpm-software-management/librepo/issues/376"
+            )
+
         repofile = context.sandbox_tree / "etc/yum.repos.d/mkosi.repo"
         if not repofile.exists():
             repofile.parent.mkdir(exist_ok=True, parents=True)
@@ -119,7 +135,7 @@ class Dnf(PackageManager):
                             name={repo.id}
                             {repo.url}
                             gpgcheck=1
-                            repo_gpgcheck={int(repo.repo_gpgcheck)}
+                            repo_gpgcheck={int(repo.repo_gpgcheck and not repo_gpgcheck_broken)}
                             enabled={int(repo.enabled)}
                             """
                         )
