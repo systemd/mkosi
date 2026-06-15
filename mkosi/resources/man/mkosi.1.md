@@ -243,9 +243,23 @@ The following command line verbs are known:
 :   Output the latest available snapshot in the configured mirror.
 
     This verb is useful to automatically bump snapshots every so often.
-    Note that this verb only outputs the latest snapshot. It's up to the
-    caller to ensure that the snapshot is written to the intended configuration
-    file.
+    By default the latest snapshot is printed to standard output and it's
+    up to the caller to ensure that the snapshot is written to the intended
+    configuration file.
+
+    Unlike other verbs, this verb has its own argument parser for options
+    that are passed after the verb (i.e. after the `--` separator on the
+    command line). The following options are supported:
+
+    `--update=PATH`
+    :   Path to a configuration file in which to update the `Snapshot=`
+        setting in the `[Distribution]` section. If the setting is not
+        present in the file, it is added to the `[Distribution]` section
+        (which is created if necessary).
+
+    `--commit`, `-c`
+    :   Commit the change made by `--update` to git with an appropriate
+        commit message. Has no effect without `--update`.
 
 `help`
 :   This verb is equivalent to the `--help` switch documented below: it

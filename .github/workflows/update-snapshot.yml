@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+name: update-snapshot
+
+on:
+  schedule:
+    # Update snapshots every three days at midnight
+    - cron: "0 0 */3 * *"
+  workflow_dispatch:
+
+jobs:
+  update-snapshot:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: arch
+            config: mkosi.conf.d/arch.conf
+          - distro: centos
+            config: mkosi.conf.d/centos.conf
+          - distro: debian
+            config: mkosi.conf.d/debian.conf
+          - distro: fedora
+            config: mkosi.conf.d/fedora/mkosi.conf
+          - distro: opensuse
+            config: mkosi.conf.d/opensuse/mkosi.conf
+          # Ubuntu does not have snapshots for the "devel" release
+          # - distro: ubuntu
+          #   config: mkosi.conf.d/ubuntu.conf
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - uses: actions/create-github-app-token@f8d387b68d61c58ab83c6c016672934102569859
+        id: token
+        with:
+          app-id: ${{ vars.TRIGGER_CHECKS_ON_WORKFLOW_APP_ID }}
+          private-key: ${{ secrets.TRIGGER_CHECKS_ON_WORKFLOW_PRIVATE_KEY }}
+
+      - uses: ./.github/actions/mkosi-update-snapshot
+        with:
+          token: ${{ steps.token.outputs.token }}
+          distribution: ${{ matrix.distro }}
+          config: ${{ matrix.config }}
