@@ -270,7 +270,14 @@ class Dnf(PackageManager):
         cls.invoke(
             context,
             "makecache",
-            arguments=[*(["--refresh"] if force else []), *arguments],
+            arguments=[
+                *(["--refresh"] if force else []),
+                # Some distros enable this, which is annoying: despite failed GPG verification, sync() would
+                # succeed; the later package installation then fails on the unusable cache. Fail right here
+                # to make the root cause visible.
+                "--setopt=skip_if_unavailable=0",
+                *arguments,
+            ],
             cached_metadata=False,
         )
 
