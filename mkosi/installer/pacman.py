@@ -178,6 +178,7 @@ class Pacman(PackageManager):
         *,
         apivfs: bool = False,
         stdout: _FILE = None,
+        retry: bool = False,
     ) -> CompletedProcess:
         with umask(~0o755):
             (context.root / "var/lib/pacman/local").mkdir(parents=True, exist_ok=True)
@@ -191,6 +192,8 @@ class Pacman(PackageManager):
             sandbox=cls.sandbox(context, apivfs=apivfs),
             env=cls.finalize_environment(context),
             stdout=stdout,
+            # Downloading repository metadata often fails with transient network errors
+            num_retries=3 if retry else 0,
         )
 
     @classmethod
@@ -256,7 +259,7 @@ class Pacman(PackageManager):
 
     @classmethod
     def sync(cls, context: Context, force: bool) -> None:
-        cls.invoke(context, "--sync", ["--refresh", *(["--refresh"] if force else [])])
+        cls.invoke(context, "--sync", ["--refresh", *(["--refresh"] if force else [])], retry=True)
 
     @classmethod
     def createrepo(cls, context: Context) -> None:

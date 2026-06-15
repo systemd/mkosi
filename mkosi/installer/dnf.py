@@ -227,6 +227,7 @@ class Dnf(PackageManager):
         apivfs: bool = False,
         stdout: _FILE = None,
         cached_metadata: bool = True,
+        retry: bool = False,
     ) -> CompletedProcess:
         try:
             return run(
@@ -234,6 +235,8 @@ class Dnf(PackageManager):
                 sandbox=cls.sandbox(context, apivfs=apivfs),
                 env=cls.finalize_environment(context),
                 stdout=stdout,
+                # Downloading repository metadata often fails with transient network errors
+                num_retries=3 if retry else 0,
             )
         finally:
             # dnf interprets the log directory relative to the install root so there's nothing we can do but
@@ -266,12 +269,13 @@ class Dnf(PackageManager):
         cls.invoke(context, "remove", packages, apivfs=True)
 
     @classmethod
-    def sync(cls, context: Context, force: bool, arguments: Sequence[str] = ()) -> None:
+    def sync(cls, context: Context, force: bool, arguments: Sequence[str] = (), retry: bool = True) -> None:
         cls.invoke(
             context,
             "makecache",
             arguments=[*(["--refresh"] if force else []), *arguments],
             cached_metadata=False,
+            retry=retry,
         )
 
     @classmethod
@@ -294,4 +298,5 @@ class Dnf(PackageManager):
             )
         )
 
-        cls.sync(context, force=True, arguments=["--disablerepo=*", "--enablerepo=mkosi"])
+        # The local repository never fails transiently, so don't retry.
+        cls.sync(context, force=True, arguments=["--disablerepo=*", "--enablerepo=mkosi"], retry=False)

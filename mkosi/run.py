@@ -15,6 +15,7 @@ import signal
 import subprocess
 import sys
 import threading
+import time
 import uuid
 from collections.abc import Awaitable, Collection, Iterator, Mapping, Sequence
 from contextlib import AbstractContextManager
@@ -238,27 +239,50 @@ def run(
     setup: Sequence[PathString] = (),
     sandbox: AbstractContextManager[Sequence[PathString]] = nosandbox(),
     cwd: Optional[PathString] = None,
+    num_retries: int = 0,
 ) -> CompletedProcess:
+    """
+    Run the command in cmdline and return the completed process.
+
+    If num_retries is larger than zero, a failing command is retried up to that many additional times,
+    with a cubically growing delay (1, 8, 27, ... seconds). Use this for commands that can fail transiently.
+    Retrying only applies to failures covered by check=True and success_exit_status.
+    """
     if input is not None:
         assert stdin is None  # stdin and input cannot be specified together
         stdin = subprocess.PIPE
 
-    with spawn(
-        cmdline,
-        check=check,
-        stdin=stdin,
-        stdout=stdout,
-        stderr=stderr,
-        env=env,
-        log=log,
-        success_exit_status=success_exit_status,
-        setup=setup,
-        sandbox=sandbox,
-        cwd=cwd,
-    ) as process:
-        out, err = process.communicate(input)
+    # The sandbox context manager can only be entered once, so enter it here and pass the entered
+    # options to each spawn() attempt.
+    with sandbox as sbx:
+        attempt = 0
+        while True:
+            try:
+                with spawn(
+                    cmdline,
+                    check=check,
+                    stdin=stdin,
+                    stdout=stdout,
+                    stderr=stderr,
+                    env=env,
+                    log=log,
+                    success_exit_status=success_exit_status,
+                    setup=setup,
+                    sandbox=contextlib.nullcontext(sbx),
+                    cwd=cwd,
+                ) as process:
+                    out, err = process.communicate(input)
 
-    return CompletedProcess(cmdline, process.returncode, out, err)
+                return CompletedProcess(cmdline, process.returncode, out, err)
+            except subprocess.CalledProcessError:
+                if attempt >= num_retries:
+                    raise
+
+                attempt += 1
+                # Retry immediately, then back off quickly: 1, 8, 27, ... seconds
+                delay = attempt**3
+                logging.info(f"Retrying in {delay} seconds ({attempt}/{num_retries})")
+                time.sleep(delay)
 
 
 def _preexec(
