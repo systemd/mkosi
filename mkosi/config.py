@@ -2121,6 +2121,7 @@ class Config:
     sysupdate_dir: Optional[Path]
     sector_size: Optional[int]
     overlay: bool
+    sparse_output: bool
     seed: uuid.UUID
     el_torito: ConfigFeature
     el_torito_system: Optional[str]
@@ -3050,6 +3051,13 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Output",
         parse=config_parse_boolean,
         help="Only output the additions on top of the given base trees",
+    ),
+    ConfigSetting(
+        dest="sparse_output",
+        metavar="BOOL",
+        section="Output",
+        parse=config_parse_boolean,
+        help="Convert the disk image to Android sparse format",
     ),
     ConfigSetting(
         dest="seed",
@@ -5828,6 +5836,7 @@ def summary(config: Config) -> str:
                  Repart Directories: {line_join_list(config.repart_dirs)}
                         Sector Size: {none_to_default(config.sector_size)}
                             Overlay: {yes_no(config.overlay)}
+                      Sparse Output: {yes_no(config.sparse_output)}
                                Seed: {none_to_random(config.seed)}
                           El Torito: {config.el_torito}
                    El Torito System: {none_to_none(config.el_torito_system)}

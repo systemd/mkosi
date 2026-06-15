@@ -902,6 +902,8 @@ def run_qemu(args: Args, config: Config) -> None:
         OutputFormat.directory,
     ):
         die(f"{config.output_format} images cannot be booted in qemu")
+    if config.sparse_output:
+        die("Sparse images cannot be booted in qemu")
 
     if (
         config.output_format in (OutputFormat.cpio, OutputFormat.uki, OutputFormat.esp)
