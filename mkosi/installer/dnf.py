@@ -119,6 +119,7 @@ class Dnf(PackageManager):
                             name={repo.id}
                             {repo.url}
                             gpgcheck=1
+                            repo_gpgcheck={int(repo.repo_gpgcheck)}
                             enabled={int(repo.enabled)}
                             """
                         )

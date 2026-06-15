@@ -149,6 +149,7 @@ class Installer(DistributionInstaller, distribution=Distribution.fedora):
 
     @classmethod
     def repositories(cls, context: Context) -> Iterable[RpmRepository]:
+        # Fedora doesn't sign its repository metadata (no repomd.xml.asc), so disable repo_gpgcheck.
         gpgurls = find_fedora_rpm_gpgkeys(context)
 
         mirror = context.config.mirror
@@ -165,7 +166,9 @@ class Installer(DistributionInstaller, distribution=Distribution.fedora):
             )
 
         if context.config.local_mirror:
-            yield RpmRepository("fedora", f"baseurl={context.config.local_mirror}", gpgurls)
+            yield RpmRepository(
+                "fedora", f"baseurl={context.config.local_mirror}", gpgurls, repo_gpgcheck=False
+            )
             return
 
         if context.config.release == "eln":
@@ -173,11 +176,21 @@ class Installer(DistributionInstaller, distribution=Distribution.fedora):
 
             for repo in ("AppStream", "BaseOS", "Extras", "CRB"):
                 url = f"baseurl={join_mirror(mirror, repo)}"
-                yield RpmRepository(repo.lower(), f"{url}/$basearch/os", gpgurls)
+                yield RpmRepository(repo.lower(), f"{url}/$basearch/os", gpgurls, repo_gpgcheck=False)
                 yield RpmRepository(
-                    f"{repo.lower()}-debuginfo", f"{url}/$basearch/debug/tree", gpgurls, enabled=False
+                    f"{repo.lower()}-debuginfo",
+                    f"{url}/$basearch/debug/tree",
+                    gpgurls,
+                    enabled=False,
+                    repo_gpgcheck=False,
                 )
-                yield RpmRepository(f"{repo.lower()}-source", f"{url}/source/tree", gpgurls, enabled=False)
+                yield RpmRepository(
+                    f"{repo.lower()}-source",
+                    f"{url}/source/tree",
+                    gpgurls,
+                    enabled=False,
+                    repo_gpgcheck=False,
+                )
         elif mirror:
             # Snapshot= implies the koji compose URL layout (compose/<release>/
             # Fedora-<Release>-<snapshot>/compose/Everything/...), regardless
@@ -194,62 +207,108 @@ class Installer(DistributionInstaller, distribution=Distribution.fedora):
                 subdir += "/$releasever"
 
             url = f"baseurl={join_mirror(mirror, f'{subdir}/Everything')}"
-            yield RpmRepository("fedora", f"{url}/$basearch/os", gpgurls)
-            yield RpmRepository("fedora-debuginfo", f"{url}/$basearch/debug/tree", gpgurls, enabled=False)
-            yield RpmRepository("fedora-source", f"{url}/source/tree", gpgurls, enabled=False)
+            yield RpmRepository("fedora", f"{url}/$basearch/os", gpgurls, repo_gpgcheck=False)
+            yield RpmRepository(
+                "fedora-debuginfo",
+                f"{url}/$basearch/debug/tree",
+                gpgurls,
+                enabled=False,
+                repo_gpgcheck=False,
+            )
+            yield RpmRepository(
+                "fedora-source", f"{url}/source/tree", gpgurls, enabled=False, repo_gpgcheck=False
+            )
 
             # Snapshot= pins to a frozen koji compose, which has no separate
             # linux/updates/ tree, so skip the updates repos in that case.
             if context.config.release != "rawhide" and not context.config.snapshot:
                 url = f"baseurl={join_mirror(mirror, 'linux/updates/$releasever/Everything')}"
-                yield RpmRepository("updates", f"{url}/$basearch", gpgurls)
-                yield RpmRepository("updates-debuginfo", f"{url}/$basearch/debug", gpgurls, enabled=False)
-                yield RpmRepository("updates-source", f"{url}/source/tree", gpgurls, enabled=False)
+                yield RpmRepository("updates", f"{url}/$basearch", gpgurls, repo_gpgcheck=False)
+                yield RpmRepository(
+                    "updates-debuginfo",
+                    f"{url}/$basearch/debug",
+                    gpgurls,
+                    enabled=False,
+                    repo_gpgcheck=False,
+                )
+                yield RpmRepository(
+                    "updates-source", f"{url}/source/tree", gpgurls, enabled=False, repo_gpgcheck=False
+                )
 
                 url = f"baseurl={join_mirror(mirror, 'linux/updates/testing/$releasever/Everything')}"
-                yield RpmRepository("updates-testing", f"{url}/$basearch", gpgurls, enabled=False)
                 yield RpmRepository(
-                    "updates-testing-debuginfo", f"{url}/$basearch/debug", gpgurls, enabled=False
+                    "updates-testing", f"{url}/$basearch", gpgurls, enabled=False, repo_gpgcheck=False
                 )
-                yield RpmRepository("updates-testing-source", f"{url}/source/tree", gpgurls, enabled=False)
+                yield RpmRepository(
+                    "updates-testing-debuginfo",
+                    f"{url}/$basearch/debug",
+                    gpgurls,
+                    enabled=False,
+                    repo_gpgcheck=False,
+                )
+                yield RpmRepository(
+                    "updates-testing-source",
+                    f"{url}/source/tree",
+                    gpgurls,
+                    enabled=False,
+                    repo_gpgcheck=False,
+                )
         else:
             url = "metalink=https://mirrors.fedoraproject.org/metalink?arch=$basearch"
-            yield RpmRepository("fedora", f"{url}&repo=fedora-$releasever", gpgurls)
+            yield RpmRepository("fedora", f"{url}&repo=fedora-$releasever", gpgurls, repo_gpgcheck=False)
             yield RpmRepository(
-                "fedora-debuginfo", f"{url}&repo=fedora-debug-$releasever", gpgurls, enabled=False
+                "fedora-debuginfo",
+                f"{url}&repo=fedora-debug-$releasever",
+                gpgurls,
+                enabled=False,
+                repo_gpgcheck=False,
             )
             yield RpmRepository(
-                "fedora-source", f"{url}&repo=fedora-source-$releasever", gpgurls, enabled=False
+                "fedora-source",
+                f"{url}&repo=fedora-source-$releasever",
+                gpgurls,
+                enabled=False,
+                repo_gpgcheck=False,
             )
 
             if context.config.release != "rawhide":
-                yield RpmRepository("updates", f"{url}&repo=updates-released-f$releasever", gpgurls)
+                yield RpmRepository(
+                    "updates", f"{url}&repo=updates-released-f$releasever", gpgurls, repo_gpgcheck=False
+                )
                 yield RpmRepository(
                     "updates-debuginfo",
                     f"{url}&repo=updates-released-debug-f$releasever",
                     gpgurls,
                     enabled=False,
+                    repo_gpgcheck=False,
                 )
                 yield RpmRepository(
                     "updates-source",
                     f"{url}&repo=updates-released-source-f$releasever",
                     gpgurls,
                     enabled=False,
+                    repo_gpgcheck=False,
                 )
                 yield RpmRepository(
-                    "updates-testing", f"{url}&repo=updates-testing-f$releasever", gpgurls, enabled=False
+                    "updates-testing",
+                    f"{url}&repo=updates-testing-f$releasever",
+                    gpgurls,
+                    enabled=False,
+                    repo_gpgcheck=False,
                 )
                 yield RpmRepository(
                     "updates-testing-debuginfo",
                     f"{url}&repo=updates-testing-debug-f$releasever",
                     gpgurls,
                     enabled=False,
+                    repo_gpgcheck=False,
                 )
                 yield RpmRepository(
                     "updates-testing-source",
                     f"{url}&repo=updates-testing-source-f$releasever",
                     gpgurls,
                     enabled=False,
+                    repo_gpgcheck=False,
                 )
 
     @classmethod

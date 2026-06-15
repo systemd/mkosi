@@ -23,6 +23,11 @@ class RpmRepository:
     sslclientcert: Optional[Path] = None
     priority: Optional[int] = None
 
+    # True if the repository metadata (repomd.xml) is GPG-signed with a key we configure (e.g. CentOS).
+    # False for repositories that don't publish a repomd signature (e.g. Fedora, EPEL) or sign it with
+    # a key we don't have. rpm signatures (gpgcheck) are always verified.
+    repo_gpgcheck: bool = True
+
 
 @overload
 def find_rpm_gpgkey(

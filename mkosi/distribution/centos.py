@@ -169,16 +169,20 @@ class Installer(DistributionInstaller, distribution=Distribution.centos):
                 subdir += f"/CentOS-Stream-{context.config.release}-{context.config.snapshot}/compose"
 
             if repo == "extras":
+                # extras-common signs its metadata with the CentOS SIG key, not the main key we
+                # configure, so we can't verify its metadata signature.
                 yield RpmRepository(
                     repo.lower(),
                     f"baseurl={join_mirror(mirror, f'{subdir}/{repo}/$basearch/extras-common')}",
                     gpgurls,
+                    repo_gpgcheck=False,
                 )
                 yield RpmRepository(
                     f"{repo.lower()}-source",
                     f"baseurl={join_mirror(mirror, f'{subdir}/{repo}/source/extras-common')}",
                     gpgurls,
                     enabled=False,
+                    repo_gpgcheck=False,
                 )
             else:
                 yield RpmRepository(
@@ -206,12 +210,14 @@ class Installer(DistributionInstaller, distribution=Distribution.centos):
                     repo.lower(),
                     f"{url}?arch=$basearch&repo=centos-extras-sig-extras-common-$stream",
                     gpgurls,
+                    repo_gpgcheck=False,
                 )
                 yield RpmRepository(
                     f"{repo.lower()}-source",
                     f"{url}?arch=source&repo=centos-extras-sig-extras-common-source-$stream",
                     gpgurls,
                     enabled=False,
+                    repo_gpgcheck=False,
                 )
             else:
                 yield RpmRepository(
@@ -299,18 +305,21 @@ class Installer(DistributionInstaller, distribution=Distribution.centos):
                     f"baseurl={url}/{dir}/{reldir}/Everything/$basearch",
                     gpgurls,
                     enabled=False,
+                    repo_gpgcheck=False,
                 )
                 yield RpmRepository(
                     f"{repo}-debuginfo",
                     f"baseurl={url}/{dir}/{reldir}/Everything/$basearch/debug",
                     gpgurls,
                     enabled=False,
+                    repo_gpgcheck=False,
                 )
                 yield RpmRepository(
                     f"{repo}-source",
                     f"baseurl={url}/{dir}/{reldir}/Everything/source/tree",
                     gpgurls,
                     enabled=False,
+                    repo_gpgcheck=False,
                 )
         else:
             if GenericVersion(context.config.release) >= 10:
@@ -322,18 +331,21 @@ class Installer(DistributionInstaller, distribution=Distribution.centos):
                     f"{url}?repo=epel{z}-{release}&arch=$basearch",
                     gpgurls,
                     enabled=False,
+                    repo_gpgcheck=False,
                 )
                 yield RpmRepository(
                     "epel-debuginfo",
                     f"{url}?repo=epel{z}-debug-{release}&arch=$basearch",
                     gpgurls,
                     enabled=False,
+                    repo_gpgcheck=False,
                 )
                 yield RpmRepository(
                     "epel-source",
                     f"{url}?repo=epel{z}-source-{release}&arch=source",
                     gpgurls,
                     enabled=False,
+                    repo_gpgcheck=False,
                 )
 
                 yield RpmRepository(
@@ -341,18 +353,21 @@ class Installer(DistributionInstaller, distribution=Distribution.centos):
                     f"{url}?repo=epel{z}-testing-{release}&arch=$basearch",
                     gpgurls,
                     enabled=False,
+                    repo_gpgcheck=False,
                 )
                 yield RpmRepository(
                     "epel-testing-debuginfo",
                     f"{url}?repo=epel{z}-testing-debug-{release}&arch=$basearch",
                     gpgurls,
                     enabled=False,
+                    repo_gpgcheck=False,
                 )
                 yield RpmRepository(
                     "epel-testing-source",
                     f"{url}?repo=epel{z}-testing-source-{release}&arch=source",
                     gpgurls,
                     enabled=False,
+                    repo_gpgcheck=False,
                 )
             else:
                 url = "metalink=https://mirrors.fedoraproject.org/metalink?arch=$basearch"
@@ -363,18 +378,21 @@ class Installer(DistributionInstaller, distribution=Distribution.centos):
                         f"{url}&repo={repo}-{release}",
                         gpgurls,
                         enabled=False,
+                        repo_gpgcheck=False,
                     )
                     yield RpmRepository(
                         f"{repo}-debuginfo",
                         f"{url}&repo={repo}-debug-{release}",
                         gpgurls,
                         enabled=False,
+                        repo_gpgcheck=False,
                     )
                     yield RpmRepository(
                         f"{repo}-source",
                         f"{url}&repo={repo}-source-{release}",
                         gpgurls,
                         enabled=False,
+                        repo_gpgcheck=False,
                     )
 
                 yield RpmRepository(
@@ -382,18 +400,21 @@ class Installer(DistributionInstaller, distribution=Distribution.centos):
                     f"{url}&repo=testing-epel{release}",
                     gpgurls,
                     enabled=False,
+                    repo_gpgcheck=False,
                 )
                 yield RpmRepository(
                     "epel-testing-debuginfo",
                     f"{url}&repo=testing-debug-epel{release}",
                     gpgurls,
                     enabled=False,
+                    repo_gpgcheck=False,
                 )
                 yield RpmRepository(
                     "epel-testing-source",
                     f"{url}&repo=testing-source-epel{release}",
                     gpgurls,
                     enabled=False,
+                    repo_gpgcheck=False,
                 )
 
                 yield RpmRepository(
@@ -401,18 +422,21 @@ class Installer(DistributionInstaller, distribution=Distribution.centos):
                     f"{url}&repo=epel-testing-next-{release}",
                     gpgurls,
                     enabled=False,
+                    repo_gpgcheck=False,
                 )
                 yield RpmRepository(
                     "epel-next-testing-debuginfo",
                     f"{url}&repo=epel-testing-next-debug-{release}",
                     gpgurls,
                     enabled=False,
+                    repo_gpgcheck=False,
                 )
                 yield RpmRepository(
                     "epel-next-testing-source",
                     f"{url}&repo=epel-testing-next-source-{release}",
                     gpgurls,
                     enabled=False,
+                    repo_gpgcheck=False,
                 )
 
     @classmethod
