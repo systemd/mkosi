@@ -53,6 +53,7 @@ jobs:
           - debian
           - fedora
           - opensuse
+          - postmarketos
           - ubuntu
         tools:
           - arch
@@ -80,6 +81,13 @@ jobs:
             tools: opensuse
           - distro: ubuntu
             tools: opensuse
+          # apk is not packaged in Debian, Ubuntu, or EPEL.
+          - distro: postmarketos
+            tools: centos
+          - distro: postmarketos
+            tools: debian
+          - distro: postmarketos
+            tools: ubuntu
         include:
           # low rate limit on s390x/ppc64le/arm64 workers
           - distro: debian
@@ -103,6 +111,10 @@ jobs:
           - distro: debian
             tools: debian
             runner: ubuntu-24.04-s390x
+          # build pmOS using pmOS tools tree
+          - distro: postmarketos
+            tools: postmarketos
+            runner: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
