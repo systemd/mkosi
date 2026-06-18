@@ -39,6 +39,10 @@ def curl(config: Config, url: str, *, output_dir: Optional[Path] = None, log: bo
             *(["--remote-name"] if output_dir else []),
             "--no-progress-meter",
             "--fail",
+            # be resilient against transient network failures
+            "--retry", "5",
+            # include mid-transfer connection reset
+            "--retry-all-errors",
             *(["--silent"] if not log else []),
             *(["--proxy", config.proxy_url] if config.proxy_url else []),
             *(["--noproxy", ",".join(config.proxy_exclude)] if config.proxy_exclude else []),
