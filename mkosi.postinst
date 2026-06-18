@@ -2,4 +2,7 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 set -ex
 
+# Enabled in the initrd (which has lvm2) and can fail there when udev activation races dmeventd.
+# That failed state is inherited across switch-root into the main image, where lvm2 isn't even
+# installed, surfacing as not-found/failed noise. Mask it so mkosi-check-and-shutdown.sh ignores it.
 systemctl --root="$BUILDROOT" mask lvm2-monitor.service
