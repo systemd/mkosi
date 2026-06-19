@@ -107,6 +107,16 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
         zypper = cls.package_manager(context.config) is Zypper
         mirror = context.config.mirror or "https://download.opensuse.org"
 
+        def repourl(base: str) -> str:
+            if context.config.mirror:
+                # Custom mirrors don't provide a metalink
+                return f"baseurl={base}"
+
+            # download.opensuse.org serves a metalink for every repodata file. Using it lets libdnf/libzypp
+            # fall back to another mirror when a download fails, instead of giving up when being routed us to
+            # a slow, overloaded or out-of-date mirror.
+            return f"metalink={base}/repodata/repomd.xml.metalink"
+
         if context.config.release == "tumbleweed":
             gpgkeys = tuple(
                 p
@@ -143,7 +153,7 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
                 url = join_mirror(mirror, f"{subdir}/tumbleweed/repo/{repo}")
                 yield RpmRepository(
                     id=repo,
-                    url=f"baseurl={url}",
+                    url=repourl(url),
                     gpgurls=gpgkeys or (fetch_gpgurls(context, url) if not zypper else ()),
                     enabled=repo == "oss",
                 )
@@ -155,7 +165,7 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
                         url = join_mirror(mirror, f"{subdir}/{d}/tumbleweed/repo/{repo}")
                         yield RpmRepository(
                             id=f"{repo}-{d}",
-                            url=f"baseurl={url}",
+                            url=repourl(url),
                             gpgurls=gpgkeys or (fetch_gpgurls(context, url) if not zypper else ()),
                             enabled=False,
                         )
@@ -164,14 +174,14 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
                 url = join_mirror(mirror, f"{subdir}/update/tumbleweed")
                 yield RpmRepository(
                     id="oss-update",
-                    url=f"baseurl={url}",
+                    url=repourl(url),
                     gpgurls=gpgkeys or (fetch_gpgurls(context, url) if not zypper else ()),
                 )
 
                 url = join_mirror(mirror, f"{subdir}/update/tumbleweed-non-oss")
                 yield RpmRepository(
                     id="non-oss-update",
-                    url=f"baseurl={url}",
+                    url=repourl(url),
                     gpgurls=gpgkeys or (fetch_gpgurls(context, url) if not zypper else ()),
                     enabled=False,
                 )
@@ -232,7 +242,7 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
                 url = join_mirror(mirror, f"{subdir}/distribution/{release}/repo/{repo}")
                 yield RpmRepository(
                     id=repo,
-                    url=f"baseurl={url}",
+                    url=repourl(url),
                     gpgurls=gpgkeys or (fetch_gpgurls(context, url) if not zypper else ()),
                     enabled=repo == "oss",
                 )
@@ -242,7 +252,7 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
                     url = join_mirror(mirror, f"{subdir}/{d}/distribution/{release}/repo/{repo}")
                     yield RpmRepository(
                         id=f"{repo}-{d}",
-                        url=f"baseurl={url}",
+                        url=repourl(url),
                         gpgurls=gpgkeys or (fetch_gpgurls(context, url) if not zypper else ()),
                         enabled=False,
                     )
@@ -259,7 +269,7 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
                 url = join_mirror(mirror, f"{subdir}/{repo}")
                 yield RpmRepository(
                     id=f"{repo}-update",
-                    url=f"baseurl={url}",
+                    url=repourl(url),
                     gpgurls=gpgkeys or (fetch_gpgurls(context, url) if not zypper else ()),
                     enabled=repo == "oss",
                 )
