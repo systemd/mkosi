@@ -42,15 +42,16 @@ def pytest_addoption(parser: Any) -> None:
 def config(request: Any) -> ImageConfig:
     distribution = cast(Distribution, request.config.getoption("--distribution"))
     with resource_path(mkosi.resources) as resources:
-        release = cast(
-            str,
-            request.config.getoption("--release")
-            or parse_config(["-d", str(distribution)], resources=resources)[2][0].release,
-        )
+        # Reads the local configuration (mkosi.local.conf) written by integration-test-setup.sh.
+        parsed = parse_config(["-d", str(distribution)], resources=resources)[2][0]
+    release = cast(str, request.config.getoption("--release") or parsed.release)
     return ImageConfig(
         distribution=distribution,
         release=release,
         debug_shell=request.config.getoption("--debug-shell"),
+        # Pin the same snapshot as the main image so builds that don't read mkosi.local.conf still
+        # use it (e.g. the extension build, which passes --directory '').
+        snapshot=parsed.snapshot,
     )
 
 

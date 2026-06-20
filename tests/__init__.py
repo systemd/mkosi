@@ -25,6 +25,7 @@ class ImageConfig:
     distribution: Distribution
     release: str
     debug_shell: bool
+    snapshot: Optional[str] = None
 
 
 class Image:
@@ -92,6 +93,9 @@ class Image:
         opt: list[PathString] = [
             "--distribution", str(self.config.distribution),
             "--release", self.config.release,
+            # Pass the snapshot explicitly so that extension builds which don't read mkosi.local.conf
+            # still pin the same snapshot as the base image.
+            *(["--snapshot", self.config.snapshot] if self.config.snapshot else []),
             *(f"--kernel-command-line={i}" for i in kcl),
             "--force",
             "--incremental=strict",
