@@ -5286,6 +5286,15 @@ def finalize_default_tools(
 ) -> Config:
     context = ParseContext(resources)
 
+    context.config |= {
+        "image": "tools",
+        "directory": finalized["directory"],
+        "files": [],
+    }
+
+    with chdir(resources / "mkosi-tools"):
+        context.parse_config_one(resources / "mkosi-tools", parse_profiles=True)
+
     for s in SETTINGS:
         if s.scope == SettingScope.multiversal:
             context.cli[s.dest] = copy.deepcopy(finalized[s.dest])
@@ -5322,9 +5331,6 @@ def finalize_default_tools(
         with chdir(p if p.is_dir() else Path.cwd()):
             context.parse_config_one(p, parse_profiles=p.is_dir(), parse_local=p.is_dir())
 
-    with chdir(resources / "mkosi-tools"):
-        context.parse_config_one(resources / "mkosi-tools", parse_profiles=True)
-
     return Config.from_dict(context.finalize())
 
 
@@ -5336,6 +5342,15 @@ def finalize_default_initrd(
     resources: Path,
 ) -> Config:
     context = ParseContext(resources)
+
+    context.config |= {
+        "image": "default-initrd",
+        "directory": finalized["directory"],
+        "files": [],
+    }
+
+    with chdir(resources / "mkosi-initrd"):
+        context.parse_config_one(resources / "mkosi-initrd", parse_profiles=True)
 
     for s in SETTINGS:
         if s.scope in (SettingScope.universal, SettingScope.multiversal):
@@ -5372,9 +5387,6 @@ def finalize_default_initrd(
     if configdir and (p := configdir / "mkosi.initrd.conf").exists():
         with chdir(p if p.is_dir() else Path.cwd()):
             context.parse_config_one(p, parse_profiles=p.is_dir(), parse_local=p.is_dir())
-
-    with chdir(resources / "mkosi-initrd"):
-        context.parse_config_one(resources / "mkosi-initrd", parse_profiles=True)
 
     return Config.from_dict(context.finalize())
 
