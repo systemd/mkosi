@@ -1573,21 +1573,28 @@ def enter(argv: list[str]) -> list[str]:
             del os.environ[e]
 
     namespaces = CLONE_NEWNS
-    if unshare_net and have_effective_cap(CAP_NET_ADMIN):
-        namespaces |= CLONE_NEWNET
     if unshare_ipc:
         namespaces |= CLONE_NEWIPC
 
-    network = bool(namespaces & CLONE_NEWNET)
     foreign = any(fsop.foreign for fsop in fsops if isinstance(fsop, BindOperation))
 
+    # We might not have CAP_NET_ADMIN in the current user namespace, but acquire_privileges() may set up a
+    # new user namespace in which we do. So pass along whether we want to unshare the network namespace so
+    # the network capabilities are preserved, and decide whether we can actually unshare it afterwards.
     userns = acquire_privileges(
         identity=True,
         foreign=map_foreign,
         delegate=(map_delegate + int(foreign)),
         become_root=(not foreign and become_root),
-        network=network,
+        network=unshare_net,
     )
+
+    # Now that privileges have been acquired (possibly in a fresh user namespace where we hold
+    # CAP_NET_ADMIN), check whether we can actually unshare the network namespace.
+    if unshare_net and have_effective_cap(CAP_NET_ADMIN):
+        namespaces |= CLONE_NEWNET
+
+    network = bool(namespaces & CLONE_NEWNET)
 
     transient_userns_fd = -EBADF
     if foreign:
