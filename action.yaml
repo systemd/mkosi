@@ -102,14 +102,26 @@ runs:
       # ubuntu-24.04 doesn't package apk, so fetch the official statically-linked binary from
       # upstream so mkosi can use it to populate the postmarketOS tools tree.
       #
+      # Since gitlab API can be unreliable, this is retried a few times if there
+      # is a failure when fetching. Since all jobs might use this action file,
+      # a failure to fetch APK is not treated as fatal, even if it means some
+      # jobs that use apk might fail later.
+      #
       # NOTE: apk is dropped into /usr/bin and not /usr/local/bin because later CI
       # scripts (like .github/workflows/ci.yml) clean up /usr/local
       if: ${{ inputs.apk == 'true' }}
       shell: bash
       run: |
-        sudo curl -fsSL -o /usr/bin/apk https://gitlab.alpinelinux.org/api/v4/projects/5/packages/generic/v3.0.6/x86_64/apk.static
-        echo 'f1489e05bace7d7dd0a687fcd38d50b585ac660af4231668b123649bef3718c4  /usr/bin/apk' | sha256sum --check
-        sudo chmod +x /usr/bin/apk
+        (
+            set -ex
+            APK_TOOLS_API="https://gitlab.alpinelinux.org/api/v4/projects/5"
+            APK_VERSION=$(curl -fsSL --retry 5 --retry-all-errors "$APK_TOOLS_API/repository/tags?per_page=1" | jq -r '.[0].name')
+            APK_PKG_ID=$(curl -fsSL --retry 5 --retry-all-errors "$APK_TOOLS_API/packages?package_name=${APK_VERSION}&package_type=generic" | jq '.[] | select(.version == "x86_64") | .id')
+            APK_SHA256=$(curl -fsSL --retry 5 --retry-all-errors "$APK_TOOLS_API/packages/${APK_PKG_ID}/package_files" | jq -r '.[0].file_sha256')
+            sudo curl -fsSL --retry 5 --retry-all-errors -o /usr/bin/apk "$APK_TOOLS_API/packages/generic/${APK_VERSION}/x86_64/apk.static"
+            echo "${APK_SHA256}  /usr/bin/apk" | sha256sum --check
+            sudo chmod +x /usr/bin/apk
+        ) || echo "WARNING: Failed to fetch latest apk!"
 
     - name: Dependencies
       shell: bash
