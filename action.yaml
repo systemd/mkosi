@@ -1,6 +1,12 @@
 name: setup-mkosi
 description: Install mkosi
 
+inputs:
+  apk:
+    description: Install the apk package manager (required to bootstrap a postmarketOS tools tree)
+    required: false
+    default: "false"
+
 runs:
   using: composite
   steps:
@@ -98,15 +104,12 @@ runs:
       #
       # NOTE: apk is dropped into /usr/bin and not /usr/local/bin because later CI
       # scripts (like .github/workflows/ci.yml) clean up /usr/local
+      if: ${{ inputs.apk == 'true' }}
       shell: bash
       run: |
-        if sudo curl -fsSL -o /usr/bin/apk https://gitlab.alpinelinux.org/api/v4/projects/5/packages/generic/v3.0.6/x86_64/apk.static
-        then
-            echo 'f1489e05bace7d7dd0a687fcd38d50b585ac660af4231668b123649bef3718c4  /usr/bin/apk' | sha256sum --check
-            sudo chmod +x /usr/bin/apk
-        else
-            echo "WARNING: Failed to fetch latest apk!"
-        fi
+        sudo curl -fsSL -o /usr/bin/apk https://gitlab.alpinelinux.org/api/v4/projects/5/packages/generic/v3.0.6/x86_64/apk.static
+        echo 'f1489e05bace7d7dd0a687fcd38d50b585ac660af4231668b123649bef3718c4  /usr/bin/apk' | sha256sum --check
+        sudo chmod +x /usr/bin/apk
 
     - name: Dependencies
       shell: bash

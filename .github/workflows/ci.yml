@@ -119,6 +119,10 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       - uses: ./
+        with:
+          # Bootstrapping a postmarketOS tools tree on the Ubuntu host needs apk; all other
+          # tools trees install apk-tools from th tools distro's own repo
+          apk: ${{ matrix.tools == 'postmarketos' }}
 
       # Freeing up disk space with rm -rf can take multiple minutes. Since we don't need the extra free space
       # immediately, we remove the files in the background. However, we first move them to a different location so that
