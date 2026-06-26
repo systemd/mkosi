@@ -1992,3 +1992,35 @@ def test_history_empty_list(tmp_path: Path) -> None:
         _, _, [main] = parse_config(["summary"])
 
     assert main.package_directories == []
+
+
+def test_history_found_via_configured_output_directory(tmp_path: Path) -> None:
+    d = tmp_path
+
+    out = d / "out"
+
+    # Mirror what systemd does: it both declares OutputDirectory= in config *and* passes the same path via
+    # -O on the build command line (from its meson build), while consumers rely on the configured value
+    # alone.
+    (d / "mkosi.conf").write_text(
+        f"""\
+        [Distribution]
+        Distribution=fedora
+
+        [Output]
+        OutputDirectory={out}
+
+        [Build]
+        History=yes
+        """
+    )
+
+    with chdir(d):
+        # The build passes -O explicitly, pointing at the same directory the config already configures.
+        parse_config(["--output-directory", str(out), "--image-id", "img-x", "build"])
+
+        # A consumer relies on the configured OutputDirectory and passes no -O. It must still read back
+        # the build's history.
+        _, _, [config] = parse_config(["summary"])
+
+    assert config.image_id == "img-x"
