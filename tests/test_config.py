@@ -2024,3 +2024,32 @@ def test_history_found_via_configured_output_directory(tmp_path: Path) -> None:
         _, _, [config] = parse_config(["summary"])
 
     assert config.image_id == "img-x"
+
+
+def test_history_isolated_per_output_directory(tmp_path: Path) -> None:
+    d = tmp_path
+
+    (d / "mkosi.conf").write_text(
+        """\
+        [Distribution]
+        Distribution=fedora
+
+        [Build]
+        History=yes
+        """
+    )
+
+    out_a = d / "out-a"
+    out_b = d / "out-b"
+
+    # Two builds into different output directories, each recording its own build history, distinguished
+    # by ImageId so we can tell which build a later consumer reads back.
+    with chdir(d):
+        parse_config(["--output-directory", str(out_a), "--image-id", "img-a", "build"])
+        parse_config(["--output-directory", str(out_b), "--image-id", "img-b", "build"])
+
+        # A verb that consumes a previous build, pointed at output directory A, must read back the
+        # configuration of the build that wrote into A -- not whichever build happened to run last.
+        _, _, [config] = parse_config(["--output-directory", str(out_a), "summary"])
+
+    assert config.image_id == "img-a"

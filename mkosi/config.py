@@ -5445,7 +5445,12 @@ def want_default_initrd(config: Config) -> bool:
     return Path("default") in config.initrds
 
 
-def finalize_historydir(args: Args) -> Path:
+def finalize_historydir(args: Args, output_dir: Optional[Path] = None) -> Path:
+    # When an output directory is given, the build history is also stored there so that builds into
+    # distinct output directories don't read each other's history. Otherwise it lives in the config dir.
+    if output_dir is not None:
+        return output_dir / ".mkosi-private/history"
+
     configdir = finalize_configdir(args.directory)
     return (configdir or Path.cwd()) / ".mkosi-private/history"
 
@@ -5502,7 +5507,13 @@ def parse_config(
         return args, None, ()
 
     configdir = finalize_configdir(args.directory)
-    historydir = finalize_historydir(args)
+    config_historydir = finalize_historydir(args)
+    # Prefer the history stored in the output directory (when --output-directory is given on the CLI) so a
+    # consumer reads back exactly the build that wrote into that directory. Fall back to the config dir for
+    # consumers that don't pass --output-directory and for history written by older mkosi versions.
+    historydir = finalize_historydir(args, context.cli.get("output_dir"))
+    if not (historydir / "latest.json").exists():
+        historydir = config_historydir
 
     if have_history(args, historydir):
         history = Config.from_partial_json((historydir / "latest.json").read_text())
@@ -5555,8 +5566,14 @@ def parse_config(
     maincontext = copy.deepcopy(context)
 
     if config["history"] and want_new_history(args):
-        historydir.mkdir(parents=True, exist_ok=True)
-        (historydir / "latest.json").write_text(dump_json(Config.to_partial_dict(cli)))
+        # Store the history in the config dir (so consumers that don't pass --output-directory find it) and,
+        # when an output directory is configured, in the output directory too (so builds into distinct
+        # output directories stay isolated). These coincide when no output directory is set. This keys on
+        # the finalized output dir (config or CLI), unlike the read above which can only use the CLI value
+        # (the configuration isn't parsed yet there), so don't collapse the two into one variable.
+        for hd in {config_historydir, finalize_historydir(args, config.get("output_dir"))}:
+            hd.mkdir(parents=True, exist_ok=True)
+            (hd / "latest.json").write_text(dump_json(Config.to_partial_dict(cli)))
 
     tools = None
     if config.get("tools_tree") in (Path("default"), Path("yes")):
