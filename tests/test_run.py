@@ -3,62 +3,65 @@
 import contextlib
 import os
 import subprocess
+import tempfile
 from pathlib import Path
 
-import pytest
+import barrage.assertions as Assert
 
 from mkosi.run import fork_and_wait
 
 
-def test_fork_and_wait_returns_value() -> None:
+async def test_fork_and_wait_returns_value() -> None:
     result = fork_and_wait(lambda: 42)
-    assert result == 42
+    Assert.eq(result, 42)
 
 
-def test_fork_and_wait_returns_none() -> None:
+async def test_fork_and_wait_returns_none() -> None:
     result = fork_and_wait(lambda: None)
-    assert result is None
+    Assert.none(result)
 
 
-def test_fork_and_wait_returns_string() -> None:
+async def test_fork_and_wait_returns_string() -> None:
     result = fork_and_wait(lambda: "hello world")
-    assert result == "hello world"
+    Assert.eq(result, "hello world")
 
 
-def test_fork_and_wait_returns_complex_type() -> None:
+async def test_fork_and_wait_returns_complex_type() -> None:
     result = fork_and_wait(lambda: {"key": [1, 2, 3], "nested": {"a": True}})
-    assert result == {"key": [1, 2, 3], "nested": {"a": True}}
+    Assert.eq(result, {"key": [1, 2, 3], "nested": {"a": True}})
 
 
-def test_fork_and_wait_passes_args() -> None:
+async def test_fork_and_wait_passes_args() -> None:
     def add(a: int, b: int) -> int:
         return a + b
 
     result = fork_and_wait(add, 3, 4)
-    assert result == 7
+    Assert.eq(result, 7)
 
 
-def test_fork_and_wait_passes_kwargs() -> None:
+async def test_fork_and_wait_passes_kwargs() -> None:
     def greet(name: str, greeting: str = "Hello") -> str:
         return f"{greeting}, {name}!"
 
     result = fork_and_wait(greet, "world", greeting="Hi")
-    assert result == "Hi, world!"
+    Assert.eq(result, "Hi, world!")
 
 
-def test_fork_and_wait_child_failure() -> None:
+async def test_fork_and_wait_child_failure() -> None:
     def fail() -> None:
         raise RuntimeError("boom")
 
-    with pytest.raises(subprocess.CalledProcessError):
+    with Assert.raises(subprocess.CalledProcessError):
         fork_and_wait(fail)
 
 
-def test_fork_and_wait_sandbox(tmp_path: Path) -> None:
-    (tmp_path / "abc").mkdir()
+async def test_fork_and_wait_sandbox() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        (tmp_path / "abc").mkdir()
 
-    def exists() -> bool:
-        return Path("/abc").exists()
+        def exists() -> bool:
+            return Path("/abc").exists()
 
-    result = fork_and_wait(exists, sandbox=contextlib.nullcontext(["--bind", os.fspath(tmp_path), "/"]))
-    assert result
+        result = fork_and_wait(exists, sandbox=contextlib.nullcontext(["--bind", os.fspath(tmp_path), "/"]))
+        Assert.true(result)

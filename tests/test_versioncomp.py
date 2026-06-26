@@ -2,103 +2,98 @@
 
 import itertools
 
-import pytest
+import barrage.assertions as Assert
 
 from mkosi.versioncomp import GenericVersion
 
 
-def test_conversion() -> None:
-    assert GenericVersion("1") < 2
-    assert GenericVersion("1") < "2"
-    assert GenericVersion("2") > 1
-    assert GenericVersion("2") > "1"
-    assert GenericVersion("1") == "1"
+def RPMVERCMP(a: str, b: str, expected: int) -> None:
+    Assert.eq(
+        (GenericVersion(a) > GenericVersion(b)) - (GenericVersion(a) < GenericVersion(b)),
+        expected,
+    )
 
 
-def test_generic_version_systemd() -> None:
+async def test_conversion() -> None:
+    Assert.lt(GenericVersion("1"), 2)
+    Assert.lt(GenericVersion("1"), "2")
+    Assert.gt(GenericVersion("2"), 1)
+    Assert.gt(GenericVersion("2"), "1")
+    Assert.eq(GenericVersion("1"), "1")
+
+
+async def test_generic_version_systemd() -> None:
     """Same as the first block of systemd/test/test-compare-versions.sh"""
-    assert GenericVersion("1") < GenericVersion("2")
-    assert GenericVersion("1") <= GenericVersion("2")
-    assert GenericVersion("1") != GenericVersion("2")
-    assert not (GenericVersion("1") > GenericVersion("2"))
-    assert not (GenericVersion("1") == GenericVersion("2"))
-    assert not (GenericVersion("1") >= GenericVersion("2"))
-    assert GenericVersion.compare_versions("1", "2") == -1
-    assert GenericVersion.compare_versions("2", "2") == 0
-    assert GenericVersion.compare_versions("2", "1") == 1
+    Assert.lt(GenericVersion("1"), GenericVersion("2"))
+    Assert.le(GenericVersion("1"), GenericVersion("2"))
+    Assert.ne(GenericVersion("1"), GenericVersion("2"))
+    Assert.false(GenericVersion("1") > GenericVersion("2"))
+    Assert.false(GenericVersion("1") == GenericVersion("2"))
+    Assert.false(GenericVersion("1") >= GenericVersion("2"))
+    Assert.eq(GenericVersion.compare_versions("1", "2"), -1)
+    Assert.eq(GenericVersion.compare_versions("2", "2"), 0)
+    Assert.eq(GenericVersion.compare_versions("2", "1"), 1)
 
 
-def test_generic_version_spec() -> None:
+async def test_generic_version_spec() -> None:
     """Examples from the uapi group version format spec"""
-    assert GenericVersion("11") == GenericVersion("11")
-    assert GenericVersion("systemd-123") == GenericVersion("systemd-123")
-    assert GenericVersion("bar-123") < GenericVersion("foo-123")
-    assert GenericVersion("123a") > GenericVersion("123")
-    assert GenericVersion("123.a") > GenericVersion("123")
-    assert GenericVersion("123.a") < GenericVersion("123.b")
-    assert GenericVersion("123a") > GenericVersion("123.a")
-    assert GenericVersion("11α") == GenericVersion("11β")
-    assert GenericVersion("A") < GenericVersion("a")
-    assert GenericVersion("") < GenericVersion("0")
-    assert GenericVersion("0.") > GenericVersion("0")
-    assert GenericVersion("0.0") > GenericVersion("0")
-    assert GenericVersion("0") > GenericVersion("~")
-    assert GenericVersion("") > GenericVersion("~")
-    assert GenericVersion("1_") == GenericVersion("1")
-    assert GenericVersion("_1") == GenericVersion("1")
-    assert GenericVersion("1_") < GenericVersion("1.2")
-    assert GenericVersion("1_2_3") > GenericVersion("1.3.3")
-    assert GenericVersion("1+") == GenericVersion("1")
-    assert GenericVersion("+1") == GenericVersion("1")
-    assert GenericVersion("1+") < GenericVersion("1.2")
-    assert GenericVersion("1+2+3") > GenericVersion("1.3.3")
+    Assert.eq(GenericVersion("11"), GenericVersion("11"))
+    Assert.eq(GenericVersion("systemd-123"), GenericVersion("systemd-123"))
+    Assert.lt(GenericVersion("bar-123"), GenericVersion("foo-123"))
+    Assert.gt(GenericVersion("123a"), GenericVersion("123"))
+    Assert.gt(GenericVersion("123.a"), GenericVersion("123"))
+    Assert.lt(GenericVersion("123.a"), GenericVersion("123.b"))
+    Assert.gt(GenericVersion("123a"), GenericVersion("123.a"))
+    Assert.eq(GenericVersion("11α"), GenericVersion("11β"))
+    Assert.lt(GenericVersion("A"), GenericVersion("a"))
+    Assert.lt(GenericVersion(""), GenericVersion("0"))
+    Assert.gt(GenericVersion("0."), GenericVersion("0"))
+    Assert.gt(GenericVersion("0.0"), GenericVersion("0"))
+    Assert.gt(GenericVersion("0"), GenericVersion("~"))
+    Assert.gt(GenericVersion(""), GenericVersion("~"))
+    Assert.eq(GenericVersion("1_"), GenericVersion("1"))
+    Assert.eq(GenericVersion("_1"), GenericVersion("1"))
+    Assert.lt(GenericVersion("1_"), GenericVersion("1.2"))
+    Assert.gt(GenericVersion("1_2_3"), GenericVersion("1.3.3"))
+    Assert.eq(GenericVersion("1+"), GenericVersion("1"))
+    Assert.eq(GenericVersion("+1"), GenericVersion("1"))
+    Assert.lt(GenericVersion("1+"), GenericVersion("1.2"))
+    Assert.gt(GenericVersion("1+2+3"), GenericVersion("1.3.3"))
 
 
-@pytest.mark.parametrize(
-    "s1,s2",
-    itertools.combinations_with_replacement(
-        enumerate(
-            [
-                GenericVersion("122.1"),
-                GenericVersion("123~rc1-1"),
-                GenericVersion("123"),
-                GenericVersion("123-a"),
-                GenericVersion("123-a.1"),
-                GenericVersion("123-1"),
-                GenericVersion("123-1.1"),
-                GenericVersion("123^post1"),
-                GenericVersion("123.a-1"),
-                GenericVersion("123.1-1"),
-                GenericVersion("123a-1"),
-                GenericVersion("124-1"),
-            ],
-        ),
-        2,
-    ),
-)
-def test_generic_version_strverscmp_improved_doc(
-    s1: tuple[int, GenericVersion],
-    s2: tuple[int, GenericVersion],
-) -> None:
+async def test_generic_version_strverscmp_improved_doc() -> None:
     """Example from the doc string of strverscmp_improved.
 
     strverscmp_improved can be found in systemd/src/fundamental/string-util-fundamental.c
     """
-    i1, v1 = s1
-    i2, v2 = s2
-    assert (v1 == v2) == (i1 == i2)
-    assert (v1 < v2) == (i1 < i2)
-    assert (v1 <= v2) == (i1 <= i2)
-    assert (v1 > v2) == (i1 > i2)
-    assert (v1 >= v2) == (i1 >= i2)
-    assert (v1 != v2) == (i1 != i2)
+    versions = enumerate(
+        [
+            GenericVersion("122.1"),
+            GenericVersion("123~rc1-1"),
+            GenericVersion("123"),
+            GenericVersion("123-a"),
+            GenericVersion("123-a.1"),
+            GenericVersion("123-1"),
+            GenericVersion("123-1.1"),
+            GenericVersion("123^post1"),
+            GenericVersion("123.a-1"),
+            GenericVersion("123.1-1"),
+            GenericVersion("123a-1"),
+            GenericVersion("124-1"),
+        ],
+    )
+    for s1, s2 in itertools.combinations_with_replacement(versions, 2):
+        i1, v1 = s1
+        i2, v2 = s2
+        Assert.eq(v1 == v2, i1 == i2)
+        Assert.eq(v1 < v2, i1 < i2)
+        Assert.eq(v1 <= v2, i1 <= i2)
+        Assert.eq(v1 > v2, i1 > i2)
+        Assert.eq(v1 >= v2, i1 >= i2)
+        Assert.eq(v1 != v2, i1 != i2)
 
 
-def RPMVERCMP(a: str, b: str, expected: int) -> None:
-    assert (GenericVersion(a) > GenericVersion(b)) - (GenericVersion(a) < GenericVersion(b)) == expected
-
-
-def test_generic_version_rpmvercmp() -> None:
+async def test_generic_version_rpmvercmp() -> None:
     EQUAL = 0
     RIGHT_SMALLER = 1
     LEFT_SMALLER = -1

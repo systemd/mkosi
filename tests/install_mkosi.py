@@ -4,21 +4,17 @@ import os
 import tempfile
 from pathlib import Path
 
-import pytest
-
 from mkosi.run import run
 
 REPO_ROOT = Path(__file__).parent.parent
 
-pytestmark = pytest.mark.install
 
-
-def test_mkosi_help_direct() -> None:
+async def test_mkosi_help_direct() -> None:
     """Test mkosi can be run from current directory."""
     run(["python3", "-m", "mkosi", "-h"], cwd=REPO_ROOT)
 
 
-def test_venv_installation() -> None:
+async def test_venv_installation() -> None:
     """Test mkosi can be installed in a venv."""
     with tempfile.TemporaryDirectory() as tmpdir:
         venv = Path(tmpdir) / "testvenv"
@@ -40,7 +36,7 @@ def test_venv_installation() -> None:
         run([os.fspath(venv / "bin/mkosi"), "-h"], cwd=REPO_ROOT)
 
 
-def test_editable_venv_installation() -> None:
+async def test_editable_venv_installation() -> None:
     """Test mkosi can be installed in editable mode."""
     with tempfile.TemporaryDirectory() as tmpdir:
         venv = Path(tmpdir) / "testvenv"
@@ -61,7 +57,7 @@ def test_editable_venv_installation() -> None:
         run([os.fspath(venv / "bin/mkosi"), "-h"], cwd=REPO_ROOT)
 
 
-def test_zipapp_creation() -> None:
+async def test_zipapp_creation() -> None:
     """Test zipapp generation."""
     run(["./tools/generate-zipapp.sh"], cwd=REPO_ROOT)
 
