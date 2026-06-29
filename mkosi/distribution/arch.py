@@ -82,6 +82,10 @@ class Installer(DistributionInstaller, distribution=Distribution.arch):
     @classmethod
     def setup(cls, context: Context) -> None:
         Pacman.setup(context, list(cls.repositories(context)))
+        # pacman's keyring needs to be initialized and pre-seeded with any drop-in keys prior
+        # to its first sync, otherwise it'll refuse to continue when using custom repositories
+        # due to missing signatures.
+        Pacman.keyring(context)
 
     @classmethod
     def install(cls, context: Context) -> None:
