@@ -3300,6 +3300,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         dest="bootloader",
         section="Content",
         parse=config_make_enum_parser(Bootloader),
+        match=config_make_enum_matcher(Bootloader),
         choices=Bootloader.choices(),
         default=Bootloader.systemd_boot,
         help="Specify which UEFI bootloader to use",
@@ -5452,6 +5453,15 @@ def want_kernel(config: Config) -> bool:
 
 def want_default_initrd(config: Config) -> bool:
     return Path("default") in config.initrds
+
+
+def want_prebuilt_uki(config: Config) -> bool:
+    # Returns True when mkosi should use a distro-pre-built signed UKI rather than building one itself.
+    # This happens when a signed bootloader is selected (implying distro UKIs) or when
+    # UnifiedKernelImages=signed is set explicitly.
+    return (
+        config.bootloader.is_signed() and config.unified_kernel_images == UnifiedKernelImage.auto
+    ) or config.unified_kernel_images == UnifiedKernelImage.signed
 
 
 def finalize_historydir(args: Args, output_dir: Optional[Path] = None) -> Path:

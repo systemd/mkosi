@@ -83,6 +83,7 @@ from mkosi.config import (
     summary,
     systemd_tool_version,
     want_kernel,
+    want_prebuilt_uki,
     want_selinux_relabel,
     yes_no,
 )
@@ -2144,10 +2145,7 @@ def install_uki(
     with umask(~0o700):
         boot_binary.parent.mkdir(parents=True, exist_ok=True)
 
-    if (
-        context.config.bootloader.is_signed()
-        and context.config.unified_kernel_images == UnifiedKernelImage.auto
-    ) or context.config.unified_kernel_images == UnifiedKernelImage.signed:
+    if want_prebuilt_uki(context.config):
         for p in (context.root / "usr/lib/modules" / kver).glob("*.efi"):
             log_step(f"Installing prebuilt UKI at {p} to {boot_binary}")
             copyfile2(p, boot_binary)
