@@ -1787,6 +1787,17 @@ def build_uki(
         else:
             cert_parameter = "--pcr-public-key"
 
+        if context.config.sign_nvpcr_init == ConfigFeature.enabled or (
+            context.config.sign_nvpcr_init == ConfigFeature.auto
+            and systemd_tool_version(
+                python_binary(context.config),
+                ukify,
+                sandbox=context.sandbox,
+            )
+            >= "262~devel"
+        ):
+            arguments += ["--sign-nvpcr-init"]
+
         # If we're providing the private key via an engine or provider, we have to pass in a X.509
         # certificate via --pcr-certificate as well.
         if context.config.sign_expected_pcr_key_source.type != KeySourceType.file:
@@ -2756,6 +2767,9 @@ def check_inputs(config: Config) -> None:
             hint="Run mkosi genkey to generate a key/certificate pair",
         )
 
+    if config.sign_nvpcr_init == ConfigFeature.enabled and not want_signed_pcrs(config):
+        die("SignNvPCRInit= is enabled but PCR signing is not enabled")
+
     if config.secure_boot_key_source != config.sign_expected_pcr_key_source:
         die("Secure boot key source and expected PCR signatures key source have to be the same")
 
@@ -2904,6 +2918,13 @@ def check_tools(config: Config, verb: Verb) -> None:
                     version="256",
                     reason="sign PCR hashes with OpenSSL engine",
                 )
+
+        if config.sign_nvpcr_init == ConfigFeature.enabled and want_signed_pcrs(config):
+            check_ukify(
+                config,
+                version="262~devel",
+                reason="sign PCR policies for initializing NvPCRs",
+            )
 
         if config.verity_key_source.type != KeySourceType.file:
             check_systemd_tool(
