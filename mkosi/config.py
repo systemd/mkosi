@@ -2210,6 +2210,7 @@ class Config:
     sign_expected_pcr_key_source: KeySource
     sign_expected_pcr_certificate: Optional[Path]
     sign_expected_pcr_certificate_source: CertificateSource
+    sign_initrd_pcrs: ConfigFeature
     passphrase: Optional[Path]
     checksum: bool
     sign: bool
@@ -3768,6 +3769,14 @@ SETTINGS: list[ConfigSetting[Any]] = [
         default=CertificateSource(type=CertificateSourceType.file),
         help="The source to use to retrieve the expected PCR signing certificate",
         scope=SettingScope.inherit,
+    ),
+    ConfigSetting(
+        dest="sign_initrd_pcrs",
+        metavar="FEATURE",
+        section="Validation",
+        name="SignInitrdPCRs",
+        parse=config_parse_feature,
+        help="Generate a signed PCR policy that can only be satisfied from the initrd and embed this into the UKI",  # noqa: E501
     ),
     ConfigSetting(
         dest="passphrase",
@@ -5962,6 +5971,7 @@ def summary(config: Config) -> str:
            Expected PCRs Key Source: {config.sign_expected_pcr_key_source}
           Expected PCRs Certificate: {none_to_none(config.sign_expected_pcr_certificate)}
    Expected PCRs Certificate Source: {config.sign_expected_pcr_certificate_source}
+                   Sign initrd PCRs: {config.sign_initrd_pcrs}
                          Passphrase: {none_to_none(config.passphrase)}
                            Checksum: {yes_no(config.checksum)}
                                Sign: {yes_no(config.sign)}
