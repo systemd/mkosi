@@ -25,6 +25,7 @@ from mkosi.config import (
     SecureBootSignTool,
     ShimBootloader,
     systemd_tool_version,
+    want_prebuilt_uki,
 )
 from mkosi.context import Context
 from mkosi.distribution import Distribution
@@ -680,15 +681,21 @@ def gen_kernel_images(context: Context) -> Iterator[tuple[str, Path]]:
         # scripts in the kernel source tree sometimes do weird stuff. But let's make sure we're not returning
         # UKIs as the UKI on Fedora is named vmlinuz-virt.efi. Also look for uncompressed images (vmlinux) as
         # some architectures ship those. Prefer vmlinuz if both are present.
-        for kimg in kver.glob("vmlinuz*"):
-            if KernelType.identify(context.config, kimg) != KernelType.uki:
-                yield kver.name, kimg
-                break
+        if want_prebuilt_uki(context.config):
+            for kimg in kver.glob("vmlinuz*.efi"):
+                if KernelType.identify(context.config, kimg) == KernelType.uki:
+                    yield kver.name, kimg
+                    break
         else:
-            for kimg in kver.glob("vmlinux*"):
+            for kimg in kver.glob("vmlinuz*"):
                 if KernelType.identify(context.config, kimg) != KernelType.uki:
                     yield kver.name, kimg
                     break
+            else:
+                for kimg in kver.glob("vmlinux*"):
+                    if KernelType.identify(context.config, kimg) != KernelType.uki:
+                        yield kver.name, kimg
+                        break
 
 
 def install_systemd_boot(context: Context) -> None:

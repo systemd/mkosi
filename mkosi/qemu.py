@@ -30,6 +30,7 @@ from typing import Optional
 from mkosi.bootloader import KernelType
 from mkosi.config import (
     Args,
+    Bootloader,
     Config,
     ConfigFeature,
     ConsoleMode,
@@ -1314,9 +1315,16 @@ def run_qemu(args: Args, config: Config) -> None:
         if kernel and (kerneltype != KernelType.uki or not config.architecture.supports_smbios(firmware)):
             cmdline += ["-append", " ".join(config.kernel_command_line + kcl)]
         elif config.architecture.supports_smbios(firmware):
+            # With Bootloader=uki-signed, a UKI built by the distro is used, and we cannot embed
+            # config.kernel_command_line in the UKI. Instead, pass those options through SMBIOS type#11. We
+            # know that this will work because all UEFI systems support SMBIOS and UKIs by construction use
+            # systemd-stub, which reads SMBIOS type#11.
+            stub_kcl = (
+                config.kernel_command_line if config.bootloader == Bootloader.uki_signed else []
+            ) + kcl
             cmdline += [
                 "-smbios",
-                f"type=11,value=io.systemd.stub.kernel-cmdline-extra={' '.join(kcl).replace(',', ',,')}",
+                f"type=11,value=io.systemd.stub.kernel-cmdline-extra={' '.join(stub_kcl).replace(',', ',,')}",  # noqa: E501
                 "-smbios",
                 f"type=11,value=io.systemd.boot.kernel-cmdline-extra={' '.join(kcl).replace(',', ',,')}",
             ]
