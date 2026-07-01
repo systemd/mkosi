@@ -935,6 +935,27 @@ def userns_acquire_empty() -> int:
     return userns_fd
 
 
+class chroot:
+    def __init__(self, root: str) -> None:
+        self.root = root
+
+    def __enter__(self) -> None:
+        self.cwd = os.getcwd()
+        self.fd = os.open("/", os.O_CLOEXEC | os.O_PATH | os.O_DIRECTORY)
+        try:
+            os.chroot(self.root)
+            os.chdir("/")
+        except BaseException:
+            os.close(self.fd)
+            raise
+
+    def __exit__(self, *args: object, **kwargs: object) -> None:
+        os.fchdir(self.fd)
+        os.close(self.fd)
+        os.chroot(".")
+        os.chdir(self.cwd)
+
+
 def chase(root: str, path: str, *, nofollow: bool = False) -> str:
     # pyright hack around `reportPossiblyUnboundVariable`; it doesn't understand
     # that it's defined/used only if `nofollow` is True
@@ -949,20 +970,10 @@ def chase(root: str, path: str, *, nofollow: bool = False) -> str:
             return os.path.join(os.path.realpath(parent), base)
         return os.path.realpath(path)
 
-    cwd = os.getcwd()
-    fd = os.open("/", os.O_CLOEXEC | os.O_PATH | os.O_DIRECTORY)
-
-    try:
-        os.chroot(root)
-        os.chdir("/")
+    with chroot(root):
         if nofollow:
             return joinpath(root, os.path.realpath(parent), base)
         return joinpath(root, os.path.realpath(path))
-    finally:
-        os.fchdir(fd)
-        os.close(fd)
-        os.chroot(".")
-        os.chdir(cwd)
 
 
 def splitpath(path: str) -> tuple[str, ...]:
