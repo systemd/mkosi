@@ -67,7 +67,7 @@ jobs:
 
       - name: Fetch PR context and create tracking comment
         id: context
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
         with:
           script: |
             const owner = context.repo.owner;
@@ -130,7 +130,7 @@ jobs:
       # archive: false makes upload-artifact use the file's basename
       # (pr-context.json) as the artifact name, ignoring the name input.
       - name: Upload PR context
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           path: pr-context.json
           archive: false
@@ -150,6 +150,7 @@ jobs:
         with:
           # Need full history for git worktree add to work on all PR commits.
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Download PR context
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
@@ -166,11 +167,15 @@ jobs:
           PR_NUMBER: ${{ needs.setup.outputs.pr_number }}
         run: |
           git fetch origin "pull/${PR_NUMBER}/head"
-          for sha in $(git log --reverse --format=%H HEAD..FETCH_HEAD); do
+          # Chronological commit order, oldest first. The worktree dirs are
+          # SHA-named, so listing them doesn't preserve order — reviewers read
+          # this manifest to review commits in the order they were authored.
+          git log --reverse --format=%H HEAD..FETCH_HEAD > commit-order.txt
+          while read -r sha; do
             git worktree add "worktrees/$sha" "$sha"
             git -C "worktrees/$sha" diff HEAD~..HEAD > "worktrees/$sha/commit.patch"
             git -C "worktrees/$sha" log -1 --format='%B' HEAD > "worktrees/$sha/commit-message.txt"
-          done
+          done < commit-order.txt
 
       - name: Install sandbox dependencies
         run: |
@@ -178,7 +183,7 @@ jobs:
           sudo apt-get update && sudo apt-get install -y bubblewrap socat
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37
+        uses: aws-actions/configure-aws-credentials@acca2b1b2070338fb9fd1ca27ecee81d687e58e5
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.AWS_ROLE_NAME }}
           role-session-name: GitHubActions-Claude-${{ github.run_id }}
@@ -191,6 +196,9 @@ jobs:
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           CLAUDE_CODE_USE_BEDROCK: "1"
+          # Pin the `opus` alias (used by the review subagents) to 4.8 so they
+          # don't silently resolve to an older model the Bedrock alias points at.
+          ANTHROPIC_DEFAULT_OPUS_MODEL: us.anthropic.claude-opus-4-8
         run: |
           mkdir -p ~/.claude
 
@@ -200,8 +208,8 @@ jobs:
               "allow": [
                 "Bash",
                 "Read",
-                "Edit(//${{ github.workspace }}/**)",
-                "Write(//${{ github.workspace }}/**)",
+                "Edit(/${{ github.workspace }}/**)",
+                "Write(/${{ github.workspace }}/**)",
                 "Grep",
                 "Glob",
                 "Agent",
@@ -254,29 +262,99 @@ jobs:
           Review this pull request. All required context has been
           pre-fetched into local files.
 
-          ## Phase 1: Review commits
+          ## Phase 1: Review the PR through multiple lenses
 
-          List the directories in `worktrees/` — there is one per commit. Each
+          First, read `review-schema.json` and `commit-order.txt` in the repository
+          root. `commit-order.txt` lists the commit SHAs in chronological order,
+          oldest first — this is the order in which commits must be reviewed. Each
           worktree at `worktrees/<sha>/` contains the full source tree checked out at
-          that commit, plus `commit.patch` (the diff) and `commit-message.txt`
-          (the commit message). Spawn one
-          review subagent per worktree, all in a single message so they run concurrently.
-          Do NOT pre-compute diffs or read any other files before spawning — the subagents
-          will do that themselves.
+          that commit, plus `commit.patch` (the diff) and `commit-message.txt` (the
+          commit message).
 
-          Each reviewer reviews design, code quality, style, potential bugs, and
-          security implications.
+          mkosi is a Python tool for building operating system images. You will
+          review the PR through a set of lenses. Every review uses these four base
+          lenses:
+          1. Correctness & error handling — logic errors, edge cases, wrong
+             conditionals, off-by-one, incorrect None/Optional handling, exceptions
+             that are swallowed or caught too broadly, mishandled error paths, and
+             wrong handling of subprocess exit codes, stdout/stderr, or return values.
+          2. Resource lifetimes & cleanup — file descriptors, open files,
+             subprocesses, mounts and bind mounts, loop devices, and temporary
+             files/directories. Check that resources are released on every path
+             (including error paths), that `with`/context managers and `ExitStack`
+             are used correctly, and that nothing is leaked between operations.
+          3. Security & robustness — handling of untrusted input (config, downloaded
+             packages, image contents), path and symlink handling (path traversal,
+             TOCTOU, sandbox/chroot escapes), command injection when building
+             subprocess argument lists or using a shell, privilege boundaries
+             (running as root, user namespaces, capabilities, sandbox setup), and
+             resource exhaustion.
+          4. API design, style & maintainability — consistency with existing mkosi
+             idioms and `docs/CODING_STYLE.md`, naming, type hints, error propagation
+             via exceptions, coercing Path-like objects with `os.fspath`, dead code,
+             and needless complexity.
+
+          ### Add PR-specific lenses
+
+          Before spawning, briefly inspect what this PR actually changes so you can
+          add domain-specific lenses. Read each worktree's `commit-message.txt` and
+          skim the changed file paths and hunk headers in each `commit.patch`, in
+          chronological order — just enough to understand which subsystems and
+          problem domains are touched. Do
+          NOT perform the review yourself or read the full source; that is the
+          subagents' job.
+
+          Based on that, add 1 to 3 EXTRA lenses targeting the specific concerns of
+          this PR. Each extra lens needs a short name and a one-sentence description
+          of what it must check. For example:
+          - a PR changing sandboxing, namespaces, or mount logic (e.g.
+            `mkosi/sandbox.py`, `mkosi/mounts.py`) → a "sandbox isolation & mount
+            safety" lens (namespace and uid/gid mapping setup, bind-mount ordering,
+            chroot correctness, unmount/cleanup, privilege drops).
+          - a PR changing a distribution or package manager backend (e.g.
+            `mkosi/distribution/`) → a "package manager integration" lens (correct
+            invocation, repository and GPG key handling, cache locking,
+            reproducibility).
+          - a PR changing config parsing (e.g. `mkosi/config.py`) → a "config
+            compatibility" lens (setting semantics, defaults, backward
+            compatibility, and keeping `mkosi/resources/man/` docs in sync).
+          - a PR touching boot, initrd, or systemd-repart integration → a
+            "boot & image layout" lens.
+          Only add extra lenses genuinely warranted by the diff — for a small or
+          generic change the four base lenses may be enough, in which case add none.
+
+          ### Spawn the reviewers
+
+          Then spawn exactly one review subagent per lens (the base lenses plus any
+          extra lenses you derived), all in a single message so they run
+          concurrently. Each subagent reviews EVERY commit (every worktree
+          directory), but only through the perspective of its assigned lens.
+
+          Each subagent must be spawned with `model: "opus"`.
 
           Each subagent prompt must include:
+          - The name and full description of its assigned lens, with an instruction
+            to report ONLY findings that fall under that lens and to ignore issues
+            belonging to the other lenses — those are covered by other reviewers.
           - Instructions to read `pr-context.json` in the repository root for additional
             context.
-          - Instructions to read `review-schema.json` in the repository root and
-            return a JSON array matching the `comments` items schema from that file.
-          - The worktree path.
-          - Instructions to read `commit-message.txt` and `commit.patch` in the
-            worktree for the commit message and diff.
-          - Instructions to verify every `line` and `start_line` value
-            against the hunk ranges in `commit.patch` before returning.
+          - The contents of `review-schema.json` (paste it into each prompt so the
+            agent doesn't have to read it separately).
+          - The list of every worktree path in chronological order (oldest commit
+            first, matching `commit-order.txt`), with an instruction to review the
+            commits in that order and read each one's `commit-message.txt` and
+            `commit.patch`.
+          - Instructions that each finding's `commit` field must be the SHA of the
+            worktree the finding belongs to, and that every `line` and `start_line`
+            value must be verified against the hunk ranges in that commit's
+            `commit.patch` before returning.
+          - Instructions to return ONLY a raw JSON array of findings. No markdown,
+            no explanation, no code fences — just the JSON array. If there are no
+            findings, return `[]`.
+          - Instructions that `severity` is a separate structured field — do NOT
+            repeat it inside `body` (no "must-fix:", "**suggestion**:", etc.
+            prefix). The posting step adds the severity label itself, so
+            including it in `body` produces duplicates.
 
           ## Phase 2: Collect, deduplicate, and summarize
 
@@ -290,27 +368,29 @@ jobs:
             populate the `resolve` array.
           - If `tracking_comment` is non-null, use it as the basis for your summary.
 
+          Trust the subagent findings — do NOT re-verify them by running your own
+          bash, grep, sed, or awk commands against the source code. Phase 2 should
+          only read `pr-context.json` and then produce the structured output.
+
           Then:
-          1. Collect all issues. Merge duplicates (same file, lines within 3 of each other, same problem).
-          2. Drop low-confidence findings.
-          3. Check the existing inline review comments from `pr-context.json`. Do NOT
-             include a comment if one already exists on the same file about the same
-             problem, even if the exact line numbers differ (lines shift between
-             revisions). Also check for author replies that dismiss or reject a previous
-             comment — do NOT re-raise an issue the PR author has already responded to
-             disagreeing with.
-             Populate the `resolve` array with the REST API `id` (integer) of your own
-             review comment threads that should be resolved (user.login == "github-actions[bot]"
-             and body starts with "Claude: "). Do not resolve threads from human reviewers.
-             A thread should be resolved if:
-             - The issue it raised has been addressed in the current PR (i.e. your review
-               no longer flags it), or
-             - The PR author (or another reviewer) left a reply disagreeing with or
-               dismissing the comment.
-             Only include the `id` of the **first** comment in each thread (the one that
-             started the conversation). Do not resolve threads for issues that are still
-             present and unaddressed.
-          4. Write a `summary` field in markdown for a top-level tracking comment.
+          1. Collect all issues. Merge duplicates across agents (same file, same
+             problem, lines within 3 of each other). Because the lenses overlap,
+             the same issue is often reported by more than one lens — collapse
+             these into a single comment, keeping the clearest wording.
+          2. Drop any issue whose suggestion is to add a code comment, docstring,
+             or documentation (e.g. "add a comment explaining…", "missing
+             docstring", "document this function", "would benefit from a
+             comment"). mkosi style is to write no comments unless the WHY is
+             non-obvious, so these are noise — drop them from `comments` and from
+             the `summary`.
+          3. Drop issues that already have a review comment on the same file about
+             the same problem, or where the PR author replied disagreeing.
+          4. Populate the `resolve` array with the `id` of your own review comment
+             threads (user.login == "github-actions[bot]", body starts with
+             "Claude: ") that should be resolved — either because the issue was
+             fixed or because the author dismissed it. Use the first comment `id`
+             in each thread. Do not resolve threads from human reviewers.
+          5. Write a `summary` field in markdown for a top-level tracking comment.
 
               **If no existing tracking comment was found (first run):**
               Use this format:
@@ -352,20 +432,34 @@ jobs:
           not available, git commands that failed, etc.), append a `### Errors`
           section to the summary listing each failed action and the error message.
 
+          ## Output formatting
+
+          Do NOT escape characters in `body` or `summary`. Write plain markdown — no
+          backslash escaping of `!` or other characters. In particular, HTML comments
+          like `<!-- ... -->` must be written verbatim, never as `<\!-- ... -->`.
+
           ## Review result
 
-          Produce your review result as structured output. The fields are:
-          - `summary`: The markdown summary for the tracking comment, **base64-encoded**.
-            Write the summary to a temporary file first, then encode it with
-            `base64 -w0 /tmp/summary.md` and put the resulting string in this field.
+          Produce your review result with a single `StructuredOutput` call that
+          contains all of these fields together:
+          - `summary`: The markdown summary for the tracking comment.
           - `comments`: Array of review comments (same schema as the reviewer output above).
-            The `body` field of each comment must also be **base64-encoded** the same way.
           - `resolve`: REST API IDs of review comment threads to resolve.
+
+          `comments` and `resolve` are required — include them in the same call even
+          when they are empty (`[]`). Never emit a call with `summary` alone; a call
+          missing `comments` is rejected and wastes a full retry. Build `comments`
+          first, then write `summary` from it, then emit everything in one call.
+
+          Keep `summary` concise: each checkbox is a short title, `path:line`, and a
+          one-line explanation — the detailed reasoning belongs in the matching
+          `comments` entry, not the summary. Do not restate full findings prose in
+          the summary.
           PROMPT
 
           claude \
-            --model us.anthropic.claude-opus-4-6-v1 \
-            --effort max \
+            --model us.anthropic.claude-opus-4-8 \
+            --effort xhigh \
             --max-turns 200 \
             --setting-sources user \
             --output-format stream-json \
@@ -378,7 +472,7 @@ jobs:
 
       - name: Upload review result
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           path: review-result.json
           if-no-files-found: ignore
@@ -402,7 +496,7 @@ jobs:
           name: review-result.json
 
       - name: Post review comments
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
         env:
           REVIEW_RESULT: ${{ needs.review.result }}
           PR_NUMBER: ${{ needs.setup.outputs.pr_number }}
@@ -452,7 +546,7 @@ jobs:
                 if (Array.isArray(review.resolve))
                   resolveIds = review.resolve;
                 if (typeof review.summary === "string")
-                  summary = Buffer.from(review.summary, "base64").toString("utf-8");
+                  summary = review.summary;
               } catch (e) {
                 core.warning(`Failed to parse structured output: ${e.message}`);
               }
@@ -483,7 +577,7 @@ jobs:
                   ...(c.side != null && { side: c.side }),
                   ...(c.start_line != null && { start_line: c.start_line }),
                   ...(c.start_side != null && { start_side: c.start_side }),
-                  body: `Claude: **${c.severity}**: ${Buffer.from(c.body, "base64").toString("utf-8")}`,
+                  body: `Claude: **${c.severity}**: ${c.body}`,
                 });
                 posted++;
               } catch (e) {
