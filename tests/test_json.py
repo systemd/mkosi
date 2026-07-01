@@ -385,6 +385,7 @@ def test_config() -> None:
                 "Source": "",
                 "Type": "file"
             },
+            "SignNvPCRInit": "disabled",
             "SkeletonTrees": [
                 {
                     "Source": "/foo/bar",
@@ -611,6 +612,7 @@ def test_config() -> None:
         sign_expected_pcr_key_source=KeySource(type=KeySourceType.file),
         sign_expected_pcr_key=Path("/my/key"),
         sign_expected_pcr=ConfigFeature.disabled,
+        sign_nvpcr_init=ConfigFeature.disabled,
         sign=False,
         skeleton_trees=[ConfigTree(Path("/foo/bar"), Path("/")), ConfigTree(Path("/bar/baz"), Path("/qux"))],
         snapshot="snapshot",
