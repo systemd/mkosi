@@ -13,12 +13,13 @@ from mkosi.util import PathString, chdir
 
 def tar_exclude_apivfs_tmp() -> list[str]:
     return [
-        "--exclude", "./dev/*",
-        "--exclude", "./proc/*",
-        "--exclude", "./sys/*",
-        "--exclude", "./tmp/*",
-        "--exclude", "./run/*",
-        "--exclude", "./var/tmp/*",
+        "--anchored",
+        "--exclude", "./dev/*",     "--exclude", "dev/*",
+        "--exclude", "./proc/*",    "--exclude", "proc/*",
+        "--exclude", "./sys/*",     "--exclude", "sys/*",
+        "--exclude", "./tmp/*",     "--exclude", "tmp/*",
+        "--exclude", "./run/*",     "--exclude", "run/*",
+        "--exclude", "./var/tmp/*", "--exclude", "var/tmp/*",
     ]  # fmt: skip
 
 
