@@ -133,7 +133,7 @@ class Installer(DistributionInstaller, distribution=Distribution.postmarketos):
         }.get(arch)  # fmt: skip
 
         if not a:
-            die(f"Architecture {a} is not supported by postmarketOS")
+            die(f"Architecture {arch} is not supported by postmarketOS")
 
         return a
 

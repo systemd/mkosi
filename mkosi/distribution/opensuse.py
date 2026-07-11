@@ -275,7 +275,7 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
         }.get(arch)  # fmt: skip
 
         if not a:
-            die(f"Architecture {a} is not supported by openSUSE")
+            die(f"Architecture {arch} is not supported by openSUSE")
 
         return a
 

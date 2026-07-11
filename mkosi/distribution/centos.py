@@ -91,7 +91,7 @@ class Installer(DistributionInstaller, distribution=Distribution.centos):
         }.get(arch)  # fmt: skip
 
         if not a:
-            die(f"Architecture {a} is not supported by {cls.pretty_name()}")
+            die(f"Architecture {arch} is not supported by {cls.pretty_name()}")
 
         return a
 
