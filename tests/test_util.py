@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from mkosi.util import parents_below
+from mkosi.util import parents_below, read_env_file
 
 
 def test_parents_below_basic() -> None:
@@ -50,3 +50,11 @@ def test_parents_below_below_is_child_raises() -> None:
     below = Path("/a/b/c")
     with pytest.raises(ValueError):
         parents_below(path, below)
+
+
+def test_read_env_file(tmp_path: Path) -> None:
+    # Single-character variable names are valid in os-release/env files and in the shell, so they
+    # must not be silently dropped.
+    p = tmp_path / "env"
+    p.write_text("A=1\nBC=2\n_=3\nX=\n")
+    assert read_env_file(p) == {"A": "1", "BC": "2", "_": "3", "X": ""}
