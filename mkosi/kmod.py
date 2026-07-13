@@ -292,8 +292,8 @@ def resolve_module_dependencies(
     with chdir(context.root):
         nametofile = {module_path_to_name(m): m for m in all_modules(modulesd)}
 
-    todo = [*builtin, *modules]
-    mods = set()
+    todo = {*builtin, *modules}
+    mods: set[str] = set()
     firmware = set()
 
     while todo:
@@ -304,20 +304,20 @@ def resolve_module_dependencies(
         # build a map that maps the module name to both its module dependencies and its firmware
         # dependencies. Because there's more kernel modules than the max number of accepted CLI
         # arguments, we split the modules list up into chunks if needed.
-        for i in range(0, len(todo), 8500):
-            chunk = todo[i : i + 8500]
+        ittodo = iter(todo)
+        while chunk := tuple(itertools.islice(ittodo, 8500)):
             moddep |= modinfo(context, kver, chunk)
 
-        todo = []
+        todo = set()
+        mods |= moddep.keys()
 
         for name, depinfo in moddep.items():
             for d in depinfo.modules:
                 if d not in nametofile and d not in builtin:
                     logging.warning(f"{d} is a dependency of {name} but is not installed, ignoring ")
 
-            mods.add(name)
             firmware.update(depinfo.firmware)
-            todo += [m for m in depinfo.modules if m not in mods and m in nametofile]
+            todo.update(m for m in depinfo.modules if m not in mods and m in nametofile)
 
     return set(nametofile[m] for m in mods if m in nametofile), set(firmware)
 
