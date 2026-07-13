@@ -52,6 +52,7 @@ EFD_CLOEXEC = 0x80000
 ENAMETOOLONG = 36
 EPERM = 1
 ENOENT = 2
+ENODEV = 19
 ENOSYS = 38
 F_DUPFD = 0
 F_GETFD = 1
@@ -1458,7 +1459,9 @@ def enter(argv: list[str]) -> list[str]:
 
     try:
         ttyname = os.ttyname(2) if os.isatty(2) else ""
-    except FileNotFoundError:
+    except OSError as exc:
+        if exc.errno not in (ENOENT, ENODEV):
+            raise
         ttyname = ""
 
     while argv:
