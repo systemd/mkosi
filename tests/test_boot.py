@@ -85,7 +85,7 @@ def test_bootloader(config: ImageConfig, bootloader: Bootloader) -> None:
                 "--format=disk",
                 "--bootloader",
                 str(bootloader),
-                *(["--incremental=no"] if bootloader == Bootloader.uki_signed else []),
+                *(["--incremental=yes"] if bootloader == Bootloader.uki_signed else []),
             ]
         )
         image.vm(["--firmware", str(firmware)])
