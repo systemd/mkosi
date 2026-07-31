@@ -1679,11 +1679,6 @@ def enter(argv: list[str]) -> list[str]:
     # As documented in the pivot_root() man page, this will unmount the old rootfs.
     umount2(".", MNT_DETACH)
 
-    # Avoid surprises by making sure the sandbox's mount propagation is shared. This doesn't
-    # actually mean mounts get propagated into the host. Instead, a new mount propagation peer
-    # group is set up.
-    mount("", ".", "", MS_SHARED | MS_REC, "")
-
     if chdir:
         os.chdir(chdir)
 
