@@ -91,6 +91,7 @@ def test_bootloader_prebuilt_initrd(config: ImageConfig) -> None:
                 "--format=disk",
                 f"--bootloader={Bootloader.uki_signed}",
                 "--incremental=no",
+                "--cache-key=&d~&r~&a~&I~prebuilt",
             ]
         )
         image.vm(["--firmware", str(Firmware.auto)])
