@@ -68,8 +68,8 @@ def test_bootloader(config: ImageConfig, bootloader: Bootloader) -> None:
     firmware = Firmware.linux if bootloader == Bootloader.none else Firmware.auto
 
     with Image(config) as image:
-        image.build(["--format=disk", "--bootloader", str(bootloader)])
-        image.vm(["--firmware", str(firmware)])
+        image.build(["--format=disk", f"--bootloader={bootloader}"])
+        image.vm([f"--firmware={firmware}"])
 
 
 def test_bootloader_prebuilt_initrd(config: ImageConfig) -> None:
