@@ -1783,7 +1783,7 @@ def build_uki(
             cert_parameter = "--pcr-public-key"
 
         if context.config.sign_initrd_pcrs == ConfigFeature.enabled or (
-            context.config.sign_initrd_pcrs == ConfigFeature.auto and ukify_version >= "262~devel"
+            context.config.sign_initrd_pcrs == ConfigFeature.auto and ukify_version >= "261.999"
         ):
             arguments += ["--sign-initrd-pcrs"]
 
@@ -2911,7 +2911,7 @@ def check_tools(config: Config, verb: Verb) -> None:
         if config.sign_initrd_pcrs == ConfigFeature.enabled and want_signed_pcrs(config):
             check_ukify(
                 config,
-                version="262~devel",
+                version="261.999",
                 reason="sign a PCR policy for the initrd",
             )
 
