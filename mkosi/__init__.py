@@ -5102,11 +5102,13 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
         # Try to get a user namespace with some delegated ranges and the foreign UID range via
         # systemd-nsresourced if we can.
         acquire_privileges(foreign=True, delegate=3)
-    # Don't fail if systemd-nsresourced is too old or not installed unless the foreign UID range was
-    # explicitly requested, use a regular unpriv user namespace instead.
+    # Don't fail if systemd-nsresourced is too old, not installed or refuses to provision a user namespace
+    # for us unless the foreign UID range was explicitly requested, use a regular unpriv user namespace
+    # instead.
     except (FileNotFoundError, VarlinkError, ConnectionRefusedError) as e:
         if isinstance(e, VarlinkError) and e.error not in (
             "org.varlink.service.InvalidParameter",
+            "org.varlink.service.PermissionDenied",
             "io.systemd.NamespaceResource.UserNamespaceInterfaceNotSupported",
         ):
             raise
