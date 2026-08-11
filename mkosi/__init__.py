@@ -2810,7 +2810,7 @@ def check_inputs(config: Config) -> None:
         check_systemd_tool(
             config,
             "systemd-repart",
-            version="261~devel",
+            version="261",
             reason="use El Torito options",
         )
 
@@ -3513,7 +3513,7 @@ def make_image(
     if (
         el_torito
         and el_torito_wanted
-        and systemd_tool_version("systemd-repart", sandbox=context.sandbox) >= "261~devel"
+        and systemd_tool_version("systemd-repart", sandbox=context.sandbox) >= "261"
     ):
         cmdline += ["--el-torito=yes"]
         if context.config.el_torito_system:
@@ -4408,7 +4408,7 @@ def run_shell(args: Args, config: Config) -> None:
             cmdline += ["--bind-user", getpass.getuser(), "--bind-user-group=wheel"]
 
         if args.verb == Verb.boot and config.forward_journal:
-            if systemd_tool_version("systemd-nspawn", sandbox=config.sandbox) >= "261~devel":
+            if systemd_tool_version("systemd-nspawn", sandbox=config.sandbox) >= "261":
                 cmdline += [
                     "--forward-journal", config.forward_journal,
                     "--forward-journal-max-use=1T",
