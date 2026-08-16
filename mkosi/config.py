@@ -3875,6 +3875,21 @@ SETTINGS: list[ConfigSetting[Any]] = [
         scope=SettingScope.tools,
     ),
     ConfigSetting(
+        dest="tools_tree_snapshot",
+        metavar="SNAPSHOT",
+        section="Build",
+        default_factory_depends=("distribution", "snapshot", "tools_tree_distribution"),
+        default_factory=(
+            lambda ns: (
+                ns["snapshot"]
+                if ns["snapshot"] and ns["distribution"] == ns["tools_tree_distribution"]
+                else None
+            )
+        ),
+        help="Set the distribution snapshot to use for the default tools tree",
+        scope=SettingScope.tools,
+    ),
+    ConfigSetting(
         dest="tools_tree_repositories",
         long="--tools-tree-repository",
         metavar="REPOS",
