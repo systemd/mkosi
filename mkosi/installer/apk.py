@@ -11,6 +11,7 @@ from mkosi.config import Cacheonly, Config
 from mkosi.context import Context
 from mkosi.installer import PackageManager
 from mkosi.run import CompletedProcess, run, workdir
+from mkosi.sandbox import umask
 from mkosi.tree import rmtree
 from mkosi.util import _FILE, PathString, copyfile, flatten
 
@@ -122,6 +123,18 @@ class Apk(PackageManager):
         apivfs: bool = True,
         allow_downgrade: bool = False,
     ) -> None:
+        # grub's /boot trigger execs update-grub, which runs grub-probe against the buildroot where it
+        # cannot find a device for / and fails the whole apk transaction. mkosi manages the bootloader
+        # configuration itself, so use the trigger's own opt-out during installation, in the same vein
+        # as the policy-rc.d file we install on Debian.
+        updategrubconf = context.root / "etc/update-grub.conf"
+        preexisting = updategrubconf.exists()
+        if not preexisting:
+            with umask(~0o755):
+                updategrubconf.parent.mkdir(parents=True, exist_ok=True)
+            with umask(~0o644):
+                updategrubconf.write_text("disable_trigger=1\n")
+
         cls.invoke(
             context,
             "add",
@@ -132,6 +145,9 @@ class Apk(PackageManager):
             ],
             apivfs=apivfs,
         )  # fmt: skip
+
+        if not preexisting:
+            updategrubconf.unlink()
 
     @classmethod
     def remove(cls, context: Context, packages: Sequence[str]) -> None:
