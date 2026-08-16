@@ -572,6 +572,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
     For any distribution not listed above, snapshots are not supported.
 
+    Note that this setting does not apply to the default tools tree; use
+    `ToolsTreeSnapshot=` for that.
+
 `LocalMirror=`, `--local-mirror=`
 :   The mirror will be used as a local, plain and direct mirror instead
     of using it as a prefix for the full set of repositories normally supported
@@ -1556,6 +1559,11 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `ToolsTreeMirror=`, `--tools-tree-mirror=`
 :   Set the mirror to use for the default tools tree. By default, the
     default mirror for the tools tree distribution is used.
+
+`ToolsTreeSnapshot=`, `--tools-tree-snapshot=`
+:   Same as `Snapshot=` but for the default tools tree. By default, if the
+    tools tree distribution matches the image's distribution, the image's
+    snapshot is used.
 
 `ToolsTreeRepositories=`, `--tools-tree-repository=`
 :   Same as `Repositories=` but for the default tools tree.
@@ -3206,6 +3214,7 @@ the main image but which are not passed down to subimages:
 - `ToolsTreeRelease=`
 - `ToolsTreeProfiles=`
 - `ToolsTreeMirror=`
+- `ToolsTreeSnapshot=`
 - `ToolsTreeRepositories=`
 - `ToolsTreeSandboxTrees=`
 - `ToolsTreePackages=`
