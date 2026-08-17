@@ -125,7 +125,7 @@ modifications.
 
 To hack on mkosi itself, you can run the full test suite locally, just
 like CI does. The tests include linting, type checking, and unit tests,
-all runnable via [pytest](https://github.com/pytest-dev/pytest).
+all runnable via [barrage](https://github.com/amutable-systems/barrage).
 
 All linters such as `ruff` or `mypy` are run inside `mkosi box`
 (i.e. from inside `mkosi.tools/`) for a consistent environment. Build that with:
@@ -134,25 +134,26 @@ All linters such as `ruff` or `mypy` are run inside `mkosi box`
 bin/mkosi -f box -- true
 ```
 
-Then run the full test suite inside the tools tree:
+Then run the full unit test suite inside the tools tree:
 
 ```bash
-bin/mkosi box -- pytest
+bin/mkosi box -- python3 -m barrage
 ```
 
-You can use [pytest options](https://docs.pytest.org/en/stable/how-to/usage.html) to only run a subset, for
-example only run the linters:
+You can select a subset, for example only run the linters or only a single test:
 
 ```sh
-bin/mkosi box -- pytest -k test_linters
+bin/mkosi box -- python3 -m barrage tests/test_linters.py
+
+bin/mkosi box -- python3 -m barrage test_conversion
 ```
 
-Installation tests (venv, editable and zipapp installs) are marked with the
-`install` marker and are skipped by default, as they create virtual
-environments and install packages from the network. Run them explicitly with:
+Installation tests (venv, editable and zipapp installs) live in `install_*.py`
+files and are skipped by default, as they create virtual environments and
+install packages from the network. Run them explicitly with:
 
 ```sh
-bin/mkosi box -- pytest -m install
+bin/mkosi box -- python3 -m barrage --pattern 'install_*.py'
 ```
 
 When a tool that mkosi runs inside its sandbox fails, see
@@ -160,9 +161,9 @@ When a tool that mkosi runs inside its sandbox fails, see
 
 # Integration tests
 
-Integration tests build and boot full images. They are marked with the
-`integration` marker, and are skipped by default. They need a tools tree and an
-image to be built first. `tools/integration-test-setup.sh` writes a local
+Integration tests build and boot full images. They live in `integration_*.py`
+files and are not run as part of the normal test suite. They need a tools tree
+and an image to be built first; `tools/integration-test-setup.sh` writes a local
 configuration for the given image and tools tree distribution and builds both:
 
 ```sh
@@ -175,12 +176,36 @@ single integration test:
 ```sh
 tools/integration-test-setup.sh arch fedora
 
-bin/mkosi box -- pytest -m integration --distribution arch --capture=no --verbose \
-    'tests/test_boot.py::test_bootloader[systemd-boot]'
+bin/mkosi box -- python3 -m barrage -v \
+    'tests/integration_boot.py::test_bootloader_systemd_boot'
+```
+
+To run all integration tests, select them by file name pattern:
+
+```sh
+bin/mkosi box -- python3 -m barrage --pattern 'integration_*.py' tests/
 ```
 
 The integration tests require KVM and are skipped (or very slow) without
 `/dev/kvm`.
+
+To debug a failing build, set `TEST_DEBUG_SHELL=1` to pass `--debug-shell` to
+mkosi, which drops into an interactive shell when a build step fails. This only
+makes sense when running a single test interactively (`barrage -i`):
+
+```sh
+TEST_DEBUG_SHELL=1 bin/mkosi box -- python3 -m barrage -i \
+    'tests/integration_boot.py::test_bootloader_systemd_boot'
+```
+
+barrage runs tests concurrently with no limit by default. Pass
+`--max-concurrency N` to restrict the parallelism.
+
+When running unprivileged (i.e. not as root), building several images in the
+same session tends to exhaust systemd-nsresourced's pool of dynamic UID ranges,
+which makes builds fail with `io.systemd.NamespaceResource.NoDynamicRange`. Run
+the tests one at a time (or with `--max-concurrency 1`) to avoid this; it does
+not happen when the tests run as root, as they do in CI.
 
 # References
 

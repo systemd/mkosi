@@ -5,7 +5,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-import pytest
+import barrage.assertions as Assert
 
 from mkosi.run import run
 
@@ -25,29 +25,36 @@ def skip_if_missing(tool: str) -> bool:
     return SKIP_MISSING_TOOLS and shutil.which(tool) is None
 
 
-@pytest.mark.skipif(skip_if_missing("ruff"), reason="ruff not found")
-def test_ruff_format_check() -> None:
+async def test_ruff_format_check() -> None:
     """Check that code is formatted with ruff format."""
-    run(["ruff", "format", "--check", "--diff", "mkosi/", "tests/", *kernel_install_files()], cwd=REPO_ROOT)
+    if skip_if_missing("ruff"):
+        Assert.skip("ruff not found")
+    run(
+        ["ruff", "format", "--check", "--diff", "mkosi/", "tests/", *kernel_install_files()],
+        cwd=REPO_ROOT,
+    )
 
 
-@pytest.mark.skipif(skip_if_missing("ruff"), reason="ruff not found")
-def test_ruff_check() -> None:
+async def test_ruff_check() -> None:
     """Check code quality with ruff."""
+    if skip_if_missing("ruff"):
+        Assert.skip("ruff not found")
     run(
         ["ruff", "check", "--output-format=github", "mkosi/", "tests/", *kernel_install_files()],
         cwd=REPO_ROOT,
     )
 
 
-@pytest.mark.skipif(skip_if_missing("git"), reason="git not found")
-def test_no_tabs_in_code() -> None:
+async def test_no_tabs_in_code() -> None:
+    if skip_if_missing("git"):
+        Assert.skip("git not found")
     result = run(["git", "grep", "-P", r"\t", "*.py"], check=False, cwd=REPO_ROOT)
-    assert result.returncode != 0, "Found tabs in Python code"
+    Assert.ne(result.returncode, 0, "Found tabs in Python code")
 
 
-@pytest.mark.skipif(skip_if_missing("codespell"), reason="codespell not found")
-def test_codespell() -> None:
+async def test_codespell() -> None:
+    if skip_if_missing("codespell"):
+        Assert.skip("codespell not found")
     run(["codespell", "--version"], cwd=REPO_ROOT)
     files = run(["git", "ls-files"], stdout=subprocess.PIPE, cwd=REPO_ROOT).stdout.strip().split("\n")
     # Filter out files we want to skip
@@ -55,28 +62,33 @@ def test_codespell() -> None:
     run(["codespell", *files_to_check], cwd=REPO_ROOT)
 
 
-@pytest.mark.skipif(skip_if_missing("reuse"), reason="reuse not found")
-def test_reuse_lint() -> None:
+async def test_reuse_lint() -> None:
+    if skip_if_missing("reuse"):
+        Assert.skip("reuse not found")
     run(["reuse", "lint"], cwd=REPO_ROOT)
 
 
-@pytest.mark.skipif(skip_if_missing("mypy"), reason="mypy not found")
-def test_mypy() -> None:
+async def test_mypy() -> None:
+    if skip_if_missing("mypy"):
+        Assert.skip("mypy not found")
     run(["mypy", "mkosi/", *kernel_install_files()], cwd=REPO_ROOT)
 
 
-@pytest.mark.skipif(skip_if_missing("mypy"), reason="mypy not found")
-def test_mypy_python310() -> None:
+async def test_mypy_python310() -> None:
+    if skip_if_missing("mypy"):
+        Assert.skip("mypy not found")
     run(["mypy", "--python-version", "3.10", "mkosi/", "tests/", *kernel_install_files()], cwd=REPO_ROOT)
 
 
-@pytest.mark.skipif(skip_if_missing("pyright"), reason="pyright not found")
-def test_pyright() -> None:
+async def test_pyright() -> None:
+    if skip_if_missing("pyright"):
+        Assert.skip("pyright not found")
     run(["pyright", "mkosi/", "tests/", *kernel_install_files()], cwd=REPO_ROOT)
 
 
-@pytest.mark.skipif(skip_if_missing("shellcheck"), reason="shellcheck not found")
-def test_shellcheck() -> None:
+async def test_shellcheck() -> None:
+    if skip_if_missing("shellcheck"):
+        Assert.skip("shellcheck not found")
     # Check bin/mkosi and tools/*.sh
     tools_scripts = [os.fspath(p) for p in (REPO_ROOT / "tools").glob("*.sh")]
     run(["shellcheck", "bin/mkosi", *tools_scripts], cwd=REPO_ROOT)
@@ -86,10 +98,9 @@ def test_shellcheck() -> None:
     run(["shellcheck", "-"], input=completion, cwd=REPO_ROOT)
 
 
-@pytest.mark.skipif(skip_if_missing("pandoc"), reason="pandoc not found")
-@pytest.mark.skipif(
-    SKIP_MISSING_TOOLS and not (REPO_ROOT / "tools/make-man-page.sh").exists(),
-    reason="tools/make-man-page.sh not found",
-)
-def test_man_page_generation() -> None:
+async def test_man_page_generation() -> None:
+    if skip_if_missing("pandoc"):
+        Assert.skip("pandoc not found")
+    if SKIP_MISSING_TOOLS and not (REPO_ROOT / "tools/make-man-page.sh").exists():
+        Assert.skip("tools/make-man-page.sh not found")
     run(["tools/make-man-page.sh"], cwd=REPO_ROOT)
