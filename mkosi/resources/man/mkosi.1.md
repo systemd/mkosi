@@ -2197,6 +2197,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   Matches against repositories enabled with the `Repositories=` setting.
     Takes a single repository name.
 
+`OutputFormat=`
+:   Matches against the configured value for `OutputFormat=`.
+
 `PathExists=`
 :   This condition is satisfied if the given path exists. Relative paths are interpreted relative to the parent
     directory of the config file that the condition is read from.
@@ -2213,6 +2216,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `Bootable=`
 :   Matches against the configured value for the `Bootable=` feature. Takes a boolean value or `auto`.
+
+`Bootloader=`
+:   Matches against the configured value for `Bootloader=`.
 
 `Format=`
 :   Matches against the configured value for the `Format=` option. Takes
