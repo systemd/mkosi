@@ -3187,6 +3187,7 @@ SETTINGS: list[ConfigSetting[Any]] = [
         parse=config_make_list_parser(parse=make_tree_parser()),
         path_suffixes=("extra", "extra.tar"),
         help="Copy an extra tree on top of image",
+        tools=True,
     ),
     ConfigSetting(
         dest="remove_packages",
