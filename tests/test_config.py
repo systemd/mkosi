@@ -171,7 +171,7 @@ def test_parse_config(tmp_path: Path) -> None:
         [Output]
         ImageId=00-dropin
         ImageVersion=0
-        @Output=abc
+        Output=abc
         """
     )
 
