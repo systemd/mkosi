@@ -5980,7 +5980,7 @@ def summary(config: Config) -> str:
                             GPG Key: ({"default" if config.key is None else config.key})
 """
 
-    if config.image == "main":
+    if config.image in ("main", "tools"):
         summary += f"""\
 
     {bold("BUILD CONFIGURATION")}:
@@ -6013,6 +6013,10 @@ def summary(config: Config) -> str:
                    Proxy Client Key: {none_to_none(config.proxy_client_key)}
 
     Automatically set +x on scripts: {yes_no(config.make_scripts_executable)}
+"""
+
+    if config.image == "main":
+        summary += f"""\
 
     {bold("HOST CONFIGURATION")}:
                     NSpawn Settings: {none_to_none(config.nspawn_settings)}
