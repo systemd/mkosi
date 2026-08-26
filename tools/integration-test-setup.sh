@@ -111,6 +111,13 @@ endgroup
 # avoid pager
 
 group "summary"
+# Pin the resolved release before release-gated includes can fall back to the host release.
+release="$(bin/mkosi -f --json --no-pager summary | jq -r '.Images[-1].Release')"
+cat >>mkosi.local.conf <<EOF
+
+[Distribution]
+Release=${release}
+EOF
 bin/mkosi summary </dev/null
 endgroup
 
