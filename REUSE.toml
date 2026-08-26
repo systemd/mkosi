@@ -11,6 +11,7 @@ path = [
     ".editorconfig",
     "bin/mkosi",
     "docs/CNAME",
+    "elements/**.bst",
     "**.gitignore",
     "**.bash",
     "**.build",

@@ -77,6 +77,9 @@ def test_bootloader(config: ImageConfig, bootloader: Bootloader) -> None:
     ):
         return
 
+    if config.distribution == Distribution.buildstream and bootloader.is_grub():
+        pytest.skip("Cannot build BuildStream images with bootloader 'grub'")
+
     firmware = Firmware.linux if bootloader == Bootloader.none else Firmware.auto
     cacheopt = []
     if bootloader == Bootloader.uki_signed:
