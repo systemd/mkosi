@@ -30,7 +30,7 @@ def test_format(config: ImageConfig, format: OutputFormat) -> None:
         ):
             pytest.skip("Cannot build RHEL-UBI images with format 'esp' or 'uki'")
 
-        image.build(options=["--format", str(format)])
+        image.build(options=[f"--format={format}"])
 
         # FIXME: Also boot directory images when the CI runs systemd v260 or newer.
         if format == OutputFormat.directory:
@@ -78,18 +78,10 @@ def test_bootloader(config: ImageConfig, bootloader: Bootloader) -> None:
         return
 
     firmware = Firmware.linux if bootloader == Bootloader.none else Firmware.auto
+    cacheopt = []
+    if bootloader == Bootloader.uki_signed:
+        cacheopt = ["--incremental=no", "--cache-key=&d~&r~&a~&I~prebuilt"]
 
     with Image(config) as image:
-        image.build(
-            [
-                "--format=disk",
-                "--bootloader",
-                str(bootloader),
-                *(
-                    ["--incremental=no", "--cache-key=&d~&r~&a~&I~prebuilt"]
-                    if bootloader == Bootloader.uki_signed
-                    else []
-                ),
-            ]
-        )
-        image.vm(["--firmware", str(firmware)])
+        image.build(["--format=disk", f"--bootloader={bootloader}", *cacheopt])
+        image.vm([f"--firmware={firmware}"])
