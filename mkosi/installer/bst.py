@@ -47,7 +47,7 @@ class BST(PackageManager):
             # available.
             "--bind", Path.home(), Path.home(),
             "--setenv", "HOME", Path.home(),
-        ]  # fmt:skip
+        ]  # fmt: skip
 
         # We don't really want to run bst as (fake) root but it uses bubblewrap which stubbornly refuses to
         # run when invoked unprivileged but with capabilities. We get around this by running as fake root but

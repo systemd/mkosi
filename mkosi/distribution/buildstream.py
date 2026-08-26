@@ -58,11 +58,3 @@ class Installer(DistributionInstaller, distribution=Distribution.buildstream):
             die(f"Architecture {arch} is not supported by {cls.pretty_name()}")
 
         return a
-
-    @classmethod
-    def latest_snapshot(cls, config: Config) -> str:
-        die(f"Latest snapshot not supported by {cls.pretty_name()}")
-
-    @classmethod
-    def is_kernel_package(cls, package: str) -> bool:
-        return False

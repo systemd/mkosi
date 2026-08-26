@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from mkosi.config import OutputFormat
+from mkosi.distribution import Distribution
 
 from . import Image, ImageConfig
 
@@ -13,6 +14,9 @@ pytestmark = pytest.mark.integration
 
 @pytest.mark.parametrize("format", [f for f in OutputFormat if f.is_extension_image()])
 def test_extension(config: ImageConfig, format: OutputFormat) -> None:
+    if config.distribution == Distribution.buildstream:
+        pytest.skip("Passing --packages is not supported for BuildStream")
+
     with Image(config) as image:
         image.build(["--clean-package-metadata=no", "--format=directory"])
 
