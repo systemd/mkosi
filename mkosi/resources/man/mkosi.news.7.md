@@ -37,6 +37,10 @@
 - The GitHub integration tests have been made runnable locally.
 - Support for distribution-built UKIs have been fixed and they are picked up as
   `/usr/lib/modules/<kver>/vmlinuz*.efi` if a signed bootloader or `UnifiedKernelImages=signed` is requested.
+- The `update-grub` trigger of APK is disabled for postmarketOS if `/etc/update-grub.conf` does not exist. If
+  you define the file yourself, you must set `disable_trigger=1` yourself, if you pull in the grub package.
+- A new option `ToolsTreeSnapshot` was added, which defaults to the value of the regular `Snapshot=` setting
+  if the same distribution is used for the image and the tools tree.
 
 ## v26
 
