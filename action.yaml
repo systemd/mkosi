@@ -112,8 +112,8 @@ runs:
       run: |
         set +e
         APK_TOOLS_API="https://gitlab.alpinelinux.org/api/v4/projects/5"
-        APK_FALLBACK_VERSION='v3.0.6'
-        APK_FALLBACK_SHA256='f1489e05bace7d7dd0a687fcd38d50b585ac660af4231668b123649bef3718c4'
+        APK_FALLBACK_VERSION='v3.0.7'
+        APK_FALLBACK_SHA256='c07bf5356eacc9dd7a8c56bc537f46702f007170287403299d52a04264e74b3c'
 
         APK_VERSION=$(curl -fsSL --retry 5 --retry-all-errors --retry-max-time 30 "${APK_TOOLS_API}/repository/tags" | jq -r '.[].name' | grep -v '_rc' | sort -V | tail -1)
         if [[ "$APK_VERSION" != "$APK_FALLBACK_VERSION" ]]
