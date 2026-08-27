@@ -124,7 +124,7 @@ runs:
         set -e
 
         # If the API fails, fall back to a known-good version
-        if [ -z "$APK_VERSION" ] || [ -z "$APK_SHA256" ] || [ "$APK_SHA256" = null ]
+        if [[ -z "$APK_VERSION" || -z "$APK_SHA256" || "$APK_SHA256" == null ]]
         then
             APK_VERSION="$APK_FALLBACK_VERSION"
             APK_SHA256="$APK_FALLBACK_SHA256"
