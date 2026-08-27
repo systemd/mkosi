@@ -122,7 +122,7 @@ runs:
         APK_FALLBACK_SHA256='c07bf5356eacc9dd7a8c56bc537f46702f007170287403299d52a04264e74b3c'
 
         APK_VERSION=$(curl -fsSL --retry 5 --retry-all-errors --retry-max-time 30 "${APK_TOOLS_API}/repository/tags" | jq -r '.[].name' | grep -v '_rc' | sort -V | tail -1)
-        if [[ "$APK_VERSION" != "$APK_FALLBACK_VERSION" ]]
+        if [[ -n "$APK_VERSION" && "$APK_VERSION" != "$APK_FALLBACK_VERSION" ]]
         then
             APK_PKG_ID=$(curl -fsSL --retry 5 --retry-all-errors --retry-max-time 30 "${APK_TOOLS_API}/packages?package_name=${APK_VERSION}&package_type=generic" | jq '.[] | select(.version == "x86_64") | .id' | sort -n | tail -1)
             APK_SHA256=$(curl -fsSL --retry 5 --retry-all-errors --retry-max-time 30 "${APK_TOOLS_API}/packages/${APK_PKG_ID}/package_files" | jq -r '.[0].file_sha256')
@@ -130,7 +130,7 @@ runs:
         set -e
 
         # If the API fails, fall back to a known-good version
-        if [ -z "$APK_VERSION" ] || [ -z "$APK_SHA256" ] || [ "$APK_SHA256" = null ]
+        if [[ -z "$APK_VERSION" || -z "$APK_SHA256" || "$APK_SHA256" == null ]]
         then
             APK_VERSION="$APK_FALLBACK_VERSION"
             APK_SHA256="$APK_FALLBACK_SHA256"
