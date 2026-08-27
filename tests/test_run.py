@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from mkosi.run import fork_and_wait
+from mkosi.sandbox import EPERM
 
 
 def test_fork_and_wait_returns_value() -> None:
@@ -60,5 +61,10 @@ def test_fork_and_wait_sandbox(tmp_path: Path) -> None:
     def exists() -> bool:
         return Path("/abc").exists()
 
-    result = fork_and_wait(exists, sandbox=contextlib.nullcontext(["--bind", os.fspath(tmp_path), "/"]))
+    try:
+        result = fork_and_wait(exists, sandbox=contextlib.nullcontext(["--bind", os.fspath(tmp_path), "/"]))
+    except subprocess.CalledProcessError as e:
+        if e.returncode == EPERM or e.returncode == 28:
+            pytest.skip("CLONE_NEWUSER is not allowed in the test environment")
+        raise
     assert result
