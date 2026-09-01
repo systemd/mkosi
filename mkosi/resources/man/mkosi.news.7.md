@@ -29,7 +29,7 @@
   images unprivileged without a sufficiently new systemd-nsresourced is still supported.
 - If a `mkosi/` directory exists and no output location is configured, the `.mkosi-private` will be put there.
 - `LocalMirror=` can now be set for tools trees.
-- A new setting `DriveType=` has been added to configures the disk type to use for the root disk when booting
+- A new setting `DiskType=` has been added to configures the disk type to use for the root disk when booting
   a virtual machine.
 - Four new settings `ElTorito=`, `ElToritoSystem=`, `ElToritoVolume=`, and `ElToritoPublisher=` for use with
   systemd-repart's El Torito support have been added.
