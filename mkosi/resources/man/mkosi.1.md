@@ -1458,11 +1458,18 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 :   Path to the X.509 file containing the certificate for signing the expected PCR signatures.
 
 `SignInitrdPCRs=`, `--sign-initrd-pcrs=`
-:   Whether to generate signed PCR policies that can only be satisfied from the
-    initrd. This is required for initialization of NvPCRs. This takes a boolean value
-    or the special value `auto`, which is the default and is equivalent to a true value
-    if PCR signing is enabled (see `SignExpectedPcr=`) and the version of **ukify** is
-    at least v262. Signing is performed with the key that is supplied to `SignExpectedPcrKey=`.
+:   Whether to generate PCR policies that can only be satisfied from the initrd.
+    This is required for initialization of NvPCRs. This takes a boolean value or
+    the special value `auto`, which is the default and is equivalent to a true
+    value if the version of **ukify** is at least v262 and either PCR signing is
+    enabled (see `SignExpectedPcr=`) or `pcrs` is selected in `SplitArtifacts=`.
+    If enabled explicitly, either PCR signing or `SplitArtifacts=pcrs` must be
+    enabled as well.
+
+    When PCR signing is enabled, the policies are signed with the key supplied to
+    `SignExpectedPcrKey=` and embedded in the UKI. If `SplitArtifacts=pcrs` is
+    enabled and PCR signing is disabled, the policy digests are written unsigned to
+    the split PCR JSON artifact for offline signing.
 
 `SecureBootKeySource=`, `--secure-boot-key-source=`, `VerityKeySource=`, `--verity-key-source=`, `SignExpectedPcrKeySource=`, `--sign-expected-key-source=`
 :   The source of the corresponding private key, to support OpenSSL engines and providers,
