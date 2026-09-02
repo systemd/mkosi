@@ -15,6 +15,7 @@ import signal
 import subprocess
 import sys
 import threading
+import unittest.mock
 import uuid
 from collections.abc import Awaitable, Collection, Iterator, Mapping, Sequence
 from contextlib import AbstractContextManager
@@ -67,12 +68,8 @@ def excepthook(frames: Sequence[FrameType]) -> None:
     # sys.excepthook() triggers linecache.checkcache() which evicts cache entries for source files that are
     # inaccessible. Temporarily disable it to preserve our primed linecache entries for which we might not
     # be able to access the files anymore (because we're sandboxed).
-    checkcache = linecache.checkcache
-    linecache.checkcache = lambda filename=None: None
-    try:
+    with unittest.mock.patch("linecache.checkcache", lambda filename=None: None):
         sys.excepthook(exctype, exc, tb)
-    finally:
-        linecache.checkcache = checkcache
 
 
 @contextlib.contextmanager
