@@ -1,0 +1,1 @@
+../mkosi/resources/man/mkosi.news.7.md
