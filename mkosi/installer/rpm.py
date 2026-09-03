@@ -100,12 +100,16 @@ def setup_rpm(
     if not (confdir / "macros.pkgverify_level").exists():
         (confdir / "macros.pkgverify_level").write_text("%_pkgverify_level digest")
 
-    if context.config.distribution == Distribution.opensuse or (
-        context.config.distribution.is_centos_variant() and context.config.release == "9"
+    if (
+        context.config.distribution == Distribution.opensuse
+        or context.config.distribution == Distribution.alinux
+        or (context.config.distribution.is_centos_variant() and context.config.release == "9")
     ):
         # Write an rpm sequoia policy that makes sure "sha1.second_preimage_resistance = always" is
         # configured and makes sure that a minimal config is in place to make sure builds succeed.
-        # TODO: Remove when distributions GPG keys are accepted by the default rpm-sequoia config everywhere.
+        # Needed for Alibaba Cloud Linux 3 keys that still use SHA1 binding signatures.
+        # TODO: Remove when distribution GPG keys are accepted by the default
+        # rpm-sequoia config everywhere.
 
         p = context.sandbox_tree / "etc/crypto-policies/back-ends/rpm-sequoia.config"
         p.parent.mkdir(parents=True, exist_ok=True)
