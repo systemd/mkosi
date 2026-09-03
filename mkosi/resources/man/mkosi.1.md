@@ -502,7 +502,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `Distribution=`, `--distribution=`, `-d`
 :   The distribution to install in the image. Takes one of the following
     arguments: `fedora`, `debian`, `kali`, `ubuntu`, `arch`, `opensuse`,
-    `mageia`, `centos`, `rhel`, `rhel-ubi`, `openmandriva`, `rocky`, `alma`,
+    `mageia`, `centos`, `rhel`, `rhel-ubi`, `openmandriva`, `rocky`, `alma`, `alinux`,
     `azure` or `custom`. If not specified, defaults to the distribution of
     the host or `custom` if the distribution of the host is not a supported
     distribution.
@@ -546,6 +546,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     | `centos`       | https://mirrors.centos.org         |                                |
     | `rocky`        | https://mirrors.rockylinux.org     |                                |
     | `alma`         | https://mirrors.almalinux.org      |                                |
+    | `alinux`       | https://mirrors.aliyun.com/alinux  |                                |
     | `fedora`       | https://mirrors.fedoraproject.org  |                                |
     | `rhel-ubi`     | https://cdn-ubi.redhat.com         |                                |
     | `mageia`       | https://www.mageia.org             |                                |
@@ -3262,6 +3263,10 @@ repository.
   the parent directory of the mirror specified in `Mirror=`. For example
   if the mirror is set to `https://mirror.net/centos-stream` **mkosi** will
   look for the epel repositories in `https://mirror.net/fedora/epel`.
+  For Alibaba Cloud Linux, **mkosi** instead looks for the epel repositories
+  directly in the parent directory of `Mirror=` (for example
+  `https://mirrors.aliyun.com/alinux` → `https://mirrors.aliyun.com/epel`),
+  matching the usual layout of Aliyun mirrors.
 
 * `SYSEXT_SCOPE` and `CONFEXT_SCOPE` can be used to override the default
   value of the respective `extension-release` file when building a sysext
