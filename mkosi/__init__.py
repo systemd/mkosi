@@ -1721,6 +1721,7 @@ def build_uki(
         die("Could not find ukify")
 
     json_out = False
+    ukify_version = systemd_tool_version(python_binary(context.config), ukify, sandbox=context.sandbox)
 
     arguments: list[PathString] = [
         "--os-release", f"@{workdir(context.root / 'usr/lib/os-release')}",
@@ -1776,15 +1777,13 @@ def build_uki(
             "--pcr-banks", "sha256",
         ]  # fmt: skip
 
-        ukify_version = systemd_tool_version(python_binary(context.config), ukify, sandbox=context.sandbox)
-
         if ukify_version >= "258":
             cert_parameter = "--pcr-certificate"
         else:
             cert_parameter = "--pcr-public-key"
 
         if context.config.sign_initrd_pcrs == ConfigFeature.enabled or (
-            context.config.sign_initrd_pcrs == ConfigFeature.auto and ukify_version >= "261.999"
+            context.config.sign_initrd_pcrs == ConfigFeature.auto and ukify_version >= "262~"
         ):
             arguments += ["--sign-initrd-pcrs"]
 
@@ -1830,6 +1829,10 @@ def build_uki(
             "--pcr-banks", "sha256",
             "--pcr-certificate", workdir(context.config.sign_expected_pcr_certificate),
         ]  # fmt: skip
+        if context.config.sign_initrd_pcrs == ConfigFeature.enabled or (
+            context.config.sign_initrd_pcrs == ConfigFeature.auto and ukify_version >= "262~"
+        ):
+            arguments += ["--sign-initrd-pcrs"]
         options += [
             "--ro-bind", context.config.sign_expected_pcr_certificate, workdir(context.config.sign_expected_pcr_certificate),  # noqa: E501
         ]  # fmt: skip
@@ -2754,8 +2757,10 @@ def check_inputs(config: Config) -> None:
             hint="Run mkosi genkey to generate a key/certificate pair",
         )
 
-    if config.sign_initrd_pcrs == ConfigFeature.enabled and not want_signed_pcrs(config):
-        die("SignInitrdPCRs= is enabled but PCR signing is not enabled")
+    if config.sign_initrd_pcrs == ConfigFeature.enabled and not (
+        want_signed_pcrs(config) or ArtifactOutput.pcrs in config.split_artifacts
+    ):
+        die("SignInitrdPCRs= is enabled but neither PCR signing nor SplitArtifacts=pcrs are enabled")
 
     if config.secure_boot_key_source != config.sign_expected_pcr_key_source:
         die("Secure boot key source and expected PCR signatures key source have to be the same")
@@ -2909,7 +2914,7 @@ def check_tools(config: Config, verb: Verb) -> None:
         if config.sign_initrd_pcrs == ConfigFeature.enabled and want_signed_pcrs(config):
             check_ukify(
                 config,
-                version="261.999",
+                version="262~",
                 reason="sign a PCR policy for the initrd",
             )
 
