@@ -41,9 +41,9 @@ for f in "${UKIS[@]}"; do
     test -f "${OUTPUTDIR}/${f}" || continue
     if [ -f "${OUTPUTDIR}/${f%.efi}.pcrs" ]; then
         mkdir -p "hashes/pcrs/$f"
-        while read -r pol; do
-            echo -n "$pol" | tr '[:lower:]' '[:upper:]' | basenc --base16 --decode >"hashes/pcrs/${f}/${pol}"
-        done < <(jq -r 'to_entries[] | .value[].pol' <"${OUTPUTDIR}/${f%.efi}.pcrs")
+        while read -r tbs; do
+            echo -n "$tbs" | tr '[:lower:]' '[:upper:]' | basenc --base16 --decode >"hashes/pcrs/${f}/${tbs}"
+        done < <(jq -r 'to_entries[] | .value[] | .tbs // .pol' <"${OUTPUTDIR}/${f%.efi}.pcrs")
     else
         mkdir -p "$(dirname "hashes/ukis/$f")"
         pesign --force -n sql:"$nss_db" -i "${OUTPUTDIR}/${f}" -E "hashes/ukis/$f"
