@@ -185,6 +185,18 @@ def find_grub_binary(config: Config, binary: str) -> Optional[Path]:
     return config.find_binary(f"grub-{binary}", f"grub2-{binary}", f"/usr/lib/grub/i386-pc/grub-{binary}")
 
 
+def grub_supports_disable_shim_lock(context: Context, mkimage: Path) -> bool:
+    # --disable-shim-lock was added in GRUB 2.06; Alibaba Cloud Linux 3 ships GRUB 2.02.
+    return (
+        "--disable-shim-lock"
+        in run(
+            [mkimage, "--help"],
+            stdout=subprocess.PIPE,
+            sandbox=context.sandbox(),
+        ).stdout
+    )
+
+
 def prepare_grub_config(context: Context) -> Optional[Path]:
     config = context.root / "efi" / context.config.distribution.installer.grub_prefix() / "grub.cfg"
     with umask(~0o700):
@@ -258,7 +270,12 @@ def grub_mkimage(
                 "--output", workdir(output) if output else "/grub/core.img",
                 "--format", target,
                 *(["--sbat", os.fspath(workdir(sbat))] if sbat else []),
-                *(["--disable-shim-lock"] if context.config.shim_bootloader == ShimBootloader.none else []),
+                *(
+                    ["--disable-shim-lock"]
+                    if context.config.shim_bootloader == ShimBootloader.none
+                    and grub_supports_disable_shim_lock(context, mkimage)
+                    else []
+                ),
                 "cat",
                 "cmp",
                 "div",
