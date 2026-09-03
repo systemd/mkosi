@@ -1504,11 +1504,18 @@ def build_microcode_initrd(context: Context) -> list[Path]:
             if amd.exists():
                 with (destdir / "AuthenticAMD.bin").open("wb") as f:
                     for p in amd.iterdir():
+                        if not p.is_file():
+                            continue
                         f.write(p.read_bytes())
 
             if intel.exists():
                 with (destdir / "GenuineIntel.bin").open("wb") as f:
                     for p in intel.iterdir():
+                        # On some distributions the Intel ucode directory may contain directories like
+                        # intel-ucode-with-caveats, that contain microcode that needs special patches in the
+                        # kernel or other manual interventions, so we ignore these.
+                        if not p.is_file():
+                            continue
                         f.write(p.read_bytes())
 
         # Normalize timestamps for reproducible builds before creating cpio
