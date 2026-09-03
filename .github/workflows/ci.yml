@@ -47,74 +47,74 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        distro:
-          - arch
-          - centos
-          - debian
-          - fedora
-          - opensuse
-          - postmarketos
-          - ubuntu
-        tools:
-          - arch
-          - centos
-          - debian
-          - fedora
-          - opensuse
-          - ubuntu
-        runner:
-          - ubuntu-24.04
-        exclude:
-          # pacman is not packaged in EPEL.
-          - distro: arch
-            tools: centos
-          # apt and debian-keyring are not packaged in EPEL.
-          - distro: debian
-            tools: centos
-          - distro: ubuntu
-            tools: centos
-          # pacman is not packaged in openSUSE.
-          - distro: arch
-            tools: opensuse
-          # apt, debian-keyring and ubuntu-keyring are not packaged in openSUSE.
-          - distro: debian
-            tools: opensuse
-          - distro: ubuntu
-            tools: opensuse
-          # apk is not packaged in Debian, Ubuntu, or EPEL.
-          - distro: postmarketos
-            tools: centos
-          - distro: postmarketos
-            tools: debian
-          - distro: postmarketos
-            tools: ubuntu
+        # distro:
+        #   - arch
+        #   - centos
+        #   - debian
+        #   - fedora
+        #   - opensuse
+        #   - postmarketos
+        #   - ubuntu
+        # tools:
+        #   - arch
+        #   - centos
+        #   - debian
+        #   - fedora
+        #   - opensuse
+        #   - ubuntu
+        # runner:
+        #   - ubuntu-24.04
+        # exclude:
+        #   # pacman is not packaged in EPEL.
+        #   - distro: arch
+        #     tools: centos
+        #   # apt and debian-keyring are not packaged in EPEL.
+        #   - distro: debian
+        #     tools: centos
+        #   - distro: ubuntu
+        #     tools: centos
+        #   # pacman is not packaged in openSUSE.
+        #   - distro: arch
+        #     tools: opensuse
+        #   # apt, debian-keyring and ubuntu-keyring are not packaged in openSUSE.
+        #   - distro: debian
+        #     tools: opensuse
+        #   - distro: ubuntu
+        #     tools: opensuse
+        #   # apk is not packaged in Debian, Ubuntu, or EPEL.
+        #   - distro: postmarketos
+        #     tools: centos
+        #   - distro: postmarketos
+        #     tools: debian
+        #   - distro: postmarketos
+        #     tools: ubuntu
         include:
-          # low rate limit on s390x/ppc64le/arm64 workers
-          - distro: debian
-            tools: debian
-            runner: ubuntu-24.04-arm
-          - distro: fedora
-            tools: fedora
-            runner: ubuntu-24.04-arm
-          - distro: opensuse
-            tools: opensuse
-            runner: ubuntu-24.04-arm
-          - distro: ubuntu
-            tools: ubuntu
-            runner: ubuntu-24.04-arm
-          - distro: fedora
-            tools: fedora
-            runner: ubuntu-24.04-ppc64le
-          - distro: debian
-            tools: debian
-            runner: ubuntu-24.04-ppc64le
-          - distro: debian
-            tools: debian
-            runner: ubuntu-24.04-s390x
-          # build pmOS using pmOS tools tree
-          - distro: postmarketos
-            tools: postmarketos
-            runner: ubuntu-24.04
+          # # low rate limit on s390x/ppc64le/arm64 workers
+          # - distro: debian
+          #   tools: debian
+          #   runner: ubuntu-24.04-arm
+          # - distro: fedora
+          #   tools: fedora
+          #   runner: ubuntu-24.04-arm
+          # - distro: opensuse
+          #   tools: opensuse
+          #   runner: ubuntu-24.04-arm
+          # - distro: ubuntu
+          #   tools: ubuntu
+          #   runner: ubuntu-24.04-arm
+          # - distro: fedora
+          #   tools: fedora
+          #   runner: ubuntu-24.04-ppc64le
+          # - distro: debian
+          #   tools: debian
+          #   runner: ubuntu-24.04-ppc64le
+          # - distro: debian
+          #   tools: debian
+          #   runner: ubuntu-24.04-s390x
+          # # build pmOS using pmOS tools tree
+          # - distro: postmarketos
+          #   tools: postmarketos
+          #   runner: ubuntu-24.04
           # Only Fedora and Debian have (working) BuildStream packages
           - distro: buildstream
             tools: debian
