@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 import os
+import subprocess
 import tempfile
 from collections.abc import Iterable, Sequence
 from pathlib import Path
@@ -57,7 +58,7 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
             options = context.rootoptions()
 
             gpgkeys: Sequence[PathString] = []
-            if (p := context.keyring_dir / "opensuse.gpg").exists():
+            if (p := context.keyring_dir / "opensuse.gpg").exists() and p.stat().st_size > 0:
                 gpgkeys = [workdir(p)]
                 options += ["--bind", os.fspath(p), workdir(p)]
             else:
@@ -76,14 +77,29 @@ class Installer(DistributionInstaller, distribution=Distribution.opensuse):
             return
 
         context.keyring_dir.mkdir(parents=True, exist_ok=True)
+        keyring = context.keyring_dir / "opensuse.gpg"
 
-        with (context.keyring_dir / "opensuse.gpg").open("wb") as f:
-            run(
-                # TODO: Switch to rpmkeys --export once we can rely on rpm 6.0.0 or newer.
-                ["rpm", "--root=/buildroot", "-q", "gpg-pubkey", "--qf", "%{PUBKEYS:armor}\n"],
-                stdout=f,
-                sandbox=context.sandbox(options=context.rootoptions()),
-            )
+        result = run(
+            # TODO: Switch to rpmkeys --export once we can rely on rpm 6.0.0 or newer.
+            ["rpm", "--root=/buildroot", "-q", "gpg-pubkey", "--qf", "%{PUBKEYS:armor}\n"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            sandbox=context.sandbox(options=context.rootoptions()),
+            success_exit_status=(0, 1),
+        )
+
+        if result.returncode == 1:
+            expected = "package gpg-pubkey is not installed"
+            if expected not in result.stdout and expected not in result.stderr:
+                raise subprocess.CalledProcessError(
+                    result.returncode,
+                    result.args,
+                    output=result.stdout,
+                    stderr=result.stderr,
+                )
+            keyring.unlink(missing_ok=True)
+        else:
+            keyring.write_text(result.stdout)
 
     @classmethod
     def install(cls, context: Context) -> None:
