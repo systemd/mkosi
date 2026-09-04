@@ -41,6 +41,8 @@ class BST(PackageManager):
         options: list[PathString] = [
             "--same-dir",
             *context.rootoptions(),
+            # bst will need write access to the current directory as it might write to .bst
+            "--bind", Path.cwd(), Path.cwd(),
             # bst might need to lookup files/paths across the user's home directory so make sure it is
             # available.
             "--bind", Path.home(), Path.home(),
