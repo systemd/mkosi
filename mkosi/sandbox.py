@@ -860,6 +860,7 @@ def acquire_privileges(
     delegate: int = 0,
     become_root: bool = False,
     network: bool = False,
+    force_fallback: bool = False,
 ) -> bool:
     if (
         have_effective_cap(CAP_SYS_ADMIN)
@@ -870,7 +871,7 @@ def acquire_privileges(
     ):
         return False
 
-    if not identity or (foreign and not have_effective_cap(CAP_CHOWN)) or delegate:
+    if (not identity or (foreign and not have_effective_cap(CAP_CHOWN)) or delegate) and not force_fallback:
         # nsresource_allocate_user_range() might fail for various reasons and we don't want to leave
         # the process in an empty user namespace if that's the case. Hence we don't unshare our own
         # user namespace but get ourselves a child user namespace which we pass to nsresourced. We only
