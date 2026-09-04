@@ -1711,6 +1711,10 @@ def enter(argv: list[str]) -> list[str]:
             os.environ["LISTEN_FDS"] = str(nfds)
             os.environ["LISTEN_PID"] = str(os.getpid())
 
+    # Reset umask so a restrictive host umask (e.g. 0027) doesn't leak into sandboxed processes
+    # and cause package managers/scripts to create files in the rootfs with wrong permissions.
+    os.umask(0o022)
+
     return argv
 
 
