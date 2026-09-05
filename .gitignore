@@ -6,6 +6,8 @@
 .project
 .pydevproject
 .pytest_cache/
+/.bst
+/.bst2
 /.mkosi-*
 /SHA256SUMS
 /SHA256SUMS.gpg

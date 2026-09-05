@@ -133,6 +133,12 @@ group "build_box"
 bin/mkosi -f box -- true
 endgroup
 
+if [ "$distribution" = "buildstream" ]; then
+    group "track_freedesktop-sdk"
+    bin/mkosi -f box -- bst source track freedesktop-sdk.bst
+    endgroup
+fi
+
 group "build_image"
 bin/mkosi -f
 endgroup
