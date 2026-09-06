@@ -1421,6 +1421,7 @@ mkosi-sandbox [OPTIONS...] COMMAND [ARGUMENTS...]
      --map-delegate N             Map N additional 64K UID/GID ranges in the sandbox
      --suppress-chown             Make chown() syscalls in the sandbox a noop
      --suppress-sync              Make sync() syscalls in the sandbox a noop
+     --umask MASK                 Set the umask for processes running in the sandbox
      --unshare-net                Unshare the network namespace if possible
      --unshare-ipc                Unshare the IPC namespace if possible
      --debug                      Log each filesystem operation before executing it
@@ -1457,6 +1458,7 @@ def enter(argv: list[str]) -> list[str]:
     pack_fds = False
     map_foreign = False
     map_delegate = 0
+    umask_value = None
     debug = False
 
     try:
@@ -1553,6 +1555,8 @@ def enter(argv: list[str]) -> list[str]:
             suppress_chown = True
         elif arg == "--suppress-sync":
             suppress_sync = True
+        elif arg == "--umask":
+            umask_value = int(argv.pop())
         elif arg == "--unshare-net":
             unshare_net = True
         elif arg == "--unshare-ipc":
@@ -1712,9 +1716,8 @@ def enter(argv: list[str]) -> list[str]:
             os.environ["LISTEN_FDS"] = str(nfds)
             os.environ["LISTEN_PID"] = str(os.getpid())
 
-    # Reset umask so a restrictive host umask (e.g. 0027) doesn't leak into sandboxed processes
-    # and cause package managers/scripts to create files in the rootfs with wrong permissions.
-    os.umask(0o022)
+    if umask_value is not None:
+        os.umask(umask_value)
 
     return argv
 
