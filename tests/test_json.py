@@ -542,6 +542,7 @@ def test_config() -> None:
         machine_id=uuid.UUID("b58253b0cc924a348782bcd99b20d07f"),
         machine="machine",
         make_scripts_executable=False,
+        umask=None,
         make_initrd=False,
         manifest_format=[ManifestFormat.json, ManifestFormat.changelog],
         maxmem=123,
