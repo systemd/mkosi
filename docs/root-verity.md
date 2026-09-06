@@ -144,7 +144,7 @@ example definitions here. These are all missing a `[Source]` section
 whose contents will depend on how updates are deployed:
 
 ```ini
-# /usr/lib/sysupdate.d/10-root-verity-sig.conf
+# /usr/lib/sysupdate.d/10-root-verity-sig.transfer
 [Transfer]
 ProtectVersion=%A
 
@@ -156,7 +156,7 @@ MatchPartitionType=root-verity-sig
 PartitionFlags=0
 ReadOnly=1
 
-# /usr/lib/sysupdate.d/11-root-verity.conf
+# /usr/lib/sysupdate.d/11-root-verity.transfer
 [Transfer]
 ProtectVersion=%A
 
@@ -168,7 +168,7 @@ MatchPartitionType=root-verity
 PartitionFlags=0
 ReadOnly=1
 
-# /usr/lib/sysupdate.d/12-root.conf
+# /usr/lib/sysupdate.d/12-root.transfer
 [Transfer]
 ProtectVersion=%A
 
@@ -180,7 +180,7 @@ MatchPartitionType=root
 PartitionFlags=0
 ReadOnly=1
 
-# /usr/lib/sysupdate.d/20-uki.conf
+# /usr/lib/sysupdate.d/20-uki.transfer
 [Transfer]
 ProtectVersion=%A
 
