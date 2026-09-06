@@ -413,9 +413,9 @@ def test_config() -> None:
             "SysupdateDirectory": "/sysupdate",
             "TPM": "auto",
             "Timezone": null,
-            "UMask": null,
             "ToolsTree": null,
             "ToolsTreeCertificates": true,
+            "UMask": null,
             "UnifiedKernelImageFormat": "myuki",
             "UnifiedKernelImageProfiles": [
                 {
