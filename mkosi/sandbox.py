@@ -1556,7 +1556,7 @@ def enter(argv: list[str]) -> list[str]:
         elif arg == "--suppress-sync":
             suppress_sync = True
         elif arg == "--umask":
-            umask_value = int(argv.pop())
+            umask_value = int(argv.pop(), 8)
         elif arg == "--unshare-net":
             unshare_net = True
         elif arg == "--unshare-ipc":
