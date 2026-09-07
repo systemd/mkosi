@@ -640,6 +640,9 @@ class Architecture(StrEnum):
     def is_arm_variant(self) -> bool:
         return self in (Architecture.arm, Architecture.arm64)
 
+    def is_riscv_variant(self) -> bool:
+        return self in (Architecture.riscv32, Architecture.riscv64)
+
     @classmethod
     def native(cls) -> "Architecture":
         return cls.from_uname(platform.machine())
