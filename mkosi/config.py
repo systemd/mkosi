@@ -2633,7 +2633,7 @@ class Config:
         opt: list[PathString] = [*options]
 
         if self.umask is not None:
-            opt += ["--umask", str(self.umask)]
+            opt += ["--umask", f"{self.umask:o}")]
 
         if not relaxed:
             opt += flatten(("--ro-bind", d, d) for d in self.extra_search_paths)
