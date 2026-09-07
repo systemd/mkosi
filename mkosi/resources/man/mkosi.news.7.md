@@ -4,6 +4,11 @@
 
 # mkosi Changelog
 
+## v28
+
+- Credentials and the extra kernel command line are now passed to riscv64 virtual machines via SMBIOS and
+  fw_cfg when booting via UEFI.
+
 ## v27
 
 - Debug output (with `--debug`) will now show the duration of all steps.
