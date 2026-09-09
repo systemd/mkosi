@@ -4,6 +4,14 @@
 
 # mkosi Changelog
 
+## v28
+
+- Support for building Fedora Linux images for riscv64 has been added, using the repositories of the Fedora
+  RISC-V SIG. Note that Fedora RISC-V packages are not signed, so package signatures are not verified for
+  these repositories.
+- Credentials and the extra kernel command line are now passed to riscv64 virtual machines via SMBIOS and
+  fw_cfg when booting via UEFI.
+
 ## v27
 
 - Debug output (with `--debug`) will now show the duration of all steps.

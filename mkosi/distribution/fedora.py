@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
+import logging
 import re
 import subprocess
 import tempfile
@@ -135,6 +136,12 @@ class Installer(DistributionInstaller, distribution=Distribution.fedora):
 
     @classmethod
     def setup(cls, context: Context) -> None:
+        if context.config.architecture == Architecture.riscv64 and not context.config.local_mirror:
+            logging.warning(
+                f"{cls.pretty_name()} packages for riscv64 are not signed, "
+                "package signatures will not be verified"
+            )
+
         setup_rpm(context)
         Dnf.setup(
             context,
@@ -169,6 +176,69 @@ class Installer(DistributionInstaller, distribution=Distribution.fedora):
             yield RpmRepository(
                 "fedora", f"baseurl={context.config.local_mirror}", gpgurls, repo_gpgcheck=False
             )
+            return
+
+        if context.config.architecture == Architecture.riscv64:
+            # riscv64 is not a primary Fedora architecture yet. Its packages are built by the Fedora RISC-V
+            # SIG on its own Koji instance and are neither published to the Fedora mirror network nor signed.
+            # The repositories below mirror the definitions from the fedora-repos package shipped by Fedora
+            # RISC-V.
+            if context.config.snapshot:
+                die(f"Snapshot= is not supported for riscv64 on {cls.pretty_name()}")
+
+            mirror = context.config.mirror or "https://riscv-koji.fedoraproject.org"
+            tag = "rawhide" if context.config.release == "rawhide" else "f$releasever"
+
+            url = f"baseurl={join_mirror(mirror, f'repos-dist/{tag}/latest')}"
+            yield RpmRepository(
+                "fedora",
+                f"{url}/$basearch",
+                (),
+                gpgcheck=False,
+                repo_gpgcheck=False,
+                priority=99,
+            )
+            yield RpmRepository(
+                "fedora-debuginfo",
+                f"{url}/$basearch/debug",
+                (),
+                enabled=False,
+                gpgcheck=False,
+                repo_gpgcheck=False,
+                priority=99,
+            )
+            yield RpmRepository(
+                "fedora-source",
+                f"{url}/src",
+                (),
+                enabled=False,
+                gpgcheck=False,
+                repo_gpgcheck=False,
+                priority=99,
+            )
+
+            # Fedora RISC-V enables its staging repository by default and gives it a higher priority than the
+            # main repository.
+            if context.config.release != "rawhide":
+                url = f"baseurl={join_mirror(mirror, 'repos-dist/f$releasever-staging/latest')}"
+                yield RpmRepository(
+                    "fedora-staging",
+                    f"{url}/$basearch",
+                    (),
+                    gpgcheck=False,
+                    repo_gpgcheck=False,
+                    priority=98,
+                )
+                yield RpmRepository(
+                    "fedora-staging-source",
+                    f"{url}/src",
+                    (),
+                    enabled=False,
+                    gpgcheck=False,
+                    repo_gpgcheck=False,
+                    priority=98,
+                )
+
             return
 
         if context.config.release == "eln":
