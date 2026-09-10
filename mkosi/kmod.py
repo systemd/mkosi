@@ -292,7 +292,9 @@ def resolve_module_dependencies(
     with chdir(context.root):
         nametofile = {module_path_to_name(m): m for m in all_modules(modulesd)}
 
-    todo = {*builtin, *modules}
+    # Only query loadable modules. Built-in modules are not .ko files; older modinfo (e.g. on
+    # Alibaba Cloud Linux 3) exits non-zero when asked about them.
+    todo = {m for m in modules if m in nametofile}
     mods: set[str] = set()
     firmware = set()
 

@@ -185,7 +185,39 @@ def find_grub_binary(config: Config, binary: str) -> Optional[Path]:
     return config.find_binary(f"grub-{binary}", f"grub2-{binary}", f"/usr/lib/grub/i386-pc/grub-{binary}")
 
 
+def grub_supports_disable_shim_lock(context: Context, mkimage: Path) -> bool:
+    # --disable-shim-lock was added in GRUB 2.06; Alibaba Cloud Linux 3 ships GRUB 2.02.
+    return (
+        "--disable-shim-lock"
+        in run(
+            [mkimage, "--help"],
+            stdout=subprocess.PIPE,
+            sandbox=context.sandbox(),
+        ).stdout
+    )
+
+
+def ensure_grubenv(context: Context) -> None:
+    # RHEL-family grub2-efi packages ship /boot/grub2/grubenv as a symlink to a
+    # %ghost file under /boot/efi/EFI/<vendor>/grubenv. Create the target so
+    # systemd-repart CopyFiles=/boot:/ does not fail when populating the ESP.
+    link = context.root / "boot/grub2/grubenv"
+    if not link.is_symlink() or link.exists():
+        return
+
+    target = (link.parent / link.readlink()).resolve(strict=False)
+    with umask(~0o700):
+        target.parent.mkdir(parents=True, exist_ok=True)
+
+    # GRUB environment blocks are exactly 1024 bytes.
+    header = b"# GRUB Environment Block\n"
+    with umask(~0o600):
+        target.write_bytes(header + b"#" * (1024 - len(header)))
+
+
 def prepare_grub_config(context: Context) -> Optional[Path]:
+    ensure_grubenv(context)
+
     config = context.root / "efi" / context.config.distribution.installer.grub_prefix() / "grub.cfg"
     with umask(~0o700):
         config.parent.mkdir(exist_ok=True)
@@ -258,7 +290,12 @@ def grub_mkimage(
                 "--output", workdir(output) if output else "/grub/core.img",
                 "--format", target,
                 *(["--sbat", os.fspath(workdir(sbat))] if sbat else []),
-                *(["--disable-shim-lock"] if context.config.shim_bootloader == ShimBootloader.none else []),
+                *(
+                    ["--disable-shim-lock"]
+                    if context.config.shim_bootloader == ShimBootloader.none
+                    and grub_supports_disable_shim_lock(context, mkimage)
+                    else []
+                ),
                 "cat",
                 "cmp",
                 "div",
@@ -364,6 +401,8 @@ def extract_pe_section(context: Context, binary: Path, section: str, output: Pat
 def install_grub(context: Context) -> None:
     if not want_grub_bios(context) and not want_grub_efi(context):
         return
+
+    ensure_grubenv(context)
 
     if want_grub_bios(context):
         grub_mkimage(context, target="i386-pc", modules=("biosdisk",))
