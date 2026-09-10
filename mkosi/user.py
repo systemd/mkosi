@@ -5,8 +5,6 @@ from pathlib import Path
 from mkosi.run import find_binary
 from mkosi.util import parents_below
 
-SUBRANGE = 65536
-
 
 class INVOKING_USER:
     @classmethod
