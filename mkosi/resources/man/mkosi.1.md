@@ -1860,6 +1860,15 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     systemd-nsresourced and systemd-mountfsd v260 or newer are required on the host
     to make use of this option.
 
+`UMask=`, `--umask=`
+:   Set the umask for all processes running in the build sandbox, including package
+    managers and build scripts. Takes an octal value, e.g. `0022`. If not set, the
+    host umask is inherited.
+
+    This is useful on hardened builder machines where a restrictive system-wide umask
+    (e.g. `0027`) would otherwise leak into the sandbox and cause files installed into
+    the image to have unexpected permissions.
+
 ### [Runtime] Section (previously known as the [Host] section)
 
 `NSpawnSettings=`, `--settings=`
