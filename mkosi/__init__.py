@@ -5113,7 +5113,7 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
         # systemd-nsresourced if we can.
         acquire_privileges(
             foreign=True,
-            delegate_ranges=3,
+            delegate_ranges=0 if (os.getuid() == 0 and os.getgid() == 0) else 3,
             force_fallback=parse_boolean(os.getenv("MKOSI_FORCE_USERNS_FALLBACK", "0")),
         )
     # Don't fail if systemd-nsresourced is too old, not installed or refuses to provision a user namespace
