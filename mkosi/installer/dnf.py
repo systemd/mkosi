@@ -217,11 +217,15 @@ class Dnf(PackageManager):
         if dnf == "dnf5":
             cmdline += ["--use-host-config"]
         else:
-            cmdline += [
-                "--config=/etc/dnf/dnf.conf",
-                "--setopt=reposdir=/etc/yum.repos.d",
-                "--setopt=varsdir=/etc/dnf/vars",
-            ]
+            cmdline += ["--config=/etc/dnf/dnf.conf"]
+
+        # By default, dnf5 also reads repository definitions and variables from /usr/share/dnf5 which comes
+        # from the tools tree when using one (e.g. Fedora rawhide's fedora-repos ships its repositories there
+        # now), so make sure we only ever use the ones from the sandbox tree.
+        cmdline += [
+            "--setopt=reposdir=/etc/yum.repos.d",
+            "--setopt=varsdir=/etc/dnf/vars",
+        ]
 
         if context.config.proxy_url:
             cmdline += [f"--setopt=proxy={context.config.proxy_url}"]

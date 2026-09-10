@@ -140,14 +140,14 @@ rm -rf nss-db
 while read -r SIG; do
     uki="$OUTPUTDIR/$(basename "$(dirname "${SIG%.sig}")")"
     pcrs="${uki%.efi}.pcrs"
-    pol="$(basename "${SIG%.sig}")"
+    tbs="$(basename "${SIG%.sig}")"
 
     test -f "${pcrs}"
 
-    jq -c --arg pol "$pol" --arg sig "$(base64 -w0 <"$SIG")" '
+    jq -c --arg tbs "$tbs" --arg sig "$(base64 -w0 <"$SIG")" '
         to_entries | map(
             .value |= map(
-                if .pol == $pol then
+                if (.tbs // .pol) == $tbs then
                     .sig = $sig
                 else
                     .
