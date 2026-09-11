@@ -3,11 +3,12 @@
 import contextlib
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
-from mkosi.run import fork_and_wait
+from mkosi.run import fork_and_wait, run
 from mkosi.sandbox import EPERM
 
 
@@ -68,3 +69,15 @@ def test_fork_and_wait_sandbox(tmp_path: Path) -> None:
             pytest.skip("CLONE_NEWUSER is not allowed in the test environment")
         raise
     assert result
+
+
+def test_run_terminfo_passthrough(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TERMINFO", "/custom/terminfo")
+    monkeypatch.setenv("TERMINFO_DIRS", "/custom/terminfo/dirs")
+
+    result = run(
+        [sys.executable, "-c", "import os; print(os.getenv('TERMINFO'), os.getenv('TERMINFO_DIRS'))"],
+        stdout=subprocess.PIPE,
+    )
+    assert result.stdout.strip() == "/custom/terminfo /custom/terminfo/dirs"
+
