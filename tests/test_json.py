@@ -161,6 +161,7 @@ def test_config() -> None:
                     "Value": null
                 }
             ],
+            "DelegateRanges": 3,
             "Dependencies": [
                 "dep1"
             ],
@@ -487,6 +488,7 @@ def test_config() -> None:
             Credential(name="credkey", value="credval"),
             Credential(name="pathcred", path=Path("/secret/file")),
         ],
+        delegate_ranges=3,
         dependencies=["dep1"],
         distribution=Distribution.fedora,
         disk_type=QemuDiskType.virtio_blk,

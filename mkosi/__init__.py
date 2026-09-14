@@ -5110,10 +5110,12 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
 
     try:
         # Try to get a user namespace with some delegated ranges and the foreign UID range via
-        # systemd-nsresourced if we can.
+        # systemd-nsresourced if we can, unless we're running as root, then
+        # - Only use the foreign UID range if it was explicitly requested
+        # - Only use delegated ranges if they were requested
         acquire_privileges(
             foreign=last.foreign_uid_range if (os.getuid() == 0 and os.getgid() == 0) else True,
-            delegate_ranges=0 if (os.getuid() == 0 and os.getgid() == 0) else 3,
+            delegate_ranges=last.delegate_ranges,
             force_fallback=parse_boolean(os.getenv("MKOSI_FORCE_USERNS_FALLBACK", "0")),
         )
     # Don't fail if systemd-nsresourced is too old, not installed or refuses to provision a user namespace
