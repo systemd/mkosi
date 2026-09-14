@@ -6011,6 +6011,8 @@ def summary(config: Config) -> str:
                          Tools Tree: {config.tools_tree}
             Tools Tree Certificates: {yes_no(config.tools_tree_certificates)}
 
+          Use the Foreign UID Range: {yes_no(config.foreign_uid_range)}
+
                  Extra Search Paths: {line_join_list(config.extra_search_paths)}
                         Incremental: {config.incremental}
              Use Only Package Cache: {config.cacheonly}
