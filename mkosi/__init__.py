@@ -5134,7 +5134,7 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
         if last.foreign_uid_range:
             die(f"Could not provision user namespace via systemd-nsresourced ({e})")
 
-        logging.debug(
+        logging.info(
             f"Could not provision user namespace via systemd-nsresourced ({e}), falling back to "
             "unprivileged user namespace via unshare(CLONE_NEWUSER) and writing /proc/self/uid_map directly",
         )
