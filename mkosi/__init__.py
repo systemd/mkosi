@@ -5112,7 +5112,7 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
         # Try to get a user namespace with some delegated ranges and the foreign UID range via
         # systemd-nsresourced if we can.
         acquire_privileges(
-            foreign=True,
+            foreign=last.foreign_uid_range if (os.getuid() == 0 and os.getgid() == 0) else True,
             delegate_ranges=0 if (os.getuid() == 0 and os.getgid() == 0) else 3,
             force_fallback=parse_boolean(os.getenv("MKOSI_FORCE_USERNS_FALLBACK", "0")),
         )
