@@ -237,6 +237,7 @@ class OutputFormat(StrEnum):
     tar = enum.auto()
     uki = enum.auto()
     oci = enum.auto()
+    oci_archive = enum.auto()
     addon = enum.auto()
 
     def extension(self) -> str:
@@ -248,6 +249,7 @@ class OutputFormat(StrEnum):
             OutputFormat.portable:     "raw",
             OutputFormat.sysext:       "raw",
             OutputFormat.tar:          "tar",
+            OutputFormat.oci_archive:  "tar",
             OutputFormat.uki:          "efi",
             OutputFormat.addon:        "efi",
         }.get(self, "")  # fmt: skip
@@ -1009,7 +1011,7 @@ def config_default_compression(namespace: dict[str, Any]) -> Compression:
         OutputFormat.addon,
     ):
         return Compression.zstd
-    elif namespace["output_format"] == OutputFormat.oci:
+    elif namespace["output_format"] in (OutputFormat.oci, OutputFormat.oci_archive):
         return Compression.gz
     else:
         return Compression.none
