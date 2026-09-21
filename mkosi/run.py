@@ -334,7 +334,7 @@ def spawn(
     if "TMPDIR" in os.environ:
         env["TMPDIR"] = os.environ["TMPDIR"]
 
-    for e in ("SYSTEMD_LOG_LEVEL", "SYSTEMD_LOG_LOCATION", "LD_LIBRARY_PATH", "TERMINFO", "TERMINFO_DIRS"):
+    for e in ("SYSTEMD_LOG_LEVEL", "SYSTEMD_LOG_LOCATION", "LD_LIBRARY_PATH"):
         if e in os.environ:
             env[e] = os.environ[e]
 
