@@ -80,4 +80,3 @@ def test_run_terminfo_passthrough(monkeypatch: pytest.MonkeyPatch) -> None:
         stdout=subprocess.PIPE,
     )
     assert result.stdout.strip() == "/custom/terminfo /custom/terminfo/dirs"
-
