@@ -4183,7 +4183,7 @@ def build_image(context: Context) -> None:
 
     if context.config.output_format == OutputFormat.tar:
         make_tar(context.root, context.staging / context.config.output_with_format, sandbox=context.sandbox)
-    elif context.config.output_format in (OutputFormat.oci, OutputFormat.oci_archive):
+    elif context.config.output_format.is_oci():
         make_tar(context.root, context.staging / "rootfs.layer", sandbox=context.sandbox)
         oci = (
             context.staging / context.config.output_with_format

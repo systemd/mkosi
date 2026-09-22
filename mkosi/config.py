@@ -270,6 +270,9 @@ class OutputFormat(StrEnum):
     def is_extension_or_portable_image(self) -> bool:
         return self.is_extension_image() or self == OutputFormat.portable
 
+    def is_oci(self) -> bool:
+        return self in (OutputFormat.oci, OutputFormat.oci_archive)
+
 
 class ManifestFormat(StrEnum):
     json = enum.auto()  # the standard manifest in json format
