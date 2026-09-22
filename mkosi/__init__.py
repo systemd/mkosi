@@ -4193,8 +4193,10 @@ def build_image(context: Context) -> None:
         make_oci(context, context.staging / "rootfs.layer", oci)
 
         if context.config.output_format == OutputFormat.oci_archive:
-            make_tar(oci, context.staging /
-                     context.config.output_with_format, sandbox=context.sandbox)
+            make_tar(oci,
+                     context.staging / context.config.output_with_format,
+                     sandbox=context.sandbox
+            )
     elif context.config.output_format == OutputFormat.cpio:
         make_cpio(context.root, context.staging / context.config.output_with_format, sandbox=context.sandbox)
     elif context.config.output_format == OutputFormat.uki:
