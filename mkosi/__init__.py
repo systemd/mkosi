@@ -5109,12 +5109,16 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
         return
 
     try:
+        if parse_boolean(os.getenv("MKOSI_FORCE_USERNS_FALLBACK") or "0"):
+            raise ConnectionRefusedError("Forced fallback to unpriv userns.")
+
         # Try to get a user namespace with some delegated ranges and the foreign UID range via
-        # systemd-nsresourced if we can.
+        # systemd-nsresourced if we can, unless we're running as root, then
+        # - Only use the foreign UID range if it was explicitly requested
+        # - Only use delegated ranges if they were requested
         acquire_privileges(
-            foreign=True,
-            delegate=3,
-            force_fallback=parse_boolean(os.getenv("MKOSI_FORCE_USERNS_FALLBACK", "0")),
+            foreign=last.foreign_uid_range if (os.getuid() == 0 and os.getgid() == 0) else True,
+            delegate_ranges=last.delegate_ranges,
         )
     # Don't fail if systemd-nsresourced is too old, not installed or refuses to provision a user namespace
     # for us unless the foreign UID range was explicitly requested, use a regular unpriv user namespace
@@ -5130,7 +5134,7 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
         if last.foreign_uid_range:
             die(f"Could not provision user namespace via systemd-nsresourced ({e})")
 
-        logging.debug(
+        logging.info(
             f"Could not provision user namespace via systemd-nsresourced ({e}), falling back to "
             "unprivileged user namespace via unshare(CLONE_NEWUSER) and writing /proc/self/uid_map directly",
         )

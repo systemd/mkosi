@@ -1860,6 +1860,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     systemd-nsresourced and systemd-mountfsd v260 or newer are required on the host
     to make use of this option.
 
+`DelegateRanges=`, `--delegate-ranges=`
+:   Set the number of delegated ranges in the foreign UID range. Defaults to 3 for regular users and 0 for
+    root.
+
 ### [Runtime] Section (previously known as the [Host] section)
 
 `NSpawnSettings=`, `--settings=`

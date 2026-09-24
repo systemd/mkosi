@@ -745,7 +745,7 @@ def nsresource_allocate_user_range(
     userns: FD,
     type: str = "managed",
     foreign: bool = False,
-    delegate: int = 0,
+    delegate_ranges: int = 0,
     become_root: bool = False,
 ) -> None:
     import uuid
@@ -760,7 +760,7 @@ def nsresource_allocate_user_range(
             "type": type,
             **({"target": 0} if become_root or type != "self" else {}),
             "mapForeign": foreign,
-            "delegateContainerRanges": delegate,
+            "delegateContainerRanges": delegate_ranges,
         },
         fds=(userns,),
     )
@@ -857,21 +857,20 @@ def acquire_privileges(
     *,
     identity: bool = True,
     foreign: bool = False,
-    delegate: int = 0,
+    delegate_ranges: int = 0,
     become_root: bool = False,
     network: bool = False,
-    force_fallback: bool = False,
 ) -> bool:
     if (
         have_effective_cap(CAP_SYS_ADMIN)
         and identity
         and (not foreign or have_effective_cap(CAP_CHOWN))
-        and not delegate
+        and (delegate_ranges == 0)
         and (not become_root or (os.getuid() == 0 and os.getgid() == 0))
     ):
         return False
 
-    if (not identity or (foreign and not have_effective_cap(CAP_CHOWN)) or delegate) and not force_fallback:
+    if not identity or (foreign and not have_effective_cap(CAP_CHOWN)) or delegate_ranges:
         # nsresource_allocate_user_range() might fail for various reasons and we don't want to leave
         # the process in an empty user namespace if that's the case. Hence we don't unshare our own
         # user namespace but get ourselves a child user namespace which we pass to nsresourced. We only
@@ -881,7 +880,7 @@ def acquire_privileges(
                 userns_fd,
                 "self" if identity else "managed",
                 foreign,
-                delegate,
+                delegate_ranges,
                 become_root,
             )
             setns(userns_fd, CLONE_NEWUSER)
@@ -1596,7 +1595,7 @@ def enter(argv: list[str]) -> list[str]:
     userns = acquire_privileges(
         identity=True,
         foreign=map_foreign,
-        delegate=(map_delegate + int(foreign)),
+        delegate_ranges=(map_delegate + int(foreign)),
         become_root=(not foreign and become_root),
         network=unshare_net,
     )
