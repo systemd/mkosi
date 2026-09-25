@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+from mkosi.distribution import Distribution
 from mkosi.run import run
 from mkosi.sandbox import umask
 from mkosi.tree import copy_tree
@@ -57,6 +58,9 @@ def test_initrd(config: ImageConfig) -> None:
 
 @pytest.mark.skipif(os.getuid() != 0, reason="mkosi-initrd LVM test can only be executed as root")
 def test_initrd_lvm(config: ImageConfig) -> None:
+    if config.distribution == Distribution.buildstream:
+        pytest.skip("Not supported with the BuildStream test image")
+
     with Image(config) as image, contextlib.ExitStack() as stack:
         image.build(["--format=disk"])
 
@@ -104,6 +108,9 @@ def test_initrd_lvm(config: ImageConfig) -> None:
 
 
 def test_initrd_luks(config: ImageConfig, passphrase: Path) -> None:
+    if config.distribution == Distribution.buildstream:
+        pytest.skip("Not supported with the BuildStream test image")
+
     with tempfile.TemporaryDirectory() as repartd:
         st = Path.cwd().stat()
         os.chown(repartd, st.st_uid, st.st_gid)
@@ -157,6 +164,9 @@ def test_initrd_luks(config: ImageConfig, passphrase: Path) -> None:
 
 @pytest.mark.skipif(os.getuid() != 0, reason="mkosi-initrd LUKS+LVM test can only be executed as root")
 def test_initrd_luks_lvm(config: ImageConfig, passphrase: Path) -> None:
+    if config.distribution == Distribution.buildstream:
+        pytest.skip("Not supported with the BuildStream test image")
+
     with Image(config) as image, contextlib.ExitStack() as stack:
         image.build(["--format=disk"])
 
