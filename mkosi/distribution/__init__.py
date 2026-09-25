@@ -42,6 +42,7 @@ class Distribution(StrEnum):
     rocky = enum.auto()
     alma = enum.auto()
     azure = enum.auto()
+    buildstream = enum.auto()
     custom = enum.auto()
 
     def is_centos_variant(self) -> bool:
