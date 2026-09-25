@@ -41,6 +41,7 @@ class Distribution(StrEnum):
     openmandriva = enum.auto()
     rocky = enum.auto()
     alma = enum.auto()
+    alinux = enum.auto()
     azure = enum.auto()
     custom = enum.auto()
 
@@ -48,6 +49,7 @@ class Distribution(StrEnum):
         return self in (
             Distribution.centos,
             Distribution.alma,
+            Distribution.alinux,
             Distribution.rocky,
             Distribution.rhel,
             Distribution.rhel_ubi,
@@ -68,6 +70,7 @@ class Distribution(StrEnum):
             Distribution.openmandriva,
             Distribution.rocky,
             Distribution.alma,
+            Distribution.alinux,
         )
 
     @property
