@@ -742,6 +742,15 @@ def finalize_state(config: Config, cid: int) -> Iterator[None]:
             p.unlink(missing_ok=True)
 
 
+def finalize_nic(netdev: str, model: str, config: Config) -> list[PathString]:
+    # The riscv virt machine does not instantiate network devices from the -nic shorthand, so configure the
+    # network backend and the device explicitly there.
+    if config.architecture.is_riscv_variant():
+        return ["-netdev", f"{netdev},id=mkosi-netdev", "-device", f"{model},netdev=mkosi-netdev"]
+
+    return ["-nic", f"{netdev},model={model}"]
+
+
 def finalize_kernel_command_line_extra(args: Args, config: Config) -> list[str]:
     cmdline = [
         # Make sure we set up networking in the VM/container.
@@ -1040,12 +1049,12 @@ def run_qemu(args: Args, config: Config) -> None:
     ]  # fmt: skip
 
     if config.runtime_network == Network.user:
-        cmdline += ["-nic", f"user,model={config.architecture.default_qemu_nic_model()}"]
+        cmdline += finalize_nic("user", config.architecture.default_qemu_nic_model(), config)
     elif config.runtime_network == Network.interface:
         if os.getuid() != 0:
             die("RuntimeNetwork=interface requires root privileges")
 
-        cmdline += ["-nic", "tap,script=no,model=virtio-net-pci"]
+        cmdline += finalize_nic("tap,script=no", "virtio-net-pci", config)
     elif config.runtime_network == Network.none:
         cmdline += ["-nic", "none"]
 

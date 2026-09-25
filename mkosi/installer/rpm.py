@@ -23,9 +23,14 @@ class RpmRepository:
     sslclientcert: Optional[Path] = None
     priority: Optional[int] = None
 
+    # True if rpm signatures should be verified. Note that dnf refuses to install unsigned packages when
+    # verification is enabled, so this has to be disabled for repositories whose packages are not signed
+    # (e.g. Fedora riscv64). Independent of repo_gpgcheck, which covers the repository metadata.
+    gpgcheck: bool = True
+
     # True if the repository metadata (repomd.xml) is GPG-signed with a key we configure (e.g. CentOS).
     # False for repositories that don't publish a repomd signature (e.g. Fedora, EPEL) or sign it with
-    # a key we don't have. rpm signatures (gpgcheck) are always verified.
+    # a key we don't have.
     repo_gpgcheck: bool = True
 
 

@@ -587,10 +587,10 @@ class Architecture(StrEnum):
         if self.is_x86_variant():
             return True
 
-        return self.is_arm_variant() and firmware.is_uefi()
+        return (self.is_arm_variant() or self.is_riscv_variant()) and firmware.is_uefi()
 
     def supports_fw_cfg(self) -> bool:
-        return self.is_x86_variant() or self.is_arm_variant()
+        return self.is_x86_variant() or self.is_arm_variant() or self.is_riscv_variant()
 
     def supports_smm(self) -> bool:
         return self.is_x86_variant()
@@ -639,6 +639,9 @@ class Architecture(StrEnum):
 
     def is_arm_variant(self) -> bool:
         return self in (Architecture.arm, Architecture.arm64)
+
+    def is_riscv_variant(self) -> bool:
+        return self in (Architecture.riscv32, Architecture.riscv64)
 
     @classmethod
     def native(cls) -> "Architecture":

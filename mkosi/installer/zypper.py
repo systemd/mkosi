@@ -78,7 +78,7 @@ class Zypper(PackageManager):
                             [{repo.id}]
                             name={repo.id}
                             {repo.url}
-                            gpgcheck=1
+                            gpgcheck={int(repo.gpgcheck)}
                             enabled={int(repo.enabled)}
                             autorefresh=0
                             keeppackages=1
