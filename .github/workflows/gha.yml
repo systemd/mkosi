@@ -1,0 +1,44 @@
+name: mkosi
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  boot:
+    runs-on: ${{ matrix.runner }}
+    concurrency:
+      group: ${{ github.workflow }}-${{ matrix.distro }}-${{ matrix.runner }}-${{ github.ref }}
+      cancel-in-progress: true
+    strategy:
+      fail-fast: false
+      matrix:
+        distro:
+          - fedora
+          - ubuntu
+        runner:
+          - ubuntu-24.04
+          - ubuntu-24.04-arm
+
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
+      - uses: ./
+
+      - name: Generate key
+        run: bin/mkosi genkey
+
+      - name: Summary
+        run: bin/mkosi summary
+
+      - name: Build tools tree
+        run: bin/mkosi -f sandbox -- true
+
+      - name: Build image
+        run: bin/mkosi sandbox -- bin/mkosi --distribution ${{ matrix.distro }} --format disk -f build
+
+      - name: Run smoke tests
+        run: test "$(timeout -k 30 5m bin/mkosi sandbox -- bin/mkosi --distribution ${{ matrix.distro }} --kernel-command-line-extra="systemd.unit=mkosi-check-and-shutdown.service systemd.firstboot=no" qemu 1>&2; echo $?)" -eq 123
