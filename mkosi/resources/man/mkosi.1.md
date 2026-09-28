@@ -1643,7 +1643,8 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     it will use the configuration files from their canonical locations
     in `/usr` or `/etc` in the sandbox trees. For example, it  will look
     for `/etc/dnf/dnf.conf` in the sandbox trees  if **dnf** is used to
-    install packages.
+    install packages. See **PACKAGE MANAGER-SPECIFIC BEHAVIOUR** for
+    further details.
 
 `WorkspaceDirectory=`, `--workspace-directory=`
 :   Path to a directory where to store data required temporarily while
@@ -2515,8 +2516,9 @@ in consecutive runs with data from the cached one.
 1. Parse CLI options
 1. Parse configuration files
 1. Run configure scripts (`mkosi.configure`)
-1. If we're not running as root, unshare the user namespace and map the
-   subuid range configured in `/etc/subuid` and `/etc/subgid` into it.
+1. If we're not running as root, unshare the user namespace and map the the current user to root in it.  If
+   available this uses systemd-nsresourced to acquire a delegated range in the foreign UID range, otherwise
+   an unprivileged user namespace is set up by mkosi.
 1. Unshare the mount namespace
 1. Remount the following directories read-only if they exist:
    - `/usr`
@@ -3126,6 +3128,28 @@ tools trees:
 | `zstd`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
 | `zypper`                | ✓      |        | ✓      | ✓    | ✓      | ✓    | ✓        |              |
 
+# PACKAGE MANAGER-SPECIFC BEHAVIOUR
+
+## Arch and other pacman-based distributions
+
+mkosi generates a `pacman.conf` in the sanbox tree if one doesn't exist. If one exists, a `DownloadUser`
+setting is always removed. The generated config will always include all files with the `.conf` extension from
+`/etc/pacman.d` in the sandbox tree.
+
+## Debian and other deb-based distributions
+
+mkosi generates `/etc/apt/sources.list.d/mkosi.sources` in the sandbox tree if it does not exist.
+The configured `Mirror=` is used for everything except for the security and debug repositories, which always
+use http://deb.debian.org.
+
+## Fedora and other distributions using DNF
+
+mkosi generates `/etc/yum.repos.d/mkosi.repo` in the sandbox tree if it does not exist.
+
+## Opensuse and other distributions using Zypper
+
+mkosi generates `/etc/zypp/repos.d/mkosi.repo` in the sandbox tree if it does not exist.
+
 # BUILDING MULTIPLE IMAGES
 
 If the `mkosi.images/` directory exists, **mkosi** will load individual
@@ -3502,6 +3526,11 @@ For other systems, try researching the `kernel.unprivileged_userns_clone` or
   attach properly, even when the key is not set, **mkosi** doesn't set one.
 
   You can set `PORTABLE_PREFIXES=` by setting `Environment=PORTABLE_PREFIXES=XXX` in your mkosi config.
+
+- `BaseTrees=`/`Overlay=` do not work with nsresourced?
+
+  This is expected and need upstream kernel changes expected to land in Linux 7.3. You can skip the usage of
+  nsresourced by setting the environment variable `MKOSI_FORCE_USERNS_FALLBACK` to a true value.
 
 # REFERENCES
 * [Primary mkosi git repository on GitHub](https://github.com/systemd/mkosi/)

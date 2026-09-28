@@ -4,6 +4,23 @@
 
 # mkosi Changelog
 
+## v27.1
+
+- Fix tests failing in restricted build environments
+- `SignInitrdPCRs=` can be used with `SplitArtifacts=pcrs`, fixing initrd-specific PCR policies with systemd
+  v262.
+- Don't fail creating initrds when there are directories mixed in with microcode files.
+- Fix builds when using unsigned local repositories with opensuse.
+- Only use repositories and variables from the sandbox tree when using DNF.
+- The mkosi-obs no longer sets `MakeScriptsExecutable=`, except for the main image, so it can be included
+  again.
+- The security and debug repositories are switched back to deb.debian.org and are no longer set by the
+  `Repositories=` setting.
+- Add an environment variable `MKOSI_FORCE_USERNS_FALLBACK` that when set to a value that parses as a truthy
+  bool, skips using systemd-nsresourced.
+- A new setting `DelegateRanges=` is added that defaults to 0 when mkosi is run as the root user. This fixes
+  builds run as the root user.
+
 ## v27
 
 - Debug output (with `--debug`) will now show the duration of all steps.
