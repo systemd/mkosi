@@ -1643,7 +1643,8 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     it will use the configuration files from their canonical locations
     in `/usr` or `/etc` in the sandbox trees. For example, it  will look
     for `/etc/dnf/dnf.conf` in the sandbox trees  if **dnf** is used to
-    install packages.
+    install packages. See **PACKAGE MANAGER-SPECIFIC BEHAVIOUR** for
+    further details.
 
 `WorkspaceDirectory=`, `--workspace-directory=`
 :   Path to a directory where to store data required temporarily while
@@ -3125,6 +3126,28 @@ tools trees:
 | `xz`                    | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
 | `zstd`                  | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
 | `zypper`                | ✓      |        | ✓      | ✓    | ✓      | ✓    | ✓        |              |
+
+# PACKAGE MANAGER-SPECIFC BEHAVIOUR
+
+## Arch and other pacman-based distributions
+
+mkosi generates a `pacman.conf` in the sanbox tree if one doesn't exist. If one exists, a `DownloadUser`
+setting is always removed. The generated config will always include all files with the `.conf` extension from
+`/etc/pacman.d` in the sandbox tree.
+
+## Debian and other deb-based distributions
+
+mkosi generates `/etc/apt/sources.list.d/mkosi.sources` in the sandbox tree if it does not exist.
+The configured `Mirror=` is used for everything except for the security and debug repositories, which always
+use http://deb.debian.org.
+
+## Fedora and other distributions using DNF
+
+mkosi generates `/etc/yum.repos.d/mkosi.repo` in the sandbox tree if it does not exist.
+
+## Opensuse and other distributions using Zypper
+
+mkosi generates `/etc/zypp/repos.d/mkosi.repo` in the sandbox tree if it does not exist.
 
 # BUILDING MULTIPLE IMAGES
 
