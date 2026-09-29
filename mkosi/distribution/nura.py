@@ -109,9 +109,7 @@ class Installer(DistributionInstaller, distribution=Distribution.nura):
         # Note: "testing" is enabled here because it's also enabled by default when pmbootstrap builds pmOS
         # images, sometimes pmOS pkgs temporarily depend on things in testing.
         for repo_name in ["main", "community", "testing"]:
-            yield ApkRepository(
-                url=f"https://dl-cdn.alpinelinux.org/alpine/{context.config.release}/{repo_name}"
-            )
+            yield ApkRepository(url=f"https://cdn.alpinelinux.org/{context.config.release}/{repo_name}")
 
         # nura repos
         mirror = context.config.mirror or "https://mirror.nura.eco/postmarketos"
