@@ -4219,6 +4219,8 @@ SETTINGS: list[ConfigSetting[Any]] = [
         parse=config_parse_mode,
         help="Set umask for processes running in the sandbox",
         scope=SettingScope.multiversal,
+    ),
+    ConfigSetting(
         dest="delegate_ranges",
         name="DelegateRanges",
         section="Build",
