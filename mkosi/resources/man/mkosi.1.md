@@ -1869,6 +1869,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     This is useful on hardened builder machines where a restrictive system-wide umask
     (e.g. `0027`) would otherwise leak into the sandbox and cause files installed into
     the image to have unexpected permissions.
+
 `DelegateRanges=`, `--delegate-ranges=`
 :   Set the number of delegated ranges in the foreign UID range. Defaults to 3 for regular users and 0 for
     root.
