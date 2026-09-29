@@ -908,6 +908,18 @@ def config_parse_boolean(value: Optional[str], old: Optional[bool]) -> Optional[
     return parse_boolean(value)
 
 
+def config_parse_int(value: Optional[str], old: Optional[int]) -> Optional[int]:
+    if value is None:
+        return None
+
+    try:
+        num = int(value)
+    except ValueError:
+        die(f"{value!r} is not a valid integer")
+
+    return num
+
+
 def parse_feature(value: str) -> ConfigFeature:
     try:
         return ConfigFeature(value)
@@ -2246,6 +2258,7 @@ class Config:
     make_scripts_executable: bool
     foreign_uid_range: bool
     umask: Optional[int]
+    delegate_ranges: int
 
     nspawn_settings: Optional[Path]
     ephemeral: bool
@@ -4206,6 +4219,13 @@ SETTINGS: list[ConfigSetting[Any]] = [
         parse=config_parse_mode,
         help="Set umask for processes running in the sandbox",
         scope=SettingScope.multiversal,
+        dest="delegate_ranges",
+        name="DelegateRanges",
+        section="Build",
+        default=0 if (os.getuid() == 0 and os.getgid() == 0) else 3,
+        parse=config_parse_int,
+        help="Delegate this number of UID ranges in the foreign UID range",
+        scope=SettingScope.main,
     ),
     # Runtime section
     ConfigSetting(
@@ -6023,6 +6043,9 @@ def summary(config: Config) -> str:
     {bold("BUILD CONFIGURATION")}:
                          Tools Tree: {config.tools_tree}
             Tools Tree Certificates: {yes_no(config.tools_tree_certificates)}
+
+          Use the Foreign UID Range: {yes_no(config.foreign_uid_range)}
+         Number of Delegated Ranges: {config.delegate_ranges}
 
                  Extra Search Paths: {line_join_list(config.extra_search_paths)}
                         Incremental: {config.incremental}

@@ -81,7 +81,7 @@ class Installer(DistributionInstaller, distribution=Distribution.debian):
         if snapshot:
             url = join_mirror(mirror, f"archive/debian-debug/{snapshot}")
         else:
-            url = join_mirror(mirror, "debian-debug")
+            url = "http://deb.debian.org/debian-debug"
 
         yield AptRepository(
             types=types,
@@ -107,7 +107,7 @@ class Installer(DistributionInstaller, distribution=Distribution.debian):
         if snapshot:
             url = join_mirror(mirror, f"archive/debian-security/{snapshot}")
         else:
-            url = join_mirror(mirror, "debian-security")
+            url = "http://deb.debian.org/debian-security"
 
         yield AptRepository(
             types=types,
