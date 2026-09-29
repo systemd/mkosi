@@ -128,7 +128,6 @@ class Installer(DistributionInstaller, distribution=Distribution.nura):
             Architecture.loongarch64: "loongarch64",
             Architecture.ppc64_le:    "ppc64le",
             Architecture.riscv64:     "riscv64",
-            Architecture.x86:         "x86",
             Architecture.x86_64:      "x86_64",
         }.get(arch)  # fmt: skip
 
