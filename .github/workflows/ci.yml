@@ -53,7 +53,7 @@ jobs:
           - debian
           - fedora
           - opensuse
-          - postmarketos
+          - nura
           - ubuntu
         tools:
           - arch
@@ -82,11 +82,11 @@ jobs:
           - distro: ubuntu
             tools: opensuse
           # apk is not packaged in Debian, Ubuntu, or EPEL.
-          - distro: postmarketos
+          - distro: nura
             tools: centos
-          - distro: postmarketos
+          - distro: nura
             tools: debian
-          - distro: postmarketos
+          - distro: nura
             tools: ubuntu
         include:
           # low rate limit on s390x/ppc64le/arm64 workers
@@ -111,18 +111,18 @@ jobs:
           - distro: debian
             tools: debian
             runner: ubuntu-24.04-s390x
-          # build pmOS using pmOS tools tree
-          - distro: postmarketos
-            tools: postmarketos
+          # build Nura using Nura tools tree
+          - distro: nura
+            tools: nura
             runner: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - uses: ./
         with:
-          # Bootstrapping a postmarketOS tools tree on the Ubuntu host needs apk; all other
+          # Bootstrapping a Nura tools tree on the Ubuntu host needs apk; all other
           # tools trees install apk-tools from th tools distro's own repo
-          apk: ${{ matrix.tools == 'postmarketos' }}
+          apk: ${{ matrix.tools == 'nura' }}
 
       # Freeing up disk space with rm -rf can take multiple minutes. Since we don't need the extra free space
       # immediately, we remove the files in the background. However, we first move them to a different location so that
