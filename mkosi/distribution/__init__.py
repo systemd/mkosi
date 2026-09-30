@@ -31,7 +31,7 @@ class Distribution(StrEnum):
     debian = enum.auto()
     kali = enum.auto()
     ubuntu = enum.auto()
-    postmarketos = enum.auto()
+    nura = enum.auto()
     arch = enum.auto()
     opensuse = enum.auto()
     mageia = enum.auto()

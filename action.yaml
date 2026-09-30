@@ -3,7 +3,7 @@ description: Install mkosi
 
 inputs:
   apk:
-    description: Install the apk package manager (required to bootstrap a postmarketOS tools tree)
+    description: Install the apk package manager (required to bootstrap a Nura tools tree)
     required: false
     default: "false"
 

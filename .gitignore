@@ -24,6 +24,7 @@
 /mkosi.egg-info
 /mkosi.cache
 /mkosi.output
+/mkosi.pkgcache
 /mkosi.nspawn
 /mkosi.rootpw
 mkosi.local

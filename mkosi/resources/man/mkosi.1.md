@@ -2483,7 +2483,7 @@ distributions:
 
 * *Azure Linux*
 
-* *postmarketOS*
+* *Nura*
 
 * *None* (**Requires the user to provide a pre-built rootfs**)
 
@@ -3070,7 +3070,7 @@ The following table shows for which distributions default tools tree
 packages are defined and which packages are included in those default
 tools trees:
 
-|                         | Fedora | CentOS | Debian | Kali | Ubuntu | Arch | openSUSE | postmarketOS |
+|                         | Fedora | CentOS | Debian | Kali | Ubuntu | Arch | openSUSE | Nura         |
 |-------------------------|:------:|:------:|:------:|:----:|:------:|:----:|:--------:|:------------:|
 | `acl`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    | ✓        | ✓            |
 | `apt`                   | ✓      | ✓      | ✓      | ✓    | ✓      | ✓    |          |              |

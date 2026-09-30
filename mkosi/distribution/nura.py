@@ -12,10 +12,10 @@ from mkosi.tree import rmtree
 from mkosi.util import copyfile
 
 
-class Installer(DistributionInstaller, distribution=Distribution.postmarketos):
+class Installer(DistributionInstaller, distribution=Distribution.nura):
     @classmethod
     def pretty_name(cls) -> str:
-        return "postmarketOS"
+        return "Nura"
 
     @classmethod
     def filesystem(cls) -> str:
@@ -31,7 +31,7 @@ class Installer(DistributionInstaller, distribution=Distribution.postmarketos):
 
     @classmethod
     def default_tools_tree_distribution(cls) -> Distribution:
-        return Distribution.postmarketos
+        return Distribution.nura
 
     @classmethod
     def package_manager(cls, config: Config) -> type[PackageManager]:
@@ -51,7 +51,7 @@ class Installer(DistributionInstaller, distribution=Distribution.postmarketos):
 
     @classmethod
     def setup(cls, context: Context) -> None:
-        with complete_step("Setting up postmarketOS keyring"):
+        with complete_step("Setting up Nura keyring"):
             keys = context.sandbox_tree / "etc/apk/keys"
             keys.mkdir(parents=True, exist_ok=True)
             arch = Apk.architecture(context)
@@ -109,12 +109,10 @@ class Installer(DistributionInstaller, distribution=Distribution.postmarketos):
         # Note: "testing" is enabled here because it's also enabled by default when pmbootstrap builds pmOS
         # images, sometimes pmOS pkgs temporarily depend on things in testing.
         for repo_name in ["main", "community", "testing"]:
-            yield ApkRepository(
-                url=f"https://dl-cdn.alpinelinux.org/alpine/{context.config.release}/{repo_name}"
-            )
+            yield ApkRepository(url=f"https://cdn.alpinelinux.org/{context.config.release}/{repo_name}")
 
-        # postmarketOS repos
-        mirror = context.config.mirror or "https://mirror.postmarketos.org/postmarketos"
+        # nura repos
+        mirror = context.config.mirror or "https://mirror.nura.eco/postmarketos"
         subdir = "main" if context.config.release == "edge" else f"v{context.config.release}"
 
         yield ApkRepository(url=f"{mirror}/extra-repos/systemd/{subdir}")
@@ -128,12 +126,11 @@ class Installer(DistributionInstaller, distribution=Distribution.postmarketos):
             Architecture.loongarch64: "loongarch64",
             Architecture.ppc64_le:    "ppc64le",
             Architecture.riscv64:     "riscv64",
-            Architecture.x86:         "x86",
             Architecture.x86_64:      "x86_64",
         }.get(arch)  # fmt: skip
 
         if not a:
-            die(f"Architecture {arch} is not supported by postmarketOS")
+            die(f"Architecture {arch} is not supported by Nura")
 
         return a
 
