@@ -714,7 +714,14 @@ def sandbox_cmd(
                 cmdline += ["--ro-bind", p, p]
 
         if network and (p := Path("/etc/resolv.conf")).exists():
-            cmdline += ["--ro-bind-nofollow", p, p]
+            mounted_hostdir = Path("/run") if relaxed else Path("/run/systemd/resolve")
+            target = p.resolve()
+            expected_relative = Path(os.path.relpath(target, p.parent))
+            direct_link = p.is_symlink() and p.readlink() in (target, expected_relative)
+            if direct_link and target.is_relative_to(mounted_hostdir):
+                cmdline += ["--ro-bind-nofollow", p, p]
+            else:
+                cmdline += ["--ro-bind-copy", p, p]
 
         path = finalize_path(
             root=tools,
