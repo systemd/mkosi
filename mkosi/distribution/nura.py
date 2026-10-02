@@ -106,8 +106,8 @@ class Installer(DistributionInstaller, distribution=Distribution.nura):
             return
 
         # Alpine repos
-        # Note: "testing" is enabled here because it's also enabled by default when pmbootstrap builds pmOS
-        # images, sometimes pmOS pkgs temporarily depend on things in testing.
+        # Note: "testing" is enabled here because it's also enabled by default when pmbootstrap builds Nura
+        # images, sometimes Nura pkgs temporarily depend on things in testing.
         for repo_name in ["main", "community", "testing"]:
             yield ApkRepository(url=f"https://cdn.alpinelinux.org/{context.config.release}/{repo_name}")
 
