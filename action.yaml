@@ -106,7 +106,7 @@ runs:
 
     - name: Install apk
       # ubuntu-24.04 doesn't package apk, so fetch the official statically-linked binary from
-      # upstream so mkosi can use it to populate the postmarketOS tools tree.
+      # upstream so mkosi can use it to populate the Nura tools tree.
       #
       # Since GitLab's API can be unreliable, this is retried a few times if there
       # is a failure when fetching.
