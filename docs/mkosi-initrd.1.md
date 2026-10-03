@@ -1,1 +1,0 @@
-../mkosi/resources/man/mkosi-initrd.1.md
