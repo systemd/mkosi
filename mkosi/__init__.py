@@ -3281,9 +3281,15 @@ def run_firstboot(context: Context) -> None:
     if not options and not creds:
         return
 
+    cmdline = ["systemd-firstboot", "--root=/buildroot"]
+    # --force was added in systemd 246; Alibaba Cloud Linux 3 ships systemd 239.
+    if systemd_tool_version("systemd-firstboot", sandbox=context.sandbox) >= 246:
+        cmdline += ["--force"]
+    cmdline += options
+
     with complete_step("Applying first boot settings"):
         run(
-            ["systemd-firstboot", "--root=/buildroot", "--force", *options],
+            cmdline,
             sandbox=context.sandbox(options=context.rootoptions()),
         )
 
