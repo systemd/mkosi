@@ -2254,6 +2254,7 @@ class Config:
     proxy_client_key: Optional[Path]
     make_scripts_executable: bool
     foreign_uid_range: bool
+    umask: Optional[int]
     delegate_ranges: int
 
     nspawn_settings: Optional[Path]
@@ -2640,6 +2641,9 @@ class Config:
         options: Sequence[PathString] = (),
     ) -> AbstractContextManager[list[PathString]]:
         opt: list[PathString] = [*options]
+
+        if self.umask is not None:
+            opt += ["--umask", f"{self.umask:o}"]
 
         if not relaxed:
             opt += flatten(("--ro-bind", d, d) for d in self.extra_search_paths)
@@ -4203,6 +4207,15 @@ SETTINGS: list[ConfigSetting[Any]] = [
         parse=config_parse_boolean,
         help="Use the foreign UID range",
         scope=SettingScope.main,
+    ),
+    ConfigSetting(
+        dest="umask",
+        name="UMask",
+        metavar="MASK",
+        section="Build",
+        parse=config_parse_mode,
+        help="Set umask for processes running in the sandbox",
+        scope=SettingScope.multiversal,
     ),
     ConfigSetting(
         dest="delegate_ranges",
@@ -6059,6 +6072,7 @@ def summary(config: Config) -> str:
                    Proxy Client Key: {none_to_none(config.proxy_client_key)}
 
     Automatically set +x on scripts: {yes_no(config.make_scripts_executable)}
+                      Sandbox UMask: {format_octal_or_default(config.umask)}
 
     {bold("HOST CONFIGURATION")}:
                     NSpawn Settings: {none_to_none(config.nspawn_settings)}
