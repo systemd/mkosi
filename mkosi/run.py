@@ -714,7 +714,10 @@ def sandbox_cmd(
                 cmdline += ["--ro-bind", p, p]
 
         if network and (p := Path("/etc/resolv.conf")).exists():
-            cmdline += ["--ro-bind-nofollow", p, p]
+            if p.resolve().is_relative_to("/run/systemd/resolve"):
+                cmdline += ["--ro-bind-nofollow", p, p]
+            else:
+                cmdline += ["--ro-bind", p, p]
 
         path = finalize_path(
             root=tools,
