@@ -618,9 +618,13 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     partition table), `uki` (a unified kernel image with the OS image in
     the `.initrd` PE section), `esp` (a disk image with only an ESP
     partition, bootloader and optionally a UKI), `oci` (a directory
-    compatible with the OCI image specification), `sysext`, `confext`,
-    `portable`, `addon` or `none` (the OS image is solely intended as a
-    build image to produce another artifact).
+    compatible with the OCI image specification), `oci-archive` (similar
+    to `oci`, but the OCI image layout is packed up into a single tar
+    archive that can be used by tools supporting the oci-archive container
+    transport spec like **podman**, with `podman load` command, or **skopeo**,
+    with `skopeo copy oci-archive:...` command) `sysext`, `confext`, `portable`,
+    `addon` or `none` (the OS image is solely intended as a build image
+    to produce another artifact).
 
     If the `disk` output format is used, the disk image is generated using
     **systemd-repart**. The repart partition definition files to use can be
