@@ -9,9 +9,9 @@ A fancy wrapper around `dnf --installroot`, `apt`, `pacman` and `zypper` that ge
 
 ---
 
-{% assign tutorials = site.pages | group_by:"category" %}
+{% assign tutorials = site.pages | where:"category","Tutorials" %}
 {% assign project = site.data.project_pages | group_by:"category" %}
-{% assign documentation = site.data.documentation_page | group_by:"category" %}
+{% assign documentation = site.data.documentation_page | where:"category","Manuals" %}
 {% assign merged = documentation | concat: tutorials | concat: project %}
 
 
