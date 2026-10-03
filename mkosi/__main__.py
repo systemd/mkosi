@@ -2,6 +2,7 @@
 # PYTHON_ARGCOMPLETE_OK
 
 import faulthandler
+import os
 import signal
 import sys
 from types import FrameType
@@ -44,8 +45,9 @@ def main() -> None:
             run_verb(args, tools, images, resources=resources)
         finally:
             if sys.stderr.isatty() and find_binary("tput"):
-                run(["tput", "cnorm"], check=False)
-                run(["tput", "smam"], check=False)
+                env = {k: os.environ[k] for k in ("TERMINFO", "TERMINFO_DIRS") if k in os.environ}
+                run(["tput", "cnorm"], env=env, check=False)
+                run(["tput", "smam"], env=env, check=False)
 
 
 if __name__ == "__main__":
