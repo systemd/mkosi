@@ -753,7 +753,7 @@ def test_match_empty(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(
     "dist1,dist2",
-    itertools.combinations_with_replacement([Distribution.debian, Distribution.opensuse], 2),
+    list(itertools.combinations_with_replacement([Distribution.debian, Distribution.opensuse], 2)),
 )
 def test_match_distribution(tmp_path: Path, dist1: Distribution, dist2: Distribution) -> None:
     with chdir(tmp_path):
@@ -808,7 +808,7 @@ def test_match_distribution(tmp_path: Path, dist1: Distribution, dist2: Distribu
         assert "testpkg3" in conf.packages
 
 
-@pytest.mark.parametrize("release1,release2", itertools.combinations_with_replacement([36, 37], 2))
+@pytest.mark.parametrize("release1,release2", list(itertools.combinations_with_replacement([36, 37], 2)))
 def test_match_release(tmp_path: Path, release1: int, release2: int) -> None:
     with chdir(tmp_path):
         parent = Path("mkosi.conf")
@@ -921,7 +921,10 @@ def test_match_architecture(tmp_path: Path) -> None:
     assert config.output == "qed"
 
 
-@pytest.mark.parametrize("image1,image2", itertools.combinations_with_replacement(["image_a", "image_b"], 2))
+@pytest.mark.parametrize(
+    "image1,image2",
+    list(itertools.combinations_with_replacement(["image_a", "image_b"], 2)),
+)
 def test_match_imageid(tmp_path: Path, image1: str, image2: str) -> None:
     with chdir(tmp_path):
         parent = Path("mkosi.conf")
@@ -991,9 +994,11 @@ def test_match_imageid(tmp_path: Path, image1: str, image2: str) -> None:
 
 @pytest.mark.parametrize(
     "op,version",
-    itertools.product(
-        ["", "==", "<", ">", "<=", ">="],
-        [122, 123],
+    list(
+        itertools.product(
+            ["", "==", "<", ">", "<=", ">="],
+            [122, 123],
+        )
     ),
 )
 def test_match_imageversion(tmp_path: Path, op: str, version: str) -> None:
