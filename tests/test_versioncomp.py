@@ -56,24 +56,26 @@ def test_generic_version_spec() -> None:
 
 @pytest.mark.parametrize(
     "s1,s2",
-    itertools.combinations_with_replacement(
-        enumerate(
-            [
-                GenericVersion("122.1"),
-                GenericVersion("123~rc1-1"),
-                GenericVersion("123"),
-                GenericVersion("123-a"),
-                GenericVersion("123-a.1"),
-                GenericVersion("123-1"),
-                GenericVersion("123-1.1"),
-                GenericVersion("123^post1"),
-                GenericVersion("123.a-1"),
-                GenericVersion("123.1-1"),
-                GenericVersion("123a-1"),
-                GenericVersion("124-1"),
-            ],
-        ),
-        2,
+    list(
+        itertools.combinations_with_replacement(
+            enumerate(
+                [
+                    GenericVersion("122.1"),
+                    GenericVersion("123~rc1-1"),
+                    GenericVersion("123"),
+                    GenericVersion("123-a"),
+                    GenericVersion("123-a.1"),
+                    GenericVersion("123-1"),
+                    GenericVersion("123-1.1"),
+                    GenericVersion("123^post1"),
+                    GenericVersion("123.a-1"),
+                    GenericVersion("123.1-1"),
+                    GenericVersion("123a-1"),
+                    GenericVersion("124-1"),
+                ],
+            ),
+            2,
+        )
     ),
 )
 def test_generic_version_strverscmp_improved_doc(
