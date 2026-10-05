@@ -1014,7 +1014,7 @@ def config_default_compression(namespace: dict[str, Any]) -> Compression:
         OutputFormat.addon,
     ):
         return Compression.zstd
-    elif namespace["output_format"] in (OutputFormat.oci, OutputFormat.oci_archive):
+    elif namespace["output_format"].is_oci():
         return Compression.gz
     else:
         return Compression.none
