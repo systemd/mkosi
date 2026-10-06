@@ -1,9 +1,6 @@
----
-title: mkosi.news(7)
-category: Manuals
-layout: default
-SPDX-License-Identifier: LGPL-2.1-or-later
----
+% mkosi.news(7)
+%
+%
 
 # mkosi Changelog
 

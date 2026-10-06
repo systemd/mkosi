@@ -1,1 +1,0 @@
-../mkosi/resources/man/mkosi-sandbox.1.md
