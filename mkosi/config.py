@@ -66,6 +66,7 @@ ConfigMatchCallback = Callable[[str, T], bool]
 ConfigDefaultCallback = Callable[[dict[str, Any]], T]
 
 BUILTIN_CONFIGS = ("mkosi-tools", "mkosi-initrd", "mkosi-vm", "mkosi-addon", "mkosi-obs")
+RESOURCE_PATH = re.compile(r"^/tmp/mkosi.resources-[a-z0-9_]{8}/resources/")
 
 
 class Verb(StrEnum):
@@ -5820,6 +5821,11 @@ def line_join_list(array: Iterable[object]) -> str:
     return "\n                                     ".join(str(item) for item in array) if array else "none"
 
 
+def line_join_list_sanitize_resources(array: Iterable[object]) -> str:
+    sanitized = [RESOURCE_PATH.sub("@mkosi.resources/", str(item)) for item in array]
+    return "\n                                     ".join(item for item in sanitized) if array else "none"
+
+
 def format_bytes(num_bytes: int) -> str:
     if num_bytes >= 1024**3:
         return f"{num_bytes / 1024**3:0.1f}G"
@@ -5877,10 +5883,10 @@ def summary(config: Config) -> str:
         summary += f"""\
 
     {bold("CONFIG")}:
-                           Profiles: {line_join_list(config.profiles)}
+                           Profiles: {line_join_list_sanitize_resources(config.profiles)}
                        Dependencies: {line_join_list(config.dependencies)}
                     Minimum Version: {none_to_none(config.minimum_version)}
-                  Configure Scripts: {line_join_list(config.configure_scripts)}
+                  Configure Scripts: {line_join_list_sanitize_resources(config.configure_scripts)}
                    Pass Environment: {line_join_list(config.pass_environment)}
 
     {bold("DISTRIBUTION")}:
@@ -5909,7 +5915,7 @@ def summary(config: Config) -> str:
                            Image ID: {config.image_id}
                       Image Version: {config.image_version}
                     Split Artifacts: {line_join_list(config.split_artifacts)}
-                 Repart Directories: {line_join_list(config.repart_dirs)}
+                 Repart Directories: {line_join_list_sanitize_resources(config.repart_dirs)}
                         Sector Size: {none_to_default(config.sector_size)}
                             Overlay: {yes_no(config.overlay)}
                                Seed: {none_to_random(config.seed)}
@@ -5917,7 +5923,7 @@ def summary(config: Config) -> str:
                    El Torito System: {none_to_none(config.el_torito_system)}
                    El Torito Volume: {none_to_none(config.el_torito_volume)}
                 El Torito Publisher: {none_to_none(config.el_torito_publisher)}
-                      Clean Scripts: {line_join_list(config.clean_scripts)}
+                      Clean Scripts: {line_join_list_sanitize_resources(config.clean_scripts)}
 
     {bold("CONTENT")}:
                            Packages: {line_join_list(config.packages)}
@@ -5929,19 +5935,19 @@ def summary(config: Config) -> str:
 
                          Base Trees: {line_join_list(config.base_trees)}
                      Skeleton Trees: {line_join_list(config.skeleton_trees)}
-                        Extra Trees: {line_join_list(config.extra_trees)}
+                        Extra Trees: {line_join_list_sanitize_resources(config.extra_trees)}
 
                     Remove Packages: {line_join_list(config.remove_packages)}
                        Remove Files: {line_join_list(config.remove_files)}
      Clean Package Manager Metadata: {config.clean_package_metadata}
                   Source Date Epoch: {none_to_none(config.source_date_epoch)}
 
-                       Sync Scripts: {line_join_list(config.sync_scripts)}
-                    Prepare Scripts: {line_join_list(config.prepare_scripts)}
-                      Build Scripts: {line_join_list(config.build_scripts)}
-                Postinstall Scripts: {line_join_list(config.postinst_scripts)}
-                   Finalize Scripts: {line_join_list(config.finalize_scripts)}
-                 Postoutput Scripts: {line_join_list(config.postoutput_scripts)}
+                       Sync Scripts: {line_join_list_sanitize_resources(config.sync_scripts)}
+                    Prepare Scripts: {line_join_list_sanitize_resources(config.prepare_scripts)}
+                      Build Scripts: {line_join_list_sanitize_resources(config.build_scripts)}
+                Postinstall Scripts: {line_join_list_sanitize_resources(config.postinst_scripts)}
+                   Finalize Scripts: {line_join_list_sanitize_resources(config.finalize_scripts)}
+                 Postoutput Scripts: {line_join_list_sanitize_resources(config.postoutput_scripts)}
 
                            Bootable: {config.bootable}
                          Bootloader: {config.bootloader}
@@ -6049,7 +6055,7 @@ def summary(config: Config) -> str:
                  Extra Search Paths: {line_join_list(config.extra_search_paths)}
                         Incremental: {config.incremental}
              Use Only Package Cache: {config.cacheonly}
-                      Sandbox Trees: {line_join_list(config.sandbox_trees)}
+                      Sandbox Trees: {line_join_list_sanitize_resources(config.sandbox_trees)}
                 Workspace Directory: {config.workspace_dir_or_default()}
                     Cache Directory: {none_to_none(config.cache_dir)}
                           Cache Key: {config.cache_key}
