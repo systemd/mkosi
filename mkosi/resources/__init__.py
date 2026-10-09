@@ -71,7 +71,7 @@ def temporary_dir(path: Traversable) -> Iterator[Path]:
     to the file system in a context manager.
     """
     assert path.is_dir()
-    with tempfile.TemporaryDirectory() as temp_dir:
+    with tempfile.TemporaryDirectory(prefix="mkosi.resources-") as temp_dir:
         yield write_contents(Path(temp_dir), path)
 
 
