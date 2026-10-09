@@ -4215,6 +4215,8 @@ SETTINGS: list[ConfigSetting[Any]] = [
         section="Build",
         parse=config_parse_mode,
         help="Set umask for processes running in the sandbox",
+        default_factory=lambda ns: 0o022 if ns["distribution"] == Distribution.buildstream else None,
+        default_factory_depends=("distribution",),
         scope=SettingScope.multiversal,
     ),
     ConfigSetting(
