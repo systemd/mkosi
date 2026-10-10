@@ -205,7 +205,19 @@ def ensure_grubenv(context: Context) -> None:
     if not link.is_symlink() or link.exists():
         return
 
-    target = (link.parent / link.readlink()).resolve(strict=False)
+    raw = link.readlink()
+    # Always interpret the symlink relative to the image root. Absolute targets
+    # like /boot/efi/EFI/<vendor>/grubenv must not resolve on the host.
+    if raw.is_absolute():
+        target = context.root / raw.relative_to("/")
+    else:
+        target = link.parent / raw
+    root = context.root.resolve(strict=False)
+    target = target.resolve(strict=False)
+    if not target.is_relative_to(root):
+        logging.warning(f"Ignoring grubenv symlink which points outside the image to {raw}")
+        return
+
     with umask(~0o700):
         target.parent.mkdir(parents=True, exist_ok=True)
 
