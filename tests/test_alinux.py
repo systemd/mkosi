@@ -1,12 +1,17 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
+from pathlib import Path
 from typing import Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from mkosi.config import Architecture
-from mkosi.distribution.alinux import Installer
+from mkosi.distribution.alinux import (
+    Installer,
+    _ensure_grubby_bls_entries,
+    _kernel_versions_in_root,
+)
 
 
 def _context(
@@ -117,3 +122,22 @@ def test_alinux_gpgurls_remote_fallback() -> None:
 
     with patch("mkosi.distribution.alinux.find_rpm_gpgkey", return_value="file:///local.key"):
         assert Installer.gpgurls(context) == ("file:///local.key",)
+
+
+def test_alinux_grubby_bls_scaffold(tmp_path: Path) -> None:
+    kver = "5.10.134-19.8.al8.x86_64"
+    boot = tmp_path / "boot"
+    boot.mkdir()
+    (boot / f"vmlinuz-{kver}").write_bytes(b"vmlinuz")
+    (boot / f".vmlinuz-{kver}.hmac").write_text("hmac")
+
+    assert _kernel_versions_in_root(tmp_path) == [kver]
+
+    created = _ensure_grubby_bls_entries(tmp_path)
+    assert len(created) == 1
+    text = created[0].read_text()
+    assert f"linux /boot/vmlinuz-{kver}" in text
+    assert f"version {kver}" in text
+
+    # Existing entries are left alone.
+    assert _ensure_grubby_bls_entries(tmp_path) == []
