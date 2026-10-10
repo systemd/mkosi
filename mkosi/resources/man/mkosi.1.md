@@ -507,6 +507,12 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     to the distribution of the host or `custom` if the distribution of the
     host is not a supported distribution.
 
+    `alinux` is Alibaba Cloud Linux. The identifier matches the distribution's
+    `os-release` `ID=` field (and the `alinux-release` package / mirror layout),
+    so image detection and `Distribution=` use the same name. This differs from
+    `azure`, which is a shorthand for Azure Linux whose `os-release` `ID=` is
+    `azurelinux`.
+
 `Release=`, `--release=`, `-r`
 :   The release of the distribution to install in the image. The precise
     syntax of the argument this takes depends on the distribution used,
