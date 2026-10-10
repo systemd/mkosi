@@ -16,6 +16,56 @@ def _is_kernel_rpm(package: str) -> bool:
     return package == "kernel" or package.startswith("kernel-")
 
 
+def _kernel_versions_in_root(root: Path) -> list[str]:
+    versions: set[str] = set()
+
+    boot = root / "boot"
+    if boot.exists():
+        for p in boot.glob("vmlinuz-*"):
+            if p.name.endswith(".hmac"):
+                continue
+            versions.add(p.name[len("vmlinuz-") :])
+
+    modules = root / "lib/modules"
+    if modules.exists():
+        for p in modules.iterdir():
+            if p.is_dir() and (p / "vmlinuz").exists():
+                versions.add(p.name)
+
+    return sorted(versions)
+
+
+def _ensure_grubby_bls_entries(root: Path) -> list[Path]:
+    # Alinux kernel %posttrans runs `grubby --update-kernel /boot/vmlinuz-$KVER`. mkosi sets
+    # KERNEL_INSTALL_BYPASS=1, so kernel-install does not create BLS entries under the
+    # installroot and grubby fails with "The param ... is incorrect". Create matching
+    # disposable entries first; mkosi configures the real bootloader later.
+    versions = _kernel_versions_in_root(root)
+    if not versions:
+        return []
+
+    entries = root / "boot/loader/entries"
+    entries.mkdir(parents=True, exist_ok=True)
+
+    created: list[Path] = []
+    for kver in versions:
+        path = entries / f"mkosi-grubby-{kver}.conf"
+        if path.exists():
+            continue
+
+        # installroot /boot is not a mountpoint; linux /boot/vmlinuz-$KVER matches the path
+        # passed to grubby in the kernel %posttrans scriptlet.
+        path.write_text(
+            f"title mkosi ({kver})\n"
+            f"version {kver}\n"
+            f"linux /boot/vmlinuz-{kver}\n"
+            f"options root=mkosi\n"
+        )
+        created.append(path)
+
+    return created
+
+
 class Installer(centos.Installer, distribution=Distribution.alinux):
     @classmethod
     def pretty_name(cls) -> str:
@@ -56,13 +106,9 @@ class Installer(centos.Installer, distribution=Distribution.alinux):
         kernels = [p for p in packages if _is_kernel_rpm(p)]
         others = [p for p in packages if not _is_kernel_rpm(p)]
 
-        # Alinux kernel %posttrans runs `grubby --update-kernel` after kernel-install. Under an
-        # installroot there are no BLS entries for /boot/vmlinuz-*, so grubby exits 1 and newer
-        # dnf5/rpm abort the transaction. mkosi configures the bootloader itself later, so install
-        # grubby first, temporarily stub it out, install the kernel packages, then restore it.
-        if kernels:
-            if "grubby" not in others:
-                others = [*others, "grubby"]
+        # Make sure the real grubby is present before kernel %posttrans runs.
+        if kernels and "grubby" not in others:
+            others = [*others, "grubby"]
 
         if others:
             super().install_packages(
@@ -75,29 +121,31 @@ class Installer(centos.Installer, distribution=Distribution.alinux):
         if not kernels:
             return
 
-        stubs = [
-            context.root / "usr/sbin/grubby",
-            context.root / "usr/libexec/grubby/grubby-bls",
-        ]
-        saved: dict[Path, bytes] = {}
-        for path in stubs:
-            if path.exists():
-                saved[path] = path.read_bytes()
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text("#!/bin/sh\nexit 0\n")
-            path.chmod(0o755)
+        def arguments(*pkgs: str, noscripts: bool = False) -> list[str]:
+            args: list[str] = []
+            if allow_downgrade and Dnf.executable(context.config) == "dnf5":
+                args += ["--allow-downgrade"]
+            if noscripts:
+                args += ["--setopt=tsflags=noscripts"]
+            args += list(pkgs)
+            return args
 
+        # Install kernel payloads without scriptlets so /boot/vmlinuz-* is present and we can
+        # create matching BLS entries before the real grubby runs in %posttrans.
+        Dnf.invoke(context, "install", arguments(*kernels, noscripts=True), apivfs=apivfs)
+
+        if not _kernel_versions_in_root(context.root):
+            die("No kernel image found after installing kernel packages")
+
+        created = _ensure_grubby_bls_entries(context.root)
         try:
-            super().install_packages(
-                context,
-                kernels,
-                apivfs=apivfs,
-                allow_downgrade=allow_downgrade,
-            )
+            # Re-run scriptlets now that BLS scaffolding exists. Always include kernel-core:
+            # installing the kernel metapackage pulls it in, and that is where %posttrans lives.
+            reinstall = list(dict.fromkeys([*kernels, "kernel-core"]))
+            Dnf.invoke(context, "reinstall", arguments(*reinstall), apivfs=apivfs)
         finally:
-            for path, content in saved.items():
-                path.write_bytes(content)
-                path.chmod(0o755)
+            for path in created:
+                path.unlink(missing_ok=True)
 
     @classmethod
     def architecture(cls, arch: Architecture) -> str:
