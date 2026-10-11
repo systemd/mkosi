@@ -2502,7 +2502,7 @@ def copy_repart_definitions(context: Context) -> None:
     if context.config.output_format == OutputFormat.esp:
         definitions = [context.workspace / "esp-definitions"]
     elif context.config.output_format in (OutputFormat.sysext, OutputFormat.confext, OutputFormat.portable):
-        definitions = [extension_or_portable_image_repart_definitions(context)]
+        definitions = extension_or_portable_image_repart_definitions(context)
     elif (d := context.workspace / "repart-definitions").exists():
         definitions = [d]
     elif context.config.output_format == OutputFormat.disk:
@@ -3882,7 +3882,10 @@ def write_split_roothash(context: Context, partitions: Sequence[Partition]) -> N
         (context.staging / context.config.output_split_roothash).write_text(roothash.partition("=")[2])
 
 
-def extension_or_portable_image_repart_definitions(context: Context) -> Path:
+def extension_or_portable_image_repart_definitions(context: Context) -> list[Path]:
+    if context.config.repart_dirs:
+        return context.config.repart_dirs
+
     if context.config.verity == Verity.disabled or (
         context.config.verity == Verity.auto
         and (not context.config.verity_key or not context.config.verity_certificate)
@@ -3891,7 +3894,7 @@ def extension_or_portable_image_repart_definitions(context: Context) -> Path:
     else:
         unsigned = ""
 
-    return context.resources / f"repart/definitions/{context.config.output_format}{unsigned}.repart.d"
+    return [context.resources / f"repart/definitions/{context.config.output_format}{unsigned}.repart.d"]
 
 
 def make_extension_or_portable_image(context: Context, output: Path) -> None:
@@ -3907,7 +3910,6 @@ def make_extension_or_portable_image(context: Context, output: Path) -> None:
         "--seed", str(context.config.seed) if context.config.seed else "random",
         "--empty=create",
         "--size=auto",
-        "--definitions", workdir(definitions),
         workdir(output),
     ]  # fmt: skip
     options: list[PathString] = [
@@ -3916,8 +3918,11 @@ def make_extension_or_portable_image(context: Context, output: Path) -> None:
         "--become-root",
         "--bind", output.parent, workdir(output.parent),
         *context.rootoptions(readonly=True),
-        "--ro-bind", definitions, workdir(definitions),
     ]  # fmt: skip
+
+    for d in definitions:
+        cmdline += ["--definitions", workdir(d)]
+        options += ["--ro-bind", d, workdir(d)]
 
     if not context.config.architecture.is_native():
         cmdline += ["--architecture", str(context.config.architecture)]
