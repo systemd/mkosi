@@ -3927,7 +3927,7 @@ def make_extension_or_portable_image(context: Context, output: Path) -> None:
     if not context.config.architecture.is_native():
         cmdline += ["--architecture", str(context.config.architecture)]
     if context.config.passphrase:
-        cmdline += ["--key-file", context.config.passphrase]
+        cmdline += ["--key-file", workdir(context.config.passphrase)]
         options += ["--ro-bind", context.config.passphrase, workdir(context.config.passphrase)]
     if context.config.sector_size:
         cmdline += ["--sector-size", str(context.config.sector_size)]
