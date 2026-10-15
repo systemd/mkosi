@@ -2832,7 +2832,7 @@ Consult this table for which script receives which environment variables:
 | `MKOSI_CONFIG`              |             | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
 | `MKOSI_GID`                 | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
 | `MKOSI_UID`                 | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
-| `OUTPUT`                    |             |        |           |         | ✓          | ✓          | ✓            | ✓       |
+| `OUTPUT`                    |             |        |           |         |            |            | ✓            |         |
 | `OUTPUTDIR`                 |             |        |           |         | ✓          | ✓          | ✓            | ✓       |
 | `PACKAGEDIR`                |             |        | ✓         | ✓       | ✓          | ✓          |              |         |
 | `PROFILES`                  | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          |              | ✓       |
