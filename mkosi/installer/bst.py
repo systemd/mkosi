@@ -11,7 +11,7 @@ from mkosi.run import run
 from mkosi.util import PathString
 
 
-class BST(PackageManager):
+class Bst(PackageManager):
     @classmethod
     def executable(cls, config: Config) -> str:
         return "bst"
@@ -22,12 +22,18 @@ class BST(PackageManager):
 
     @classmethod
     def setup(cls, context: Context) -> None:
+        if context.config.base_trees:
+            die("BuildStream currently does not support base trees")
+        if not context.config.packages:
+            die("A single element must be specified in Packages= when using BuildStream")
         if len(context.config.packages) > 1:
             die("Only a single element can be specified in Packages= when using BuildStream")
         if context.config.build_packages:
             die("BuildPackages= are not supported when using BuildStream")
         if context.config.volatile_packages:
             die("VolatilePackages= are not supported when using BuildStream")
+        if context.config.remove_packages:
+            die("Removing packages is not supported for BuildStream")
 
     @classmethod
     def install(
@@ -71,13 +77,5 @@ class BST(PackageManager):
         )
 
     @classmethod
-    def remove(cls, context: Context, packages: Sequence[str]) -> None:
-        die("Removing packages is not supported for bst")
-
-    @classmethod
-    def sync(cls, context: Context, force: bool) -> None:
-        pass
-
-    @classmethod
     def createrepo(cls, context: Context) -> None:
-        die("Creating package repositories is not supported for bst")
+        die("Creating package repositories is not supported for BuildStream")
