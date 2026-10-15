@@ -6,7 +6,7 @@ import logging
 import os
 import sys
 import time
-from collections.abc import Iterator
+from collections.abc import Generator
 from typing import Any, NoReturn, Optional
 
 from mkosi.sandbox import (
@@ -105,7 +105,7 @@ def log_notice(text: str) -> None:
 
 
 @contextlib.contextmanager
-def complete_step(text: str, text2: Optional[str] = None) -> Iterator[list[Any]]:
+def complete_step(text: str, text2: Optional[str] = None) -> Generator[list[Any]]:
     global LEVEL
 
     log_step(text)
@@ -157,7 +157,7 @@ def log_setup(default_log_level: str = "info") -> None:
 
 
 @contextlib.contextmanager
-def stash_terminal_title() -> Iterator[None]:
+def stash_terminal_title() -> Generator[None]:
     try:
         if not terminal_is_dumb():
             print(ConsoleCodes.push_window_title(), file=sys.stderr, end="")

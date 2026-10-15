@@ -23,7 +23,7 @@ import sys
 import tempfile
 import textwrap
 import uuid
-from collections.abc import Iterator, Sequence
+from collections.abc import Generator, Sequence
 from pathlib import Path
 from typing import Optional
 
@@ -264,7 +264,7 @@ def find_ovmf_firmware(config: Config, firmware: Firmware) -> Optional[OvmfConfi
 
 
 @contextlib.contextmanager
-def start_swtpm(config: Config) -> Iterator[Path]:
+def start_swtpm(config: Config) -> Generator[Path]:
     with tempfile.TemporaryDirectory(prefix="mkosi-swtpm-") as state:
         # swtpm_setup is noisy and doesn't have a --quiet option so we pipe it's stdout to /dev/null.
         run(
@@ -337,7 +337,7 @@ def start_virtiofsd(
     *,
     uidmap: bool = True,
     selinux: bool = False,
-) -> Iterator[Path]:
+) -> Generator[Path]:
     virtiofsd = find_virtiofsd(root=config.tools(), extra=config.extra_search_paths)
     if virtiofsd is None:
         die("virtiofsd must be installed to boot directory images or use RuntimeTrees= with mkosi vm")
@@ -442,7 +442,7 @@ async def vsock_notify_handler(messages: queue.SimpleQueue[tuple[str, str]], *, 
 
 
 @contextlib.contextmanager
-def start_journal_remote(config: Config, sockfd: int) -> Iterator[None]:
+def start_journal_remote(config: Config, sockfd: int) -> Generator[None]:
     assert config.forward_journal
 
     bin = config.find_binary("systemd-journal-remote", "/usr/lib/systemd/systemd-journal-remote")
@@ -506,7 +506,7 @@ def start_journal_remote(config: Config, sockfd: int) -> Iterator[None]:
 
 
 @contextlib.contextmanager
-def start_journal_remote_vsock(config: Config) -> Iterator[str]:
+def start_journal_remote_vsock(config: Config) -> Generator[str]:
     with socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM) as sock:
         sock.bind((socket.VMADDR_CID_ANY, socket.VMADDR_PORT_ANY))
         sock.listen()
@@ -516,7 +516,7 @@ def start_journal_remote_vsock(config: Config) -> Iterator[str]:
 
 
 @contextlib.contextmanager
-def copy_ephemeral(config: Config, src: Path) -> Iterator[Path]:
+def copy_ephemeral(config: Config, src: Path) -> Generator[Path]:
     if config.output_format in (OutputFormat.cpio, OutputFormat.uki):
         yield src
         return
@@ -681,7 +681,7 @@ def apply_runtime_size(config: Config, image: Path) -> None:
 
 
 @contextlib.contextmanager
-def finalize_drive(config: Config, drive: Drive) -> Iterator[Path]:
+def finalize_drive(config: Config, drive: Drive) -> Generator[Path]:
     dir = Path(drive.directory or "/var/tmp")
     filename = f"mkosi-drive-{config.machine_or_name()}-{drive.id}"
     with (
@@ -695,7 +695,7 @@ def finalize_drive(config: Config, drive: Drive) -> Iterator[Path]:
 
 
 @contextlib.contextmanager
-def finalize_initrd(config: Config) -> Iterator[Optional[Path]]:
+def finalize_initrd(config: Config) -> Generator[Optional[Path]]:
     with contextlib.ExitStack() as stack:
         if (config.output_dir_or_cwd() / config.output_split_initrd).exists():
             yield config.output_dir_or_cwd() / config.output_split_initrd
@@ -709,7 +709,7 @@ def finalize_initrd(config: Config) -> Iterator[Optional[Path]]:
 
 
 @contextlib.contextmanager
-def finalize_state(config: Config, cid: int) -> Iterator[None]:
+def finalize_state(config: Config, cid: int) -> Generator[None]:
     statedir = INVOKING_USER.runtime_dir() / "mkosi/machine"
     statedir.mkdir(parents=True, exist_ok=True)
 

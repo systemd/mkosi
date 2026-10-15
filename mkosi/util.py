@@ -18,7 +18,7 @@ import resource
 import shutil
 import stat
 import tempfile
-from collections.abc import Hashable, Iterable, Iterator, Mapping, Sequence
+from collections.abc import Generator, Hashable, Iterable, Iterator, Mapping, Sequence
 from pathlib import Path
 from types import ModuleType
 from typing import IO, Any, Callable, Optional, Protocol, TypeVar, Union
@@ -114,7 +114,7 @@ def flatten(lists: Iterable[Iterable[T]]) -> list[T]:
 
 
 @contextlib.contextmanager
-def chdir(directory: PathString) -> Iterator[None]:
+def chdir(directory: PathString) -> Generator[None]:
     old = Path.cwd()
 
     if old == directory:
@@ -135,7 +135,7 @@ def make_executable(*paths: Path) -> None:
 
 
 @contextlib.contextmanager
-def flock(path: Path, flags: int = fcntl.LOCK_EX) -> Iterator[int]:
+def flock(path: Path, flags: int = fcntl.LOCK_EX) -> Generator[int]:
     fd = os.open(path, os.O_CLOEXEC | os.O_RDONLY)
     try:
         fcntl.fcntl(fd, fcntl.FD_CLOEXEC)
@@ -148,7 +148,7 @@ def flock(path: Path, flags: int = fcntl.LOCK_EX) -> Iterator[int]:
 
 
 @contextlib.contextmanager
-def flock_or_die(path: Path, flags: int = fcntl.LOCK_EX) -> Iterator[Path]:
+def flock_or_die(path: Path, flags: int = fcntl.LOCK_EX) -> Generator[Path]:
     try:
         with flock(path, flags | fcntl.LOCK_NB):
             yield path
@@ -164,7 +164,7 @@ def flock_or_die(path: Path, flags: int = fcntl.LOCK_EX) -> Iterator[Path]:
 
 
 @contextlib.contextmanager
-def scopedenv(env: Mapping[str, Any]) -> Iterator[None]:
+def scopedenv(env: Mapping[str, Any]) -> Generator[None]:
     old = copy.deepcopy(os.environ)
     os.environ |= env
 
@@ -205,7 +205,7 @@ def parents_below(path: Path, below: Path) -> list[Path]:
 
 
 @contextlib.contextmanager
-def resource_path(mod: ModuleType) -> Iterator[Path]:
+def resource_path(mod: ModuleType) -> Generator[Path]:
     t = importlib.resources.files(mod)
     with as_file(t) as p:
         # Make sure any temporary directory that the resources are unpacked in is accessible to the invoking
