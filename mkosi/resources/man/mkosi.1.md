@@ -2734,6 +2734,12 @@ Scripts executed by **mkosi** receive the following environment variables:
   executing a build script. `$CHROOT_DESTDIR` contains the value that
   `$DESTDIR` will have after invoking **mkosi-chroot**.
 
+* `$OUTPUT` contains the file name (without directory) of the main output
+  artifact of the image build, as it will be named inside `$OUTPUTDIR`. It is
+  derived from `Output=` and `ImageVersion=` and includes the file extension
+  implied by `Format=` (or `OutputExtension=` if it is not empty)  and
+  `CompressOutput=` (e.g. `image_1.0.raw.zst`).
+
 * `$OUTPUTDIR` points to the staging directory used to store build
   artifacts generated during the build. `$CHROOT_OUTPUTDIR` contains the
   value that `$OUTPUTDIR` will have after invoking **mkosi-chroot**.
@@ -2826,6 +2832,7 @@ Consult this table for which script receives which environment variables:
 | `MKOSI_CONFIG`              |             | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
 | `MKOSI_GID`                 | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
 | `MKOSI_UID`                 | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
+| `OUTPUT`                    |             |        |           |         |            |            | ✓            |         |
 | `OUTPUTDIR`                 |             |        |           |         | ✓          | ✓          | ✓            | ✓       |
 | `PACKAGEDIR`                |             |        | ✓         | ✓       | ✓          | ✓          |              |         |
 | `PROFILES`                  | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          |              | ✓       |
