@@ -42,6 +42,15 @@ else:
 T = TypeVar("T")
 
 
+RESOLVERDIRS = (
+    Path("/run/systemd/resolve"),
+    Path("/run/NetworkManager"),
+    Path("/run/resolvconf"),
+    Path("/run/netconfig"),
+    Path("/mnt/wsl"),
+)
+
+
 def ensure_exc_info() -> tuple[type[BaseException], BaseException, TracebackType]:
     exctype, exc, tb = sys.exc_info()
     assert exctype
@@ -611,6 +620,27 @@ def vartmpdir() -> Iterator[Path]:
             shutil.rmtree(d)
 
 
+def finalize_resolverdir_mounts() -> list[PathString]:
+    cmdline: list[PathString] = []
+    for resolverdir in RESOLVERDIRS:
+        if resolverdir.exists():
+            cmdline += ["--ro-bind", resolverdir, resolverdir]
+
+    return cmdline
+
+
+def finalize_resolv_conf_mounts() -> list[PathString]:
+    # At the point this is being called we know that /etc/resolv.conf exists
+    s = Path("/etc/resolv.conf")
+    t = s.resolve()
+
+    for resolverdir in RESOLVERDIRS:
+        if resolverdir.exists() and t.is_relative_to(resolverdir):
+            return ["--ro-bind-nofollow", s, s]
+
+    return ["--ro-bind", s, s]
+
+
 @contextlib.contextmanager
 def sandbox_cmd(
     *,
@@ -710,11 +740,11 @@ def sandbox_cmd(
                 if (tools / p).exists():
                     cmdline += ["--ro-bind", tools / p, Path("/") / p]
 
-            if network and (p := Path("/run/systemd/resolve")).exists():
-                cmdline += ["--ro-bind", p, p]
+            if network:
+                cmdline += finalize_resolverdir_mounts()
 
-        if network and (p := Path("/etc/resolv.conf")).exists():
-            cmdline += ["--ro-bind-nofollow", p, p]
+        if network and Path("/etc/resolv.conf").exists():
+            cmdline += finalize_resolv_conf_mounts()
 
         path = finalize_path(
             root=tools,
