@@ -84,6 +84,13 @@ from `mkosi.sandbox` is not supported and may break in future versions.
 `--ro-bind-nofollow SRC DST`
 :   Like `--bind-nofollow`, but does a readonly mount.
 
+`--bind-copy SRC DST`
+:   Like `--bind`, but bind mounts a private copy of the file `SRC` that is made when the sandbox is set
+    up. Later changes to `SRC` are not visible in the sandbox.
+
+`--ro-bind-copy SRC DST`
+:   Like `--bind-copy`, but does a readonly mount.
+
 `--symlink SRC DST`
 :   Creates a symlink at `DST` in the sandbox pointing to `SRC`. If `DST` already
     exists and is a file or symlink, a temporary symlink is created and mounted on

@@ -1097,6 +1097,7 @@ class FSOperation:
                 and m.required == n.required
                 and m.relative == n.relative
                 and m.nofollow == n.nofollow
+                and m.copy == n.copy
                 and is_relative_to(m.src, n.src)
                 and is_relative_to(m.dst, n.dst)
                 and os.path.relpath(m.src, n.src) == os.path.relpath(m.dst, n.dst)
@@ -1121,17 +1122,28 @@ class BindOperation(FSOperation):
         foreign: bool,
         relative: bool,
         nofollow: bool,
+        copy: bool,
     ) -> None:
         self.src = src
         self.readonly = readonly
         self.required = required
         self.foreign = foreign
         self.nofollow = nofollow
+        self.copy = copy
         self.mappedfd = -EBADF
         super().__init__(dst, relative=relative)
 
     def __hash__(self) -> int:
-        return hash((splitpath(self.src), splitpath(self.dst), self.readonly, self.required, self.nofollow))
+        return hash(
+            (
+                splitpath(self.src),
+                splitpath(self.dst),
+                self.readonly,
+                self.required,
+                self.nofollow,
+                self.copy,
+            )
+        )
 
     def __eq__(self, other: object) -> bool:
         return isinstance(other, BindOperation) and self.__hash__() == other.__hash__()
@@ -1148,6 +1160,8 @@ class BindOperation(FSOperation):
             flags.append("relative")
         if self.nofollow:
             flags.append("nofollow")
+        if self.copy:
+            flags.append("copy")
         suffix = f" [{', '.join(flags)}]" if flags else ""
         return f"bind {self.src} -> {self.dst}{suffix}"
 
@@ -1157,6 +1171,15 @@ class BindOperation(FSOperation):
         exists = os.path.lexists if self.nofollow else os.path.exists
         if not exists(src) and not self.required:
             return
+
+        if self.copy:
+            copy = joinpath("/copy", self.dst)
+            with umask(~0o755):
+                os.makedirs(os.path.dirname(copy), exist_ok=True)
+            with open(src, "rb") as s, open(copy, "wb") as d:
+                d.write(s.read())
+            os.chmod(copy, os.stat(src).st_mode & 0o7777)
+            src = copy
 
         # A nofollow source that is itself a symlink must be treated as a non-directory file so we
         # bind mount the symlink as-is rather than creating a directory on top of it.
@@ -1405,6 +1428,8 @@ mkosi-sandbox [OPTIONS...] COMMAND [ARGUMENTS...]
      --ro-bind-foreign SRC DST    Like --ro-bind, but idmaps the foreign UID range to a transient UID range
      --bind-nofollow SRC DST      Like --bind, but does not follow symlinks for SRC
      --ro-bind-nofollow SRC DST   Like --ro-bind, but does not follow symlinks for SRC
+     --bind-copy SRC DST          Like --bind, but bind mounts a private copy of SRC
+     --ro-bind-copy SRC DST       Like --ro-bind, but bind mounts a private copy of SRC
      --symlink SRC DST            Create a symlink at DST pointing to SRC
      --write DATA DST             Write DATA to DST
      --overlay-lowerdir DIR       Add a lower directory for the next overlayfs mount
@@ -1494,11 +1519,14 @@ def enter(argv: list[str]) -> list[str]:
             "--ro-bind-foreign",
             "--bind-nofollow",
             "--ro-bind-nofollow",
+            "--bind-copy",
+            "--ro-bind-copy",
         ):
             readonly = arg.startswith("--ro")
             required = not arg.endswith("-try")
             foreign = arg.endswith("-foreign")
             nofollow = arg.endswith("-nofollow")
+            copy = arg.endswith("-copy")
             src = argv.pop()
 
             fsops.append(
@@ -1510,6 +1538,7 @@ def enter(argv: list[str]) -> list[str]:
                     foreign=foreign,
                     relative=src.startswith("+"),
                     nofollow=nofollow,
+                    copy=copy,
                 )
             )
         elif arg == "--symlink":
