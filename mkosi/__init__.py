@@ -22,7 +22,7 @@ import tempfile
 import textwrap
 import uuid
 import zipapp
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Generator, Mapping, Sequence
 from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Any, Optional, Union, cast
@@ -165,7 +165,7 @@ KERNEL_VERSION_PATTERN = re.compile(r"\d+\.\d+[\w\-.~^+]*", re.ASCII)
 
 
 @contextlib.contextmanager
-def mount_base_trees(context: Context) -> Iterator[None]:
+def mount_base_trees(context: Context) -> Generator[None]:
     if not context.config.base_trees or not context.config.overlay:
         yield
         return
@@ -550,7 +550,7 @@ def configure_mountpoints(context: Context) -> None:
 
 
 @contextlib.contextmanager
-def setup_build_overlay(context: Context, volatile: bool = False) -> Iterator[None]:
+def setup_build_overlay(context: Context, volatile: bool = False) -> Generator[None]:
     d = context.workspace / "build-overlay"
     if not d.is_symlink():
         with umask(~0o755):
@@ -592,7 +592,7 @@ def setup_build_overlay(context: Context, volatile: bool = False) -> Iterator[No
 
 
 @contextlib.contextmanager
-def finalize_scripts(config: Config, scripts: Mapping[str, Sequence[PathString]]) -> Iterator[Path]:
+def finalize_scripts(config: Config, scripts: Mapping[str, Sequence[PathString]]) -> Generator[Path]:
     with tempfile.TemporaryDirectory(prefix="mkosi-scripts-") as d:
         for name, script in scripts.items():
             # Make sure we don't end up in a recursive loop when we name a script after the binary
@@ -644,7 +644,7 @@ def finalize_host_scripts(
 
 
 @contextlib.contextmanager
-def finalize_config_json(config: Config) -> Iterator[Path]:
+def finalize_config_json(config: Config) -> Generator[Path]:
     with tempfile.NamedTemporaryFile(mode="w") as f:
         f.write(dump_json(config.to_dict()))
         f.flush()
@@ -780,7 +780,7 @@ def script_maybe_chroot_sandbox(
     script: Path,
     options: Sequence[PathString],
     network: bool,
-) -> Iterator[list[PathString]]:
+) -> Generator[list[PathString]]:
     options = ["--dir", "/work/src", "--chdir", "/work/src", *options]
     suppress_chown = parse_boolean(
         context.config.finalize_environment().get("MKOSI_CHROOT_SUPPRESS_CHOWN", "0")
@@ -4017,7 +4017,7 @@ def normalize_mtime(root: Path, mtime: Optional[int], directory: Path = Path("")
 
 
 @contextlib.contextmanager
-def setup_workspace(args: Args, config: Config) -> Iterator[Path]:
+def setup_workspace(args: Args, config: Config) -> Generator[Path]:
     with contextlib.ExitStack() as stack:
         workspace = Path(tempfile.mkdtemp(dir=config.workspace_dir_or_default(), prefix="mkosi-workspace-"))
         # Discard setuid/setgid bits as these are inherited and can leak into the image.
@@ -4037,7 +4037,7 @@ def setup_workspace(args: Args, config: Config) -> Iterator[Path]:
 
 
 @contextlib.contextmanager
-def createrepo(context: Context) -> Iterator[None]:
+def createrepo(context: Context) -> Generator[None]:
     st = context.repository.stat()
     try:
         yield

@@ -7,7 +7,7 @@ import os
 import shutil
 import subprocess
 import tempfile
-from collections.abc import Iterator
+from collections.abc import Generator
 from pathlib import Path
 
 from mkosi.config import ConfigFeature
@@ -75,7 +75,7 @@ def make_tree(path: Path, *, use_subvolumes: ConfigFeature = ConfigFeature.disab
 
 
 @contextlib.contextmanager
-def preserve_target_directories_stat(src: Path, dst: Path) -> Iterator[None]:
+def preserve_target_directories_stat(src: Path, dst: Path) -> Generator[None]:
     dirs = [p for d in src.glob("**/") if (dst / (p := d.relative_to(src))).exists()]
 
     with tempfile.TemporaryDirectory() as tmp:

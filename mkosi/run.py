@@ -16,7 +16,7 @@ import subprocess
 import sys
 import threading
 import uuid
-from collections.abc import Awaitable, Collection, Iterator, Mapping, Sequence
+from collections.abc import Awaitable, Collection, Generator, Mapping, Sequence
 from contextlib import AbstractContextManager
 from pathlib import Path
 from types import FrameType, TracebackType
@@ -81,7 +81,7 @@ def uncaught_exception_handler(
     exit: Callable[[int], NoReturn] = sys.exit,
     fork: bool = False,
     proceed: bool = False,
-) -> Iterator[None]:
+) -> Generator[None]:
 
     frames = []
     if fork:
@@ -310,7 +310,7 @@ def spawn(
     setup: Sequence[PathString] = (),
     sandbox: AbstractContextManager[Sequence[PathString]] = nosandbox(),
     cwd: Optional[PathString] = None,
-) -> Iterator[Popen]:
+) -> Generator[Popen]:
     cmd = [os.fspath(x) for x in cmdline]
 
     if ARG_DEBUG.get():
@@ -577,7 +577,7 @@ def network_options(*, network: bool) -> list[PathString]:
 
 
 @contextlib.contextmanager
-def vartmpdir() -> Iterator[Path]:
+def vartmpdir() -> Generator[Path]:
     # We want to use an empty subdirectory in the host's temporary directory as the sandbox's /var/tmp.
     d = Path(os.getenv("TMPDIR", "/var/tmp")) / f"mkosi-var-tmp-{uuid.uuid4().hex[:16]}"
     d.mkdir()
@@ -622,7 +622,7 @@ def sandbox_cmd(
     overlay: Optional[Path] = None,
     options: Sequence[PathString] = (),
     extra: Sequence[Path] = (),
-) -> Iterator[list[PathString]]:
+) -> Generator[list[PathString]]:
     assert not (overlay and relaxed)
 
     with contextlib.ExitStack() as stack:
@@ -816,7 +816,7 @@ def chroot_cmd(
     root: Callable[[PathString], list[str]],
     network: bool = False,
     options: Sequence[PathString] = (),
-) -> Iterator[list[PathString]]:
+) -> Generator[list[PathString]]:
     with vartmpdir() as dir:
         cmdline: list[PathString] = [
             *root("/"),

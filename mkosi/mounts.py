@@ -4,7 +4,7 @@ import contextlib
 import os
 import stat
 import tempfile
-from collections.abc import Iterator, Sequence
+from collections.abc import Generator, Sequence
 from pathlib import Path
 from typing import Optional, Union
 
@@ -50,7 +50,7 @@ def mount_overlay(
     dst: Path,
     *,
     upperdir: Optional[Path] = None,
-) -> Iterator[Path]:
+) -> Generator[Path]:
     with contextlib.ExitStack() as stack:
         if upperdir is None:
             upperdir = Path(
@@ -87,7 +87,7 @@ def finalize_source_mounts(
     config: Config,
     *,
     ephemeral: Union[BuildSourcesEphemeral, bool],
-) -> Iterator[list[PathString]]:
+) -> Generator[list[PathString]]:
     with contextlib.ExitStack() as stack:
         options: list[PathString] = []
 

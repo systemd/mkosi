@@ -7,7 +7,7 @@ import os
 import stat
 import sys
 import tempfile
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import AbstractContextManager
 from pathlib import Path
 
@@ -27,7 +27,7 @@ def make_executable_if_script(path: Path) -> Path:
 
 
 @contextlib.contextmanager
-def temporary_file(path: Traversable, suffix: str = "") -> Iterator[Path]:
+def temporary_file(path: Traversable, suffix: str = "") -> Generator[Path]:
     fd, raw_path = tempfile.mkstemp(suffix=suffix)
     try:
         try:
@@ -65,7 +65,7 @@ def as_file(path: Traversable) -> AbstractContextManager[Path]:
 
 
 @contextlib.contextmanager
-def temporary_dir(path: Traversable) -> Iterator[Path]:
+def temporary_dir(path: Traversable) -> Generator[Path]:
     """
     Given a traversable dir, recursively replicate the whole tree
     to the file system in a context manager.

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 import contextlib
-from collections.abc import Iterator, Sequence
+from collections.abc import Generator, Sequence
 from pathlib import Path
 
 from mkosi.config import Config, ConfigFeature, OutputFormat
@@ -160,7 +160,7 @@ class PackageManager:
         *,
         apivfs: bool,
         options: Sequence[PathString] = (),
-    ) -> Iterator[list[PathString]]:
+    ) -> Generator[list[PathString]]:
         # The package cache directory is shared between all mkosi builds of the same distribution (see
         # Config.package_cache_dir_or_default()) and is bind mounted read-write into every package manager
         # sandbox by mounts(). Avoid concurrent downloads, as those result in corruption/truncation and
