@@ -68,7 +68,7 @@ def excepthook(frames: Sequence[FrameType]) -> None:
     # inaccessible. Temporarily disable it to preserve our primed linecache entries for which we might not
     # be able to access the files anymore (because we're sandboxed).
     checkcache = linecache.checkcache
-    linecache.checkcache = lambda filename=None: None
+    linecache.checkcache = lambda filename=None: None  # ty: ignore[invalid-assignment]
     try:
         sys.excepthook(exctype, exc, tb)
     finally:

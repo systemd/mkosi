@@ -1740,7 +1740,7 @@ def build_uki(
 
     if (
         context.config.unified_kernel_image_profiles
-        and context.config.sign_expected_pcr
+        and want_signed_pcrs(context.config)
         and any(not profile.sign_expected_pcr for profile in context.config.unified_kernel_image_profiles)
     ):
         arguments += ["--sign-profile=main"]
