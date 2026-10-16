@@ -1231,7 +1231,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
     If the root or usr partition are created with verity enabled,
     `roothash=` or `usrhash=` respectively are automatically added to the
-    kernel command line and `root=` or `mount.usr=` should not be added.
+    kernel command line unless this setting contains `root=dissect` or
+    `mount.usr=dissect` respectively. Other values of `root=` or `mount.usr=`
+    should not be used when verity is enabled.
     Otherwise, if the value of this setting contains the literals
     `root=PARTUUID` or `mount.usr=PARTUUID`, these are replaced with the
     partition UUID of the root or usr partition respectively. For
