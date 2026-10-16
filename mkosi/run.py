@@ -729,6 +729,12 @@ def sandbox_cmd(
         tmp: Optional[Path]
 
         if not overlay and not relaxed:
+            # On NixOS, /etc/ssl and friends only contain symlinks into /etc/static, so recreate that symlink
+            # when the host's /etc is used for certificates. With a sandbox tree, install_sandbox_trees()
+            # takes care of this.
+            if tools == Path("/") and Path("/etc/static").is_symlink():
+                options = ["--symlink", os.fspath(Path("/etc/static").readlink()), "/etc/static", *options]
+
             tmp = stack.enter_context(vartmpdir())
             yield [
                 *cmdline,
