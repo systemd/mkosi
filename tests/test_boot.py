@@ -45,7 +45,10 @@ def test_format(config: ImageConfig, format: OutputFormat) -> None:
         if image.config.distribution == Distribution.rhel_ubi:
             return
 
-        if format in (OutputFormat.tar, OutputFormat.oci, OutputFormat.none, OutputFormat.portable):
+        if format in (OutputFormat.tar, OutputFormat.none, OutputFormat.portable):
+            return
+
+        if format.is_oci():
             return
 
         image.vm()
