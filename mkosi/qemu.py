@@ -1148,7 +1148,7 @@ def run_qemu(args: Args, config: Config) -> None:
             elif config.output_format == OutputFormat.disk:
                 # We can't rely on gpt-auto-generator when direct kernel booting so synthesize a root=
                 # kernel argument instead.
-                root = finalize_root(find_partitions(fname, sandbox=config.sandbox))
+                root = finalize_root(config, find_partitions(fname, sandbox=config.sandbox))
                 if not root:
                     die("Cannot perform a direct kernel boot without a root or usr partition")
 

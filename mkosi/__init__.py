@@ -107,7 +107,7 @@ from mkosi.mounts import (
     mount_overlay,
 )
 from mkosi.pager import page
-from mkosi.partition import Partition, finalize_root, finalize_roothash
+from mkosi.partition import Partition, finalize_root, finalize_roothash, keep_roothash
 from mkosi.qemu import (
     copy_ephemeral,
     finalize_credentials,
@@ -1961,7 +1961,9 @@ def finalize_cmdline(
         cmdline = []
 
     if roothash:
-        cmdline += [roothash]
+        split = cmdline[0].split() if cmdline else []
+        if roothash and keep_roothash(split + context.config.kernel_command_line, roothash):
+            cmdline += [roothash]
 
     cmdline += context.config.kernel_command_line
 
@@ -2063,7 +2065,7 @@ def install_type1(
         if (
             not any(c.startswith("root=PARTUUID=") for c in context.config.kernel_command_line)
             and not any(c.startswith("mount.usr=PARTUUID=") for c in context.config.kernel_command_line)
-            and (root := finalize_root(partitions))
+            and (root := finalize_root(context.config, partitions))
         ):
             cmdline = [root] + cmdline
 
