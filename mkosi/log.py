@@ -151,9 +151,7 @@ def log_setup(default_log_level: str = "info") -> None:
     handler.setFormatter(Formatter())
 
     logging.getLogger().addHandler(handler)
-    logging.getLogger().setLevel(
-        logging.getLevelName(os.getenv("SYSTEMD_LOG_LEVEL", default_log_level).upper())
-    )
+    logging.getLogger().setLevel(os.getenv("SYSTEMD_LOG_LEVEL", default_log_level).upper())
 
 
 @contextlib.contextmanager

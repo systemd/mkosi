@@ -27,7 +27,7 @@ import tempfile
 import textwrap
 import typing
 import uuid
-from collections.abc import Collection, Iterable, Iterator, Sequence
+from collections.abc import Collection, Iterator, Sequence
 from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Any, Callable, ClassVar, Generic, Optional, Protocol, TypeVar, Union, cast
@@ -5823,7 +5823,7 @@ def none_to_default(s: Optional[object]) -> str:
     return "default" if s is None else str(s)
 
 
-def line_join_list(array: Iterable[object]) -> str:
+def line_join_list(array: Collection[object]) -> str:
     return "\n                                     ".join(str(item) for item in array) if array else "none"
 
 
@@ -6084,7 +6084,7 @@ def summary(config: Config) -> str:
     {bold("HOST CONFIGURATION")}:
                     NSpawn Settings: {none_to_none(config.nspawn_settings)}
                           Ephemeral: {config.ephemeral}
-                        Credentials: {line_join_list(c.name for c in config.credentials)}
+                        Credentials: {line_join_list([c.name for c in config.credentials])}
           Extra Kernel Command Line: {line_join_list(config.kernel_command_line_extra)}
                       Runtime Trees: {line_join_list(config.runtime_trees)}
                        Runtime Size: {format_bytes_or_none(config.runtime_size)}
