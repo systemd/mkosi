@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: LGPL-2.1-or-later
+set -euo pipefail
+
+# These have to be symlinks. mkosi's resource tree materializes symlinks as regular files, so create
+# them here instead of shipping them under mkosi.extra.
+unitdir="$BUILDROOT/usr/lib/systemd/system"
+mkdir -p "$unitdir/initrd.target.wants" "$BUILDROOT/etc/systemd/system"
+ln -sfn initrd.target "$unitdir/default.target"
+ln -sfn ../initrd-switch-root.service "$unitdir/initrd.target.wants/initrd-switch-root.service"
+# See mkosi.conf in this directory: remount-fs cycles with the root fsck on systemd 239.
+ln -sfn /dev/null "$BUILDROOT/etc/systemd/system/systemd-remount-fs.service"
