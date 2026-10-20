@@ -21,6 +21,19 @@ from . import Image, ImageConfig
 pytestmark = pytest.mark.integration
 
 
+def format_root(image: Image, device: str) -> None:
+    fstype = image.config.distribution.installer.filesystem()
+    cmd = [f"mkfs.{fstype}", "-L", "root"]
+    # Tools-tree xfsprogs enables nrext64, inode exchange, parent pointers and metadir.
+    # Alibaba Cloud Linux 3's kernel 5.10 refuses to mount those, so the initrd never
+    # reaches the real root and the VM does not exit. mkosi already passes the same
+    # options when it formats the image itself.
+    if fstype == "xfs" and image.config.distribution == Distribution.alinux:
+        cmd += ["-m", "metadir=0", "-i", "nrext64=0,exchange=0", "-n", "parent=0"]
+    cmd += [device]
+    run(cmd)
+
+
 @contextlib.contextmanager
 def mount(what: PathString, where: PathString) -> Iterator[Path]:
     where = Path(where)
@@ -82,7 +95,7 @@ def test_initrd_lvm(config: ImageConfig) -> None:
         run(["lvm", "lvcreate", "--devicesfile", "", "-An", "-l", "100%FREE", "-n", "lv0", "vg_mkosi"])
         run(["lvm", "lvs", "--devicesfile", ""])
         run(["udevadm", "wait", "--timeout=30", "/dev/vg_mkosi/lv0"])
-        run([f"mkfs.{image.config.distribution.installer.filesystem()}", "-L", "root", "/dev/vg_mkosi/lv0"])
+        format_root(image, "/dev/vg_mkosi/lv0")
 
         src = Path(stack.enter_context(tempfile.TemporaryDirectory()))
         run(["systemd-dissect", "--mount", "--mkdir", Path(image.output_dir) / "image.raw", src])
@@ -110,6 +123,11 @@ def test_initrd_lvm(config: ImageConfig) -> None:
 def test_initrd_luks(config: ImageConfig, passphrase: Path) -> None:
     if config.distribution == Distribution.buildstream:
         pytest.skip("Not supported with the BuildStream test image")
+
+    # cryptsetup.passphrase is a systemd credential added in v256. Alibaba Cloud Linux 3
+    # ships systemd 239, which never reads it, so the VM waits at the passphrase prompt.
+    if config.distribution == Distribution.alinux:
+        pytest.skip("Alibaba Cloud Linux 3's systemd 239 cannot unlock LUKS via a credential")
 
     with tempfile.TemporaryDirectory() as repartd:
         st = Path.cwd().stat()
@@ -167,6 +185,11 @@ def test_initrd_luks_lvm(config: ImageConfig, passphrase: Path) -> None:
     if config.distribution == Distribution.buildstream:
         pytest.skip("Not supported with the BuildStream test image")
 
+    # cryptsetup.passphrase is a systemd credential added in v256. Alibaba Cloud Linux 3
+    # ships systemd 239, which never reads it, so the VM waits at the passphrase prompt.
+    if config.distribution == Distribution.alinux:
+        pytest.skip("Alibaba Cloud Linux 3's systemd 239 cannot unlock LUKS via a credential")
+
     with Image(config) as image, contextlib.ExitStack() as stack:
         image.build(["--format=disk"])
 
@@ -202,7 +225,7 @@ def test_initrd_luks_lvm(config: ImageConfig, passphrase: Path) -> None:
         run(["lvm", "lvcreate", "--devicesfile", "", "-An", "-l", "100%FREE", "-n", "lv0", "vg_mkosi"])
         run(["lvm", "lvs", "--devicesfile", ""])
         run(["udevadm", "wait", "--timeout=30", "/dev/vg_mkosi/lv0"])
-        run([f"mkfs.{image.config.distribution.installer.filesystem()}", "-L", "root", "/dev/vg_mkosi/lv0"])
+        format_root(image, "/dev/vg_mkosi/lv0")
 
         src = Path(stack.enter_context(tempfile.TemporaryDirectory()))
         run(["systemd-dissect", "--mount", "--mkdir", Path(image.output_dir) / "image.raw", src])
@@ -234,6 +257,10 @@ def test_initrd_size(config: ImageConfig) -> None:
 
         # Set a reasonably high limit to avoid having to bump it every single time by
         # small amounts. 100M should do.
-        maxsize = 1024**2 * 100
+        # Alibaba Cloud Linux 3's userspace initrd is already 100 MiB: RHEL 8 ships full
+        # util-linux and a less-split systemd 239, and its kernel 5.10 modules are not
+        # zstd-compressed. The combined initrd is about 123 MiB. 150 MiB still catches a
+        # firmware-sized regression.
+        maxsize = 1024**2 * (150 if config.distribution == Distribution.alinux else 100)
 
         assert (Path(image.output_dir) / "image.initrd").stat().st_size <= maxsize
