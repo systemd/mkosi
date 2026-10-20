@@ -3563,6 +3563,16 @@ def make_image(
     ):
         env["SYSTEMD_REPART_MKFS_OPTIONS_EXT4"] = "-O ^orphan_file"
 
+    # Alibaba Cloud Linux 3 ships kernel 5.10. xfsprogs from the tools tree enables nrext64, inode
+    # exchange, parent pointers and metadir by default, and that kernel refuses to mount them.
+    if (
+        context.config.distribution == Distribution.alinux
+        and "SYSTEMD_REPART_MKFS_OPTIONS_XFS" not in context.config.environment
+    ):
+        # systemd-repart already passes -m reflink=1 and -s size=…. Repeating an option makes
+        # mkfs.xfs fail, so only turn off features this kernel cannot mount.
+        env["SYSTEMD_REPART_MKFS_OPTIONS_XFS"] = "-m metadir=0 -i nrext64=0,exchange=0 -n parent=0"
+
     if ARG_DEBUG.get():
         for dir in definitions:
             for c in dir.glob("*.conf"):
