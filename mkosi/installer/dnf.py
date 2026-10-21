@@ -215,7 +215,15 @@ class Dnf(PackageManager):
             cmdline += ["--no-docs" if dnf == "dnf5" else "--nodocs"]
 
         if dnf == "dnf5":
-            cmdline += ["--use-host-config"]
+            # --use-host-config still loads the tools tree's vendor repositories from
+            # /usr/share/dnf5/repos.d. Restrict reposdir so dnf --best cannot mix those with the
+            # image repositories. Otherwise a Fedora tools tree offers Rawhide packages that conflict
+            # with older RPM distributions such as Alibaba Cloud Linux 3.
+            cmdline += [
+                "--use-host-config",
+                "--setopt=reposdir=/etc/yum.repos.d",
+                "--setopt=varsdir=/etc/dnf/vars",
+            ]
         else:
             cmdline += [
                 "--config=/etc/dnf/dnf.conf",
