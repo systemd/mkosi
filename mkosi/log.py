@@ -28,6 +28,15 @@ IMAGE = contextvars.ContextVar("image", default="")
 LEVEL = 0
 
 
+@contextlib.contextmanager
+def set_image(name: str) -> Generator[None]:
+    token = IMAGE.set(name)
+    try:
+        yield
+    finally:
+        IMAGE.reset(token)
+
+
 def die(message: str, *, hint: Optional[str] = None) -> NoReturn:
     logging.error(f"{message}")
     if hint:
