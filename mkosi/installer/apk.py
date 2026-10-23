@@ -382,5 +382,3 @@ class Apk(PackageManager):
                     f.write(f"{repo}\n")
         else:
             repos.write_text(f"{repo}\n")
-
-        cls.sync(context, force=True)
