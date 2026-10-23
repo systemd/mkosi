@@ -5380,21 +5380,20 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
                 assert ikd
                 assert imd
 
-                with (
-                    complete_step(f"Building {config.image} image"),
-                    setup_workspace(args, config) as workspace,
-                ):
-                    build_image(
-                        Context(
-                            args,
-                            config,
-                            workspace=workspace,
-                            resources=resources,
-                            keyring_dir=ikd,
-                            metadata_dir=imd,
-                            package_dir=package_dir,
+                with setup_workspace(args, config) as workspace:
+                    IMAGE.set(config.image)
+                    with complete_step(f"Building {config.image} image"):
+                        build_image(
+                            Context(
+                                args,
+                                config,
+                                workspace=workspace,
+                                resources=resources,
+                                keyring_dir=ikd,
+                                metadata_dir=imd,
+                                package_dir=package_dir,
+                            )
                         )
-                    )
 
             if not ikd and not imd:
                 logging.info("All images have already been built and do not have any build scripts")
