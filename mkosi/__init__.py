@@ -98,7 +98,15 @@ from mkosi.kmod import (
     process_kernel_modules,
     required_kernel_modules,
 )
-from mkosi.log import ARG_DEBUG, IMAGE, complete_step, die, log_notice, log_step, ring_terminal_bell
+from mkosi.log import (
+    ARG_DEBUG,
+    complete_step,
+    die,
+    log_notice,
+    log_step,
+    ring_terminal_bell,
+    set_image,
+)
 from mkosi.manifest import Manifest
 from mkosi.mounts import (
     finalize_certificate_mounts,
@@ -4070,7 +4078,6 @@ def make_rootdir(context: Context) -> None:
 
 
 def build_image(context: Context) -> None:
-    IMAGE.set(context.config.image)
     manifest = Manifest(context) if context.config.manifest_format else None
 
     install_sandbox_trees(context.config, context.sandbox_tree)
@@ -4952,80 +4959,82 @@ def sync_repository_metadata(
     resources: Path,
     stack: contextlib.ExitStack,
 ) -> tuple[Path, Path]:
-    last = images[-1]
+    # The sync runs once for all images using the last config, so tag its logs with that image.
+    with set_image(images[-1].image):
+        last = images[-1]
 
-    if last.cache_dir:
-        keyring_dir = keyring_cache(last)
-    else:
-        keyring_dir = Path(
-            stack.enter_context(
-                tempfile.TemporaryDirectory(
-                    dir=last.workspace_dir_or_default(),
-                    prefix="mkosi-keyring-",
+        if last.cache_dir:
+            keyring_dir = keyring_cache(last)
+        else:
+            keyring_dir = Path(
+                stack.enter_context(
+                    tempfile.TemporaryDirectory(
+                        dir=last.workspace_dir_or_default(),
+                        prefix="mkosi-keyring-",
+                    )
                 )
             )
-        )
 
-    # If /var is used as the package cache directory, we are reusing the system package cache directory in
-    # mkosi-initrd so we want to pick up the metadata from there in that case.
-    if last.package_cache_dir_or_default() == Path("/var"):
-        metadata_dir = last.package_cache_dir_or_default()
-    elif last.cache_dir:
-        metadata_dir = metadata_cache(last)
-    else:
-        metadata_dir = Path(
-            stack.enter_context(
-                tempfile.TemporaryDirectory(
-                    dir=last.workspace_dir_or_default(),
-                    prefix="mkosi-metadata-",
+        # If /var is used as the package cache directory, we are reusing the system package cache directory
+        # in mkosi-initrd so we want to pick up the metadata from there in that case.
+        if last.package_cache_dir_or_default() == Path("/var"):
+            metadata_dir = last.package_cache_dir_or_default()
+        elif last.cache_dir:
+            metadata_dir = metadata_cache(last)
+        else:
+            metadata_dir = Path(
+                stack.enter_context(
+                    tempfile.TemporaryDirectory(
+                        dir=last.workspace_dir_or_default(),
+                        prefix="mkosi-metadata-",
+                    )
                 )
             )
-        )
 
-    subdir = last.distribution.installer.package_manager(last).subdir(last)
-    for d in ("cache", "lib"):
-        (metadata_dir / d / subdir).mkdir(parents=True, exist_ok=True)
+        subdir = last.distribution.installer.package_manager(last).subdir(last)
+        for d in ("cache", "lib"):
+            (metadata_dir / d / subdir).mkdir(parents=True, exist_ok=True)
 
-    src = metadata_dir / "lib" / subdir
-    for p in last.distribution.installer.package_manager(last).state_subdirs():
-        (src / p).mkdir(parents=True, exist_ok=True)
+        src = metadata_dir / "lib" / subdir
+        for p in last.distribution.installer.package_manager(last).state_subdirs():
+            (src / p).mkdir(parents=True, exist_ok=True)
 
-    (last.package_cache_dir_or_default() / "cache" / subdir).mkdir(parents=True, exist_ok=True)
+        (last.package_cache_dir_or_default() / "cache" / subdir).mkdir(parents=True, exist_ok=True)
 
-    # Sync repository metadata unless explicitly disabled.
-    if repository_metadata_needs_sync(images, log=True):
-        with setup_workspace(args, last) as workspace:
-            context = Context(
-                args,
-                last,
-                workspace=workspace,
-                resources=resources,
-                keyring_dir=keyring_dir,
-                metadata_dir=metadata_dir,
-            )
-            context.root.mkdir(mode=0o755)
-
-            install_sandbox_trees(context.config, context.sandbox_tree)
-            context.config.distribution.installer.setup(context)
-
-            with complete_step("Syncing package manager metadata"):
-                context.config.distribution.installer.package_manager(context.config).sync(
-                    context,
-                    force=context.args.force > 1 or context.config.cacheonly == Cacheonly.never,
+        # Sync repository metadata unless explicitly disabled.
+        if repository_metadata_needs_sync(images, log=True):
+            with setup_workspace(args, last) as workspace:
+                context = Context(
+                    args,
+                    last,
+                    workspace=workspace,
+                    resources=resources,
+                    keyring_dir=keyring_dir,
+                    metadata_dir=metadata_dir,
                 )
+                context.root.mkdir(mode=0o755)
 
-            context.config.distribution.installer.keyring(context)
+                install_sandbox_trees(context.config, context.sandbox_tree)
+                context.config.distribution.installer.setup(context)
 
-        src = metadata_dir / "cache" / subdir
-        dst = last.package_cache_dir_or_default() / "cache" / subdir
+                with complete_step("Syncing package manager metadata"):
+                    context.config.distribution.installer.package_manager(context.config).sync(
+                        context,
+                        force=context.args.force > 1 or context.config.cacheonly == Cacheonly.never,
+                    )
 
-        # We just synced package manager metadata, in the case of dnf, this means we can now iterate the
-        # synced repository metadata directories and use that to create the corresponding directories in the
-        # package cache directory.
-        for srcsubdir, _ in last.distribution.installer.package_manager(last).package_subdirs(src):
-            (dst / srcsubdir).mkdir(parents=True, exist_ok=True)
+                context.config.distribution.installer.keyring(context)
 
-    return keyring_dir, metadata_dir
+            src = metadata_dir / "cache" / subdir
+            dst = last.package_cache_dir_or_default() / "cache" / subdir
+
+            # We just synced package manager metadata, in the case of dnf, this means we can now iterate the
+            # synced repository metadata directories and use that to create the corresponding directories
+            # in the package cache directory.
+            for srcsubdir, _ in last.distribution.installer.package_manager(last).package_subdirs(src):
+                (dst / srcsubdir).mkdir(parents=True, exist_ok=True)
+
+        return keyring_dir, metadata_dir
 
 
 def ensure_tools_tree_has_etc_resolv_conf(config: Config) -> None:
@@ -5173,51 +5182,52 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
 
     # For the default tools tree have_cache() encompasses the "has the tools tree been built at all" check.
     if tools and not have_cache(tools):
-        if (args.rerun_build_scripts or args.verb != Verb.build) and args.force == 0:
-            die(
-                "Default tools tree requested but it is out-of-date or has not been built yet",
-                hint="Make sure to (re)build the tools tree first with 'mkosi build' or use '--force'",
-            )
-        elif last.incremental == Incremental.strict:
-            die(
-                "Default tools tree is out-of-date but the strict incremental mode is enabled",
-                hint="Build once without --incremental=strict to rebuild the default tools tree",
-            )
-
-        run_clean(args, tools)
-
-        ensure_directories_exist(tools)
-        run_sync_scripts(tools)
-        check_tools(tools, Verb.build)
-
-        with contextlib.ExitStack() as stack:
-            tkd, tmd = sync_repository_metadata(
-                args,
-                [tools],
-                resources=resources,
-                stack=stack,
-            )
-
-            stack.enter_context(complete_step(f"Building {tools.image} image"))
-            workspace = stack.enter_context(setup_workspace(args, tools))
-
-            build_image(
-                Context(
-                    args,
-                    tools,
-                    workspace=workspace,
-                    resources=resources,
-                    keyring_dir=tkd,
-                    metadata_dir=tmd,
+        with set_image(tools.image):
+            if (args.rerun_build_scripts or args.verb != Verb.build) and args.force == 0:
+                die(
+                    "Default tools tree requested but it is out-of-date or has not been built yet",
+                    hint="Make sure to (re)build the tools tree first with 'mkosi build' or use '--force'",
                 )
-            )
+            elif last.incremental == Incremental.strict:
+                die(
+                    "Default tools tree is out-of-date but the strict incremental mode is enabled",
+                    hint="Build once without --incremental=strict to rebuild the default tools tree",
+                )
 
-        resolv = tools.output_dir_or_cwd() / tools.output / "etc/resolv.conf"
-        if not resolv.is_symlink() and not resolv.exists():
-            resolv.touch()
+            run_clean(args, tools)
 
-        _, _, manifest = cache_tree_paths(tools)
-        manifest.write_text(dump_json(tools.cache_manifest()))
+            ensure_directories_exist(tools)
+            run_sync_scripts(tools)
+            check_tools(tools, Verb.build)
+
+            with contextlib.ExitStack() as stack:
+                tkd, tmd = sync_repository_metadata(
+                    args,
+                    [tools],
+                    resources=resources,
+                    stack=stack,
+                )
+
+                stack.enter_context(complete_step(f"Building {tools.image} image"))
+                workspace = stack.enter_context(setup_workspace(args, tools))
+
+                build_image(
+                    Context(
+                        args,
+                        tools,
+                        workspace=workspace,
+                        resources=resources,
+                        keyring_dir=tkd,
+                        metadata_dir=tmd,
+                    )
+                )
+
+            resolv = tools.output_dir_or_cwd() / tools.output / "etc/resolv.conf"
+            if not resolv.is_symlink() and not resolv.exists():
+                resolv.touch()
+
+            _, _, manifest = cache_tree_paths(tools)
+            manifest.write_text(dump_json(tools.cache_manifest()))
 
     ensure_tools_tree_has_etc_resolv_conf(last)
 
@@ -5356,8 +5366,9 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
             )
 
             for config in images:
-                ensure_directories_exist(config)
-                run_sync_scripts(config)
+                with set_image(config.image):
+                    ensure_directories_exist(config)
+                    run_sync_scripts(config)
 
             ikd = imd = None
 
@@ -5370,35 +5381,36 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
                 ) and not config.build_scripts:
                     continue
 
-                check_tools(config, Verb.build)
-                check_inputs(config)
+                with set_image(config.image):
+                    check_tools(config, Verb.build)
+                    check_inputs(config)
 
-                if not ikd and not imd:
-                    ikd, imd = sync_repository_metadata(
-                        args,
-                        images,
-                        resources=resources,
-                        stack=stack,
-                    )
-
-                assert ikd
-                assert imd
-
-                with (
-                    complete_step(f"Building {config.image} image"),
-                    setup_workspace(args, config) as workspace,
-                ):
-                    build_image(
-                        Context(
+                    if not ikd and not imd:
+                        ikd, imd = sync_repository_metadata(
                             args,
-                            config,
-                            workspace=workspace,
+                            images,
                             resources=resources,
-                            keyring_dir=ikd,
-                            metadata_dir=imd,
-                            package_dir=package_dir,
+                            stack=stack,
                         )
-                    )
+
+                    assert ikd
+                    assert imd
+
+                    with (
+                        complete_step(f"Building {config.image} image"),
+                        setup_workspace(args, config) as workspace,
+                    ):
+                        build_image(
+                            Context(
+                                args,
+                                config,
+                                workspace=workspace,
+                                resources=resources,
+                                keyring_dir=ikd,
+                                metadata_dir=imd,
+                                package_dir=package_dir,
+                            )
+                        )
 
             if not ikd and not imd:
                 logging.info("All images have already been built and do not have any build scripts")
