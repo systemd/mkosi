@@ -4041,13 +4041,54 @@ def setup_workspace(args: Args, config: Config) -> Generator[Path]:
                     log_notice(f"Workspace: {workspace}")
 
 
+def _compute_repository_hash(context: Context) -> dict[str, str]:
+    """Compute content hash of all package files in repository."""
+    packages = {}
+    pm = context.config.distribution.installer.package_manager(context.config)
+
+    for glob in pm.package_globs():
+        for pkg in context.repository.glob(glob):
+            if pkg.is_file():
+                packages[pkg.name] = hashlib.sha256(pkg.read_bytes()).hexdigest()
+
+    return packages
+
+
+def _has_repository_changed(context: Context, previous_packages: dict[str, str]) -> bool:
+    """Compare current repository files and hashes with previous state."""
+    pm = context.config.distribution.installer.package_manager(context.config)
+    current_files = set()
+
+    for glob in pm.package_globs():
+        for pkg in context.repository.glob(glob):
+            if not pkg.is_file():
+                continue
+
+            # If file was not in previous list, repository has changed
+            if pkg.name not in previous_packages:
+                return True
+
+            # If hash differs, repository has changed
+            if hashlib.sha256(pkg.read_bytes()).hexdigest() != previous_packages[pkg.name]:
+                return True
+
+            current_files.add(pkg.name)
+
+    # Check if any previous files are now missing
+    if set(previous_packages.keys()) != current_files:
+        return True
+
+    return False
+
+
 @contextlib.contextmanager
 def createrepo(context: Context) -> Generator[None]:
-    st = context.repository.stat()
+    previous_packages = _compute_repository_hash(context)
+
     try:
         yield
     finally:
-        if context.repository.stat().st_mtime_ns != st.st_mtime_ns:
+        if _has_repository_changed(context, previous_packages):
             with complete_step("Rebuilding local package repository"):
                 context.config.distribution.installer.package_manager(context.config).createrepo(context)
 
