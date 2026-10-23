@@ -73,6 +73,9 @@ The following command line verbs are known:
     This will parse the command line and configuration files, but only print
     what it is configured for and not actually build or run anything.
 
+    Some paths might start with `@mkosi.resources/`, which signals that these files are shipped by mkosi in
+    its `mkosi.resources` submodule.
+
 `cat-config`
 :   Output the names and contents of all loaded configuration files. **mkosi**
     loads a bunch of files from different locations and this command makes
