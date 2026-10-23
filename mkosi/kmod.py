@@ -287,7 +287,7 @@ def resolve_module_dependencies(
     if (p := context.root / modulesd / "modules.builtin").exists():
         builtin = {module_path_to_name(Path(m)) for m in p.read_text().splitlines()}
     else:
-        builtin = set()
+        builtin: set[str] = set()
 
     with chdir(context.root):
         nametofile = {module_path_to_name(m): m for m in all_modules(modulesd)}
@@ -305,8 +305,8 @@ def resolve_module_dependencies(
         # dependencies. Because there's more kernel modules than the max number of accepted CLI
         # arguments, we split the modules list up into chunks if needed.
         ittodo = iter(todo)
-        while chunk := tuple(itertools.islice(ittodo, 8500)):
-            moddep |= modinfo(context, kver, chunk)
+        while chunk := set(itertools.islice(ittodo, 8500)):
+            moddep |= modinfo(context, kver, tuple(chunk - builtin))
 
         todo = set()
         mods |= moddep.keys()
