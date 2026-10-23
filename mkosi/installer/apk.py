@@ -257,7 +257,7 @@ class Apk(PackageManager):
 
     @classmethod
     def createrepo(cls, context: Context) -> None:
-        packages = [p.name for p in context.repository.glob("*.apk")]
+        packages = [p.name for glob in cls.package_globs() for p in context.repository.glob(glob)]
         if not packages:
             return
 
