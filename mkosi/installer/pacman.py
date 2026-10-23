@@ -260,15 +260,16 @@ class Pacman(PackageManager):
 
     @classmethod
     def createrepo(cls, context: Context) -> None:
+        package_paths = sorted(
+            (workdir(p) for glob in cls.package_globs() for p in context.repository.glob(glob)),
+            key=lambda p: GenericVersion(Path(p).name),
+        )
         run(
             [
                 "repo-add",
                 "--quiet",
                 workdir(context.repository / "mkosi.db.tar"),
-                *sorted(
-                    (workdir(p) for p in context.repository.glob("*.pkg.tar*")),
-                    key=lambda p: GenericVersion(Path(p).name),
-                ),
+                *package_paths,
             ],
             sandbox=context.sandbox(options=["--bind", context.repository, workdir(context.repository)]),
         )
