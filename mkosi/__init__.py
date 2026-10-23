@@ -2648,12 +2648,16 @@ def save_manifest(context: Context, manifest: Optional[Manifest]) -> None:
 
 
 def print_output_size(path: Path) -> None:
-    if path.is_dir():
-        log_step(f"{path} size is " + format_bytes(dir_size(path)) + ".")
-    else:
-        size = format_bytes(path.stat().st_size)
-        space = format_bytes(path.stat().st_blocks * 512)
-        log_step(f"{path} size is {size}, consumes {space}.")
+    try:
+        if path.is_dir():
+            log_step(f"{path} size is " + format_bytes(dir_size(path)) + ".")
+        else:
+            st = path.stat()
+            size = format_bytes(st.st_size)
+            space = format_bytes(st.st_blocks * 512)
+            log_step(f"{path} size is {size}, consumes {space}.")
+    except FileNotFoundError:
+        logging.info(f"{path} not found, cannot show size.")
 
 
 def cache_tree_paths(config: Config) -> tuple[Path, Path, Path]:
