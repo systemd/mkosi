@@ -716,7 +716,16 @@ def install_systemd_boot(context: Context) -> None:
 
     directory = context.root / "usr/lib/systemd/boot/efi"
     signed = context.config.bootloader.is_signed()
-    if not any(directory.glob("*.efi.signed" if signed else "*.efi")):
+    binaries = {
+        p: p for p in itertools.chain(directory.glob("*.efi.signed"), directory.glob("*.EFI.signed"))
+    }
+    if not signed:
+        binaries.update(
+            (p.with_name(f"{p.name}.signed"), p)
+            for p in itertools.chain(directory.glob("*.efi"), directory.glob("*.EFI"))
+        )
+
+    if not binaries:
         if context.config.bootable == ConfigFeature.enabled:
             die(
                 f"An EFI bootable image with systemd-boot was requested but a {'signed ' if signed else ''}"
@@ -726,8 +735,7 @@ def install_systemd_boot(context: Context) -> None:
 
     if context.config.secure_boot and not signed:
         with complete_step("Signing systemd-boot binaries…"):
-            for input in itertools.chain(directory.glob("*.efi"), directory.glob("*.EFI")):
-                output = directory / f"{input}.signed"
+            for output, input in binaries.items():
                 sign_efi_binary(context, input, output)
 
     cmd: list[PathString] = [
