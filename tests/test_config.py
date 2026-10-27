@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 import mkosi.resources
-from mkosi import expand_kernel_specifiers
+from mkosi import expand_kernel_specifiers, want_signed_verity
 from mkosi.config import (
     Architecture,
     ArtifactOutput,
@@ -20,6 +20,7 @@ from mkosi.config import (
     ConfigTree,
     OutputFormat,
     Verb,
+    Verity,
     config_parse_bytes,
     in_box,
     parse_config,
@@ -2062,3 +2063,38 @@ def test_history_isolated_per_output_directory(tmp_path: Path) -> None:
     assert config_last.image_id == "img-b"
     assert config_a.image_id == "img-a"
     assert config_b.image_id == "img-b"
+
+
+def test_want_signed_verity(tmp_path: Path) -> None:
+    d = tmp_path
+
+    (d / "mkosi.crt").write_text("certificate")
+
+    with chdir(d):
+        _, _, [config] = parse_config()
+
+    assert config.verity == Verity.auto
+    assert config.verity_certificate == d / "mkosi.crt"
+    assert config.verity_key is None
+    assert not want_signed_verity(config, Verity.auto)
+    assert want_signed_verity(config, Verity.signed)
+    assert not want_signed_verity(config, Verity.defer)
+
+    (d / "mkosi.crt").unlink()
+    (d / "mkosi.key").write_text("key")
+    (d / "mkosi.key").chmod(0o600)
+
+    with chdir(d):
+        _, _, [config] = parse_config()
+
+    assert config.verity_certificate is None
+    assert config.verity_key == d / "mkosi.key"
+    assert not want_signed_verity(config, Verity.auto)
+
+    (d / "mkosi.crt").write_text("certificate")
+
+    with chdir(d):
+        _, _, [config] = parse_config()
+
+    assert want_signed_verity(config, Verity.auto)
+    assert not want_signed_verity(config, Verity.disabled)
