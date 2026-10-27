@@ -3473,6 +3473,12 @@ def save_esp_components(
     return stub, kver, kimg, microcode
 
 
+def want_signed_verity(config: Config, verity: Verity) -> bool:
+    return verity == Verity.signed or (
+        verity == Verity.auto and bool(config.verity_key) and bool(config.verity_certificate)
+    )
+
+
 def make_image(
     context: Context,
     msg: str,
@@ -3585,10 +3591,10 @@ def make_image(
                 cmdline=cmdline,
                 options=opts,
                 certificate=(
-                    context.config.verity_certificate if verity in (Verity.auto, Verity.signed) else None
+                    context.config.verity_certificate if want_signed_verity(context.config, verity) else None
                 ),
                 certificate_source=context.config.verity_certificate_source,
-                key=context.config.verity_key if verity in (Verity.auto, Verity.signed) else None,
+                key=context.config.verity_key if want_signed_verity(context.config, verity) else None,
                 key_source=context.config.verity_key_source,
                 env=env,
                 stdout=subprocess.PIPE,
@@ -3964,13 +3970,13 @@ def make_extension_or_portable_image(context: Context, output: Path) -> None:
                 options=options,
                 certificate=(
                     context.config.verity_certificate
-                    if context.config.verity in (Verity.auto, Verity.signed)
+                    if want_signed_verity(context.config, context.config.verity)
                     else None
                 ),
                 certificate_source=context.config.verity_certificate_source,
                 key=(
                     context.config.verity_key
-                    if context.config.verity in (Verity.auto, Verity.signed)
+                    if want_signed_verity(context.config, context.config.verity)
                     else None
                 ),
                 key_source=context.config.verity_key_source,
