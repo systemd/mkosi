@@ -125,11 +125,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: yuwata/apk-mirror@ad3b1b7f6bf19d5e4add1b89686081111f37f48a
+        if: matrix.tools == 'nura'
       - uses: ./
-        with:
-          # Bootstrapping a Nura tools tree on the Ubuntu host needs apk; all other
-          # tools trees install apk-tools from th tools distro's own repo
-          apk: ${{ matrix.tools == 'nura' }}
 
       # Freeing up disk space with rm -rf can take multiple minutes. Since we don't need the extra free space
       # immediately, we remove the files in the background. However, we first move them to a different location so that
