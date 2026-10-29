@@ -105,40 +105,48 @@ runs:
         X_GITHUB_ACTION_PATH: ${{ github.action_path }}
 
     - name: Install apk
-      # ubuntu-24.04 doesn't package apk, so fetch the official statically-linked binary from
-      # upstream so mkosi can use it to populate the Nura tools tree.
-      #
-      # Since GitLab's API can be unreliable, this is retried a few times if there
-      # is a failure when fetching.
+      # ubuntu-24.04 doesn't package apk, so fetch the apk-tools-static package from the Alpine Linux
+      # repository, extract it and install the statically-linked binary it contains so mkosi can use it to
+      # populate the Nura tools tree.
       #
       # NOTE: apk is dropped into /usr/bin and not /usr/local/bin because later CI
       # scripts (like .github/workflows/ci.yml) clean up /usr/local
       if: ${{ inputs.apk == 'true' }}
       shell: bash
       run: |
-        set +e
-        APK_TOOLS_API="https://gitlab.alpinelinux.org/api/v4/projects/5"
-        APK_FALLBACK_VERSION='v3.0.8'
-        APK_FALLBACK_SHA256='11758d76de3699c7606152357f415f55879743ccf0e3d8942d5ba98cf29a3c86'
+        set -euo pipefail
 
-        APK_VERSION=$(curl -fsSL --retry 5 --retry-all-errors --retry-max-time 30 "${APK_TOOLS_API}/repository/tags" | jq -r '.[].name' | grep -v '_rc' | sort -V | tail -1)
-        if [[ -n "$APK_VERSION" && "$APK_VERSION" != "$APK_FALLBACK_VERSION" ]]
-        then
-            APK_PKG_ID=$(curl -fsSL --retry 5 --retry-all-errors --retry-max-time 30 "${APK_TOOLS_API}/packages?package_name=${APK_VERSION}&package_type=generic" | jq '.[] | select(.version == "x86_64") | .id' | sort -n | tail -1)
-            APK_SHA256=$(curl -fsSL --retry 5 --retry-all-errors --retry-max-time 30 "${APK_TOOLS_API}/packages/${APK_PKG_ID}/package_files" | jq -r '.[0].file_sha256')
+        REPOSITORY="https://dl-cdn.alpinelinux.org/alpine/edge/main/$(uname -m)"
+
+        WORKDIR="$(mktemp --directory /tmp/.apk.XXXXXX)"
+        trap 'rm -rf "$WORKDIR"' EXIT
+        cd "$WORKDIR"
+
+        CURL=(curl --fail --silent --show-error --location --retry 5 --retry-all-errors --retry-max-time 30)
+
+        "${CURL[@]}" "${REPOSITORY}/APKINDEX.tar.gz" | tar -xz
+
+        # TODO: APKINDEX also lists a checksum for each package (judging by its length, apparently SHA-1), but
+        # it is not simply the sha1sum of the .apk file, so verifying the downloaded package against it is
+        # left for later.
+        VERSION="$(awk -F: '$1 == "P" { pkg = $2 } $1 == "V" && pkg == "apk-tools-static" { print $2 }' APKINDEX)"
+        if [[ -z "$VERSION" ]]; then
+            echo "Failed to find apk-tools-static in ${REPOSITORY}/APKINDEX.tar.gz" >&2
+            exit 1
         fi
-        set -e
 
-        # If the API fails, fall back to a known-good version
-        if [[ -z "$APK_VERSION" || -z "$APK_SHA256" || "$APK_SHA256" == null ]]
-        then
-            APK_VERSION="$APK_FALLBACK_VERSION"
-            APK_SHA256="$APK_FALLBACK_SHA256"
+        # An .apk package file is a tar.gz archive with extended headers, so tar can extract it directly.
+        "${CURL[@]}" "${REPOSITORY}/apk-tools-static-${VERSION}.apk" | tar -xz
+
+        if ! grep --quiet --fixed-strings -- "${VERSION}" <(sbin/apk.static --version); then
+            echo "Unexpected version reported by apk.static (expected ${VERSION}):" >&2
+            sbin/apk.static --version >&2
+            exit 1
         fi
 
-        sudo curl -fsSL --retry 5 --retry-all-errors -o /usr/bin/apk "$APK_TOOLS_API/packages/generic/${APK_VERSION}/x86_64/apk.static"
-        echo "${APK_SHA256}  /usr/bin/apk" | sha256sum --check
-        sudo chmod +x /usr/bin/apk
+        sudo install -D -m 0755 sbin/apk.static /usr/bin/apk
+
+        echo "Installed apk ${VERSION} to /usr/bin/apk"
 
     - name: Dependencies
       shell: bash
