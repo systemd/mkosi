@@ -2062,3 +2062,48 @@ def test_history_isolated_per_output_directory(tmp_path: Path) -> None:
     assert config_last.image_id == "img-b"
     assert config_a.image_id == "img-a"
     assert config_b.image_id == "img-b"
+
+
+def test_history_used_by_clean(tmp_path: Path) -> None:
+    d = tmp_path
+
+    (d / "mkosi.profiles/foo").mkdir(parents=True)
+    (d / "mkosi.profiles/foo/mkosi.conf").write_text(
+        """\
+        [Output]
+        ImageId=img-foo
+        """
+    )
+
+    (d / "mkosi.conf").write_text(
+        """\
+        [Distribution]
+        Distribution=fedora
+
+        [Build]
+        History=yes
+        """
+    )
+
+    with chdir(d):
+        parse_config(["--profile", "foo", "build"])
+
+        # clean has to pick up the profile from the history so that it removes the outputs of the previous
+        # build instead of those of the default configuration.
+        _, _, [config] = parse_config(["clean"])
+        assert config.profiles == ["foo"]
+        assert config.image_id == "img-foo"
+
+        # As --force already has a meaning for clean, it can't be used to bypass the history. Instead,
+        # settings passed on the CLI take precedence over the history.
+        _, _, [config] = parse_config(["--image-id", "img-x", "clean"])
+        assert config.profiles == ["foo"]
+        assert config.image_id == "img-x"
+
+        _, _, [config] = parse_config(["--profile", "", "clean"])
+        assert config.profiles == []
+        assert config.image_id is None
+
+        # The history is only read by clean, never rewritten.
+        _, _, [config] = parse_config(["clean"])
+        assert config.image_id == "img-foo"

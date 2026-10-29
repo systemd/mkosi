@@ -5323,7 +5323,7 @@ def have_history(args: Args, historydir: Path) -> bool:
     if args.directory is None:
         return False
 
-    if args.verb in (Verb.clean, Verb.box, Verb.sandbox, Verb.latest_snapshot):
+    if args.verb in (Verb.box, Verb.sandbox, Verb.latest_snapshot):
         return False
 
     if args.verb == Verb.summary and args.force > 0:
@@ -5601,6 +5601,13 @@ def parse_config(
                 continue
 
             if s.dest in context.cli and s.dest in history and context.cli[s.dest] != history[s.dest]:
+                # For clean, --force already means "remove more" so it can't be used to bypass the history.
+                # Instead, settings passed explicitly on the CLI take precedence over the history so it's
+                # still possible to clean up the outputs of a different configuration than the last build.
+                if args.verb == Verb.clean:
+                    history.pop(s.dest)
+                    continue
+
                 logging.warning(
                     f"Ignoring {s.long} from the CLI. Run with -f to rebuild the image with this setting"
                 )
