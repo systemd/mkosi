@@ -5183,6 +5183,10 @@ def run_verb(args: Args, tools: Optional[Config], images: Sequence[Config], *, r
             run_clean(args, config)
 
         rmtree(finalize_historydir(args))
+        # The history is also stored in the output directory, see parse_config().
+        for config in images:
+            if config.output_dir:
+                rmtree(finalize_historydir(args, config.output_dir))
 
         return
 
