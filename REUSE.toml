@@ -40,6 +40,7 @@ path = [
     "**.zsh",
     "mkosi.credentials/*",
     "mkosi/resources/pandoc/*.lua",
+    "mkosi.conf.d/alinux/mkosi.extra/etc/systemd/system/proc-sys-fs-binfmt_misc.automount",
 ]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "Mkosi Contributors"

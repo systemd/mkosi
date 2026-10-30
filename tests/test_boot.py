@@ -37,7 +37,12 @@ def test_format(config: ImageConfig, format: OutputFormat) -> None:
             return
 
         if format == OutputFormat.disk and os.getuid() == 0:
-            image.boot()
+            # systemd 239 cannot complete the container exit.target that SuccessAction=exit
+            # starts, so nspawn never returns the status the test expects. The VM path is
+            # covered below.
+            # FIXME: Now Alinux3 uses systemd 239. When it's updated, remove this.
+            if config.distribution != Distribution.alinux:
+                image.boot()
 
         if format in (OutputFormat.cpio, OutputFormat.uki, OutputFormat.esp):
             pytest.skip("Default image is too large to be able to boot in CPIO/UKI/ESP format")
@@ -83,7 +88,15 @@ def test_bootloader(config: ImageConfig, bootloader: Bootloader) -> None:
     if config.distribution == Distribution.buildstream and bootloader.is_grub():
         pytest.skip("Cannot build BuildStream images with bootloader 'grub'")
 
-    firmware = Firmware.linux if bootloader == Bootloader.none else Firmware.auto
+    if config.distribution == Distribution.alinux and bootloader not in (Bootloader.none, Bootloader.grub):
+        pytest.skip("Alibaba Cloud Linux 3 only boots with grub or no bootloader")
+
+    # Firmware=auto is the secure-boot OVMF build. Alinux grub is unsigned and its firmware
+    # drop-in selects the plain UEFI firmware instead.
+    if config.distribution == Distribution.alinux and bootloader == Bootloader.grub:
+        firmware = Firmware.uefi
+    else:
+        firmware = Firmware.linux if bootloader == Bootloader.none else Firmware.auto
     cacheopt = []
     if bootloader == Bootloader.uki_signed:
         cacheopt = ["--incremental=no", "--cache-key=&d~&r~&a~&I~prebuilt"]
