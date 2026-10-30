@@ -4,7 +4,7 @@ from mkosi.config import Architecture, Config
 from mkosi.context import Context
 from mkosi.distribution import Distribution, DistributionInstaller
 from mkosi.installer import PackageManager
-from mkosi.installer.bst import BST
+from mkosi.installer.bst import Bst
 from mkosi.log import die
 
 
@@ -23,11 +23,11 @@ class Installer(DistributionInstaller, distribution=Distribution.buildstream):
 
     @classmethod
     def package_manager(cls, config: Config) -> type[PackageManager]:
-        return BST
+        return Bst
 
     @classmethod
     def setup(cls, context: Context) -> None:
-        BST.setup(context)
+        Bst.setup(context)
 
     @classmethod
     def install(cls, context: Context) -> None:
@@ -36,15 +36,15 @@ class Installer(DistributionInstaller, distribution=Distribution.buildstream):
     @classmethod
     def architecture(cls, arch: Architecture) -> str:
         a = {
-            Architecture.arm: "arm-a32",
-            Architecture.arm64: "arm-a64",
+            Architecture.arm:         "arm-a32",
+            Architecture.arm64:       "arm-a64",
             Architecture.loongarch64: "la64v100",
-            Architecture.ppc64: "power-isa-be",
-            Architecture.ppc64_le: "power-isa-le",
-            Architecture.riscv32: "rv32g",
-            Architecture.riscv64: "rv64g",
-            Architecture.x86: "x86-32",
-            Architecture.x86_64: "x86-64",
+            Architecture.ppc64:       "power-isa-be",
+            Architecture.ppc64_le:    "power-isa-le",
+            Architecture.riscv32:     "rv32g",
+            Architecture.riscv64:     "rv64g",
+            Architecture.x86:         "x86-32",
+            Architecture.x86_64:      "x86-64",
         }.get(arch)  # fmt: skip
 
         if not a:
