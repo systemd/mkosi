@@ -56,7 +56,7 @@ class KernelType(StrEnum):
                 if all(s in sections for s in (".linux", ".sdmagic", ".osrel")):
                     print("{KernelType.uki}")
                 elif (
-                    all(s in sections for s in (".linux", ".sdmagic")) and
+                    ".sdmagic" in sections and
                     any(s in sections for s in (".cmdline", ".dtb", ".initrd", ".ucode"))
                 ):
                     print("{KernelType.addon}")
