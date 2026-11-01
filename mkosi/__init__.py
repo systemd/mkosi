@@ -32,6 +32,7 @@ from mkosi.bootloader import (
     KernelType,
     efi_boot_binary,
     extract_pe_section,
+    extract_uki_kernel,
     gen_kernel_images,
     grub_bios_setup,
     install_grub,
@@ -1736,6 +1737,9 @@ def build_uki(
     if not (ukify := context.config.find_binary("ukify", "/usr/lib/systemd/ukify")):
         die("Could not find ukify")
 
+    if KernelType.identify(context.config, kimg).contains_kernel():
+        kimg = extract_uki_kernel(context, kimg, kver)
+
     json_out = False
     ukify_version = systemd_tool_version(python_binary(context.config), ukify, sandbox=context.sandbox)
 
@@ -2033,7 +2037,7 @@ def install_type1(
             want_efi(context.config)
             and context.config.secure_boot
             and not context.config.bootloader.is_signed()
-            and KernelType.identify(context.config, kimg) == KernelType.pe
+            and KernelType.identify(context.config, kimg) in (KernelType.pe, KernelType.pe_wrapper)
         ):
             kimg = sign_efi_binary(context, kimg, dst / "vmlinuz")
         else:
@@ -2165,15 +2169,8 @@ def install_uki(
         boot_binary.parent.mkdir(parents=True, exist_ok=True)
 
     if want_prebuilt_uki(context.config):
-        for p in (context.root / "usr/lib/modules" / kver).glob("*.efi"):
-            log_step(f"Installing prebuilt UKI at {p} to {boot_binary}")
-            copyfile2(p, boot_binary)
-            break
-        else:
-            if context.config.bootable == ConfigFeature.enabled:
-                die(f"Couldn't find a signed UKI binary installed at /usr/lib/modules/{kver} in the image")
-
-            return pcrs
+        log_step(f"Installing prebuilt UKI at {kimg} to {boot_binary}")
+        copyfile2(context.root / kimg, boot_binary)
     else:
         microcodes = finalize_microcode(context)
 

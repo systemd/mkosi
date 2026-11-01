@@ -38,10 +38,14 @@ from mkosi.versioncomp import GenericVersion
 
 
 class KernelType(StrEnum):
-    pe = enum.auto()
-    uki = enum.auto()
+    pe = enum.auto()  # UEFI-enabled PE kernel binary (no .linux subsection)
+    uki = enum.auto()  # proper UKI with sd-stub
+    pe_wrapper = enum.auto()  # custom PE wrapper (eg: Ubuntu's stubble) with no sd-stub but with .linux
     addon = enum.auto()
     unknown = enum.auto()
+
+    def contains_kernel(self) -> bool:
+        return self in (KernelType.uki, KernelType.pe_wrapper)
 
     @classmethod
     def identify(cls, config: Config, path: Path) -> "KernelType":
@@ -53,8 +57,13 @@ class KernelType(StrEnum):
                 pe = pefile.PE("{workdir(path)}", fast_load=True)
                 sections = {{s.Name.decode().strip("\\0") for s in pe.sections}}
 
-                if all(s in sections for s in (".linux", ".sdmagic", ".osrel")):
+                if ".linux" in sections and ".sdmagic" in sections:
                     print("{KernelType.uki}")
+                elif (
+                    ".linux" in sections and
+                    any(s in sections for s in (".osrel", ".uname", ".sbat"))
+                ):
+                    print("{KernelType.pe_wrapper}")
                 elif (
                     ".sdmagic" in sections and
                     any(s in sections for s in (".cmdline", ".dtb", ".initrd", ".ucode"))
@@ -669,6 +678,17 @@ def find_and_install_shim_binary(
             die(f"Couldn't find unsigned {name} EFI binary installed in the image")
 
 
+def extract_uki_kernel(context: Context, uki: Path, kver: str) -> Path:
+    kernel = context.workspace / "kernels" / f"vmlinuz-{kver}"
+    if kernel.exists():
+        return kernel
+
+    # Ubuntu arm64 can ship only a kernel wrapped in a PE. Extract its payload when building a new UKI
+    # instead of nesting the two, and reuse it across UKI builds in the same workspace.
+    kernel.parent.mkdir(exist_ok=True)
+    return extract_pe_section(context, uki, ".linux", kernel)
+
+
 def gen_kernel_images(context: Context) -> Iterator[tuple[str, Path]]:
     if not (context.root / "usr/lib/modules").exists():
         return
@@ -679,24 +699,27 @@ def gen_kernel_images(context: Context) -> Iterator[tuple[str, Path]]:
         reverse=True,
     ):
         # Make sure we look for anything that remotely resembles vmlinuz, as the arch specific install
-        # scripts in the kernel source tree sometimes do weird stuff. But let's make sure we're not returning
-        # UKIs as the UKI on Fedora is named vmlinuz-virt.efi. Also look for uncompressed images (vmlinux) as
-        # some architectures ship those. Prefer vmlinuz if both are present.
+        # scripts in the kernel source tree sometimes do weird stuff. Also look for uncompressed images
+        # (vmlinux) as some architectures ship those.
+        candidates = itertools.chain(kver.glob("vmlinuz*"), kver.glob("vmlinux*"))
         if want_prebuilt_uki(context.config):
-            for kimg in kver.glob("vmlinuz*.efi"):
+            for kimg in candidates:
                 if KernelType.identify(context.config, kimg) == KernelType.uki:
                     yield kver.name, kimg
                     break
         else:
-            for kimg in kver.glob("vmlinuz*"):
-                if KernelType.identify(context.config, kimg) != KernelType.uki:
-                    yield kver.name, kimg
-                    break
+            # Prefer a plain kernel over any PE wrapper, and vmlinuz over vmlinux.
+            uki: Optional[Path] = None
+            for kimg in candidates:
+                if KernelType.identify(context.config, kimg).contains_kernel():
+                    uki = uki or kimg
+                    continue
+
+                yield kver.name, kimg
+                break
             else:
-                for kimg in kver.glob("vmlinux*"):
-                    if KernelType.identify(context.config, kimg) != KernelType.uki:
-                        yield kver.name, kimg
-                        break
+                if uki:
+                    yield kver.name, uki
 
 
 def install_systemd_boot(context: Context) -> None:

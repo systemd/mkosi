@@ -1317,8 +1317,8 @@ def run_qemu(args: Args, config: Config) -> None:
         elif config.architecture.supports_smbios(firmware):
             # With Bootloader=uki-signed, a UKI built by the distro is used, and we cannot embed
             # config.kernel_command_line in the UKI. Instead, pass those options through SMBIOS type#11. We
-            # know that this will work because all UEFI systems support SMBIOS and UKIs by construction use
-            # systemd-stub, which reads SMBIOS type#11.
+            # know that this will work because all UEFI systems support SMBIOS and KernelType.uki identifies
+            # systemd-stub UKIs, which read SMBIOS type#11.
             stub_kcl = (
                 config.kernel_command_line if config.bootloader == Bootloader.uki_signed else []
             ) + kcl
