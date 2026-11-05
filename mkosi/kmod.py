@@ -9,14 +9,13 @@ import re
 import subprocess
 import typing
 from collections.abc import Generator, Iterable, Iterator, Sequence
-from contextlib import AbstractContextManager
 from pathlib import Path
 
 from mkosi.context import Context
 from mkosi.log import complete_step
 from mkosi.run import chroot_cmd, run
 from mkosi.sandbox import chase
-from mkosi.util import PathString, chdir, parents_below, settify
+from mkosi.util import chdir, parents_below, settify
 
 T = typing.TypeVar("T")
 
@@ -214,31 +213,46 @@ class ModuleDependencyInfo:
     firmware: set[Path]
 
 
-def modinfo(
-    context: Context, kver: str, modules: Iterable[str]
-) -> Generator[tuple[str, ModuleDependencyInfo]]:
-    cmdline = ["modinfo", "--set-version", kver, "--null"]
+def run_modinfo(context: Context, *arguments: str, check: bool = True) -> str:
+    cmdline = ["modinfo", *arguments]
 
     if context.config.output_format.is_extension_image() and not context.config.overlay:
-        cmdline += ["--basedir", "/buildroot"]
+        cmdline[1:1] = ["--basedir", "/buildroot"]
 
-        def sandbox() -> AbstractContextManager[list[PathString]]:
-            return context.sandbox(options=context.rootoptions(readonly=True))
+        sandbox = context.sandbox(options=context.rootoptions(readonly=True))
     else:
+        sandbox = chroot_cmd(root=context.rootoptions)
 
-        def sandbox() -> AbstractContextManager[list[PathString]]:
-            return chroot_cmd(root=context.rootoptions)
+    out = run(
+        cmdline,
+        stdout=subprocess.PIPE,
+        stderr=None if check else subprocess.DEVNULL,
+        sandbox=sandbox,
+        check=check,
+    )
+    if out.returncode != 0:
+        return ""
+    return out.stdout.strip()
+
+
+def modinfo_arguments(context: Context, kver: str) -> list[str]:
+    # Figure out the argument list for modinfo calls
+    args = ["--set-version", kver, "--null"]
 
     # TODO: Use --modname unconditionally when we drop support for CentOS Stream 9.
-    if "--modname" in run(["modinfo", "--help"], stdout=subprocess.PIPE, sandbox=sandbox()).stdout:
-        cmdline += ["--modname"]
+    if "--modname" in run_modinfo(context, "--help"):
+        args += ["--modname"]
 
-    cmdline += [*modules]
+    return args
 
-    output = run(cmdline, stdout=subprocess.PIPE, sandbox=sandbox()).stdout.strip()
 
+def modinfo(
+    context: Context, arguments: list[str], modules: Iterable[str]
+) -> Generator[tuple[str, ModuleDependencyInfo]]:
     depends: set[str] = set()
     firmware: set[Path] = set()
+
+    output = run_modinfo(context, *arguments, *modules)
 
     with chdir(context.root):
         for line in output.split("\0"):
@@ -302,6 +316,8 @@ def resolve_module_dependencies(
     with chdir(context.root):
         nametofile = {module_path_to_name(m): m for m in all_modules(modulesd)}
 
+    modinfo_args = modinfo_arguments(context, kver)
+
     todo = {*builtin, *modules}
     mods: set[str] = set()
     firmware = set()
@@ -313,21 +329,23 @@ def resolve_module_dependencies(
         # dependencies. Because there's more kernel modules than the max number of accepted CLI
         # arguments, we split the modules list up into chunks if needed.
         moddep: dict[str, ModuleDependencyInfo] = dict(
-            itertools.chain.from_iterable(modinfo(context, kver, chunk) for chunk in batched(todo, 8500))
+            itertools.chain.from_iterable(
+                modinfo(context, modinfo_args, chunk) for chunk in batched(todo, 8500)
+            )
         )
 
-        todo = set()
+        todo.clear()
         mods |= moddep.keys()
 
         for name, depinfo in moddep.items():
             for d in depinfo.modules:
                 if d not in nametofile and d not in builtin:
-                    logging.warning(f"{d} is a dependency of {name} but is not installed, ignoring ")
+                    logging.warning(f"{d} is a dependency of {name} but is not installed, ignoring")
 
             firmware.update(depinfo.firmware)
             todo.update(m for m in depinfo.modules if m not in mods and m in nametofile)
 
-    return set(nametofile[m] for m in mods if m in nametofile), set(firmware)
+    return {nametofile[m] for m in mods if m in nametofile}, firmware
 
 
 @settify
