@@ -7,7 +7,8 @@ import logging
 import os
 import re
 import subprocess
-from collections.abc import Iterator, Sequence
+import typing
+from collections.abc import Generator, Iterable, Iterator, Sequence
 from contextlib import AbstractContextManager
 from pathlib import Path
 
@@ -16,6 +17,8 @@ from mkosi.log import complete_step
 from mkosi.run import chroot_cmd, run
 from mkosi.sandbox import chase
 from mkosi.util import PathString, chdir, parents_below, settify
+
+T = typing.TypeVar("T")
 
 
 def loaded_modules() -> list[str]:
@@ -211,7 +214,9 @@ class ModuleDependencyInfo:
     firmware: set[Path]
 
 
-def modinfo(context: Context, kver: str, modules: Sequence[str]) -> dict[str, ModuleDependencyInfo]:
+def modinfo(
+    context: Context, kver: str, modules: Iterable[str]
+) -> Generator[tuple[str, ModuleDependencyInfo]]:
     cmdline = ["modinfo", "--set-version", kver, "--null"]
 
     if context.config.output_format.is_extension_image() and not context.config.overlay:
@@ -232,7 +237,6 @@ def modinfo(context: Context, kver: str, modules: Sequence[str]) -> dict[str, Mo
 
     output = run(cmdline, stdout=subprocess.PIPE, sandbox=sandbox()).stdout.strip()
 
-    moddep: dict[str, ModuleDependencyInfo] = {}
     depends: set[str] = set()
     firmware: set[Path] = set()
 
@@ -264,11 +268,17 @@ def modinfo(context: Context, kver: str, modules: Sequence[str]) -> dict[str, Mo
                 # The file names use dashes, but the module names use underscores. We track the names in
                 # terms of the file names, since the depends use dashes and therefore filenames as well.
                 name = normalize_module_name(value)
-                moddep[name] = ModuleDependencyInfo(modules=depends, firmware=firmware)
+                yield name, ModuleDependencyInfo(modules=depends, firmware=firmware)
                 depends = set()
                 firmware = set()
 
-    return moddep
+
+def batched(seq: Iterable[T], chunk_size: int) -> Generator[tuple[T, ...]]:
+    # TODO: replace by itertools.batched when Python 3.12 is the baseline
+    # TODO: use [T] syntax for generics when Python 3.12 is the baseline
+    it = iter(seq)
+    while chunk := tuple(itertools.islice(it, chunk_size)):
+        yield chunk
 
 
 @complete_step("Calculating required kernel modules and firmware")
@@ -297,16 +307,14 @@ def resolve_module_dependencies(
     firmware = set()
 
     while todo:
-        moddep: dict[str, ModuleDependencyInfo] = {}
-
         # We could run modinfo once for each module but that's slow. Luckily we can pass multiple modules
         # to modinfo and it'll process them all in a single go. We get the modinfo for all modules to
         # build a map that maps the module name to both its module dependencies and its firmware
         # dependencies. Because there's more kernel modules than the max number of accepted CLI
         # arguments, we split the modules list up into chunks if needed.
-        ittodo = iter(todo)
-        while chunk := tuple(itertools.islice(ittodo, 8500)):
-            moddep |= modinfo(context, kver, chunk)
+        moddep: dict[str, ModuleDependencyInfo] = dict(
+            itertools.chain.from_iterable(modinfo(context, kver, chunk) for chunk in batched(todo, 8500))
+        )
 
         todo = set()
         mods |= moddep.keys()
