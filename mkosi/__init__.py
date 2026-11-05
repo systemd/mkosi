@@ -300,7 +300,7 @@ def install_distribution(context: Context) -> None:
 
             # Ensure /boot/loader/entries.srel exists and has "type1" written to it to nudge
             # kernel-install towards using the boot loader specification layout.
-            if want_efi(context.config):
+            if want_kernel(context.config):
                 with umask(~0o700):
                     (context.root / "boot/loader").mkdir(exist_ok=True)
                 with umask(~0o600):
