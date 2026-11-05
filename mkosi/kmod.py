@@ -318,7 +318,15 @@ def resolve_module_dependencies(
 
     modinfo_args = modinfo_arguments(context, kver)
 
-    todo = {*builtin, *modules}
+    todo = set(modules)
+    # Figure out if modinfo calls work for builtins. Support was added in kmod 27.
+    if builtin:
+        # We don't care about the output whatsoever. Good return code and any output is enough.
+        if run_modinfo(context, *modinfo_args, next(iter(builtin)), check=False):
+            todo.update(builtin)
+        else:
+            logging.warning("modinfo failed on a builtin module, ignoring builtin modules")
+
     mods: set[str] = set()
     firmware = set()
 
