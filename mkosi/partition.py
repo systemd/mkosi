@@ -2,6 +2,7 @@
 
 import dataclasses
 import json
+import logging
 import subprocess
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -9,6 +10,7 @@ from typing import Any, Final, Optional
 
 from mkosi.log import die
 from mkosi.run import SandboxProtocol, nosandbox, run, workdir
+from mkosi.util import flatten
 
 
 @dataclasses.dataclass(frozen=True)
@@ -71,11 +73,33 @@ def finalize_roothash(partitions: Sequence[Partition]) -> Optional[str]:
     return f"roothash={roothash}" if roothash else f"usrhash={usrhash}" if usrhash else None
 
 
-def finalize_root(partitions: Sequence[Partition]) -> Optional[str]:
-    root = finalize_roothash(partitions)
+def finalize_root(partitions: Sequence[Partition], cmdline: list[str]) -> Optional[str]:
+    roothash = finalize_roothash(partitions)
+    root = roothash if keep_roothash(cmdline, roothash) else None
+
     if not root:
         root = next((f"root=PARTUUID={p.uuid}" for p in partitions if p.type.startswith("root")), None)
     if not root:
         root = next((f"mount.usr=PARTUUID={p.uuid}" for p in partitions if p.type.startswith("usr")), None)
 
     return root
+
+
+def keep_roothash(cmdline: list[str], roothash: Optional[str]) -> bool:
+    """Whether to keep {root,urs}hash= on the kernel commandline"""
+    if roothash is None:
+        return False
+
+    # Split doesn't need be correct regarding quoting, we just need to find any dissect options:
+    cmdline = flatten([arg.split() for arg in cmdline])
+    # Only append roothash if dissect is not in use:
+    if roothash.startswith("roothash="):
+        if "root=dissect" not in cmdline:
+            return True
+        logging.debug("Dissect in use for /, not adding roothash= to kernel commandline")
+    elif roothash.startswith("usrhash="):
+        if "mount.usr=dissect" not in cmdline:
+            return True
+        logging.debug("Dissect in use for /usr, not adding usrhash= to kernel commandline")
+
+    return False
