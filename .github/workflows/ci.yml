@@ -122,6 +122,11 @@ jobs:
           - distro: buildstream
             tools: fedora
             runner: ubuntu-24.04
+          # Alibaba Cloud Linux 3 is an image target only. Its Python and systemd are too old to
+          # host the tools tree, so build it with a Fedora tools tree.
+          - distro: alinux
+            tools: fedora
+            runner: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
