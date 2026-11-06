@@ -2,6 +2,7 @@
 
 import argparse
 import itertools
+import json
 import logging
 import operator
 import os
@@ -2098,3 +2099,74 @@ def test_want_signed_verity(tmp_path: Path) -> None:
 
     assert want_signed_verity(config, Verity.auto)
     assert not want_signed_verity(config, Verity.disabled)
+
+
+def test_history_used_by_clean(tmp_path: Path) -> None:
+    d = tmp_path
+
+    for profile in ("foo", "bar"):
+        (d / "mkosi.profiles" / profile).mkdir(parents=True)
+        (d / "mkosi.profiles" / profile / "mkosi.conf").write_text(
+            f"""\
+            [Output]
+            ImageId=img-{profile}
+            """
+        )
+
+    (d / "mkosi.conf").write_text(
+        """\
+        [Distribution]
+        Distribution=fedora
+
+        [Build]
+        History=yes
+        """
+    )
+
+    with chdir(d):
+        parse_config(["--profile", "foo", "build"])
+
+        # clean has to pick up the profile from the history so that it removes the outputs of the previous
+        # build instead of those of the default configuration.
+        _, _, [config] = parse_config(["clean"])
+        assert config.profiles == ["foo"]
+        assert config.image_id == "img-foo"
+
+        # As --force already has a meaning for clean, it can't be used to bypass the history. Instead,
+        # settings passed on the CLI take precedence over the history.
+        _, _, [config] = parse_config(["--profile", "bar", "clean"])
+        assert config.profiles == ["bar"]
+        assert config.image_id == "img-bar"
+
+        _, _, [config] = parse_config(["--profile", "", "clean"])
+        assert config.profiles == []
+        assert config.image_id is None
+
+        # --history=no makes clean skip the history altogether.
+        _, _, [config] = parse_config(["--history=no", "clean"])
+        assert config.profiles == []
+        assert config.image_id is None
+
+        # The history is only read by clean, never rewritten.
+        _, _, [config] = parse_config(["clean"])
+        assert config.image_id == "img-foo"
+
+        # A history that can't be read, e.g. because it was written by a different mkosi version, must not
+        # make clean fail. It falls back to the configuration files instead.
+        latest = d / ".mkosi-private/history/latest.json"
+        good = json.loads(latest.read_text())
+        for bad in (
+            json.dumps(good | {"Distribution": "not-a-distribution"}).encode(),
+            json.dumps(good | {"NotASetting": "x"}).encode(),
+            b"[]",
+            b"\xff\xfe",
+        ):
+            latest.write_bytes(bad)
+            _, _, [config] = parse_config(["clean"])
+            assert config.profiles == []
+            assert config.image_id is None
+
+        # Other verbs still refuse such a history.
+        latest.write_text(json.dumps(good | {"NotASetting": "x"}))
+        with pytest.raises(SystemExit):
+            parse_config(["summary"])

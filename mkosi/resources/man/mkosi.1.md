@@ -1765,6 +1765,14 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     `mkosi vm`, it will boot the image built in the previous step as
     expected.
 
+    `mkosi clean` reuses the history as well so that it removes the
+    outputs of the previous build. As `--force` has a different meaning
+    for `clean`, settings passed on the command line take precedence
+    over the history for `clean` instead, and `--history=no` makes
+    `clean` ignore the history altogether. If the history cannot be
+    read, e.g. because it was written by a different version of mkosi,
+    `clean` ignores it as well.
+
 `BuildSources=`, `--build-sources=`
 :   Takes a comma-separated list of colon-separated path pairs. The first
     path of each pair refers to a directory to mount from the host. The
