@@ -34,10 +34,7 @@ def test_ruff_format_check() -> None:
 @pytest.mark.skipif(skip_if_missing("ruff"), reason="ruff not found")
 def test_ruff_check() -> None:
     """Check code quality with ruff."""
-    run(
-        ["ruff", "check", "--output-format=github", "mkosi/", "tests/", *kernel_install_files()],
-        cwd=REPO_ROOT,
-    )
+    run(["ruff", "check", "mkosi/", "tests/", *kernel_install_files()], cwd=REPO_ROOT)
 
 
 @pytest.mark.skipif(skip_if_missing("git"), reason="git not found")
