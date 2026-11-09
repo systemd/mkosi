@@ -538,7 +538,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
     |                | x86-64                             | aarch64                        |
     |----------------|------------------------------------|--------------------------------|
-    | `debian`       | http://deb.debian.org              |                                |
+    | `debian`       | https://deb.debian.org             |                                |
     | `arch`         | https://fastly.mirror.pkgbuild.com | http://mirror.archlinuxarm.org |
     | `opensuse`     | http://download.opensuse.org       |                                |
     | `kali`         | http://http.kali.org/kali          |                                |
@@ -3163,7 +3163,7 @@ setting is always removed. The generated config will always include all files wi
 
 mkosi generates `/etc/apt/sources.list.d/mkosi.sources` in the sandbox tree if it does not exist.
 The configured `Mirror=` is used for everything except for the security and debug repositories, which always
-use http://deb.debian.org.
+use https://deb.debian.org.
 
 ## Fedora and other distributions using DNF
 
