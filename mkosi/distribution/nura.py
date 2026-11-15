@@ -88,13 +88,15 @@ class Installer(DistributionInstaller, distribution=Distribution.nura):
 
     @classmethod
     def install(cls, context: Context) -> None:
-        # TODO: Create merged /usr manually for now until our upstream (Alpine Linux) supports it:
-        # https://gitlab.alpinelinux.org/alpine/aports/-/merge_requests/85504
-        for dir in ["lib", "bin", "sbin"]:
-            (context.root / "usr" / dir).mkdir(parents=True, exist_ok=True)
-            (context.root / dir).symlink_to(f"usr/{dir}")
-
-        cls.install_packages(context, ["postmarketos-baselayout", "postmarketos-release"], apivfs=False)
+        cls.install_packages(
+            context,
+            [
+                "postmarketos-base-core",
+                "postmarketos-baselayout",
+                "postmarketos-release",
+            ],
+            apivfs=False,
+        )
 
     @classmethod
     def repositories(cls, context: Context) -> Iterable[ApkRepository]:
