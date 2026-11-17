@@ -3564,7 +3564,7 @@ def make_image(
 
     # Make sure the ext4 orphan_file feature is disabled if the target distribution official kernel does not
     # support it.
-    env = {}
+    env = os.environ
     if (
         not can_orphan_file(context.config.distribution, context.config.release)
         and can_orphan_file(*detect_distribution(context.config.tools()))
