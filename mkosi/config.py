@@ -2591,6 +2591,8 @@ class Config:
     def from_partial_json(
         cls,
         s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]],
+        *,
+        strict: bool = True,
     ) -> dict[str, Any]:
         """Instantiate a Config object from a (partial) JSON dump."""
 
@@ -2617,6 +2619,9 @@ class Config:
             k = key_transformer(k)
 
             if k not in cls.fields() and (not isinstance(v, (dict, list, set)) or v):
+                if not strict:
+                    raise ValueError(f"Serialized JSON has unknown field {k} with value {v}")
+
                 die(
                     f"Serialized JSON has unknown field {k} with value {v}",
                     hint="Re-running mkosi once with -f should solve the issue by re-generating the JSON",
@@ -5323,7 +5328,7 @@ def have_history(args: Args, historydir: Path) -> bool:
     if args.directory is None:
         return False
 
-    if args.verb in (Verb.clean, Verb.box, Verb.sandbox, Verb.latest_snapshot):
+    if args.verb in (Verb.box, Verb.sandbox, Verb.latest_snapshot):
         return False
 
     if args.verb == Verb.summary and args.force > 0:
@@ -5588,9 +5593,23 @@ def parse_config(
     if not (historydir / "latest.json").exists():
         historydir = config_historydir
 
-    if have_history(args, historydir):
-        history = Config.from_partial_json((historydir / "latest.json").read_text())
+    history: Optional[dict[str, Any]] = None
+    if args.verb == Verb.clean and context.cli.get("history") is False:
+        # --force means "remove more" for clean, so --history=no is how clean is told to skip the history.
+        pass
+    elif have_history(args, historydir):
+        path = historydir / "latest.json"
+        if args.verb == Verb.clean:
+            # A history that cannot be read, e.g. one written by a different mkosi version, must not make
+            # clean fail, as clean is what is used to get rid of it. Fall back to the configuration files.
+            try:
+                history = Config.from_partial_json(path.read_text(), strict=False)
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, AssertionError) as e:
+                logging.warning(f"Ignoring the history of the previous build as it cannot be read: {e!r}")
+        else:
+            history = Config.from_partial_json(path.read_text())
 
+    if history is not None:
         # If we're operating on a previously built image (vm, boot, shell, ...), we're not rebuilding the
         # image and the configuration of the latest build is available, we load the config that was used to
         # build the previous image from there instead of parsing configuration files, except for the Host
@@ -5601,6 +5620,13 @@ def parse_config(
                 continue
 
             if s.dest in context.cli and s.dest in history and context.cli[s.dest] != history[s.dest]:
+                # For clean, --force already means "remove more" so it can't be used to bypass the history.
+                # Instead, settings passed explicitly on the CLI take precedence over the history so it's
+                # still possible to clean up the outputs of a different configuration than the last build.
+                if args.verb == Verb.clean:
+                    history.pop(s.dest)
+                    continue
+
                 logging.warning(
                     f"Ignoring {s.long} from the CLI. Run with -f to rebuild the image with this setting"
                 )
