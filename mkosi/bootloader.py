@@ -410,7 +410,10 @@ def install_grub(context: Context) -> None:
                 context,
                 target=f"{context.config.architecture.to_grub()}-efi",
                 output=output,
-                modules=("chain",),
+                # Without gzio, the linux command can't load gzip-compressed kernels that aren't EFI
+                # executables until decompressed, such as Ubuntu Noble's arm64 vmlinuz. We don't install
+                # grub modules into the ESP, so gzio has to be embedded in the image.
+                modules=("chain", "gzio"),
                 sbat=sbat,
             )
             if context.config.secure_boot:
