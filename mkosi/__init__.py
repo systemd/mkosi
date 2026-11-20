@@ -2030,7 +2030,7 @@ def install_type1(
 
     microcode = finalize_microcode(context)
     initrds = finalize_initrds(context)
-    kmods = build_kernel_modules_initrd(context, kver)
+    kmods = build_kernel_modules_initrd(context, kver) if context.config.kernel_modules_initrd else None
 
     with umask(~0o600):
         if (
@@ -2043,9 +2043,9 @@ def install_type1(
         else:
             kimg = Path(copyfile2(context.root / kimg, dst / "vmlinuz"))
 
-        initrds = [Path(copyfile2(initrd, dst.parent / initrd.name)) for initrd in microcode + initrds] + [
-            Path(copyfile2(kmods, dst / "kernel-modules.initrd"))
-        ]
+        initrds = [Path(copyfile2(initrd, dst.parent / initrd.name)) for initrd in microcode + initrds]
+        if kmods:
+            initrds.append(Path(copyfile2(kmods, dst / "kernel-modules.initrd")))
 
         if dtb and source_dtb:
             copyfile2(source_dtb, dtb)
