@@ -309,6 +309,7 @@ def test_config() -> None:
             "PrepareScripts": [
                 "/run/foo"
             ],
+            "PresetVendor": "auto",
             "Profiles": [
                 "profile"
             ],
@@ -572,6 +573,7 @@ def test_config() -> None:
         postinst_scripts=[Path("/bar/qux")],
         postoutput_scripts=[Path("/foo/src")],
         prepare_scripts=[Path("/run/foo")],
+        preset_vendor=ConfigFeature.auto,
         profiles=["profile"],
         proxy_client_certificate=Path("/my/client/cert"),
         proxy_client_key=Path("/my/client/key"),

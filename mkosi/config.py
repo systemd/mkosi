@@ -2207,6 +2207,8 @@ class Config:
     ssh: Ssh
     selinux_relabel: ConfigFeature
 
+    preset_vendor: ConfigFeature
+
     secure_boot: bool
     secure_boot_auto_enroll: bool
     secure_boot_key: Optional[Path]
@@ -3632,6 +3634,14 @@ SETTINGS: list[ConfigSetting[Any]] = [
         default=Ssh.auto,
         choices=Ssh.choices(),
         help="Set up SSH access from the host to the final image via 'mkosi ssh'",
+    ),
+    ConfigSetting(
+        dest="preset_vendor",
+        metavar="BOOL",
+        section="Content",
+        parse=config_parse_feature,
+        default=ConfigFeature.auto,
+        help="Use --vendor option when running systemctl preset-all",
     ),
     ConfigSetting(
         dest="selinux_relabel",
