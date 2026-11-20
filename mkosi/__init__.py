@@ -3211,17 +3211,24 @@ def run_preset(context: Context) -> None:
     ):
         return
 
+    vendor = []
+    if context.config.preset_vendor == ConfigFeature.enabled or (
+        context.config.preset_vendor == ConfigFeature.auto
+        and systemd_tool_version("systemctl", sandbox=context.sandbox) >= "263"
+    ):
+        vendor = ["--vendor"]
+
     if not context.config.find_binary("systemctl"):
         logging.warning("systemctl is not installed, not applying presets")
         return
 
     with complete_step("Applying presets…"):
         run(
-            ["systemctl", "--root=/buildroot", "preset-all"],
+            ["systemctl", "--root=/buildroot", *vendor, "preset-all"],
             sandbox=context.sandbox(options=context.rootoptions()),
         )
         run(
-            ["systemctl", "--root=/buildroot", "--global", "preset-all"],
+            ["systemctl", "--root=/buildroot", *vendor, "--global", "preset-all"],
             sandbox=context.sandbox(options=context.rootoptions()),
         )
 
