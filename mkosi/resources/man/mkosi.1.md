@@ -1388,6 +1388,12 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
    `mkosi.machine-id` exists in the local directory, the UUID to use is
    read from it. Otherwise, `uninitialized` will be written to `/etc/machine-id`.
 
+`PresetVendor=`, `--preset-vendor=`
+
+: Takes a boolean value or `auto`. Defaults to `auto`. Controls whether `--vendor`
+  should be set when running `systemctl preset-all`. If set to `auto`, `--vendor` is
+  set when using systemd v263 or newer.
+
 ### [Validation] Section
 
 `SecureBoot=`, `--secure-boot=`
