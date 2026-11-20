@@ -17,6 +17,10 @@ def test_extension(config: ImageConfig, format: OutputFormat) -> None:
     if config.distribution == Distribution.buildstream:
         pytest.skip("TODO: add extension test for BuildStream")
 
+    # addon*.efi.stub arrived with systemd 254. Alibaba Cloud Linux 3 ships systemd 239.
+    if config.distribution == Distribution.alinux and format == OutputFormat.addon:
+        pytest.skip("Alibaba Cloud Linux 3 does not ship an addon EFI stub")
+
     with Image(config) as image:
         image.build(["--clean-package-metadata=no", "--format=directory"])
 
