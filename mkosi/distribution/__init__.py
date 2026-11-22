@@ -111,12 +111,14 @@ class DistributionInstaller:
         *,
         apivfs: bool = True,
         allow_downgrade: bool = False,
+        reinstall: bool = False,
     ) -> None:
         return cls.package_manager(context.config).install(
             context,
             packages,
             apivfs=apivfs,
             allow_downgrade=allow_downgrade,
+            reinstall=reinstall,
         )
 
     @classmethod

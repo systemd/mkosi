@@ -3,6 +3,7 @@
 import contextlib
 from collections.abc import Generator, Sequence
 from pathlib import Path
+from typing import Any
 
 from mkosi.config import Config, ConfigFeature, OutputFormat
 from mkosi.context import Context
@@ -188,8 +189,19 @@ class PackageManager:
         *,
         apivfs: bool = True,
         allow_downgrade: bool = False,
+        reinstall: bool = False,
     ) -> None:
         pass
+
+    @classmethod
+    def collect_overlay_package_files(
+        cls,
+        context: Context,
+        packages: Sequence[str],
+        **kwargs: Any,
+    ) -> None:
+        """Record the files owned by the selected installed packages. Keywords are backend-specific."""
+        raise NotImplementedError
 
     @classmethod
     def remove(cls, context: Context, packages: Sequence[str]) -> None:

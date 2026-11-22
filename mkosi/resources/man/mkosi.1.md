@@ -794,7 +794,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     changes to the specified base trees. Each base tree is attached as a lower
     layer in an overlayfs structure, and the output becomes the upper layer,
     initially empty. Thus files that are not modified compared to the base trees
-    will not be present in the final output.
+    will not be present in the final output. Packages explicitly listed in
+    `Packages=` or `VolatilePackages=` are reinstalled if already present
+    in the base, so their files are included in the overlay. Dependencies
+    already satisfied by the base are not reinstalled.
 
     This option may be used to create [systemd *system extensions*](https://uapi-group.org/specifications/specs/extension_image).
 
@@ -918,9 +921,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     these base trees are each copied into the OS tree and form the base
     distribution instead of installing the distribution from scratch. Only
     extra packages are installed on top of the ones already installed in
-    the base trees. Note that for this to work properly, the base image
-    still needs to contain the package manager metadata by setting
-    `CleanPackageMetadata=no` (see `CleanPackageMetadata=`).
+    the base trees, except when `Overlay=yes` requests reinstallation of
+    explicitly listed packages. The base image must retain its package
+    manager metadata; set `CleanPackageMetadata=no` when building it
+    (see `CleanPackageMetadata=`).
 
     Instead of a directory, a tar file or a disk image may be provided. In
     this case it is unpacked into the OS tree. This mode of operation

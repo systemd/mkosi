@@ -1,19 +1,20 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
+import subprocess
 import textwrap
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
+from xml.etree import ElementTree
 
 from mkosi.config import Config, yes_no
 from mkosi.context import Context
-from mkosi.installer import PackageManager
-from mkosi.installer.rpm import RpmRepository, rpm_cmd
+from mkosi.installer.rpm import RpmPackageManager, RpmRepository, rpm_cmd
 from mkosi.log import ARG_DEBUG
 from mkosi.run import CompletedProcess, run, workdir
 from mkosi.util import _FILE, PathString
 
 
-class Zypper(PackageManager):
+class Zypper(RpmPackageManager):
     @classmethod
     def executable(cls, config: Config) -> str:
         return "zypper"
@@ -125,12 +126,13 @@ class Zypper(PackageManager):
         *,
         options: Sequence[str] = (),
         apivfs: bool = False,
+        env: Mapping[str, str] = {},
         stdout: _FILE = None,
     ) -> CompletedProcess:
         return run(
             cls.cmd(context) + [*options, operation, *arguments],
             sandbox=cls.sandbox(context, apivfs=apivfs),
-            env=cls.finalize_environment(context),
+            env={**cls.finalize_environment(context), **env},
             stdout=stdout,
         )
 
@@ -142,6 +144,7 @@ class Zypper(PackageManager):
         *,
         apivfs: bool = True,
         allow_downgrade: bool = False,
+        reinstall: bool = False,
     ) -> None:
         arguments = [
             "--download", "in-advance",
@@ -152,9 +155,79 @@ class Zypper(PackageManager):
         if allow_downgrade:
             arguments += ["--allow-downgrade", "--oldpackage"]
 
-        arguments += [*packages]
+        before: set[str] = set()
+        if reinstall:
+            result = run(
+                [*rpm_cmd(), "--query", "--all", "--queryformat", r"%{NEVRA}\n"],
+                sandbox=context.sandbox(options=context.rootoptions(readonly=True)),
+                stdout=subprocess.PIPE,
+            )
+            before.update(result.stdout.splitlines())
 
-        cls.invoke(context, "install", arguments, apivfs=apivfs)
+        cls.invoke(context, "install", [*arguments, *packages], apivfs=apivfs)
+
+        if reinstall:
+            pinned, installed = cls.reinstall_targets(context, packages, arguments, before)
+            if pinned:
+                cls.invoke(context, "install", ["--force", *arguments, *pinned], apivfs=apivfs)
+            cls.collect_overlay_package_files(context, installed)
+
+    @classmethod
+    def reinstall_targets(
+        cls,
+        context: Context,
+        packages: Sequence[str],
+        arguments: Sequence[str],
+        before: set[str],
+    ) -> tuple[list[str], list[str]]:
+        # Let the normal install select versions first. --force on the original requests could
+        # downgrade an installed package or switch its architecture or vendor.
+        result = cls.invoke(
+            context,
+            "install",
+            ["--dry-run", "--force", *arguments, *packages],
+            options=["--xmlout"],
+            env={"LANGUAGE": "C"},
+            stdout=subprocess.PIPE,
+        )
+        plan = ElementTree.fromstring(result.stdout)
+        new_vendor = {p.attrib["name"] for p in plan.findall("install-summary/to-change-vendor/solvable")}
+        local: dict[str, str] = {}
+        if rpms := [spec for spec in packages if spec.endswith(".rpm")]:
+            result = run(
+                [*rpm_cmd(), "--query", "--package", "--queryformat", r"%{NEVRA}\n", *rpms],
+                sandbox=cls.sandbox(context, apivfs=False),
+                stdout=subprocess.PIPE,
+            )
+            local = dict(zip(result.stdout.splitlines(), rpms))
+
+        pinned: set[str] = set()
+        installed: set[str] = set()
+        forced: set[str] = set()
+        for msg in plan.findall("message[@type='info']"):
+            text = msg.text or ""
+            if text.startswith("Forcing installation of '"):
+                forced.add(text.split("'")[1])
+            elif text.startswith("Package '") and "' is not available in your repositories." in text:
+                installed.add(text.split("'")[1])
+            elif "' providing '" in text and text.endswith("' is already installed."):
+                installed.add(text.split("'")[1])
+
+        for p in plan.findall("install-summary/*/solvable[@type='package'][@edition-old]"):
+            name, arch, edition = p.attrib["name"], p.attrib["arch"], p.attrib["edition"]
+            nevra = f"{name}-{edition}.{arch}"
+            old = f"{name}-{p.attrib['edition-old']}.{p.attrib['arch-old']}"
+            if old != nevra and nevra not in forced:
+                continue  # A dependency change in the hypothetical transaction.
+
+            installed.add(old)
+            if old == nevra and nevra in before and name not in new_vendor:
+                repo = p.attrib["repository"]
+                # Zypper's temporary repository for command-line RPMs won't survive the dry run.
+                source = local[nevra] if repo == "_tmpRPMcache_" else f"{repo}:{name}.{arch}={edition}"
+                pinned.add(source)
+
+        return sorted(pinned), sorted(installed)
 
     @classmethod
     def remove(cls, context: Context, packages: Sequence[str]) -> None:

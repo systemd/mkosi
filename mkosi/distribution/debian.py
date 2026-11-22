@@ -227,8 +227,15 @@ class Installer(DistributionInstaller, distribution=Distribution.debian):
         *,
         apivfs: bool = True,
         allow_downgrade: bool = False,
+        reinstall: bool = False,
     ) -> None:
-        super().install_packages(context, packages, apivfs=apivfs, allow_downgrade=allow_downgrade)
+        super().install_packages(
+            context,
+            packages,
+            apivfs=apivfs,
+            allow_downgrade=allow_downgrade,
+            reinstall=reinstall,
+        )
 
         if "apt" in packages:
             install_apt_sources(context, cls.repositories(context, for_image=True))

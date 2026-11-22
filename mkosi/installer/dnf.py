@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 import logging
+import subprocess
 import textwrap
 from collections.abc import Sequence
 from pathlib import Path
@@ -9,14 +10,13 @@ from typing import Optional
 from mkosi.config import Cacheonly, Config
 from mkosi.context import Context
 from mkosi.distribution import detect_distribution
-from mkosi.installer import PackageManager
-from mkosi.installer.rpm import RpmRepository, rpm_cmd
+from mkosi.installer.rpm import RpmPackageManager, RpmRepository, rpm_cmd
 from mkosi.log import ARG_DEBUG
 from mkosi.run import CompletedProcess, run, workdir
 from mkosi.util import _FILE, PathString
 
 
-class Dnf(PackageManager):
+class Dnf(RpmPackageManager):
     @classmethod
     def executable(cls, config: Config) -> str:
         # Allow the user to override autodetection with an environment variable
@@ -261,6 +261,38 @@ class Dnf(PackageManager):
                         p.unlink()
 
     @classmethod
+    def repoquery(cls, context: Context, *arguments: str) -> set[str]:
+        result = cls.invoke(context, "repoquery", ["--quiet", *arguments], stdout=subprocess.PIPE)
+        return set(result.stdout.splitlines())
+
+    @classmethod
+    def installed_targets(cls, context: Context, packages: Sequence[str]) -> dict[str, str]:
+        """Map each explicitly requested installed NEVRA to its reinstall argument."""
+        installed = cls.repoquery(context, "--installed")
+        requested = {spec for spec in packages if not spec.endswith(".rpm")}
+        matched_names: set[str] = set()
+        targets: dict[str, str] = {}
+        # A bare name can match several installed architectures or kernel versions. Keep each
+        # full NEVRA as a separate target; there is no single version to choose.
+        for nevra in installed:
+            name = nevra.rsplit("-", maxsplit=2)[0]
+            if name in requested:
+                targets[nevra] = nevra
+                matched_names.add(name)
+
+        for spec in packages:
+            if spec.endswith(".rpm"):
+                # Prefer the explicit RPM file even if another spec also selects this NEVRA.
+                targets.update(dict.fromkeys(installed & cls.repoquery(context, spec), spec))
+            elif spec not in matched_names:
+                matches = cls.repoquery(context, "--installed", spec) or cls.repoquery(
+                    context, "--installed", f"--whatprovides={spec}"
+                )
+                for nevra in matches:
+                    targets.setdefault(nevra, nevra)
+        return targets
+
+    @classmethod
     def install(
         cls,
         context: Context,
@@ -268,15 +300,27 @@ class Dnf(PackageManager):
         *,
         apivfs: bool = True,
         allow_downgrade: bool = False,
+        reinstall: bool = False,
     ) -> None:
         arguments = []
 
         if allow_downgrade and Dnf.executable(context.config) == "dnf5":
             arguments += ["--allow-downgrade"]
 
-        arguments += [*packages]
+        before = cls.repoquery(context, "--installed") if reinstall else set()
+        cls.invoke(context, "install", [*arguments, *packages], apivfs=apivfs)
 
-        cls.invoke(context, "install", arguments, apivfs=apivfs)
+        if reinstall:
+            # DNF's reinstall only accepts installed packages. Let install resolve missing packages
+            # and version changes first, then reinstall just the targets left at their original NEVRA.
+            targets = cls.installed_targets(context, packages)
+            if unchanged := before.intersection(targets.keys()):
+                # repoquery also loads explicit RPM files. For versions no longer available from
+                # either source, the file collector below copies up the installed payload instead.
+                available = cls.repoquery(context, "--available", *sorted(targets[n] for n in unchanged))
+                if sources := {targets[n] for n in unchanged & available}:
+                    cls.invoke(context, "reinstall", sorted(sources), apivfs=apivfs)
+            cls.collect_overlay_package_files(context, sorted(targets))
 
     @classmethod
     def remove(cls, context: Context, packages: Sequence[str]) -> None:

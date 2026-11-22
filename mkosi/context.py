@@ -1,12 +1,14 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 import os
+import stat
 from collections.abc import Sequence
 from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Optional
 
 from mkosi.config import Args, Config
+from mkosi.sandbox import chase
 from mkosi.util import PathString, flatten
 
 
@@ -34,6 +36,7 @@ class Context:
         self.lowerdirs: list[PathString] = []
         self.upperdir: Optional[PathString] = None
         self.workdir: Optional[PathString] = None
+        self.overlay_package_files: set[Path] = set()
 
         self.package_dir.mkdir(exist_ok=True)
         self.staging.mkdir()
@@ -45,6 +48,24 @@ class Context:
     @property
     def root(self) -> Path:
         return self.workspace / "root"
+
+    def record_overlay_package_files(self, files: Sequence[str], *, copy_up: bool = False) -> None:
+        # File lists can use e.g. /bin on a merged-/usr image. Resolve parent directories in the
+        # image, but not the last component: a packaged symlink is itself part of the payload.
+        for name in files:
+            path = Path(chase(os.fspath(self.root), os.fspath(Path("/") / name), nofollow=True))
+            if copy_up:
+                # Some package managers leave identical files (especially conffiles) in place.
+                # Trigger overlayfs copy-up without changing their timestamps or following symlinks.
+                try:
+                    st = path.lstat()
+                except FileNotFoundError:
+                    continue
+                if not (stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode)):
+                    continue
+                os.utime(path, ns=(st.st_atime_ns, st.st_mtime_ns), follow_symlinks=False)
+
+            self.overlay_package_files.add(path.relative_to(self.root))
 
     def rootoptions(self, dst: PathString = "/buildroot", *, readonly: bool = False) -> list[str]:
         if self.lowerdirs or self.upperdir:

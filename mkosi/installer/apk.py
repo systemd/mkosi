@@ -6,6 +6,7 @@ import os
 import subprocess
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any, cast
 
 from mkosi.config import Cacheonly, Config
 from mkosi.context import Context
@@ -115,6 +116,31 @@ class Apk(PackageManager):
         )
 
     @classmethod
+    def query_installed(
+        cls,
+        context: Context,
+        packages: Sequence[str],
+        *,
+        fields: str,
+        match: str = "name,provides",
+        apivfs: bool = False,
+    ) -> list[dict[str, Any]]:
+        result = cls.invoke(
+            context,
+            "query",
+            [
+                "--installed",
+                "--format", "json",
+                "--match", match,
+                "--fields", fields,
+                *packages,
+            ],
+            apivfs=apivfs,
+            stdout=subprocess.PIPE,
+        )  # fmt: skip
+        return cast(list[dict[str, Any]], json.loads(result.stdout or "[]"))
+
+    @classmethod
     def install(
         cls,
         context: Context,
@@ -122,6 +148,7 @@ class Apk(PackageManager):
         *,
         apivfs: bool = True,
         allow_downgrade: bool = False,
+        reinstall: bool = False,
     ) -> None:
         # grub's /boot trigger execs update-grub, which runs grub-probe against the buildroot where it
         # cannot find a device for / and fails the whole apk transaction. mkosi manages the bootloader
@@ -135,6 +162,11 @@ class Apk(PackageManager):
             with umask(~0o644):
                 updategrubconf.write_text("disable_trigger=1\n")
 
+        before: set[tuple[str, str]] = set()
+        if reinstall:
+            installed = cls.query_installed(context, packages, fields="name,version")
+            before = {(p["name"], p["version"]) for p in installed}
+
         cls.invoke(
             context,
             "add",
@@ -146,33 +178,37 @@ class Apk(PackageManager):
             apivfs=apivfs,
         )  # fmt: skip
 
+        if reinstall:
+            selected = cls.query_installed(context, packages, fields="name,version")
+            if unchanged := [p["name"] for p in selected if (p["name"], p["version"]) in before]:
+                cls.invoke(context, "fix", ["--reinstall", *unchanged], apivfs=apivfs)
+            cls.collect_overlay_package_files(context, [p["name"] for p in selected])
+
         if not preexisting:
             updategrubconf.unlink()
 
     @classmethod
-    def remove(cls, context: Context, packages: Sequence[str]) -> None:
-        # Match against both name and provides so that packages specified
-        # by a provider name are also found.
-        # apk query --format json outputs a JSON array of package objects,
-        # or an empty array if nothing matches.
-        result = cls.invoke(
-            context,
-            "query",
-            [
-                "--installed",
-                "--format", "json",
-                "--match", "name,provides",
-                "--fields", "name,provides",
-                *packages,
-            ],
-            apivfs=True,
-            stdout=subprocess.PIPE,
-        )  # fmt: skip
+    def collect_overlay_package_files(
+        cls,
+        context: Context,
+        packages: Sequence[str],
+        **kwargs: Any,
+    ) -> None:
+        if not packages:
+            return
 
+        selected = cls.query_installed(context, packages, fields="contents", match="name")
+        context.record_overlay_package_files(
+            [path for p in selected for path in p.get("contents", [])],
+            copy_up=True,
+        )
+
+    @classmethod
+    def remove(cls, context: Context, packages: Sequence[str]) -> None:
         # Build a lookup set from both real package names and their provides entries
         # (stripped of version suffixes) so we can match against the original input names.
         installed: set[str] = set()
-        for pkg in json.loads(result.stdout or "[]"):
+        for pkg in cls.query_installed(context, packages, fields="name,provides", apivfs=True):
             installed.add(pkg["name"])
             installed.update(p.split("=", 1)[0] for p in pkg.get("provides", []))
 

@@ -2,10 +2,12 @@
 
 import dataclasses
 import shutil
+import subprocess
 import textwrap
 from collections.abc import Sequence
 from contextlib import AbstractContextManager
 from pathlib import Path
+from typing import Any
 
 from mkosi.config import Config
 from mkosi.context import Context
@@ -201,9 +203,13 @@ class Pacman(PackageManager):
         *,
         apivfs: bool = True,
         allow_downgrade: bool = False,
+        reinstall: bool = False,
         options: Sequence[str] = (),
     ) -> None:
-        arguments = ["--needed", "--assume-installed", "initramfs"]
+        arguments = ["--assume-installed", "initramfs"]
+
+        if not reinstall:
+            arguments += ["--needed"]
 
         if allow_downgrade:
             arguments += ["--sysupgrade", "--sysupgrade"]
@@ -211,6 +217,35 @@ class Pacman(PackageManager):
         arguments += [*options, *packages]
 
         cls.invoke(context, "--sync", arguments, apivfs=apivfs)
+
+        if reinstall:
+            result = cls.invoke(
+                context,
+                "--sync",
+                ["--print", "--print-format", "%n-%v", "--nodeps", "--nodeps", *packages],
+                stdout=subprocess.PIPE,
+            )
+            cls.collect_overlay_package_files(context, result.stdout.splitlines())
+
+    @classmethod
+    def collect_overlay_package_files(
+        cls,
+        context: Context,
+        packages: Sequence[str],
+        **kwargs: Any,
+    ) -> None:
+        for pkg in packages:
+            files = context.root / "var/lib/pacman/local" / pkg / "files"
+            for section in files.read_text().strip().split("\n\n"):
+                field, _, entries = section.partition("\n")
+                if field == "%FILES%":
+                    context.record_overlay_package_files(
+                        [p for p in entries.splitlines() if not p.endswith("/")]
+                    )
+                elif field == "%BACKUP%":
+                    context.record_overlay_package_files(
+                        [p.partition("\t")[0] for p in entries.splitlines()], copy_up=True
+                    )
 
     @classmethod
     def remove(cls, context: Context, packages: Sequence[str]) -> None:

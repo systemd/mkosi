@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 import dataclasses
+import subprocess
 import textwrap
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Final, Optional
+from typing import Any, Final, Optional
 
 from mkosi.config import Config, ConfigFeature
 from mkosi.context import Context
@@ -250,6 +251,7 @@ class Apt(PackageManager):
         *,
         apivfs: bool = True,
         allow_downgrade: bool = False,
+        reinstall: bool = False,
     ) -> None:
         # Debian policy is to start daemons by default. The policy-rc.d script can be used choose which ones
         # to start. Let's install one that denies all daemon startups.
@@ -264,6 +266,9 @@ class Apt(PackageManager):
 
         arguments = []
 
+        if reinstall:
+            arguments += ["--reinstall"]
+
         if allow_downgrade:
             arguments += ["--allow-downgrades"]
 
@@ -271,12 +276,75 @@ class Apt(PackageManager):
 
         cls.invoke(context, "install", arguments, apivfs=apivfs)
 
+        if reinstall:
+            downloadable, unavailable = cls.installed_targets(context, arguments)
+            cls.collect_overlay_package_files(context, downloadable)
+            cls.collect_overlay_package_files(context, unavailable, copy_up=True)
+
         policyrcd.unlink()
 
         # systemd-gpt-auto-generator is disabled by default in Ubuntu:
         # https://git.launchpad.net/ubuntu/+source/systemd/tree/debian/systemd.links?h=ubuntu/noble-proposed.
         # Let's make sure it is enabled by default in our images.
         (context.root / "etc/systemd/system-generators/systemd-gpt-auto-generator").unlink(missing_ok=True)
+
+    @classmethod
+    def installed_targets(
+        cls,
+        context: Context,
+        install_arguments: Sequence[str],
+    ) -> tuple[list[str], list[str]]:
+        # With dependencies satisfied, a simulated reinstall lists just the requested packages,
+        # with apt having resolved virtual names, version constraints and architecture qualifiers.
+        result = cls.invoke(
+            context,
+            "install",
+            ["--simulate", "--quiet=1", *install_arguments],
+            options=["--setenv", "LC_ALL", "C"],
+            stdout=subprocess.PIPE,
+        )
+        lines = result.stdout.splitlines()
+        downloadable = [line.split()[1] for line in lines if line.startswith("Inst ")]
+        # APT reports undownloadable packages separately rather than emitting an Inst line.
+        # Their installed files must be copied up because dpkg did not unpack them again.
+        unavailable = [line.split()[2] for line in lines if line.startswith("Reinstallation of ")]
+        return downloadable, unavailable
+
+    @classmethod
+    def collect_overlay_package_files(
+        cls,
+        context: Context,
+        packages: Sequence[str],
+        *,
+        copy_up: bool = False,
+        **kwargs: Any,
+    ) -> None:
+        if not packages:
+            return
+
+        files = run(
+            [*cls.dpkg_cmd("dpkg-query"), "--listfiles", *packages],
+            sandbox=context.sandbox(options=context.rootoptions(readonly=True)),
+            stdout=subprocess.PIPE,
+        )
+        context.record_overlay_package_files(
+            [p for p in files.stdout.splitlines() if p.startswith("/")], copy_up=copy_up
+        )
+
+        if not copy_up:
+            conffiles = run(
+                [*cls.dpkg_cmd("dpkg-query"), "--show", r"--showformat=${Conffiles}\n", *packages],
+                sandbox=context.sandbox(options=context.rootoptions(readonly=True)),
+                stdout=subprocess.PIPE,
+            )
+            context.record_overlay_package_files(
+                [
+                    line.lstrip().rsplit(" ", maxsplit=1)[0]
+                    for line in conffiles.stdout.splitlines()
+                    if line and not line.endswith((" obsolete", " remove-on-upgrade"))
+                ],
+                copy_up=True,
+            )
 
     @classmethod
     def remove(cls, context: Context, packages: Sequence[str]) -> None:
