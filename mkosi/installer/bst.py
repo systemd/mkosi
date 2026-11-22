@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
+import subprocess
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any, Optional
 
 from mkosi.config import Config
 from mkosi.context import Context
@@ -30,15 +32,8 @@ class BST(PackageManager):
             die("VolatilePackages= are not supported when using BuildStream")
 
     @classmethod
-    def install(
-        cls,
-        context: Context,
-        packages: Sequence[str],
-        *,
-        apivfs: bool = True,
-        allow_downgrade: bool = False,
-    ) -> None:
-        options: list[PathString] = [
+    def project_options(cls, context: Context) -> list[PathString]:
+        return [
             "--same-dir",
             *context.rootoptions(),
             # bst will need write access to the current directory as it might write to .bst
@@ -49,6 +44,17 @@ class BST(PackageManager):
             "--setenv", "HOME", Path.home(),
         ]  # fmt: skip
 
+    @classmethod
+    def install(
+        cls,
+        context: Context,
+        packages: Sequence[str],
+        *,
+        apivfs: bool = True,
+        allow_downgrade: bool = False,
+        reinstall: bool = False,
+    ) -> None:
+        options = cls.project_options(context)
         # We don't really want to run bst as (fake) root but it uses bubblewrap which stubbornly refuses to
         # run when invoked unprivileged but with capabilities. We get around this by running as fake root but
         # still setting $HOME to the user's home to reuse the buildstream cache directory.
@@ -68,6 +74,33 @@ class BST(PackageManager):
             ],
             sandbox=cls.sandbox(context, apivfs=apivfs, options=options),
             env=cls.finalize_environment(context),
+        )
+
+        if reinstall:
+            cls.collect_overlay_package_files(context, packages, options=options)
+
+    @classmethod
+    def collect_overlay_package_files(
+        cls,
+        context: Context,
+        packages: Sequence[str],
+        *,
+        options: Optional[Sequence[PathString]] = None,
+        **kwargs: Any,
+    ) -> None:
+        if options is None:
+            options = cls.project_options(context)
+
+        # checkout --force already overwrites files. Keep the explicit element's contents, not
+        # those of all the runtime dependencies staged by checkout.
+        result = run(
+            [cls.executable(context.config), "artifact", "list-contents", *packages],
+            sandbox=cls.sandbox(context, apivfs=False, options=options),
+            env=cls.finalize_environment(context),
+            stdout=subprocess.PIPE,
+        )
+        context.record_overlay_package_files(
+            [line[1:] for line in result.stdout.splitlines() if line.startswith("\t")]
         )
 
     @classmethod

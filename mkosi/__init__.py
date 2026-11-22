@@ -233,7 +233,7 @@ def mount_base_trees(context: Context) -> Generator[None]:
                 if q.is_symlink() or not q.is_dir():
                     die(f"/{rel} is a directory in the overlay but not in the base tree")
                 shutil.copystat(q, p)
-            else:
+            elif rel not in context.overlay_package_files:
                 logging.info(f"Removing duplicate path /{rel} from overlay")
                 p.unlink()
 
@@ -267,7 +267,9 @@ def install_distribution(context: Context) -> None:
         with complete_step(
             f"Installing extra packages for {context.config.distribution.installer.pretty_name()}"
         ):
-            context.config.distribution.installer.install_packages(context, context.config.packages)
+            context.config.distribution.installer.install_packages(
+                context, context.config.packages, reinstall=context.config.overlay
+            )
     else:
         if context.config.overlay or context.config.output_format.is_extension_image():
             if context.config.packages:
@@ -341,7 +343,7 @@ def install_volatile_packages(context: Context) -> None:
         f"Installing volatile packages for {context.config.distribution.installer.pretty_name()}"
     ):
         context.config.distribution.installer.install_packages(
-            context, context.config.volatile_packages, allow_downgrade=True
+            context, context.config.volatile_packages, allow_downgrade=True, reinstall=context.config.overlay
         )
 
 

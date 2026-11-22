@@ -1,14 +1,17 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 import dataclasses
+import subprocess
 import textwrap
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Literal, Optional, overload
+from typing import Any, Literal, Optional, overload
 
 from mkosi.context import Context
 from mkosi.distribution import Distribution
+from mkosi.installer import PackageManager
 from mkosi.log import die
-from mkosi.run import glob_in_sandbox
+from mkosi.run import glob_in_sandbox, run
 from mkosi.util import PathString
 
 
@@ -136,3 +139,26 @@ def setup_rpm(
 
 def rpm_cmd() -> list[PathString]:
     return ["env", "HOME=/", "rpm", "--root=/buildroot"]
+
+
+class RpmPackageManager(PackageManager):
+    @classmethod
+    def collect_overlay_package_files(
+        cls,
+        context: Context,
+        packages: Sequence[str],
+        **kwargs: Any,
+    ) -> None:
+        if not packages:
+            return
+
+        result = run(
+            [*rpm_cmd(), "--query", "--list", "--state", "--noghost", *packages],
+            sandbox=context.sandbox(options=context.rootoptions(readonly=True)),
+            stdout=subprocess.PIPE,
+        )
+        # Exclude payload entries rpm didn't install, e.g. documentation with --nodocs.
+        context.record_overlay_package_files(
+            [line.split(maxsplit=1)[1] for line in result.stdout.splitlines() if line.startswith("normal ")],
+            copy_up=True,
+        )
