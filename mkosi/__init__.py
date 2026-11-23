@@ -113,6 +113,7 @@ from mkosi.mounts import (
     finalize_certificate_mounts,
     finalize_source_mounts,
     finalize_volatile_tmpdir,
+    gitdir_mounts,
     mount_overlay,
 )
 from mkosi.pager import page
@@ -708,6 +709,7 @@ def run_configure_scripts(config: Config) -> Config:
                             "--chdir", "/work/src",
                             "--ro-bind", script, "/work/configure",
                             *sources,
+                            *gitdir_mounts(config, ephemeral=False),
                         ],
                     ),
                     input=dump_json(config.to_dict(), indent=None),
@@ -769,6 +771,7 @@ def run_sync_scripts(config: Config) -> None:
                 "--dir", "/work/src",
                 "--chdir", "/work/src",
                 *sources,
+                *gitdir_mounts(config, ephemeral=False),
             ]  # fmt: skip
 
             with complete_step(f"Running sync script {script}…"):
@@ -818,6 +821,10 @@ def script_maybe_chroot_sandbox(
                 network=network,
                 options=[
                     *options,
+                    *gitdir_mounts(
+                        context.config,
+                        ephemeral=bool(context.config.build_sources_ephemeral),
+                    ),
                     *context.rootoptions(),
                     *context.config.distribution.installer.package_manager(context.config).mounts(context),
                 ],
@@ -825,6 +832,9 @@ def script_maybe_chroot_sandbox(
             ) as sandbox:  # fmt: skip
                 yield sandbox
         else:
+            # The sandbox root is the image root directory in this case, so the gitdirs of git
+            # worktrees cannot be mounted at their host location without leaving empty
+            # directories behind in the image.
             if suppress_chown:
                 options += ["--suppress-chown"]
 
@@ -1189,6 +1199,10 @@ def run_postoutput_scripts(context: Context) -> None:
                             "--dir", "/work/out",
                             "--become-root",
                             *sources,
+                            *gitdir_mounts(
+                                context.config,
+                                ephemeral=bool(context.config.build_sources_ephemeral),
+                            ),
                         ],
                     ),
                     stdin=sys.stdin,
@@ -4723,6 +4737,7 @@ def run_clean_scripts(config: Config) -> None:
                             "--ro-bind", json, "/work/config.json",
                             *(["--bind", os.fspath(o), "/work/out"] if (o := config.output_dir_or_cwd()).exists() else []),  # noqa: E501
                             *sources,
+                            *gitdir_mounts(config, ephemeral=False),
                         ],
                     ),
                     stdin=sys.stdin,
