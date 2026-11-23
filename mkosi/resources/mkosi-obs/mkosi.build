@@ -175,67 +175,7 @@ while read -r PCRS; do
 done < <(find "$OUTPUTDIR" -type f -name '*.pcrs.sig')
 rm -f "$OUTPUTDIR"/*.pcrs*
 
-# Fifth step: finalize any DDI by attaching the verity roothash signatures
-while read -r SIG; do
-    test -f "/usr/src/packages/SOURCES/$(basename "${SIG%roothash.sig}repart.tar")" || continue
-
-    PATH=/usr/lib/systemd/:$PATH systemd-keyutil --help | grep -q 'pkcs7' || break
-    PATH=/usr/lib/systemd/:$PATH systemd-keyutil --certificate /usr/src/packages/SOURCES/_projectcert.crt --output "${SIG%sig}p7s" --signature "$SIG" pkcs7
-
-    mkdir -p mkosi.repart
-    tar xf "/usr/src/packages/SOURCES/$(basename "${SIG%roothash.sig}repart.tar")" -C mkosi.repart
-    rm -f "$OUTPUTDIR/$(basename "${SIG%roothash.sig}repart.tar")"
-    if [ -f "$OUTPUTDIR/$(basename "${SIG%roothash.sig}raw.zst")" ] || [ -f "$OUTPUTDIR/$(basename "${SIG%roothash.sig}img.zst")" ]; then
-        recompress=1
-        unzstd --force "$OUTPUTDIR/$(basename "${SIG%roothash.sig}")"raw*.zst
-        rm -f "$OUTPUTDIR/$(basename "${SIG%roothash.sig}")"raw*.zst
-    else
-        recompress=0
-    fi
-
-    ARGS=(
-        --join-signature "$(cat "${SIG%.sig}"):${SIG%sig}p7s" \
-        --certificate /usr/src/packages/SOURCES/_projectcert.crt \
-        --definitions mkosi.repart \
-        --dry-run=no \
-        "$OUTPUTDIR/$(basename "${SIG%roothash.sig}")"raw*
-    )
-
-    # sd-repart might be configured to create labels based on os-release fields. Due to the
-    # mkosi sandbox we cannot use --image, so we need to provide the os-release file manually
-    # via --root
-    if [ -f "/usr/src/packages/SOURCES/$(basename "${SIG%roothash.sig}osrelease")" ]; then
-        mkdir -p mkosi.repart/usr/lib
-        cp "/usr/src/packages/SOURCES/$(basename "${SIG%roothash.sig}osrelease")" mkosi.repart/usr/lib/os-release
-        ARGS+=(--root="$PWD"/mkosi.repart)
-    fi
-
-    if jq -r '.SplitArtifacts[]' "$MKOSI_CONFIG" | grep -q partitions; then
-        # Need to recreate the split artifact and compress it if needed
-        ARGS+=(--split=yes)
-        split=1
-    fi
-    systemd-repart "${ARGS[@]}"
-    rm -rf mkosi.repart
-
-    if ((recompress)); then
-        zstd --force "$OUTPUTDIR/$(basename "${SIG%roothash.sig}")"raw*
-        rm -f "$OUTPUTDIR/$(basename "${SIG%roothash.sig}raw")" "$OUTPUTDIR/$(basename "${SIG%roothash.sig}raw.img")"
-        if ((split)); then
-            zstd --force "$OUTPUTDIR/$(basename "${SIG%roothash.sig}")"*-verity-sig.*.raw
-            # sd-repart will split out all partitions again
-            rm -f "$OUTPUTDIR/$(basename "${SIG%roothash.sig}")"usr-*.raw \
-                "$OUTPUTDIR/$(basename "${SIG%roothash.sig}")"root-*.raw \
-                "$OUTPUTDIR/$(basename "${SIG%roothash.sig}")"esp.raw
-        fi
-    fi
-
-    # Do not publish the roothash here, as importctl and friends will mistake it as the roothash of the .raw image
-    rm -f "$OUTPUTDIR/$(basename "${SIG%.sig}")"
-done < <(find hashes/roothashes -type f -name '*.sig')
-rm -rf hashes/roothashes
-
-# Sixth step: prepare EFI authvars for self-enrollment
+# Fifth step: install EFI authvars for self-enrollment before splitting the ESP
 while read -r SIG; do
     varname="${SIG%.auth.sig}"
     auth="${varname}.auth"
@@ -286,6 +226,68 @@ if (( ${#AUTHVARS[@]} > 0 )); then
     done
 fi
 rm -rf hashes/authvars
+
+# Sixth step: join verity signatures and split partitions from the final disk.
+for bundle in /usr/src/packages/SOURCES/*.repart.tar; do
+    [[ -f $bundle ]] || continue
+    stem="${bundle##*/}"
+    stem="${stem%.repart.tar}"
+    work="$(mktemp -d "$OUTPUTDIR/.repart-XXXXXXXX")"
+    tar xf "$bundle" -C "$work"
+    rm -f "$OUTPUTDIR/${bundle##*/}"
+    IFS= read -r image <"$work/image"
+    if [[ -f $work/roothash && ! -f $work/roothash.p7s ]]; then
+        if ! PATH=/usr/lib/systemd/:$PATH systemd-keyutil --help | grep -q 'pkcs7'; then
+            echo "Skipping verity signing for $image: systemd-keyutil lacks pkcs7 support" >&2
+            rm -r "$work"
+            continue
+        fi
+        PATH=/usr/lib/systemd/:$PATH systemd-keyutil --certificate /usr/src/packages/SOURCES/_projectcert.crt \
+            --output "$work/roothash.p7s" --signature "hashes/roothashes/$image/$stem.roothash.sig" pkcs7
+    fi
+    if [[ -f $work/roothash.p7s ]]; then
+        # importctl would interpret this as a detached roothash for the whole disk.
+        rm -f "$OUTPUTDIR/$stem.roothash"
+    fi
+    if [[ -d hashes/ukis ]]; then
+        # PCR signing produced another PE signing request. Carry the repart inputs
+        # as an ordinary artifact, not as another request to sign the roothash.
+        tar cf "$OUTPUTDIR/${bundle##*/}" -C "$work" .
+        rm -r "$work"
+        continue
+    fi
+    # repart creates splits next to the disk with O_EXCL; leave first-stage
+    # artifacts in place until their replacements are ready.
+    mkdir "$work/disk"
+    ddi="$work/disk/${image%.zst}"
+    if [[ $image == *.zst ]]; then
+        unzstd -o "$ddi" "$OUTPUTDIR/$image"
+    else
+        ln "$OUTPUTDIR/$image" "$ddi"
+    fi
+    mapfile -t args <"$work/options"
+    args+=(--definitions "$work/definitions")
+    [[ ! -f $work/usr/lib/os-release ]] || args+=(--root="$work")
+    if [[ -f $work/roothash.p7s ]]; then
+        args+=(--dry-run=no --join-signature "$(cat "$work/roothash"):$work/roothash.p7s" --certificate /usr/src/packages/SOURCES/_projectcert.crt)
+    else
+        # Without verity only the ESP was modified.
+        args+=(--dry-run=yes --include-partitions=esp)
+    fi
+    partitions="$(systemd-repart --json=short "${args[@]}" "$ddi")"
+    if [[ $image == *.zst && -f $work/roothash.p7s ]]; then
+        zstd --force -o "$OUTPUTDIR/$image" "$ddi"
+    fi
+    while IFS= read -r part; do
+        if [[ $image == *.zst ]]; then
+            zstd --rm "$part"
+            part+=.zst
+        fi
+        mv -f "$part" "$OUTPUTDIR/"
+    done < <(jq -r '.[].split_path | select(. and . != "-")' <<<"$partitions")
+    rm -r "$work"
+done
+rm -rf hashes/roothashes
 
 # Final step: if there are any hashes staged, prepare for the next stage
 rmdir --ignore-fail-on-non-empty hashes

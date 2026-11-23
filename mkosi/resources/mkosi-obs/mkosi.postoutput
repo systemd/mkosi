@@ -56,24 +56,26 @@ for f in "${KERNELS[@]}"; do
     pesign --force -n sql:"$nss_db" -i "${OUTPUTDIR}/${f}" -E "hashes/kernels/$f"
 done
 
-repart_dir="$(jq -r '.RepartDirectories[-1]' "$MKOSI_CONFIG")"
-if [ -z "$repart_dir" ] || [ "$repart_dir" = "null" ]; then
-    output="$(jq -r '.Output' "$MKOSI_CONFIG")"
-    if [ -n "$output" ] && [ "$output" != "null" ] && [ -d "$OUTPUTDIR/$output.repart.d" ]; then
-        repart_dir="$OUTPUTDIR/$output.repart.d"
-    fi
+repart_dirs=("$OUTPUTDIR/$OUTPUT.repart.d")
+if [[ ! -d ${repart_dirs[0]} ]]; then
+    mapfile -t repart_dirs < <(jq -r '.RepartDirectories[]' "$MKOSI_CONFIG")
 fi
+declare -A repart_images=()
 for f in "${ROOTHASHES[@]}"; do
     test -f "${OUTPUTDIR}/${f}" || continue
-    mkdir -p hashes/roothashes
-    cp "${OUTPUTDIR}/$f" hashes/roothashes/
-    # If we have a DDI to operate on, we need the repart definitions, so save the configs across to the next stage
-    if [ -n "$repart_dir" ] && [ "$repart_dir" != "null" ]; then
-        pushd "$repart_dir" 2>/dev/null
-        tar cf "$OUTPUTDIR/${f%roothash}repart.tar" ./*
-        popd 2>/dev/null
+    # OBS does not forward the Output= symlink. Keep the actual image name with its roothash.
+    ddi="$(realpath "$OUTPUTDIR/${f%.roothash}")"
+    mkdir -p "hashes/roothashes/${ddi##*/}"
+    cp "${OUTPUTDIR}/$f" "hashes/roothashes/${ddi##*/}/"
+    if ((${#repart_dirs[@]} > 0)); then
+        repart_images[${f%.roothash}]="${ddi##*/}"
     fi
 done
+
+split_disk=
+if jq -e '.Format == "disk" and (.SplitArtifacts | index("partitions") != null)' "$MKOSI_CONFIG" >/dev/null; then
+    split_disk="$(realpath -e "$OUTPUTDIR/$OUTPUT")"
+fi
 
 # Handle bootloaders separately from UKIs
 found_esp=0
@@ -98,6 +100,10 @@ for ddi in "${DDIS[@]}"; do
     rm -rf EFI
     mcopy -s -i "${ddi%.zst}@@${offset}" ::EFI EFI || true
     found_esp=1
+    # A disk without verity may also need its split ESP refreshed after signing.
+    if [[ $ddi == "$split_disk" ]]; then
+        repart_images[$OUTPUT]="${ddi##*/}"
+    fi
 
     # UKIs are handled separately
     rm -rf EFI/Linux
@@ -111,6 +117,32 @@ for ddi in "${DDIS[@]}"; do
         rm -f "${ddi%.zst}"
     fi
     rm -rf EFI
+done
+
+for stem in "${!repart_images[@]}"; do
+    work="$(mktemp -d)"
+    mkdir "$work/definitions"
+    if ((${#repart_dirs[@]} > 0)); then
+        for dir in "${repart_dirs[@]}"; do
+            cp -r "$dir/." "$work/definitions/"
+        done
+        if [[ -f "$OUTPUTDIR/$stem.roothash" ]]; then
+            cp "$OUTPUTDIR/$stem.roothash" "$work/roothash"
+        fi
+    else
+        # With mkosi's default disk layout there is no custom ESP split name.
+        printf '[Partition]\nType=esp\n' >"$work/definitions/00-esp.conf"
+    fi
+    printf '%s\n' "${repart_images[$stem]}" >"$work/image"
+    jq -r '"--architecture=\(.Architecture)", (.SectorSize | select(.) | "--sector-size=\(.)"),
+           (if .SplitArtifacts | index("partitions") then "--split=yes" else empty end)' \
+        "$MKOSI_CONFIG" >"$work/options"
+    if [[ -f "$OUTPUTDIR/$stem.osrelease" ]]; then
+        mkdir -p "$work/usr/lib"
+        cp "$OUTPUTDIR/$stem.osrelease" "$work/usr/lib/os-release"
+    fi
+    tar cf "$OUTPUTDIR/$stem.repart.tar" -C "$work" .
+    rm -r "$work"
 done
 
 # If there is an ESP prepare the authvars for self-enrollment
@@ -153,17 +185,12 @@ echo "Staging the following files for signing:"
 cpio -t <"$OUTPUTDIR/hashes.cpio.rsasign"
 
 # The second stage will not do a full rebuild, but only attach signatures to the existing UKI
-# Remember whether we need to split out the verity signature partition, as it's generated later
-if jq -r '.SplitArtifacts[]' "$MKOSI_CONFIG" | grep -q partitions; then
-    split="SplitArtifacts=partitions"
-fi
 cat >"$OUTPUTDIR/mkosi.conf" <<EOF
 [Distribution]
 Distribution=custom
 [Output]
 Format=none
 ImageId=$IMAGE_ID
-${split:-}
 [Include]
 Include=mkosi-obs
 [Build]
