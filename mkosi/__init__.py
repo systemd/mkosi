@@ -1513,14 +1513,14 @@ def build_microcode_initrd(context: Context) -> list[Path]:
         else:
             if amd.exists():
                 with (destdir / "AuthenticAMD.bin").open("wb") as f:
-                    for p in amd.iterdir():
+                    for p in sorted(amd.iterdir()):
                         if not p.is_file():
                             continue
                         f.write(p.read_bytes())
 
             if intel.exists():
                 with (destdir / "GenuineIntel.bin").open("wb") as f:
-                    for p in intel.iterdir():
+                    for p in sorted(intel.iterdir()):
                         # On some distributions the Intel ucode directory may contain directories like
                         # intel-ucode-with-caveats, that contain microcode that needs special patches in the
                         # kernel or other manual interventions, so we ignore these.
