@@ -38,6 +38,16 @@ openssl x509 -inform PEM -in /usr/src/packages/SOURCES/_projectcert.crt -outform
 cp -r /usr/src/packages/SOURCES/"$IMAGE_ID"* /usr/src/packages/SOURCES/*raw* /usr/src/packages/SOURCES/*efi* "$OUTPUTDIR" || true
 rm -f "$OUTPUTDIR/hashes.cpio.rsasign*" "$OUTPUTDIR"/*.sha*
 
+# Keep the compressed original until all edits are done. A read-only ESP probe
+# can then discard its working copy without recompressing the image.
+declare -A ddi_modified=()
+unpack_ddi() {
+    if [[ -f "$1.zst" && -z ${ddi_modified[$1]+set} ]]; then
+        unzstd --force "$1.zst"
+        ddi_modified[$1]=0
+    fi
+}
+
 # First step: if there are UKI signatures, attach them
 while read -r SIG; do
     infile="${SIG%.sig}"
@@ -62,31 +72,17 @@ while read -r SIG; do
     rm -f "$(basename "${infile}").sattrs" "$SIG" "$infile"
 
     # If there is a DDI with an ESP, add the UKI to it
-    if [ -f "${DEST%efi}raw" ] || [ -f "${DEST%efi}raw.zst" ] || [ -f "${DEST%efi}img" ] || [ -f "${DEST%efi}img.zst" ]; then
-        if [ -f "${DEST%efi}raw.zst" ] || [ -f "${DEST%efi}img.zst" ]; then
-            unzstd --force "${DEST%efi}"raw*.zst
-            rm -f "${DEST%efi}"raw*.zst
-            recompress=1
-        else
-            recompress=0
-        fi
-
-        offset="$(systemd-repart --json=short "${DEST%efi}"raw* | jq -r '.[] | select(.type == "esp") | .offset')"
+    for ddi in "${DEST%efi}"{raw,raw.img,img}; do
+        [[ -f "$ddi" || -f "$ddi.zst" ]] || continue
+        unpack_ddi "$ddi"
+        offset="$(systemd-repart --json=short "$ddi" | jq -r '.[] | select(.type == "esp") | .offset')"
         if [ -z "$offset" ] || [ "$offset" = "null" ]; then
-            if ((recompress)); then
-                zstd --force "${DEST%efi}"raw*
-                rm -f "${DEST%efi}raw" "${DEST%efi}raw.img"
-            fi
             continue
         fi
-        mmd -D s -i "${DEST%efi}"raw*@@"${offset}" ::EFI ::EFI/Linux || true
-        mcopy -o -i "${DEST%efi}"raw*@@"${offset}" "$DEST" "::EFI/Linux/$(basename "$DEST")"
-
-        if ((recompress)); then
-            zstd --force "${DEST%efi}"raw*
-            rm -f "${DEST%efi}raw" "${DEST%efi}raw.img"
-        fi
-    fi
+        mmd -D s -i "${ddi}@@${offset}" ::EFI ::EFI/Linux || true
+        mcopy -o -i "${ddi}@@${offset}" "$DEST" "::EFI/Linux/$(basename "$DEST")"
+        ddi_modified[$ddi]=1
+    done
 done < <(find hashes/ukis hashes/kernels -type f \( -name '*efi.sig' -o -name 'vmlinu*.sig' \) -printf '%P\n')
 rm -rf "$OUTPUTDIR"/*.sig hashes/ukis
 
@@ -99,15 +95,9 @@ while read -r BOOTLOADER; do
     dest="${BOOTLOADER#*/}"
     dest="${dest%.sig}"
 
-    if [ -f "${ddi}.zst" ]; then
-        unzstd --force "${ddi}.zst"
-    fi
-
+    unpack_ddi "$ddi"
     offset="$(systemd-repart --json=short "$ddi" | jq -r '.[] | select(.type == "esp") | .offset')"
     if [ -z "$offset" ] || [ "$offset" = "null" ]; then
-        if [ -f "$ddi.zst" ]; then
-            rm -f "$ddi"
-        fi
         continue
     fi
 
@@ -126,12 +116,8 @@ while read -r BOOTLOADER; do
     fi
 
     mcopy -o -i "${ddi}@@${offset}" "$signed" "::$dest"
-
-    if [ -f "${ddi}.zst" ]; then
-        zstd --force "$ddi"
-        rm -f "$ddi"
-    fi
-done < <(find "hashes/bootloaders/$(basename "$ddi")/" -type f -iname '*.efi.sig' -printf '%P\n')
+    ddi_modified[$ddi]=1
+done < <(find hashes/bootloaders -type f -iname '*.efi.sig' -printf '%P\n')
 rm -rf hashes/bootloaders
 rm -rf nss-db
 
@@ -191,38 +177,26 @@ done < <(find hashes/authvars -type f -name '*.auth.sig')
 declare -a AUTHVARS
 mapfile -t AUTHVARS < <(find hashes/authvars -type f -name "*.auth")
 if (( ${#AUTHVARS[@]} > 0 )); then
-    for ddi in "$OUTPUTDIR"/*.raw*; do
-        test -f "$ddi" || continue
+    for image in "$OUTPUTDIR"/*.raw*; do
+        [[ -f "$image" && ! -f "$image.zst" ]] || continue
+        ddi="${image%.zst}"
         # Skip over split artifacts, if any
         [[ "$ddi" =~ \.usr- ]] && continue
         [[ "$ddi" =~ \.root- ]] && continue
         [[ "$ddi" =~ -verity ]] && continue
 
-        if [[ $ddi == *.zst ]]; then
-            unzstd --force "${ddi}"
-            recompress=1
-        else
-            recompress=0
-        fi
-
-        offset="$(systemd-repart --json=short "${ddi%.zst}" | jq -r '.[] | select(.type == "esp") | .offset')"
+        unpack_ddi "$ddi"
+        offset="$(systemd-repart --json=short "$ddi" | jq -r '.[] | select(.type == "esp") | .offset')"
         if [ -z "$offset" ] || [ "$offset" = "null" ]; then
-            if [[ $ddi == *.zst ]]; then
-                rm -f "${ddi%.zst}"
-            fi
             continue
         fi
 
-        mmd -D s -i "${ddi%.zst}@@${offset}" ::loader ::loader/keys ::loader/keys/auto || true
+        mmd -D s -i "${ddi}@@${offset}" ::loader ::loader/keys ::loader/keys/auto || true
         for authvar in "${AUTHVARS[@]}"; do
             test -f "$authvar" || continue
-            mcopy -o -i "${ddi%.zst}@@${offset}" "$authvar" "::loader/keys/auto/$(basename "$authvar")"
+            mcopy -o -i "${ddi}@@${offset}" "$authvar" "::loader/keys/auto/$(basename "$authvar")"
         done
-
-        if ((recompress)); then
-            zstd --force "${ddi%.zst}"
-            rm -f "${ddi%.zst}"
-        fi
+        ddi_modified[$ddi]=1
     done
 fi
 rm -rf hashes/authvars
@@ -259,25 +233,20 @@ for bundle in /usr/src/packages/SOURCES/*.repart.tar; do
     # repart creates splits next to the disk with O_EXCL; leave first-stage
     # artifacts in place until their replacements are ready.
     mkdir "$work/disk"
-    ddi="$work/disk/${image%.zst}"
-    if [[ $image == *.zst ]]; then
-        unzstd -o "$ddi" "$OUTPUTDIR/$image"
-    else
-        ln "$OUTPUTDIR/$image" "$ddi"
-    fi
+    ddi="$OUTPUTDIR/${image%.zst}"
+    unpack_ddi "$ddi"
+    ln "$ddi" "$work/disk/${ddi##*/}"
     mapfile -t args <"$work/options"
     args+=(--definitions "$work/definitions")
     [[ ! -f $work/usr/lib/os-release ]] || args+=(--root="$work")
     if [[ -f $work/roothash.p7s ]]; then
         args+=(--dry-run=no --join-signature "$(cat "$work/roothash"):$work/roothash.p7s" --certificate /usr/src/packages/SOURCES/_projectcert.crt)
+        ddi_modified[$ddi]=1
     else
         # Without verity only the ESP was modified.
         args+=(--dry-run=yes --include-partitions=esp)
     fi
-    partitions="$(systemd-repart --json=short "${args[@]}" "$ddi")"
-    if [[ $image == *.zst && -f $work/roothash.p7s ]]; then
-        zstd --force -o "$OUTPUTDIR/$image" "$ddi"
-    fi
+    partitions="$(systemd-repart --json=short "${args[@]}" "$work/disk/${ddi##*/}")"
     while IFS= read -r part; do
         if [[ $image == *.zst ]]; then
             zstd --rm "$part"
@@ -288,6 +257,14 @@ for bundle in /usr/src/packages/SOURCES/*.repart.tar; do
     rm -r "$work"
 done
 rm -rf hashes/roothashes
+
+for ddi in "${!ddi_modified[@]}"; do
+    [[ -f "$ddi.zst" ]] || continue
+    if [[ ${ddi_modified[$ddi]} == 1 ]]; then
+        zstd --force "$ddi"
+    fi
+    rm -f "$ddi"
+done
 
 # Final step: if there are any hashes staged, prepare for the next stage
 rmdir --ignore-fail-on-non-empty hashes
