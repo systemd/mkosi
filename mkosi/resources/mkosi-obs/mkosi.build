@@ -48,6 +48,25 @@ unpack_ddi() {
     fi
 }
 
+# Set offset for mtools. Cache the probe as well for images postoutput didn't scan.
+declare -A esp_offsets=()
+prepare_esp() {
+    local ddi="$1" src="/usr/src/packages/SOURCES/${1#"$OUTPUTDIR"/}"
+    unpack_ddi "$ddi"
+    if [[ -n ${esp_offsets[$ddi]+set} ]]; then
+        offset="${esp_offsets[$ddi]}"
+        return
+    fi
+
+    [[ ! -f "$ddi.zst" ]] || src+=.zst
+    if [[ -f "$src.esp-offset" ]]; then
+        IFS= read -r offset <"$src.esp-offset"
+    else
+        offset="$(systemd-repart --json=short "$ddi" | jq -r '.[] | select(.type == "esp") | .offset')"
+    fi
+    esp_offsets[$ddi]="$offset"
+}
+
 # First step: if there are UKI signatures, attach them
 while read -r SIG; do
     infile="${SIG%.sig}"
@@ -74,8 +93,7 @@ while read -r SIG; do
     # If there is a DDI with an ESP, add the UKI to it
     for ddi in "${DEST%efi}"{raw,raw.img,img}; do
         [[ -f "$ddi" || -f "$ddi.zst" ]] || continue
-        unpack_ddi "$ddi"
-        offset="$(systemd-repart --json=short "$ddi" | jq -r '.[] | select(.type == "esp") | .offset')"
+        prepare_esp "$ddi"
         if [ -z "$offset" ] || [ "$offset" = "null" ]; then
             continue
         fi
@@ -95,8 +113,7 @@ while read -r BOOTLOADER; do
     dest="${BOOTLOADER#*/}"
     dest="${dest%.sig}"
 
-    unpack_ddi "$ddi"
-    offset="$(systemd-repart --json=short "$ddi" | jq -r '.[] | select(.type == "esp") | .offset')"
+    prepare_esp "$ddi"
     if [ -z "$offset" ] || [ "$offset" = "null" ]; then
         continue
     fi
@@ -174,22 +191,16 @@ while read -r SIG; do
     sign-efi-sig-list -t "$(date -d "@${SOURCE_DATE_EPOCH:-0}" "+%Y-%m-%d %H:%M:%S")" -i "$p7s" "$varname" "$esl" "$auth"
     rm -f "$esl" "$SIG" "$p7s"
 done < <(find hashes/authvars -type f -name '*.auth.sig')
+rm -f "$OUTPUTDIR"/*.esp-offset
 declare -a AUTHVARS
 mapfile -t AUTHVARS < <(find hashes/authvars -type f -name "*.auth")
 if (( ${#AUTHVARS[@]} > 0 )); then
-    for image in "$OUTPUTDIR"/*.raw*; do
-        [[ -f "$image" && ! -f "$image.zst" ]] || continue
-        ddi="${image%.zst}"
-        # Skip over split artifacts, if any
-        [[ "$ddi" =~ \.usr- ]] && continue
-        [[ "$ddi" =~ \.root- ]] && continue
-        [[ "$ddi" =~ -verity ]] && continue
-
-        unpack_ddi "$ddi"
-        offset="$(systemd-repart --json=short "$ddi" | jq -r '.[] | select(.type == "esp") | .offset')"
-        if [ -z "$offset" ] || [ "$offset" = "null" ]; then
-            continue
-        fi
+    for offset_file in /usr/src/packages/SOURCES/*.esp-offset; do
+        [[ -f $offset_file ]] || continue
+        image="${offset_file##*/}"
+        image="${image%.esp-offset}"
+        ddi="$OUTPUTDIR/${image%.zst}"
+        prepare_esp "$ddi"
 
         mmd -D s -i "${ddi}@@${offset}" ::loader ::loader/keys ::loader/keys/auto || true
         for authvar in "${AUTHVARS[@]}"; do

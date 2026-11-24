@@ -73,8 +73,16 @@ for f in "${ROOTHASHES[@]}"; do
 done
 
 split_disk=
+split_esp=
 if jq -e '.Format == "disk" and (.SplitArtifacts | index("partitions") != null)' "$MKOSI_CONFIG" >/dev/null; then
     split_disk="$(realpath -e "$OUTPUTDIR/$OUTPUT")"
+    # repart inserts the partition name before the final .raw suffix (if any).
+    image="${split_disk%.zst}"
+    if [[ $image == *.raw ]]; then
+        split_esp="${image%.raw}.esp.raw"
+    else
+        split_esp="$image.esp"
+    fi
 fi
 
 # Handle bootloaders separately from UKIs
@@ -82,6 +90,7 @@ found_esp=0
 for ddi in "${DDIS[@]}"; do
     test -f "$ddi" || continue
     # Skip over split artifacts, if any
+    [[ ${ddi%.zst} == "$split_esp" ]] && continue
     [[ "$ddi" =~ \.usr- ]] && continue
     [[ "$ddi" =~ \.root- ]] && continue
     [[ "$ddi" =~ -verity ]] && continue
@@ -97,6 +106,8 @@ for ddi in "${DDIS[@]}"; do
         continue
     fi
 
+    # Record the ESP for boot file signing and enrollment in the follow-up.
+    printf '%s\n' "$offset" >"$ddi.esp-offset"
     rm -rf EFI
     mcopy -s -i "${ddi%.zst}@@${offset}" ::EFI EFI || true
     found_esp=1
