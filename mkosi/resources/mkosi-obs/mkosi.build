@@ -271,7 +271,7 @@ for bundle in /usr/src/packages/SOURCES/*.repart.tar; do
     fi
     while IFS= read -r part; do
         if [[ $image == *.zst ]]; then
-            zstd --force --rm "$part"
+            zstd -T0 --force --rm "$part"
             part+=.zst
         fi
         mv -f "$part" "$OUTPUTDIR/"
@@ -285,7 +285,7 @@ done
 for ddi in "${!ddi_modified[@]}"; do
     [[ -f "$ddi.zst" ]] || continue
     if [[ ${ddi_modified[$ddi]} == 1 ]]; then
-        zstd --force "$ddi"
+        zstd -T0 --force "$ddi"
     fi
     rm -f "$ddi"
 done
