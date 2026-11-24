@@ -205,5 +205,7 @@ ImageId=$IMAGE_ID
 [Include]
 Include=mkosi-obs
 [Build]
+# The follow-up uses the worker's read-only /usr, which already includes SOURCES.
+SandboxTrees=
 BuildSources=/usr/src/packages/OTHER:/usr/src/packages/OTHER
 EOF
