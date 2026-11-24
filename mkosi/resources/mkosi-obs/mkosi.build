@@ -38,9 +38,11 @@ certutil -N -d sql:"$nss_db" --empty-password
 
 for f in /usr/src/packages/SOURCES/*; do
     case "${f##*/}" in
-        *.sha*|mkosi.conf|hashes.cpio.rsasign*|deferred-signatures.cpio) continue ;;
-        "$IMAGE_ID"*|*raw*|*efi*|vmlinu*|*.pcrs|*.repart.tar|*.osrelease) cp -r "$f" "$OUTPUTDIR/" ;;
+        *.sha*|mkosi.conf|hashes.cpio.rsasign*|deferred-signatures.cpio|*.repart.tar|*.esp-offset) continue ;;
+        "$IMAGE_ID"*|*raw*|*efi*|vmlinu*|*.pcrs|*.osrelease|*.SHA256SUMS|*.SHA256SUMS.gpg) ;;
+        *) [[ -f "$f.repart.tar" ]] || continue ;;
     esac
+    cp -r "$f" "$OUTPUTDIR/"
 done
 
 # Attach PCR signatures before computing the UKI's PE signing request.
@@ -81,6 +83,10 @@ if [ -d next-hashes/ukis ]; then
     # with their signatures and let the final worker edit the original disks.
     (cd hashes && find . -type f | cpio -H newc -o) >"$OUTPUTDIR/deferred-signatures.cpio"
     (cd next-hashes && find . -type f | cpio -H newc -o) >"$OUTPUTDIR/hashes.cpio.rsasign"
+    for f in /usr/src/packages/SOURCES/*.{repart.tar,esp-offset}; do
+        [[ -f $f ]] || continue
+        cp "$f" "$OUTPUTDIR/"
+    done
     cp /usr/src/packages/SOURCES/mkosi.conf "$OUTPUTDIR/"
     echo "Staging the following files for signing:"
     cpio -t <"$OUTPUTDIR/hashes.cpio.rsasign"
@@ -188,7 +194,7 @@ done < <(find hashes/bootloaders -type f -iname '*.efi.sig' -printf '%P\n')
 rm -rf hashes/bootloaders
 rm -rf nss-db
 
-# Install EFI authvars for self-enrollment before splitting the ESP.
+# Prepare EFI authvars for self-enrollment.
 while read -r SIG; do
     varname="${SIG%.auth.sig}"
     auth="${varname}.auth"
@@ -201,7 +207,6 @@ while read -r SIG; do
     sign-efi-sig-list -t "$(date -d "@${SOURCE_DATE_EPOCH:-0}" "+%Y-%m-%d %H:%M:%S")" -i "$p7s" "$varname" "$esl" "$auth"
     rm -f "$esl" "$SIG" "$p7s"
 done < <(find hashes/authvars -type f -name '*.auth.sig')
-rm -f "$OUTPUTDIR"/*.esp-offset
 declare -a AUTHVARS
 mapfile -t AUTHVARS < <(find hashes/authvars -type f -name "*.auth")
 if (( ${#AUTHVARS[@]} > 0 )); then
@@ -222,53 +227,60 @@ if (( ${#AUTHVARS[@]} > 0 )); then
 fi
 rm -rf hashes/authvars
 
-# Join verity signatures and split partitions from the final disk.
+# Finish all ESP edits before asking repart to extract any partitions.
 for bundle in /usr/src/packages/SOURCES/*.repart.tar; do
     [[ -f $bundle ]] || continue
-    stem="${bundle##*/}"
-    stem="${stem%.repart.tar}"
+    image="${bundle##*/}"
+    image="${image%.repart.tar}"
     work="$(mktemp -d "$OUTPUTDIR/.repart-XXXXXXXX")"
     tar xf "$bundle" -C "$work"
-    rm -f "$OUTPUTDIR/${bundle##*/}"
-    IFS= read -r image <"$work/image"
-    if [[ -f $work/roothash ]]; then
-        if ! PATH=/usr/lib/systemd/:$PATH systemd-keyutil --help | grep -q 'pkcs7'; then
+    IFS= read -r stem <"$work/output"
+    mapfile -t args <"$work/options"
+    args+=(--definitions "$work/definitions")
+    [[ ! -f $work/usr/lib/os-release ]] || args+=(--root="$work")
+    ddi="$OUTPUTDIR/${image%.zst}"
+    if [[ -f $work/join ]]; then
+        if [[ ! -f $work/deferred-split ]] && ! PATH=/usr/lib/systemd/:$PATH systemd-keyutil --help | grep -q 'pkcs7'; then
             echo "Skipping verity signing for $image: systemd-keyutil lacks pkcs7 support" >&2
             rm -r "$work"
             continue
         fi
+        hash="hashes/roothashes/$image/$stem.roothash"
         PATH=/usr/lib/systemd/:$PATH systemd-keyutil --certificate /usr/src/packages/SOURCES/_projectcert.crt \
-            --output "$work/roothash.p7s" --signature "hashes/roothashes/$image/$stem.roothash.sig" pkcs7
-        # importctl would interpret this as a detached roothash for the whole disk.
+            --output "$hash.p7s" --signature "$hash.sig" pkcs7
+        args+=(--dry-run=no --join-signature "$(cat "$hash"):$hash.p7s" --certificate /usr/src/packages/SOURCES/_projectcert.crt)
+        # importctl would interpret this as a detached roothash for the final disk.
         rm -f "$OUTPUTDIR/$stem.roothash"
+    else
+        args+=(--dry-run=yes)
+        # If the first stage already split the image, only the ESP needs refreshing.
+        [[ -f $work/deferred-split ]] || args+=(--include-partitions=esp)
     fi
-    # repart creates splits next to the disk with O_EXCL; leave first-stage
-    # artifacts in place until their replacements are ready.
+    # repart creates split files next to the disk with O_EXCL. Keep them separate
+    # from any first-stage artifacts until they are ready to replace them.
     mkdir "$work/disk"
-    ddi="$OUTPUTDIR/${image%.zst}"
     unpack_ddi "$ddi"
     ln "$ddi" "$work/disk/${ddi##*/}"
-    mapfile -t args <"$work/options"
-    args+=(--definitions "$work/definitions")
-    [[ ! -f $work/usr/lib/os-release ]] || args+=(--root="$work")
-    if [[ -f $work/roothash.p7s ]]; then
-        args+=(--dry-run=no --join-signature "$(cat "$work/roothash"):$work/roothash.p7s" --certificate /usr/src/packages/SOURCES/_projectcert.crt)
-        ddi_modified[$ddi]=1
-    else
-        # Without verity only the ESP was modified.
-        args+=(--dry-run=yes --include-partitions=esp)
-    fi
     partitions="$(systemd-repart --json=short "${args[@]}" "$work/disk/${ddi##*/}")"
+    [[ ! -f $work/join ]] || ddi_modified[$ddi]=1
+    if [[ -f $work/deferred-split && -f "$OUTPUTDIR/$stem.SHA256SUMS" ]]; then
+        # Keep the original manifest's file selection and add the newly generated
+        # partitions. Hash their final contents after recompression below.
+        mkdir -p checksum-lists
+        cut -c67- "$OUTPUTDIR/$stem.SHA256SUMS" >"checksum-lists/$stem"
+    fi
     while IFS= read -r part; do
         if [[ $image == *.zst ]]; then
-            zstd --rm "$part"
+            zstd --force --rm "$part"
             part+=.zst
         fi
         mv -f "$part" "$OUTPUTDIR/"
+        if [[ -f checksum-lists/$stem ]]; then
+            printf '%s\n' "${part##*/}" >>"checksum-lists/$stem"
+        fi
     done < <(jq -r '.[].split_path | select(. and . != "-")' <<<"$partitions")
     rm -r "$work"
 done
-rm -rf hashes/roothashes
 
 for ddi in "${!ddi_modified[@]}"; do
     [[ -f "$ddi.zst" ]] || continue
@@ -277,5 +289,16 @@ for ddi in "${!ddi_modified[@]}"; do
     fi
     rm -f "$ddi"
 done
+
+for list in "$PWD"/checksum-lists/*; do
+    [[ -f $list ]] || continue
+    (
+        cd "$OUTPUTDIR"
+        while IFS= read -r file; do
+            [[ $file == */* || ! -f $file ]] || sha256sum --binary -- "$file"
+        done <"$list" >"${list##*/}.SHA256SUMS"
+    )
+done
+rm -rf checksum-lists
 
 rm -rf hashes "$nss_db"

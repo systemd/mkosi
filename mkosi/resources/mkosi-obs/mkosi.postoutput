@@ -18,7 +18,8 @@ mapfile -t ROOTHASHES < <(find "$OUTPUTDIR" -type f -name "*.roothash" -printf '
 declare -a DDIS
 mapfile -t DDIS < <(find "$OUTPUTDIR" -type f -name "*.raw*")
 
-if ((${#UKIS[@]} == 0)) && ((${#KERNELS[@]} == 0)) && ((${#ROOTHASHES[@]} == 0)) && ((${#DDIS[@]} == 0)); then
+if (( ${#UKIS[@]} + ${#KERNELS[@]} + ${#ROOTHASHES[@]} + ${#DDIS[@]} == 0 )) &&
+    [[ ${MKOSI_OBS_SPLIT_PARTITIONS:-0} != 1 ]]; then
     echo "No unsigned files found, exiting"
     exit 0
 fi
@@ -74,7 +75,14 @@ done
 
 split_disk=
 split_esp=
-if jq -e '.Format == "disk" and (.SplitArtifacts | index("partitions") != null)' "$MKOSI_CONFIG" >/dev/null; then
+if [[ ${MKOSI_OBS_SPLIT_PARTITIONS:-0} == 1 ]]; then
+    if ((${#repart_dirs[@]} == 0)); then
+        echo "Cannot defer splitting $OUTPUT without its repart definitions" >&2
+        exit 1
+    fi
+    image="$(realpath -e "$OUTPUTDIR/$OUTPUT")"
+    repart_images[$OUTPUT]="${image##*/}"
+elif jq -e '.Format == "disk" and (.SplitArtifacts | index("partitions") != null)' "$MKOSI_CONFIG" >/dev/null; then
     split_disk="$(realpath -e "$OUTPUTDIR/$OUTPUT")"
     # repart inserts the partition name before the final .raw suffix (if any).
     image="${split_disk%.zst}"
@@ -138,21 +146,26 @@ for stem in "${!repart_images[@]}"; do
             cp -r "$dir/." "$work/definitions/"
         done
         if [[ -f "$OUTPUTDIR/$stem.roothash" ]]; then
-            cp "$OUTPUTDIR/$stem.roothash" "$work/roothash"
+            touch "$work/join"
         fi
     else
         # With mkosi's default disk layout there is no custom ESP split name.
         printf '[Partition]\nType=esp\n' >"$work/definitions/00-esp.conf"
     fi
-    printf '%s\n' "${repart_images[$stem]}" >"$work/image"
-    jq -r '"--architecture=\(.Architecture)", (.SectorSize | select(.) | "--sector-size=\(.)"),
-           (if .SplitArtifacts | index("partitions") then "--split=yes" else empty end)' \
+    printf '%s\n' "$stem" >"$work/output"
+    jq -r '"--architecture=\(.Architecture)", (.SectorSize | select(.) | "--sector-size=\(.)")' \
         "$MKOSI_CONFIG" >"$work/options"
+    if [[ $stem == "$OUTPUT" && ${MKOSI_OBS_SPLIT_PARTITIONS:-0} == 1 ]]; then
+        touch "$work/deferred-split"
+        echo --split=yes >>"$work/options"
+    elif jq -e '.SplitArtifacts | index("partitions") != null' "$MKOSI_CONFIG" >/dev/null; then
+        echo --split=yes >>"$work/options"
+    fi
     if [[ -f "$OUTPUTDIR/$stem.osrelease" ]]; then
         mkdir -p "$work/usr/lib"
         cp "$OUTPUTDIR/$stem.osrelease" "$work/usr/lib/os-release"
     fi
-    tar cf "$OUTPUTDIR/$stem.repart.tar" -C "$work" .
+    tar cf "$OUTPUTDIR/${repart_images[$stem]}.repart.tar" -C "$work" .
     rm -r "$work"
 done
 

@@ -17,6 +17,7 @@ path = [
     "**.build",
     "**.chroot",
     "**.conf",
+    "**.configure",
     "**.css",
     "**.html",
     "**.in",

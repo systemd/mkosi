@@ -1,0 +1,28 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
+import json
+import sys
+from pathlib import Path
+
+# Without an OBS signer there is no final signing worker.
+if not Path("/usr/src/packages/SOURCES/_projectcert.crt").exists():
+    sys.stdout.buffer.write(sys.stdin.buffer.read())
+    sys.exit(0)
+
+config = json.load(sys.stdin)
+artifacts = config.get("SplitArtifacts") or []
+
+# Keep the request per image: the generated follow-up recipe is shared by all subimages.
+# A locally signed checksum manifest needs all its inputs in the first stage.
+if (
+    not config.get("Sign")
+    and config.get("Format") in ("disk", "sysext", "confext", "portable")
+    and config.get("CompressOutput") in ("none", "zstd")
+    and "partitions" in artifacts
+):
+    config["SplitArtifacts"] = [a for a in artifacts if a not in ("partitions", "repart-definitions")]
+    config["SplitArtifacts"].append("repart-definitions")
+    config["Environment"] = (config.get("Environment") or {}) | {"MKOSI_OBS_SPLIT_PARTITIONS": "1"}
+
+print(json.dumps(config))
