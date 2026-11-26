@@ -41,7 +41,15 @@ class Installer(DistributionInstaller, distribution=Distribution.debian):
     @classmethod
     def repositories(cls, context: Context, for_image: bool = False) -> Iterable[AptRepository]:
         types = ("deb", "deb-src")
-        components = ("main", *context.config.repositories)
+        components = ("main", *[s for s in context.config.repositories if ":" not in s])
+        suite_components = {}
+        for s in [s for s in context.config.repositories if ":" in s]:
+            key, value = s.split(":", 1)
+            if key not in suite_components:
+                suite_components[key] = [value]
+            else:
+                suite_components[key].append(value)
+
         mirror = None if for_image else context.config.mirror
         snapshot = None if for_image else context.config.snapshot
 
@@ -76,6 +84,19 @@ class Installer(DistributionInstaller, distribution=Distribution.debian):
             components=components,
             signedby=signedby,
         )
+
+        for suite, comps in suite_components.items():
+            if snapshot:
+                url = join_mirror(mirror, f"archive/{suite}/{snapshot}")
+            else:
+                url = join_mirror(mirror, "debian")
+            yield AptRepository(
+                types=types,
+                url=url,
+                suite=suite,
+                components=tuple(comps),
+                signedby=signedby,
+            )
 
         # Debug repos are typically not mirrored.
         if snapshot:
