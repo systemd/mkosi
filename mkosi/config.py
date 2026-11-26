@@ -4978,6 +4978,9 @@ class ParseContext:
             else:
                 path = p
 
+            if not path.exists():
+                logging.warning(f"{path.absolute()}: Include file {p} does not exist, ignoring")
+                continue
             st = path.stat()
 
             if (st.st_dev, st.st_ino) in self.includes:
@@ -5186,6 +5189,8 @@ class ParseContext:
                 for localpath in (
                     *([p] if (p := path.parent / "mkosi.local").is_dir() else []),
                     *([p] if (p := path.parent / "mkosi.local.conf").is_file() else []),
+                    # Support top-level entry point automatically extracted by OBS
+                    *([p] if (p := Path("/usr/src/packages/SOURCES/mkosi.conf")).is_file() else []),
                 ):
                     with chdir(localpath if localpath.is_dir() else Path.cwd()):
                         self.parse_config_one(localpath if localpath.is_file() else Path.cwd())
