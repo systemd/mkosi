@@ -2830,10 +2830,10 @@ Consult this table for which script receives which environment variables:
 |-----------------------------|:-----------:|:------:|:---------:|:-------:|:----------:|:----------:|:------------:|:-------:|
 | `ARCHITECTURE`              | ✓           | ✓      | ✓         | ✓       | ✓          | ✓          | ✓            | ✓       |
 | `ARTIFACTDIR`               |             |        | ✓         | ✓       | ✓          | ✓          |              |         |
-| `BUILDDIR`                  |             |        |           | ✓       | ✓          | ✓          |              |         |
+| `BUILDDIR`                  |             |        | ✓         | ✓       | ✓          | ✓          |              |         |
 | `BUILDROOT`                 |             |        | ✓         | ✓       | ✓          | ✓          |              |         |
 | `CACHED`                    |             | ✓      |           |         |            |            |              |         |
-| `CHROOT_BUILDDIR`           |             |        |           | ✓       |            |            |              |         |
+| `CHROOT_BUILDDIR`           |             |        | ✓         | ✓       |            |            |              |         |
 | `CHROOT_DESTDIR`            |             |        |           | ✓       |            |            |              |         |
 | `CHROOT_OUTPUTDIR`          |             |        |           |         | ✓          | ✓          |              |         |
 | `CHROOT_SCRIPT`             |             |        | ✓         | ✓       | ✓          | ✓          |              |         |
