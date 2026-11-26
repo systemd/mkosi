@@ -21,6 +21,9 @@ mkdir -p hashes
 pushd hashes
 cpio -idm </usr/src/packages/SOURCES/hashes.cpio.rsasign.sig
 cpio -idm </usr/src/packages/SOURCES/hashes.cpio.rsasign
+if [ -f /usr/src/packages/SOURCES/deferred-signatures.cpio ]; then
+    cpio -idm </usr/src/packages/SOURCES/deferred-signatures.cpio
+fi
 popd
 
 OUTPUTDIR=/work/src/usr/src/packages/OTHER
@@ -32,111 +35,17 @@ rm -rf nss-db
 mkdir nss-db
 nss_db="$PWD/nss-db"
 certutil -N -d sql:"$nss_db" --empty-password
-certutil -A -d sql:"$nss_db" -n cert -t CT,CT,CT -i /usr/src/packages/SOURCES/_projectcert.crt
-openssl x509 -inform PEM -in /usr/src/packages/SOURCES/_projectcert.crt -outform DER -out _projectcert.cer
 
-cp -r /usr/src/packages/SOURCES/"$IMAGE_ID"* /usr/src/packages/SOURCES/*raw* /usr/src/packages/SOURCES/*efi* "$OUTPUTDIR" || true
-rm -f "$OUTPUTDIR/hashes.cpio.rsasign*" "$OUTPUTDIR"/*.sha*
+for f in /usr/src/packages/SOURCES/*; do
+    case "${f##*/}" in
+        *.sha*|mkosi.conf|hashes.cpio.rsasign*|deferred-signatures.cpio|*.repart.tar|*.esp-offset) continue ;;
+        "$IMAGE_ID"*|*raw*|*efi*|vmlinu*|*.pcrs|*.osrelease|*.SHA256SUMS|*.SHA256SUMS.gpg) ;;
+        *) [[ -f "$f.repart.tar" ]] || continue ;;
+    esac
+    cp -r "$f" "$OUTPUTDIR/"
+done
 
-# First step: if there are UKI signatures, attach them
-while read -r SIG; do
-    infile="${SIG%.sig}"
-    test -f "/usr/src/packages/SOURCES/$infile" || continue
-    sattrs="hashes/ukis/${SIG%.sig}"
-    test -s "$sattrs"
-
-    DEST="$OUTPUTDIR/${SIG#*/}"
-    DEST="${DEST%%.sig}"
-
-    # ensure the EFI hash matches before and after attaching the signature
-    old_hash=$(pesign -n sql:"$nss_db" -h -P -i "/usr/src/packages/SOURCES/$infile" | cut -d' ' -f1)
-
-    pesign -n sql:"$nss_db" --force -c cert -i "/usr/src/packages/SOURCES/$infile" -o "$DEST" -d sha256 -I "$sattrs" -R "hashes/ukis/$SIG"
-
-    new_hash=$(pesign -n sql:"$nss_db" -h -i "$DEST" | cut -d' ' -f1)
-    if [ "$old_hash" != "$new_hash" ]; then
-        echo "Pesign hash mismatch error: $old_hash $new_hash"
-        exit 1
-    fi
-
-    rm -f "$(basename "${infile}").sattrs" "$SIG" "$infile"
-
-    # If there is a DDI with an ESP, add the UKI to it
-    if [ -f "${DEST%efi}raw" ] || [ -f "${DEST%efi}raw.zst" ] || [ -f "${DEST%efi}img" ] || [ -f "${DEST%efi}img.zst" ]; then
-        if [ -f "${DEST%efi}raw.zst" ] || [ -f "${DEST%efi}img.zst" ]; then
-            unzstd --force "${DEST%efi}"raw*.zst
-            rm -f "${DEST%efi}"raw*.zst
-            recompress=1
-        else
-            recompress=0
-        fi
-
-        offset="$(systemd-repart --json=short "${DEST%efi}"raw* | jq -r '.[] | select(.type == "esp") | .offset')"
-        if [ -z "$offset" ] || [ "$offset" = "null" ]; then
-            if ((recompress)); then
-                zstd --force "${DEST%efi}"raw*
-                rm -f "${DEST%efi}raw" "${DEST%efi}raw.img"
-            fi
-            continue
-        fi
-        mmd -D s -i "${DEST%efi}"raw*@@"${offset}" ::EFI ::EFI/Linux || true
-        mcopy -o -i "${DEST%efi}"raw*@@"${offset}" "$DEST" "::EFI/Linux/$(basename "$DEST")"
-
-        if ((recompress)); then
-            zstd --force "${DEST%efi}"raw*
-            rm -f "${DEST%efi}raw" "${DEST%efi}raw.img"
-        fi
-    fi
-done < <(find hashes/ukis hashes/kernels -type f \( -name '*efi.sig' -o -name 'vmlinu*.sig' \) -printf '%P\n')
-rm -rf "$OUTPUTDIR"/*.sig hashes/ukis
-
-# Second step: if there are signed bootloaders, install them in the ESP
-while read -r BOOTLOADER; do
-    unsigned="$(basename "${BOOTLOADER%.sig}")"
-    signed="$(basename "${BOOTLOADER%.sig}".signed)"
-    ddi="${OUTPUTDIR}/${BOOTLOADER%%/*}"
-    # remove leading directory from BOOTLOADER
-    dest="${BOOTLOADER#*/}"
-    dest="${dest%.sig}"
-
-    if [ -f "${ddi}.zst" ]; then
-        unzstd --force "${ddi}.zst"
-    fi
-
-    offset="$(systemd-repart --json=short "$ddi" | jq -r '.[] | select(.type == "esp") | .offset')"
-    if [ -z "$offset" ] || [ "$offset" = "null" ]; then
-        if [ -f "$ddi.zst" ]; then
-            rm -f "$ddi"
-        fi
-        continue
-    fi
-
-    rm -f "$unsigned"
-    mcopy -i "${ddi}@@${offset}" "::$dest" "$unsigned"
-
-    # ensure the EFI hash matches before and after attaching the signature
-    old_hash=$(pesign -n sql:"$nss_db" -h -P -i "$unsigned" | cut -d' ' -f1)
-
-    pesign -n sql:"$nss_db" --force -c cert -i "$unsigned" -o "$signed" -d sha256 -I "hashes/bootloaders/${BOOTLOADER%.sig}" -R "hashes/bootloaders/${BOOTLOADER}"
-
-    new_hash=$(pesign -n sql:"$nss_db" -h -i "$signed" | cut -d' ' -f1)
-    if [ "$old_hash" != "$new_hash" ]; then
-        echo "Pesign hash mismatch error: $old_hash $new_hash"
-        exit 1
-    fi
-
-    mcopy -o -i "${ddi}@@${offset}" "$signed" "::$dest"
-
-    if [ -f "${ddi}.zst" ]; then
-        zstd --force "$ddi"
-        rm -f "$ddi"
-    fi
-done < <(find "hashes/bootloaders/$(basename "$ddi")/" -type f -iname '*.efi.sig' -printf '%P\n')
-rm -rf hashes/bootloaders
-rm -rf nss-db
-
-# Third step: if there are PCR policy signatures, rebuild the JSON
-# blobs with the attached signatures
+# Attach PCR signatures before computing the UKI's PE signing request.
 while read -r SIG; do
     uki="$OUTPUTDIR/$(basename "$(dirname "${SIG%.sig}")")"
     pcrs="${uki%.efi}.pcrs"
@@ -157,25 +66,135 @@ while read -r SIG; do
     ' "$pcrs" >"${pcrs}.new"
     mv "${pcrs}.new" "$pcrs"
     cp "$pcrs" "${pcrs}.sig"
-
-    rm -f "$SIG"
 done < <(find hashes/pcrs -type f -name '*.sig')
 rm -rf hashes/pcrs
 
-mkdir -p "$nss_db"
-certutil -N -d sql:"$nss_db" --empty-password
-
-# Fourth step: now that the JSON blob is rebuilt, merge it in the UKI
 while read -r PCRS; do
     uki="${PCRS%.pcrs.sig}.efi"
     ukify --json=short --pcrsig "@$PCRS" --join-pcrsig "$uki" --output "$uki.attached" build
     mv "$uki.attached" "$uki"
-    mkdir -p hashes/ukis
-    pesign --force -n sql:"$nss_db" -i "$uki" -E "hashes/ukis/$(basename "$uki")"
+    mkdir -p next-hashes/ukis
+    pesign --force -n sql:"$nss_db" -i "$uki" -E "next-hashes/ukis/$(basename "$uki")"
 done < <(find "$OUTPUTDIR" -type f -name '*.pcrs.sig')
 rm -f "$OUTPUTDIR"/*.pcrs*
 
-# Fifth step: install EFI authvars for self-enrollment before splitting the ESP
+if [ -d next-hashes/ukis ]; then
+    # Only these new hashes need OBS signatures. Forward the remaining hashes
+    # with their signatures and let the final worker edit the original disks.
+    (cd hashes && find . -type f | cpio -H newc -o) >"$OUTPUTDIR/deferred-signatures.cpio"
+    (cd next-hashes && find . -type f | cpio -H newc -o) >"$OUTPUTDIR/hashes.cpio.rsasign"
+    for f in /usr/src/packages/SOURCES/*.{repart.tar,esp-offset}; do
+        [[ -f $f ]] || continue
+        cp "$f" "$OUTPUTDIR/"
+    done
+    cp /usr/src/packages/SOURCES/mkosi.conf "$OUTPUTDIR/"
+    echo "Staging the following files for signing:"
+    cpio -t <"$OUTPUTDIR/hashes.cpio.rsasign"
+    rm -rf hashes next-hashes "$nss_db"
+    exit 0
+fi
+
+certutil -A -d sql:"$nss_db" -n cert -t CT,CT,CT -i /usr/src/packages/SOURCES/_projectcert.crt
+openssl x509 -inform PEM -in /usr/src/packages/SOURCES/_projectcert.crt -outform DER -out _projectcert.cer
+
+# Keep the compressed original until all edits are done. A read-only ESP probe
+# can then discard its working copy without recompressing the image.
+declare -A ddi_modified=()
+unpack_ddi() {
+    if [[ -f "$1.zst" && -z ${ddi_modified[$1]+set} ]]; then
+        unzstd --force "$1.zst"
+        ddi_modified[$1]=0
+    fi
+}
+
+# Set offset for mtools. Cache the probe as well for images postoutput didn't scan.
+declare -A esp_offsets=()
+prepare_esp() {
+    local ddi="$1" src="/usr/src/packages/SOURCES/${1#"$OUTPUTDIR"/}"
+    unpack_ddi "$ddi"
+    if [[ -n ${esp_offsets[$ddi]+set} ]]; then
+        offset="${esp_offsets[$ddi]}"
+        return
+    fi
+
+    [[ ! -f "$ddi.zst" ]] || src+=.zst
+    if [[ -f "$src.esp-offset" ]]; then
+        IFS= read -r offset <"$src.esp-offset"
+    else
+        offset="$(systemd-repart --json=short "$ddi" | jq -r '.[] | select(.type == "esp") | .offset')"
+    fi
+    esp_offsets[$ddi]="$offset"
+}
+
+# Attach PE signatures to UKIs and kernels.
+while read -r SIG; do
+    sattrs="${SIG%.sig}"
+    infile="${sattrs#hashes/*/}"
+    test -f "/usr/src/packages/SOURCES/$infile" || continue
+    test -s "$sattrs"
+
+    DEST="$OUTPUTDIR/$infile"
+
+    # ensure the EFI hash matches before and after attaching the signature
+    old_hash=$(pesign -n sql:"$nss_db" -h -P -i "/usr/src/packages/SOURCES/$infile" | cut -d' ' -f1)
+
+    pesign -n sql:"$nss_db" --force -c cert -i "/usr/src/packages/SOURCES/$infile" -o "$DEST" -d sha256 -I "$sattrs" -R "$SIG"
+
+    new_hash=$(pesign -n sql:"$nss_db" -h -i "$DEST" | cut -d' ' -f1)
+    if [ "$old_hash" != "$new_hash" ]; then
+        echo "Pesign hash mismatch error: $old_hash $new_hash"
+        exit 1
+    fi
+
+    # If there is a DDI with an ESP, add the UKI to it
+    for ddi in "${DEST%efi}"{raw,raw.img,img}; do
+        [[ -f "$ddi" || -f "$ddi.zst" ]] || continue
+        prepare_esp "$ddi"
+        if [ -z "$offset" ] || [ "$offset" = "null" ]; then
+            continue
+        fi
+        mmd -D s -i "${ddi}@@${offset}" ::EFI ::EFI/Linux || true
+        mcopy -o -i "${ddi}@@${offset}" "$DEST" "::EFI/Linux/$(basename "$DEST")"
+        ddi_modified[$ddi]=1
+    done
+done < <(find hashes/ukis hashes/kernels -type f \( -name '*efi.sig' -o -name 'vmlinu*.sig' \))
+rm -rf "$OUTPUTDIR"/*.sig hashes/ukis hashes/kernels
+
+# Install signed bootloaders in the ESP.
+while read -r BOOTLOADER; do
+    unsigned="$(basename "${BOOTLOADER%.sig}")"
+    signed="$(basename "${BOOTLOADER%.sig}".signed)"
+    ddi="${OUTPUTDIR}/${BOOTLOADER%%/*}"
+    # remove leading directory from BOOTLOADER
+    dest="${BOOTLOADER#*/}"
+    dest="${dest%.sig}"
+
+    prepare_esp "$ddi"
+    if [ -z "$offset" ] || [ "$offset" = "null" ]; then
+        continue
+    fi
+
+    rm -f "$unsigned"
+    mcopy -i "${ddi}@@${offset}" "::$dest" "$unsigned"
+
+    # ensure the EFI hash matches before and after attaching the signature
+    old_hash=$(pesign -n sql:"$nss_db" -h -P -i "$unsigned" | cut -d' ' -f1)
+
+    pesign -n sql:"$nss_db" --force -c cert -i "$unsigned" -o "$signed" -d sha256 -I "hashes/bootloaders/${BOOTLOADER%.sig}" -R "hashes/bootloaders/${BOOTLOADER}"
+
+    new_hash=$(pesign -n sql:"$nss_db" -h -i "$signed" | cut -d' ' -f1)
+    if [ "$old_hash" != "$new_hash" ]; then
+        echo "Pesign hash mismatch error: $old_hash $new_hash"
+        exit 1
+    fi
+
+    mcopy -o -i "${ddi}@@${offset}" "$signed" "::$dest"
+    ddi_modified[$ddi]=1
+done < <(find hashes/bootloaders -type f -iname '*.efi.sig' -printf '%P\n')
+rm -rf hashes/bootloaders
+rm -rf nss-db
+
+# Prepare EFI authvars for self-enrollment.
 while read -r SIG; do
     varname="${SIG%.auth.sig}"
     auth="${varname}.auth"
@@ -191,113 +210,95 @@ done < <(find hashes/authvars -type f -name '*.auth.sig')
 declare -a AUTHVARS
 mapfile -t AUTHVARS < <(find hashes/authvars -type f -name "*.auth")
 if (( ${#AUTHVARS[@]} > 0 )); then
-    for ddi in "$OUTPUTDIR"/*.raw*; do
-        test -f "$ddi" || continue
-        # Skip over split artifacts, if any
-        [[ "$ddi" =~ \.usr- ]] && continue
-        [[ "$ddi" =~ \.root- ]] && continue
-        [[ "$ddi" =~ -verity ]] && continue
+    for offset_file in /usr/src/packages/SOURCES/*.esp-offset; do
+        [[ -f $offset_file ]] || continue
+        image="${offset_file##*/}"
+        image="${image%.esp-offset}"
+        ddi="$OUTPUTDIR/${image%.zst}"
+        prepare_esp "$ddi"
 
-        if [[ $ddi == *.zst ]]; then
-            unzstd --force "${ddi}"
-            recompress=1
-        else
-            recompress=0
-        fi
-
-        offset="$(systemd-repart --json=short "${ddi%.zst}" | jq -r '.[] | select(.type == "esp") | .offset')"
-        if [ -z "$offset" ] || [ "$offset" = "null" ]; then
-            if [[ $ddi == *.zst ]]; then
-                rm -f "${ddi%.zst}"
-            fi
-            continue
-        fi
-
-        mmd -D s -i "${ddi%.zst}@@${offset}" ::loader ::loader/keys ::loader/keys/auto || true
+        mmd -D s -i "${ddi}@@${offset}" ::loader ::loader/keys ::loader/keys/auto || true
         for authvar in "${AUTHVARS[@]}"; do
             test -f "$authvar" || continue
-            mcopy -o -i "${ddi%.zst}@@${offset}" "$authvar" "::loader/keys/auto/$(basename "$authvar")"
+            mcopy -o -i "${ddi}@@${offset}" "$authvar" "::loader/keys/auto/$(basename "$authvar")"
         done
-
-        if ((recompress)); then
-            zstd --force "${ddi%.zst}"
-            rm -f "${ddi%.zst}"
-        fi
+        ddi_modified[$ddi]=1
     done
 fi
 rm -rf hashes/authvars
 
-# Sixth step: join verity signatures and split partitions from the final disk.
+# Finish all ESP edits before asking repart to extract any partitions.
 for bundle in /usr/src/packages/SOURCES/*.repart.tar; do
     [[ -f $bundle ]] || continue
-    stem="${bundle##*/}"
-    stem="${stem%.repart.tar}"
+    image="${bundle##*/}"
+    image="${image%.repart.tar}"
     work="$(mktemp -d "$OUTPUTDIR/.repart-XXXXXXXX")"
     tar xf "$bundle" -C "$work"
-    rm -f "$OUTPUTDIR/${bundle##*/}"
-    IFS= read -r image <"$work/image"
-    if [[ -f $work/roothash && ! -f $work/roothash.p7s ]]; then
-        if ! PATH=/usr/lib/systemd/:$PATH systemd-keyutil --help | grep -q 'pkcs7'; then
+    IFS= read -r stem <"$work/output"
+    mapfile -t args <"$work/options"
+    args+=(--definitions "$work/definitions")
+    [[ ! -f $work/usr/lib/os-release ]] || args+=(--root="$work")
+    ddi="$OUTPUTDIR/${image%.zst}"
+    if [[ -f $work/join ]]; then
+        if [[ ! -f $work/deferred-split ]] && ! PATH=/usr/lib/systemd/:$PATH systemd-keyutil --help | grep -q 'pkcs7'; then
             echo "Skipping verity signing for $image: systemd-keyutil lacks pkcs7 support" >&2
             rm -r "$work"
             continue
         fi
+        hash="hashes/roothashes/$image/$stem.roothash"
         PATH=/usr/lib/systemd/:$PATH systemd-keyutil --certificate /usr/src/packages/SOURCES/_projectcert.crt \
-            --output "$work/roothash.p7s" --signature "hashes/roothashes/$image/$stem.roothash.sig" pkcs7
-    fi
-    if [[ -f $work/roothash.p7s ]]; then
-        # importctl would interpret this as a detached roothash for the whole disk.
+            --output "$hash.p7s" --signature "$hash.sig" pkcs7
+        args+=(--dry-run=no --join-signature "$(cat "$hash"):$hash.p7s" --certificate /usr/src/packages/SOURCES/_projectcert.crt)
+        # importctl would interpret this as a detached roothash for the final disk.
         rm -f "$OUTPUTDIR/$stem.roothash"
+    else
+        args+=(--dry-run=yes)
+        # If the first stage already split the image, only the ESP needs refreshing.
+        [[ -f $work/deferred-split ]] || args+=(--include-partitions=esp)
     fi
-    if [[ -d hashes/ukis ]]; then
-        # PCR signing produced another PE signing request. Carry the repart inputs
-        # as an ordinary artifact, not as another request to sign the roothash.
-        tar cf "$OUTPUTDIR/${bundle##*/}" -C "$work" .
-        rm -r "$work"
-        continue
-    fi
-    # repart creates splits next to the disk with O_EXCL; leave first-stage
-    # artifacts in place until their replacements are ready.
+    # repart creates split files next to the disk with O_EXCL. Keep them separate
+    # from any first-stage artifacts until they are ready to replace them.
     mkdir "$work/disk"
-    ddi="$work/disk/${image%.zst}"
-    if [[ $image == *.zst ]]; then
-        unzstd -o "$ddi" "$OUTPUTDIR/$image"
-    else
-        ln "$OUTPUTDIR/$image" "$ddi"
-    fi
-    mapfile -t args <"$work/options"
-    args+=(--definitions "$work/definitions")
-    [[ ! -f $work/usr/lib/os-release ]] || args+=(--root="$work")
-    if [[ -f $work/roothash.p7s ]]; then
-        args+=(--dry-run=no --join-signature "$(cat "$work/roothash"):$work/roothash.p7s" --certificate /usr/src/packages/SOURCES/_projectcert.crt)
-    else
-        # Without verity only the ESP was modified.
-        args+=(--dry-run=yes --include-partitions=esp)
-    fi
-    partitions="$(systemd-repart --json=short "${args[@]}" "$ddi")"
-    if [[ $image == *.zst && -f $work/roothash.p7s ]]; then
-        zstd --force -o "$OUTPUTDIR/$image" "$ddi"
+    unpack_ddi "$ddi"
+    ln "$ddi" "$work/disk/${ddi##*/}"
+    partitions="$(systemd-repart --json=short "${args[@]}" "$work/disk/${ddi##*/}")"
+    [[ ! -f $work/join ]] || ddi_modified[$ddi]=1
+    if [[ -f $work/deferred-split && -f "$OUTPUTDIR/$stem.SHA256SUMS" ]]; then
+        # Keep the original manifest's file selection and add the newly generated
+        # partitions. Hash their final contents after recompression below.
+        mkdir -p checksum-lists
+        cut -c67- "$OUTPUTDIR/$stem.SHA256SUMS" >"checksum-lists/$stem"
     fi
     while IFS= read -r part; do
         if [[ $image == *.zst ]]; then
-            zstd --rm "$part"
+            zstd -T0 --force --rm "$part"
             part+=.zst
         fi
         mv -f "$part" "$OUTPUTDIR/"
+        if [[ -f checksum-lists/$stem ]]; then
+            printf '%s\n' "${part##*/}" >>"checksum-lists/$stem"
+        fi
     done < <(jq -r '.[].split_path | select(. and . != "-")' <<<"$partitions")
     rm -r "$work"
 done
-rm -rf hashes/roothashes
 
-# Final step: if there are any hashes staged, prepare for the next stage
-rmdir --ignore-fail-on-non-empty hashes
-if [ -d hashes ]; then
-    pushd hashes
-    find . -type f | cpio -H newc -o >"$OUTPUTDIR/hashes.cpio.rsasign"
-    popd
-    cp /usr/src/packages/SOURCES/mkosi.conf "$OUTPUTDIR"
-    echo "Staging the following files for signing:"
-    cpio -t <"$OUTPUTDIR/hashes.cpio.rsasign"
-fi
+for ddi in "${!ddi_modified[@]}"; do
+    [[ -f "$ddi.zst" ]] || continue
+    if [[ ${ddi_modified[$ddi]} == 1 ]]; then
+        zstd -T0 --force "$ddi"
+    fi
+    rm -f "$ddi"
+done
+
+for list in "$PWD"/checksum-lists/*; do
+    [[ -f $list ]] || continue
+    (
+        cd "$OUTPUTDIR"
+        while IFS= read -r file; do
+            [[ $file == */* || ! -f $file ]] || sha256sum --binary -- "$file"
+        done <"$list" >"${list##*/}.SHA256SUMS"
+    )
+done
+rm -rf checksum-lists
 
 rm -rf hashes "$nss_db"
