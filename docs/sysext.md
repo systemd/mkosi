@@ -36,6 +36,7 @@ following to `mkosi.images/base/mkosi.conf`:
 ```ini
 [Output]
 Format=directory
+Output=base
 
 [Content]
 CleanPackageMetadata=no
@@ -45,6 +46,10 @@ Packages=systemd
 
 We use the `directory` output format here instead of the `disk` output
 so that we can build our extension without needing root privileges.
+`Output=base` keeps the name of the output fixed. Subimages inherit
+`ImageVersion=`, so if a version is set, mkosi would otherwise append it
+to the output name, and `BaseTrees=%O/base` would no longer find the
+base image.
 
 Now that we have our base image, we can define a sysext that builds on
 top of it by writing the following to `mkosi.images/btrfs/mkosi.conf`:
@@ -67,10 +72,12 @@ to only package the files added on top of the base tree.
 
 We can't sign the extension image without a key, so let's generate one
 with `mkosi genkey` (or write your own private key and certificate
-yourself to `mkosi.key` and `mkosi.crt` respectively). Note that this
-key will need to be loaded into your kernel keyring either at build time
-or via MOK for systemd to accept the system extension at runtime as
-trusted.
+yourself to `mkosi.key` and `mkosi.crt` respectively). mkosi copies the
+certificate to `/usr/lib/verity.d/` in the images it builds that aren't
+extensions, so systemd trusts the extension when it verifies it in
+userspace. A system that mkosi didn't build needs the certificate in
+`/etc/verity.d/`, or in its kernel keyring, either built into the kernel
+or enrolled via MOK.
 
 Finally, you can build the base image and the extension by running
 `mkosi -f`. You'll find `btrfs.raw` in `mkosi.output` which is the

@@ -562,16 +562,21 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     If this setting is configured and `Mirror=` is not explicitly configured, different
     default mirrors are used:
 
-    |                | x86-64                             | aarch64                        |
-    |----------------|------------------------------------|--------------------------------|
-    | `debian`       | https://snapshot.debian.org        |                                |
-    | `arch`         | https://archive.archlinux.org      | http://mirror.archlinuxarm.org |
-    | `opensuse`     | http://download.opensuse.org       |                                |
-    | `ubuntu`       | http://archive.ubuntu.com          | http://ports.ubuntu.com        |
-    | `centos`       | https://composes.stream.centos.org |                                |
-    | `fedora`       | https://kojipkgs.fedoraproject.org |                                |
+    |                | x86-64                             | aarch64                            |
+    |----------------|------------------------------------|------------------------------------|
+    | `debian`       | https://snapshot.debian.org        | https://snapshot.debian.org        |
+    | `arch`         | https://archive.archlinux.org      | none, `Mirror=` required           |
+    | `opensuse`     | https://download.opensuse.org      | not supported                      |
+    | `ubuntu`       | http://archive.ubuntu.com          | http://ports.ubuntu.com            |
+    | `centos`       | https://composes.stream.centos.org | https://composes.stream.centos.org |
+    | `fedora`       | https://kojipkgs.fedoraproject.org | https://kojipkgs.fedoraproject.org |
 
-    For any distribution not listed above, snapshots are not supported.
+    For any distribution not listed above, snapshots are not supported. On
+    openSUSE, they're only supported for Tumbleweed.
+
+    On Fedora, a snapshot is a compose from Koji, which doesn't include the
+    updates repository: the image gets the packages as they were composed,
+    without the updates released after that.
 
     Note that this setting does not apply to the default tools tree; use
     `ToolsTreeSnapshot=` for that.
@@ -1058,6 +1063,14 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     always added, and the `Bootable=` option only controls whether a UKI is
     added to the ESP partition or not.
 
+    If disabled, **mkosi** doesn't set `KERNEL_INSTALL_BYPASS=1`, so
+    **kernel-install** runs when the kernel package is installed, which may
+    create an initrd and a boot loader entry under `/boot`. To skip that, for
+    example in a base image that a bootable image is built from with
+    `BaseTrees=`, set `Environment=KERNEL_INSTALL_BYPASS=1`. On Debian, Ubuntu
+    and Kali, **initramfs-tools** also writes an initrd to `/boot` unless
+    `Environment=INITRD=No` is set as well.
+
 `Bootloader=`, `--bootloader=`
 :   Takes one of `none`, `systemd-boot`, `uki`, `grub`,
     `systemd-boot-signed`, `uki-signed` or `grub-signed`. Defaults to
@@ -1457,6 +1470,15 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `VerityCertificate=`, `--verity-certificate=`
 :   Path to the X.509 file containing the certificate for signing the verity signature, if a verity signature
     partition is added with **systemd-repart**.
+
+    If not configured and `mkosi.crt` exists in the working directory, it is automatically
+    used for this purpose.
+
+    Unless `Format=` is `sysext`, `confext`, `addon` or `portable`, **mkosi** also copies the
+    certificate to `/usr/lib/verity.d/` in the image. This makes systemd trust images signed
+    with the matching key when it verifies them in userspace, for example system extensions. The
+    copy only happens when `VerityCertificateSource=` is `file`, which is the default. It
+    happens even if `Verity=` is disabled.
 
 `SignExpectedPcr=`, `--sign-expected-pcr=`
 :   Measure the components of the unified kernel image (UKI) using
