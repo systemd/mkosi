@@ -89,7 +89,7 @@ from mkosi.config import (
     yes_no,
 )
 from mkosi.context import Context
-from mkosi.distribution import Distribution, detect_distribution
+from mkosi.distribution import Distribution, PackageType, detect_distribution
 from mkosi.documentation import show_docs
 from mkosi.installer import clean_package_manager_metadata
 from mkosi.kmod import (
@@ -2666,6 +2666,22 @@ def save_manifest(context: Context, manifest: Optional[Manifest]) -> None:
             with complete_step(f"Saving report {context.config.output_changelog}"):
                 with open(context.staging / context.config.output_changelog, "w") as f:
                     manifest.write_package_report(f)
+    elif context.config.base_trees and context.config.distribution.installer.package_type() in (
+        PackageType.rpm,
+        PackageType.deb,
+    ):
+        # Only the rpm and deb recorders leave out the packages that come from base trees.
+        outputs: list[str] = []
+        if ManifestFormat.json in context.config.manifest_format:
+            outputs += [context.config.output_manifest]
+        if ManifestFormat.changelog in context.config.manifest_format:
+            outputs += [context.config.output_changelog]
+
+        logging.warning(
+            f"No packages were recorded, so {' and '.join(outputs)} will not be written. "
+            "Packages that come from base trees are not recorded. "
+            "Use the manifest of the base tree instead, if it has one."
+        )
 
 
 def print_output_size(path: Path) -> None:
