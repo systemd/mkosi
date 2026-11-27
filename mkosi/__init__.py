@@ -2112,12 +2112,18 @@ def install_type1(
                     f"""\
                     menuentry "{token}-{kver}" {{
                         linux /{kimg.relative_to(context.root / "boot")} {" ".join(cmdline)}
-                        initrd {" ".join(os.fspath(Path("/") / i.relative_to(context.root / "boot")) for i in initrds)}
-                    }}
-                    """  # noqa: E501
+                    """
                 )
             )
 
+            # grub rejects an initrd command without any arguments.
+            if initrds:
+                paths = " ".join(
+                    os.fspath(Path("/") / i.relative_to(context.root / "boot")) for i in initrds
+                )
+                f.write(f"    initrd {paths}\n")
+
+            f.write("}\n")
             f.write("fi\n")
 
 
