@@ -237,3 +237,73 @@ def test_initrd_size(config: ImageConfig) -> None:
         maxsize = 1024**2 * 100
 
         assert (Path(image.output_dir) / "image.initrd").stat().st_size <= maxsize
+
+
+def test_mkosi_initrd(config: ImageConfig) -> None:
+    if config.distribution not in (
+        Distribution.fedora,
+        Distribution.centos,
+        Distribution.debian,
+        Distribution.ubuntu,
+    ):
+        pytest.skip(f"mkosi-initrd test is not supported for {config.distribution}")
+
+    repo_root = Path(__file__).parent.parent
+
+    with Image(config) as image:
+        image.build(
+            [
+                "--format=directory",
+                "--incremental=no",
+                "--cache-key=&d~&r~&a~&I~mkosi-initrd",
+                "--clean-package-metadata=no",
+                "--include=mkosi-tools",
+                "--output=image",
+            ]
+        )
+
+        tree = image.output_dir / "image"
+        out = image.output_dir / "initrd-out"
+        out.mkdir()
+        (tree / "usr/lib/firmware").mkdir(parents=True, exist_ok=True)
+        kver = next((tree / "usr/lib/modules").iterdir()).name
+
+        sandbox_args: list[PathString] = [
+            "--bind", tree, "/",
+            "--ro-bind", repo_root, "/work/mkosi",
+            "--bind", out, "/work/out",
+            "--bind", "/proc", "/proc",
+            "--dev", "/dev",
+            "--tmpfs", "/tmp",
+            "--tmpfs", "/run",
+            "--ro-bind-try", "/etc/resolv.conf", "/etc/resolv.conf",
+            "--ro-bind-try", "/run/systemd/resolve", "/run/systemd/resolve",
+            "--ro-bind-try", "/run/NetworkManager", "/run/NetworkManager",
+            "--setenv", "PATH", "/work/mkosi/bin:/usr/sbin:/sbin:/usr/bin:/bin",
+            "--setenv", "HOME", "/tmp",
+        ]  # fmt: skip
+
+        # When running as root, mkosi-initrd passes --package-cache-dir=/var --cache-only=metadata, so
+        # populate the tree's package manager metadata cache first just like on a live system.
+        if os.getuid() == 0:
+            if config.distribution in (Distribution.fedora, Distribution.centos):
+                run(["dnf", "makecache"], sandbox=contextlib.nullcontext(sandbox_args))
+            else:
+                run(
+                    ["apt-get", "-o", "APT::Sandbox::User=root", "update"],
+                    sandbox=contextlib.nullcontext(sandbox_args),
+                )
+
+        run(
+            [
+                "mkosi-initrd",
+                "--debug",
+                "--kernel-version", kver,
+                "--output", "initrd",
+                "--output-dir", "/work/out",
+                "--generic",
+            ],
+            sandbox=contextlib.nullcontext(sandbox_args),
+        )  # fmt: skip
+
+        assert (out / "initrd").stat().st_size > 0
