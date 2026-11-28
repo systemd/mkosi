@@ -318,6 +318,55 @@ def include_system_config(name: str) -> list[str]:
     return cmdline
 
 
+def populate_sandbox_tree(sandbox_tree: Path, root: Optional[Path] = None) -> None:
+    root = root or Path("/")
+
+    # Make sure we don't use any of mkosi's default repositories.
+    for p in (
+        "yum.repos.d/mkosi.repo",
+        "apt/sources.list.d/mkosi.sources",
+        "zypp/repos.d/mkosi.repo",
+        "pacman.conf",
+    ):
+        (sandbox_tree / "etc" / p).parent.mkdir(parents=True, exist_ok=True)
+        (sandbox_tree / "etc" / p).touch()
+
+    # Copy in the host's package manager configuration. Copy lower-priority vendor dnf5 directories before
+    # /etc so that /etc overrides them, since dnf5 in mkosi is restricted to /etc/yum.repos.d,
+    # /etc/distro.repos.d, and /etc/dnf/vars inside the sandbox tree.
+    for src, dst in (
+        (Path("usr/share/dnf5/repos.d"), Path("etc/distro.repos.d")),
+        (Path("etc/distro.repos.d"), Path("etc/distro.repos.d")),
+        (Path("etc/yum.repos.d"), Path("etc/yum.repos.d")),
+        (Path("usr/share/dnf5/vars.d"), Path("etc/dnf/vars")),
+        (Path("etc/dnf"), Path("etc/dnf")),
+        (Path("etc/pki/rpm-gpg"), Path("etc/pki/rpm-gpg")),
+        (Path("etc/apt"), Path("etc/apt")),
+        (Path("etc/zypp"), Path("etc/zypp")),
+        (Path("etc/pacman.conf"), Path("etc/pacman.conf")),
+        (Path("etc/pacman.d"), Path("etc/pacman.d")),
+    ):
+        src = root / src
+        if not src.exists():
+            continue
+
+        target = sandbox_tree / dst
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if src.resolve().is_file():
+            copyfile2(src, target)
+        else:
+            shutil.copytree(
+                src,
+                target,
+                # If we're running as root, use the keyring from the host, but make sure we don't try to copy
+                # any gpg-agent sockets that might be in /etc/pacman.d/gnupg. If we're not running as root,
+                # we might not have the necessary permissions to access the keyring so don't try to copy the
+                # keyring in that case.
+                ignore=shutil.ignore_patterns("S.*" if os.getuid() == 0 else "gnupg"),
+                dirs_exist_ok=True,
+            )
+
+
 @uncaught_exception_handler()
 def main() -> None:
     log_setup()
@@ -388,43 +437,7 @@ def main() -> None:
 
         cmdline += include_system_config("mkosi-initrd")
 
-        # Make sure we don't use any of mkosi's default repositories.
-        for p in (
-            "yum.repos.d/mkosi.repo",
-            "apt/sources.list.d/mkosi.sources",
-            "zypp/repos.d/mkosi.repo",
-            "pacman.conf",
-        ):
-            (Path(sandbox_tree) / "etc" / p).parent.mkdir(parents=True, exist_ok=True)
-            (Path(sandbox_tree) / "etc" / p).touch()
-
-        # Copy in the host's package manager configuration.
-        for p in (
-            "dnf",
-            "yum.repos.d/",
-            "pki/rpm-gpg",
-            "apt",
-            "zypp",
-            "pacman.conf",
-            "pacman.d/",
-        ):
-            if not (Path("/etc") / p).exists():
-                continue
-
-            (Path(sandbox_tree) / "etc" / p).parent.mkdir(parents=True, exist_ok=True)
-            if (Path("/etc") / p).resolve().is_file():
-                copyfile2(Path("/etc") / p, Path(sandbox_tree) / "etc" / p)
-            else:
-                shutil.copytree(
-                    Path("/etc") / p,
-                    Path(sandbox_tree) / "etc" / p,
-                    # If we're running as root, use the keyring from the host, but make sure we don't try to
-                    # copy any gpg-agent sockets that might be in /etc/pacman.d/gnupg. If we're not running
-                    # as root, we might not have the necessary permissions to access the keyring so don't try
-                    # to copy the keyring in that case.
-                    ignore=shutil.ignore_patterns("S.*" if os.getuid() == 0 else "gnupg"),
-                    dirs_exist_ok=True,
-                )
+        populate_sandbox_tree(Path(sandbox_tree))
 
         cmdline += [f"--sandbox-tree={sandbox_tree}"]
 

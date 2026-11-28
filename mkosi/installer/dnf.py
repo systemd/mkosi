@@ -214,14 +214,14 @@ class Dnf(RpmPackageManager):
         if not context.config.with_docs:
             cmdline += ["--no-docs" if dnf == "dnf5" else "--nodocs"]
 
-        if dnf == "dnf5":
-            cmdline += ["--use-host-config"]
-        else:
-            cmdline += [
-                "--config=/etc/dnf/dnf.conf",
-                "--setopt=reposdir=/etc/yum.repos.d",
-                "--setopt=varsdir=/etc/dnf/vars",
-            ]
+        # By default, dnf5 also reads repository definitions and variables from /usr/share/dnf5 (which comes
+        # from the host or tools tree, e.g. Fedora 44+'s fedora-repos ships its repositories there), so make
+        # sure we only ever use the ones from the sandbox tree.
+        cmdline += [
+            "--use-host-config" if dnf == "dnf5" else "--config=/etc/dnf/dnf.conf",
+            "--setopt=reposdir=/etc/yum.repos.d,/etc/distro.repos.d",
+            "--setopt=varsdir=/etc/dnf/vars",
+        ]
 
         if context.config.proxy_url:
             cmdline += [f"--setopt=proxy={context.config.proxy_url}"]
